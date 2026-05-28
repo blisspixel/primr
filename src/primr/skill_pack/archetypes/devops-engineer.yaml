@@ -1,0 +1,55 @@
+slug: devops-engineer
+display_name: DevOps Engineer
+aliases:
+  - devops engineer
+  - platform engineer
+  - infrastructure engineer
+  - build engineer
+keywords:
+  - terraform
+  - kubernetes
+  - github actions
+  - argocd
+  - helm
+  - ci/cd
+  - gitops
+canonical_skills:
+  - name: ci-cd-pipeline-design
+    display_name: CI/CD pipeline design and hardening
+    summary: |
+      Build GitHub Actions, GitLab, or Azure DevOps pipelines with
+      reusable workflows, OIDC-based cloud auth (no long-lived
+      credentials), supply-chain attestation, and merge-queue gates.
+  - name: iac-and-platform-modules
+    display_name: IaC and reusable platform modules
+    summary: |
+      Author Terraform or Pulumi modules with strict variable contracts,
+      state separation per environment, automated policy checks
+      (OPA, Sentinel), and module versioning.
+  - name: kubernetes-and-gitops
+    display_name: Kubernetes operations and GitOps
+    summary: |
+      Manage Argo CD or Flux for declarative deployments, design
+      progressive delivery (Argo Rollouts, Flagger), implement
+      cluster autoscaling, and harden RBAC.
+  - name: developer-platform-and-portal
+    display_name: Internal developer platform and Backstage
+    summary: |
+      Build golden paths in Backstage, scaffold templates for new
+      services, integrate with cost and security policy, and measure
+      developer experience metrics.
+  - name: ai-assisted-pipeline-work
+    display_name: AI-assisted pipeline and config authoring
+    summary: |
+      Use LLMs to draft Terraform modules, GitHub Actions workflows,
+      and Kubernetes manifests from intent; require human review for
+      production changes and run plan/diff before apply.
+ai_augmentation_patterns:
+  - Generate first-pass Helm chart values for new environments.
+  - Auto-draft GitHub Actions workflows from spec; review for
+    least-privilege OIDC token scopes.
+  - Use LLM to summarize Terraform plan diffs in PR descriptions.
+references:
+  - https://docs.github.com/actions
+  - https://www.terraform.io/docs
+  - https://argo-cd.readthedocs.io/

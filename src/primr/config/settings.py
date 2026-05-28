@@ -10,6 +10,7 @@ This module provides:
 """
 
 import os
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -544,6 +545,7 @@ class Settings:
 # =============================================================================
 
 _settings: Settings | None = None
+_settings_lock = threading.Lock()
 
 
 def get_settings() -> Settings:
@@ -556,17 +558,25 @@ def get_settings() -> Settings:
     Example:
         settings = get_settings()
         model = settings.ai.research_model
+
+    Thread safety: double-check locking so concurrent threads (e.g. the
+    background pipeline task plus an HTTP handler) don't race to build
+    two different Settings — that could split API-key reads across two
+    objects with subtly different environment snapshots.
     """
     global _settings
     if _settings is None:
-        _settings = Settings()
+        with _settings_lock:
+            if _settings is None:
+                _settings = Settings()
     return _settings
 
 
 def reset_settings() -> None:
     """Reset settings singleton (useful for testing)."""
     global _settings
-    _settings = None
+    with _settings_lock:
+        _settings = None
 
 
 def configure(
@@ -587,10 +597,11 @@ def configure(
     global _settings
 
     paths = PathConfig(project_root=project_root) if project_root else PathConfig()
-    _settings = Settings(
-        paths=paths,
-        verbose=verbose,
-        debug=debug,
-    )
+    with _settings_lock:
+        _settings = Settings(
+            paths=paths,
+            verbose=verbose,
+            debug=debug,
+        )
 
     return _settings

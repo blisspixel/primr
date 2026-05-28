@@ -574,12 +574,21 @@ class ResearchMemory:
         # Remove from cache
         self._cache.pop(cache_key, None)
 
-        # Remove file
-        if path.exists():
-            path.unlink()
+        # Remove file. Use a try/except instead of exists()+unlink() because
+        # the check-then-act has a TOCTOU race (the file can disappear
+        # between the existence check and the unlink call — e.g. a
+        # concurrent delete_company on the same name, or a user clearing
+        # the storage dir manually). missing_ok=True makes the unlink a
+        # no-op if already gone; we use the boolean return to distinguish
+        # "I deleted it" from "it wasn't there".
+        try:
+            path.unlink(missing_ok=False)
             return True
-
-        return False
+        except FileNotFoundError:
+            return False
+        except OSError as e:
+            logger.warning("Failed to delete memory file for %r: %s", company, e)
+            return False
 
     def list_companies(self) -> list[str]:
         """

@@ -385,8 +385,10 @@ class SingleJobStore(JobStore):
         Requirements: 19.3, 19.6
         """
         if self._job is None:
-            if self._journal_path.exists():
-                self._journal_path.unlink()
+            # missing_ok=True avoids a TOCTOU FileNotFoundError if the
+            # journal disappears between exists() and unlink() — e.g.
+            # operator manually wiping output/ during a shutdown handler.
+            self._journal_path.unlink(missing_ok=True)
             return
 
         self._journal_path.parent.mkdir(parents=True, exist_ok=True)
@@ -477,8 +479,9 @@ class SingleJobStore(JobStore):
         """Clear job state (for testing)."""
         with self._lock:
             self._job = None
-            if self._journal_path.exists():
-                self._journal_path.unlink()
+            # Same TOCTOU fix as _save_journal — use missing_ok rather
+            # than exists()+unlink().
+            self._journal_path.unlink(missing_ok=True)
 
     def _notify_status_change(self) -> None:
         """Notify waiters that status has changed."""

@@ -1,0 +1,57 @@
+slug: ml-engineer
+display_name: Machine Learning Engineer
+aliases:
+  - ml engineer
+  - machine learning engineer
+  - mlops engineer
+  - applied scientist
+  - ml platform engineer
+keywords:
+  - pytorch
+  - tensorflow
+  - mlflow
+  - sagemaker
+  - vertex ai
+  - feature store
+  - model registry
+  - llmops
+canonical_skills:
+  - name: model-training-and-evaluation
+    display_name: Train and evaluate production models
+    summary: |
+      Build training pipelines in PyTorch or TensorFlow, manage hyperparameter
+      search, evaluate against held-out test sets, and track metrics in
+      MLflow or Weights and Biases.
+  - name: feature-engineering-and-store
+    display_name: Feature engineering and online feature store
+    summary: |
+      Design feature transformations that work in both batch training and
+      online serving, deploy a feature store like Feast or Tecton, and
+      ensure training-serving skew is monitored.
+  - name: model-serving-and-deployment
+    display_name: Model serving and deployment
+    summary: |
+      Deploy to Triton, TorchServe, SageMaker endpoints, or Vertex AI,
+      manage canary rollouts, A/B routing, and roll-back on regression.
+  - name: llm-fine-tuning-and-evaluation
+    display_name: LLM fine-tuning and evaluation
+    summary: |
+      LoRA, QLoRA, and full fine-tuning of open-weight models; build
+      task-specific eval harnesses; track quality and cost across runs;
+      keep a regression suite of canonical prompts.
+  - name: ml-observability-and-drift
+    display_name: ML observability and drift detection
+    summary: |
+      Monitor input distributions, output distributions, performance
+      metrics in production, set alerts for feature drift and target
+      drift, and trigger retraining or rollback workflows.
+ai_augmentation_patterns:
+  - Use LLM-as-judge for subjective metrics (helpfulness, tone) alongside
+    deterministic offline metrics.
+  - Generate training-data augmentation prompts with safety review.
+  - Automate model card and evaluation report generation from MLflow
+    metadata.
+references:
+  - https://mlflow.org/docs/latest/index.html
+  - https://huggingface.co/docs/transformers/training
+  - https://www.kaggle.com/learn

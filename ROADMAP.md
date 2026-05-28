@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.25.2
+Current State: v1.26.0
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -43,6 +43,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 - `--platform ms` shorthand for Microsoft Azure + NVIDIA private cloud
 - Multiple strategy types: AI, Customer Experience, Security, Data Fabric, Skills Ideation
 - Skills Ideation strategy emits per-role `SKILL.md` files deterministically alongside the strategy doc
+- **Skill pack subsystem** (`primr skills`, MCP `generate_skill_pack`): a first-class workflow that takes recon + hiring evidence and produces a QA-refined Agent Skills pack. Top N roles × M skills, archetype-grounded authoring, deterministic ASKILL-* validation, capped per-skill refinement loop, pack-level coherence pass. Emits both an unpacked Claude/Cursor/VS Code tree AND a Microsoft 365 Copilot Cowork sideload `.zip` from one byte-identical set of SKILL.md files. Multi-provider image generation for the Cowork icon (Grok Imagine → Gemini Imagen → OpenAI image → programmatic Pillow gradient+shape → solid PNG).
 - Strategy enrichment: cross-validation, evidence search, section regeneration, polish pass, and pre-ship repair for citation/source/budget conflicts
 - TXT, DOCX, and PDF outputs with citation styles
 - Custom `--output-dir` support for clean client folders: Markdown and DOCX deliverables are written to the requested directory, while TXT mirrors and validation diagnostics stay with the run diagnostics
@@ -115,7 +116,7 @@ Primr is intentionally not designed as a generic web scraper, a SaaS collaborati
 
 ## Active Queue
 
-The next ~15 items, ordered top-down by priority. Each is concrete enough to start without further design work.
+The active queue is ordered top-down by priority. Each item is concrete enough to start without further design work.
 
 ### 1. Artifact Drift — Remaining Work
 
@@ -242,7 +243,46 @@ When `primr improve --improve-agentic` runs an agentic review pass, constrain th
 
 This pattern applies to any future agentic pipeline stage that modifies artifacts: expert perspective passes, strategy enrichment, cross-validation regeneration.
 
-### 12. Windows Working-Directory Hardening
+### 12. Working-Directory Tidiness for CLI Users
+
+When primr is installed via `pip install primr` and run from an arbitrary
+folder (e.g. `docs/<company>/`), the working files (`working/`,
+`output/`, `_diagnostics/`) end up scattered into wherever the user
+invoked the command. Running back-to-back in `companyname/`, then
+`company2name/`, then `company3name/` leaves a messy filesystem with
+duplicated state. Tighten the story:
+
+- Default `output/` and `working/` paths should resolve relative to the
+  invocation directory consistently, and the on-disk shape should
+  document itself with a top-level README per output folder so the user
+  knows what's safe to delete vs preserve.
+- Add a per-user cache directory (e.g. `~/.cache/primr/` or
+  `%LOCALAPPDATA%\primr\`) for shared state that has no business
+  per-company duplication — vendor research, recon caches, eval
+  baselines, prompt cache hints.
+- Vendor news (`vendor-research/`) is the prime example of shared
+  state that primr currently writes into the invocation directory; it
+  belongs in the per-user cache. Move it and add migration logic.
+- `primr doctor` should surface where each category of file lives so
+  users have a single page that documents the on-disk story.
+
+### 13. Vendor News Caching Across Runs + Weekly Freshness
+
+The `is_vendor_research_current` default was 14 days; v1.26 tightened it
+to 7 days (weekly). The remaining gaps:
+
+- Vendor news is currently regenerated per invocation directory because
+  the cache lives under the CWD. Multiple back-to-back runs in
+  different company folders each regenerate the same vendor research,
+  wasting Deep Research budget and time. Once item #12 lands the
+  per-user cache, this collapses to a single shared file per vendor.
+- Make the weekly freshness gate configurable via `PRIMR_VENDOR_NEWS_TTL_DAYS`
+  env var so power users can dial it for high-velocity vendors (Azure
+  during Ignite week) vs slow ones.
+- Expose a `--refresh-vendor-news` flag and a `primr show-usage` line
+  that says when each vendor research file was last refreshed.
+
+### 14. Windows Working-Directory Hardening
 
 Reduce false negatives and transient failures on Windows machines where the repo lives inside OneDrive or similar synced folders. Bumped up from the bottom of the queue because it actively bites this very dev environment (transient `PermissionError` on atomic renames, CRLF warnings on every git operation, OneDrive-driven race conditions on `_run_state.json`).
 
@@ -251,7 +291,40 @@ Reduce false negatives and transient failures on Windows machines where the repo
 - Add explicit docs for keeping high-churn `working/` paths outside synced folders when possible
 - Longer term: support a configurable working directory separate from the repo root
 
-### 13. Expert Perspective Passes
+### 15. Skill Pack: Deeper Anthropic Best-Practices
+
+The v1.26 skill pack ships Anthropic's published authoring conventions
+already (third-person descriptions, gerund-form names, checklist
+workflows, template-pattern output formats, explain-WHY style, concision
+over padding — all enforced via prompt + validator SOFT checks). The
+remaining items from Anthropic's [skill-creator workflow](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md)
+and [best-practices guide](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)
+are structural and worth their own milestone:
+
+- **Per-skill trigger eval generation**: after authoring, generate 8-10
+  should-trigger queries + 8-10 should-not-trigger near-misses, run the
+  description through a discovery simulator, and iterate the description
+  until trigger accuracy clears a threshold. This is Anthropic's published
+  description-optimization loop applied per-skill.
+- **Multi-model testing**: Anthropic recommends testing skills against
+  Haiku, Sonnet, and Opus before shipping — "what works perfectly for
+  Opus might need more detail for Haiku." Wire the skill pack pipeline
+  to run a quick comprehension probe against multiple model tiers.
+- **Progressive disclosure with `references/` and `scripts/` subfolders**:
+  v1 emits single-file SKILL.md only. For richer skills, move deep
+  reference material to `references/<topic>.md` (loaded on-demand,
+  one level deep per Anthropic guidance) and deterministic helpers to
+  `scripts/<name>.py` (executed via bash, output-only context cost).
+- **Verifiable intermediate outputs (plan-validate-execute pattern)**:
+  for skills that perform batch or high-stakes operations, emit a
+  separate plan-file step the agent can validate before applying.
+- **"Solve, don't punt" hardening**: when a skill references a script
+  it would author later, generate the actual `.py` file alongside —
+  per Anthropic's "bundled helper scripts make skills more reliable
+  than letting Claude write them per-run."
+- **Skill-level evals with grader**: produce `evals/evals.json` per
+  skill (Anthropic's published structure) so users can re-grade the
+  pack against their own assertions later.
 
 After the standard pipeline, add domain-specific scrutiny of findings.
 
@@ -265,7 +338,17 @@ Perspectives:
 - **Competitive analyst**: compare findings against known competitors, identify positioning gaps
 - **Risk analyst**: identify regulatory, market, and execution risks
 
-### 14. Auto-Eval on Model Releases
+### 16. Strategic Inconsistency Refinement Pass
+
+When the pack-level coherence pass flags a HARD `PACK-STRAT` finding
+(roles assume contradicting stacks — e.g. one says Java/Spring, others
+say Python/AWS, because both stacks exist in the company's hiring
+postings), the v1.26 pipeline surfaces it in the report but doesn't
+auto-fix. Add an explicit reconciliation round: when PACK-STRAT fires,
+re-author the conflicting skills with cross-role context so they
+acknowledge the multi-stack reality rather than contradict each other.
+
+### 17. Auto-Eval on Model Releases
 
 Reduce manual work when new model variants drop by automating the eval-and-compare cycle.
 
@@ -276,7 +359,7 @@ Reduce manual work when new model variants drop by automating the eval-and-compa
 - Decision output: "new variant is better/worse/equivalent for [stage]" with evidence
 - Keeps defaults current without gut calls on each release
 
-### 15. Capability-Requirement Routing Layer
+### 18. Capability-Requirement Routing Layer
 
 Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The still-planned half: each pipeline stage declares capability requirements and the router solves for the cheapest match.
 
@@ -289,7 +372,7 @@ Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The stil
 
 The requirements themselves come from observed eval cost/quality data per role, not a priori guessing.
 
-### 16. Pipeline Overlap
+### 19. Pipeline Overlap
 
 Reduce end-to-end runtime by overlapping independent pipeline phases.
 
@@ -313,7 +396,7 @@ Completion guarantees:
 - Run state tracks per-phase completion status for crash recovery
 - Progress display updated to show concurrent phases (e.g., "Scraping 23/50 | Searching 4/10")
 
-### 17. Snapshot Subcommand
+### 20. Snapshot Subcommand
 
 A new top-level subcommand for the case where you want a fast look at a company before deciding whether to spend on a real run. Explicitly framed as screening, not analysis. Not a quality dial on `primr` — a separate, narrower product.
 
@@ -337,7 +420,7 @@ What it explicitly is not:
 
 Decision principle: the standard pipeline is the product. Snapshot is the cheap pre-flight that helps you decide whether to invoke it. Speed is only worth paying for when the alternative is free.
 
-### 18. Agent Control Plane Hardening
+### 21. Agent Control Plane Hardening
 
 The MCP/OpenClaw/skill integrations are treated as a disciplined Primr control plane rather than thin shell wrappers. Next work is narrower and more intentional than the initial integration push.
 
@@ -352,7 +435,7 @@ Planned:
 - Keep skills thin and MCP-first; intentionally avoid turning SKILL files into duplicated application specs
 - Preserve typed lifecycle/control-plane primitives instead of free-form execution wrappers
 
-### 19. Azure Deployment Finalization
+### 22. Azure Deployment Finalization
 
 The Azure tiered deployment (team and organization) has its Bicep IaC, deploy script, OpenAPI spec, budget tracker, environment auto-detection, JWT validation, and cloud diagnostics in place. The deployment provisions in ~3.5 min, /healthz passes, and 162 tests across budget/auth/environment are green. The remaining items are concrete:
 
@@ -362,7 +445,7 @@ The Azure tiered deployment (team and organization) has its Bicep IaC, deploy sc
 - **Structured logging for Application Insights**: Log fields (request_id, job_id, tool_name, duration_ms) are designed but not yet wired into the container runtime.
 - **VNet integration**: Documented as a production TODO. Private endpoints for Cosmos DB, Storage, Key Vault, and Service Bus are not yet configured.
 
-### 20. Refactor Orchestrators for Unit-Test Coverage
+### 23. Refactor Orchestrators for Unit-Test Coverage
 
 After the v1.25.x refactor extracted `cli_batch.py`, `cli_doctor.py`, `cli_parser.py`, `section_planning.py`, `strategy_artifacts.py`, and similar helper modules out of the three monsters, line coverage now sits at: `cli.py` 82%, `deep_research.py` 72%, `research_agent.py` 30%. The remaining gap is concentrated in two functions that resist unit-mock testing because they interleave I/O, LLM calls, and state-machine transitions in a single body:
 
@@ -712,6 +795,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.26.0 | May 2026 | **Skill pack subsystem (`primr skills`).** A first-class workflow for producing QA-refined Agent Skills artifacts grounded in primr's recon + hiring evidence. Top N roles × M skills (configurable, defaults 5 × 3), archetype-grounded authoring with deep per-company customization, deterministic ASKILL-* validation, capped per-skill refinement loop (default 2 iterations with diminishing-returns stop), and pack-level coherence pass. Emits both an unpacked Claude/Cursor/VS Code `roles/<slug>/SKILL.md` tree and a Microsoft 365 Copilot Cowork sideload `.zip` (manifest v1.28, deterministic UUID v5, programmatic icon generation) from one byte-identical set of SKILL.md files. Multi-provider image generation for the Cowork icon (Grok Imagine → Gemini Imagen → OpenAI image → programmatic Pillow gradient+shape → solid PNG). Authoring prompt + validator encode Anthropic's published authoring discipline: third-person descriptions (DESC-VOICE), "pushy" multi-trigger guidance (DESC-PUSHY), gerund-form names (NAME-GERUND), workflow checklist pattern, Template-pattern Output Format, explain-WHY style, concision-over-padding default. New CLI subcommand `primr skills "<Company>" <url>` and MCP tool `generate_skill_pack`. Legacy `--strategy-type skills` still works and logs a pointer at the new command. Also: vendor-news freshness gate tightened from 14d to 7d (`is_vendor_research_current`). 53 new tests; ruff and mypy clean. |
 | 1.25.2 | May 2026 | **Refactor for testability + 50+ new test files.** Extracted helper modules from the three monsters so each pipeline stage is callable in isolation: `core/` got `cli_batch`, `cli_doctor`, `cli_init`, `cli_parser`, `cli_recovery`, `fast_mode_helpers`, `report_cleanup`, `resilience_listeners`, `run_state_io`, `section_parsing`, `section_planning`, `section_prompts`, `strategy_artifacts`; `ai/` got `citation_resolution`, `file_search_resources`, `job_persistence`; plus `output/artifact_validation` and `pipeline/llm_failover`. Coverage on the three monsters: cli.py 78%→82% (passed 80% target); deep_research.py 64%→72%; research_agent.py 27%→30%. Remaining 80% gap on deep_research/research_agent now tracked as roadmap item #20 — needs further orchestrator-level refactors (perform_fast_research ~1900 lines, _execute_consulting_research ~270 lines). CI: re-enabled tests/test_qa and tests/test_output (previously excluded for unknown historical reasons, pass cleanly today). Dead-code removal: utils/defensive.py, utils/memory_profiler.py; utils/retrieve_research.py moved to scripts/. No behavior change. |
 | 1.24.4 | May 2026 | **Cost estimator now reflects cross-provider routing.** `_estimate_fast_mode_cost` hardcoded the Grok 4.20-nr writing model and always reported the legacy ~$5.67 number, even when GEMINI_API_KEY was set and the live pipeline correctly routed bulk writing to gemini-3.1-flash-lite. Now defers to `pick_model_for_role(Role.WRITING)` for FAST / HYBRID tiers (still respects `--grok-tier max` as the explicit Grok-everywhere opt-in). Dry-run for the v1.24.x sub-$1 default now correctly reports ~$0.76 baseline / ~$1.01 with 2-vendor AI strategy. Updated stale `routing.py:pick_model_for_role` docstring that still described v1.23.0 behavior. Tests deterministic via env monkeypatch; +3 cross-provider tests. |
 | 1.24.3 | May 2026 | Re-release of v1.24.2 — prior release had a `primr.__version__` mismatch with pyproject.toml that broke the integrity check; v1.24.2 was yanked. Same content as v1.24.2. |

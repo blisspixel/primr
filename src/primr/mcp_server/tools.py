@@ -30,6 +30,10 @@ from mcp.types import TextContent, Tool
 
 from primr.mcp_server.agentic_tools import handle_agentic_tool, register_agentic_tools
 from primr.mcp_server.job_store import JobInProgressError, ResearchJobState
+from primr.mcp_server.skill_pack_tools import (
+    handle_skill_pack_tool,
+    register_skill_pack_tools,
+)
 from primr.mcp_server.types import (
     MCPErrorCode,
     ResearchStage,
@@ -84,6 +88,8 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
 
     # Get agentic tools
     agentic_tools = register_agentic_tools(server, mcp_server)
+    # Get skill-pack tools (estimate_skill_pack, generate_skill_pack)
+    skill_pack_tools = register_skill_pack_tools(server, mcp_server)
 
     @server.list_tools()
     async def list_tools() -> list[Tool]:
@@ -421,8 +427,8 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
         except ImportError:
             pass
 
-        # Include agentic tools
-        return base_tools + agentic_tools
+        # Include agentic + skill_pack tools
+        return base_tools + agentic_tools + skill_pack_tools
 
     @server.call_tool()
     async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
@@ -463,6 +469,11 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
         if agentic_result is not None:
             return agentic_result
 
+        # Try skill_pack tools
+        skill_pack_result = await handle_skill_pack_tool(name, arguments, mcp_server)
+        if skill_pack_result is not None:
+            return skill_pack_result
+
         # Dispatch to handler
         if name == "estimate_run":
             return await _handle_estimate_run(mcp_server, arguments)
@@ -479,7 +490,7 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
         elif name == "doctor":
             return await _handle_doctor(mcp_server, arguments)
         elif name == "clear_jobs":
-            return await _handle_clear_jobs(mcp_server, arguments)
+            return await _handle_clear_jobs(mcp_server, arguments, client_id)
         elif name == "cancel_job":
             return await _handle_cancel_job(mcp_server, arguments, client_id)
         elif name == "wait_for_status_change":
@@ -984,7 +995,11 @@ async def _handle_generate_strategy(
             )
         ]
 
-    except Exception as e:
+    except Exception:
+        # Full traceback is in the server log. The user-facing message
+        # intentionally omits exception text because provider errors can
+        # contain internal hostnames, file paths under OUTPUT_DIR, and
+        # occasionally API-key fragments.
         logger.exception("Strategy generation failed")
         return [
             TextContent(
@@ -993,7 +1008,7 @@ async def _handle_generate_strategy(
                     {
                         "error": True,
                         "error_type": "strategy_generation_failed",
-                        "message": f"Strategy generation failed: {e}",
+                        "message": "Strategy generation failed (see server logs)",
                     }
                 ),
             )
@@ -1194,7 +1209,9 @@ async def _handle_run_qa(
             )
         ]
 
-    except Exception as e:
+    except Exception:
+        # Same rationale as the strategy-generation handler — keep the
+        # full traceback in the server log, return a generic message.
         logger.exception("QA analysis failed")
         return [
             TextContent(
@@ -1203,7 +1220,7 @@ async def _handle_run_qa(
                     {
                         "error": True,
                         "error_type": "qa_analysis_failed",
-                        "message": f"QA analysis failed: {e}",
+                        "message": "QA analysis failed (see server logs)",
                     }
                 ),
             )
@@ -1364,9 +1381,15 @@ async def _get_cloud_diagnostics() -> dict[str, Any]:
 async def _handle_clear_jobs(
     mcp_server: "PrimrMCPServer",
     arguments: dict[str, Any],
+    client_id: str,
 ) -> list[TextContent]:
     """
     Handle clear_jobs tool.
+
+    Owner-gated: HTTP clients can only clear jobs they own. Without this
+    check, any authenticated HTTP caller could wipe another tenant's
+    terminal job from the store (denial-of-service against the legitimate
+    owner's job history). stdio retains full access.
 
     Requirements: 18.6, 18.7
     """
@@ -1379,7 +1402,12 @@ async def _handle_clear_jobs(
 
     # In single-job model, just check if the job is old and terminal
     job = mcp_server.job_store.get_latest_terminal()
-    if job and job.completion_time and job.completion_time < cutoff:
+    if (
+        job
+        and job.completion_time
+        and job.completion_time < cutoff
+        and _caller_owns_job(job, client_id)
+    ):
         mcp_server.job_store.clear()
         cleared_count = 1
 
@@ -1442,10 +1470,13 @@ async def _handle_cancel_job(
             )
         ]
 
-    # Check authorization (in HTTP mode, only owner or admin can cancel)
-    # In stdio mode, always allowed (implicit single-user)
-    # Admin check would require auth context from HTTP middleware
-    is_owner = job.owner_client_id is None or job.owner_client_id == client_id
+    # Check authorization (in HTTP mode, only owner can cancel).
+    # In stdio mode, always allowed (implicit single-user).
+    # Fail closed for legacy jobs with no recorded owner: an HTTP client
+    # could otherwise cancel any pre-owner-tracking job by id, which is
+    # the same authorization shape we already deny in
+    # resources._caller_owns_job_resource and tools._caller_owns_job.
+    is_owner = job.owner_client_id is not None and job.owner_client_id == client_id
     if client_id != "stdio" and not is_owner:
         return [
             TextContent(

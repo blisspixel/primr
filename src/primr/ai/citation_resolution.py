@@ -107,12 +107,32 @@ def _extract_domain_from_redirect(redirect_url: str) -> str:
     return redirect_url
 
 
-async def resolve_citation_urls(citations: list[dict[str, str]]) -> list[dict[str, str]]:
-    """Resolve all citation URLs in parallel."""
+async def resolve_citation_urls(
+    citations: list[dict[str, str]],
+    max_concurrency: int = 16,
+) -> list[dict[str, str]]:
+    """Resolve all citation URLs in parallel.
+
+    ``citations`` comes from parsing the Sources section of LLM output, so
+    its length is attacker-influenceable through prompt injection in
+    scraped content. A bare ``asyncio.gather(*tasks)`` over that list lets
+    a single research run spawn thousands of concurrent HEAD requests.
+    Cap concurrency with a semaphore so the resolver scales linearly in
+    runtime, not in peak FDs / sockets.
+    """
     if not citations:
         return citations
 
-    tasks = [resolve_redirect_url(c.get("url", "")) for c in citations]
+    if max_concurrency < 1:
+        max_concurrency = 1
+
+    sem = asyncio.Semaphore(max_concurrency)
+
+    async def _resolve_one(url: str) -> str:
+        async with sem:
+            return await resolve_redirect_url(url)
+
+    tasks = [_resolve_one(c.get("url", "")) for c in citations]
     resolved_urls = await asyncio.gather(*tasks)
 
     for citation, resolved_url in zip(citations, resolved_urls, strict=False):

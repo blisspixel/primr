@@ -552,6 +552,10 @@ class AuthContext:
         - Admin can cancel any job
         - Owner can cancel their own job
         - In stdio mode (anonymous), always allowed
+        - Legacy jobs with no recorded owner are NOT cancellable by HTTP
+          callers — same fail-closed rule as ``tools._handle_cancel_job``
+          (otherwise an HTTP client could cancel any pre-owner-tracking
+          job by id).
         """
         if self.is_admin:
             return True
@@ -559,8 +563,8 @@ class AuthContext:
             # Stdio mode - always allowed
             return True
         if job_owner_id is None:
-            # Job has no owner - anyone can cancel
-            return True
+            # Job has no recorded owner — fail closed for HTTP callers.
+            return False
         return self.client_id == job_owner_id
 
 

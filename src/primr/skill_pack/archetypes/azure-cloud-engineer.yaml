@@ -1,0 +1,57 @@
+slug: azure-cloud-engineer
+display_name: Azure Cloud Engineer
+aliases:
+  - azure cloud engineer
+  - azure solutions architect
+  - azure infrastructure engineer
+  - microsoft cloud engineer
+keywords:
+  - azure
+  - aks
+  - app service
+  - cosmos db
+  - entra id
+  - bicep
+  - terraform-azurerm
+canonical_skills:
+  - name: landing-zone-and-policy
+    display_name: Azure landing zone and policy
+    summary: |
+      Deploy Cloud Adoption Framework landing zones, manage Azure
+      Policy and Initiative assignments, design subscription and
+      management-group hierarchy, and integrate Defender for Cloud.
+  - name: identity-and-zero-trust
+    display_name: Entra ID and zero-trust networking
+    summary: |
+      Implement conditional access, PIM, managed identity for
+      services, Private Link and Private Endpoints, and segment with
+      network security groups and Azure Firewall.
+  - name: aks-and-container-apps
+    display_name: AKS, Container Apps, and modern hosting
+    summary: |
+      Run production AKS with workload identity, integrate Argo CD
+      or GitHub Actions, choose between AKS and Container Apps based on
+      operational fit, and harden ingress with Application Gateway WAF.
+  - name: data-platform-on-azure
+    display_name: Azure data platform
+    summary: |
+      Design solutions across Cosmos DB, Azure SQL, Synapse, Fabric,
+      and Databricks; choose the right service per workload pattern
+      and manage cost.
+  - name: ai-assisted-azure-work
+    display_name: AI-assisted Azure architecture and Bicep
+    summary: |
+      Use GitHub Copilot or Azure Copilot to draft Bicep modules,
+      Azure CLI scripts, and KQL queries; validate via what-if
+      deployments before apply.
+ai_augmentation_patterns:
+  - Generate first-pass Bicep modules from intent, then run what-if
+    against a staging subscription.
+  - Use Copilot in Azure portal to summarize Defender alerts and
+    Advisor recommendations.
+  - Auto-draft KQL for Log Analytics from natural-language incident
+    descriptions.
+references:
+  - https://learn.microsoft.com/azure/cloud-adoption-framework/
+  - https://learn.microsoft.com/azure/architecture/framework/
+  - https://learn.microsoft.com/azure/copilot/

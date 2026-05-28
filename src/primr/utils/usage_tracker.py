@@ -16,6 +16,7 @@ Usage:
     tracker.update_estimates()
 """
 
+import contextlib
 import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
@@ -212,7 +213,18 @@ class UsageTracker:
         )
 
     def save(self):
-        """Save session usage to history file."""
+        """Save session usage to history file.
+
+        Writes atomically: serialize to a sibling temp file, then
+        ``os.replace`` it onto the real path. If the process is killed
+        mid-write the existing history is untouched — without this, a
+        crash between ``open(..., "w")`` and the final ``json.dump`` flush
+        leaves a truncated or empty cost-history file, which downstream
+        budgets / show-usage cannot recover from.
+        """
+        import os
+        import tempfile
+
         try:
             # Add session records to history
             for record in self.session.records:
@@ -221,9 +233,22 @@ class UsageTracker:
             # Ensure directory exists
             self.storage_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Save to file
-            with open(self.storage_path, "w", encoding="utf-8") as f:
-                json.dump(self.history, f, indent=2)
+            # Serialize to a temp file in the same directory so os.replace
+            # is atomic (cross-filesystem renames are not).
+            fd, tmp_name = tempfile.mkstemp(
+                prefix=self.storage_path.name + ".",
+                suffix=".tmp",
+                dir=str(self.storage_path.parent),
+            )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(self.history, f, indent=2)
+                os.replace(tmp_name, self.storage_path)
+            except Exception:
+                # Clean up the partial temp file if the swap never happened.
+                with contextlib.suppress(OSError):
+                    os.unlink(tmp_name)
+                raise
 
             logger.info(f"Saved {len(self.session.records)} usage records")
         except PermissionError as e:

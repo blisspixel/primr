@@ -30,6 +30,7 @@ Company research is tedious. You visit the website, click around, search the com
 - **Autonomous external research**: Gemini Deep Research for comprehensive analysis, Grok 4.3 for fast turnaround — both plan queries, follow leads, cross-validate sources, and synthesize findings.
 - **Cost controls built in**: `--dry-run` estimates (including recovery table and stage classifications), usage tracking, and governance hooks for budget limits.
 - **Agent-native interfaces**: CLI, MCP server, OpenClaw integration, and Claude Skills, all first-class.
+- **Skill pack generation**: `primr skills "<Company>" <url>` produces a QA-refined Agent Skills pack — top N roles × M skills, grounded in DNS recon + hiring postings, with both an unpacked Claude/Cursor/VS Code tree AND a Microsoft 365 Copilot Cowork sideload `.zip`. Internal pipeline: role discovery, archetype-grounded authoring, deterministic ASKILL-* validation, capped refinement loop, and pack-level coherence pass. The same byte-identical SKILL.md files work across both ecosystems.
 
 ## Artifact Model
 
@@ -51,6 +52,7 @@ Near-term work remains focused on pushing more structure upstream into the long-
 
 | Mode | What it does | Time | Cost |
 |------|--------------|------|------|
+| `primr skills` | QA-refined skill pack (Claude tree + Cowork .zip) from existing research | 30-90s | ~$0.20 |
 | Default (Gemini + XAI) | Grok 4.3 reasoning + Gemini 3.1 Flash-Lite writing + AI Strategy | ~23-35 min | **~$0.79** |
 | Default (XAI only) | Grok 4.3 hybrid + Grok 4.20-NR writing (legacy fallback) | ~35-50 min | ~$4.27 |
 | `--platform ms` | Microsoft Azure + NVIDIA private cloud strategy | ~30-50 min | ~$0.85 |
@@ -111,7 +113,16 @@ primr "Company" https://company.com --premium --lite           # Cheaper premium
 # DNS intelligence (standalone, no API keys needed)
 primr recon acme.com                                           # DNS intelligence lookup
 primr recon acme.com --json                                    # Structured JSON output
+
+# Skill pack — QA-refined Agent Skills for Claude + Microsoft 365 Copilot Cowork
+primr skills "ExampleCo" https://example.co                              # 5 roles x 3 skills, ~$0.30
+primr skills "ExampleCo" https://example.co --roles 3 --skills-per-role 2
+primr skills "ExampleCo" https://example.co --formats cowork             # only the .zip
+primr skills "ExampleCo" https://example.co --from-report working/<existing-run>
+primr skills "ExampleCo" https://example.co --dry-run                    # estimate first
 ```
+
+The skill pack output contains both a `roles/<slug>/SKILL.md` tree (drop-in for Claude Code, Cursor, VS Code Copilot, Gemini CLI, Junie) and a `<Company>_Cowork_Pack.zip` (sideload via M365 Admin Center > Manage Apps > Upload custom app). Each pack also emits a markdown pack report with the validation scorecard and per-role refinement counts.
 
 When `--platform` is omitted, Primr runs recon first and uses strong infrastructure signals (for example Azure DNS/App Service/CDN, AWS Route53/CloudFront, or GCP DNS) to choose the AI strategy platform. If multiple strong platforms are detected, it generates one strategy per platform. Productivity, certificate, and email-only signals do not count as primary-cloud proof. If recon is unclear or skipped, the default strategy posture is Microsoft Azure plus private cloud/NVIDIA (`azure private`).
 

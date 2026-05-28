@@ -1,11 +1,17 @@
 """
-Skills Ideation SKILL.md generator.
+Skills Ideation SKILL.md generator (legacy path).
 
 Parses the generated skills strategy document to extract individual role blocks
 and writes them as per-role SKILL.md files with YAML frontmatter.
 
 Output structure:
     output/<Company>_Skills_Ideation_<date>/roles/<role-slug>/SKILL.md
+
+DEPRECATED in favor of the v1.26 `primr skills` subcommand (see
+`primr.skill_pack`), which adds QA refinement, pack-level coherence,
+deeper company customization, and Microsoft 365 Copilot Cowork .zip
+packaging. This module remains so the legacy `--strategy-type skills`
+flow keeps working until removal.
 """
 
 from __future__ import annotations

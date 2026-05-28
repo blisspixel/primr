@@ -191,8 +191,14 @@ class PrimrAgentExecutor(AgentExecutor):
             await event_queue.enqueue_event(
                 new_agent_text_message(json.dumps(estimate, indent=2, default=str))
             )
-        except Exception as e:
-            await event_queue.enqueue_event(new_agent_text_message(f"Estimate failed: {e}"))
+        except Exception:
+            # Don't echo the raw exception — provider errors can contain
+            # internal hostnames, file paths, or API-key fragments. The
+            # operator-side log has the full traceback.
+            logger.exception("A2A estimate failed for mode=%s", estimator_mode)
+            await event_queue.enqueue_event(
+                new_agent_text_message("Estimate failed (see server logs)")
+            )
 
     async def _handle_research(
         self,
@@ -242,8 +248,11 @@ class PrimrAgentExecutor(AgentExecutor):
                 mode=mode,
                 owner_client_id="a2a",
             )
-        except Exception as e:
-            await event_queue.enqueue_event(new_agent_text_message(f"Cannot start research: {e}"))
+        except Exception:
+            logger.exception("A2A job_store.create failed for %s", company_name)
+            await event_queue.enqueue_event(
+                new_agent_text_message("Cannot start research (see server logs)")
+            )
             return
 
         # Register A2A task mapping
@@ -352,11 +361,19 @@ class PrimrAgentExecutor(AgentExecutor):
         self._mcp._track_task(task)
 
     async def _handle_check_jobs(self, event_queue: EventQueue) -> None:
-        """Handle check_jobs skill - synchronous."""
+        """Handle check_jobs skill - synchronous.
+
+        Ownership: A2A jobs are created with owner_client_id="a2a" (see
+        _handle_research). Only return job metadata for jobs the caller owns;
+        otherwise report idle. Without this gate any authenticated A2A
+        client could enumerate other tenants' active research and harvest
+        output_paths from completed runs.
+        """
         active = self._mcp.job_store.get_active()
-        if active:
+        result: dict[str, object]
+        if active and active.owner_client_id == "a2a":
             progress = active.stage_progress_percent or 0
-            result: dict[str, object] = {
+            result = {
                 "job_id": active.job_id,
                 "company": active.company_name,
                 "stage": active.current_stage.value,
@@ -365,7 +382,7 @@ class PrimrAgentExecutor(AgentExecutor):
             }
         else:
             terminal = self._mcp.job_store.get_latest_terminal()
-            if terminal:
+            if terminal and terminal.owner_client_id == "a2a":
                 stage = terminal.current_stage.value
                 result = {
                     "job_id": terminal.job_id,
@@ -387,9 +404,15 @@ class PrimrAgentExecutor(AgentExecutor):
         report_path = params.get("path", "")
 
         if not report_path:
-            # Try to find latest report from most recent job
+            # Try to find latest A2A-owned report from most recent job. Don't
+            # auto-target jobs created by stdio/MCP — leaking another tenant's
+            # report path via A2A would defeat the by_job ownership gate.
             terminal = self._mcp.job_store.get_latest_terminal()
-            if terminal and terminal.output_paths:
+            if (
+                terminal
+                and terminal.owner_client_id == "a2a"
+                and terminal.output_paths
+            ):
                 report_path = terminal.output_paths[0]
             else:
                 await event_queue.enqueue_event(
@@ -402,8 +425,11 @@ class PrimrAgentExecutor(AgentExecutor):
             await event_queue.enqueue_event(
                 new_agent_text_message(json.dumps(qa_result, indent=2, default=str))
             )
-        except Exception as e:
-            await event_queue.enqueue_event(new_agent_text_message(f"QA analysis failed: {e}"))
+        except Exception:
+            logger.exception("A2A QA analysis failed for %s", report_path)
+            await event_queue.enqueue_event(
+                new_agent_text_message("QA analysis failed (see server logs)")
+            )
 
     async def _handle_doctor(self, event_queue: EventQueue) -> None:
         """Handle system_health skill - synchronous."""
@@ -412,8 +438,11 @@ class PrimrAgentExecutor(AgentExecutor):
             await event_queue.enqueue_event(
                 new_agent_text_message(json.dumps(status, indent=2, default=str))
             )
-        except Exception as e:
-            await event_queue.enqueue_event(new_agent_text_message(f"Health check failed: {e}"))
+        except Exception:
+            logger.exception("A2A health check failed")
+            await event_queue.enqueue_event(
+                new_agent_text_message("Health check failed (see server logs)")
+            )
 
     async def _handle_unknown(
         self, skill_id: str | None, text: str, event_queue: EventQueue

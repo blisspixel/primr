@@ -98,10 +98,23 @@ def _load_state() -> dict[str, RateLimitEntry]:
 
 
 def _save_state(state: dict[str, RateLimitEntry]) -> None:
-    """Write state to disk. Prunes expired entries on the way out."""
+    """Write state to disk. Prunes expired entries on the way out.
+
+    Also prunes the in-memory ``state`` dict in place: get_rate_limit
+    only evicts the specific host queried, so for a long-running MCP
+    server with thousands of unique hosts the cache would otherwise
+    grow without bound as expired entries pile up between queries.
+    Pruning here keeps memory in lock-step with what we persist.
+    """
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    # In-memory prune. Build the expired list first so we don't mutate
+    # the dict while iterating (technically safe in CPython but explicit
+    # is cheaper than tracking the call sites).
+    expired_keys = [host for host, entry in state.items() if not entry.is_active()]
+    for host in expired_keys:
+        del state[host]
     try:
-        serializable = {host: entry.to_dict() for host, entry in state.items() if entry.is_active()}
+        serializable = {host: entry.to_dict() for host, entry in state.items()}
         with STATE_FILE.open("w", encoding="utf-8") as f:
             json.dump(serializable, f, indent=2)
     except OSError as e:

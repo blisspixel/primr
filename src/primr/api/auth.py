@@ -399,20 +399,30 @@ class APIKeyAuth:
 # =============================================================================
 
 _auth: APIKeyAuth | None = None
+_auth_lock = threading.Lock()
 
 
 def get_auth() -> APIKeyAuth:
-    """Get the global auth instance."""
+    """Get the global auth instance.
+
+    Double-check locking so concurrent FastAPI workers don't race to
+    create two different APIKeyAuth instances — that would split key
+    revocations / rotations across instances, so a key revoked on one
+    worker could still authenticate on another until process restart.
+    """
     global _auth
     if _auth is None:
-        _auth = APIKeyAuth()
+        with _auth_lock:
+            if _auth is None:
+                _auth = APIKeyAuth()
     return _auth
 
 
 def reset_auth() -> None:
     """Reset the global auth (useful for testing)."""
     global _auth
-    _auth = None
+    with _auth_lock:
+        _auth = None
 
 
 # =============================================================================

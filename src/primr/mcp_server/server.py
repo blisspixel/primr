@@ -235,11 +235,19 @@ class PrimrMCPServer:
             self.port,
         )
 
-        # Check plaintext security
-        if not self.allow_plaintext and self.host != "127.0.0.1":
-            logger.warning(
-                "Non-localhost HTTP without --allow-plaintext is insecure. "
-                "Use a TLS-terminating reverse proxy in production."
+        # Check plaintext security. We refuse to bind to a non-loopback
+        # address without explicit opt-in: the previous behavior was a
+        # warning-only check, which silently exposed plaintext MCP on
+        # whichever interface the operator typed (including 0.0.0.0)
+        # while the warning scrolled off the boot log. Operators who
+        # terminate TLS in front (Azure Container Apps ingress, an nginx
+        # reverse proxy, etc.) must pass --allow-plaintext to acknowledge
+        # the container speaks HTTP.
+        if not self.allow_plaintext and self.host not in ("127.0.0.1", "localhost", "::1"):
+            raise RuntimeError(
+                f"Refusing to bind MCP HTTP to non-loopback host {self.host!r} "
+                "without --allow-plaintext. Pass --allow-plaintext only when "
+                "TLS is terminated upstream (reverse proxy, cloud ingress)."
             )
 
         # Create transport

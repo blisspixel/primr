@@ -1,0 +1,53 @@
+slug: salesforce-admin
+display_name: Salesforce Administrator
+aliases:
+  - salesforce administrator
+  - sfdc admin
+  - sfdc administrator
+  - crm administrator (salesforce)
+keywords:
+  - salesforce
+  - sfdc
+  - flow builder
+  - apex
+  - lightning
+canonical_skills:
+  - name: sfdc-flow-design
+    display_name: Design and review declarative Flows
+    summary: |
+      Build Lightning Flows that automate business processes without code,
+      including subflows, scheduled paths, error handlers, and bulkified
+      record-triggered Flows.
+  - name: sfdc-data-model-and-permissions
+    display_name: Data model and permission architecture
+    summary: |
+      Design custom objects and fields, profiles, permission sets,
+      sharing rules, and field-level security. Audit Permission Set
+      Groups and resolve over-permissioned profiles.
+  - name: sfdc-deployment-and-change-management
+    display_name: Sandbox-to-production deployment workflow
+    summary: |
+      Use Change Sets, SFDX, or DevOps Center to promote metadata between
+      sandboxes, manage release windows, and roll back failed deployments.
+  - name: sfdc-reporting-and-dashboards
+    display_name: Reports, dashboards, and CRM Analytics
+    summary: |
+      Author complex matrix reports, dashboard filters, dynamic dashboards,
+      and bind data to CRM Analytics dashlets when warranted.
+  - name: sfdc-ai-copilot-integration
+    display_name: Einstein and Copilot integration
+    summary: |
+      Configure Einstein features (Activity Capture, Next Best Action,
+      Einstein Copilot actions) and integrate Salesforce data into
+      Microsoft 365 Copilot via Sales Copilot or third-party connectors.
+ai_augmentation_patterns:
+  - Use LLMs to draft validation-rule formulas, then test them against
+    representative sandbox data before promoting.
+  - Generate Apex test class skeletons from documented requirements; never
+    let the model commit code without human review of governor-limit risk.
+  - Auto-summarize case threads or opportunity history through Einstein
+    Copilot for service rep handoff.
+references:
+  - https://help.salesforce.com/s/articleView?id=sf.admin_intro.htm
+  - https://trailhead.salesforce.com/credentials/administratoroverview
+  - https://learn.microsoft.com/microsoft-365-copilot/extensibility/

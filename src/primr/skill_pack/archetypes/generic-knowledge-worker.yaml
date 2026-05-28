@@ -1,0 +1,55 @@
+slug: generic-knowledge-worker
+display_name: Generic Knowledge Worker
+aliases:
+  - knowledge worker
+  - office worker
+  - business analyst (generic)
+  - operations specialist
+keywords:
+  - outlook
+  - excel
+  - sharepoint
+  - teams
+  - meetings
+  - documents
+canonical_skills:
+  - name: document-and-email-workflow
+    display_name: Document and email workflow with Copilot
+    summary: |
+      Use Copilot in Outlook, Word, and Excel to draft, summarize,
+      analyze, and review documents; verify outputs before sharing
+      externally; manage version history.
+  - name: meeting-prep-and-followup
+    display_name: Meeting preparation and follow-up
+    summary: |
+      Use Copilot in Teams to generate pre-read summaries from prior
+      meetings, extract action items, and route them to owners with
+      clear deadlines.
+  - name: data-analysis-with-copilot
+    display_name: Data analysis with Copilot in Excel
+    summary: |
+      Build pivot tables, formulas, and charts through Copilot prompts;
+      validate aggregations against raw data; document calculations for
+      reproducibility.
+  - name: information-discovery-and-search
+    display_name: Information discovery across M365 and SharePoint
+    summary: |
+      Use Microsoft Search and Copilot to find documents, people, and
+      historical decisions; check permissions and sensitivity labels
+      before sharing.
+  - name: ai-output-verification
+    display_name: AI output verification and source checking
+    summary: |
+      Treat Copilot outputs as drafts; verify cited sources, dates,
+      and figures before forwarding; understand when Copilot is
+      guessing vs. citing.
+ai_augmentation_patterns:
+  - Draft routine emails and replies with Copilot, edit before sending.
+  - Summarize long PDFs or SharePoint documents with Copilot before
+    deciding whether to read in full.
+  - Use Copilot in Teams to recap meetings missed and extract action
+    items.
+references:
+  - https://learn.microsoft.com/microsoft-365-copilot/
+  - https://support.microsoft.com/copilot
+  - https://adoption.microsoft.com/copilot/

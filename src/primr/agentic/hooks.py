@@ -37,6 +37,7 @@ Example:
 from __future__ import annotations
 
 import logging
+import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
@@ -494,6 +495,14 @@ class CostGuardHook(Hook):
         super().__init__(priority=priority, name="CostGuard")
         self._max_cost = max_cost_usd
         self._spent = 0.0
+        # Hook callers can come from multiple threads (the pipeline runs
+        # research in a background asyncio task, while the MCP HTTP worker
+        # processes other tool calls on its own thread). `_spent += cost`
+        # is a read-modify-write — without locking, two concurrent
+        # record_cost calls can lose an update, and the execute() check
+        # can race against record_cost() to admit a paid operation that
+        # together with already-in-flight work blows the budget.
+        self._lock = threading.Lock()
 
     @property
     def hook_type(self) -> HookType:
@@ -507,26 +516,30 @@ class CostGuardHook(Hook):
     @property
     def spent(self) -> float:
         """Get the current cumulative spend."""
-        return self._spent
+        with self._lock:
+            return self._spent
 
     @property
     def remaining(self) -> float:
         """Get the remaining budget."""
-        return max(0.0, self._max_cost - self._spent)
+        with self._lock:
+            return max(0.0, self._max_cost - self._spent)
 
     async def execute(self, context: HookContext) -> HookResponse:
         """Check if operation would exceed budget."""
         estimated_cost = max(0.0, context.arguments.get("estimated_cost_usd", 0.0))
 
-        if self._spent + estimated_cost > self._max_cost:
-            return HookResponse(
-                result=HookResult.BLOCK,
-                message=(
-                    f"Budget exceeded: ${self._spent:.2f} spent, "
-                    f"${estimated_cost:.2f} requested, "
-                    f"${self._max_cost:.2f} limit"
-                ),
-            )
+        with self._lock:
+            spent_snapshot = self._spent
+            if spent_snapshot + estimated_cost > self._max_cost:
+                return HookResponse(
+                    result=HookResult.BLOCK,
+                    message=(
+                        f"Budget exceeded: ${spent_snapshot:.2f} spent, "
+                        f"${estimated_cost:.2f} requested, "
+                        f"${self._max_cost:.2f} limit"
+                    ),
+                )
 
         return HookResponse(result=HookResult.ALLOW)
 
@@ -537,12 +550,15 @@ class CostGuardHook(Hook):
         Args:
             cost: Cost in USD to record
         """
-        self._spent += cost
-        logger.debug(f"CostGuard: recorded ${cost:.2f}, total ${self._spent:.2f}")
+        with self._lock:
+            self._spent += cost
+            total = self._spent
+        logger.debug(f"CostGuard: recorded ${cost:.2f}, total ${total:.2f}")
 
     def reset(self) -> None:
         """Reset the spent counter."""
-        self._spent = 0.0
+        with self._lock:
+            self._spent = 0.0
 
 
 class SSRFGuardHook(Hook):

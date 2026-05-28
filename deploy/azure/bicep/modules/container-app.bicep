@@ -110,13 +110,17 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
           name: 'api'
           image: '${acrLoginServer}/${imageName}:${imageTag}'
           // Run the MCP server with authentication required. The previous
-          // command included --no-auth and --allow-plaintext, which made
-          // the public Container App ingress hand out research_company /
-          // check_jobs / cancel_job without any authorization. Both flags
-          // are removed: the server now defaults to require_auth=true and
-          // refuses plaintext-only deployments. Azure ingress terminates
-          // TLS in front of the container, so HTTPS to the FQDN is fine.
-          command: ['primr-mcp', '--http', '--port', '8000', '--host', '0.0.0.0']
+          // command included --no-auth, which made the public Container
+          // App ingress hand out research_company / check_jobs /
+          // cancel_job without any authorization — that flag is removed
+          // and the server defaults to require_auth=true.
+          //
+          // --allow-plaintext is intentional here: Azure Container Apps
+          // terminates TLS at the ingress (see allowInsecure: false above)
+          // and forwards plaintext HTTP to targetPort 8000. The server now
+          // refuses to bind to a non-loopback host without this flag, so
+          // we must opt in to plaintext for the container-to-ingress hop.
+          command: ['primr-mcp', '--http', '--port', '8000', '--host', '0.0.0.0', '--allow-plaintext']
           resources: {
             cpu: json('0.5')
             memory: '1Gi'

@@ -704,6 +704,22 @@ def _run_mcp(args: list[str] | None) -> int:
         sys.argv = saved_argv
 
 
+def _is_skills_command(args: list[str] | None) -> bool:
+    """Check if the command line is a ``primr skills ...`` invocation."""
+    argv = args if args is not None else sys.argv[1:]
+    return len(argv) >= 1 and argv[0] == "skills"
+
+
+def _run_skills(args: list[str] | None) -> int:
+    """Delegate to the skill_pack CLI handler."""
+    try:
+        from primr.skill_pack.cli import run_skills_cli
+    except ImportError as exc:
+        print(f"Error: skill_pack module unavailable: {exc}", file=sys.stderr)
+        return 1
+    return run_skills_cli(args)
+
+
 def _run_recon(args: list[str] | None) -> int:
     """Delegate to the external recon-tool Typer CLI, returning an exit code.
 
@@ -759,6 +775,8 @@ def main(args: list[str] | None = None) -> int:
         return _run_keys(args)
     if _is_mcp_command(args):
         return _run_mcp(args)
+    if _is_skills_command(args):
+        return _run_skills(args)
 
     from pathlib import Path
 
@@ -2237,6 +2255,7 @@ def _handle_roadmap(config: CLIConfig) -> int:
 def _handle_eval(config: CLIConfig) -> int:
     """Handle versioned model/profile evaluation."""
     import csv
+    import glob
     import shutil
     from pathlib import Path
 
@@ -2441,12 +2460,20 @@ def _handle_eval(config: CLIConfig) -> int:
                 # used underscores.
                 output_root = Path(OUTPUT_DIR)
                 company_prefix_underscore = company.replace(" ", "_")
+                # Escape the company-name fragments so brackets / "?" / "*"
+                # in a manifest name don't get reinterpreted as glob
+                # metacharacters and silently miss the just-staged report.
+                # Same bug class as the batch resume fix in 793e5d1.
                 matches: list[Path] = []
                 for ext in ("*.md", "*.txt"):
                     matches.extend(
-                        output_root.glob(f"{company_prefix_underscore}_Strategic_Overview_{ext}")
+                        output_root.glob(
+                            f"{glob.escape(company_prefix_underscore)}_Strategic_Overview_{ext}"
+                        )
                     )
-                    matches.extend(output_root.glob(f"{company}_Strategic_Overview_{ext}"))
+                    matches.extend(
+                        output_root.glob(f"{glob.escape(company)}_Strategic_Overview_{ext}")
+                    )
                 # Dedupe (the two patterns can both match in some setups)
                 matches = list(dict.fromkeys(matches).keys())
                 if matches:

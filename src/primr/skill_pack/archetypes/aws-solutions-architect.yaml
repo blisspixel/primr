@@ -1,0 +1,58 @@
+slug: aws-solutions-architect
+display_name: AWS Solutions Architect
+aliases:
+  - aws solutions architect
+  - aws architect
+  - cloud architect (aws)
+  - aws cloud engineer
+keywords:
+  - aws
+  - ec2
+  - s3
+  - lambda
+  - eks
+  - rds
+  - cloudformation
+  - well-architected
+canonical_skills:
+  - name: well-architected-review
+    display_name: Run AWS Well-Architected reviews
+    summary: |
+      Apply the six pillars (operational excellence, security,
+      reliability, performance efficiency, cost optimization,
+      sustainability) to existing workloads and turn findings into
+      remediation work.
+  - name: account-and-org-design
+    display_name: AWS Organizations and landing zone design
+    summary: |
+      Design multi-account structures with Control Tower, SCPs, and
+      Identity Center, deploy guardrails consistently, and manage
+      account vending.
+  - name: networking-and-edge
+    display_name: VPC, hybrid connectivity, and edge
+    summary: |
+      Design Transit Gateway hub-and-spoke, manage Direct Connect or
+      Site-to-Site VPN, set up CloudFront and Route 53, and apply
+      security group and NACL hygiene.
+  - name: serverless-and-event-driven
+    display_name: Serverless and event-driven architecture
+    summary: |
+      Design Lambda + API Gateway + EventBridge patterns, manage cold
+      starts, idempotency, and tracing, and apply Step Functions for
+      long-running workflows.
+  - name: ai-assisted-aws-work
+    display_name: AI-assisted AWS architecture and IaC
+    summary: |
+      Use Amazon Q Developer or general LLMs to draft CloudFormation
+      and CDK constructs; require plan/synth review before apply;
+      generate diagrams from Terraform or CDK output for change reviews.
+ai_augmentation_patterns:
+  - Generate CDK constructs from intent and validate via synth diff.
+  - Use Amazon Q to summarize AWS Config compliance findings before a
+    quarterly review.
+  - Auto-draft Trusted Advisor and Cost Explorer summaries for stakeholder
+    reviews.
+references:
+  - https://aws.amazon.com/architecture/well-architected/
+  - https://aws.amazon.com/q/developer/
+  - https://docs.aws.amazon.com/

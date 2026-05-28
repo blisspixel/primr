@@ -4277,6 +4277,14 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                         # drop-in loadable by Claude Code / Copilot Studio /
                         # any skill-aware agent host. Failure here never blocks
                         # the strategy doc itself.
+                        #
+                        # DEPRECATION: This is the v1.23 inline path. The
+                        # v1.26+ canonical command is `primr skills <Company>
+                        # <url>` which adds QA refinement, pack-level
+                        # coherence, and a sideload-ready Microsoft 365
+                        # Cowork .zip alongside the Claude tree. The legacy
+                        # parser-based path stays here for backward compat
+                        # until removal in a later release.
                         if stype == "skills" and strategy_path:
                             try:
                                 from primr.output.skills_generator import write_skill_files
@@ -4290,6 +4298,11 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                                     console.info(
                                         f"Skills Ideation: emitted {len(written)} per-role "
                                         f"SKILL.md files under {roles_root.name}/roles/"
+                                    )
+                                    console.info(
+                                        "Tip: `primr skills <Company> <url>` produces a "
+                                        "QA-refined skill pack with a Microsoft 365 Copilot "
+                                        "Cowork .zip alongside the Claude tree."
                                     )
                                 else:
                                     console.warn(
