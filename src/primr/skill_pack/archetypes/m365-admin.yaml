@@ -1,0 +1,54 @@
+slug: m365-admin
+display_name: Microsoft 365 Administrator
+aliases:
+  - m365 admin
+  - microsoft 365 administrator
+  - office 365 administrator
+  - entra admin
+keywords:
+  - microsoft 365
+  - entra id
+  - intune
+  - sharepoint
+  - exchange online
+  - teams
+canonical_skills:
+  - name: m365-identity-and-access
+    display_name: Entra ID identity and conditional access
+    summary: |
+      Design conditional access policies, manage user lifecycle through
+      Entra ID, configure PIM for privileged roles, and audit sign-in
+      logs. Apply least-privilege admin role assignment.
+  - name: m365-endpoint-and-intune
+    display_name: Intune endpoint management
+    summary: |
+      Build compliance and configuration profiles, app protection policies,
+      autopilot enrollment, and Windows Update for Business rings.
+  - name: m365-collaboration-governance
+    display_name: SharePoint, OneDrive, and Teams governance
+    summary: |
+      External sharing controls, sensitivity labels, retention policies,
+      Teams app lifecycle, and information barriers.
+  - name: m365-copilot-rollout
+    display_name: Copilot enablement and governance
+    summary: |
+      Plan Copilot for Microsoft 365 licensing, data residency, semantic
+      index readiness, and Cowork plugin sideload. Configure Plugin
+      Vault for OAuth and API key references.
+  - name: m365-security-baseline
+    display_name: Security baseline and Defender configuration
+    summary: |
+      Apply Microsoft security baselines, configure Defender for
+      Office/Endpoint/Identity, manage Secure Score, and respond to
+      Microsoft Defender alerts.
+ai_augmentation_patterns:
+  - Use Copilot for IT (preview) to draft Intune configuration profiles
+    from natural-language intent.
+  - Generate KQL queries for Defender XDR investigations through Copilot
+    for Security.
+  - Build Cowork plugin skills that automate license assignment and group
+    membership audits.
+references:
+  - https://learn.microsoft.com/microsoft-365/admin/
+  - https://learn.microsoft.com/microsoft-365-copilot/
+  - https://learn.microsoft.com/security/operations/operations-center

@@ -1,0 +1,62 @@
+# Phase 5b: Pack-level coherence check.
+# After per-skill validation/refinement, run one pass across ALL skills
+# to catch problems that are only visible at the pack level: trigger
+# phrase collisions, semantic overlap between skills, voice drift,
+# strategic inconsistency. Findings feed one pack-level refinement round.
+
+meta:
+  name: pack_coherence
+  phase: "5b"
+  version: "1.0.0"
+
+system_prompt: |
+  You are reviewing a skill pack as a coherent collection. Your job is
+  to find pack-level problems that per-skill validation misses:
+
+    - **Trigger collision**: two skills with descriptions that would
+      both fire on the same user query (e.g. both say "use when user
+      asks about Salesforce flows"). Each skill should have a distinct
+      trigger surface.
+    - **Semantic overlap**: two skills whose bodies cover substantially
+      the same ground. Pack effectiveness drops when skills overlap.
+    - **Voice drift**: skills written in inconsistent voice, formality,
+      or POV. The pack should read as a unified deliverable.
+    - **Strategic inconsistency**: skills that contradict each other
+      about the company's stack, priorities, or business model.
+
+  Output VALID JSON ONLY. The first character is `{`, the last is `}`.
+  No prose, no fences.
+
+user_prompt_template: |
+  Company: {company_name}
+
+  Skill pack summary (one entry per skill):
+  {pack_summary}
+
+  Return findings JSON:
+
+  {{
+    "trigger_collisions": [
+      {{
+        "skill_a": "role-name/skill-name",
+        "skill_b": "role-name/skill-name",
+        "fix": "concrete suggestion for how to differentiate triggers"
+      }}
+    ],
+    "semantic_overlaps": [
+      {{
+        "skill_a": "role-name/skill-name",
+        "skill_b": "role-name/skill-name",
+        "overlap_summary": "one sentence on what they share",
+        "fix": "concrete suggestion — merge, narrow scope, or differentiate"
+      }}
+    ],
+    "voice_drift": "one paragraph or null",
+    "strategic_inconsistencies": [
+      {{
+        "skills": ["role-name/skill-name", "role-name/skill-name"],
+        "description": "what they contradict"
+      }}
+    ],
+    "verdict": "ship|refine"
+  }}

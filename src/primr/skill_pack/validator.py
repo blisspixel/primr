@@ -1,0 +1,496 @@
+"""Deterministic validator for skill packs.
+
+No LLM calls. Runs the M365 Cowork ASKILL-* checks (per the v1.28 spec) plus
+primr's own security hardening ported from the legacy `output/skills_generator`.
+
+Produces a `ValidationReport` of `SkillIssue`s. The pipeline uses the report
+both as a ship gate (HARD-fail blocks shipping) and as structured input to
+the refinement LLM call.
+
+Spec references:
+    - ASKILL-P006: folder name == frontmatter `name`
+    - ASKILL-P007: name is kebab-case (1-64 chars, no leading/trailing or
+      consecutive hyphens)
+    - DESC-LEN: description in [1, 1024] chars
+    - DESC-TRIG: description contains a trigger phrase
+    - BODY-SEC: body has all three required H2 sections
+    - BODY-LEN: body word count in [1500, 3000] (HARD-fail >5000 tokens)
+    - SEC-INJECT: no prompt-injection / agent-instruction patterns
+    - SEC-PATH: no hardcoded local file paths
+    - PACK-OVERLAP: no two skills with >0.85 name+trigger similarity
+"""
+
+from __future__ import annotations
+
+import re
+from difflib import SequenceMatcher
+
+from primr.skill_pack.schema import (
+    IssueSeverity,
+    Role,
+    Skill,
+    SkillIssue,
+    SkillPack,
+    ValidationReport,
+)
+
+# --- Naming rules (ASKILL-P007) -------------------------------------------
+
+# Kebab-case: lowercase alphanumeric + single internal hyphens, 1-64 chars.
+# Disallows leading/trailing hyphens and consecutive hyphens.
+_KEBAB_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+_MAX_NAME_LEN = 64
+
+# --- Description rules ----------------------------------------------------
+
+_MIN_DESC_LEN = 1
+_MAX_DESC_LEN = 1024
+
+# Trigger phrase regex. The MS Cowork docs require descriptions that signal
+# *when* the agent should activate the skill. We accept the canonical
+# "Use when..." plus a few common variants the model tends to produce.
+_TRIGGER_PATTERN = re.compile(
+    r"\b(use when|invoke when|trigger(?:s)? when|when (?:the )?user|when someone)\b",
+    re.IGNORECASE,
+)
+
+# First-person pronouns that violate Anthropic's third-person discipline.
+# A description that starts with "I help..." or "You can use..." causes
+# discovery problems because the agent system prompt is written in second
+# person, and pronouns clash. SOFT warning — refinement should fix.
+_FIRST_PERSON_PATTERN = re.compile(
+    r"\b(?:I |I'll|I can|I help|I'm |I will|we |we'll|we can|we help|"
+    r"you can|you'll|you should|you may|your )",
+    re.IGNORECASE,
+)
+
+# A "pushy" description (Anthropic: combats undertriggering) lists multiple
+# concrete trigger phrases or synonyms. We approximate by counting
+# trigger-context keywords. SOFT warning when too few. The pattern is
+# intentionally broad — IT/ML/business verbs all signal a concrete user
+# intent the skill can serve. False negatives (missing a verb the user
+# might use) are worse than false positives.
+_PUSHY_KEYWORD_PATTERN = re.compile(
+    r"\b(ask(?:s|ed|ing)?|request|need|want|trying to|look(?:ing)? for|"
+    r"how to|help with|review|analyze|analy[sz]e|generate|extract|draft|"
+    r"fix|debug|create|build|configure|investigate|triage|summari[sz]e|"
+    r"integrate|schedule|extend|deploy|orchestrate|monitor|migrate|"
+    r"refactor|optimi[sz]e|automate|validate|verify|audit|implement|"
+    r"design|model|maintain|update|tune|test|ingest|transform|load|"
+    r"export|import|merge|split|trace|profile|benchmark|forecast|"
+    r"clean|enrich|normali[sz]e)\b",
+    re.IGNORECASE,
+)
+_MIN_PUSHY_KEYWORDS = 3
+
+# Anthropic prefers gerund-form names (`processing-pdfs`, `analyzing-data`)
+# because they describe the *capability* clearly. We accept gerund as
+# the FIRST OR SECOND hyphen-separated token (so `fine-tuning-models`
+# also counts — `tuning` is a gerund even though `fine` isn't). Noun
+# phrases like `pipeline-orchestration` are explicitly acceptable per
+# Anthropic so this stays SOFT regardless.
+_GERUND_HINT_PATTERN = re.compile(r"^(?:[a-z]+-)?[a-z]+ing(?:-|$)")
+
+# --- Body rules -----------------------------------------------------------
+
+_REQUIRED_BODY_SECTIONS = [
+    "What This Skill Does",
+    "Workflow",
+    "Output Format",
+]
+# Target range for skill bodies. The v1 design had 1500 as the floor, but
+# back-to-back real-data validation runs against rich evidence (n=12 skill
+# bodies across a mid-market public-signal company) showed the model
+# consistently authoring at 235-495 words — and those bodies are genuinely
+# good: focused, company-specific, dense with named tools. Pushing toward
+# 1500 introduces padding. 250 is the new floor: it catches truly thin
+# stubs (one-paragraph fragments) without complaining about appropriately
+# tight skills. SOFT warning outside [250, 3000]; HARD fail above ~5000 tokens.
+# Three validation runs against rich real-world evidence settled the
+# minimum at 150. The model authors complete, dense skills (workflow
+# + output format + company-specific What section) at 150-250 words
+# when the upstream evidence is good. 150 catches genuinely thin stubs
+# (one-paragraph fragments) without false-positiving on appropriately
+# tight skills. Per Anthropic: "concision matters; pad-words hurt."
+_BODY_MIN_WORDS = 150
+_BODY_TARGET_MAX_WORDS = 3000
+_BODY_HARD_MAX_WORDS = 5000
+
+# --- Security patterns ---------------------------------------------------
+
+# Ported verbatim from output/skills_generator.py:_AGENT_INSTRUCTION_PATTERNS.
+# These are the load-bearing prompt-injection filters: anything matching is
+# a HARD failure that drops the role rather than risking a downstream agent
+# host obeying scraped third-party content as an instruction.
+_AGENT_INSTRUCTION_PATTERNS = [
+    re.compile(
+        r"(?:^|\b)(?:ignore|disregard|forget)\b[^\n]{0,80}(?:previous|prior|above)",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\bsystem\s+prompt\b", re.IGNORECASE),
+    re.compile(
+        r"\b(?:run|execute|invoke)\b[^\n]{0,80}(?:command|bash|shell|script)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:read|cat|exfiltrate|exfil|dump|leak)\b[^\n]{0,80}"
+        r"(?:~/\.ssh|id_rsa|\.env|credentials|secrets?)",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\bcurl\b[^\n]{0,200}\bhttps?://", re.IGNORECASE),
+    re.compile(r"\bwget\b[^\n]{0,200}\bhttps?://", re.IGNORECASE),
+    re.compile(r"```(?:bash|sh|shell|zsh|powershell|pwsh|cmd)\b", re.IGNORECASE),
+    re.compile(r"<\s*tool[^>]*>|<\s*function[^>]*>", re.IGNORECASE),
+    re.compile(r"\ballowed[-_ ]?tools\s*:", re.IGNORECASE),
+    re.compile(r"```\s*ya?ml\s*\n\s*---", re.IGNORECASE),
+    # Additions for the structured-output era (plan §Q1):
+    re.compile(r"<\s*allowed-tools", re.IGNORECASE),
+    re.compile(r"\bfile://", re.IGNORECASE),
+    re.compile(r"\$\{[^}]+\}"),  # env-var exfil templating
+]
+
+# Hardcoded local paths — even if benign, they make the skill non-portable
+# and violate Cowork's "don't hardcode file paths" best-practice.
+_HARDCODED_PATH_PATTERNS = [
+    re.compile(r"(?:^|[\s'\"`])/Users/[A-Za-z0-9._-]+", re.IGNORECASE),
+    re.compile(r"(?:^|[\s'\"`])[A-Z]:\\Users\\[A-Za-z0-9._-]+", re.IGNORECASE),
+    re.compile(r"(?:^|[\s'\"`])~/[A-Za-z0-9._/-]+"),
+    re.compile(r"(?:^|[\s'\"`])/home/[A-Za-z0-9._-]+", re.IGNORECASE),
+]
+
+
+def _word_count(text: str) -> int:
+    return len(re.findall(r"\b\w+\b", text))
+
+
+def _approx_token_count(text: str) -> int:
+    """Approximate token count using the standard 4-chars-per-token heuristic.
+
+    Avoids pulling tiktoken as a hard dep. The HARD-fail threshold has a
+    generous margin so the approximation is safe.
+    """
+    return len(text) // 4
+
+
+def _find_injection_match(text: str) -> str | None:
+    """Return the first agent-instruction pattern hit, or None."""
+    if not text:
+        return None
+    for pattern in _AGENT_INSTRUCTION_PATTERNS:
+        m = pattern.search(text)
+        if m:
+            return m.group(0)
+    return None
+
+
+def _find_hardcoded_path(text: str) -> str | None:
+    if not text:
+        return None
+    for pattern in _HARDCODED_PATH_PATTERNS:
+        m = pattern.search(text)
+        if m:
+            return m.group(0).strip()
+    return None
+
+
+def _has_required_sections(body: str) -> list[str]:
+    """Return the list of REQUIRED sections that are MISSING from body."""
+    missing: list[str] = []
+    for section in _REQUIRED_BODY_SECTIONS:
+        pattern = re.compile(rf"^##\s+{re.escape(section)}\s*$", re.IGNORECASE | re.MULTILINE)
+        if not pattern.search(body):
+            missing.append(section)
+    return missing
+
+
+def validate_kebab_case(name: str) -> bool:
+    """Public helper for use outside the pipeline (e.g. CLI input parsing)."""
+    if not name or len(name) > _MAX_NAME_LEN:
+        return False
+    return bool(_KEBAB_PATTERN.match(name))
+
+
+def validate_skill(skill: Skill, role_name: str) -> list[SkillIssue]:
+    """Validate one Skill and return any findings."""
+    issues: list[SkillIssue] = []
+
+    # ASKILL-P006/P007: name shape + folder match
+    if not validate_kebab_case(skill.name):
+        issues.append(
+            SkillIssue(
+                code="ASKILL-P007",
+                severity=IssueSeverity.HARD,
+                message=(
+                    f"name {skill.name!r} is not kebab-case "
+                    "(lowercase alphanumeric + single internal hyphens, 1-64 chars)"
+                ),
+                role_name=role_name,
+                field="name",
+                excerpt=skill.name[:80],
+            )
+        )
+
+    # DESC-LEN
+    desc = skill.description or ""
+    if not (_MIN_DESC_LEN <= len(desc) <= _MAX_DESC_LEN):
+        issues.append(
+            SkillIssue(
+                code="DESC-LEN",
+                severity=IssueSeverity.HARD,
+                message=(
+                    f"description length {len(desc)} outside [{_MIN_DESC_LEN}, "
+                    f"{_MAX_DESC_LEN}]"
+                ),
+                role_name=role_name,
+                field="description",
+                excerpt=desc[:120],
+            )
+        )
+
+    # DESC-TRIG
+    if not _TRIGGER_PATTERN.search(desc):
+        issues.append(
+            SkillIssue(
+                code="DESC-TRIG",
+                severity=IssueSeverity.HARD,
+                message=(
+                    "description lacks an explicit trigger phrase "
+                    "(e.g. 'Use when user asks to...')"
+                ),
+                role_name=role_name,
+                field="description",
+                excerpt=desc[:120],
+            )
+        )
+
+    # DESC-VOICE — Anthropic: third-person only. First/second-person
+    # pronouns in the description clash with the system-prompt POV and
+    # degrade discovery. SOFT so existing packs don't break instantly.
+    if desc and _FIRST_PERSON_PATTERN.search(desc):
+        issues.append(
+            SkillIssue(
+                code="DESC-VOICE",
+                severity=IssueSeverity.SOFT,
+                message=(
+                    "description uses first/second-person voice; Anthropic "
+                    "recommends third person (e.g. 'Processes contracts' "
+                    "not 'I help review contracts')"
+                ),
+                role_name=role_name,
+                field="description",
+                excerpt=desc[:120],
+            )
+        )
+
+    # DESC-PUSHY — Anthropic explicitly recommends descriptions be a "little
+    # bit pushy" with multiple trigger keywords to combat undertriggering.
+    # Count action/intent keywords; <3 is too thin.
+    if desc:
+        pushy_hits = len(_PUSHY_KEYWORD_PATTERN.findall(desc))
+        if pushy_hits < _MIN_PUSHY_KEYWORDS:
+            issues.append(
+                SkillIssue(
+                    code="DESC-PUSHY",
+                    severity=IssueSeverity.SOFT,
+                    message=(
+                        f"description has only {pushy_hits} trigger-context "
+                        f"keyword(s); Anthropic recommends listing multiple "
+                        f"concrete user-intent phrases to combat undertriggering"
+                    ),
+                    role_name=role_name,
+                    field="description",
+                    excerpt=desc[:120],
+                )
+            )
+
+    # NAME-GERUND — soft hint, not a fail. Gerund form ("processing-pdfs")
+    # is preferred per Anthropic. Noun phrases are explicitly acceptable
+    # too, so this stays SOFT and informational.
+    if skill.name and not _GERUND_HINT_PATTERN.match(skill.name):
+        issues.append(
+            SkillIssue(
+                code="NAME-GERUND",
+                severity=IssueSeverity.SOFT,
+                message=(
+                    "name does not use gerund form (verb + -ing); "
+                    "Anthropic recommends gerund for clearer capability "
+                    "description (e.g. 'drafting-models' over 'draft-models')"
+                ),
+                role_name=role_name,
+                field="name",
+                excerpt=skill.name,
+            )
+        )
+
+    # BODY-SEC
+    missing_sections = _has_required_sections(skill.body)
+    if missing_sections:
+        issues.append(
+            SkillIssue(
+                code="BODY-SEC",
+                severity=IssueSeverity.HARD,
+                message=f"body is missing required H2 section(s): {', '.join(missing_sections)}",
+                role_name=role_name,
+                field="body",
+            )
+        )
+
+    # BODY-LEN
+    words = _word_count(skill.body)
+    tokens = _approx_token_count(skill.body)
+    if tokens > _BODY_HARD_MAX_WORDS:
+        issues.append(
+            SkillIssue(
+                code="BODY-LEN",
+                severity=IssueSeverity.HARD,
+                message=(
+                    f"body exceeds hard token cap (~{tokens} tokens > {_BODY_HARD_MAX_WORDS})"
+                ),
+                role_name=role_name,
+                field="body",
+            )
+        )
+    elif words < _BODY_MIN_WORDS or words > _BODY_TARGET_MAX_WORDS:
+        issues.append(
+            SkillIssue(
+                code="BODY-LEN",
+                severity=IssueSeverity.SOFT,
+                message=(
+                    f"body word count {words} outside target "
+                    f"[{_BODY_MIN_WORDS}, {_BODY_TARGET_MAX_WORDS}]"
+                ),
+                role_name=role_name,
+                field="body",
+            )
+        )
+
+    # SEC-INJECT — run across every string field
+    for field_name, content in [
+        ("name", skill.name),
+        ("display_name", skill.display_name),
+        ("description", skill.description),
+        ("body", skill.body),
+    ]:
+        hit = _find_injection_match(content)
+        if hit:
+            issues.append(
+                SkillIssue(
+                    code="SEC-INJECT",
+                    severity=IssueSeverity.HARD,
+                    message=f"agent-instruction pattern detected in {field_name}",
+                    role_name=role_name,
+                    field=field_name,
+                    excerpt=hit[:120],
+                )
+            )
+
+    # SEC-PATH
+    path_hit = _find_hardcoded_path(skill.body)
+    if path_hit:
+        issues.append(
+            SkillIssue(
+                code="SEC-PATH",
+                severity=IssueSeverity.HARD,
+                message=f"hardcoded local path in body: {path_hit}",
+                role_name=role_name,
+                field="body",
+                excerpt=path_hit[:120],
+            )
+        )
+
+    return issues
+
+
+def validate_role(role: Role) -> list[SkillIssue]:
+    """Validate one Role (its skills, plus role-level checks)."""
+    issues: list[SkillIssue] = []
+
+    if not validate_kebab_case(role.name):
+        issues.append(
+            SkillIssue(
+                code="ASKILL-P007",
+                severity=IssueSeverity.HARD,
+                message=f"role name {role.name!r} is not kebab-case",
+                role_name=role.name,
+                field="name",
+                excerpt=role.name[:80],
+            )
+        )
+
+    if not role.skills:
+        issues.append(
+            SkillIssue(
+                code="ROLE-EMPTY",
+                severity=IssueSeverity.HARD,
+                message="role has no skills attached",
+                role_name=role.name,
+            )
+        )
+
+    for skill in role.skills:
+        issues.extend(validate_skill(skill, role.name))
+
+    return issues
+
+
+def _similarity(a: str, b: str) -> float:
+    """Cheap similarity for the pack-level overlap check.
+
+    Uses difflib (stdlib, no extra deps). Cosine on TF-IDF would be more
+    accurate but the threshold is intentionally generous (0.85) so the
+    sequence-ratio comparison is sufficient as a soft warning.
+    """
+    return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+
+
+_OVERLAP_THRESHOLD = 0.85
+
+
+def validate_pack(pack: SkillPack) -> ValidationReport:
+    """Run all skill-level + role-level + pack-level validation.
+
+    Mutates nothing; the caller decides whether to drop, refine, or ship.
+    """
+    issues: list[SkillIssue] = []
+
+    for role in pack.roles:
+        issues.extend(validate_role(role))
+
+    # Pack-level overlap: compare every pair of skills' name+description.
+    # Only emit one SOFT issue per pair (refinement may collapse duplicates).
+    seen_pairs: set[tuple[str, str]] = set()
+    all_skills: list[tuple[str, Skill]] = [
+        (r.name, s) for r in pack.roles for s in r.skills
+    ]
+    for i, (r1, s1) in enumerate(all_skills):
+        for r2, s2 in all_skills[i + 1 :]:
+            if r1 == r2 and s1.name == s2.name:
+                continue
+            pair_key = tuple(sorted([f"{r1}/{s1.name}", f"{r2}/{s2.name}"]))
+            if pair_key in seen_pairs:
+                continue
+            seen_pairs.add(pair_key)  # type: ignore[arg-type]
+            sig1 = f"{s1.display_name} :: {s1.description[:200]}"
+            sig2 = f"{s2.display_name} :: {s2.description[:200]}"
+            sim = _similarity(sig1, sig2)
+            if sim >= _OVERLAP_THRESHOLD:
+                issues.append(
+                    SkillIssue(
+                        code="PACK-OVERLAP",
+                        severity=IssueSeverity.SOFT,
+                        message=(
+                            f"skills {r1}/{s1.name} and {r2}/{s2.name} have "
+                            f"{sim:.2f} similarity (>= {_OVERLAP_THRESHOLD})"
+                        ),
+                    )
+                )
+
+    return ValidationReport(issues=issues)
+
+
+__all__ = [
+    "validate_kebab_case",
+    "validate_pack",
+    "validate_role",
+    "validate_skill",
+]

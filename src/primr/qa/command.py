@@ -220,14 +220,21 @@ class QACommand:
             return 1
 
     def _find_recent_report(self, company_name: str) -> str | None:
-        """Find the most recent report for a company."""
+        """Find the most recent report for a company.
+
+        Brackets / wildcards in company names (e.g. "Acme [Holdings]") would
+        otherwise be interpreted as glob character classes and miss the
+        actual filename — same bug fixed for batch resume in commit 793e5d1.
+        We escape the name fragments and keep the trailing ``*.docx`` as the
+        real wildcard.
+        """
         output_dir = self.output_dir
 
         # Look for various report types
         patterns = [
-            f"{company_name}_*.docx",
-            f"{company_name.replace(' ', '_')}_*.docx",
-            f"{company_name.replace(' ', '')}_*.docx",
+            f"{glob.escape(company_name)}_*.docx",
+            f"{glob.escape(company_name.replace(' ', '_'))}_*.docx",
+            f"{glob.escape(company_name.replace(' ', ''))}_*.docx",
         ]
 
         all_files = []
@@ -243,14 +250,17 @@ class QACommand:
         return all_files[0]
 
     def _find_qa_report(self, company_name: str) -> str | None:
-        """Find the most recent QA report for a company."""
+        """Find the most recent QA report for a company.
+
+        See ``_find_recent_report`` for the glob.escape rationale.
+        """
         output_dir = self.output_dir
 
         # Look for QA report files
         patterns = [
-            f"{company_name}_QA_Report_*.txt",
-            f"{company_name.replace(' ', '_')}_QA_Report_*.txt",
-            f"{company_name.replace(' ', '')}_QA_Report_*.txt",
+            f"{glob.escape(company_name)}_QA_Report_*.txt",
+            f"{glob.escape(company_name.replace(' ', '_'))}_QA_Report_*.txt",
+            f"{glob.escape(company_name.replace(' ', ''))}_QA_Report_*.txt",
         ]
 
         all_files = []

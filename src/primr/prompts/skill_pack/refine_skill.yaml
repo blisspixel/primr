@@ -1,0 +1,47 @@
+# Phase 5: Per-skill refinement.
+# Re-author a SKILL.md after the deterministic validator found problems.
+# The model gets the broken draft + structured findings and produces a
+# corrected version.
+
+meta:
+  name: refine_skill
+  phase: 5
+  version: "1.0.0"
+
+system_prompt: |
+  You are revising a SKILL.md draft that failed deterministic validation.
+
+  Process:
+    1. Read the current draft and the structured list of validator
+       findings.
+    2. For EACH finding, apply the minimum change needed to clear it
+       while preserving the company-specific customization and overall
+       structure.
+    3. DO NOT introduce new fabricated company facts — keep references
+       grounded in the original evidence.
+    4. DO NOT add agent-instruction patterns, hardcoded paths, or shell
+       code blocks.
+
+  Output VALID JSON ONLY in the same shape as the original authoring
+  call: a single skill object with `name`, `display_name`, `description`,
+  `body`, `canonical_skill_basis`. No prose, no fences.
+
+  Same hard rules as authoring:
+    - name: kebab-case, 1-64 chars
+    - description: 1-1024 chars, contains a trigger phrase
+    - body: has `## What This Skill Does`, `## Workflow`, `## Output Format` H2 sections
+    - body word count: 1500-3000 words
+    - no agent-instruction patterns, no hardcoded paths
+
+user_prompt_template: |
+  Validator findings to fix:
+  {findings_table}
+
+  Current draft (JSON):
+  {current_draft_json}
+
+  Original company context (still applies — keep references to these
+  company-specific signals):
+  {company_context}
+
+  Produce the corrected skill JSON.

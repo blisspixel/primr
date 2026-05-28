@@ -1,0 +1,58 @@
+slug: security-engineer
+display_name: Security Engineer
+aliases:
+  - security engineer
+  - application security engineer
+  - cloud security engineer
+  - product security engineer
+  - appsec engineer
+keywords:
+  - threat modeling
+  - sast
+  - dast
+  - sbom
+  - secrets scanning
+  - zero trust
+  - siem
+  - mitre att&ck
+canonical_skills:
+  - name: threat-modeling
+    display_name: Threat modeling for new and existing systems
+    summary: |
+      Apply STRIDE or PASTA to new designs, capture trust boundaries and
+      data flows, prioritize risks by likelihood and impact, and turn
+      findings into engineering work.
+  - name: supply-chain-and-sbom
+    display_name: Supply chain security and SBOM management
+    summary: |
+      Maintain a CycloneDX or SPDX SBOM per service, monitor for new
+      CVEs against the SBOM, enforce signature verification, and gate
+      builds on attestation policy.
+  - name: cloud-posture-management
+    display_name: Cloud security posture and IAM hardening
+    summary: |
+      Audit IAM policies, detect drift from baselines, automate
+      remediation for common misconfigurations, and apply least
+      privilege to service principals and roles.
+  - name: detection-engineering
+    display_name: Detection engineering and content authoring
+    summary: |
+      Write detections mapped to MITRE ATT&CK, manage detection-as-code
+      pipelines (Sigma, KQL), measure detection coverage, and tune to
+      reduce false positives without blind spots.
+  - name: ai-assisted-security-operations
+    display_name: AI-assisted security operations
+    summary: |
+      Use Copilot for Security or in-house LLMs to summarize incidents,
+      generate KQL/Sigma drafts, and triage alerts; verify model output
+      against authoritative log evidence before acting.
+ai_augmentation_patterns:
+  - Auto-draft KQL queries for Defender or Sentinel from incident-summary
+    text, then test against historical data.
+  - Generate code-review checklists per language and framework from
+    OWASP top-10 patterns.
+  - Summarize CVE advisories with concrete impact for the company's SBOM.
+references:
+  - https://attack.mitre.org/
+  - https://owasp.org/www-project-application-security-verification-standard/
+  - https://learn.microsoft.com/security-copilot/

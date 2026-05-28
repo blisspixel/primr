@@ -1,0 +1,56 @@
+slug: sre
+display_name: Site Reliability Engineer
+aliases:
+  - site reliability engineer
+  - reliability engineer
+  - production engineer
+  - sre
+keywords:
+  - kubernetes
+  - prometheus
+  - grafana
+  - terraform
+  - opentelemetry
+  - sli
+  - slo
+  - incident response
+canonical_skills:
+  - name: slo-and-error-budget-management
+    display_name: SLI/SLO design and error-budget management
+    summary: |
+      Define meaningful service-level indicators, set realistic objectives,
+      track burn rate, and apply error-budget policies when budgets are
+      exhausted (slow rollouts, freeze new launches).
+  - name: incident-response-and-postmortem
+    display_name: Incident response and blameless postmortems
+    summary: |
+      Run incidents to clear conclusion, communicate with stakeholders,
+      write blameless postmortems with concrete action items, and track
+      remediation through resolution.
+  - name: observability-instrumentation
+    display_name: Observability and tracing instrumentation
+    summary: |
+      Instrument services with OpenTelemetry, design useful dashboards
+      in Grafana, set high-signal alerts, and reduce alert fatigue.
+  - name: capacity-and-cost-engineering
+    display_name: Capacity, cost, and performance engineering
+    summary: |
+      Forecast capacity, right-size clusters, identify spend anomalies,
+      and apply load-test data to inform autoscaling and reservation
+      strategies.
+  - name: ai-assisted-incident-investigation
+    display_name: AI-assisted incident investigation
+    summary: |
+      Use LLM agents to triage logs, surface anomalies, and propose
+      runbook steps with citations to dashboards and prior incidents.
+      Verify before acting.
+ai_augmentation_patterns:
+  - Pipe alert payloads through an LLM that summarizes blast radius and
+    recent deploys before paging humans.
+  - Generate first-pass postmortem timelines from chat and PagerDuty
+    transcripts.
+  - Suggest runbook updates from postmortem action items.
+references:
+  - https://sre.google/books/
+  - https://opentelemetry.io/docs/
+  - https://prometheus.io/docs/practices/

@@ -1,0 +1,58 @@
+slug: data-engineer
+display_name: Data Engineer
+aliases:
+  - data platform engineer
+  - analytics engineer
+  - etl engineer
+  - data integration engineer
+keywords:
+  - dbt
+  - snowflake
+  - databricks
+  - airflow
+  - kafka
+  - spark
+  - bigquery
+  - redshift
+  - lakehouse
+canonical_skills:
+  - name: pipeline-orchestration
+    display_name: Pipeline orchestration and scheduling
+    summary: |
+      Design Airflow, Prefect, or Dagster DAGs with retry semantics,
+      backfill strategies, idempotent tasks, and SLA monitoring.
+  - name: warehouse-modeling
+    display_name: Warehouse modeling with dbt
+    summary: |
+      Apply Kimball or data-vault patterns, write tested dbt models,
+      use sources, exposures, tests, and packages, and manage staging
+      to mart layers with documented lineage.
+  - name: streaming-and-cdc
+    display_name: Streaming ingestion and change data capture
+    summary: |
+      Configure Kafka, Kinesis, or Pub/Sub topics, manage Debezium CDC,
+      handle late-arriving and out-of-order events, and partition for
+      replay safety.
+  - name: data-quality-and-contracts
+    display_name: Data quality, contracts, and observability
+    summary: |
+      Implement Great Expectations, Soda, or dbt tests, set up freshness
+      and volume checks, define data contracts between producers and
+      consumers, and alert on contract breaks.
+  - name: ai-assisted-data-development
+    display_name: LLM-assisted SQL, transform, and lineage work
+    summary: |
+      Use AI to draft SQL transformations from semantic specs, generate
+      dbt test scaffolds from schema, and explain unfamiliar legacy
+      pipelines. Always validate generated SQL against a sample.
+ai_augmentation_patterns:
+  - LLM-assisted SQL generation paired with explain-plan review before
+    deployment.
+  - Natural-language-to-dbt-model translation for common patterns; human
+    review for performance-critical models.
+  - Auto-document tables and columns from schema + sample data; surface
+    in a catalog like Atlan or Unity.
+references:
+  - https://docs.getdbt.com/
+  - https://www.databricks.com/glossary/data-engineering
+  - https://airflow.apache.org/docs/

@@ -1,0 +1,57 @@
+slug: product-manager
+display_name: Product Manager
+aliases:
+  - product manager
+  - senior product manager
+  - principal product manager
+  - product owner
+keywords:
+  - roadmap
+  - okrs
+  - discovery
+  - usability research
+  - jira
+  - amplitude
+  - mixpanel
+canonical_skills:
+  - name: product-discovery-and-research
+    display_name: Customer discovery and research synthesis
+    summary: |
+      Run continuous discovery interviews, synthesize findings into
+      problem statements, validate with quantitative data, and decide
+      what NOT to build.
+  - name: roadmap-and-prioritization
+    display_name: Roadmap design and prioritization
+    summary: |
+      Apply RICE, opportunity-solution trees, or Kano to compare
+      candidate work, defend roadmap decisions with explicit
+      assumptions, and communicate trade-offs to leadership.
+  - name: experimentation-and-metrics
+    display_name: Experimentation and metric design
+    summary: |
+      Design A/B tests with proper power calculations, define guardrail
+      and north-star metrics, partner with data on instrumentation,
+      and interpret causal evidence honestly.
+  - name: stakeholder-alignment-and-comms
+    display_name: Stakeholder alignment and written communication
+    summary: |
+      Author memos that survive scrutiny, run productive review
+      meetings, manage upstream and downstream stakeholder commitments,
+      and escalate cleanly.
+  - name: ai-feature-discovery-and-evaluation
+    display_name: AI feature discovery and evaluation
+    summary: |
+      Identify where LLM features create user value vs. friction,
+      design evals for AI features alongside engineering, and write
+      product specs that articulate failure modes, not just happy paths.
+ai_augmentation_patterns:
+  - Use LLMs to synthesize user-research notes into theme clusters with
+    citations to the source transcripts.
+  - Draft PRDs from problem statements; iterate on edge cases with the
+    model as foil.
+  - Generate analytics-query stubs (SQL or Amplitude charts) from
+    questions for analyst review.
+references:
+  - https://www.svpg.com/articles/
+  - https://www.producttalk.org/
+  - https://www.mindtheproduct.com/

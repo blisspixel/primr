@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "primr"
-version = "1.25.2"
+version = "1.26.0"
 description = "Turn any company or organization URL into a strategic intelligence brief. Adaptive scraping + AI-powered research and synthesis."
 readme = "README.md"
 license = {text = "MIT"}
@@ -118,6 +118,8 @@ primr = [
     "prompts/*.yaml",
     "prompts/shared/*.yaml",
     "prompts/strategies/*.yaml",
+    "prompts/skill_pack/*.yaml",
+    "skill_pack/archetypes/*.yaml",
 ]
 
 [tool.mypy]
@@ -180,6 +182,9 @@ ignore = [
     "RUF001", # Ambiguous unicode - intentional in regex for real-world matching
     "RUF012", # ClassVar for class attrs - verbose, doesn't affect correctness
     "RUF059", # Unused unpacked variable - sometimes clearer to show structure
+    "TC001",  # Move first-party imports into type-checking block - false positives on runtime use
+    "TC003",  # Move stdlib imports into type-checking block - false positives on runtime use
+    "PT006",  # parametrize first arg should be tuple - stylistic, comma-separated works
 ]
 
 [tool.ruff.lint.isort]

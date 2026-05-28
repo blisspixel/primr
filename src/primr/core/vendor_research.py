@@ -129,15 +129,18 @@ def get_manual_research_path(vendor: str) -> Path | None:
     return None
 
 
-def is_vendor_research_current(vendor: str, max_age_days: int = 14) -> bool:
+def is_vendor_research_current(vendor: str, max_age_days: int = 7) -> bool:
     """
     Check if we have fresh vendor research (within max_age_days).
 
-    AI moves fast — monthly is too stale. Default is 14 days.
+    AI moves fast — monthly is too stale, biweekly is borderline. Default
+    is 7 days (weekly): vendor news (model releases, Azure/AWS/GCP
+    feature announcements) shifts often enough that a one-week TTL is the
+    right balance between freshness and avoiding constant regeneration.
 
     Args:
         vendor: Cloud vendor
-        max_age_days: Maximum age in days before research is considered stale (default: 14)
+        max_age_days: Maximum age in days before research is considered stale (default: 7)
 
     Returns:
         True if current research exists and is fresh enough

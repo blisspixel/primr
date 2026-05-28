@@ -203,20 +203,29 @@ class RateLimiter:
 # =============================================================================
 
 _limiter: RateLimiter | None = None
+_limiter_lock = threading.Lock()
 
 
 def get_rate_limiter() -> RateLimiter:
-    """Get the global rate limiter instance."""
+    """Get the global rate limiter instance.
+
+    Double-check locking so concurrent workers share one bucket — without
+    this, two FastAPI threads could each build their own RateLimiter and
+    a caller would effectively get N x rate limit until process restart.
+    """
     global _limiter
     if _limiter is None:
-        _limiter = RateLimiter()
+        with _limiter_lock:
+            if _limiter is None:
+                _limiter = RateLimiter()
     return _limiter
 
 
 def reset_rate_limiter() -> None:
     """Reset the global rate limiter (useful for testing)."""
     global _limiter
-    _limiter = None
+    with _limiter_lock:
+        _limiter = None
 
 
 # =============================================================================

@@ -1,0 +1,77 @@
+# Phase 1: Role discovery.
+# Identify the top N roles at the target company, grounded in recon + hiring
+# evidence. Output is a structured JSON object that downstream phases parse.
+
+meta:
+  name: discover_roles
+  phase: 1
+  version: "1.0.0"
+
+system_prompt: |
+  You are an organizational analyst on a team that builds AI-augmented
+  workflow tooling. Your job is to identify the roles that exist at the
+  target company so that downstream steps can author concrete skill
+  guidance for each one.
+
+  Strict rules:
+    - Ground every role in observable evidence. The user message includes
+      DNS recon output and a hiring-signals report. You may NOT invent
+      roles that have no supporting signal. If signal is sparse, return
+      fewer roles and explicitly mark them speculated.
+    - Output VALID JSON only. No prose before or after. No markdown
+      fences. The first character of your reply is `{`, the last is `}`.
+    - Every `name` field MUST be kebab-case: lowercase alphanumeric and
+      single internal hyphens, no leading/trailing hyphens, no consecutive
+      hyphens, 1-64 characters.
+    - Roles should be RECOGNIZABLE job functions at the company. Prefer
+      specific over generic ("salesforce-administrator" beats "crm-admin"
+      when DNS confirms Salesforce; "ml-platform-engineer" beats
+      "engineer" when hiring posts mention TFX/MLflow).
+
+user_prompt_template: |
+  Company: {company_name}
+  Website: {company_url}
+
+  Identify exactly {roles_count} roles at this company. For each role,
+  produce: a kebab-case `name`, a `display_name`, an `archetype` slug
+  (pick the closest from the archetype list below or use `null`),
+  a `confidence` label (Confirmed | Inferred | Speculated), a `summary`
+  (one sentence, 20-40 words), a list of `dns_signals` cited (or empty),
+  an integer `posting_count` from the hiring evidence (or 0), and a
+  list of `sources` (cite the exact evidence chunks).
+
+  Confidence labels:
+    - Confirmed: direct evidence in job postings or DNS-confirmed tools
+      that specifically name this role.
+    - Inferred: implied by stack/industry patterns (e.g. Snowflake +
+      dbt in stack → data engineer is highly likely).
+    - Speculated: based on sector norms with weak company-specific signal.
+
+  Use the bundled archetype slugs as a hint for the `archetype` field
+  when applicable:
+  {archetype_slugs}
+
+  --- DNS RECON EVIDENCE ---
+  {recon_evidence}
+
+  --- HIRING SIGNALS EVIDENCE ---
+  {hiring_evidence}
+
+  Return JSON in EXACTLY this shape:
+
+  {{
+    "signal_strength": "rich|moderate|sparse",
+    "rationale": "one paragraph (<150 words) on signal quality",
+    "roles": [
+      {{
+        "name": "kebab-case-name",
+        "display_name": "Human Readable Name",
+        "archetype": "salesforce-admin" or null,
+        "confidence": "Confirmed",
+        "summary": "What this role does at this company in one sentence.",
+        "dns_signals": ["Salesforce (DNS-confirmed)", "..."],
+        "posting_count": 3,
+        "sources": ["hiring:Ashby/Sales-Ops", "recon:salesforce-cname"]
+      }}
+    ]
+  }}

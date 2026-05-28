@@ -17,7 +17,7 @@ import errno
 import logging
 import os
 import secrets
-from pathlib import Path  # noqa: TC003 - used at runtime in helpers below
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

@@ -407,20 +407,29 @@ class _RequestTracker:
 # =============================================================================
 
 _collector: MetricsCollector | None = None
+_collector_lock = threading.Lock()
 
 
 def get_metrics_collector() -> MetricsCollector:
-    """Get the global metrics collector."""
+    """Get the global metrics collector.
+
+    Double-check locking so concurrent workers share one collector —
+    without this each worker thread could end up with its own counter
+    bag, splitting the metrics output across instances.
+    """
     global _collector
     if _collector is None:
-        _collector = MetricsCollector()
+        with _collector_lock:
+            if _collector is None:
+                _collector = MetricsCollector()
     return _collector
 
 
 def reset_metrics_collector() -> None:
     """Reset the global metrics collector."""
     global _collector
-    _collector = None
+    with _collector_lock:
+        _collector = None
 
 
 # =============================================================================

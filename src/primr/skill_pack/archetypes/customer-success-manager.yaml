@@ -1,0 +1,55 @@
+slug: customer-success-manager
+display_name: Customer Success Manager
+aliases:
+  - customer success manager
+  - account manager (post-sales)
+  - csm
+  - implementation manager
+keywords:
+  - gainsight
+  - churnzero
+  - renewal
+  - expansion
+  - qbr
+  - health score
+canonical_skills:
+  - name: account-planning-and-qbrs
+    display_name: Account planning and QBRs
+    summary: |
+      Build account plans with stakeholder maps, value drivers, and
+      success criteria; run QBRs that produce mutual action plans
+      rather than status reports.
+  - name: adoption-and-value-realization
+    display_name: Adoption and value realization
+    summary: |
+      Translate purchased features into measured outcomes, identify
+      drop-off in adoption funnels, and orchestrate enablement to
+      close gaps before renewal.
+  - name: renewal-and-expansion
+    display_name: Renewal motion and expansion identification
+    summary: |
+      Forecast renewal risk by combining usage, sentiment, and
+      stakeholder change signals; identify expansion opportunities
+      and partner with sales on positioning.
+  - name: escalation-and-recovery
+    display_name: Escalation handling and account recovery
+    summary: |
+      Lead recovery for at-risk accounts with structured root-cause,
+      remediation plan, and check-in cadence; document for org learning.
+  - name: ai-assisted-customer-insight
+    display_name: AI-assisted customer insight and prep
+    summary: |
+      Use LLMs to summarize support tickets, product usage logs, and
+      executive comms for QBR prep; flag changes in customer health
+      that warrant human follow-up.
+ai_augmentation_patterns:
+  - Auto-summarize the past 90 days of customer interactions before a
+    QBR, with citations to source tickets and emails.
+  - Generate stakeholder change alerts when a champion leaves or a new
+    executive joins.
+  - Draft renewal risk briefs from health-score signals plus textual
+    sentiment summaries.
+references:
+  - https://www.gainsight.com/customer-success/
+  - https://www.csmpractice.com/
+  - https://www.totango.com/blog
