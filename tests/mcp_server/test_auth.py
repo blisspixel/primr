@@ -473,8 +473,15 @@ class TestAuthContext:
         assert ctx.can_cancel_job("any-user") is True
         assert ctx.can_cancel_job(None) is True
 
-    def test_can_cancel_job_no_owner(self):
-        """Anyone can cancel a job with no owner."""
+    def test_can_cancel_job_no_owner_http_caller_fails_closed(self):
+        """An HTTP caller cannot cancel a job with no recorded owner.
+
+        Fail-closed rule (mirrors tools._handle_cancel_job): a pre-owner-
+        tracking job whose owner is None is NOT cancellable by an
+        authenticated HTTP client, because otherwise any HTTP caller
+        could cancel any legacy job by id. Stdio mode (anonymous) keeps
+        the permissive behavior.
+        """
         from mcp.server.auth.provider import AccessToken
 
         token = AccessToken(
@@ -484,7 +491,7 @@ class TestAuthContext:
         )
         ctx = AuthContext(token)
 
-        assert ctx.can_cancel_job(None) is True
+        assert ctx.can_cancel_job(None) is False
 
 
 class TestAuthLogging:
