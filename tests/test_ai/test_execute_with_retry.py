@@ -31,9 +31,7 @@ def orchestrator(monkeypatch):
 class TestExecuteWithRetry:
     @pytest.mark.asyncio
     async def test_returns_immediately_on_success(self, orchestrator):
-        ok_result = ResearchResult(
-            content="body", status=ResearchStatus.COMPLETED
-        )
+        ok_result = ResearchResult(content="body", status=ResearchStatus.COMPLETED)
         with patch.object(
             orchestrator,
             "_execute_single",
@@ -121,13 +119,16 @@ class TestExecuteWithRetry:
 
     @pytest.mark.asyncio
     async def test_non_retryable_aierror_propagates(self, orchestrator):
-        with patch.object(
-            orchestrator,
-            "_execute_single",
-            new=AsyncMock(
-                side_effect=AIError("validation failure - not retryable", model="dr")
+        with (
+            patch.object(
+                orchestrator,
+                "_execute_single",
+                new=AsyncMock(
+                    side_effect=AIError("validation failure - not retryable", model="dr")
+                ),
             ),
-        ), pytest.raises(AIError):
+            pytest.raises(AIError),
+        ):
             await orchestrator._execute_with_retry("prompt")
 
     @pytest.mark.asyncio
@@ -166,11 +167,14 @@ class TestExecuteWithRetry:
 
     @pytest.mark.asyncio
     async def test_generic_exception_non_retryable_propagates(self, orchestrator):
-        with patch.object(
-            orchestrator,
-            "_execute_single",
-            new=AsyncMock(side_effect=ValueError("bad input")),
-        ), pytest.raises(ValueError):
+        with (
+            patch.object(
+                orchestrator,
+                "_execute_single",
+                new=AsyncMock(side_effect=ValueError("bad input")),
+            ),
+            pytest.raises(ValueError),
+        ):
             await orchestrator._execute_with_retry("prompt")
 
     @pytest.mark.asyncio
@@ -190,9 +194,7 @@ class TestExecuteWithRetry:
             ),
             patch("asyncio.sleep", new=AsyncMock(return_value=None)),
         ):
-            await orchestrator._execute_with_retry(
-                "prompt", on_progress=progress
-            )
+            await orchestrator._execute_with_retry("prompt", on_progress=progress)
         # Should have been called for the retry message
         assert progress.called
 

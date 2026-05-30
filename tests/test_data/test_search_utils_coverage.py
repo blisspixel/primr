@@ -198,9 +198,7 @@ class TestGoogleSearch:
             patch.object(search_utils, "_google_api_available", True),
             patch.object(search_utils, "SEARCH_API_KEY", "key"),
             patch.object(search_utils, "SEARCH_ENGINE_ID", "cx"),
-            patch.object(
-                search_utils._search_circuit, "can_execute", return_value=False
-            ),
+            patch.object(search_utils._search_circuit, "can_execute", return_value=False),
         ):
             assert search_utils._search_google("q", "Acme", "https://acme.com") == []
 
@@ -214,9 +212,7 @@ class TestDdgCircuitOpen:
     def test_open_circuit_returns_empty(self):
         from primr.data import search_utils
 
-        with patch.object(
-            search_utils._search_circuit, "can_execute", return_value=False
-        ):
+        with patch.object(search_utils._search_circuit, "can_execute", return_value=False):
             assert search_utils._search_ddg("q", "Acme", "https://acme.com") == []
 
     def test_ddgs_generic_exception(self):
@@ -240,9 +236,7 @@ class TestLookupCompanyWebsite:
 
         with (
             patch("ddgs.DDGS") as MockDDGS,
-            patch.object(
-                search_utils, "llm", return_value="https://acme.com/about"
-            ),
+            patch.object(search_utils, "llm", return_value="https://acme.com/about"),
         ):
             MockDDGS.return_value.text.return_value = [
                 {"title": "Acme", "href": "https://acme.com"}
@@ -281,9 +275,7 @@ class TestLookupCompanyWebsite:
 
         with (
             patch("ddgs.DDGS") as MockDDGS,
-            patch.object(
-                search_utils, "llm", return_value="https://acme.com/"
-            ),
+            patch.object(search_utils, "llm", return_value="https://acme.com/"),
         ):
             MockDDGS.return_value.text.side_effect = fake_text
             url = search_utils.lookup_company_website(
@@ -298,9 +290,7 @@ class TestLookupCompanyWebsite:
 
         with (
             patch("ddgs.DDGS") as MockDDGS,
-            patch.object(
-                search_utils, "llm", return_value="https://acme.com/"
-            ),
+            patch.object(search_utils, "llm", return_value="https://acme.com/"),
         ):
             MockDDGS.return_value.text.return_value = [
                 {"title": "Acme", "href": "https://acme.com"}

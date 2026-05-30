@@ -33,9 +33,7 @@ def _config(**overrides):
 class TestHandleGenerateVendor:
     def test_no_vendor_returns_zero(self, monkeypatch):
         gen_mock = MagicMock()
-        monkeypatch.setattr(
-            "primr.core.vendor_research.generate_vendor_research_sync", gen_mock
-        )
+        monkeypatch.setattr("primr.core.vendor_research.generate_vendor_research_sync", gen_mock)
         # No vendor specified -> loops over empty list -> returns 0
         result = _handle_generate_vendor(_config(generate_vendor=None))
         assert result == 0
@@ -43,9 +41,7 @@ class TestHandleGenerateVendor:
 
     def test_all_generates_four_vendors(self, monkeypatch):
         gen_mock = MagicMock(return_value="/path.json")
-        monkeypatch.setattr(
-            "primr.core.vendor_research.generate_vendor_research_sync", gen_mock
-        )
+        monkeypatch.setattr("primr.core.vendor_research.generate_vendor_research_sync", gen_mock)
         result = _handle_generate_vendor(_config(generate_vendor="all"))
         assert result == 0
         # all == azure, aws, gcp, agnostic
@@ -53,9 +49,7 @@ class TestHandleGenerateVendor:
 
     def test_single_vendor(self, monkeypatch):
         gen_mock = MagicMock(return_value="/path.json")
-        monkeypatch.setattr(
-            "primr.core.vendor_research.generate_vendor_research_sync", gen_mock
-        )
+        monkeypatch.setattr("primr.core.vendor_research.generate_vendor_research_sync", gen_mock)
         result = _handle_generate_vendor(_config(generate_vendor="azure"))
         assert result == 0
         gen_mock.assert_called_once_with("azure")
@@ -63,9 +57,7 @@ class TestHandleGenerateVendor:
     def test_failed_generation_still_returns_zero(self, monkeypatch):
         # The function logs the error but doesn't escalate exit code
         gen_mock = MagicMock(return_value=None)
-        monkeypatch.setattr(
-            "primr.core.vendor_research.generate_vendor_research_sync", gen_mock
-        )
+        monkeypatch.setattr("primr.core.vendor_research.generate_vendor_research_sync", gen_mock)
         result = _handle_generate_vendor(_config(generate_vendor="azure"))
         assert result == 0
 
@@ -82,9 +74,7 @@ class TestHandleEnrich:
     def test_delegates_to_enrich_batch(self, monkeypatch):
         enrich_mock = MagicMock(return_value=0)
         monkeypatch.setattr("primr.core.cli.enrich_batch", enrich_mock)
-        result = _handle_enrich(
-            _config(batch_file="/path.csv", industry="tech", limit=10)
-        )
+        result = _handle_enrich(_config(batch_file="/path.csv", industry="tech", limit=10))
         assert result == 0
         enrich_mock.assert_called_once()
         kwargs = enrich_mock.call_args.kwargs
@@ -101,9 +91,7 @@ class TestHandleBatch:
     def test_batch_file_takes_priority(self, monkeypatch):
         batch_mock = MagicMock(return_value=0)
         monkeypatch.setattr("primr.core.cli.process_batch", batch_mock)
-        result = _handle_batch(
-            _config(batch_file="/path.csv", csv_file="/legacy.csv")
-        )
+        result = _handle_batch(_config(batch_file="/path.csv", csv_file="/legacy.csv"))
         assert result == 0
         batch_mock.assert_called_once()
 
@@ -126,16 +114,12 @@ class TestHandleBatch:
 
 class TestHandleTestAccordion:
     def test_no_topic_returns_1(self):
-        assert (
-            _handle_test_accordion(_config(test_accordion_topic=None)) == 1
-        )
+        assert _handle_test_accordion(_config(test_accordion_topic=None)) == 1
 
     def test_dispatches_to_runner(self, monkeypatch):
         # Just verify the runner gets called; don't assert specific exit code.
         run_mock = MagicMock(side_effect=RuntimeError("test"))
-        monkeypatch.setattr(
-            "primr.ai.accordion_test.run_accordion_test", run_mock
-        )
+        monkeypatch.setattr("primr.ai.accordion_test.run_accordion_test", run_mock)
         try:
             _handle_test_accordion(
                 _config(
@@ -162,8 +146,6 @@ class TestHandleAnalyzeReport:
         # Create a sample MD file; the handler will try to load and analyze it.
         report = tmp_path / "report.md"
         report.write_text("body", encoding="utf-8")
-        result = _handle_analyze_report(
-            _config(analyze_report_path=str(report))
-        )
+        result = _handle_analyze_report(_config(analyze_report_path=str(report)))
         # Whether it succeeds depends on internal logic, just verify it runs.
         assert result in (0, 1)

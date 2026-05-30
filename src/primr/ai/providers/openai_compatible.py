@@ -257,7 +257,9 @@ class OpenAICompatibleProvider(Provider):
                         if prompt_details is not None:
                             cached_input_tokens = getattr(prompt_details, "cached_tokens", 0) or 0
                     self._record_usage(
-                        model, input_tokens, output_tokens,
+                        model,
+                        input_tokens,
+                        output_tokens,
                         cached_input_tokens=cached_input_tokens,
                     )
 

@@ -117,9 +117,7 @@ class TestClassifyViaLlm:
             }
         )
         with patch("primr.ai.grok_client.grok_llm", return_value=response):
-            result = classify_via_llm(
-                "Acme", "Recon: Snowflake", "Hiring: dbt", "Research: SaaS"
-            )
+            result = classify_via_llm("Acme", "Recon: Snowflake", "Hiring: dbt", "Research: SaaS")
         assert result is not None
         assert result.business_model == "B2B SaaS"
         assert result.industry_vertical == "Developer Tools"
@@ -156,9 +154,7 @@ class TestClassifyViaLlm:
             + "\n```\n"
         )
         with patch("primr.ai.grok_client.grok_llm", return_value=response):
-            result = classify_via_llm(
-                "Acme", "Recon: GMV", "Hiring: x", ""
-            )
+            result = classify_via_llm("Acme", "Recon: GMV", "Hiring: x", "")
         assert result is not None
         assert result.business_model == "Marketplace"
 
@@ -170,10 +166,7 @@ class TestClassifyViaLlm:
 
 class TestClassifyIndustryOrchestrator:
     def test_report_path_wins_when_confident(self):
-        report = (
-            "x" * 200
-            + "\nIndustry: FinTech\nBusiness model: B2B SaaS\nStage: Growth\n"
-        )
+        report = "x" * 200 + "\nIndustry: FinTech\nBusiness model: B2B SaaS\nStage: Growth\n"
         with patch("primr.ai.grok_client.grok_llm") as mock_llm:
             result = classify_industry(
                 company_name="Acme",

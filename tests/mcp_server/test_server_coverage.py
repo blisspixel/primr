@@ -99,9 +99,7 @@ class TestGracefulShutdown:
     async def test_shutdown_cancels_pending_task(self, server, monkeypatch):
         # A long-running task should be force-cancelled. Shorten the timeouts
         # so the test stays fast.
-        monkeypatch.setattr(
-            "primr.mcp_server.server.SHUTDOWN_WORK_COMPLETION_TIMEOUT", 0.05
-        )
+        monkeypatch.setattr("primr.mcp_server.server.SHUTDOWN_WORK_COMPLETION_TIMEOUT", 0.05)
         monkeypatch.setattr("primr.mcp_server.server.SHUTDOWN_TOTAL_TIMEOUT", 0.2)
 
         async def slow():

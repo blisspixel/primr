@@ -235,9 +235,7 @@ async def test_execute_strategy_research_completed():
     fake_dr.ResearchStatus = _Status
 
     with patch.dict("sys.modules", {"primr.ai.deep_research": fake_dr}):
-        out = await mod._execute_strategy_research(
-            prompt="P", context_files=[], timeout=10
-        )
+        out = await mod._execute_strategy_research(prompt="P", context_files=[], timeout=10)
     assert out == "RESULT"
 
 
@@ -256,9 +254,7 @@ async def test_execute_strategy_research_exception_returns_none():
     fake_dr.ResearchStatus = _Status
 
     with patch.dict("sys.modules", {"primr.ai.deep_research": fake_dr}):
-        out = await mod._execute_strategy_research(
-            prompt="P", context_files=["/x.txt"], timeout=10
-        )
+        out = await mod._execute_strategy_research(prompt="P", context_files=["/x.txt"], timeout=10)
     assert out is None
 
 

@@ -53,9 +53,7 @@ class TestWorkdayCorpusDiscovery:
     def test_dedupes(self):
         # Two pages mention the same Workday URL — one triple in the output.
         corpus = {
-            "https://acme.example/a": (
-                "https://acmecorp.wd1.myworkdayjobs.com/External"
-            ),
+            "https://acme.example/a": ("https://acmecorp.wd1.myworkdayjobs.com/External"),
             "https://acme.example/b": (
                 "https://acmecorp.wd1.myworkdayjobs.com/External "
                 "https://acmecorp.wd1.myworkdayjobs.com/External"
@@ -83,10 +81,7 @@ class TestWorkdayFetch:
         class _Resp:
             def __init__(self):
                 self.status_code = 200
-                self.url = (
-                    "https://acmecorp.wd1.myworkdayjobs.com/wday/cxs/"
-                    "acmecorp/External/jobs"
-                )
+                self.url = "https://acmecorp.wd1.myworkdayjobs.com/wday/cxs/acmecorp/External/jobs"
 
             def json(self):
                 return {
@@ -125,12 +120,8 @@ class TestWorkdayFetch:
         def _ok(_url):
             return True, ""
 
-        monkeypatch.setattr(
-            "primr.utils.security.is_safe_url", _ok
-        )
-        monkeypatch.setattr(
-            "primr.utils.security.validate_final_url_after_redirect", _ok
-        )
+        monkeypatch.setattr("primr.utils.security.is_safe_url", _ok)
+        monkeypatch.setattr("primr.utils.security.validate_final_url_after_redirect", _ok)
 
         postings = _workday_fetch_one(("acmecorp", "wd1", "External"))
         assert postings is not None
@@ -143,9 +134,7 @@ class TestWorkdayFetch:
     def test_blind_discovery_iterates_triples(self):
         """_fetch_workday should cycle through the bounded triple list."""
         call_count = {"n": 0}
-        expected = [
-            hs.Posting(url="https://x/y", title="X", source="workday")
-        ]
+        expected = [hs.Posting(url="https://x/y", title="X", source="workday")]
 
         def _stub(_triple):
             call_count["n"] += 1
@@ -259,7 +248,9 @@ class TestJobvite:
         assert all(p.source == "jobvite" for p in postings)
 
     def test_no_items_returns_none(self):
-        with patch.object(hs, "_http_get", return_value=(200, b"<rss><channel></channel></rss>", None)):
+        with patch.object(
+            hs, "_http_get", return_value=(200, b"<rss><channel></channel></rss>", None)
+        ):
             assert _fetch_jobvite("acme") is None
 
 

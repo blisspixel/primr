@@ -408,11 +408,7 @@ class PrimrAgentExecutor(AgentExecutor):
             # auto-target jobs created by stdio/MCP — leaking another tenant's
             # report path via A2A would defeat the by_job ownership gate.
             terminal = self._mcp.job_store.get_latest_terminal()
-            if (
-                terminal
-                and terminal.owner_client_id == "a2a"
-                and terminal.output_paths
-            ):
+            if terminal and terminal.owner_client_id == "a2a" and terminal.output_paths:
                 report_path = terminal.output_paths[0]
             else:
                 await event_queue.enqueue_event(

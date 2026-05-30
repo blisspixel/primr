@@ -114,11 +114,7 @@ def _parse_observed_response(raw: str, roles_count: int) -> list[Role]:
             # Observed roles MUST cite postings.
             logger.debug("Dropping observed role %r — no posting citations", name)
             continue
-        archetype = (
-            str(entry["archetype"]).strip()
-            if entry.get("archetype")
-            else None
-        )
+        archetype = str(entry["archetype"]).strip() if entry.get("archetype") else None
         try:
             posting_count = int(entry.get("posting_count") or len(citations))
         except (TypeError, ValueError):
@@ -169,11 +165,7 @@ def _parse_plausible_response(
         if not citations:
             logger.debug("Dropping plausible role %r — no citations", name)
             continue
-        archetype = (
-            str(entry["archetype"]).strip()
-            if entry.get("archetype")
-            else None
-        )
+        archetype = str(entry["archetype"]).strip() if entry.get("archetype") else None
         if archetype and archetype in observed_archetypes:
             logger.debug(
                 "Dropping plausible role %r — archetype %s already observed",
@@ -422,9 +414,7 @@ def apply_curation(
             existing_keys.add(_normalize_curation_key(role.display_name))
         unmatched = skip_keys - existing_keys
         for key in sorted(unmatched):
-            logger.warning(
-                "--roles-skip %r did not match any role in the plan", key
-            )
+            logger.warning("--roles-skip %r did not match any role in the plan", key)
 
         plan.final_roster = survivors_after_skip
         plan.operator_skipped = sorted(skip_keys)
@@ -432,12 +422,8 @@ def apply_curation(
     # --- Add pass --------------------------------------------------------
     added: list[Role] = []
     if roles_add:
-        existing_name_keys = {
-            _normalize_curation_key(r.name) for r in plan.final_roster
-        }
-        existing_display_keys = {
-            _normalize_curation_key(r.display_name) for r in plan.final_roster
-        }
+        existing_name_keys = {_normalize_curation_key(r.name) for r in plan.final_roster}
+        existing_display_keys = {_normalize_curation_key(r.display_name) for r in plan.final_roster}
         # Archetype dedup is scoped to DISCOVERED roles only. Operator
         # additions that target the same archetype as a planner-produced
         # role are dropped (existing role keeps its citations), but two
@@ -446,9 +432,7 @@ def apply_curation(
         # reason. Name dedup still catches identical labels within the
         # add list.
         discovered_archetypes = {
-            r.evidence.archetype
-            for r in plan.final_roster
-            if r.evidence.archetype is not None
+            r.evidence.archetype for r in plan.final_roster if r.evidence.archetype is not None
         }
 
         for label in roles_add:
@@ -561,8 +545,7 @@ def _render_plan_md(
     lines.append(f"- Company stage: **{industry.company_stage}**")
     lines.append(f"- Employee estimate: **{industry.employee_estimate}**")
     lines.append(
-        f"- Classification confidence: **{industry.confidence}** "
-        f"(source: `{industry.source}`)"
+        f"- Classification confidence: **{industry.confidence}** (source: `{industry.source}`)"
     )
     if industry.cited_evidence:
         lines.append("- Cited evidence:")
@@ -598,8 +581,7 @@ def _render_plan_md(
 
     if plan.operator_added:
         lines.append(
-            f"## Operator-Added Roles — {len(plan.operator_added)} "
-            "(supplied via --roles-add)"
+            f"## Operator-Added Roles — {len(plan.operator_added)} (supplied via --roles-add)"
         )
         lines.append("")
         lines.append(
@@ -614,8 +596,7 @@ def _render_plan_md(
 
     if plan.operator_skipped:
         lines.append(
-            f"## Operator-Skipped Roles — {len(plan.operator_skipped)} "
-            "(dropped via --roles-skip)"
+            f"## Operator-Skipped Roles — {len(plan.operator_skipped)} (dropped via --roles-skip)"
         )
         lines.append("")
         lines.append(
@@ -645,15 +626,16 @@ def _render_plan_md(
     lines.append("")
     for idx, role in enumerate(plan.final_roster, start=1):
         provenance = role.evidence.provenance.value
-        lines.append(f"{idx}. **{role.display_name}** — `{role.name}` ({provenance}, {role.confidence})")
+        lines.append(
+            f"{idx}. **{role.display_name}** — `{role.name}` ({provenance}, {role.confidence})"
+        )
     lines.append("")
 
     lines.append("## How to act on this plan")
     lines.append("")
     lines.append("- **Proceed as-is**: nothing to do; authoring follows next.")
     lines.append(
-        "- **Inspect only**: re-run with `--plan-only` to write this plan "
-        "without authoring."
+        "- **Inspect only**: re-run with `--plan-only` to write this plan without authoring."
     )
     lines.append(
         "- **Pin the roster**: re-run with "
@@ -909,9 +891,7 @@ def load_plan(json_path: Path) -> RolePlan:
     try:
         raw = json_path.read_text(encoding="utf-8")
     except OSError as exc:
-        raise RuntimeError(
-            f"Could not read role plan at {json_path}: {exc}"
-        ) from exc
+        raise RuntimeError(f"Could not read role plan at {json_path}: {exc}") from exc
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
@@ -921,8 +901,7 @@ def load_plan(json_path: Path) -> RolePlan:
         ) from exc
     if not isinstance(data, dict):
         raise RuntimeError(
-            f"Role plan at {json_path} is not a JSON object "
-            f"(got {type(data).__name__})."
+            f"Role plan at {json_path} is not a JSON object (got {type(data).__name__})."
         )
 
     def _hydrate_role(entry: dict[str, Any]) -> Role:

@@ -30,9 +30,7 @@ from primr.utils.banner import (
 )
 
 
-def _ctx(
-    *, is_tty=True, color=True, unicode=True, cursor=True, truecolor=False
-) -> BannerContext:
+def _ctx(*, is_tty=True, color=True, unicode=True, cursor=True, truecolor=False) -> BannerContext:
     return BannerContext(
         is_tty=is_tty,
         supports_color=color,

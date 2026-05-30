@@ -65,9 +65,7 @@ def parse_role_blocks(strategy_text: str) -> list[dict[str, str]]:
         body = match.group(2).strip()
 
         # Extract confidence
-        confidence_match = re.search(
-            r"\*\*Confidence:\*\*\s*(Confirmed|Inferred|Speculated)", body
-        )
+        confidence_match = re.search(r"\*\*Confidence:\*\*\s*(Confirmed|Inferred|Speculated)", body)
         confidence = confidence_match.group(1) if confidence_match else "Inferred"
 
         # Extract evidence
@@ -75,9 +73,7 @@ def parse_role_blocks(strategy_text: str) -> list[dict[str, str]]:
         evidence = evidence_match.group(1).strip() if evidence_match else ""
 
         # Extract skills section
-        skills_match = re.search(
-            r"\*\*Skills:\*\*\s*\n((?:\d+\..+\n?)+)", body
-        )
+        skills_match = re.search(r"\*\*Skills:\*\*\s*\n((?:\d+\..+\n?)+)", body)
         skills_text = skills_match.group(1).strip() if skills_match else ""
 
         roles.append(
@@ -103,7 +99,10 @@ _AGENT_INSTRUCTION_PATTERNS = [
     re.compile(r"(?:^|\b)(?:ignore|disregard|forget)\b[^\n]{0,80}(?:previous|prior|above)", re.I),
     re.compile(r"\bsystem\s+prompt\b", re.I),
     re.compile(r"\b(?:run|execute|invoke)\b[^\n]{0,80}(?:command|bash|shell|script)", re.I),
-    re.compile(r"\b(?:read|cat|exfiltrate|exfil|dump|leak)\b[^\n]{0,80}(?:~/\.ssh|id_rsa|\.env|credentials|secrets?)", re.I),
+    re.compile(
+        r"\b(?:read|cat|exfiltrate|exfil|dump|leak)\b[^\n]{0,80}(?:~/\.ssh|id_rsa|\.env|credentials|secrets?)",
+        re.I,
+    ),
     re.compile(r"\bcurl\b[^\n]{0,200}\bhttps?://", re.I),
     re.compile(r"\bwget\b[^\n]{0,200}\bhttps?://", re.I),
     re.compile(r"```(?:bash|sh|shell|zsh|powershell|pwsh|cmd)\b", re.I),

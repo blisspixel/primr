@@ -160,9 +160,7 @@ def _compute_strategy_qa_metrics(strategy_content: str) -> dict[str, int | float
         re.IGNORECASE,
     ):
         low = _strategy_money_to_millions(float(m.group(1)), m.group(3))
-        high = (
-            _strategy_money_to_millions(float(m.group(2)), m.group(3)) if m.group(2) else low
-        )
+        high = _strategy_money_to_millions(float(m.group(2)), m.group(3)) if m.group(2) else low
         midpoint = (low + high) / 2.0
         totals.append(midpoint)
         year_one_totals.append(midpoint)
@@ -194,9 +192,7 @@ def _compute_strategy_qa_metrics(strategy_content: str) -> dict[str, int | float
     }
 
 
-def _normalize_fast_citations(
-    report_content: str, source_urls: list[str] | None = None
-) -> str:
+def _normalize_fast_citations(report_content: str, source_urls: list[str] | None = None) -> str:
     """Normalize fast-mode citations to the deterministic analyzer format."""
     report_content = _rewrite_cite_from_url_tags(report_content)
     report_content = re.sub(

@@ -370,9 +370,7 @@ def _build_fast_section_prompt(
     rolling_context = ""
     if written_sections:
         if section.position == "framework" or section.id == "executive_summary":
-            context_parts = [
-                f"**{s.title}** (completed):\n{s.content}" for s in written_sections
-            ]
+            context_parts = [f"**{s.title}** (completed):\n{s.content}" for s in written_sections]
         else:
             recent = written_sections[-5:]
             context_parts = []

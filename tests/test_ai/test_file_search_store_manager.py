@@ -90,8 +90,8 @@ class TestUploadContext:
         assert kwargs["config"]["mime_type"] == "text/markdown"
 
     def test_wraps_upload_exception(self, mock_client):
-        mock_client.file_search_stores.upload_to_file_search_store.side_effect = (
-            RuntimeError("upload failed")
+        mock_client.file_search_stores.upload_to_file_search_store.side_effect = RuntimeError(
+            "upload failed"
         )
         mgr = FileSearchStoreManager()
         with pytest.raises(AIError, match="Failed to upload context"):
@@ -131,9 +131,7 @@ class TestUploadFile:
     def test_wraps_upload_exception(self, mock_client, tmp_path):
         path = tmp_path / "x.txt"
         path.write_text("body", encoding="utf-8")
-        mock_client.file_search_stores.upload_to_file_search_store.side_effect = (
-            RuntimeError("net")
-        )
+        mock_client.file_search_stores.upload_to_file_search_store.side_effect = RuntimeError("net")
         mgr = FileSearchStoreManager()
         with pytest.raises(AIError, match="Failed to upload"):
             mgr.upload_file("stores/abc", str(path))
@@ -164,9 +162,7 @@ class TestDeleteStore:
         assert mock_client.file_search_stores.documents.delete.call_count == 2
 
     def test_swallows_doc_list_error(self, mock_client):
-        mock_client.file_search_stores.documents.list.side_effect = RuntimeError(
-            "list failed"
-        )
+        mock_client.file_search_stores.documents.list.side_effect = RuntimeError("list failed")
         mgr = FileSearchStoreManager()
         # Should still try to delete the store even when doc listing fails.
         mgr.delete_store("stores/abc")
@@ -174,9 +170,7 @@ class TestDeleteStore:
 
     def test_swallows_store_delete_error(self, mock_client):
         mock_client.file_search_stores.documents.list.return_value = []
-        mock_client.file_search_stores.delete.side_effect = RuntimeError(
-            "delete failed"
-        )
+        mock_client.file_search_stores.delete.side_effect = RuntimeError("delete failed")
         mgr = FileSearchStoreManager()
         # Should not raise.
         mgr.delete_store("stores/abc")
@@ -232,9 +226,7 @@ def test_upload_file_mime_mapping(mock_client, tmp_path, filename, expected_mime
 
 def test_create_store_propagates_aierror(mock_client):
     """An AIError raised inside create() should propagate without rewrap."""
-    mock_client.file_search_stores.create.side_effect = AIError(
-        "specific failure", model="x"
-    )
+    mock_client.file_search_stores.create.side_effect = AIError("specific failure", model="x")
     mgr = FileSearchStoreManager()
     with pytest.raises(AIError, match="specific failure"):
         mgr.create_store("x")

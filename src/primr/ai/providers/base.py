@@ -155,4 +155,6 @@ class Provider(ABC):
         cached_input_tokens: int = 0,
     ) -> None:
         """Subclass hook for recording usage into the accumulator."""
-        self._usage.record(model, input_tokens, output_tokens, cached_input_tokens=cached_input_tokens)
+        self._usage.record(
+            model, input_tokens, output_tokens, cached_input_tokens=cached_input_tokens
+        )

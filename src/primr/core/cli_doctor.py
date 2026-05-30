@@ -45,12 +45,8 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
 
     if search_provider == "google":
         if not search_key or len(search_key) < 10:
-            console.error(
-                "SEARCH_API_KEY not set or invalid (required for SEARCH_PROVIDER=google)"
-            )
-            console.info(
-                "  Get your key at: https://console.cloud.google.com/apis/credentials"
-            )
+            console.error("SEARCH_API_KEY not set or invalid (required for SEARCH_PROVIDER=google)")
+            console.info("  Get your key at: https://console.cloud.google.com/apis/credentials")
             all_passed = False
         elif not search_engine_id or len(search_engine_id) < 10:
             console.error(
@@ -125,9 +121,7 @@ def _check_providers(warnings_count: int) -> int:
 
     if not available:
         console.error("No LLM providers configured")
-        console.info(
-            "  Set XAI_API_KEY for the standard pipeline, or GEMINI_API_KEY for --premium"
-        )
+        console.info("  Set XAI_API_KEY for the standard pipeline, or GEMINI_API_KEY for --premium")
         return warnings_count + 1
 
     for entry in KNOWN_PROVIDERS:
@@ -135,9 +129,7 @@ def _check_providers(warnings_count: int) -> int:
             roles = ", ".join(entry.roles) if entry.roles else "any"
             console.ok(f"{entry.description} [{roles}]")
         else:
-            console.info(
-                f"  {entry.description}: not configured ({entry.api_key_env} unset)"
-            )
+            console.info(f"  {entry.description}: not configured ({entry.api_key_env} unset)")
 
     return warnings_count
 

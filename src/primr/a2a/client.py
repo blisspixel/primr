@@ -141,9 +141,7 @@ class A2AClient:
         payload = self._build_jsonrpc(method, params)
 
         logger.debug("A2A RPC %s → %s", method, self.agent_url)
-        response = await self._follow_redirects_safely(
-            "POST", self.agent_url, json_body=payload
-        )
+        response = await self._follow_redirects_safely("POST", self.agent_url, json_body=payload)
         response.raise_for_status()
 
         try:

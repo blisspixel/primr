@@ -238,8 +238,7 @@ def validate_skill(skill: Skill, role_name: str) -> list[SkillIssue]:
                 code="DESC-LEN",
                 severity=IssueSeverity.HARD,
                 message=(
-                    f"description length {len(desc)} outside [{_MIN_DESC_LEN}, "
-                    f"{_MAX_DESC_LEN}]"
+                    f"description length {len(desc)} outside [{_MIN_DESC_LEN}, {_MAX_DESC_LEN}]"
                 ),
                 role_name=role_name,
                 field="description",
@@ -254,8 +253,7 @@ def validate_skill(skill: Skill, role_name: str) -> list[SkillIssue]:
                 code="DESC-TRIG",
                 severity=IssueSeverity.HARD,
                 message=(
-                    "description lacks an explicit trigger phrase "
-                    "(e.g. 'Use when user asks to...')"
+                    "description lacks an explicit trigger phrase (e.g. 'Use when user asks to...')"
                 ),
                 role_name=role_name,
                 field="description",
@@ -459,9 +457,7 @@ def validate_pack(pack: SkillPack) -> ValidationReport:
     # Pack-level overlap: compare every pair of skills' name+description.
     # Only emit one SOFT issue per pair (refinement may collapse duplicates).
     seen_pairs: set[tuple[str, str]] = set()
-    all_skills: list[tuple[str, Skill]] = [
-        (r.name, s) for r in pack.roles for s in r.skills
-    ]
+    all_skills: list[tuple[str, Skill]] = [(r.name, s) for r in pack.roles for s in r.skills]
     for i, (r1, s1) in enumerate(all_skills):
         for r2, s2 in all_skills[i + 1 :]:
             if r1 == r2 and s1.name == s2.name:

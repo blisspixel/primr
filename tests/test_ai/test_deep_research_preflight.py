@@ -56,9 +56,7 @@ async def test_missing_api_key_raises_preflight_error(client):
 async def test_missing_context_file_raises(client, tmp_path):
     bogus = tmp_path / "no_such.txt"
     with pytest.raises(AIError) as exc_info:
-        await client.research(
-            "query", context_files=[str(bogus)]
-        )
+        await client.research("query", context_files=[str(bogus)])
     assert "not found" in str(exc_info.value).lower() or "Pre-flight" in str(exc_info.value)
 
 

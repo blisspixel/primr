@@ -218,9 +218,7 @@ class TestLlmTriage:
         assert all(0 <= i < 3 for i in idx)
 
     def test_overshoot_capped_to_k(self):
-        with patch(
-            "primr.ai.grok_client.grok_llm", return_value='{"selected": [0, 1, 2, 3, 4]}'
-        ):
+        with patch("primr.ai.grok_client.grok_llm", return_value='{"selected": [0, 1, 2, 3, 4]}'):
             idx = _llm_triage(_postings(6), "Acme", k=2)
         assert len(idx) == 2
 

@@ -15,9 +15,7 @@ from primr.core.cli_batch import _ColumnMap
 def isolated(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("primr.core.cli.OUTPUT_DIR", str(tmp_path / "output"))
-    monkeypatch.setattr(
-        "primr.config.config.OUTPUT_DIR", str(tmp_path / "output")
-    )
+    monkeypatch.setattr("primr.config.config.OUTPUT_DIR", str(tmp_path / "output"))
     return tmp_path
 
 
@@ -30,9 +28,7 @@ def small_df():
             "Sector": ["Tech"],
         }
     )
-    col_map = _ColumnMap(
-        company="Account Name", website="URL", industry="Sector", context=[]
-    )
+    col_map = _ColumnMap(company="Account Name", website="URL", industry="Sector", context=[])
     return df, col_map
 
 
@@ -46,9 +42,7 @@ class TestProcessBatch:
                 "Sector": ["", "", ""],
             }
         )
-        col_map = _ColumnMap(
-            company="Account Name", website="URL", industry="Sector", context=[]
-        )
+        col_map = _ColumnMap(company="Account Name", website="URL", industry="Sector", context=[])
         monkeypatch.setattr(
             "primr.core.cli._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),
@@ -65,18 +59,14 @@ class TestProcessBatch:
                 "Sector": ["Tech", "Tech"],
             }
         )
-        col_map = _ColumnMap(
-            company="Account Name", website="URL", industry="Sector", context=[]
-        )
+        col_map = _ColumnMap(company="Account Name", website="URL", industry="Sector", context=[])
         monkeypatch.setattr(
             "primr.core.cli._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),
         )
         # Make perform_research return immediately
         perform_mock = MagicMock(return_value=None)
-        monkeypatch.setattr(
-            "primr.core.research_agent.perform_research", perform_mock
-        )
+        monkeypatch.setattr("primr.core.research_agent.perform_research", perform_mock)
         # Avoid sleeping
         monkeypatch.setattr("time.sleep", lambda *_a, **_k: None)
         result = process_batch("/path.csv", skip_confirm=True)
@@ -102,9 +92,7 @@ class TestProcessBatch:
             MagicMock(return_value=(df, col_map)),
         )
         perform_mock = MagicMock(return_value="/output/report.docx")
-        monkeypatch.setattr(
-            "primr.core.research_agent.perform_research", perform_mock
-        )
+        monkeypatch.setattr("primr.core.research_agent.perform_research", perform_mock)
         # Make the result file exist for the size check
         out_path = isolated / "output" / "report.docx"
         out_path.parent.mkdir(parents=True, exist_ok=True)

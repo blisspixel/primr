@@ -524,7 +524,7 @@ class ModelRegistry:
         supports_tools=True,
         supports_multimodal=True,
         cost_per_1m_input_tokens_cached=0.50,
-        cost_per_1m_input_tokens_high=10.00,   # 2x base above 272K input
+        cost_per_1m_input_tokens_high=10.00,  # 2x base above 272K input
         cost_per_1m_output_tokens_high=45.00,  # 1.5x base above 272K input
         tier_threshold_tokens=272_000,
     )
@@ -967,7 +967,9 @@ class PrimrModels:
 
     # --- GROK MODELS (xAI - for fast mode) ---
     GROK_MODEL = ModelRegistry.GROK_4_3.name  # 4.3 reasoning — replaces retired 4.1-fast
-    GROK_MODEL_WRITING = ModelRegistry.GROK_4_20_NR_NEW.name  # 4.20 non-reasoning — replaces retired 4.1-fast-nr
+    GROK_MODEL_WRITING = (
+        ModelRegistry.GROK_4_20_NR_NEW.name
+    )  # 4.20 non-reasoning — replaces retired 4.1-fast-nr
     GROK_MODEL_43 = ModelRegistry.GROK_4_3.name  # 4.3 — current flagship for hybrid/max tier
     # Legacy 4.20 constants — kept for back-compat and resume of in-flight runs.
     # New code should use GROK_MODEL_43.
@@ -1237,7 +1239,9 @@ def calculate_cost(
 ) -> float:
     """Calculate cost in USD for given token counts."""
     return PrimrModels.calculate_cost(
-        model_name, input_tokens, output_tokens,
+        model_name,
+        input_tokens,
+        output_tokens,
         prompt_tokens=prompt_tokens,
         cached_input_tokens=cached_input_tokens,
     )

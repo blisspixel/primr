@@ -35,7 +35,9 @@ def _write_evidence(
         (working_dir / "insights.txt").write_text(research, encoding="utf-8")
 
 
-def _make_role(name: str, *, archetype: str | None = None, provenance: RoleProvenance = RoleProvenance.POSTING) -> Role:
+def _make_role(
+    name: str, *, archetype: str | None = None, provenance: RoleProvenance = RoleProvenance.POSTING
+) -> Role:
     return Role(
         name=name,
         display_name=name.replace("-", " ").title(),
@@ -60,7 +62,13 @@ def _make_role(name: str, *, archetype: str | None = None, provenance: RoleProve
 class TestMergeAndCap:
     def test_observed_wins_when_archetypes_collide(self):
         observed = [_make_role("salesforce-admin", archetype="salesforce-admin")]
-        plausible = [_make_role("sfdc-administrator", archetype="salesforce-admin", provenance=RoleProvenance.RESEARCH)]
+        plausible = [
+            _make_role(
+                "sfdc-administrator",
+                archetype="salesforce-admin",
+                provenance=RoleProvenance.RESEARCH,
+            )
+        ]
         final, gap = _merge_and_cap(observed, plausible, cap=5)
         assert len(final) == 1
         assert final[0].name == "salesforce-admin"
@@ -69,8 +77,14 @@ class TestMergeAndCap:
     def test_plausible_fills_remaining_slots(self):
         observed = [_make_role("data-engineer", archetype="data-engineer")]
         plausible = [
-            _make_role("marketing-manager", archetype="marketing-manager", provenance=RoleProvenance.INDUSTRY),
-            _make_role("customer-success", archetype="customer-success", provenance=RoleProvenance.RESEARCH),
+            _make_role(
+                "marketing-manager",
+                archetype="marketing-manager",
+                provenance=RoleProvenance.INDUSTRY,
+            ),
+            _make_role(
+                "customer-success", archetype="customer-success", provenance=RoleProvenance.RESEARCH
+            ),
         ]
         final, gap = _merge_and_cap(observed, plausible, cap=3)
         assert [r.name for r in final] == ["data-engineer", "marketing-manager", "customer-success"]
@@ -78,7 +92,10 @@ class TestMergeAndCap:
 
     def test_cap_pushes_overflow_to_gap(self):
         observed = [_make_role(f"obs-{i}", archetype=f"arch-{i}") for i in range(2)]
-        plausible = [_make_role(f"plaus-{i}", archetype=f"arch-{10 + i}", provenance=RoleProvenance.INDUSTRY) for i in range(4)]
+        plausible = [
+            _make_role(f"plaus-{i}", archetype=f"arch-{10 + i}", provenance=RoleProvenance.INDUSTRY)
+            for i in range(4)
+        ]
         final, gap = _merge_and_cap(observed, plausible, cap=4)
         assert len(final) == 4
         assert len(gap) == 2
@@ -142,9 +159,7 @@ def _mock_llm_planner(prompt: str, **_kwargs: Any) -> str:
                         "archetype": None,
                         "confidence": "Inferred",
                         "summary": "Drives renewal motion.",
-                        "research_citations": [
-                            "Mid-market SaaS typically employs CSMs"
-                        ],
+                        "research_citations": ["Mid-market SaaS typically employs CSMs"],
                         "provenance": "industry",
                     },
                     {
@@ -153,9 +168,7 @@ def _mock_llm_planner(prompt: str, **_kwargs: Any) -> str:
                         "archetype": None,
                         "confidence": "Inferred",
                         "summary": "Owns demand gen.",
-                        "research_citations": [
-                            "Mid-market SaaS typically employs marketing"
-                        ],
+                        "research_citations": ["Mid-market SaaS typically employs marketing"],
                         "provenance": "industry",
                     },
                 ],
@@ -244,10 +257,7 @@ class TestPlanRoles:
         assert len(plan.plausible) == 0
         assert len(plan.operator_added) == 2
         assert len(plan.final_roster) == 2
-        assert all(
-            r.evidence.provenance == RoleProvenance.OVERRIDE
-            for r in plan.final_roster
-        )
+        assert all(r.evidence.provenance == RoleProvenance.OVERRIDE for r in plan.final_roster)
 
     def test_allow_recon_only_proceeds(self, tmp_path: Path):
         working = tmp_path / "working"
@@ -293,7 +303,5 @@ class TestLoadPlan:
             )
         assert plan.plan_json_path is not None
         loaded = load_plan(Path(plan.plan_json_path))
-        assert [r.name for r in loaded.final_roster] == [
-            r.name for r in plan.final_roster
-        ]
+        assert [r.name for r in loaded.final_roster] == [r.name for r in plan.final_roster]
         assert loaded.industry.business_model == plan.industry.business_model

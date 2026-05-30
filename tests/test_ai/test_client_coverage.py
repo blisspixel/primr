@@ -47,9 +47,7 @@ def client():
 def _resp(text="hello", in_tok=10, out_tok=5):
     return SimpleNamespace(
         text=text,
-        usage_metadata=SimpleNamespace(
-            prompt_token_count=in_tok, candidates_token_count=out_tok
-        ),
+        usage_metadata=SimpleNamespace(prompt_token_count=in_tok, candidates_token_count=out_tok),
     )
 
 
@@ -191,27 +189,21 @@ def test_extract_usage_no_metadata(client):
 
 def test_extract_usage_non_int_counts(client):
     resp = SimpleNamespace(
-        usage_metadata=SimpleNamespace(
-            prompt_token_count="x", candidates_token_count=5
-        )
+        usage_metadata=SimpleNamespace(prompt_token_count="x", candidates_token_count=5)
     )
     assert client._extract_usage(resp) is None
 
 
 def test_extract_usage_negative_counts(client):
     resp = SimpleNamespace(
-        usage_metadata=SimpleNamespace(
-            prompt_token_count=-1, candidates_token_count=5
-        )
+        usage_metadata=SimpleNamespace(prompt_token_count=-1, candidates_token_count=5)
     )
     assert client._extract_usage(resp) is None
 
 
 def test_extract_usage_valid(client):
     resp = SimpleNamespace(
-        usage_metadata=SimpleNamespace(
-            prompt_token_count=12, candidates_token_count=8
-        )
+        usage_metadata=SimpleNamespace(prompt_token_count=12, candidates_token_count=8)
     )
     usage = client._extract_usage(resp)
     assert usage.input_tokens == 12
@@ -290,9 +282,7 @@ def test_generate_with_context_builds_prompt(client):
         return "ok"
 
     client.generate = _gen  # type: ignore
-    client.generate_with_context(
-        "Question?", {"Background": "facts", "Empty": ""}
-    )
+    client.generate_with_context("Question?", {"Background": "facts", "Empty": ""})
     assert "## Background" in captured["prompt"]
     assert "Empty" not in captured["prompt"]
 
@@ -326,9 +316,7 @@ def test_usage_summary_with_per_call_cost(client):
     client.call_count = 1
     client.total_input_tokens = 1000
     client.total_output_tokens = 500
-    with patch(
-        "primr.config.models.PrimrModels.get_price", return_value=(1.0, 2.0)
-    ):
+    with patch("primr.config.models.PrimrModels.get_price", return_value=(1.0, 2.0)):
         summary = client.get_usage_summary()
     assert summary["total_cost"] == pytest.approx(0.25)
     assert summary["total_tokens"] == 1500
@@ -337,12 +325,8 @@ def test_usage_summary_with_per_call_cost(client):
 def test_usage_summary_no_usage_uses_pro_fallback(client):
     client.total_input_tokens = 1_000_000
     client.total_output_tokens = 1_000_000
-    fake_pro = SimpleNamespace(
-        cost_per_1m_input_tokens=2.0, cost_per_1m_output_tokens=4.0
-    )
-    with patch(
-        "primr.config.models.PrimrModels.get_active_pro_model", return_value=fake_pro
-    ):
+    fake_pro = SimpleNamespace(cost_per_1m_input_tokens=2.0, cost_per_1m_output_tokens=4.0)
+    with patch("primr.config.models.PrimrModels.get_active_pro_model", return_value=fake_pro):
         summary = client.get_usage_summary()
     assert summary["input_cost"] == pytest.approx(2.0)
     assert summary["output_cost"] == pytest.approx(4.0)

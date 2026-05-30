@@ -677,14 +677,10 @@ def validate_company_name(name: str, min_length: int = 1, max_length: int = 200)
     # Reject Windows-style drive prefixes (C:, D:, ...) and other paths
     # absolutized by ntpath/posixpath.
     if len(name) >= 2 and name[1] == ":" and name[0].isalpha():
-        raise InputValidationError(
-            "company_name", "Company name cannot start with a drive prefix"
-        )
+        raise InputValidationError("company_name", "Company name cannot start with a drive prefix")
     # Reject control characters that confuse downstream filesystem APIs.
     if any(ord(c) < 0x20 for c in name):
-        raise InputValidationError(
-            "company_name", "Company name contains control characters"
-        )
+        raise InputValidationError("company_name", "Company name contains control characters")
 
     return name
 

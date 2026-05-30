@@ -48,9 +48,7 @@ def _resource_age_seconds(resource: Any) -> float | None:
     if create_time is not None:
         try:
             if hasattr(create_time, "timestamp"):
-                return max(
-                    0.0, datetime.now(timezone.utc).timestamp() - create_time.timestamp()
-                )
+                return max(0.0, datetime.now(timezone.utc).timestamp() - create_time.timestamp())
             if isinstance(create_time, str):
                 parsed = datetime.fromisoformat(create_time.replace("Z", "+00:00"))
                 return max(0.0, datetime.now(timezone.utc).timestamp() - parsed.timestamp())
@@ -97,9 +95,7 @@ def cleanup_orphaned_resources(
     if stale_age_seconds is None:
         try:
             stale_age_seconds = float(
-                os.environ.get(
-                    "PRIMR_CLEANUP_STALE_AGE_SECONDS", _DEFAULT_STALE_AGE_SECONDS
-                )
+                os.environ.get("PRIMR_CLEANUP_STALE_AGE_SECONDS", _DEFAULT_STALE_AGE_SECONDS)
             )
         except ValueError:
             stale_age_seconds = _DEFAULT_STALE_AGE_SECONDS

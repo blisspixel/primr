@@ -127,6 +127,6 @@ class TestMergeAndCap:
         # The leading slots of the final roster are exactly observed[:cap],
         # in order — observed always wins.
         n_observed_kept = sum(1 for r in final if r.name.startswith("obs-"))
-        assert [r.name for r in final[:n_observed_kept]] == [
-            r.name for r in observed[:cap]
-        ][:n_observed_kept]
+        assert [r.name for r in final[:n_observed_kept]] == [r.name for r in observed[:cap]][
+            :n_observed_kept
+        ]

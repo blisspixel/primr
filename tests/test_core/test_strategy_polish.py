@@ -33,9 +33,7 @@ class TestStrategyPolish:
         assert result == "   \n   "
 
     def test_llm_returns_empty_returns_original(self, monkeypatch):
-        monkeypatch.setattr(
-            "primr.ai.grok_client.grok_llm", MagicMock(return_value="")
-        )
+        monkeypatch.setattr("primr.ai.grok_client.grok_llm", MagicMock(return_value=""))
         original = "## Section\n\nbody " * 100
         result = _strategy_polish("Acme", "azure", original)
         assert result == original
@@ -44,33 +42,30 @@ class TestStrategyPolish:
         # 100 words original; polished only 50 words (50% — below 90% threshold)
         original = "## Section\n\n" + ("word " * 100)
         polished = "## Section\n\n" + ("word " * 50)
-        monkeypatch.setattr(
-            "primr.ai.grok_client.grok_llm", MagicMock(return_value=polished)
-        )
+        monkeypatch.setattr("primr.ai.grok_client.grok_llm", MagicMock(return_value=polished))
         result = _strategy_polish("Acme", "azure", original)
         assert result == original
 
     def test_lost_sections_returns_original(self, monkeypatch):
         # 3 sections original; polished only 1 section
         original = (
-            "## A\n\n" + "word " * 100
-            + "\n\n## B\n\n" + "word " * 100
-            + "\n\n## C\n\n" + "word " * 100
+            "## A\n\n"
+            + "word " * 100
+            + "\n\n## B\n\n"
+            + "word " * 100
+            + "\n\n## C\n\n"
+            + "word " * 100
         )
         # Same word count but only 1 section
         polished = "## A\n\n" + "word " * 300
-        monkeypatch.setattr(
-            "primr.ai.grok_client.grok_llm", MagicMock(return_value=polished)
-        )
+        monkeypatch.setattr("primr.ai.grok_client.grok_llm", MagicMock(return_value=polished))
         result = _strategy_polish("Acme", "azure", original)
         assert result == original
 
     def test_acceptable_polish_returned(self, monkeypatch):
         original = "## Section\n\n" + ("word " * 100)
         polished = "## Section\n\n" + ("word " * 95)  # 95% — within tolerance
-        monkeypatch.setattr(
-            "primr.ai.grok_client.grok_llm", MagicMock(return_value=polished)
-        )
+        monkeypatch.setattr("primr.ai.grok_client.grok_llm", MagicMock(return_value=polished))
         result = _strategy_polish("Acme", "azure", original)
         assert result == polished
 

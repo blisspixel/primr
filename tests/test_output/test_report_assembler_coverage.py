@@ -16,7 +16,9 @@ from primr.core.report_models import (
 from primr.output.report_assembler import ReportAssembler
 
 
-def _src(url: str = "https://example.com", title: str = "Src", excerpt: str = "x") -> SourceCitation:
+def _src(
+    url: str = "https://example.com", title: str = "Src", excerpt: str = "x"
+) -> SourceCitation:
     return SourceCitation(
         url=url,
         title=title,

@@ -111,9 +111,7 @@ class GrokImageProvider(ImageGenerationProvider):
 
         entries = data.get("data") or []
         if not entries:
-            raise RuntimeError(
-                f"Grok Imagine returned no data entries: {data!r}"
-            )
+            raise RuntimeError(f"Grok Imagine returned no data entries: {data!r}")
         first = entries[0]
 
         # Prefer base64 when present (avoids a second round trip), else fetch URL.

@@ -43,9 +43,7 @@ _ENV_KEYED_PROVIDER_NAMES = {"xai", "gemini", "openai", "anthropic"}
 
 
 def _env_keyed_available() -> set[str]:
-    return {
-        p.name for p in get_available_providers() if p.name in _ENV_KEYED_PROVIDER_NAMES
-    }
+    return {p.name for p in get_available_providers() if p.name in _ENV_KEYED_PROVIDER_NAMES}
 
 
 # All env-keyed provider keys — must be scrubbed from the test environment so
@@ -60,11 +58,7 @@ _ENV_KEYED_API_KEYS = {
 
 def _scrubbed_env() -> dict[str, str]:
     """Return the current env with all provider API key vars removed."""
-    return {
-        k: v
-        for k, v in __import__("os").environ.items()
-        if k not in _ENV_KEYED_API_KEYS
-    }
+    return {k: v for k, v in __import__("os").environ.items() if k not in _ENV_KEYED_API_KEYS}
 
 
 class TestAvailableProviders:

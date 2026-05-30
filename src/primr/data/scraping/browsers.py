@@ -78,9 +78,7 @@ _SANDBOX_OPT_OUT = os.getenv("PRIMR_DISABLE_CHROMIUM_SANDBOX", "").strip().lower
 # disabled when an operator explicitly opts in via
 # PRIMR_DISABLE_CHROMIUM_SANDBOX=1 (containers that genuinely cannot run
 # the SUID sandbox should set it knowingly, not by default).
-_SANDBOX_ARGS = (
-    ["--no-sandbox", "--disable-setuid-sandbox"] if _SANDBOX_OPT_OUT else []
-)
+_SANDBOX_ARGS = ["--no-sandbox", "--disable-setuid-sandbox"] if _SANDBOX_OPT_OUT else []
 
 BROWSER_LAUNCH_ARGS = [
     "--disable-blink-features=AutomationControlled",

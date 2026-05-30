@@ -133,9 +133,7 @@ def _write_png_solid(width: int, height: int, rgb: tuple[int, int, int]) -> byte
 # ---------------------------------------------------------------------------
 
 
-def _build_color_png_with_pillow(
-    company_name: str, size: int, rgb: tuple[int, int, int]
-) -> bytes:
+def _build_color_png_with_pillow(company_name: str, size: int, rgb: tuple[int, int, int]) -> bytes:
     """Pillow-rendered icon: vertical gradient + geometric shape + initials.
 
     Looks like a real brand mark rather than a flat color block. The shape

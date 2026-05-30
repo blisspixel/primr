@@ -65,9 +65,7 @@ class TestLoadRunState:
 class TestSaveRunState:
     def test_writes_json_payload(self, tmp_path):
         _save_run_state(str(tmp_path), {"phase": "scrape"})
-        assert json.loads((tmp_path / "_run_state.json").read_text()) == {
-            "phase": "scrape"
-        }
+        assert json.loads((tmp_path / "_run_state.json").read_text()) == {"phase": "scrape"}
 
     def test_creates_missing_folder(self, tmp_path):
         target = tmp_path / "sub" / "deeper"
@@ -128,9 +126,7 @@ class TestAppendRunEvent:
         assert loaded["events"][0]["message"] == "Beginning"
 
     def test_extra_kwargs_recorded(self, tmp_path):
-        _append_run_event(
-            str(tmp_path), "scrape", "completed", "Done", pages=5, errors=0
-        )
+        _append_run_event(str(tmp_path), "scrape", "completed", "Done", pages=5, errors=0)
         loaded = _load_run_state(str(tmp_path))
         assert loaded["events"][0]["extra"] == {"pages": 5, "errors": 0}
 
@@ -213,9 +209,7 @@ class TestAppendResilienceEvents:
 
 class TestInitRunStateWithResilience:
     def test_writes_state_with_resilience_keys(self, tmp_path):
-        _init_run_state_with_resilience(
-            str(tmp_path), {"phase": "init", "status": "running"}
-        )
+        _init_run_state_with_resilience(str(tmp_path), {"phase": "init", "status": "running"})
         loaded = _load_run_state(str(tmp_path))
         assert loaded["phase"] == "init"
         assert loaded["status"] == "running"

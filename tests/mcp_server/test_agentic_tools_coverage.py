@@ -169,9 +169,7 @@ class TestGetHypotheses:
                 raise RuntimeError("kaboom")
 
         monkeypatch.setattr(memory_mod, "ResearchMemory", BoomMemory)
-        result = await handle_agentic_tool(
-            "get_hypotheses", {"company": "Acme"}, mcp_server_stub
-        )
+        result = await handle_agentic_tool("get_hypotheses", {"company": "Acme"}, mcp_server_stub)
         data = _text(result)
         assert data["error"] is True
         assert data["error_type"] == "get_hypotheses_failed"

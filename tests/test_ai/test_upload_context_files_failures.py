@@ -69,8 +69,8 @@ def test_upload_failure_cleans_up_store(client, md_file):
     store = MagicMock()
     store.name = "stores/abc"
     client._client.file_search_stores.create.return_value = store
-    client._client.file_search_stores.upload_to_file_search_store.side_effect = (
-        RuntimeError("upload failed")
+    client._client.file_search_stores.upload_to_file_search_store.side_effect = RuntimeError(
+        "upload failed"
     )
     # documents.list returns [] so cleanup proceeds to delete-store call
     client._client.file_search_stores.documents.list.return_value = []

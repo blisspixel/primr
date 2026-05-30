@@ -42,6 +42,7 @@ def _yaml_read_open(*args, **kwargs):
         return _REAL_OPEN(*args, **kwargs)
     return io.StringIO("placeholder: true")
 
+
 # ---------------------------------------------------------------------------
 # build_strategy_prompt_from_yaml
 # ---------------------------------------------------------------------------
@@ -85,9 +86,7 @@ def test_prompt_includes_epistemic_rules():
 
 
 def test_prompt_includes_discovery_notes():
-    prompt = build_strategy_prompt_from_yaml(
-        {}, "Acme", discovery_notes_content="Internal note A"
-    )
+    prompt = build_strategy_prompt_from_yaml({}, "Acme", discovery_notes_content="Internal note A")
     assert "DISCOVERY NOTES (INTERNAL INSIGHTS)" in prompt
     assert "Internal note A" in prompt
 

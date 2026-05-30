@@ -221,9 +221,9 @@ def _mock_grok_llm(prompt: str, **_kwargs: Any) -> str:
                             "Use when the user asks to triage a failing "
                             "orchestrator DAG or investigate a backfill at Acme."
                         ),
-                        "body": _GOOD_BODY.replace(
-                            "dbt models", "orchestrator DAGs"
-                        ).replace("Looker", "Grafana"),
+                        "body": _GOOD_BODY.replace("dbt models", "orchestrator DAGs").replace(
+                            "Looker", "Grafana"
+                        ),
                         "canonical_skill_basis": "pipeline-orchestration",
                     },
                 ],
@@ -308,9 +308,7 @@ def test_pipeline_end_to_end_with_mocked_llm(tmp_path: Path, working_dir: Path):
         assert len(skills_entries) == pack.total_skills
 
 
-def test_pipeline_drops_roles_with_unrecoverable_issues(
-    tmp_path: Path, working_dir: Path
-):
+def test_pipeline_drops_roles_with_unrecoverable_issues(tmp_path: Path, working_dir: Path):
     """A role whose author returns a poisoned body should be dropped."""
 
     def _poisoned_mock(prompt: str, **_kwargs: Any) -> str:

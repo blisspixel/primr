@@ -37,9 +37,7 @@ def _failing_docx_validation():
 def patches(monkeypatch):
     """Patch the four downstream dependencies _save_strategy_output uses."""
     salvage_mock = MagicMock(return_value=("clean content", _clean_validation(), False))
-    monkeypatch.setattr(
-        "primr.core.research_agent._salvage_markdown_for_shipping", salvage_mock
-    )
+    monkeypatch.setattr("primr.core.research_agent._salvage_markdown_for_shipping", salvage_mock)
 
     qa_mock = MagicMock(
         return_value={
@@ -49,17 +47,13 @@ def patches(monkeypatch):
             "placeholder_refs": 0,
         }
     )
-    monkeypatch.setattr(
-        "primr.core.research_agent._compute_strategy_qa_metrics", qa_mock
-    )
+    monkeypatch.setattr("primr.core.research_agent._compute_strategy_qa_metrics", qa_mock)
 
     docx_mock = MagicMock()
     monkeypatch.setattr("primr.output.markdown_converter.markdown_to_docx", docx_mock)
 
     validate_docx_mock = MagicMock(return_value=_clean_validation())
-    monkeypatch.setattr(
-        "primr.core.research_agent._validate_output_docx", validate_docx_mock
-    )
+    monkeypatch.setattr("primr.core.research_agent._validate_output_docx", validate_docx_mock)
 
     write_validation_mock = MagicMock(return_value=None)
     monkeypatch.setattr(
@@ -139,17 +133,13 @@ class TestSalvagePath:
             _clean_validation(),
             True,
         )
-        _save_strategy_output(
-            "raw input", "Acme", platform="aws", output_dir=str(fake_output_dir)
-        )
+        _save_strategy_output("raw input", "Acme", platform="aws", output_dir=str(fake_output_dir))
         md_file = next(fake_output_dir.glob("*.md"))
         assert md_file.read_text(encoding="utf-8") == "salvaged version"
 
 
 class TestMarkdownGateFailure:
-    def test_failed_md_validation_returns_md_path_skips_docx(
-        self, fake_output_dir, patches
-    ):
+    def test_failed_md_validation_returns_md_path_skips_docx(self, fake_output_dir, patches):
         patches["salvage"].return_value = (
             "leaky content",
             _failing_markdown_validation(),
@@ -174,9 +164,7 @@ class TestDocxConversionFailure:
 
 
 class TestDocxValidationGate:
-    def test_failed_docx_validation_returns_md_path_and_cleans_up(
-        self, fake_output_dir, patches
-    ):
+    def test_failed_docx_validation_returns_md_path_and_cleans_up(self, fake_output_dir, patches):
         patches["validate_docx"].return_value = _failing_docx_validation()
         result = _save_strategy_output(
             "body", "Acme", platform="aws", output_dir=str(fake_output_dir)
@@ -209,9 +197,7 @@ class TestAdvisoryFlags:
             "invalid_source_urls": 0,
             "placeholder_refs": 0,
         }
-        _save_strategy_output(
-            "body", "Acme", platform="aws", output_dir=str(fake_output_dir)
-        )
+        _save_strategy_output("body", "Acme", platform="aws", output_dir=str(fake_output_dir))
         # When MD passes but advisories trip, the validation report is still written.
         patches["write_validation"].assert_called()
 
@@ -222,9 +208,7 @@ class TestAdvisoryFlags:
             "invalid_source_urls": 0,
             "placeholder_refs": 0,
         }
-        _save_strategy_output(
-            "body", "Acme", platform="aws", output_dir=str(fake_output_dir)
-        )
+        _save_strategy_output("body", "Acme", platform="aws", output_dir=str(fake_output_dir))
         patches["write_validation"].assert_called()
 
 

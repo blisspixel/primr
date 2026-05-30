@@ -30,18 +30,14 @@ class TestMemoryList:
     def test_returns_0_with_empty_memory(self, monkeypatch):
         mem = MagicMock()
         mem.list_companies.return_value = []
-        monkeypatch.setattr(
-            "primr.agentic.memory.ResearchMemory", MagicMock(return_value=mem)
-        )
+        monkeypatch.setattr("primr.agentic.memory.ResearchMemory", MagicMock(return_value=mem))
         assert _handle_memory(_config(memory_list=True)) == 0
 
     def test_lists_known_companies(self, monkeypatch):
         mem = MagicMock()
         mem.list_companies.return_value = ["Acme", "OtherCo"]
         mem.get_hypotheses.return_value = []
-        monkeypatch.setattr(
-            "primr.agentic.memory.ResearchMemory", MagicMock(return_value=mem)
-        )
+        monkeypatch.setattr("primr.agentic.memory.ResearchMemory", MagicMock(return_value=mem))
         assert _handle_memory(_config(memory_list=True)) == 0
         mem.list_companies.assert_called_once()
 
@@ -49,9 +45,7 @@ class TestMemoryList:
 class TestPerCompanyMemory:
     def test_no_company_specified_returns_1(self, monkeypatch):
         mem = MagicMock()
-        monkeypatch.setattr(
-            "primr.agentic.memory.ResearchMemory", MagicMock(return_value=mem)
-        )
+        monkeypatch.setattr("primr.agentic.memory.ResearchMemory", MagicMock(return_value=mem))
         # company_name is "memory" (the positional placeholder) -> rejected
         config = _config(company_name="memory")
         assert _handle_memory(config) == 1
@@ -59,9 +53,7 @@ class TestPerCompanyMemory:
     def test_uses_memory_company_when_set(self, monkeypatch):
         mem = MagicMock()
         mem.get_hypotheses.return_value = []
-        monkeypatch.setattr(
-            "primr.agentic.memory.ResearchMemory", MagicMock(return_value=mem)
-        )
+        monkeypatch.setattr("primr.agentic.memory.ResearchMemory", MagicMock(return_value=mem))
         config = _config(memory_company="Acme Corp")
         assert _handle_memory(config) == 0
         mem.get_hypotheses.assert_called_once_with("Acme Corp")
@@ -70,9 +62,7 @@ class TestPerCompanyMemory:
         # When the positional company_name is "memory", the website arg holds the company name.
         mem = MagicMock()
         mem.get_hypotheses.return_value = []
-        monkeypatch.setattr(
-            "primr.agentic.memory.ResearchMemory", MagicMock(return_value=mem)
-        )
+        monkeypatch.setattr("primr.agentic.memory.ResearchMemory", MagicMock(return_value=mem))
         config = _config(company_name="memory", website="Acme Corp")
         assert _handle_memory(config) == 0
         mem.get_hypotheses.assert_called_once_with("Acme Corp")
@@ -93,8 +83,6 @@ class TestPerCompanyMemory:
 
         mem = MagicMock()
         mem.get_hypotheses.return_value = [h_validated, h_low]
-        monkeypatch.setattr(
-            "primr.agentic.memory.ResearchMemory", MagicMock(return_value=mem)
-        )
+        monkeypatch.setattr("primr.agentic.memory.ResearchMemory", MagicMock(return_value=mem))
         config = _config(memory_company="Acme")
         assert _handle_memory(config) == 0

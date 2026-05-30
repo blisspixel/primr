@@ -210,9 +210,7 @@ class ScrapeCache:
                 # passes the `< disk_ttl_hours` check and would resurrect
                 # already-expired cached entries.
                 cached_time = datetime.fromisoformat(meta["timestamp"])
-                age_hours = max(
-                    0.0, (datetime.now() - cached_time).total_seconds() / 3600
-                )
+                age_hours = max(0.0, (datetime.now() - cached_time).total_seconds() / 3600)
 
                 if age_hours < self.disk_ttl_hours:
                     with open(raw_file, "rb") as f:
@@ -279,9 +277,7 @@ class ScrapeCache:
                 # backward clock would otherwise let expired entries pass
                 # the freshness check.
                 cached_time = datetime.fromisoformat(meta["timestamp"])
-                age_hours = max(
-                    0.0, (datetime.now() - cached_time).total_seconds() / 3600
-                )
+                age_hours = max(0.0, (datetime.now() - cached_time).total_seconds() / 3600)
 
                 if age_hours < self.disk_ttl_hours:
                     with open(text_file, encoding="utf-8") as f:

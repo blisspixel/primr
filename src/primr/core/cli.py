@@ -492,8 +492,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         # would otherwise run the cheaper pipeline. Treat it as equivalent to
         # the --premium flag so the requested (and dry-run-priced) pipeline runs.
         premium_mode=(
-            getattr(parsed, "premium_mode", False)
-            or getattr(parsed, "mode", None) == "premium"
+            getattr(parsed, "premium_mode", False) or getattr(parsed, "mode", None) == "premium"
         ),
         grok_tier=getattr(parsed, "grok_tier", "hybrid"),
         continuous_reasoning=continuous_reasoning,
@@ -1903,8 +1902,7 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
             allowed_roots.append(Path(config.output_dir).resolve())
         resolved_path = path.resolve()
         if not any(
-            resolved_path == root or resolved_path.is_relative_to(root)
-            for root in allowed_roots
+            resolved_path == root or resolved_path.is_relative_to(root) for root in allowed_roots
         ):
             console.error(
                 f"Report file is outside allowed roots (output/, working/): {resolved_path}"
@@ -2311,9 +2309,7 @@ def _handle_eval(config: CLIConfig) -> int:
         )
         return 1
     if get_eval_profile(config.eval_baseline) is None:
-        console.error(
-            f"--eval-baseline '{config.eval_baseline}' is not a registered profile slot."
-        )
+        console.error(f"--eval-baseline '{config.eval_baseline}' is not a registered profile slot.")
         return 1
 
     eval_root = Path(config.eval_root)
@@ -2486,8 +2482,7 @@ def _handle_eval(config: CLIConfig) -> int:
                     )
                     shutil.copy2(latest, profile_output / canonical_name)
                     console.info(
-                        f"Staged report into eval folder: "
-                        f"{profile_output.name}/{canonical_name}"
+                        f"Staged report into eval folder: {profile_output.name}/{canonical_name}"
                     )
                 else:
                     console.warn(
@@ -2928,7 +2923,11 @@ def _handle_research(config: CLIConfig) -> int:
         # Auto-detect: if XAI_API_KEY is set, default to fast mode
         if os.environ.get("XAI_API_KEY"):
             use_fast_mode = True
-            tier_label = {"fast": "Grok 4.3 (low-effort)", "hybrid": "Grok 4.3 hybrid", "max": "Grok 4.3 max"}
+            tier_label = {
+                "fast": "Grok 4.3 (low-effort)",
+                "hybrid": "Grok 4.3 hybrid",
+                "max": "Grok 4.3 max",
+            }
             console.info(
                 f"Using {tier_label.get(config.grok_tier, 'Grok')} · for deeper research add --premium"
             )
@@ -3871,5 +3870,3 @@ def open_file(filepath: str) -> None:
         open_with_default_app(filepath)
     except Exception as e:
         console.warn(f"Could not open file: {e}")
-
-

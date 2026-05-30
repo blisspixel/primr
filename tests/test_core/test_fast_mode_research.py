@@ -640,7 +640,9 @@ class TestCleanFastReportOutput:
         assert "[External Sources]" not in result
 
     def test_strips_bare_workbook_marker(self):
-        content = "## Section\n\nClaim about growth (2026 [workbook]) and trend [workbook] continues.\n"
+        content = (
+            "## Section\n\nClaim about growth (2026 [workbook]) and trend [workbook] continues.\n"
+        )
         result = _clean_fast_report_output(content)
         assert "[workbook]" not in result
         # Surrounding prose stays intact (whitespace collapsed to single space).
@@ -654,7 +656,9 @@ class TestCleanFastReportOutput:
         assert "Note from research." in result
 
     def test_strips_space_separated_cross_ref(self):
-        content = "## Section\n\nSee [cross-ref Financial Profile] and [cross-ref SWOT] for detail.\n"
+        content = (
+            "## Section\n\nSee [cross-ref Financial Profile] and [cross-ref SWOT] for detail.\n"
+        )
         result = _clean_fast_report_output(content)
         assert "[cross-ref" not in result
         assert "See and for detail." in result

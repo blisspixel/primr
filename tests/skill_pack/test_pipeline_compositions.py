@@ -42,9 +42,7 @@ def working_dir(tmp_path: Path) -> Path:
 
 
 class TestPlanOnlyShortCircuit:
-    def test_plan_only_persists_plan_and_skips_authoring(
-        self, tmp_path: Path, working_dir: Path
-    ):
+    def test_plan_only_persists_plan_and_skips_authoring(self, tmp_path: Path, working_dir: Path):
         config = SkillPackConfig(
             roles_count=2,
             skills_per_role=2,
@@ -101,9 +99,7 @@ class TestFromPlanPaths:
         assert pack.plan.plan_json_path is not None
         return Path(pack.plan.plan_json_path)
 
-    def test_from_plan_authors_saved_roster(
-        self, tmp_path: Path, working_dir: Path
-    ):
+    def test_from_plan_authors_saved_roster(self, tmp_path: Path, working_dir: Path):
         plan_path = self._generate_plan(tmp_path, working_dir)
         config = SkillPackConfig(
             roles_count=2,
@@ -149,9 +145,7 @@ class TestFromPlanPaths:
         assert "cybersecurity-lead" in role_names
         assert pack.operator_added_role_count == 1
 
-    def test_from_plan_with_roles_skip_drops_named_role(
-        self, tmp_path: Path, working_dir: Path
-    ):
+    def test_from_plan_with_roles_skip_drops_named_role(self, tmp_path: Path, working_dir: Path):
         plan_path = self._generate_plan(tmp_path, working_dir)
         # Find a role name from the plan to skip.
         with open(plan_path, encoding="utf-8") as f:
@@ -175,9 +169,7 @@ class TestFromPlanPaths:
         role_names = {r.name for r in pack.roles}
         assert target_name not in role_names
 
-    def test_from_plan_empty_roster_raises_runtime_error(
-        self, tmp_path: Path, working_dir: Path
-    ):
+    def test_from_plan_empty_roster_raises_runtime_error(self, tmp_path: Path, working_dir: Path):
         # Hand-craft an empty plan JSON.
         empty_plan = tmp_path / "empty_plan.json"
         empty_plan.write_text(

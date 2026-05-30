@@ -40,9 +40,7 @@ def _should_offer_interactive_key_setup(validation_result: Any) -> bool:
     if not validation_result.errors:
         return False
     key_error_fields = {"GEMINI_API_KEY/XAI_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY"}
-    return all(
-        getattr(err, "field", "") in key_error_fields for err in validation_result.errors
-    )
+    return all(getattr(err, "field", "") in key_error_fields for err in validation_result.errors)
 
 
 def _key_looks_configured(env_name: str) -> bool:

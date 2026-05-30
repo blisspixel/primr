@@ -61,9 +61,7 @@ def _get_section_max_tokens(section: SectionConfig) -> int:
     return 6_000 if _get_section_word_target(section) >= 1_000 else 4_000
 
 
-def _determine_section_reasoning_mode(
-    section: SectionConfig, analysis_workbook: str
-) -> str:
+def _determine_section_reasoning_mode(section: SectionConfig, analysis_workbook: str) -> str:
     """Use constrained-evidence reasoning when direct company signal is thin."""
     evidence_keywords = {
         "financial_profile": [

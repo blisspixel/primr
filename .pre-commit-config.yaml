@@ -2,10 +2,8 @@
 # contributors fast feedback before pushing. Install with:
 #   uv run pre-commit install      (or: pre-commit install)
 #
-# ruff-format is intentionally NOT enabled here yet: 174 legacy files predate
-# format enforcement, so a --check hook would block commits that touch them.
-# The one-time tree-wide reflow + format enforcement is a tracked Phase-2
-# ratchet (see ROADMAP "Engineering Standards & Toolchain").
+# The one-time tree-wide `ruff format` reflow has landed, so format-check is now
+# enforced here and in CI (a new file/edit must already be ruff-formatted).
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -24,6 +22,9 @@ repos:
       - id: ruff
         name: ruff (lint)
         args: ["--fix"]
+      - id: ruff-format
+        name: ruff (format check)
+        args: ["--check"]
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.13.0

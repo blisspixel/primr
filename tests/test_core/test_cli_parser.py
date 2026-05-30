@@ -65,9 +65,7 @@ class TestDiscoverStrategies:
 
         # Easier: just patch `Path(__file__).parent.parent / "prompts" / "strategies"`.
         # We replace strategies_dir via direct path manipulation.
-        with patch.object(
-            mod, "Path", side_effect=lambda x: original(x)
-        ):
+        with patch.object(mod, "Path", side_effect=lambda x: original(x)):
             # The simplest reliable patch: replace the function's discovery dir at runtime
             pass
 

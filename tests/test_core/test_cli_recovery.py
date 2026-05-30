@@ -139,9 +139,7 @@ class TestSaveRecoveredOutputs:
         }
         content = "# Title\n\nbody text"
 
-        with patch(
-            "primr.output.markdown_converter.markdown_to_docx"
-        ) as docx_mock:
+        with patch("primr.output.markdown_converter.markdown_to_docx") as docx_mock:
             outputs = _save_recovered_outputs("iid-abc-12345", job, content)
 
         assert outputs["md"].endswith(".md")
@@ -161,9 +159,7 @@ class TestSaveRecoveredOutputs:
             ("ai_strategy", "AI Strategy"),
             ("other_unknown_kind", "Recovered Research"),
         ]:
-            with patch(
-                "primr.output.markdown_converter.markdown_to_docx"
-            ) as docx_mock:
+            with patch("primr.output.markdown_converter.markdown_to_docx") as docx_mock:
                 job = {
                     "type": "deep_research",
                     "metadata": {"company_name": "ExampleCo", "report_kind": kind},
@@ -201,9 +197,7 @@ class TestFindLatestRunState:
         _, state = found
         assert state["company_name"] == "New"
 
-    def test_skips_corrupt_newer_file_and_returns_older_valid(
-        self, tmp_path, monkeypatch
-    ):
+    def test_skips_corrupt_newer_file_and_returns_older_valid(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cli_recovery, "WORKING_DIR", str(tmp_path))
         older = tmp_path / "Co" / "older"
         newer = tmp_path / "Co" / "newer_bad"
@@ -258,9 +252,7 @@ class TestShowLatestRunStateHint:
         with patch("primr.core.cli_recovery.console") as console_mock:
             _show_latest_run_state_hint()
         # Multiple info() calls — at least one mentions our company
-        all_calls = " ".join(
-            str(call) for call in console_mock.info.call_args_list
-        )
+        all_calls = " ".join(str(call) for call in console_mock.info.call_args_list)
         assert "ExampleCo" in all_calls
 
 
@@ -276,9 +268,7 @@ class TestResumePendingJobs:
         monkeypatch.setattr(dr, "get_pending_jobs", dict)
         monkeypatch.setattr(dr, "get_deep_research_client", lambda: Mock())
         # _show_latest_run_state_hint walks the filesystem; isolate it.
-        with patch(
-            "primr.core.cli_recovery._show_latest_run_state_hint"
-        ):
+        with patch("primr.core.cli_recovery._show_latest_run_state_hint"):
             assert resume_pending_jobs() == 0
 
     def test_returns_1_on_check_error(self, monkeypatch):
@@ -288,7 +278,10 @@ class TestResumePendingJobs:
             "error": "Server disconnected",
         }
         import primr.ai.deep_research as dr
-        monkeypatch.setattr(dr, "get_pending_jobs", lambda: {"j1": {"description": "x", "type": "deep_research"}})
+
+        monkeypatch.setattr(
+            dr, "get_pending_jobs", lambda: {"j1": {"description": "x", "type": "deep_research"}}
+        )
         monkeypatch.setattr(dr, "get_deep_research_client", lambda: client)
         assert resume_pending_jobs() == 1
 
@@ -296,7 +289,10 @@ class TestResumePendingJobs:
         client = Mock()
         client.check_job.return_value = {"status": "in_progress"}
         import primr.ai.deep_research as dr
-        monkeypatch.setattr(dr, "get_pending_jobs", lambda: {"j1": {"description": "x", "type": "deep_research"}})
+
+        monkeypatch.setattr(
+            dr, "get_pending_jobs", lambda: {"j1": {"description": "x", "type": "deep_research"}}
+        )
         monkeypatch.setattr(dr, "get_deep_research_client", lambda: client)
         assert resume_pending_jobs() == 0
 
@@ -304,7 +300,10 @@ class TestResumePendingJobs:
         client = Mock()
         client.check_job.return_value = {"status": "completed", "content": ""}
         import primr.ai.deep_research as dr
-        monkeypatch.setattr(dr, "get_pending_jobs", lambda: {"j1": {"description": "x", "type": "deep_research"}})
+
+        monkeypatch.setattr(
+            dr, "get_pending_jobs", lambda: {"j1": {"description": "x", "type": "deep_research"}}
+        )
         monkeypatch.setattr(dr, "get_deep_research_client", lambda: client)
         # No finalized, one failed -> returns 1
         assert resume_pending_jobs() == 1
@@ -313,6 +312,9 @@ class TestResumePendingJobs:
         client = Mock()
         client.check_job.return_value = {"status": "weird_state"}
         import primr.ai.deep_research as dr
-        monkeypatch.setattr(dr, "get_pending_jobs", lambda: {"j1": {"description": "x", "type": "deep_research"}})
+
+        monkeypatch.setattr(
+            dr, "get_pending_jobs", lambda: {"j1": {"description": "x", "type": "deep_research"}}
+        )
         monkeypatch.setattr(dr, "get_deep_research_client", lambda: client)
         assert resume_pending_jobs() == 1

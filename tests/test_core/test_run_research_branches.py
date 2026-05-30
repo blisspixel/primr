@@ -29,9 +29,7 @@ class TestRunResearchEarlyExit:
         )
         assert result is None
 
-    def test_returns_none_when_scrape_quality_too_low(
-        self, isolated_run, monkeypatch
-    ):
+    def test_returns_none_when_scrape_quality_too_low(self, isolated_run, monkeypatch):
         # Tiny scrape - 1 page, few chars - should fail quality gate.
         monkeypatch.setattr(
             "primr.core.research_agent.fetch_web_content",
@@ -49,9 +47,7 @@ class TestRunResearchEarlyExit:
         )
         assert result is None
 
-    def test_skip_quality_validation_proceeds_past_check(
-        self, isolated_run, monkeypatch
-    ):
+    def test_skip_quality_validation_proceeds_past_check(self, isolated_run, monkeypatch):
         # When fail_on_low_scrape=False, low quality shouldn't bail.
         # But the function will then try external search etc. — mock those out.
         monkeypatch.setattr(
@@ -77,9 +73,7 @@ class TestRunResearchEarlyExit:
     def test_no_website_skips_scrape(self, isolated_run, monkeypatch):
         # When website is empty, scraping is skipped — function proceeds.
         scrape_mock = MagicMock(return_value={})
-        monkeypatch.setattr(
-            "primr.core.research_agent.fetch_web_content", scrape_mock
-        )
+        monkeypatch.setattr("primr.core.research_agent.fetch_web_content", scrape_mock)
         # External search will run but we can stop it
         monkeypatch.setattr(
             "primr.core.research_agent.generate_external_search_queries",

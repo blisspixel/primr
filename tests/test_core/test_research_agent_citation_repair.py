@@ -9,9 +9,7 @@ from primr.core.research_agent import _repair_fast_report_citation_integrity
 
 class TestRepairCitations:
     def test_empty_content_returns_unchanged(self):
-        result = _repair_fast_report_citation_integrity(
-            "Acme", None, "", ["https://s1"]
-        )
+        result = _repair_fast_report_citation_integrity("Acme", None, "", ["https://s1"])
         assert result == ""
 
     def test_no_sources_returns_unchanged(self):
@@ -45,8 +43,10 @@ class TestRepairCitations:
 
     def test_structure_broken_returns_original(self, monkeypatch):
         original = (
-            "## Executive Summary\n\n" + ("word " * 500)
-            + "\n\n## SWOT\n\n" + ("word " * 500)
+            "## Executive Summary\n\n"
+            + ("word " * 500)
+            + "\n\n## SWOT\n\n"
+            + ("word " * 500)
             + "\n\nWhat to validate: ask"
         )
         # Polished response only has ONE section -> structure broken

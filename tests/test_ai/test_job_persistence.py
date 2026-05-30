@@ -23,9 +23,7 @@ from primr.ai.job_persistence import (
 def job_path(tmp_path, monkeypatch):
     """Redirect the jobs file to a tmp_path for test isolation."""
     target = tmp_path / "pending.json"
-    monkeypatch.setattr(
-        "primr.ai.job_persistence._get_jobs_file_path", lambda: str(target)
-    )
+    monkeypatch.setattr("primr.ai.job_persistence._get_jobs_file_path", lambda: str(target))
     return target
 
 
@@ -48,9 +46,7 @@ class TestSavePendingJob:
         assert "started" in loaded["iid-1"]
 
     def test_metadata_persisted(self, job_path):
-        save_pending_job(
-            "iid-2", "ai_strategy", "ExampleCo", metadata={"vendor": "azure"}
-        )
+        save_pending_job("iid-2", "ai_strategy", "ExampleCo", metadata={"vendor": "azure"})
         loaded = json.loads(job_path.read_text(encoding="utf-8"))
         assert loaded["iid-2"]["metadata"] == {"vendor": "azure"}
 
@@ -84,13 +80,17 @@ class TestSavePendingJob:
     def test_save_raises_when_disk_write_fails(self, job_path):
         save_pending_job("iid-1", "vendor_research", "X")
         # Force the second write to fail at os.replace/rename.
-        with patch(
-            "primr.ai.job_persistence.os.replace",
-            side_effect=OSError("disk full"),
-        ), patch(
-            "primr.ai.job_persistence.os.rename",
-            side_effect=OSError("disk full"),
-        ), pytest.raises(OSError):
+        with (
+            patch(
+                "primr.ai.job_persistence.os.replace",
+                side_effect=OSError("disk full"),
+            ),
+            patch(
+                "primr.ai.job_persistence.os.rename",
+                side_effect=OSError("disk full"),
+            ),
+            pytest.raises(OSError),
+        ):
             save_pending_job("iid-2", "vendor_research", "Y")
 
 

@@ -154,9 +154,7 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
     if config is not None and config.provider in ("openai", "anthropic", "ollama"):
         from primr.ai.routing import get_provider_for_model
 
-        log_chat_interaction(
-            prompt, f"Model: {model_name} ({config.provider} dispatch)"
-        )
+        log_chat_interaction(prompt, f"Model: {model_name} ({config.provider} dispatch)")
         cross_provider = get_provider_for_model(model_name)
         cross_response = cross_provider.chat(
             [{"role": "user", "content": prompt}],
@@ -195,22 +193,10 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
         )
         print(Fore.RED + "\n" + "=" * 60 + Style.RESET_ALL)
         print(Fore.RED + "[QUOTA EXHAUSTED] Daily API limit reached." + Style.RESET_ALL)
-        print(
-            Fore.YELLOW
-            + "Your Gemini API quota has been exhausted for today."
-            + Style.RESET_ALL
-        )
+        print(Fore.YELLOW + "Your Gemini API quota has been exhausted for today." + Style.RESET_ALL)
         print(Fore.YELLOW + "Options:" + Style.RESET_ALL)
-        print(
-            Fore.YELLOW
-            + "  1. Wait until quota resets (usually midnight PT)"
-            + Style.RESET_ALL
-        )
-        print(
-            Fore.YELLOW
-            + "  2. Upgrade your API plan at https://ai.google.dev"
-            + Style.RESET_ALL
-        )
+        print(Fore.YELLOW + "  1. Wait until quota resets (usually midnight PT)" + Style.RESET_ALL)
+        print(Fore.YELLOW + "  2. Upgrade your API plan at https://ai.google.dev" + Style.RESET_ALL)
         print(Fore.YELLOW + "  3. Use a different API key" + Style.RESET_ALL)
         print(Fore.YELLOW + "  4. Check quota: primr --check-quota" + Style.RESET_ALL)
         print(Fore.RED + "=" * 60 + "\n" + Style.RESET_ALL)

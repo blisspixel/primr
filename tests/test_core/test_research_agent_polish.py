@@ -12,9 +12,7 @@ class TestPolishFastReportForTrust:
         assert _polish_fast_report_for_trust("Acme", "https://acme.example", "", []) == ""
 
     def test_whitespace_content_returns_unchanged(self):
-        result = _polish_fast_report_for_trust(
-            "Acme", "https://acme.example", "   \n\n", []
-        )
+        result = _polish_fast_report_for_trust("Acme", "https://acme.example", "   \n\n", [])
         assert result == "   \n\n"
 
     def test_empty_polish_returns_original(self, monkeypatch):
@@ -62,26 +60,25 @@ class TestPolishFastReportForTrust:
             "primr.ai.grok_client.grok_llm",
             MagicMock(return_value=polished),
         )
-        result = _polish_fast_report_for_trust(
-            "Acme", "https://acme.example", original, []
-        )
+        result = _polish_fast_report_for_trust("Acme", "https://acme.example", original, [])
         assert result == polished
 
     def test_section_count_too_low_returns_original(self, monkeypatch):
         # Original 3 sections; polished only 1 section (1 < 3*0.70 = 2.1 → 2)
         original = (
-            "## A\n\n" + "word " * 100
-            + "\n\n## B\n\n" + "word " * 100
-            + "\n\n## C\n\n" + "word " * 100
+            "## A\n\n"
+            + "word " * 100
+            + "\n\n## B\n\n"
+            + "word " * 100
+            + "\n\n## C\n\n"
+            + "word " * 100
         )
         polished = "## A\n\n" + "word " * 300  # enough words but only 1 section
         monkeypatch.setattr(
             "primr.ai.grok_client.grok_llm",
             MagicMock(return_value=polished),
         )
-        result = _polish_fast_report_for_trust(
-            "Acme", "https://acme.example", original, []
-        )
+        result = _polish_fast_report_for_trust("Acme", "https://acme.example", original, [])
         assert result == original
 
     def test_exception_returns_original(self, monkeypatch):
@@ -90,9 +87,7 @@ class TestPolishFastReportForTrust:
             "primr.ai.grok_client.grok_llm",
             MagicMock(side_effect=RuntimeError("grok down")),
         )
-        result = _polish_fast_report_for_trust(
-            "Acme", "https://acme.example", original, []
-        )
+        result = _polish_fast_report_for_trust("Acme", "https://acme.example", original, [])
         assert result == original
 
     def test_explicit_model_param_used(self, monkeypatch):

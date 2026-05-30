@@ -254,12 +254,10 @@ class AnthropicProvider(Provider):
                 if response.usage:
                     input_tokens = response.usage.input_tokens or 0
                     output_tokens = response.usage.output_tokens or 0
-                    cached_input_tokens = getattr(
-                        response.usage, "cache_read_input_tokens", 0
-                    ) or 0
-                    cache_creation_tokens = getattr(
-                        response.usage, "cache_creation_input_tokens", 0
-                    ) or 0
+                    cached_input_tokens = getattr(response.usage, "cache_read_input_tokens", 0) or 0
+                    cache_creation_tokens = (
+                        getattr(response.usage, "cache_creation_input_tokens", 0) or 0
+                    )
 
                 self._record_usage(
                     model,
@@ -291,18 +289,14 @@ class AnthropicProvider(Provider):
 
                 # Check for quota/billing exhaustion first — never retry these
                 if _is_quota_exhausted(e):
-                    raise QuotaExhaustedError(
-                        f"Anthropic API quota/billing exhausted: {e}"
-                    ) from e
+                    raise QuotaExhaustedError(f"Anthropic API quota/billing exhausted: {e}") from e
 
                 # Check HTTP status code for structured errors
                 status_code = getattr(e, "status_code", None)
 
                 if status_code == 403:
                     # 403 is always billing/auth — don't retry
-                    raise QuotaExhaustedError(
-                        f"Anthropic API access denied (HTTP 403): {e}"
-                    ) from e
+                    raise QuotaExhaustedError(f"Anthropic API access denied (HTTP 403): {e}") from e
 
                 # Determine if retryable
                 is_retryable = False
@@ -325,9 +319,7 @@ class AnthropicProvider(Provider):
                         "timed out",
                         "connection",
                     )
-                    is_retryable = any(
-                        marker in error_text for marker in retryable_markers
-                    )
+                    is_retryable = any(marker in error_text for marker in retryable_markers)
 
                 if is_retryable:
                     if attempt < retries:
@@ -337,8 +329,7 @@ class AnthropicProvider(Provider):
                             else backoff_delays[-1]
                         )
                         logger.warning(
-                            "Transient Anthropic API error, retrying in %.1fs "
-                            "(attempt %d/%d): %s",
+                            "Transient Anthropic API error, retrying in %.1fs (attempt %d/%d): %s",
                             delay,
                             attempt + 1,
                             retries + 1,
@@ -347,8 +338,7 @@ class AnthropicProvider(Provider):
                         time.sleep(delay)
                         continue
                     logger.warning(
-                        "Transient Anthropic API error on final attempt "
-                        "(%d/%d): %s",
+                        "Transient Anthropic API error on final attempt (%d/%d): %s",
                         attempt + 1,
                         retries + 1,
                         e,
@@ -356,9 +346,7 @@ class AnthropicProvider(Provider):
                     break
 
                 # Non-retryable, non-quota error
-                raise RuntimeError(
-                    f"Anthropic API call failed (non-retryable): {e}"
-                ) from e
+                raise RuntimeError(f"Anthropic API call failed (non-retryable): {e}") from e
 
         raise RuntimeError(
             f"Anthropic API call failed after {retries + 1} attempts: {last_error}"
@@ -383,7 +371,9 @@ class AnthropicProvider(Provider):
         """
         # Record standard usage via parent accumulator (including cached tokens)
         self._usage.record(
-            model, input_tokens, output_tokens,
+            model,
+            input_tokens,
+            output_tokens,
             cached_input_tokens=cached_input_tokens,
         )
 

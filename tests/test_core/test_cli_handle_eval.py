@@ -57,9 +57,7 @@ class TestEvalValidation:
         def get_profile(p):
             return MagicMock() if p == "lite" else None
 
-        monkeypatch.setattr(
-            "primr.core.model_eval.get_eval_profile", get_profile
-        )
+        monkeypatch.setattr("primr.core.model_eval.get_eval_profile", get_profile)
         monkeypatch.setattr(
             "primr.core.model_eval.list_eval_profile_names",
             lambda: ["full", "lite", "fast"],

@@ -50,30 +50,18 @@ class TestCommandPredicates:
 
 class TestRunKeys:
     def test_path_action_returns_zero(self, monkeypatch):
-        monkeypatch.setattr(
-            "primr.config.env.get_user_env_path", lambda: "/user/.env"
-        )
-        monkeypatch.setattr(
-            "primr.config.env.get_local_env_path", lambda: None
-        )
+        monkeypatch.setattr("primr.config.env.get_user_env_path", lambda: "/user/.env")
+        monkeypatch.setattr("primr.config.env.get_local_env_path", lambda: None)
         assert _run_keys(["keys", "path"]) == 0
 
     def test_path_with_local_override(self, monkeypatch):
-        monkeypatch.setattr(
-            "primr.config.env.get_user_env_path", lambda: "/user/.env"
-        )
-        monkeypatch.setattr(
-            "primr.config.env.get_local_env_path", lambda: "/project/.env"
-        )
+        monkeypatch.setattr("primr.config.env.get_user_env_path", lambda: "/user/.env")
+        monkeypatch.setattr("primr.config.env.get_local_env_path", lambda: "/project/.env")
         assert _run_keys(["keys", "path"]) == 0
 
     def test_list_action_returns_zero(self, monkeypatch):
-        monkeypatch.setattr(
-            "primr.config.env.get_user_env_path", lambda: "/user/.env"
-        )
-        monkeypatch.setattr(
-            "primr.config.env.get_local_env_path", lambda: None
-        )
+        monkeypatch.setattr("primr.config.env.get_user_env_path", lambda: "/user/.env")
+        monkeypatch.setattr("primr.config.env.get_local_env_path", lambda: None)
         monkeypatch.setattr("primr.config.env.load_primr_env", lambda: None)
         monkeypatch.setattr("primr.config.env.mask_secret", lambda x: "***")
         monkeypatch.setattr(
@@ -83,9 +71,7 @@ class TestRunKeys:
         assert _run_keys(["keys", "list"]) == 0
 
     def test_set_with_explicit_value(self, monkeypatch):
-        monkeypatch.setattr(
-            "primr.config.env.normalize_key_name", lambda p: f"{p.upper()}_API_KEY"
-        )
+        monkeypatch.setattr("primr.config.env.normalize_key_name", lambda p: f"{p.upper()}_API_KEY")
         monkeypatch.setattr(
             "primr.config.env.set_user_key",
             lambda p, v: (f"{p.upper()}_API_KEY", "/path/.env"),
@@ -95,16 +81,12 @@ class TestRunKeys:
         assert result == 0
 
     def test_set_with_empty_value_returns_1(self, monkeypatch):
-        monkeypatch.setattr(
-            "primr.config.env.normalize_key_name", lambda p: f"{p.upper()}_API_KEY"
-        )
+        monkeypatch.setattr("primr.config.env.normalize_key_name", lambda p: f"{p.upper()}_API_KEY")
         result = _run_keys(["keys", "set", "gemini", ""])
         assert result == 1
 
     def test_set_non_interactive_no_value_returns_1(self, monkeypatch):
-        monkeypatch.setattr(
-            "primr.config.env.normalize_key_name", lambda p: f"{p.upper()}_API_KEY"
-        )
+        monkeypatch.setattr("primr.config.env.normalize_key_name", lambda p: f"{p.upper()}_API_KEY")
         monkeypatch.setattr("sys.stdin.isatty", lambda: False)
         result = _run_keys(["keys", "set", "gemini"])
         assert result == 1

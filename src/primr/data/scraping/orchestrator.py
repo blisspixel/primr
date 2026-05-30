@@ -38,6 +38,8 @@ def _safe_for_log(value: object) -> str:
     if len(text) > _LOG_VALUE_MAX:
         text = text[: _LOG_VALUE_MAX - 3] + "..."
     return text
+
+
 from .config import RateLimitConfig
 from .content import (
     detect_content_type,
@@ -1040,9 +1042,7 @@ class ScrapeOrchestrator:
                     len(result.raw_content or b""),
                 )
             else:
-                logger.info(
-                    "  [%.1fs] FAIL: %s", page_secs, _safe_for_log(result.error)
-                )
+                logger.info("  [%.1fs] FAIL: %s", page_secs, _safe_for_log(result.error))
 
         return results
 

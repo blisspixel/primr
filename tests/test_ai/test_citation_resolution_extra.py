@@ -82,9 +82,7 @@ class TestExtractDomainFromRedirect:
     def test_decodes_base64_payload(self):
         target = "https://example.com/article"
         encoded = base64.urlsafe_b64encode(target.encode()).decode().rstrip("=")
-        redirect = (
-            f"https://vertexaisearch.cloud.google.com/grounding-api-redirect/{encoded}"
-        )
+        redirect = f"https://vertexaisearch.cloud.google.com/grounding-api-redirect/{encoded}"
         assert _extract_domain_from_redirect(redirect) == target
 
     def test_returns_original_when_no_match(self):

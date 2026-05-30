@@ -19,11 +19,14 @@ def isolated(tmp_path, monkeypatch):
 
 class TestPerformScrapeOnly:
     def test_no_website_returns_none(self, isolated):
-        assert perform_scrape_only(
-            company_name="Acme",
-            website=None,
-            start_time=time.time(),
-        ) is None
+        assert (
+            perform_scrape_only(
+                company_name="Acme",
+                website=None,
+                start_time=time.time(),
+            )
+            is None
+        )
 
     def test_empty_scrape_returns_none(self, isolated, monkeypatch, tmp_path):
         monkeypatch.setattr(
@@ -59,9 +62,7 @@ class TestPerformScrapeOnly:
         )
         assert result is None
 
-    def test_skip_validation_proceeds_to_summarize(
-        self, isolated, monkeypatch, tmp_path
-    ):
+    def test_skip_validation_proceeds_to_summarize(self, isolated, monkeypatch, tmp_path):
         folder = tmp_path / "work"
         folder.mkdir()
         monkeypatch.setattr(
@@ -85,9 +86,7 @@ class TestPerformScrapeOnly:
         assert (folder / "scraped_content.txt").exists()
         assert (folder / "insights.txt").exists()
 
-    def test_happy_path_with_quality_validation_pass(
-        self, isolated, monkeypatch, tmp_path
-    ):
+    def test_happy_path_with_quality_validation_pass(self, isolated, monkeypatch, tmp_path):
         folder = tmp_path / "work"
         folder.mkdir()
         # Big enough corpus to pass default quality thresholds.

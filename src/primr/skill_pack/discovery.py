@@ -216,9 +216,7 @@ def discover_roles(
 
     roles_raw = parsed.get("roles") or []
     if not isinstance(roles_raw, list):
-        raise ValueError(
-            f"discover_roles: expected `roles` array, got {type(roles_raw).__name__}"
-        )
+        raise ValueError(f"discover_roles: expected `roles` array, got {type(roles_raw).__name__}")
 
     roles: list[Role] = []
     for entry in roles_raw[:roles_count]:
@@ -237,9 +235,7 @@ def discover_roles(
                     sources=[str(s) for s in (entry.get("sources") or [])],
                     dns_signals=[str(s) for s in (entry.get("dns_signals") or [])],
                     posting_count=int(entry.get("posting_count") or 0),
-                    archetype=(
-                        str(entry["archetype"]) if entry.get("archetype") else None
-                    ),
+                    archetype=(str(entry["archetype"]) if entry.get("archetype") else None),
                 ),
             )
         )

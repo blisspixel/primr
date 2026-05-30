@@ -174,7 +174,10 @@ class TestLineHeuristics:
         assert _is_body_like_line(text) is True
 
     def test_cookie_line_not_body(self):
-        assert _is_body_like_line("we use cookies to improve your experience on our website ok") is False
+        assert (
+            _is_body_like_line("we use cookies to improve your experience on our website ok")
+            is False
+        )
 
     def test_short_line_not_body(self):
         assert _is_body_like_line("short") is False

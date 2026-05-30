@@ -107,9 +107,7 @@ class TestAutoStripForbiddenPatterns:
         assert _auto_strip_forbidden_patterns("   ") == "   "
 
     def test_strips_source_tag(self):
-        result = _auto_strip_forbidden_patterns(
-            "body [Source: https://example.com] more"
-        )
+        result = _auto_strip_forbidden_patterns("body [Source: https://example.com] more")
         assert "[Source:" not in result
         assert "body" in result
         assert "more" in result
@@ -239,9 +237,7 @@ class TestValidateOutputDocx:
             doc.tables = []
             DocumentMock.return_value = doc
 
-            with patch(
-                "primr.output.markdown_parser.ArtifactDetector"
-            ) as DetectorMock:
+            with patch("primr.output.markdown_parser.ArtifactDetector") as DetectorMock:
                 DetectorMock.return_value.scan_document.return_value = []
                 result = _validate_output_docx(path)
         assert result["passed"] is True
@@ -255,9 +251,7 @@ class TestValidateOutputDocx:
             doc.tables = []
             DocumentMock.return_value = doc
 
-            with patch(
-                "primr.output.markdown_parser.ArtifactDetector"
-            ) as DetectorMock:
+            with patch("primr.output.markdown_parser.ArtifactDetector") as DetectorMock:
                 DetectorMock.return_value.scan_document.return_value = [
                     {"type": "bold_marker", "match": "**bold**"}
                 ]
@@ -269,15 +263,11 @@ class TestValidateOutputDocx:
         path = tmp_path / "leak.docx"
         with patch("docx.Document") as DocumentMock:
             doc = MagicMock()
-            doc.paragraphs = [
-                MagicMock(text="From [Workbook: x] body content")
-            ]
+            doc.paragraphs = [MagicMock(text="From [Workbook: x] body content")]
             doc.tables = []
             DocumentMock.return_value = doc
 
-            with patch(
-                "primr.output.markdown_parser.ArtifactDetector"
-            ) as DetectorMock:
+            with patch("primr.output.markdown_parser.ArtifactDetector") as DetectorMock:
                 DetectorMock.return_value.scan_document.return_value = []
                 result = _validate_output_docx(path)
         assert result["passed"] is False
@@ -285,39 +275,29 @@ class TestValidateOutputDocx:
 
     def test_caps_artifacts_at_ten(self, tmp_path):
         path = tmp_path / "many.docx"
-        many_artifacts = [
-            {"type": "noise", "match": f"m{i}"} for i in range(50)
-        ]
+        many_artifacts = [{"type": "noise", "match": f"m{i}"} for i in range(50)]
         with patch("docx.Document") as DocumentMock:
             doc = MagicMock()
             doc.paragraphs = []
             doc.tables = []
             DocumentMock.return_value = doc
 
-            with patch(
-                "primr.output.markdown_parser.ArtifactDetector"
-            ) as DetectorMock:
+            with patch("primr.output.markdown_parser.ArtifactDetector") as DetectorMock:
                 DetectorMock.return_value.scan_document.return_value = many_artifacts
                 result = _validate_output_docx(path)
         # Only first 10 artifact issues should be carried forward.
-        markdown_issues = [
-            i for i in result["issues"] if i.startswith("markdown_artifact:")
-        ]
+        markdown_issues = [i for i in result["issues"] if i.startswith("markdown_artifact:")]
         assert len(markdown_issues) == 10
 
 
 class TestWriteOutputValidationReport:
     def test_no_issues_returns_none(self, tmp_path):
-        result = _write_output_validation_report(
-            tmp_path / "report.md", "markdown", [], []
-        )
+        result = _write_output_validation_report(tmp_path / "report.md", "markdown", [], [])
         assert result is None
 
     def test_writes_to_default_sibling(self, tmp_path):
         base = tmp_path / "company_report.md"
-        out = _write_output_validation_report(
-            base, "markdown", ["issue 1", "issue 2"], []
-        )
+        out = _write_output_validation_report(base, "markdown", ["issue 1", "issue 2"], [])
         assert out is not None
         assert out.exists()
         assert out.name == "company_report_markdown_validation.txt"
@@ -346,9 +326,7 @@ class TestWriteOutputValidationReport:
         assert diagnostics.exists()
 
     def test_both_issues_and_errors_recorded(self, tmp_path):
-        out = _write_output_validation_report(
-            tmp_path / "x.md", "markdown", ["i1"], ["e1"]
-        )
+        out = _write_output_validation_report(tmp_path / "x.md", "markdown", ["i1"], ["e1"])
         text = out.read_text(encoding="utf-8")
         assert "Issues:" in text
         assert "Validator errors:" in text

@@ -105,9 +105,7 @@ class TestExecuteFollowup:
         interaction.outputs = [out]
 
         orchestrator._client.interactions.create.return_value = interaction
-        result = await orchestrator._execute_followup(
-            "prev-iid-xyz", "prompt body"
-        )
+        result = await orchestrator._execute_followup("prev-iid-xyz", "prompt body")
         assert result.status == ResearchStatus.COMPLETED
         assert "follow-up body" in result.content
 
@@ -117,25 +115,19 @@ class TestExecuteFollowup:
         interaction.id = "iid-1"
         interaction.outputs = []  # no text parts
         orchestrator._client.interactions.create.return_value = interaction
-        result = await orchestrator._execute_followup(
-            "prev-iid", "prompt"
-        )
+        result = await orchestrator._execute_followup("prev-iid", "prompt")
         assert result.status == ResearchStatus.FAILED
         assert "Empty response" in result.error
 
     @pytest.mark.asyncio
     async def test_rate_limit_returns_specific_error(self, orchestrator):
-        orchestrator._client.interactions.create.side_effect = RuntimeError(
-            "429 quota exceeded"
-        )
+        orchestrator._client.interactions.create.side_effect = RuntimeError("429 quota exceeded")
         result = await orchestrator._execute_followup("prev", "prompt")
         assert result.status == ResearchStatus.FAILED
         assert "Rate limited" in result.error
 
     @pytest.mark.asyncio
-    async def test_invalid_interaction_id_returns_specific_error(
-        self, orchestrator
-    ):
+    async def test_invalid_interaction_id_returns_specific_error(self, orchestrator):
         orchestrator._client.interactions.create.side_effect = RuntimeError(
             "invalid previous_interaction_id provided"
         )
@@ -145,9 +137,7 @@ class TestExecuteFollowup:
 
     @pytest.mark.asyncio
     async def test_generic_error_returns_failed(self, orchestrator):
-        orchestrator._client.interactions.create.side_effect = RuntimeError(
-            "something else"
-        )
+        orchestrator._client.interactions.create.side_effect = RuntimeError("something else")
         result = await orchestrator._execute_followup("prev", "prompt")
         assert result.status == ResearchStatus.FAILED
         assert "something else" in result.error

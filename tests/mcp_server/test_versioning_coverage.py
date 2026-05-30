@@ -121,9 +121,7 @@ class TestToolSchemaMetadata:
         meta = ToolSchemaMetadata(
             tool_name="x", version=SemanticVersion(1, 0, 0), description="desc"
         )
-        meta.add_deprecation(
-            field_name="f", message="m", deprecated_in=SemanticVersion(1, 0, 0)
-        )
+        meta.add_deprecation(field_name="f", message="m", deprecated_in=SemanticVersion(1, 0, 0))
         d = meta.to_dict()
         assert d["description"] == "desc"
         assert len(d["deprecation_warnings"]) == 1

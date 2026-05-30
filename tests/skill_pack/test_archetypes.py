@@ -93,9 +93,7 @@ def test_grounding_fragment_includes_canonical_skills():
     fragment = grounding_prompt_fragment(archetype, max_skills=5)
     assert "Canonical skills" in fragment
     # Should mention at least one of the data-engineer canonical skills
-    assert any(
-        skill.name in fragment for skill in archetype.canonical_skills[:5]
-    )
+    assert any(skill.name in fragment for skill in archetype.canonical_skills[:5])
 
 
 def test_grounding_fragment_includes_ai_patterns():

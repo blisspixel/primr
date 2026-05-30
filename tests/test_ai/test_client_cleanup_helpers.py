@@ -34,9 +34,7 @@ class TestCleanupFileStore:
         client._cleanup_file_store("stores/abc")
         # Both docs deleted then store deleted
         assert client._client.file_search_stores.documents.delete.call_count == 2
-        client._client.file_search_stores.delete.assert_called_once_with(
-            name="stores/abc"
-        )
+        client._client.file_search_stores.delete.assert_called_once_with(name="stores/abc")
 
     def test_falls_back_when_config_unsupported(self, client):
         doc = MagicMock()
@@ -51,18 +49,14 @@ class TestCleanupFileStore:
         assert client._client.file_search_stores.documents.delete.call_count == 2
 
     def test_handles_list_failure_gracefully(self, client):
-        client._client.file_search_stores.documents.list.side_effect = RuntimeError(
-            "list api down"
-        )
+        client._client.file_search_stores.documents.list.side_effect = RuntimeError("list api down")
         # Should still attempt to delete the store
         client._cleanup_file_store("stores/abc")
         client._client.file_search_stores.delete.assert_called_once()
 
     def test_handles_store_delete_failure_gracefully(self, client):
         client._client.file_search_stores.documents.list.return_value = []
-        client._client.file_search_stores.delete.side_effect = RuntimeError(
-            "delete failed"
-        )
+        client._client.file_search_stores.delete.side_effect = RuntimeError("delete failed")
         # Should NOT raise
         client._cleanup_file_store("stores/abc")
 

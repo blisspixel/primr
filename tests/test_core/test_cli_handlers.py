@@ -136,14 +136,10 @@ class TestHandleClearJobs:
     def test_writes_empty_dict_when_pending_jobs(self, tmp_path, monkeypatch):
         import primr.ai.deep_research as dr
 
-        monkeypatch.setattr(
-            dr, "get_pending_jobs", lambda: {"j1": {"description": "x"}}
-        )
+        monkeypatch.setattr(dr, "get_pending_jobs", lambda: {"j1": {"description": "x"}})
         # Redirect LOGS_DIR to tmp_path so the file write lands in our sandbox.
         monkeypatch.setattr("primr.core.cli.LOGS_DIR", str(tmp_path))
-        monkeypatch.setattr(
-            "primr.config.config.LOGS_DIR", str(tmp_path)
-        )
+        monkeypatch.setattr("primr.config.config.LOGS_DIR", str(tmp_path))
         assert _handle_clear_jobs(_config()) == 0
 
         import json
@@ -157,9 +153,7 @@ class TestHandleShowUsage:
     def test_delegates_to_usage_tracker(self, monkeypatch, capsys):
         tracker = MagicMock()
         tracker.display_usage_history.return_value = "USAGE HISTORY"
-        with patch(
-            "primr.utils.usage_tracker.get_usage_tracker", return_value=tracker
-        ):
+        with patch("primr.utils.usage_tracker.get_usage_tracker", return_value=tracker):
             assert _handle_show_usage(_config()) == 0
         captured = capsys.readouterr()
         assert "USAGE HISTORY" in captured.out
@@ -273,16 +267,12 @@ class TestHandleImprove:
         from primr.core.cli import _handle_improve
 
         mock_improve = MagicMock(return_value="/path/to/improved.md")
-        monkeypatch.setattr(
-            "primr.core.research_agent.improve_output_file", mock_improve
-        )
+        monkeypatch.setattr("primr.core.research_agent.improve_output_file", mock_improve)
         result = _handle_improve(
             _config(improve_path="/in.md", improve_in_place=True, improve_agentic=False)
         )
         assert result == 0
-        mock_improve.assert_called_once_with(
-            "/in.md", in_place=True, use_agentic=False
-        )
+        mock_improve.assert_called_once_with("/in.md", in_place=True, use_agentic=False)
 
     def test_returns_1_when_improve_returns_none(self, monkeypatch):
         from primr.core.cli import _handle_improve

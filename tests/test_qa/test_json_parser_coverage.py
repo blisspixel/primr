@@ -189,10 +189,7 @@ class TestKeywordHelpers:
         assert len(strengths) == 3
 
     def test_extract_improvements_limited_to_three(self, parser):
-        text = (
-            "missing citations unclear needs more insufficient "
-            "contradictions inconsistent gaps"
-        )
+        text = "missing citations unclear needs more insufficient contradictions inconsistent gaps"
         improvements = parser._extract_improvements_from_text(text)
         assert len(improvements) == 3
 

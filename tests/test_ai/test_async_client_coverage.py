@@ -250,9 +250,7 @@ async def test_generate_batch_with_context(make_client):
 
     c.generate_batch = _batch  # type: ignore
     c._ensure_initialized = lambda: None  # type: ignore
-    await c.generate_batch_with_context(
-        [{"name": "Acme"}, {"name": "Beta"}], "Summarize {name}"
-    )
+    await c.generate_batch_with_context([{"name": "Acme"}, {"name": "Beta"}], "Summarize {name}")
     assert captured == ["Summarize Acme", "Summarize Beta"]
 
 
@@ -325,8 +323,6 @@ def test_run_parallel(monkeypatch):
     async def _fake_generate_parallel(prompts, **kwargs):
         return [BatchResult(prompt=p, response="r") for p in prompts]
 
-    monkeypatch.setattr(
-        "primr.ai.async_client.generate_parallel", _fake_generate_parallel
-    )
+    monkeypatch.setattr("primr.ai.async_client.generate_parallel", _fake_generate_parallel)
     results = run_parallel(["a"])
     assert len(results) == 1

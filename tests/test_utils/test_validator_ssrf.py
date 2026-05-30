@@ -64,8 +64,6 @@ class TestDnsFailureFailsClosed:
     def test_unresolvable_host_rejected(self) -> None:
         # The prior implementation allowed unresolvable hosts through,
         # which let the HTTP client resolve the real authority. Fail closed.
-        ok, _, error = validate_url_for_request(
-            "https://does-not-exist.invalid.primr-test/"
-        )
+        ok, _, error = validate_url_for_request("https://does-not-exist.invalid.primr-test/")
         assert ok is False
         assert error is not None

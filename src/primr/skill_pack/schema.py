@@ -149,24 +149,19 @@ class SkillPack:
 
     @property
     def observed_role_count(self) -> int:
-        return sum(
-            1 for r in self.roles
-            if r.evidence.provenance == RoleProvenance.POSTING
-        )
+        return sum(1 for r in self.roles if r.evidence.provenance == RoleProvenance.POSTING)
 
     @property
     def plausible_role_count(self) -> int:
         return sum(
-            1 for r in self.roles
+            1
+            for r in self.roles
             if r.evidence.provenance in (RoleProvenance.RESEARCH, RoleProvenance.INDUSTRY)
         )
 
     @property
     def operator_added_role_count(self) -> int:
-        return sum(
-            1 for r in self.roles
-            if r.evidence.provenance == RoleProvenance.OVERRIDE
-        )
+        return sum(1 for r in self.roles if r.evidence.provenance == RoleProvenance.OVERRIDE)
 
 
 @dataclass

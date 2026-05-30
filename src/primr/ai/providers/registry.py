@@ -84,11 +84,7 @@ def get_available_providers() -> list[ProviderEntry]:
     """
     import os
 
-    return [
-        p
-        for p in KNOWN_PROVIDERS
-        if os.getenv(p.api_key_env) or p.api_key_default is not None
-    ]
+    return [p for p in KNOWN_PROVIDERS if os.getenv(p.api_key_env) or p.api_key_default is not None]
 
 
 def build_provider(entry: ProviderEntry) -> Provider:

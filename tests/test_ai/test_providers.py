@@ -117,9 +117,7 @@ class TestClientInit:
         provider = _make_provider()
         with patch("openai.OpenAI") as mock_openai:
             provider._get_client()
-        mock_openai.assert_called_once_with(
-            api_key="test-key", base_url="https://example.test/v1"
-        )
+        mock_openai.assert_called_once_with(api_key="test-key", base_url="https://example.test/v1")
 
     def test_lazy_init_caches_client(self) -> None:
         provider = _make_provider()
@@ -200,7 +198,11 @@ class TestChatSuccess:
         provider.chat([{"role": "user", "content": "x"}], model="grok-4.3")
         provider.reset_usage()
 
-        assert provider.get_usage() == {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens": 0}
+        assert provider.get_usage() == {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cached_input_tokens": 0,
+        }
         assert provider.get_usage_by_model() == {}
 
     def test_passes_supported_sdk_kwargs(self) -> None:
@@ -234,9 +236,7 @@ class TestEmptyResponse:
     def test_no_choices_raises_after_retries(self) -> None:
         provider = _make_provider()
         fake_client = MagicMock()
-        fake_client.chat.completions.create.return_value = SimpleNamespace(
-            choices=[], usage=None
-        )
+        fake_client.chat.completions.create.return_value = SimpleNamespace(choices=[], usage=None)
         provider._client = fake_client
 
         with pytest.raises(RuntimeError, match="testprov API call failed"):
@@ -262,15 +262,16 @@ class TestBillingExhausted:
             billing_help_url="https://console.x.ai/",
         )
         fake_client = MagicMock()
-        fake_client.chat.completions.create.side_effect = RuntimeError(
-            "402 credits exhausted"
-        )
+        fake_client.chat.completions.create.side_effect = RuntimeError("402 credits exhausted")
         provider._client = fake_client
 
-        with patch(
-            "primr.ai.providers.openai_compatible._is_billing_exhausted",
-            return_value=True,
-        ), pytest.raises(RuntimeError, match="credits exhausted"):
+        with (
+            patch(
+                "primr.ai.providers.openai_compatible._is_billing_exhausted",
+                return_value=True,
+            ),
+            pytest.raises(RuntimeError, match="credits exhausted"),
+        ):
             provider.chat(
                 [{"role": "user", "content": "x"}],
                 model="grok-4.3",
@@ -357,9 +358,7 @@ class TestGeminiProviderMessageSplit:
     def test_no_system_returns_none(self) -> None:
         from primr.ai.providers.gemini import GeminiProvider
 
-        sys_inst, contents = GeminiProvider._split_messages(
-            [{"role": "user", "content": "hi"}]
-        )
+        sys_inst, contents = GeminiProvider._split_messages([{"role": "user", "content": "hi"}])
         assert sys_inst is None
         assert contents == "hi"
 
@@ -382,9 +381,7 @@ class TestGeminiProviderQuotaClassifier:
         assert _is_daily_quota_exhausted(
             Exception("RESOURCE_EXHAUSTED quota exceeded per_day limit")
         )
-        assert _is_daily_quota_exhausted(
-            Exception("resource_exhausted: per_day cap reached")
-        )
+        assert _is_daily_quota_exhausted(Exception("resource_exhausted: per_day cap reached"))
 
     def test_rate_limit_distinct_from_daily(self) -> None:
         from primr.ai.providers.gemini import (
@@ -444,7 +441,8 @@ class TestGeminiProviderChat:
         provider = GeminiProvider()
         fake_client = MagicMock()
         fake_response = SimpleNamespace(
-            text="ok", usage_metadata=SimpleNamespace(prompt_token_count=1, candidates_token_count=1)
+            text="ok",
+            usage_metadata=SimpleNamespace(prompt_token_count=1, candidates_token_count=1),
         )
         fake_client.models.generate_content.return_value = fake_response
         provider._client = fake_client

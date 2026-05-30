@@ -119,9 +119,7 @@ class TestCheckProviders:
         prov = MagicMock(name="grok", description="Grok (xAI)", roles=["reasoning"])
         prov.name = "grok"
         with (
-            patch(
-                "primr.ai.providers.get_available_providers", return_value=[prov]
-            ),
+            patch("primr.ai.providers.get_available_providers", return_value=[prov]),
             patch(
                 "primr.ai.providers.KNOWN_PROVIDERS",
                 [
@@ -148,9 +146,7 @@ class TestCheckProviders:
 
 class TestCheckDependencies:
     def test_playwright_available(self):
-        with patch(
-            "playwright.sync_api.sync_playwright"
-        ) as pw_mock:
+        with patch("playwright.sync_api.sync_playwright") as pw_mock:
             pw_mock.return_value.__enter__.return_value = MagicMock()
             pw_mock.return_value.__exit__.return_value = None
             assert _check_dependencies(0) == 0
@@ -206,9 +202,10 @@ class TestCheckApiConnectivity:
             text="hello", candidates=[MagicMock()]
         )
         fake_module.Client.return_value = client
-        with patch.dict(
-            "sys.modules", {"google": MagicMock(genai=fake_module)}
-        ), patch("google.genai", fake_module, create=True):
+        with (
+            patch.dict("sys.modules", {"google": MagicMock(genai=fake_module)}),
+            patch("google.genai", fake_module, create=True),
+        ):
             all_passed, _ = _check_api_connectivity(True, 0)
         assert all_passed is True
 
@@ -216,9 +213,10 @@ class TestCheckApiConnectivity:
         monkeypatch.setenv("GEMINI_API_KEY", "x" * 30)
         fake_module = MagicMock()
         fake_module.Client.side_effect = RuntimeError("quota exceeded")
-        with patch.dict(
-            "sys.modules", {"google": MagicMock(genai=fake_module)}
-        ), patch("google.genai", fake_module, create=True):
+        with (
+            patch.dict("sys.modules", {"google": MagicMock(genai=fake_module)}),
+            patch("google.genai", fake_module, create=True),
+        ):
             all_passed, _ = _check_api_connectivity(True, 0)
         assert all_passed is False
 
@@ -226,9 +224,10 @@ class TestCheckApiConnectivity:
         monkeypatch.setenv("GEMINI_API_KEY", "x" * 30)
         fake_module = MagicMock()
         fake_module.Client.side_effect = RuntimeError("invalid key")
-        with patch.dict(
-            "sys.modules", {"google": MagicMock(genai=fake_module)}
-        ), patch("google.genai", fake_module, create=True):
+        with (
+            patch.dict("sys.modules", {"google": MagicMock(genai=fake_module)}),
+            patch("google.genai", fake_module, create=True),
+        ):
             all_passed, _ = _check_api_connectivity(True, 0)
         assert all_passed is False
 
@@ -251,9 +250,10 @@ class TestCheckGeminiResources:
         client.caches.list.return_value = []
         client.file_search_stores.list.return_value = []
         fake_module.Client.return_value = client
-        with patch.dict(
-            "sys.modules", {"google": MagicMock(genai=fake_module)}
-        ), patch("google.genai", fake_module, create=True):
+        with (
+            patch.dict("sys.modules", {"google": MagicMock(genai=fake_module)}),
+            patch("google.genai", fake_module, create=True),
+        ):
             all_passed, warnings = _check_gemini_resources(True, 0)
         assert warnings == 0
 
@@ -264,9 +264,10 @@ class TestCheckGeminiResources:
         client.caches.list.return_value = [MagicMock()]
         client.file_search_stores.list.return_value = []
         fake_module.Client.return_value = client
-        with patch.dict(
-            "sys.modules", {"google": MagicMock(genai=fake_module)}
-        ), patch("google.genai", fake_module, create=True):
+        with (
+            patch.dict("sys.modules", {"google": MagicMock(genai=fake_module)}),
+            patch("google.genai", fake_module, create=True),
+        ):
             all_passed, warnings = _check_gemini_resources(True, 0)
         assert warnings == 1
 
@@ -277,9 +278,10 @@ class TestCheckGeminiResources:
         client.caches.list.return_value = []
         client.file_search_stores.list.return_value = [MagicMock(), MagicMock()]
         fake_module.Client.return_value = client
-        with patch.dict(
-            "sys.modules", {"google": MagicMock(genai=fake_module)}
-        ), patch("google.genai", fake_module, create=True):
+        with (
+            patch.dict("sys.modules", {"google": MagicMock(genai=fake_module)}),
+            patch("google.genai", fake_module, create=True),
+        ):
             all_passed, warnings = _check_gemini_resources(True, 0)
         assert warnings == 1
 
@@ -297,9 +299,7 @@ class TestRunDoctor:
             "_check_api_connectivity",
             "_check_gemini_resources",
         ):
-            monkeypatch.setattr(
-                cli_doctor, name, lambda ap, wc: (ap and all_passed, wc + warnings)
-            )
+            monkeypatch.setattr(cli_doctor, name, lambda ap, wc: (ap and all_passed, wc + warnings))
         monkeypatch.setattr(cli_doctor, "_check_providers", lambda wc: wc + warnings)
         monkeypatch.setattr(cli_doctor, "_check_dependencies", lambda wc: wc + warnings)
 
@@ -317,9 +317,7 @@ class TestRunDoctor:
 
     def test_fix_mode_dispatches_to_init_flow(self, monkeypatch):
         self._stub_all_checks(monkeypatch, all_passed=False, warnings=0)
-        with patch(
-            "primr.core.cli_init._run_init_flow", return_value=99
-        ) as init_mock:
+        with patch("primr.core.cli_init._run_init_flow", return_value=99) as init_mock:
             result = run_doctor(fix=True)
         init_mock.assert_called_once()
         assert result == 99

@@ -72,15 +72,7 @@ def test_parse_line_plain_text():
 def test_parse_content_groups_blocks():
     p = MarkdownParser()
     content = (
-        "# Heading\n"
-        "para line one\n"
-        "para line two\n"
-        "\n"
-        "- bullet a\n"
-        "- bullet b\n"
-        "\n"
-        "1. num a\n"
-        "2. num b\n"
+        "# Heading\npara line one\npara line two\n\n- bullet a\n- bullet b\n\n1. num a\n2. num b\n"
     )
     blocks = p.parse_content(content)
     types = [b.type for b in blocks]

@@ -65,9 +65,7 @@ def _classify_columns(df: Any) -> _ColumnMap:
     sample_lines = []
     for _, row in df.head(3).iterrows():
         vals = {
-            col: str(row[col]).strip()
-            for col in columns
-            if str(row[col]).strip().lower() != "nan"
+            col: str(row[col]).strip() for col in columns if str(row[col]).strip().lower() != "nan"
         }
         sample_lines.append(json.dumps(vals, ensure_ascii=False))
     samples_text = "\n".join(sample_lines)
@@ -103,8 +101,7 @@ Return JSON only, no explanation:
     except json.JSONDecodeError:
         logger.warning("LLM column classification failed to parse, falling back")
         console.warn(
-            f"Column detection fell back to '{columns[0]}' — verify this is "
-            "the company name column"
+            f"Column detection fell back to '{columns[0]}' — verify this is the company name column"
         )
         return _ColumnMap(company=columns[0], website=None, industry=None, context=[])
 
@@ -172,9 +169,7 @@ def _prepare_batch_df(
             df_full = _read_batch_file(file_path)
             unique = sorted(df_full[col_map.industry].dropna().unique())
             console.error(f"No rows match industry '{industry}'.")
-            console.info(
-                f"Available industries: {', '.join(str(v) for v in unique[:20])}"
-            )
+            console.info(f"Available industries: {', '.join(str(v) for v in unique[:20])}")
             raise SystemExit(1)
     elif industry and not col_map.industry:
         console.error(f"--industry specified but no industry column found in {file_path}")

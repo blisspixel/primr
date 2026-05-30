@@ -79,9 +79,7 @@ async def test_success_with_stage1_context_creates_and_deletes_store(orchestrato
 
 @pytest.mark.asyncio
 async def test_execute_raises_exception_returns_failure(orchestrator):
-    orchestrator._execute_with_retry = AsyncMock(
-        side_effect=RuntimeError("API failure")
-    )
+    orchestrator._execute_with_retry = AsyncMock(side_effect=RuntimeError("API failure"))
     result = await orchestrator.generate_report(
         company_name="Acme",
         website_url="https://acme.example",
@@ -128,9 +126,7 @@ async def test_failure_from_execute_propagates(orchestrator):
 @pytest.mark.asyncio
 async def test_store_deleted_on_exception(orchestrator):
     orchestrator._store_manager.create_store.return_value = "stores/abc"
-    orchestrator._execute_with_retry = AsyncMock(
-        side_effect=RuntimeError("boom")
-    )
+    orchestrator._execute_with_retry = AsyncMock(side_effect=RuntimeError("boom"))
     await orchestrator.generate_report(
         company_name="Acme",
         stage1_context="context",

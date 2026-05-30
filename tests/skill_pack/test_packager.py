@@ -70,7 +70,7 @@ def test_package_emits_claude_tree_and_cowork_zip(tmp_path: Path):
     skill_path = Path(artifacts.claude_tree_root) / "draft-dbt-models" / "SKILL.md"
     assert skill_path.is_file()
     text = skill_path.read_text(encoding="utf-8")
-    assert "name: \"draft-dbt-models\"" in text
+    assert 'name: "draft-dbt-models"' in text
     assert "## Workflow" in text
 
 
@@ -142,10 +142,7 @@ def test_manifest_uuid_differs_per_company(tmp_path: Path):
 
 def test_skill_slug_collisions_disambiguated(tmp_path: Path):
     # Two roles with the same kebab-case skill name should not collide.
-    body = (
-        "## What This Skill Does\n\nx\n\n## Workflow\n\n1. y\n\n"
-        "## Output Format\n\nz"
-    )
+    body = "## What This Skill Does\n\nx\n\n## Workflow\n\n1. y\n\n## Output Format\n\nz"
     s1 = Skill(
         name="search",
         display_name="Search",

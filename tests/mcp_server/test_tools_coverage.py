@@ -219,17 +219,13 @@ class TestGenerateStrategy:
 class TestRunQA:
     @pytest.mark.asyncio
     async def test_path_traversal_blocked(self, server, tmp_path):
-        data = await _call(
-            server, "run_qa", {"report_path": str(tmp_path / "ghost.md")}
-        )
+        data = await _call(server, "run_qa", {"report_path": str(tmp_path / "ghost.md")})
         assert data["error"] is True
         assert data["error_type"] == "path_traversal_blocked"
 
     @pytest.mark.asyncio
     async def test_report_not_found(self, server):
-        data = await _call(
-            server, "run_qa", {"report_path": "output/missing_qa_report.md"}
-        )
+        data = await _call(server, "run_qa", {"report_path": "output/missing_qa_report.md"})
         assert data["error"] is True
         assert data["error_type"] == "report_not_found"
 

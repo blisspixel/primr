@@ -278,6 +278,8 @@ def _default_writing_model() -> str:
     so the recipe override actually flows through to writing calls.
     """
     return pick_model_for_role(Role.WRITING)
+
+
 from primr.core.research_orchestrator import (
     ResearchConfig,
     ResearchMode,
@@ -2581,9 +2583,7 @@ def perform_fast_research(
             # Routing failure must not abort the run — fall back to the
             # tier-default Grok writer. The cap divergence is logged so an
             # operator can see why production didn't match the estimate.
-            logger.warning(
-                "Writing-role routing failed (%s); falling back to %s", e, grok_writing
-            )
+            logger.warning("Writing-role routing failed (%s); falling back to %s", e, grok_writing)
         else:
             if routed_writing and routed_writing != grok_writing:
                 logger.info(
@@ -3612,9 +3612,7 @@ def perform_fast_research(
                     try:
                         # Single-future as_completed with deadline. Raises
                         # TimeoutError if the worker hasn't finished in time.
-                        for completed in as_completed(
-                            [fut], timeout=_enrich_section_deadline_s
-                        ):
+                        for completed in as_completed([fut], timeout=_enrich_section_deadline_s):
                             (
                                 _evidence,
                                 _new_count,
@@ -3641,7 +3639,8 @@ def perform_fast_research(
                     except Exception as e:
                         logger.warning(
                             "Enrichment worker for %s failed: %s",
-                            section_title, e,
+                            section_title,
+                            e,
                         )
                         _enrich_pool.shutdown(wait=False, cancel_futures=True)
                         continue
@@ -4406,7 +4405,11 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
         for trust_title, trust_stats in strategy_trust_stats:
             console.trust_summary(trust_title + " Trust", trust_stats)
 
-        _tier_labels = {"fast": "Grok 4.3 (low-effort)", "hybrid": "Grok 4.3 hybrid", "max": "Grok 4.3 max"}
+        _tier_labels = {
+            "fast": "Grok 4.3 (low-effort)",
+            "hybrid": "Grok 4.3 hybrid",
+            "max": "Grok 4.3 max",
+        }
         summary_items = [
             ("Mode", "fast (" + _tier_labels.get(grok_tier, "Grok") + ")"),
             ("Pages", str(pages_scraped)),

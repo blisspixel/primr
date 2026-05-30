@@ -203,9 +203,7 @@ The analysis suggests Acme is well-positioned for continued growth, with particu
                     )
                 ],
                 "Risk Assessment": acme_content[
-                    acme_content.find("## Risk Assessment") : acme_content.find(
-                        "## Conclusion"
-                    )
+                    acme_content.find("## Risk Assessment") : acme_content.find("## Conclusion")
                 ],
                 "Conclusion": acme_content[acme_content.find("## Conclusion") :],
             },

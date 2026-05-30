@@ -92,9 +92,7 @@ async def test_stream_yields_error_chunk(client):
 
 @pytest.mark.asyncio
 async def test_stream_catches_exception(client):
-    client._start_research_stream = MagicMock(
-        side_effect=RuntimeError("connection lost")
-    )
+    client._start_research_stream = MagicMock(side_effect=RuntimeError("connection lost"))
     results = []
     async for prog in client.research_stream("query"):
         results.append(prog)

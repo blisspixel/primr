@@ -107,9 +107,7 @@ class TestEvalBody:
         )
         assert result == 1
 
-    def test_run_missing_zero_new_runs_returns_1(
-        self, stub_eval_deps, tmp_path
-    ):
+    def test_run_missing_zero_new_runs_returns_1(self, stub_eval_deps, tmp_path):
         manifest = tmp_path / "manifest.csv"
         manifest.write_text("company,website\nExampleCo,https://x.example\n")
         result = _handle_eval(
@@ -126,9 +124,7 @@ class TestEvalBody:
         )
         assert result == 1
 
-    def test_run_missing_zero_max_cost_returns_1(
-        self, stub_eval_deps, tmp_path
-    ):
+    def test_run_missing_zero_max_cost_returns_1(self, stub_eval_deps, tmp_path):
         manifest = tmp_path / "manifest.csv"
         manifest.write_text("company,website\nExampleCo,https://x.example\n")
         result = _handle_eval(

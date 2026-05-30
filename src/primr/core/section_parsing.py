@@ -53,8 +53,7 @@ def _extract_generated_section_blocks(content: str) -> tuple[str, list[tuple[str
     ]
 
     block_starts = sorted(
-        [match.start() for match in envelope_matches]
-        + [match.start() for match in heading_matches]
+        [match.start() for match in envelope_matches] + [match.start() for match in heading_matches]
     )
     parsed_blocks: list[tuple[int, str, str]] = []
 
@@ -65,9 +64,7 @@ def _extract_generated_section_blocks(content: str) -> tuple[str, list[tuple[str
             parsed_blocks.append((match.start(), title, body))
 
     for match in heading_matches:
-        next_start = next(
-            (start for start in block_starts if start > match.start()), len(content)
-        )
+        next_start = next((start for start in block_starts if start > match.start()), len(content))
         title = match.group(1).strip().rstrip("#").strip()
         body = content[match.end() : next_start].strip()
         if title:
@@ -126,11 +123,7 @@ def _normalize_generated_section_payload(
             "customer or operator evidence."
         )
     )
-    content = (
-        (cleaned_body + "\n\n" + validation_line).strip()
-        if cleaned_body
-        else validation_line
-    )
+    content = (cleaned_body + "\n\n" + validation_line).strip() if cleaned_body else validation_line
     citation_numbers: list[int] = []
     for raw_group in re.findall(r"\[cite:\s*([0-9,\s]+)\]", content, re.IGNORECASE):
         for raw_num in raw_group.split(","):

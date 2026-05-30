@@ -82,11 +82,7 @@ class TestResearchSection:
         # Mock the LLM call
         monkeypatch.setattr(
             "primr.core.research_agent.llm",
-            MagicMock(
-                return_value=(
-                    "Generated section body with sufficient detail. " * 10
-                )
-            ),
+            MagicMock(return_value=("Generated section body with sufficient detail. " * 10)),
         )
         # Mock grader to skip the refinement path
         monkeypatch.setattr(

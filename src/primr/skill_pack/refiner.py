@@ -51,9 +51,7 @@ def _findings_table(findings: Iterable[SkillIssue]) -> str:
     lines = ["| Severity | Code | Field | Message |", "|----------|------|-------|---------|"]
     for f in findings:
         msg = f.message.replace("|", "\\|")
-        lines.append(
-            f"| {f.severity.value.upper()} | {f.code} | {f.field or '-'} | {msg} |"
-        )
+        lines.append(f"| {f.severity.value.upper()} | {f.code} | {f.field or '-'} | {msg} |")
     return "\n".join(lines)
 
 
@@ -141,11 +139,7 @@ def refine_role(
     iterations_per_skill: dict[str, int] = {}
 
     for idx, skill in enumerate(role.skills):
-        findings = [
-            f
-            for f in validate_skill(skill, role.name)
-            if f.severity == IssueSeverity.HARD
-        ]
+        findings = [f for f in validate_skill(skill, role.name) if f.severity == IssueSeverity.HARD]
         if not findings:
             continue
 
@@ -161,9 +155,7 @@ def refine_role(
             skill = refined
 
             new_findings = [
-                f
-                for f in validate_skill(skill, role.name)
-                if f.severity == IssueSeverity.HARD
+                f for f in validate_skill(skill, role.name) if f.severity == IssueSeverity.HARD
             ]
             iterations_per_skill[skill.name] = iteration
 
@@ -250,9 +242,7 @@ def run_pack_coherence_pass(
         return {"verdict": "ship", "_error": str(exc)}
 
 
-def attach_coherence_findings_as_issues(
-    pack: SkillPack, coherence: dict
-) -> ValidationReport:
+def attach_coherence_findings_as_issues(pack: SkillPack, coherence: dict) -> ValidationReport:
     """Convert pack coherence verdict into SkillIssue objects for the
     validation report shown in the pack report markdown.
     """
@@ -294,8 +284,7 @@ def attach_coherence_findings_as_issues(
                 code="PACK-STRAT",
                 severity=IssueSeverity.HARD,  # contradictions are ship-blocking
                 message=(
-                    f"Strategic inconsistency in {entry.get('skills')}: "
-                    f"{entry.get('description')}"
+                    f"Strategic inconsistency in {entry.get('skills')}: {entry.get('description')}"
                 ),
             )
         )

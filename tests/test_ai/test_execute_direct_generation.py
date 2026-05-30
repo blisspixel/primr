@@ -75,9 +75,7 @@ class TestExecuteDirectGeneration:
 
     @pytest.mark.asyncio
     async def test_generic_failure_propagates_message(self, orchestrator):
-        orchestrator._client.models.generate_content.side_effect = RuntimeError(
-            "some other error"
-        )
+        orchestrator._client.models.generate_content.side_effect = RuntimeError("some other error")
         result = await orchestrator._execute_direct_generation("prompt")
         assert result.status == ResearchStatus.FAILED
         assert "some other error" in result.error

@@ -78,9 +78,7 @@ class TestGenerateInitialOverview:
             "primr.core.research_agent.llm",
             MagicMock(return_value="Acme is a widget company..."),
         )
-        result = generate_initial_overview(
-            "Acme", "https://acme.example", "Tech", str(tmp_path)
-        )
+        result = generate_initial_overview("Acme", "https://acme.example", "Tech", str(tmp_path))
         assert result == "Acme is a widget company..."
         out = tmp_path / "Acme_Draft_Overview.txt"
         assert out.exists()

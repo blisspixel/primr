@@ -28,33 +28,23 @@ class TestPositionalArgs:
 
 class TestPlatformExpansion:
     def test_alias_microsoft_becomes_azure(self):
-        config = parse_args(
-            ["Acme", "https://acme.example", "--platform", "microsoft"]
-        )
+        config = parse_args(["Acme", "https://acme.example", "--platform", "microsoft"])
         assert config.platforms == ("azure",)
 
     def test_alias_amazon_becomes_aws(self):
-        config = parse_args(
-            ["Acme", "https://acme.example", "--platform", "amazon"]
-        )
+        config = parse_args(["Acme", "https://acme.example", "--platform", "amazon"])
         assert config.platforms == ("aws",)
 
     def test_alias_google_becomes_gcp(self):
-        config = parse_args(
-            ["Acme", "https://acme.example", "--platform", "google"]
-        )
+        config = parse_args(["Acme", "https://acme.example", "--platform", "google"])
         assert config.platforms == ("gcp",)
 
     def test_ms_shorthand_expands_to_azure_and_private(self):
-        config = parse_args(
-            ["Acme", "https://acme.example", "--platform", "ms"]
-        )
+        config = parse_args(["Acme", "https://acme.example", "--platform", "ms"])
         assert config.platforms == ("azure", "private")
 
     def test_multiple_platforms_dedup(self):
-        config = parse_args(
-            ["Acme", "https://acme.example", "--platform", "aws", "azure", "aws"]
-        )
+        config = parse_args(["Acme", "https://acme.example", "--platform", "aws", "azure", "aws"])
         assert config.platforms == ("aws", "azure")
 
 
@@ -83,9 +73,7 @@ class TestContinuousReasoning:
         assert config.continuous_reasoning is True
 
     def test_no_continuous_reasoning_disables(self):
-        config = parse_args(
-            ["Acme", "https://acme.example", "--no-continuous-reasoning"]
-        )
+        config = parse_args(["Acme", "https://acme.example", "--no-continuous-reasoning"])
         assert config.continuous_reasoning is False
 
 
@@ -106,9 +94,7 @@ class TestSkipConfirm:
     def test_batch_skip_confirm_flag_honored(self, tmp_path):
         batch_file = tmp_path / "fake.csv"
         batch_file.write_text("company\nAcme\n")
-        config = parse_args(
-            ["--batch", str(batch_file), "--skip-confirm"]
-        )
+        config = parse_args(["--batch", str(batch_file), "--skip-confirm"])
         assert config.skip_confirm is True
 
 

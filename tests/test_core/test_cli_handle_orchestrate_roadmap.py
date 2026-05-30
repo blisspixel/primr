@@ -31,9 +31,7 @@ class TestHandleOrchestrate:
     def test_orchestrate_positional_shifts_args(self, monkeypatch):
         # When "orchestrate" is the company_name (positional), website holds the name.
         # Without an actual website, we still get 1.
-        result = _handle_orchestrate(
-            _config(company_name="orchestrate", website="Acme Corp")
-        )
+        result = _handle_orchestrate(_config(company_name="orchestrate", website="Acme Corp"))
         # website becomes None after shift -> error
         assert result == 1
 
@@ -44,16 +42,10 @@ class TestHandleOrchestrate:
             "primr.agentic.orchestrator.ResearchOrchestrator",
             MagicMock(return_value=orchestrator),
         )
-        monkeypatch.setattr(
-            "primr.agentic.memory.ResearchMemory", MagicMock()
-        )
-        monkeypatch.setattr(
-            "primr.agentic.orchestrator.OrchestratorConfig", MagicMock()
-        )
+        monkeypatch.setattr("primr.agentic.memory.ResearchMemory", MagicMock())
+        monkeypatch.setattr("primr.agentic.orchestrator.OrchestratorConfig", MagicMock())
 
-        result = _handle_orchestrate(
-            _config(company_name="Acme", website="https://acme.example")
-        )
+        result = _handle_orchestrate(_config(company_name="Acme", website="https://acme.example"))
         assert result == 1
 
     def test_successful_research_returns_0(self, monkeypatch):
@@ -75,16 +67,10 @@ class TestHandleOrchestrate:
             "primr.agentic.orchestrator.ResearchOrchestrator",
             MagicMock(return_value=orchestrator),
         )
-        monkeypatch.setattr(
-            "primr.agentic.memory.ResearchMemory", MagicMock()
-        )
-        monkeypatch.setattr(
-            "primr.agentic.orchestrator.OrchestratorConfig", MagicMock()
-        )
+        monkeypatch.setattr("primr.agentic.memory.ResearchMemory", MagicMock())
+        monkeypatch.setattr("primr.agentic.orchestrator.OrchestratorConfig", MagicMock())
 
-        result = _handle_orchestrate(
-            _config(company_name="Acme", website="https://acme.example")
-        )
+        result = _handle_orchestrate(_config(company_name="Acme", website="https://acme.example"))
         assert result == 0
 
     def test_failed_research_returns_1(self, monkeypatch):
@@ -103,16 +89,10 @@ class TestHandleOrchestrate:
             "primr.agentic.orchestrator.ResearchOrchestrator",
             MagicMock(return_value=orchestrator),
         )
-        monkeypatch.setattr(
-            "primr.agentic.memory.ResearchMemory", MagicMock()
-        )
-        monkeypatch.setattr(
-            "primr.agentic.orchestrator.OrchestratorConfig", MagicMock()
-        )
+        monkeypatch.setattr("primr.agentic.memory.ResearchMemory", MagicMock())
+        monkeypatch.setattr("primr.agentic.orchestrator.OrchestratorConfig", MagicMock())
 
-        result = _handle_orchestrate(
-            _config(company_name="Acme", website="https://acme.example")
-        )
+        result = _handle_orchestrate(_config(company_name="Acme", website="https://acme.example"))
         assert result == 1
 
 
@@ -133,9 +113,7 @@ class TestHandleRoadmap:
         api = MagicMock()
         api.get_version.return_value = None
         api.list_by_status.return_value = []
-        monkeypatch.setattr(
-            "primr.agentic.roadmap_api.RoadmapAPI", MagicMock(return_value=api)
-        )
+        monkeypatch.setattr("primr.agentic.roadmap_api.RoadmapAPI", MagicMock(return_value=api))
         result = _handle_roadmap(_config(roadmap_version="999.0.0"))
         assert result == 1
 
@@ -147,9 +125,7 @@ class TestHandleRoadmap:
         version.features = []
         api = MagicMock()
         api.get_version.return_value = version
-        monkeypatch.setattr(
-            "primr.agentic.roadmap_api.RoadmapAPI", MagicMock(return_value=api)
-        )
+        monkeypatch.setattr("primr.agentic.roadmap_api.RoadmapAPI", MagicMock(return_value=api))
         assert _handle_roadmap(_config(roadmap_version="1.2.3")) == 0
 
     def test_version_string_without_v_prefix_normalized(self, monkeypatch):
@@ -160,9 +136,7 @@ class TestHandleRoadmap:
         version.features = []
         api = MagicMock()
         api.get_version.return_value = version
-        monkeypatch.setattr(
-            "primr.agentic.roadmap_api.RoadmapAPI", MagicMock(return_value=api)
-        )
+        monkeypatch.setattr("primr.agentic.roadmap_api.RoadmapAPI", MagicMock(return_value=api))
         _handle_roadmap(_config(roadmap_version="1.0.0"))
         # Should have called get_version with the normalized number
         api.get_version.assert_called_once()
@@ -176,9 +150,7 @@ class TestHandleRoadmap:
         api.get_current_version.return_value = current
         api.get_next_version.return_value = next_ver
         api.list_by_status.return_value = []
-        monkeypatch.setattr(
-            "primr.agentic.roadmap_api.RoadmapAPI", MagicMock(return_value=api)
-        )
+        monkeypatch.setattr("primr.agentic.roadmap_api.RoadmapAPI", MagicMock(return_value=api))
         assert _handle_roadmap(_config()) == 0
 
     def test_roadmap_overview_with_versions_listed(self, monkeypatch):
@@ -189,7 +161,5 @@ class TestHandleRoadmap:
         planned = [MagicMock(number=f"2.{i}", title=f"v2.{i}") for i in range(3)]
         # api.list_by_status called twice — first for COMPLETED, then PLANNED
         api.list_by_status.side_effect = [completed, planned]
-        monkeypatch.setattr(
-            "primr.agentic.roadmap_api.RoadmapAPI", MagicMock(return_value=api)
-        )
+        monkeypatch.setattr("primr.agentic.roadmap_api.RoadmapAPI", MagicMock(return_value=api))
         assert _handle_roadmap(_config()) == 0
