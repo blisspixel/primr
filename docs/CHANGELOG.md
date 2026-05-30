@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Model eval wiring (Gemini 3.5 Flash PRO-tier decision)
+
+- Registered a head-to-head eval pair in `config/eval_profiles.py` —
+  `protier-gemini31pro` (reference, Gemini 3.1 Pro writer) vs
+  `protier-gemini35flash` (candidate, Gemini 3.5 Flash writer) — isolating the
+  quality-writer model so the scorecard can answer whether to repoint the PRO
+  tier. The default pipeline is unchanged; the repoint is eval-gated and the run
+  is billed/user-triggered (`primr eval ... --profiles protier-gemini31pro protier-gemini35flash`).
+
 ### Supply-chain hardening
 
 - **Fixed a latent release-breaking bug**: the dependency manifest was written
