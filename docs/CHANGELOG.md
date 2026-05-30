@@ -7,7 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No unreleased changes.
+### Engineering standards & toolchain hardening
+
+Infrastructure and supply-chain work; no runtime behavior change to the research
+pipeline. See ROADMAP "Engineering Standards & Toolchain" for the full plan.
+
+- **Python floor raised to 3.12** (`requires-python>=3.12`, EOL-driven: 3.11
+  reaches EOL Oct 2027, 3.12 covered to Oct 2028). 3.11 dropped from classifiers,
+  CI matrix, and `setup_env.py` interpreter discovery. **Breaking for 3.11-only
+  users.** CI now runs a `3.12 / 3.13 / 3.14` hard matrix — all fully supported
+  (full suite passes on each; native-dep stack installs cleanly on 3.14).
+  Free-threading (3.14t) remains a non-goal.
+- **uv toolchain**: committed `uv.lock` + `.python-version`; CI installs via
+  `uv sync --frozen`; setuptools build backend retained. Dependency lower bounds
+  reconciled from `requirements.txt` into `pyproject.toml`.
+- **Security gates in CI**: `bandit` (medium severity/confidence) and `pip-audit`
+  now block; `.github/dependabot.yml` (weekly pip + github-actions); SLSA build
+  provenance attestation (`actions/attest-build-provenance`) + a pinned dependency
+  manifest attached to each release (publishing already used OIDC). Fixed the
+  findings that gate bandit rather than suppressing: `hashlib.md5(..., usedforsecurity=False)`
+  for content-dedup hashing; untrusted sitemap XML parsing switched to `defusedxml`.
+- **Coverage ratchet**: measured global branch coverage 78%; CI gates at
+  `--cov-branch --cov-fail-under=77` (non-regression floor).
+- **pre-commit** (`.pre-commit-config.yaml`): ruff + mypy + hygiene hooks (opt-in).
+- **`xfail_strict = true`**: an unexpectedly-passing xfail fails the run (the
+  suite uses zero xfail markers).
+
+### Model registry refresh (May 30, 2026 audit)
+
+- **Claude Opus 4.7 -> 4.8** (`claude-opus-4-8`, GA May 28; identical $5/$25
+  pricing) — canonical Anthropic slug swapped repo-wide.
+- **Gemini 3.5 Flash** (`gemini-3.5-flash`, GA May 19; $1.50/$9 + $0.15 cached)
+  registered as available. Not a default: it's a PRO-tier replacement candidate
+  (cheaper + stronger than 3.1 Pro), eval-gated. Default pipeline unchanged.
+  Gemini 3.5 Pro (June) + Omni pending their API slugs.
 
 ## [1.27.1] - 2026-05-29
 

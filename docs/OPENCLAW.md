@@ -14,7 +14,7 @@ Primr is exposed to OpenClaw through `primr-mcp`. Skills and workflows should tr
 
 
 
-- Python 3.11+
+- Python 3.12+
 
 - Primr installed
 
