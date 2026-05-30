@@ -86,12 +86,21 @@ class TestNoCredentialMounts:
         assert "credentials" not in dockerfile_content.lower() or "no-cache" in dockerfile_content
 
     def test_no_hardcoded_api_keys(self, dockerfile_content: str) -> None:
-        """SR-3.2: No hardcoded API keys."""
-        # Check that env vars are empty strings (passed at runtime)
-        assert 'XAI_API_KEY=""' in dockerfile_content
-        assert 'GEMINI_API_KEY=""' in dockerfile_content
-        assert 'SEARCH_API_KEY=""' in dockerfile_content
-        assert 'SEARCH_ENGINE_ID=""' in dockerfile_content
+        """SR-3.2: secret API keys are never declared via ENV.
+
+        Even an empty `ENV XAI_API_KEY=""` bakes a secret-named var into the
+        image layers (Trivy DS-0031). Keys are provided at runtime instead, so
+        no `ENV <KEY>` declaration should appear for any secret, and obviously
+        no real key value is baked in.
+        """
+        for key in ("XAI_API_KEY", "GEMINI_API_KEY", "SEARCH_API_KEY"):
+            assert f"ENV {key}" not in dockerfile_content, (
+                f"{key} must not be declared via ENV (runtime-provided)"
+            )
+        # No real key value hardcoded.
+        assert "xai-" not in dockerfile_content
+        assert "sk-" not in dockerfile_content
+        assert "AIza" not in dockerfile_content
 
 
 class TestEntrypoint:

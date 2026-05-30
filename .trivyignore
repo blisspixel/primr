@@ -1,0 +1,10 @@
+# Trivy ignore list — reviewed, non-actionable-now findings. Keep each entry
+# justified; remove the entry when the underlying issue is fixed.
+
+# KSV-0118: deploy/gcp/job.yaml — "default security context allows root".
+# This is a Cloud Run Job (run.googleapis.com), where the platform sandboxes
+# each container and does not honor a raw-Kubernetes securityContext the same
+# way; adding runAsNonRoot would require a matching non-root USER in the runner
+# image and re-validating the end-to-end Cloud Run deploy. Tracked as a deploy
+# hardening follow-up in ROADMAP rather than changed blind here.
+KSV-0118
