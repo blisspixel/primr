@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Hygiene ratchets
+
+- **One-time `ruff format` reflow** (173 files, behavior-preserving) and
+  `ruff format --check` now enforced in pre-commit + CI. `E501` stays ignored
+  deliberately (ruff format wraps code; remaining long lines are strings/URLs).
+- **ruff `target-version` → `py312`** (matches the floor). Applied the surfaced
+  `UP035` fix; deferred the PEP 695 generic rewrites (`UP046`/`UP047`) via
+  documented ignores (TypeVar generics are correct; the bulk unsafe-rewrite
+  isn't worth the risk now).
+- **mypy config consolidated + strict ratchet made real**: `mypy.ini` is the
+  authoritative config — the duplicate `[tool.mypy]` block in `pyproject.toml`
+  was **dead config that never took effect** (and described a strict allowlist
+  that wasn't applied); removed it and added a pointer. Bumped `python_version`
+  to 3.12 and added the first genuine strict allowlist (`disallow_untyped_defs` +
+  `disallow_incomplete_defs`): `skill_pack.{schema,config,planner,industry}`,
+  `utils.content_sanitizer`, `utils.logging_config`, `data.hiring_signals`.
+- Complexity budget (`C901`) remains deferred until the monster functions are
+  refactored (Active Queue #23) — a meaningful cap would otherwise require
+  noqa-ing the known offenders.
+
 ### Verification ratchets
 
 - **Invariant property tests** (Hypothesis) pinning the load-bearing correctness
