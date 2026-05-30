@@ -134,6 +134,8 @@ SENSITIVE_PATTERNS = [
     (re.compile(r"\b(github_pat_[a-zA-Z0-9_]{22,})\b"), "[GITHUB_PAT]"),
     (re.compile(r"\b(xox[baprs]-[a-zA-Z0-9-]+)\b"), "[SLACK_TOKEN]"),
     (re.compile(r"\b(sk-ant-[a-zA-Z0-9-]+)\b"), "[ANTHROPIC_API_KEY]"),
+    # xAI / Grok keys (primr's primary provider) — format: xai-<alphanumeric>
+    (re.compile(r"\b(xai-[a-zA-Z0-9]{16,})\b"), "[XAI_API_KEY]"),
     (re.compile(r"\b(AKIA[A-Z0-9]{16})\b"), "[AWS_ACCESS_KEY]"),
     # JWT tokens (header.payload.signature format)
     (re.compile(r"\beyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]+\b"), "[JWT_TOKEN]"),

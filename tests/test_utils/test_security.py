@@ -143,6 +143,15 @@ class TestMaskSensitiveData:
         result = mask_sensitive_data(text)
         assert "AIzaSyA1234567890" not in result
 
+    def test_mask_xai_api_key(self):
+        """xAI / Grok keys (primr's primary provider) are masked, even when they
+        appear as a bare token in free text (no key=... prefix) — e.g. if one
+        leaks into an error message or prompt."""
+        key = "xai-abc123DEF456ghi789JKL012mno345PQR678stu"
+        result = mask_sensitive_data(f"request failed for {key} after retry")
+        assert key not in result
+        assert "[XAI_API_KEY]" in result
+
     def test_preserve_non_sensitive(self):
         """Non-sensitive data is preserved."""
         text = "mode=full, company=Acme Corp"
