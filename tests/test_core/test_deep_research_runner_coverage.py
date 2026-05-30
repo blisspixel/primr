@@ -164,9 +164,7 @@ async def test_execute_research_success():
 async def test_execute_research_failure_returns_none():
     from primr.core import deep_research_runner as mod
 
-    config = DeepResearchConfig(
-        company_name="Acme", website=None, mode=DeepResearchMode.COMPLETE
-    )
+    config = DeepResearchConfig(company_name="Acme", website=None, mode=DeepResearchMode.COMPLETE)
 
     research_obj = MagicMock()
     research_obj.success = False
@@ -194,9 +192,7 @@ async def test_execute_research_failure_returns_none():
 async def test_execute_research_exception_returns_none():
     from primr.core import deep_research_runner as mod
 
-    config = DeepResearchConfig(
-        company_name="Acme", website=None, mode=DeepResearchMode.HYBRID
-    )
+    config = DeepResearchConfig(company_name="Acme", website=None, mode=DeepResearchMode.HYBRID)
 
     orchestrator = MagicMock()
     orchestrator.research = AsyncMock(side_effect=RuntimeError("boom"))

@@ -97,9 +97,7 @@ def test_get_client_missing_key_raises(monkeypatch):
     # (it is not installed in CI's default extras).
     pytest.importorskip("openai")
     monkeypatch.delenv("ABSENT_OAI_KEY", raising=False)
-    p = OpenAICompatibleProvider(
-        name="x", base_url="u", api_key_env="ABSENT_OAI_KEY"
-    )
+    p = OpenAICompatibleProvider(name="x", base_url="u", api_key_env="ABSENT_OAI_KEY")
     with pytest.raises(ProviderUnavailableError, match="not set"):
         p._get_client()
 
@@ -230,10 +228,13 @@ def test_billing_exhausted_includes_help_link():
     fake = MagicMock()
     fake.chat.completions.create.side_effect = RuntimeError("402 credits")
     p._client = fake
-    with patch(
-        "primr.ai.providers.openai_compatible._is_billing_exhausted",
-        return_value=True,
-    ), pytest.raises(QuotaExhaustedError, match=r"console\.x\.ai"):
+    with (
+        patch(
+            "primr.ai.providers.openai_compatible._is_billing_exhausted",
+            return_value=True,
+        ),
+        pytest.raises(QuotaExhaustedError, match=r"console\.x\.ai"),
+    ):
         p.chat([{"role": "user", "content": "x"}], model="grok-4.3", retries=2)
 
 
@@ -242,8 +243,11 @@ def test_billing_exhausted_no_help_link():
     fake = MagicMock()
     fake.chat.completions.create.side_effect = RuntimeError("402 credits")
     p._client = fake
-    with patch(
-        "primr.ai.providers.openai_compatible._is_billing_exhausted",
-        return_value=True,
-    ), pytest.raises(QuotaExhaustedError, match="credits exhausted"):
+    with (
+        patch(
+            "primr.ai.providers.openai_compatible._is_billing_exhausted",
+            return_value=True,
+        ),
+        pytest.raises(QuotaExhaustedError, match="credits exhausted"),
+    ):
         p.chat([{"role": "user", "content": "x"}], model="grok-4.3", retries=2)

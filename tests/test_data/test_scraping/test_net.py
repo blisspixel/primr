@@ -244,7 +244,9 @@ class TestIsSameDomain:
         Regression: host.replace('www.', '') corrupted hosts like
         'my-www.example.com' into 'my-.example.com'.
         """
-        assert is_same_domain("https://my-www.example.com/a", "https://my-www.example.com/b") is True
+        assert (
+            is_same_domain("https://my-www.example.com/a", "https://my-www.example.com/b") is True
+        )
         # The corrupted form must NOT be treated as the same domain.
         assert is_same_domain("https://my-www.example.com/a", "https://my-.example.com/b") is False
         # Leading www. is still normalized away.

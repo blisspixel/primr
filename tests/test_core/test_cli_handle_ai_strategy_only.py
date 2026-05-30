@@ -36,10 +36,7 @@ class TestEarlyValidation:
 
     def test_nonexistent_file_returns_1(self, tmp_path):
         bogus = tmp_path / "missing.md"
-        assert (
-            _handle_ai_strategy_only(_config(ai_strategy_only_path=str(bogus)))
-            == 1
-        )
+        assert _handle_ai_strategy_only(_config(ai_strategy_only_path=str(bogus))) == 1
 
     def test_file_outside_allowed_roots_returns_1(self, tmp_path, monkeypatch):
         # Put report in a location that's NOT under OUTPUT_DIR or WORKING_DIR
@@ -47,40 +44,25 @@ class TestEarlyValidation:
         other.mkdir()
         bogus_report = other / "leaked.md"
         bogus_report.write_text("body", encoding="utf-8")
-        monkeypatch.setattr(
-            "primr.config.config.OUTPUT_DIR", str(tmp_path / "output")
-        )
-        monkeypatch.setattr(
-            "primr.config.config.WORKING_DIR", str(tmp_path / "working")
-        )
-        assert (
-            _handle_ai_strategy_only(
-                _config(ai_strategy_only_path=str(bogus_report))
-            )
-            == 1
-        )
+        monkeypatch.setattr("primr.config.config.OUTPUT_DIR", str(tmp_path / "output"))
+        monkeypatch.setattr("primr.config.config.WORKING_DIR", str(tmp_path / "working"))
+        assert _handle_ai_strategy_only(_config(ai_strategy_only_path=str(bogus_report))) == 1
 
 
 class TestCompanyNameDerivation:
-    def test_invalid_company_name_returns_1(
-        self, report_under_output, monkeypatch
-    ):
+    def test_invalid_company_name_returns_1(self, report_under_output, monkeypatch):
         from primr.utils.validators import InputValidationError
 
         def reject(_name):
             raise InputValidationError(field="company_name", reason="too long")
 
         monkeypatch.setattr("primr.utils.validators.validate_company_name", reject)
-        result = _handle_ai_strategy_only(
-            _config(ai_strategy_only_path=str(report_under_output))
-        )
+        result = _handle_ai_strategy_only(_config(ai_strategy_only_path=str(report_under_output)))
         assert result == 1
 
     def test_uses_explicit_company_name(self, report_under_output, monkeypatch):
         gen_mock = MagicMock(return_value="/output/strategy.docx")
-        monkeypatch.setattr(
-            "primr.core.research_agent._generate_strategy_section", gen_mock
-        )
+        monkeypatch.setattr("primr.core.research_agent._generate_strategy_section", gen_mock)
         result = _handle_ai_strategy_only(
             _config(
                 ai_strategy_only_path=str(report_under_output),
@@ -93,13 +75,9 @@ class TestCompanyNameDerivation:
         kwargs = gen_mock.call_args.kwargs
         assert kwargs["company_name"] == "ExplicitCo"
 
-    def test_extracts_company_from_filename(
-        self, report_under_output, monkeypatch
-    ):
+    def test_extracts_company_from_filename(self, report_under_output, monkeypatch):
         gen_mock = MagicMock(return_value="/output/strategy.docx")
-        monkeypatch.setattr(
-            "primr.core.research_agent._generate_strategy_section", gen_mock
-        )
+        monkeypatch.setattr("primr.core.research_agent._generate_strategy_section", gen_mock)
         # company_name not set; should derive "Acme" from filename
         _handle_ai_strategy_only(
             _config(
@@ -113,13 +91,9 @@ class TestCompanyNameDerivation:
 
 
 class TestStrategyGeneration:
-    def test_generates_for_each_vendor_in_ai_strategy(
-        self, report_under_output, monkeypatch
-    ):
+    def test_generates_for_each_vendor_in_ai_strategy(self, report_under_output, monkeypatch):
         gen_mock = MagicMock(return_value="/output/strategy.docx")
-        monkeypatch.setattr(
-            "primr.core.research_agent._generate_strategy_section", gen_mock
-        )
+        monkeypatch.setattr("primr.core.research_agent._generate_strategy_section", gen_mock)
         _handle_ai_strategy_only(
             _config(
                 ai_strategy_only_path=str(report_under_output),
@@ -132,9 +106,7 @@ class TestStrategyGeneration:
 
     def test_non_ai_strategy_runs_once(self, report_under_output, monkeypatch):
         gen_mock = MagicMock(return_value="/output/strategy.docx")
-        monkeypatch.setattr(
-            "primr.core.research_agent._generate_strategy_section", gen_mock
-        )
+        monkeypatch.setattr("primr.core.research_agent._generate_strategy_section", gen_mock)
         _handle_ai_strategy_only(
             _config(
                 ai_strategy_only_path=str(report_under_output),
@@ -148,9 +120,7 @@ class TestStrategyGeneration:
 
     def test_all_failures_return_1(self, report_under_output, monkeypatch):
         gen_mock = MagicMock(return_value=None)
-        monkeypatch.setattr(
-            "primr.core.research_agent._generate_strategy_section", gen_mock
-        )
+        monkeypatch.setattr("primr.core.research_agent._generate_strategy_section", gen_mock)
         result = _handle_ai_strategy_only(
             _config(
                 ai_strategy_only_path=str(report_under_output),
@@ -159,14 +129,10 @@ class TestStrategyGeneration:
         )
         assert result == 1
 
-    def test_opens_last_result_when_requested(
-        self, report_under_output, monkeypatch
-    ):
+    def test_opens_last_result_when_requested(self, report_under_output, monkeypatch):
         gen_mock = MagicMock(return_value="/output/strategy.docx")
         open_mock = MagicMock()
-        monkeypatch.setattr(
-            "primr.core.research_agent._generate_strategy_section", gen_mock
-        )
+        monkeypatch.setattr("primr.core.research_agent._generate_strategy_section", gen_mock)
         monkeypatch.setattr("primr.core.cli.open_file", open_mock)
         _handle_ai_strategy_only(
             _config(

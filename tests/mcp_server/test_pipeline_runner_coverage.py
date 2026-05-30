@@ -196,9 +196,7 @@ class TestRunResearchFastMode:
             "primr.core.research_agent.perform_fast_research",
             lambda *a, **k: str(report),
         )
-        await runner.run_research(
-            job=job, company_url="https://example.com", mode="full"
-        )
+        await runner.run_research(job=job, company_url="https://example.com", mode="full")
         updated = server.job_store.get(job.job_id)
         assert updated.get_status().value == "completed"
         assert str(report) in updated.output_paths
@@ -212,17 +210,13 @@ class TestRunResearchFastMode:
             "primr.core.research_agent.perform_fast_research",
             lambda *a, **k: None,
         )
-        await runner.run_research(
-            job=job, company_url="https://example.com", mode="full"
-        )
+        await runner.run_research(job=job, company_url="https://example.com", mode="full")
         updated = server.job_store.get(job.job_id)
         assert updated.current_stage == ResearchStage.FAILED
         assert updated.error_type == "research_failed"
 
     @pytest.mark.asyncio
-    async def test_fast_mode_with_destination(
-        self, server, runner, monkeypatch, tmp_path
-    ):
+    async def test_fast_mode_with_destination(self, server, runner, monkeypatch, tmp_path):
         monkeypatch.setenv("XAI_API_KEY", "fake-key")
         job = server.job_store.create("Acme Corp", "full", owner_client_id="stdio")
 
@@ -269,9 +263,7 @@ class TestRunResearchOrchestrator:
             runner._save_report = AsyncMock(return_value=str(tmp_path / "report.md"))
             runner._run_qa = AsyncMock(return_value={"overall_score": 91})
             runner._generate_run_manifest = AsyncMock()
-            await runner.run_research(
-                job=job, company_url="https://example.com", mode="premium"
-            )
+            await runner.run_research(job=job, company_url="https://example.com", mode="premium")
 
         updated = server.job_store.get(job.job_id)
         assert updated.get_status().value == "completed"
@@ -291,9 +283,7 @@ class TestRunResearchOrchestrator:
             "primr.core.research_orchestrator.ResearchOrchestrator",
             return_value=mock_orch,
         ):
-            await runner.run_research(
-                job=job, company_url="https://example.com", mode="premium"
-            )
+            await runner.run_research(job=job, company_url="https://example.com", mode="premium")
         updated = server.job_store.get(job.job_id)
         assert updated.current_stage == ResearchStage.FAILED
         assert updated.error_type == "research_failed"
@@ -307,9 +297,7 @@ class TestRunResearchOrchestrator:
             "primr.core.research_orchestrator.ResearchOrchestrator",
             side_effect=RuntimeError("init failed"),
         ):
-            await runner.run_research(
-                job=job, company_url="https://example.com", mode="premium"
-            )
+            await runner.run_research(job=job, company_url="https://example.com", mode="premium")
         updated = server.job_store.get(job.job_id)
         assert updated.current_stage == ResearchStage.FAILED
         assert updated.error_type == "pipeline_error"
@@ -328,9 +316,7 @@ class TestSaveReportAndManifest:
     @pytest.mark.asyncio
     async def test_save_report_uses_section_results(self, runner, monkeypatch, tmp_path):
         monkeypatch.setattr("primr.config.config.OUTPUT_DIR", str(tmp_path))
-        result = SimpleNamespace(
-            raw_content=None, section_results={"Overview": "body text"}
-        )
+        result = SimpleNamespace(raw_content=None, section_results={"Overview": "body text"})
         path = await runner._save_report("Acme Corp", result)
         content = Path(path).read_text(encoding="utf-8")
         assert "## Overview" in content

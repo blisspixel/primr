@@ -37,18 +37,9 @@ class TestCalculateBackoffDelay:
         assert delay == orchestrator.BASE_RETRY_DELAY
 
     def test_doubles_per_attempt(self, orchestrator):
-        assert (
-            orchestrator._calculate_backoff_delay(1)
-            == orchestrator.BASE_RETRY_DELAY * 2
-        )
-        assert (
-            orchestrator._calculate_backoff_delay(2)
-            == orchestrator.BASE_RETRY_DELAY * 4
-        )
-        assert (
-            orchestrator._calculate_backoff_delay(3)
-            == orchestrator.BASE_RETRY_DELAY * 8
-        )
+        assert orchestrator._calculate_backoff_delay(1) == orchestrator.BASE_RETRY_DELAY * 2
+        assert orchestrator._calculate_backoff_delay(2) == orchestrator.BASE_RETRY_DELAY * 4
+        assert orchestrator._calculate_backoff_delay(3) == orchestrator.BASE_RETRY_DELAY * 8
 
 
 class TestPhaseAndPollInterval:
@@ -101,9 +92,7 @@ class TestLoadAccordionPrompts:
         assert "position_guidance" in defaults
 
     def test_falls_back_to_defaults_on_load_error(self, monkeypatch):
-        monkeypatch.setattr(
-            DeepResearchOrchestrator, "_accordion_prompts_cache", None
-        )
+        monkeypatch.setattr(DeepResearchOrchestrator, "_accordion_prompts_cache", None)
         with patch(
             "primr.prompts.composer.PromptComposer",
             side_effect=RuntimeError("yaml broken"),
@@ -112,9 +101,7 @@ class TestLoadAccordionPrompts:
         assert "research_dossier_prompt" in result
 
     def test_load_caches_result(self, monkeypatch):
-        monkeypatch.setattr(
-            DeepResearchOrchestrator, "_accordion_prompts_cache", None
-        )
+        monkeypatch.setattr(DeepResearchOrchestrator, "_accordion_prompts_cache", None)
 
         composer = MagicMock()
         config = MagicMock()
@@ -160,9 +147,7 @@ class TestBuildResearchDossierPrompt:
                 "position_guidance": {},
             },
         ):
-            result = orchestrator._build_research_dossier_prompt(
-                "Acme", "https://acme.example"
-            )
+            result = orchestrator._build_research_dossier_prompt("Acme", "https://acme.example")
         assert "https://acme.example" in result
 
     def test_omits_website_when_missing(self, orchestrator):

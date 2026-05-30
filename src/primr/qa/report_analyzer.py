@@ -485,9 +485,13 @@ class ReportAnalyzer:
             if leakage["cross_ref_markers"]:
                 report += f"  - [cross-ref ...] markers: {leakage['cross_ref_markers']}\n"
             if leakage["bare_bold_validate"]:
-                report += f"  - bold-wrapped 'What to validate:' lines: {leakage['bare_bold_validate']}\n"
+                report += (
+                    f"  - bold-wrapped 'What to validate:' lines: {leakage['bare_bold_validate']}\n"
+                )
             if leakage["informal_cite_markers"]:
-                report += f"  - informal [cite: label] markers: {leakage['informal_cite_markers']}\n"
+                report += (
+                    f"  - informal [cite: label] markers: {leakage['informal_cite_markers']}\n"
+                )
             report += "\n"
 
         report += f"""

@@ -44,9 +44,7 @@ class TestSanitizeNumericCiteBracket:
 
 class TestRewriteInlineConfidenceCitations:
     def test_rewrites_with_detail(self):
-        content = (
-            "[Confirmed: 12% growth [cite: 1 from https://example.com/q3]]"
-        )
+        content = "[Confirmed: 12% growth [cite: 1 from https://example.com/q3]]"
         result = _rewrite_inline_confidence_citations(content)
         assert "(Confirmed: 12% growth)" in result
         assert "[Source: https://example.com/q3]" in result

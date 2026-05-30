@@ -108,9 +108,7 @@ class TestBuildHealthListener:
             failure_count=3,
         )
 
-        with patch(
-            "primr.core.resilience_listeners.log_structured"
-        ) as log_mock:
+        with patch("primr.core.resilience_listeners.log_structured") as log_mock:
             listener(event)
 
         loaded = _load_run_state(str(tmp_path))

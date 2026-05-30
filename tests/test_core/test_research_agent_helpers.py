@@ -279,9 +279,7 @@ class TestCreateWorkingFolder:
         # Set up a failed prior run.
         prior = tmp_path / "Acme_Corp" / "2026-02-25_1200"
         prior.mkdir(parents=True)
-        (prior / "_run_state.json").write_text(
-            json.dumps({"status": "failed"}), encoding="utf-8"
-        )
+        (prior / "_run_state.json").write_text(json.dumps({"status": "failed"}), encoding="utf-8")
 
         folder = create_working_folder("Acme Corp", None, reuse_incomplete=True)
         assert str(prior) == folder

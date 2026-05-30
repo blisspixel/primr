@@ -66,9 +66,7 @@ class TestShouldOfferInteractiveKeySetup:
             patch("sys.stdin.isatty", return_value=False),
             patch("sys.stdout.isatty", return_value=True),
         ):
-            assert (
-                _should_offer_interactive_key_setup(self._result("GEMINI_API_KEY")) is False
-            )
+            assert _should_offer_interactive_key_setup(self._result("GEMINI_API_KEY")) is False
 
     def test_returns_false_when_no_errors(self):
         with (
@@ -83,9 +81,7 @@ class TestShouldOfferInteractiveKeySetup:
             patch("sys.stdout.isatty", return_value=True),
         ):
             assert (
-                _should_offer_interactive_key_setup(
-                    self._result("GEMINI_API_KEY", "XAI_API_KEY")
-                )
+                _should_offer_interactive_key_setup(self._result("GEMINI_API_KEY", "XAI_API_KEY"))
                 is True
             )
 
@@ -95,9 +91,7 @@ class TestShouldOfferInteractiveKeySetup:
             patch("sys.stdout.isatty", return_value=True),
         ):
             assert (
-                _should_offer_interactive_key_setup(
-                    self._result("GEMINI_API_KEY", "OTHER_FIELD")
-                )
+                _should_offer_interactive_key_setup(self._result("GEMINI_API_KEY", "OTHER_FIELD"))
                 is False
             )
 
@@ -151,7 +145,7 @@ class TestValidateKeyLive:
             patch.dict("sys.modules", {"google": MagicMock(genai=fake_module)}),
             patch("google.genai", fake_module, create=True),
         ):
-                ok, msg = _validate_key_live("gemini", "real-key-1234567890")
+            ok, msg = _validate_key_live("gemini", "real-key-1234567890")
         assert ok is True
         assert "verified" in msg
 
@@ -162,7 +156,7 @@ class TestValidateKeyLive:
             patch.dict("sys.modules", {"google": MagicMock(genai=fake_module)}),
             patch("google.genai", fake_module, create=True),
         ):
-                ok, msg = _validate_key_live("gemini", "bogus-1234567890")
+            ok, msg = _validate_key_live("gemini", "bogus-1234567890")
         assert ok is False
         assert "rejected" in msg
 
@@ -280,21 +274,15 @@ class TestRunInitFlow:
         fake_env.load_primr_env = lambda: None
         fake_env.mask_secret = lambda v: "***"
         fake_env.set_user_key = lambda *a, **k: None
-        monkeypatch.setattr(
-            "primr.config.env.get_user_env_path", fake_env.get_user_env_path
-        )
-        monkeypatch.setattr(
-            "primr.config.env.load_primr_env", fake_env.load_primr_env
-        )
+        monkeypatch.setattr("primr.config.env.get_user_env_path", fake_env.get_user_env_path)
+        monkeypatch.setattr("primr.config.env.load_primr_env", fake_env.load_primr_env)
         monkeypatch.setattr("primr.config.env.mask_secret", fake_env.mask_secret)
         monkeypatch.setattr("primr.config.env.set_user_key", fake_env.set_user_key)
 
         # Stop the flow from touching the real Playwright install
         monkeypatch.setattr(cli_init, "_playwright_browsers_ready", lambda: True)
 
-    def test_non_interactive_all_keys_set_and_browsers_ready(
-        self, tmp_path, monkeypatch
-    ):
+    def test_non_interactive_all_keys_set_and_browsers_ready(self, tmp_path, monkeypatch):
         self._setup_fake_env(monkeypatch, tmp_path)
         from primr.core.cli_init import _run_init_flow
 
@@ -306,18 +294,14 @@ class TestRunInitFlow:
         )
         assert result == 0
 
-    def test_non_interactive_missing_keys_returns_nonzero(
-        self, tmp_path, monkeypatch
-    ):
+    def test_non_interactive_missing_keys_returns_nonzero(self, tmp_path, monkeypatch):
         # No env vars set -> keys aren't configured, non-interactive can't fix it
         from primr.core import cli_init
 
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.delenv("XAI_API_KEY", raising=False)
-        monkeypatch.setattr(
-            "primr.config.env.get_user_env_path", lambda: str(tmp_path / "u.env")
-        )
+        monkeypatch.setattr("primr.config.env.get_user_env_path", lambda: str(tmp_path / "u.env"))
         monkeypatch.setattr("primr.config.env.load_primr_env", lambda: None)
         monkeypatch.setattr(cli_init, "_playwright_browsers_ready", lambda: True)
 
@@ -344,9 +328,7 @@ class TestRunInitFlow:
         # Keys set + skip_browsers -> all_ready True -> 0
         assert result == 0
 
-    def test_non_interactive_browsers_missing_returns_nonzero(
-        self, tmp_path, monkeypatch
-    ):
+    def test_non_interactive_browsers_missing_returns_nonzero(self, tmp_path, monkeypatch):
         self._setup_fake_env(monkeypatch, tmp_path)
         from primr.core import cli_init
 
@@ -383,9 +365,7 @@ class TestRunInitFlow:
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.delenv("XAI_API_KEY", raising=False)
-        monkeypatch.setattr(
-            "primr.config.env.get_user_env_path", lambda: str(tmp_path / "u.env")
-        )
+        monkeypatch.setattr("primr.config.env.get_user_env_path", lambda: str(tmp_path / "u.env"))
         monkeypatch.setattr("primr.config.env.load_primr_env", lambda: None)
         monkeypatch.setattr("primr.config.env.mask_secret", lambda v: "***")
         monkeypatch.setattr("primr.config.env.set_user_key", lambda *a, **k: None)
@@ -420,9 +400,7 @@ class TestRunInitFlow:
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.delenv("XAI_API_KEY", raising=False)
-        monkeypatch.setattr(
-            "primr.config.env.get_user_env_path", lambda: str(tmp_path / "u.env")
-        )
+        monkeypatch.setattr("primr.config.env.get_user_env_path", lambda: str(tmp_path / "u.env"))
         monkeypatch.setattr("primr.config.env.load_primr_env", lambda: None)
         monkeypatch.setattr("primr.config.env.mask_secret", lambda v: "***")
         monkeypatch.setattr("primr.config.env.set_user_key", lambda *a, **k: None)
@@ -436,9 +414,7 @@ class TestRunInitFlow:
         monkeypatch.setattr("sys.version_info", _VI((3, 11, 0, "final", 0)))
         monkeypatch.setattr("sys.stdin.isatty", lambda: True)
 
-        monkeypatch.setattr(
-            cli_init, "_validate_key_live", lambda p, v: (False, "rejected")
-        )
+        monkeypatch.setattr(cli_init, "_validate_key_live", lambda p, v: (False, "rejected"))
         monkeypatch.setattr("getpass.getpass", lambda *a, **k: "bogus-1234567890")
 
         result = cli_init._run_init_flow(
@@ -456,9 +432,7 @@ class TestRunInitFlow:
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.delenv("XAI_API_KEY", raising=False)
-        monkeypatch.setattr(
-            "primr.config.env.get_user_env_path", lambda: str(tmp_path / "u.env")
-        )
+        monkeypatch.setattr("primr.config.env.get_user_env_path", lambda: str(tmp_path / "u.env"))
         monkeypatch.setattr("primr.config.env.load_primr_env", lambda: None)
         monkeypatch.setattr(cli_init, "_playwright_browsers_ready", lambda: True)
 

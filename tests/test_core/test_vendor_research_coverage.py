@@ -159,7 +159,9 @@ def test_is_vendor_research_current_manual_fresh(tmp_path: Path):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(("val", "expected"), [("1", True), ("true", True), ("YES", True), ("0", False)])
+@pytest.mark.parametrize(
+    ("val", "expected"), [("1", True), ("true", True), ("YES", True), ("0", False)]
+)
 def test_allow_vendor_auto_refresh(monkeypatch, val, expected):
     monkeypatch.setenv("PRIMR_ALLOW_VENDOR_REFRESH", val)
     assert _allow_vendor_auto_refresh() is expected

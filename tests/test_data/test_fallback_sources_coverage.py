@@ -28,9 +28,7 @@ from primr.data.fallback_sources import (
 
 class TestHttpGet:
     def test_blocks_unsafe_initial_url(self):
-        with patch(
-            "primr.utils.security.is_safe_url", return_value=(False, "loopback")
-        ):
+        with patch("primr.utils.security.is_safe_url", return_value=(False, "loopback")):
             status, body, final = _http_get("http://127.0.0.1/")
         assert status is None
         assert body is None
@@ -138,9 +136,7 @@ class TestSubdomainDiscovery:
         assert live == []
 
     def test_fetch_subdomain_content_no_live_subdomains(self):
-        with patch(
-            "primr.data.fallback_sources.discover_live_subdomains", return_value=[]
-        ):
+        with patch("primr.data.fallback_sources.discover_live_subdomains", return_value=[]):
             assert fetch_subdomain_content("example.com") == []
 
     def test_fetch_subdomain_content_success(self):
@@ -231,9 +227,7 @@ class TestEdgarFiling:
         assert body == b"<html>filing body</html>"
 
     def test_fetch_latest_filing_no_submissions(self):
-        with patch(
-            "primr.data.fallback_sources._http_get", return_value=(404, None, None)
-        ):
+        with patch("primr.data.fallback_sources._http_get", return_value=(404, None, None)):
             assert fetch_latest_edgar_filing("0001234567") is None
 
     def test_fetch_latest_filing_bad_json(self):
@@ -269,9 +263,7 @@ class TestEdgarFiling:
                 "primr.data.fallback_sources.find_edgar_cik",
                 return_value=("0001234567", "EXMP", "Example Inc"),
             ),
-            patch(
-                "primr.data.fallback_sources.fetch_latest_edgar_filing", return_value=None
-            ),
+            patch("primr.data.fallback_sources.fetch_latest_edgar_filing", return_value=None),
         ):
             assert fetch_edgar_content("Example Inc") == []
 
@@ -322,9 +314,7 @@ class TestEdgarFiling:
 
 class TestWikipedia:
     def test_find_title_search_failure_returns_none(self):
-        with patch(
-            "primr.data.fallback_sources._http_get", return_value=(500, None, None)
-        ):
+        with patch("primr.data.fallback_sources._http_get", return_value=(500, None, None)):
             assert find_wikipedia_title("Acme") is None
 
     def test_find_title_bad_json_returns_none(self):
@@ -335,9 +325,7 @@ class TestWikipedia:
             assert find_wikipedia_title("Acme") is None
 
     def test_fetch_content_no_title(self):
-        with patch(
-            "primr.data.fallback_sources.find_wikipedia_title", return_value=None
-        ):
+        with patch("primr.data.fallback_sources.find_wikipedia_title", return_value=None):
             assert fetch_wikipedia_content("Acme") == []
 
     def test_fetch_content_success(self):

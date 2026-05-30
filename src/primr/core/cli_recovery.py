@@ -37,9 +37,7 @@ def _sanitize_output_stem(value: str) -> str:
 def _build_recovered_basename(interaction_id: str, job_info: dict[str, Any]) -> str:
     """Build canonical output basename for recovered jobs."""
     metadata: dict[str, Any] = (
-        job_info.get("metadata", {})
-        if isinstance(job_info.get("metadata"), dict)
-        else {}
+        job_info.get("metadata", {}) if isinstance(job_info.get("metadata"), dict) else {}
     )
     report_kind = str(metadata.get("report_kind", "")).lower()
     strategy_type = str(metadata.get("strategy_type", "")).lower()
@@ -49,9 +47,7 @@ def _build_recovered_basename(interaction_id: str, job_info: dict[str, Any]) -> 
 
     if report_kind == "ai_strategy" or strategy_type == "ai":
         vendor_tag = (
-            f"_{cloud_vendor.upper()}"
-            if cloud_vendor and cloud_vendor != "agnostic"
-            else ""
+            f"_{cloud_vendor.upper()}" if cloud_vendor and cloud_vendor != "agnostic" else ""
         )
         return f"{company_name}_AI_Strategy{vendor_tag}_{date_str}"
 
@@ -95,9 +91,7 @@ def _save_recovered_outputs(
         f.write(content)
 
     metadata: dict[str, Any] = (
-        job_info.get("metadata", {})
-        if isinstance(job_info.get("metadata"), dict)
-        else {}
+        job_info.get("metadata", {}) if isinstance(job_info.get("metadata"), dict) else {}
     )
     company_name = str(metadata.get("company_name", "")).strip() or "Recovered"
     report_kind = str(metadata.get("report_kind", "")).lower()

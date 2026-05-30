@@ -150,9 +150,7 @@ def register_skill_pack_tools(server: Server, mcp_server: PrimrMCPServer) -> lis
                     },
                     "destination": {
                         "type": "string",
-                        "description": (
-                            "Optional output directory. Defaults to ./output/."
-                        ),
+                        "description": ("Optional output directory. Defaults to ./output/."),
                     },
                     "max_estimated_cost_usd": {
                         "type": "number",
@@ -372,9 +370,7 @@ async def _handle_generate_skill_pack(arguments: dict[str, Any]) -> list[TextCon
 
     try:
         config = SkillPackConfig(
-            roles_count=(
-                len(roles_override) if roles_override else roles_count
-            ),
+            roles_count=(len(roles_override) if roles_override else roles_count),
             skills_per_role=skills_per_role,
             formats=SkillPackFormat(formats_value),
             max_refine_iterations=max_refine,
@@ -457,9 +453,7 @@ async def _handle_generate_skill_pack(arguments: dict[str, Any]) -> list[TextCon
         "roles_count": len(pack.roles),
         "total_skills": pack.total_skills,
         "validation": pack.validation.to_dict(),
-        "dropped_roles": [
-            {"name": name, "reason": reason} for name, reason in pack.dropped_roles
-        ],
+        "dropped_roles": [{"name": name, "reason": reason} for name, reason in pack.dropped_roles],
         "refinement_iterations_used": dict(pack.refinement_iterations_used),
         "artifacts": artifacts.to_dict(),
         "estimated_cost_usd": estimate["cost_usd"],

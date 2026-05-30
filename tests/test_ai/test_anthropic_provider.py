@@ -179,6 +179,7 @@ class TestAvailability:
         with patch.dict("sys.modules", {"anthropic": None}):
             # Force ImportError on import
             import sys
+
             original = sys.modules.get("anthropic")
             sys.modules["anthropic"] = None  # type: ignore
             try:
@@ -292,14 +293,16 @@ class TestChat:
     def test_reset_usage(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
         provider = self._make_provider_with_mock_client()
-        provider._client.messages.create.return_value = self._make_response(
-            cache_read=50
-        )
+        provider._client.messages.create.return_value = self._make_response(cache_read=50)
 
         provider.chat([{"role": "user", "content": "Hi"}], model="claude-sonnet-4-6")
         provider.reset_usage()
 
-        assert provider.get_usage() == {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens": 0}
+        assert provider.get_usage() == {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cached_input_tokens": 0,
+        }
         assert provider.get_cache_usage() == {"cached_input_tokens": 0, "cache_creation_tokens": 0}
 
     def test_empty_messages_raises_value_error(self, monkeypatch):

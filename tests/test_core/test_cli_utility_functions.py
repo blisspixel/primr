@@ -20,9 +20,7 @@ from primr.core.cli import (
 def output_dir(tmp_path, monkeypatch):
     """Redirect OUTPUT_DIR to tmp_path."""
     monkeypatch.setattr("primr.core.cli.OUTPUT_DIR", str(tmp_path / "output"))
-    monkeypatch.setattr(
-        "primr.config.config.OUTPUT_DIR", str(tmp_path / "output")
-    )
+    monkeypatch.setattr("primr.config.config.OUTPUT_DIR", str(tmp_path / "output"))
     od = tmp_path / "output"
     od.mkdir()
     return od
@@ -31,9 +29,7 @@ def output_dir(tmp_path, monkeypatch):
 @pytest.fixture
 def working_dir(tmp_path, monkeypatch):
     monkeypatch.setattr("primr.core.cli.WORKING_DIR", str(tmp_path / "working"))
-    monkeypatch.setattr(
-        "primr.config.config.WORKING_DIR", str(tmp_path / "working")
-    )
+    monkeypatch.setattr("primr.config.config.WORKING_DIR", str(tmp_path / "working"))
     wd = tmp_path / "working"
     wd.mkdir()
     return wd
@@ -94,9 +90,7 @@ class TestCheckApiQuota:
     def test_no_api_key_returns_with_error(self, monkeypatch, capsys):
         fake_settings = MagicMock()
         fake_settings.api.gemini_key = ""
-        monkeypatch.setattr(
-            "primr.config.settings.get_settings", lambda: fake_settings
-        )
+        monkeypatch.setattr("primr.config.settings.get_settings", lambda: fake_settings)
         check_api_quota()
         captured = capsys.readouterr()
         assert "GEMINI_API_KEY" in captured.out
@@ -104,9 +98,7 @@ class TestCheckApiQuota:
     def test_quota_available(self, monkeypatch):
         fake_settings = MagicMock()
         fake_settings.api.gemini_key = "AI" + "x" * 30
-        monkeypatch.setattr(
-            "primr.config.settings.get_settings", lambda: fake_settings
-        )
+        monkeypatch.setattr("primr.config.settings.get_settings", lambda: fake_settings)
         fake = MagicMock()
         client = MagicMock()
         response = MagicMock()
@@ -122,9 +114,7 @@ class TestCheckApiQuota:
     def test_quota_exhausted(self, monkeypatch, capsys):
         fake_settings = MagicMock()
         fake_settings.api.gemini_key = "AI" + "x" * 30
-        monkeypatch.setattr(
-            "primr.config.settings.get_settings", lambda: fake_settings
-        )
+        monkeypatch.setattr("primr.config.settings.get_settings", lambda: fake_settings)
         fake = MagicMock()
         fake.Client.return_value.models.generate_content.side_effect = RuntimeError(
             "RESOURCE_EXHAUSTED: per_day quota"
@@ -191,9 +181,7 @@ class TestCheckPendingJobs:
             "content": "full report body",
         }
         monkeypatch.setattr(dr, "get_deep_research_client", lambda: client)
-        save_mock = MagicMock(
-            return_value={"md": "/x.md", "txt": "/x.txt", "docx": "/x.docx"}
-        )
+        save_mock = MagicMock(return_value={"md": "/x.md", "txt": "/x.txt", "docx": "/x.docx"})
         monkeypatch.setattr("primr.core.cli._save_recovered_outputs", save_mock)
         check_pending_jobs()
         save_mock.assert_called_once()

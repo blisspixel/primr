@@ -32,11 +32,7 @@ _PROVIDER_API_KEY_VARS = (
 
 
 def _scrubbed_env(**overrides: str) -> dict[str, str]:
-    base = {
-        k: v
-        for k, v in __import__("os").environ.items()
-        if k not in _PROVIDER_API_KEY_VARS
-    }
+    base = {k: v for k, v in __import__("os").environ.items() if k not in _PROVIDER_API_KEY_VARS}
     base.update(overrides)
     return base
 
@@ -75,9 +71,7 @@ class TestUtilityTierResolution:
         with patch.dict("os.environ", env, clear=True):
             assert llm_module._get_model_for_type("filtering") == PrimrModels.GROK_MODEL_WRITING
             assert llm_module._get_model_for_type("research") == PrimrModels.GROK_MODEL_WRITING
-            assert (
-                llm_module._get_model_for_type("summarization") == PrimrModels.GROK_MODEL_WRITING
-            )
+            assert llm_module._get_model_for_type("summarization") == PrimrModels.GROK_MODEL_WRITING
 
     def test_utility_falls_back_to_gemini_without_xai_key(self) -> None:
         env = _scrubbed_env()
@@ -97,8 +91,7 @@ class TestWritingTierResolution:
         env = _scrubbed_env(XAI_API_KEY="test-xai")
         with patch.dict("os.environ", env, clear=True):
             assert (
-                llm_module._get_model_for_type("section_writing")
-                == PrimrModels.GROK_MODEL_WRITING
+                llm_module._get_model_for_type("section_writing") == PrimrModels.GROK_MODEL_WRITING
             )
 
     def test_section_writing_gemini_wins(self) -> None:

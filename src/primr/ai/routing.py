@@ -96,8 +96,8 @@ LEGACY_TYPE_TO_ROLE: dict[str, Role] = {
 # sees only its own override. Production callers never see a recipe override
 # and follow the default routing path.
 
-_active_eval_recipe: contextvars.ContextVar[ProfileRecipe | None] = (
-    contextvars.ContextVar("_active_eval_recipe", default=None)
+_active_eval_recipe: contextvars.ContextVar[ProfileRecipe | None] = contextvars.ContextVar(
+    "_active_eval_recipe", default=None
 )
 
 

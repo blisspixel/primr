@@ -172,9 +172,7 @@ class GeminiProvider(Provider):
         client = self._get_client()
         system_instruction, contents = self._split_messages(messages)
         if not contents:
-            raise RuntimeError(
-                "Gemini call requires at least one non-system message in `messages`"
-            )
+            raise RuntimeError("Gemini call requires at least one non-system message in `messages`")
 
         thinking_level = provider_kwargs.get("thinking_level", "high")
         streaming = bool(provider_kwargs.get("streaming", False))
@@ -208,8 +206,7 @@ class GeminiProvider(Provider):
 
                 if not text:
                     raise RuntimeError(
-                        "Gemini returned empty response "
-                        "(possible content filter or safety block)"
+                        "Gemini returned empty response (possible content filter or safety block)"
                     )
 
                 input_tokens, output_tokens = self._extract_usage(response)

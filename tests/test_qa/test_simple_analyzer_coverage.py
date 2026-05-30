@@ -100,9 +100,7 @@ class TestAssessReport:
         assert "failed" in result.recommendation.lower() or result.error_message
 
     def test_unexpected_exception_returns_error_result(self, analyzer):
-        with patch.object(
-            analyzer, "_build_assessment_prompt", side_effect=RuntimeError("boom")
-        ):
+        with patch.object(analyzer, "_build_assessment_prompt", side_effect=RuntimeError("boom")):
             result = analyzer.assess_report(_report())
         assert result.ready_for_use is False
 
@@ -119,7 +117,10 @@ class TestTryAssessmentRetry:
         analyzer.ai_client.generate.side_effect = Exception("quota exceeded")
         result = analyzer._try_assessment_with_retry("p", "Acme", max_retries=3)
         assert result is not None
-        assert "quota" in (result.error_message or "").lower() or "quota" in result.recommendation.lower()
+        assert (
+            "quota" in (result.error_message or "").lower()
+            or "quota" in result.recommendation.lower()
+        )
 
     def test_generic_error_retries_then_returns_none(self, analyzer, monkeypatch):
         monkeypatch.setattr("time.sleep", lambda _: None)
@@ -173,7 +174,10 @@ class TestReportTypeDetection:
         )
 
     def test_strategic_report(self, analyzer):
-        assert analyzer._determine_report_type(_report(content="general strategy here")) == "Strategic Report"
+        assert (
+            analyzer._determine_report_type(_report(content="general strategy here"))
+            == "Strategic Report"
+        )
 
     def test_business_analysis_default(self, analyzer):
         assert (

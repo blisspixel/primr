@@ -2933,7 +2933,6 @@ use a descriptive subtitle if needed."""
         if not stage1_context:
             return None
 
-
         # Look for "## Industry" section in the context
         match = re.search(
             r"##\s*Industry\s*\n+(.+?)(?=\n##|\n---|\Z)", stage1_context, re.IGNORECASE | re.DOTALL
@@ -2950,7 +2949,6 @@ use a descriptive subtitle if needed."""
         """Extract full legal company name from Stage 1 context if present."""
         if not stage1_context:
             return None
-
 
         # Look for "## Company Name" section in the context
         match = re.search(

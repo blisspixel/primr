@@ -74,10 +74,7 @@ class TestGuardPredicates:
         assert self.f.has_debug_artifacts("[DEBUG] info") is True
 
     def test_has_debug_artifacts_detects_traceback(self):
-        assert (
-            self.f.has_debug_artifacts("Traceback (most recent call last):\n  ...")
-            is True
-        )
+        assert self.f.has_debug_artifacts("Traceback (most recent call last):\n  ...") is True
 
     def test_has_debug_artifacts_clean_text(self):
         assert self.f.has_debug_artifacts("clean prose") is False
@@ -242,9 +239,7 @@ class TestFormatNumberedCitations:
         citations = [
             {
                 "number": "1",
-                "url": (
-                    "https://vertexaisearch.cloud.google.com/grounding-api-redirect/x"
-                ),
+                "url": ("https://vertexaisearch.cloud.google.com/grounding-api-redirect/x"),
                 "title": "partstown.com",
             }
         ]

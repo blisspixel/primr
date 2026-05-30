@@ -27,9 +27,7 @@ def one_company_df():
             "Sector": ["Tech"],
         }
     )
-    col_map = _ColumnMap(
-        company="Account Name", website="URL", industry="Sector", context=[]
-    )
+    col_map = _ColumnMap(company="Account Name", website="URL", industry="Sector", context=[])
     return df, col_map
 
 
@@ -65,9 +63,7 @@ class TestProcessBatchErrorPaths:
             "/output/report.docx",
         ]
         perform_mock = MagicMock(side_effect=responses)
-        monkeypatch.setattr(
-            "primr.core.research_agent.perform_research", perform_mock
-        )
+        monkeypatch.setattr("primr.core.research_agent.perform_research", perform_mock)
         sleep_mock = MagicMock()
         monkeypatch.setattr("time.sleep", sleep_mock)
         # Make the result file exist so size check passes
@@ -80,9 +76,7 @@ class TestProcessBatchErrorPaths:
         assert sleep_mock.called
         assert result in (0, 1)
 
-    def test_quota_error_retries_then_fails(
-        self, isolated, monkeypatch, one_company_df
-    ):
+    def test_quota_error_retries_then_fails(self, isolated, monkeypatch, one_company_df):
         df, col_map = one_company_df
         monkeypatch.setattr(
             "primr.core.cli._prepare_batch_df",
@@ -97,9 +91,7 @@ class TestProcessBatchErrorPaths:
         result = process_batch("/path.csv", skip_confirm=True)
         assert result == 1
 
-    def test_small_report_marked_warning(
-        self, isolated, monkeypatch, one_company_df
-    ):
+    def test_small_report_marked_warning(self, isolated, monkeypatch, one_company_df):
         df, col_map = one_company_df
         monkeypatch.setattr(
             "primr.core.cli._prepare_batch_df",
@@ -137,9 +129,7 @@ class TestProcessBatchErrorPaths:
         monkeypatch.setattr("primr.core.cli.OUTPUT_DIR", str(out))
         monkeypatch.setattr("primr.config.config.OUTPUT_DIR", str(out))
         perform_mock = MagicMock(return_value=None)
-        monkeypatch.setattr(
-            "primr.core.research_agent.perform_research", perform_mock
-        )
+        monkeypatch.setattr("primr.core.research_agent.perform_research", perform_mock)
         monkeypatch.setattr("time.sleep", lambda *_a, **_k: None)
         result = process_batch("/path.csv", skip_confirm=True)
         # Should have skipped research — not called perform_research

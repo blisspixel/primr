@@ -47,9 +47,7 @@ def test_prepare_page_clamps_long_text():
 
 
 def test_prepare_page_short_text_passthrough():
-    prepared = summarize._prepare_page_for_summary(
-        "Acme makes widgets.", "https://x.example"
-    )
+    prepared = summarize._prepare_page_for_summary("Acme makes widgets.", "https://x.example")
     assert "widgets" in prepared
 
 
@@ -187,9 +185,7 @@ def test_summarize_scraped_content_skips_blank(tmp_path):
         "primr.ai.summarize._invoke_default_summary_model",
         return_value="fact " * 60,
     ) as mock_fn:
-        summarize.summarize_scraped_content(
-            "Acme", "acme.example", data, str(tmp_path)
-        )
+        summarize.summarize_scraped_content("Acme", "acme.example", data, str(tmp_path))
     # Only the non-blank page is summarized.
     assert mock_fn.call_count == 1
 

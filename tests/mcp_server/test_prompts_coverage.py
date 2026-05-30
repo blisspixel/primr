@@ -64,9 +64,7 @@ class TestGetPrompt:
 
     @pytest.mark.asyncio
     async def test_strategy_selection_with_context(self, server):
-        result = await _get_prompt(
-            server, "strategy_selection", {"context": "B2C retail company"}
-        )
+        result = await _get_prompt(server, "strategy_selection", {"context": "B2C retail company"})
         text = result.root.messages[0].content.text
         assert "B2C retail company" in text
 

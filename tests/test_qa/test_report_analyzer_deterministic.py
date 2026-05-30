@@ -370,9 +370,7 @@ class TestAnalyzeUrlsAndSources:
         # The www. prefix must be stripped via removeprefix, not lstrip
         # (lstrip would also strip leading w/. chars from other hostnames).
         content = (
-            "## Section\n\n"
-            "One https://www.acme.example/a and\n"
-            "two https://www.acme.example/b\n"
+            "## Section\n\nOne https://www.acme.example/a and\ntwo https://www.acme.example/b\n"
         )
         analyzer = _make_analyzer(content)
         result = analyzer.analyze_urls_and_sources()

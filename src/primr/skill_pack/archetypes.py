@@ -202,17 +202,11 @@ def grounding_prompt_fragment(archetype: Archetype, max_skills: int) -> str:
         + "\n\n"
         + (
             "AI augmentation patterns (illustrative — incorporate where "
-            "appropriate to the role and the company's signals):\n"
-            + "\n".join(ai_lines)
-            + "\n\n"
+            "appropriate to the role and the company's signals):\n" + "\n".join(ai_lines) + "\n\n"
             if ai_lines
             else ""
         )
-        + (
-            "Authoritative references:\n" + "\n".join(ref_lines) + "\n"
-            if ref_lines
-            else ""
-        )
+        + ("Authoritative references:\n" + "\n".join(ref_lines) + "\n" if ref_lines else "")
     )
     return fragment
 

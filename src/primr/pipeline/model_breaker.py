@@ -309,9 +309,7 @@ class ModelCircuitBreaker:
         ]
         for provider in expired:
             del self._quota_exhausted[provider]
-            logger.info(
-                "Provider '%s' quota reset (midnight UTC passed)", provider
-            )
+            logger.info("Provider '%s' quota reset (midnight UTC passed)", provider)
 
     def is_provider_quota_exhausted(self, provider: str) -> bool:
         """Return True if the provider's quota is currently exhausted.

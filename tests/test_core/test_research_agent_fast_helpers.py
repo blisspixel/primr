@@ -102,7 +102,5 @@ QUERY: 'single quoted'"""
             "primr.pipeline.llm_failover.call_with_failover",
             MagicMock(return_value=""),
         )
-        queries, _ = _fast_gap_analysis(
-            "Acme", "https://acme.example", corpus, "", []
-        )
+        queries, _ = _fast_gap_analysis("Acme", "https://acme.example", corpus, "", [])
         assert queries == []

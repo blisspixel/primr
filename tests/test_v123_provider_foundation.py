@@ -301,9 +301,7 @@ class TestOllamaIntegration:
         """calculate_cost returns $0.00 for any Ollama model regardless of token count."""
         for model_name in self.OLLAMA_MODELS:
             cost = PrimrModels.calculate_cost(model_name, 1_000_000, 500_000)
-            assert cost == 0.0, (
-                f"calculate_cost({model_name!r}, 1M, 500k) = {cost}, expected 0.0"
-            )
+            assert cost == 0.0, f"calculate_cost({model_name!r}, 1M, 500k) = {cost}, expected 0.0"
 
     def test_ollama_provider_available_with_default_key(self, monkeypatch) -> None:
         """Ollama provider is available with default key (no env var needed)."""
@@ -393,7 +391,9 @@ class TestCacheTokenReporting:
             api_key_default="test",
         )
         # Simulate recording usage with cached tokens
-        provider._record_usage("test-model", input_tokens=1000, output_tokens=500, cached_input_tokens=200)
+        provider._record_usage(
+            "test-model", input_tokens=1000, output_tokens=500, cached_input_tokens=200
+        )
 
         usage = provider.get_usage()
         assert "cached_input_tokens" in usage
@@ -426,7 +426,9 @@ class TestCostInvariants:
         output_tokens=st.integers(min_value=0, max_value=131_072),
     )
     @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
-    def test_non_negative_cost(self, model_name: str, input_tokens: int, output_tokens: int) -> None:
+    def test_non_negative_cost(
+        self, model_name: str, input_tokens: int, output_tokens: int
+    ) -> None:
         """For all models and non-negative tokens, cost >= 0.
 
         **Validates: Requirement 9.6**
@@ -459,12 +461,8 @@ class TestCostEstimatorEdgeCases:
         assert config.tier_threshold_tokens is None
 
         # Cost should be identical regardless of prompt size — no tier flip.
-        cost_small = PrimrModels.calculate_cost(
-            model, 100_000, 50_000, prompt_tokens=100_000
-        )
-        cost_large = PrimrModels.calculate_cost(
-            model, 100_000, 50_000, prompt_tokens=300_000
-        )
+        cost_small = PrimrModels.calculate_cost(model, 100_000, 50_000, prompt_tokens=100_000)
+        cost_large = PrimrModels.calculate_cost(model, 100_000, 50_000, prompt_tokens=300_000)
         assert cost_large == cost_small
 
     def test_calculate_cost_conservative_uses_highest_tier(self) -> None:

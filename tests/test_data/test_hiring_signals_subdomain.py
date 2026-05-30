@@ -102,12 +102,8 @@ class TestPostingUrlHints:
 class TestDetectAtsRedirect:
     def test_workday_url_extracts_triple(self):
         with patch.object(hs, "_workday_fetch_one") as mock_fetch:
-            mock_fetch.return_value = [
-                hs.Posting(url="https://x", title="Eng", source="workday")
-            ]
-            result = _detect_ats_redirect(
-                "https://acmecorp.wd5.myworkdayjobs.com/External_Careers"
-            )
+            mock_fetch.return_value = [hs.Posting(url="https://x", title="Eng", source="workday")]
+            result = _detect_ats_redirect("https://acmecorp.wd5.myworkdayjobs.com/External_Careers")
         assert result is not None
         provider, postings = result
         assert provider == "workday"
@@ -117,12 +113,8 @@ class TestDetectAtsRedirect:
 
     def test_workday_locale_prefix(self):
         with patch.object(hs, "_workday_fetch_one") as mock_fetch:
-            mock_fetch.return_value = [
-                hs.Posting(url="https://x", title="Eng", source="workday")
-            ]
-            _detect_ats_redirect(
-                "https://acmecorp.wd1.myworkdayjobs.com/en-US/External"
-            )
+            mock_fetch.return_value = [hs.Posting(url="https://x", title="Eng", source="workday")]
+            _detect_ats_redirect("https://acmecorp.wd1.myworkdayjobs.com/en-US/External")
         mock_fetch.assert_called_once_with(("acmecorp", "wd1", "External"))
 
     def test_greenhouse_redirect(self):
@@ -138,9 +130,7 @@ class TestDetectAtsRedirect:
 
     def test_recruitee_redirect_extracts_subdomain_slug(self):
         with patch.object(hs, "_fetch_recruitee") as mock_fetch:
-            mock_fetch.return_value = [
-                hs.Posting(url="https://x", title="Eng", source="recruitee")
-            ]
+            mock_fetch.return_value = [hs.Posting(url="https://x", title="Eng", source="recruitee")]
             result = _detect_ats_redirect("https://acmecorp.recruitee.com/offers")
         assert result is not None
         provider, _ = result
@@ -156,9 +146,7 @@ class TestDetectAtsRedirect:
 
     def test_workday_with_no_provider_response_returns_none(self):
         with patch.object(hs, "_workday_fetch_one", return_value=None):
-            result = _detect_ats_redirect(
-                "https://acmecorp.wd5.myworkdayjobs.com/External"
-            )
+            result = _detect_ats_redirect("https://acmecorp.wd5.myworkdayjobs.com/External")
         assert result is None
 
 
@@ -191,9 +179,7 @@ class TestDiscoverViaHtmlRedirectShortCircuit:
                     source="workday",
                 )
             ]
-            postings, source = _discover_via_html(
-                "https://acme.example", corpus=None
-            )
+            postings, source = _discover_via_html("https://acme.example", corpus=None)
 
         assert source == "workday"
         assert len(postings) == 1
@@ -202,10 +188,7 @@ class TestDiscoverViaHtmlRedirectShortCircuit:
         assert mock_fetch.call_count == 1
 
     def test_no_redirect_falls_through_to_html(self):
-        html = (
-            b"<a href='/jobs/role-1'>Engineer</a>"
-            b"<a href='/jobs/role-2'>PM</a>"
-        )
+        html = b"<a href='/jobs/role-1'>Engineer</a><a href='/jobs/role-2'>PM</a>"
 
         def _http_get_stub(url, timeout, headers=None, params=None):
             # jobs.acme returns html, no redirect (final URL == request URL).
@@ -214,17 +197,13 @@ class TestDiscoverViaHtmlRedirectShortCircuit:
             return 404, None, None
 
         with patch.object(hs, "_http_get", side_effect=_http_get_stub):
-            postings, source = _discover_via_html(
-                "https://acme.example", corpus=None
-            )
+            postings, source = _discover_via_html("https://acme.example", corpus=None)
         assert source == "html"
         assert len(postings) == 2
 
     def test_all_misses_returns_empty(self):
         with patch.object(hs, "_http_get", return_value=(404, None, None)):
-            postings, source = _discover_via_html(
-                "https://acme.example", corpus=None
-            )
+            postings, source = _discover_via_html("https://acme.example", corpus=None)
         assert postings == []
         assert source is None
 

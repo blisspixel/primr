@@ -26,9 +26,7 @@ def _three_company_df(websites: tuple[str | None, str | None, str | None] = (Non
             "Sector": ["Tech", "Tech", "Tech"],
         }
     )
-    col_map = _ColumnMap(
-        company="Account Name", website="URL", industry="Sector", context=[]
-    )
+    col_map = _ColumnMap(company="Account Name", website="URL", industry="Sector", context=[])
     return df, col_map
 
 
@@ -84,9 +82,7 @@ class TestConsecutiveFailures:
                 "Sector": ["Tech"],
             }
         )
-        col_map = _ColumnMap(
-            company="Account Name", website="URL", industry="Sector", context=[]
-        )
+        col_map = _ColumnMap(company="Account Name", website="URL", industry="Sector", context=[])
         monkeypatch.setattr(
             "primr.core.cli._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),

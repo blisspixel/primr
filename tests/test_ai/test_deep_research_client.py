@@ -66,9 +66,7 @@ class TestBuildPrompt:
 
 class TestBuildCompanyProfilePrompt:
     def test_extracts_company_name_from_research_query(self, client):
-        with patch(
-            "primr.prompts.build_company_overview_prompt"
-        ) as build_mock:
+        with patch("primr.prompts.build_company_overview_prompt") as build_mock:
             build_mock.return_value = "PROMPT"
             result = client._build_company_profile_prompt("Research Acme Corp")
             assert result == "PROMPT"
@@ -76,20 +74,14 @@ class TestBuildCompanyProfilePrompt:
             assert kwargs["company_name"] == "Acme Corp"
 
     def test_extracts_url_when_in_parens(self, client):
-        with patch(
-            "primr.prompts.build_company_overview_prompt"
-        ) as build_mock:
+        with patch("primr.prompts.build_company_overview_prompt") as build_mock:
             build_mock.return_value = "PROMPT"
-            client._build_company_profile_prompt(
-                "Research Acme (https://acme.example)"
-            )
+            client._build_company_profile_prompt("Research Acme (https://acme.example)")
             kwargs = build_mock.call_args.kwargs
             assert kwargs["website_url"] == "https://acme.example"
 
     def test_falls_back_to_default_company_name(self, client):
-        with patch(
-            "primr.prompts.build_company_overview_prompt"
-        ) as build_mock:
+        with patch("primr.prompts.build_company_overview_prompt") as build_mock:
             build_mock.return_value = "PROMPT"
             client._build_company_profile_prompt("query without 'Research' keyword")
             kwargs = build_mock.call_args.kwargs
@@ -107,9 +99,7 @@ class TestBuildStrategicLayerPrompt:
         composed = MagicMock()
         composed.content = "STRATEGIC: {query} done"
         composer.compose.return_value = composed
-        with patch(
-            "primr.prompts.composer.PromptComposer", return_value=composer
-        ):
+        with patch("primr.prompts.composer.PromptComposer", return_value=composer):
             result = client._build_strategic_layer_prompt("my query")
             assert result == "STRATEGIC: my query done"
 
@@ -132,15 +122,11 @@ class TestBuildStrategicLayerPrompt:
 class TestFormatInteractionError:
     def test_extracts_error_attribute(self):
         i = SimpleNamespace(error="something broke")
-        assert (
-            DeepResearchClient._format_interaction_error(i) == "something broke"
-        )
+        assert DeepResearchClient._format_interaction_error(i) == "something broke"
 
     def test_tries_error_message_when_error_missing(self):
         i = SimpleNamespace(error=None, error_message="api 500")
-        assert (
-            DeepResearchClient._format_interaction_error(i) == "api 500"
-        )
+        assert DeepResearchClient._format_interaction_error(i) == "api 500"
 
     def test_falls_through_to_to_dict_payload(self):
         i = MagicMock()
@@ -151,9 +137,7 @@ class TestFormatInteractionError:
         i.failure_reason = None
         i.last_error = None
         i.to_dict.return_value = {"errorMessage": "from dict"}
-        assert (
-            DeepResearchClient._format_interaction_error(i) == "from dict"
-        )
+        assert DeepResearchClient._format_interaction_error(i) == "from dict"
 
     def test_uses_diagnostics_when_no_specific_fields(self):
         i = MagicMock()
@@ -168,9 +152,7 @@ class TestFormatInteractionError:
         ):
             setattr(i, attr, None)
         i.to_dict.return_value = {"diagnostics": "some debug info"}
-        assert (
-            DeepResearchClient._format_interaction_error(i) == "some debug info"
-        )
+        assert DeepResearchClient._format_interaction_error(i) == "some debug info"
 
     def test_default_when_nothing_found(self):
         i = MagicMock()
@@ -280,9 +262,7 @@ class TestCheckJob:
 
         with (
             patch.object(client, "_extract_content", return_value="full body"),
-            patch.object(
-                client, "_extract_citations", return_value=[{"url": "x"}]
-            ),
+            patch.object(client, "_extract_citations", return_value=[{"url": "x"}]),
             patch("primr.ai.deep_research.remove_pending_job") as remove_mock,
         ):
             result = client.check_job("iid-1")
@@ -302,9 +282,7 @@ class TestCheckJob:
         interaction.status = terminal_status
         client._client.interactions.get.return_value = interaction
         with (
-            patch.object(
-                client, "_format_interaction_error", return_value="provider error"
-            ),
+            patch.object(client, "_format_interaction_error", return_value="provider error"),
             patch("primr.ai.deep_research.remove_pending_job"),
         ):
             result = client.check_job("iid-2")

@@ -223,9 +223,7 @@ def test_run_research_pipeline(tmp_path):
             return_value="section body",
         ),
     ):
-        results = run_research(
-            "Acme", "https://a.com", on_progress=progress_msgs.append
-        )
+        results = run_research("Acme", "https://a.com", on_progress=progress_msgs.append)
 
     assert isinstance(results, dict)
     assert progress_msgs  # progress callback fired

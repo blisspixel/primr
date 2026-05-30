@@ -78,9 +78,7 @@ class TestEarlyValidation:
 
 class TestPreflightFailures:
     def test_failed_preflight_returns_1(self, monkeypatch):
-        monkeypatch.setattr(
-            "primr.utils.validators.validate_company_name", lambda x: x
-        )
+        monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda x: x)
         monkeypatch.setattr("primr.utils.validators.validate_url", lambda x: x)
         monkeypatch.setattr(
             "primr.core.cli._run_preflight_checks",
@@ -90,41 +88,23 @@ class TestPreflightFailures:
 
 
 class TestModeIncompatibilities:
-    def test_fast_and_premium_together_returns_1(
-        self, passing_preflight, monkeypatch
-    ):
-        monkeypatch.setattr(
-            "primr.utils.validators.validate_company_name", lambda x: x
-        )
+    def test_fast_and_premium_together_returns_1(self, passing_preflight, monkeypatch):
+        monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda x: x)
         monkeypatch.setattr("primr.utils.validators.validate_url", lambda x: x)
-        assert (
-            _handle_research(_config(fast_mode=True, premium_mode=True)) == 1
-        )
+        assert _handle_research(_config(fast_mode=True, premium_mode=True)) == 1
 
-    def test_premium_with_wrong_mode_returns_1(
-        self, passing_preflight, monkeypatch
-    ):
-        monkeypatch.setattr(
-            "primr.utils.validators.validate_company_name", lambda x: x
-        )
+    def test_premium_with_wrong_mode_returns_1(self, passing_preflight, monkeypatch):
+        monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda x: x)
         monkeypatch.setattr("primr.utils.validators.validate_url", lambda x: x)
-        assert (
-            _handle_research(_config(premium_mode=True, mode="scrape-only")) == 1
-        )
+        assert _handle_research(_config(premium_mode=True, mode="scrape-only")) == 1
 
     def test_fast_with_wrong_mode_returns_1(self, passing_preflight, monkeypatch):
-        monkeypatch.setattr(
-            "primr.utils.validators.validate_company_name", lambda x: x
-        )
+        monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda x: x)
         monkeypatch.setattr("primr.utils.validators.validate_url", lambda x: x)
         assert _handle_research(_config(fast_mode=True, mode="scrape-only")) == 1
 
-    def test_fast_without_xai_key_returns_1(
-        self, passing_preflight, monkeypatch
-    ):
-        monkeypatch.setattr(
-            "primr.utils.validators.validate_company_name", lambda x: x
-        )
+    def test_fast_without_xai_key_returns_1(self, passing_preflight, monkeypatch):
+        monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda x: x)
         monkeypatch.setattr("primr.utils.validators.validate_url", lambda x: x)
         monkeypatch.delenv("XAI_API_KEY", raising=False)
         assert _handle_research(_config(fast_mode=True, mode="complete")) == 1
@@ -134,21 +114,15 @@ class TestSuccessPath:
     def test_returns_zero_when_research_succeeds(
         self, passing_preflight, perform_research_ok, monkeypatch
     ):
-        monkeypatch.setattr(
-            "primr.utils.validators.validate_company_name", lambda x: x
-        )
+        monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda x: x)
         monkeypatch.setattr("primr.utils.validators.validate_url", lambda x: x)
         # Avoid the fast-mode preflight by passing premium_mode=True
         result = _handle_research(_config(premium_mode=True))
         assert result == 0
         perform_research_ok.assert_called_once()
 
-    def test_returns_one_when_research_returns_none(
-        self, passing_preflight, monkeypatch
-    ):
-        monkeypatch.setattr(
-            "primr.utils.validators.validate_company_name", lambda x: x
-        )
+    def test_returns_one_when_research_returns_none(self, passing_preflight, monkeypatch):
+        monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda x: x)
         monkeypatch.setattr("primr.utils.validators.validate_url", lambda x: x)
         mock = MagicMock(return_value=None)
         monkeypatch.setattr("primr.core.research_agent.perform_research", mock)
@@ -157,9 +131,7 @@ class TestSuccessPath:
     def test_opens_file_when_open_after_set(
         self, passing_preflight, perform_research_ok, monkeypatch
     ):
-        monkeypatch.setattr(
-            "primr.utils.validators.validate_company_name", lambda x: x
-        )
+        monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda x: x)
         monkeypatch.setattr("primr.utils.validators.validate_url", lambda x: x)
         open_mock = MagicMock()
         monkeypatch.setattr("primr.core.cli.open_file", open_mock)
@@ -171,9 +143,7 @@ class TestContextFiles:
     def test_invalid_context_file_returns_1(
         self, passing_preflight, perform_research_ok, monkeypatch
     ):
-        monkeypatch.setattr(
-            "primr.utils.validators.validate_company_name", lambda x: x
-        )
+        monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda x: x)
         monkeypatch.setattr("primr.utils.validators.validate_url", lambda x: x)
 
         result_obj = MagicMock()
@@ -184,24 +154,18 @@ class TestContextFiles:
             "primr.core.workspace.validate_context_files",
             MagicMock(return_value=result_obj),
         )
-        result = _handle_research(
-            _config(premium_mode=True, context_files=("bad.txt",))
-        )
+        result = _handle_research(_config(premium_mode=True, context_files=("bad.txt",)))
         assert result == 1
         perform_research_ok.assert_not_called()
 
     def test_context_folder_consolidation_failure_returns_1(
         self, passing_preflight, perform_research_ok, monkeypatch
     ):
-        monkeypatch.setattr(
-            "primr.utils.validators.validate_company_name", lambda x: x
-        )
+        monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda x: x)
         monkeypatch.setattr("primr.utils.validators.validate_url", lambda x: x)
         monkeypatch.setattr(
             "primr.core.workspace.consolidate_working_folder",
             MagicMock(side_effect=ValueError("folder missing")),
         )
-        result = _handle_research(
-            _config(premium_mode=True, context_folder="/some/folder")
-        )
+        result = _handle_research(_config(premium_mode=True, context_folder="/some/folder"))
         assert result == 1

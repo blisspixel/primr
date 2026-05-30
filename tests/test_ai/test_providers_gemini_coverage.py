@@ -24,9 +24,7 @@ def _provider():
 def _resp(text="reply", in_tok=10, out_tok=5):
     return SimpleNamespace(
         text=text,
-        usage_metadata=SimpleNamespace(
-            prompt_token_count=in_tok, candidates_token_count=out_tok
-        ),
+        usage_metadata=SimpleNamespace(prompt_token_count=in_tok, candidates_token_count=out_tok),
     )
 
 
@@ -62,9 +60,10 @@ def test_get_client_caches(monkeypatch):
 def test_get_client_import_error(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "k")
     p = _provider()
-    with patch(
-        "primr.ai.providers.gemini._GENAI_IMPORT_ERROR", ImportError("no genai")
-    ), pytest.raises(ProviderUnavailableError, match="not available"):
+    with (
+        patch("primr.ai.providers.gemini._GENAI_IMPORT_ERROR", ImportError("no genai")),
+        pytest.raises(ProviderUnavailableError, match="not available"),
+    ):
         p._get_client()
 
 
@@ -97,9 +96,7 @@ def test_chat_streaming():
     chunks = [SimpleNamespace(text="he"), SimpleNamespace(text="llo"), SimpleNamespace(text=None)]
     fake.models.generate_content_stream.return_value = iter(chunks)
     p._client = fake
-    result = p.chat(
-        [{"role": "user", "content": "hi"}], model="gemini-3-flash", streaming=True
-    )
+    result = p.chat([{"role": "user", "content": "hi"}], model="gemini-3-flash", streaming=True)
     assert result.text == "hello"
     # Streaming path has no usage_metadata -> zero tokens
     assert result.input_tokens == 0
@@ -108,11 +105,12 @@ def test_chat_streaming():
 def test_chat_empty_response_retries_and_fails():
     p = _provider()
     fake = MagicMock()
-    fake.models.generate_content.return_value = SimpleNamespace(
-        text="", usage_metadata=None
-    )
+    fake.models.generate_content.return_value = SimpleNamespace(text="", usage_metadata=None)
     p._client = fake
-    with patch("primr.ai.providers.gemini.time.sleep"), pytest.raises(RuntimeError, match="failed after"):
+    with (
+        patch("primr.ai.providers.gemini.time.sleep"),
+        pytest.raises(RuntimeError, match="failed after"),
+    ):
         p.chat([{"role": "user", "content": "hi"}], model="gemini-3-flash", retries=1)
 
 
@@ -141,9 +139,7 @@ def test_chat_rate_limited_retries_then_succeeds():
     ]
     p._client = fake
     with patch("primr.ai.providers.gemini.time.sleep"):
-        result = p.chat(
-            [{"role": "user", "content": "x"}], model="gemini-3-flash", retries=3
-        )
+        result = p.chat([{"role": "user", "content": "x"}], model="gemini-3-flash", retries=3)
     assert result.text == "recovered"
 
 
@@ -152,10 +148,11 @@ def test_chat_rate_limited_exhausts_retries():
     fake = MagicMock()
     fake.models.generate_content.side_effect = Exception("429 rate limited")
     p._client = fake
-    with patch("primr.ai.providers.gemini.time.sleep"), pytest.raises(RuntimeError, match="failed after"):
-        p.chat(
-            [{"role": "user", "content": "x"}], model="gemini-3-flash", retries=1
-        )
+    with (
+        patch("primr.ai.providers.gemini.time.sleep"),
+        pytest.raises(RuntimeError, match="failed after"),
+    ):
+        p.chat([{"role": "user", "content": "x"}], model="gemini-3-flash", retries=1)
 
 
 def test_chat_generic_error_retries_then_succeeds():
@@ -167,9 +164,7 @@ def test_chat_generic_error_retries_then_succeeds():
     ]
     p._client = fake
     with patch("primr.ai.providers.gemini.time.sleep"):
-        result = p.chat(
-            [{"role": "user", "content": "x"}], model="gemini-3-flash", retries=2
-        )
+        result = p.chat([{"role": "user", "content": "x"}], model="gemini-3-flash", retries=2)
     assert result.text == "ok"
 
 
@@ -178,10 +173,11 @@ def test_chat_generic_error_exhausts():
     fake = MagicMock()
     fake.models.generate_content.side_effect = Exception("persistent failure")
     p._client = fake
-    with patch("primr.ai.providers.gemini.time.sleep"), pytest.raises(RuntimeError, match="failed after"):
-        p.chat(
-            [{"role": "user", "content": "x"}], model="gemini-3-flash", retries=1
-        )
+    with (
+        patch("primr.ai.providers.gemini.time.sleep"),
+        pytest.raises(RuntimeError, match="failed after"),
+    ):
+        p.chat([{"role": "user", "content": "x"}], model="gemini-3-flash", retries=1)
 
 
 # ---------------------------------------------------------------------------

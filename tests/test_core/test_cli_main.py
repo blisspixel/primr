@@ -15,18 +15,14 @@ def passing_validation(monkeypatch):
     result = MagicMock()
     result.valid = True
     result.errors = []
-    monkeypatch.setattr(
-        "primr.utils.config_validation.validate_config", lambda **kw: result
-    )
+    monkeypatch.setattr("primr.utils.config_validation.validate_config", lambda **kw: result)
     monkeypatch.setattr("primr.utils.config_validation.reset_config", lambda: None)
 
 
 @pytest.fixture
 def stub_logging(monkeypatch):
     """Skip log setup side effects."""
-    monkeypatch.setattr(
-        "primr.utils.logging_config.setup_logging", lambda **kw: None
-    )
+    monkeypatch.setattr("primr.utils.logging_config.setup_logging", lambda **kw: None)
 
 
 class TestMainDispatch:
@@ -53,18 +49,14 @@ class TestMainDispatch:
 
 
 class TestMainHandlerRouting:
-    def test_doctor_routes_to_handler(
-        self, passing_validation, stub_logging, monkeypatch
-    ):
+    def test_doctor_routes_to_handler(self, passing_validation, stub_logging, monkeypatch):
         handler = MagicMock(return_value=0)
         monkeypatch.setattr("primr.core.cli._handle_doctor", handler)
         result = main(["doctor"])
         assert result == 0
         handler.assert_called_once()
 
-    def test_init_routes_to_handler(
-        self, passing_validation, stub_logging, monkeypatch
-    ):
+    def test_init_routes_to_handler(self, passing_validation, stub_logging, monkeypatch):
         handler = MagicMock(return_value=0)
         monkeypatch.setattr("primr.core.cli._handle_init", handler)
         assert main(["init"]) == 0
@@ -74,9 +66,7 @@ class TestMainHandlerRouting:
         monkeypatch.setattr("primr.core.cli._handle_list_recent", handler)
         assert main(["--list-recent"]) == 0
 
-    def test_list_strategies_routes(
-        self, passing_validation, stub_logging, monkeypatch
-    ):
+    def test_list_strategies_routes(self, passing_validation, stub_logging, monkeypatch):
         handler = MagicMock(return_value=0)
         monkeypatch.setattr("primr.core.cli._handle_list_strategies", handler)
         assert main(["--list-strategies"]) == 0
@@ -92,9 +82,7 @@ class TestMainValidationFailure:
         result = MagicMock()
         result.valid = False
         result.errors = ["bad config"]
-        monkeypatch.setattr(
-            "primr.utils.config_validation.validate_config", lambda **kw: result
-        )
+        monkeypatch.setattr("primr.utils.config_validation.validate_config", lambda **kw: result)
         # Make non-interactive so we don't get into the prompt path
         monkeypatch.setattr(
             "primr.core.cli._should_offer_interactive_key_setup",
@@ -104,11 +92,7 @@ class TestMainValidationFailure:
 
 
 class TestBannerOnlyMode:
-    def test_banner_with_no_args_returns_0(
-        self, passing_validation, stub_logging, monkeypatch
-    ):
-        monkeypatch.setattr(
-            "primr.utils.banner.maybe_show_startup_banner", lambda **kw: None
-        )
+    def test_banner_with_no_args_returns_0(self, passing_validation, stub_logging, monkeypatch):
+        monkeypatch.setattr("primr.utils.banner.maybe_show_startup_banner", lambda **kw: None)
         result = main(["--banner", "static"])
         assert result == 0

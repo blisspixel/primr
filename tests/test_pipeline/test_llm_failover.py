@@ -119,9 +119,7 @@ class TestQuotaFailover:
         # The successful model must not be the exhausted first model.
         assert calls[-1] != first_model
 
-    def test_all_models_exhausted_raises_runtime_error(
-        self, fresh_breaker, all_keys_set
-    ):
+    def test_all_models_exhausted_raises_runtime_error(self, fresh_breaker, all_keys_set):
         """When every model in the chain quotas out, we surface RuntimeError."""
 
         def fake_llm(prompt: str, *, model: str, **kw) -> str:
@@ -134,9 +132,7 @@ class TestQuotaFailover:
                 grok_llm_fn=fake_llm,
             )
 
-    def test_non_quota_error_propagates_immediately(
-        self, fresh_breaker, all_keys_set
-    ):
+    def test_non_quota_error_propagates_immediately(self, fresh_breaker, all_keys_set):
         """A regular exception (not QuotaExhaustedError) bubbles up without retry."""
         calls: list[str] = []
 
@@ -192,9 +188,7 @@ class TestPreferredModel:
         # First call uses the default chain head, not the unusable preferred.
         assert calls[0] == _chain_for_role(LLMRole.REASONING).models[0]
 
-    def test_usable_preferred_model_outside_chain_is_honored(
-        self, fresh_breaker, all_keys_set
-    ):
+    def test_usable_preferred_model_outside_chain_is_honored(self, fresh_breaker, all_keys_set):
         """A real model that is NOT a standing chain member must still be tried
         first. This is the cost-cap fix: fast-mode writing routes to
         gemini-3.1-flash-lite, which is absent from UTILITY_FALLBACK_CHAIN and

@@ -152,7 +152,9 @@ class TestManifestLatest:
         out = tmp_path / "output" / "acme"
         out.mkdir(parents=True)
         manifest = out / "run_manifest.json"
-        manifest.write_text(json.dumps({"job_id": "abc", "schema_version": "1.0"}), encoding="utf-8")
+        manifest.write_text(
+            json.dumps({"job_id": "abc", "schema_version": "1.0"}), encoding="utf-8"
+        )
         data = await _read(server, "primr://output/manifest/latest")
         assert data["job_id"] == "abc"
 

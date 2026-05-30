@@ -53,10 +53,7 @@ def _create_parser() -> argparse.ArgumentParser:
         "--roles",
         type=int,
         default=DEFAULT_ROLES,
-        help=(
-            f"Number of roles to generate ({MIN_ROLES}-{MAX_ROLES}, "
-            f"default {DEFAULT_ROLES})."
-        ),
+        help=(f"Number of roles to generate ({MIN_ROLES}-{MAX_ROLES}, default {DEFAULT_ROLES})."),
     )
     parser.add_argument(
         "--skills-per-role",
@@ -115,8 +112,8 @@ def _create_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         help=(
-            "Comma-separated list of role labels (e.g. \"Account Executive,"
-            "Cloud Migration Consultant\") that bypasses automatic planning. "
+            'Comma-separated list of role labels (e.g. "Account Executive,'
+            'Cloud Migration Consultant") that bypasses automatic planning. '
             "Up to MAX_ROLES labels accepted. Each label feeds straight to "
             "authoring with archetype matching applied. Mutually exclusive "
             "with --roles-add / --roles-skip."
@@ -128,7 +125,7 @@ def _create_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Comma-separated list of role labels to ADD to the discovered "
-            "roster (e.g. \"Account Executive,Procurement Manager\"). "
+            'roster (e.g. "Account Executive,Procurement Manager"). '
             "Composes with --from-plan to augment a saved plan. Added "
             "roles are marked with provenance=override and authored "
             "alongside discovered roles. Subject to the MAX_ROLES cap "
@@ -141,8 +138,8 @@ def _create_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Comma-separated list of role labels or kebab-case slugs to "
-            "REMOVE from the discovered roster (e.g. \"Marketing Manager,"
-            "devops-engineer\"). Composes with --from-plan to prune a "
+            'REMOVE from the discovered roster (e.g. "Marketing Manager,'
+            'devops-engineer"). Composes with --from-plan to prune a '
             "saved plan. Unmatched names log a warning. Hard error if "
             "curation leaves an empty roster."
         ),
@@ -255,9 +252,7 @@ def run_skills_cli(args: list[str] | None) -> int:
 
     try:
         config = SkillPackConfig(
-            roles_count=(
-                len(override_labels) if override_labels else parsed.roles
-            ),
+            roles_count=(len(override_labels) if override_labels else parsed.roles),
             skills_per_role=parsed.skills_per_role,
             formats=SkillPackFormat(parsed.formats),
             max_refine_iterations=parsed.max_refine_iterations,
@@ -333,8 +328,9 @@ def run_skills_cli(args: list[str] | None) -> int:
 
     print()
 
-    def _format_roster_breakdown(plan_roster: int, obs: int, plaus: int,
-                                  added: int, skipped: int) -> str:
+    def _format_roster_breakdown(
+        plan_roster: int, obs: int, plaus: int, added: int, skipped: int
+    ) -> str:
         parts = [f"{obs} observed", f"{plaus} plausible"]
         if added:
             parts.append(f"{added} added")
@@ -362,7 +358,7 @@ def run_skills_cli(args: list[str] | None) -> int:
                 print(f"  Plan (json): {plan.plan_json_path}")
                 print(
                     "  To author against this plan: "
-                    f"primr skills \"{pack.company_name}\" "
+                    f'primr skills "{pack.company_name}" '
                     f"--from-plan {plan.plan_json_path}"
                 )
             else:
@@ -383,14 +379,8 @@ def run_skills_cli(args: list[str] | None) -> int:
                 "produced (planning was bypassed)."
             )
             if override_labels:
-                print(
-                    f"  Override roster ({len(override_labels)}): "
-                    + ", ".join(override_labels)
-                )
-            print(
-                "  Drop --plan-only or drop --roles-override to choose "
-                "one of the two flows."
-            )
+                print(f"  Override roster ({len(override_labels)}): " + ", ".join(override_labels))
+            print("  Drop --plan-only or drop --roles-override to choose one of the two flows.")
         return 0
 
     print(f"Skill pack complete for {pack.company_name}")
@@ -398,13 +388,14 @@ def run_skills_cli(args: list[str] | None) -> int:
     plausible = pack.plausible_role_count
     added = pack.operator_added_role_count
     if observed or plausible or added:
-        target_segment = (
-            "" if config.from_plan_path else f"; target {config.roles_count}"
-        )
+        target_segment = "" if config.from_plan_path else f"; target {config.roles_count}"
         print(
             "  Roles: "
             + _format_roster_breakdown(
-                len(pack.roles), observed, plausible, added,
+                len(pack.roles),
+                observed,
+                plausible,
+                added,
                 len(pack.plan.operator_skipped) if pack.plan is not None else 0,
             ).rstrip(")")
             + f"{target_segment})"

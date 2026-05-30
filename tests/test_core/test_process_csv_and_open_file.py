@@ -24,20 +24,14 @@ def sample_csv(tmp_path):
 class TestProcessCsv:
     def test_processes_every_row(self, sample_csv, monkeypatch):
         perform_mock = MagicMock(return_value="/output/report.docx")
-        monkeypatch.setattr(
-            "primr.core.research_agent.perform_research", perform_mock
-        )
+        monkeypatch.setattr("primr.core.research_agent.perform_research", perform_mock)
         process_csv(str(sample_csv))
         assert perform_mock.call_count == 2
 
     def test_swallows_per_row_exceptions(self, sample_csv, monkeypatch):
         # First raises, second succeeds — loop must continue
-        perform_mock = MagicMock(
-            side_effect=[RuntimeError("boom"), "/output/report.docx"]
-        )
-        monkeypatch.setattr(
-            "primr.core.research_agent.perform_research", perform_mock
-        )
+        perform_mock = MagicMock(side_effect=[RuntimeError("boom"), "/output/report.docx"])
+        monkeypatch.setattr("primr.core.research_agent.perform_research", perform_mock)
         process_csv(str(sample_csv))
         assert perform_mock.call_count == 2
 
@@ -48,17 +42,13 @@ class TestProcessCsv:
             writer.writeheader()
             writer.writerow({"company_name": "", "website": ""})
         perform_mock = MagicMock()
-        monkeypatch.setattr(
-            "primr.core.research_agent.perform_research", perform_mock
-        )
+        monkeypatch.setattr("primr.core.research_agent.perform_research", perform_mock)
         process_csv(str(path))
         perform_mock.assert_not_called()
 
     def test_passes_mode_and_platforms(self, sample_csv, monkeypatch):
         perform_mock = MagicMock(return_value="/output/report.docx")
-        monkeypatch.setattr(
-            "primr.core.research_agent.perform_research", perform_mock
-        )
+        monkeypatch.setattr("primr.core.research_agent.perform_research", perform_mock)
         process_csv(
             str(sample_csv),
             mode="scrape",
@@ -79,9 +69,7 @@ class TestProcessCsv:
             writer.writeheader()
             writer.writerow({"company_name": "", "website": "https://x.example"})
         perform_mock = MagicMock(return_value="/output/report.docx")
-        monkeypatch.setattr(
-            "primr.core.research_agent.perform_research", perform_mock
-        )
+        monkeypatch.setattr("primr.core.research_agent.perform_research", perform_mock)
         process_csv(str(path))
         perform_mock.assert_called_once()
 
@@ -89,9 +77,7 @@ class TestProcessCsv:
 class TestOpenFile:
     def test_invokes_default_opener(self, monkeypatch):
         opener_mock = MagicMock()
-        monkeypatch.setattr(
-            "primr.utils.files.open_with_default_app", opener_mock
-        )
+        monkeypatch.setattr("primr.utils.files.open_with_default_app", opener_mock)
         open_file("/path/to/x.docx")
         opener_mock.assert_called_once_with("/path/to/x.docx")
 

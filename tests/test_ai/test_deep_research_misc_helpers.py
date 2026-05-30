@@ -29,10 +29,7 @@ class TestConsultingPromptBuilderChecks:
 
     def test_contains_consulting_persona_true(self):
         b = ConsultingPromptBuilder()
-        assert (
-            b.contains_consulting_persona("You are a Senior Strategy Consultant.")
-            is True
-        )
+        assert b.contains_consulting_persona("You are a Senior Strategy Consultant.") is True
 
     def test_contains_consulting_persona_false(self):
         b = ConsultingPromptBuilder()
@@ -112,9 +109,7 @@ class TestValidatePrerequisites:
         assert result["estimated_cost"] == 0.5
 
     @pytest.mark.asyncio
-    async def test_returns_failure_dict_on_validator_fail(
-        self, orchestrator, monkeypatch
-    ):
+    async def test_returns_failure_dict_on_validator_fail(self, orchestrator, monkeypatch):
         validator = MagicMock()
         result_obj = MagicMock()
         result_obj.success = False

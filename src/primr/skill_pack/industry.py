@@ -83,8 +83,7 @@ def classify_from_report(report_text: str) -> IndustryClassification | None:
 
     # Confidence reflects how many of the four fields the report yielded.
     matched_fields = sum(
-        1 for m in (industry_match, model_match, stage_match, employee_match)
-        if m is not None
+        1 for m in (industry_match, model_match, stage_match, employee_match) if m is not None
     )
     if matched_fields >= 3:
         confidence = "High"
@@ -154,7 +153,7 @@ def classify_via_llm(
         "classification. Return ONLY valid JSON matching this schema:\n"
         "{\n"
         '  "business_model": "B2B SaaS | Services / Reseller | Marketplace | '
-        'Hardware / OEM | Regulated Finance | Healthcare | Government / '
+        "Hardware / OEM | Regulated Finance | Healthcare | Government / "
         'Public Sector | Education | Media | Other",\n'
         '  "industry_vertical": "<short label, e.g. Cybersecurity, Logistics, '
         'HR Tech, FinTech, Cloud Reseller, Education Tech>",\n'

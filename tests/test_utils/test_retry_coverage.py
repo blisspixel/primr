@@ -22,9 +22,7 @@ from primr.utils.retry import (
 
 
 def _transient(msg="boom", retry_after=None):
-    return PrimrError(
-        msg, category="transient", recoverable=True, retry_after=retry_after
-    )
+    return PrimrError(msg, category="transient", recoverable=True, retry_after=retry_after)
 
 
 class TestRetryPolicyValidation:

@@ -148,10 +148,7 @@ def evaluate_scrape_pilot(
         and avg_chars >= max(SCRAPE_PILOT_MIN_CHARS * 3, 2000)
         and (
             pilot_success >= 3
-            or (
-                pilot_success >= 2
-                and pilot_chars_total >= max(SCRAPE_PILOT_MIN_CHARS * 6, 4000)
-            )
+            or (pilot_success >= 2 and pilot_chars_total >= max(SCRAPE_PILOT_MIN_CHARS * 6, 4000))
         )
     )
     useful_corpus_relief = pilot_success >= 4 and pilot_chars_total >= max(MIN_SCRAPED_CHARS, 4000)
@@ -675,8 +672,7 @@ def fetch_web_content(
         filtered_links = [
             link
             for link in recovery_links
-            if is_in_scope(link.url, base_url)
-            and _is_recoverable_selected_url(link.url, base_url)
+            if is_in_scope(link.url, base_url) and _is_recoverable_selected_url(link.url, base_url)
         ]
         return [link.url for link in filtered_links[:limit]]
 

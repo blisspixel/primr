@@ -46,8 +46,7 @@ class TestPreflightPlaywrightFailure:
         ):
             ok, errors = _run_preflight_checks("complete")
         assert any(
-            "playwright install" in e.lower() or "browsers not installed" in e
-            for e in errors
+            "playwright install" in e.lower() or "browsers not installed" in e for e in errors
         )
 
 

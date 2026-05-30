@@ -140,7 +140,10 @@ class TestBuildPrompt:
 
 class TestIdentifyReportType:
     def test_ai_strategy_from_content(self, analyzer):
-        assert analyzer._identify_report_type(_report(content="our ai strategy roadmap")) == "AI Strategy"
+        assert (
+            analyzer._identify_report_type(_report(content="our ai strategy roadmap"))
+            == "AI Strategy"
+        )
 
     def test_ai_strategy_from_section(self, analyzer):
         r = _report(sections={"AI Strategy": "x"})
@@ -188,9 +191,7 @@ class TestExpectedSections:
         assert "Executive Summary" in sections
 
     def test_existing_long_sections_appended(self, analyzer):
-        sections = analyzer._get_expected_sections(
-            "Unknown", ["A Very Distinct Custom Section"]
-        )
+        sections = analyzer._get_expected_sections("Unknown", ["A Very Distinct Custom Section"])
         assert "A Very Distinct Custom Section" in sections
 
     def test_short_existing_section_skipped(self, analyzer):

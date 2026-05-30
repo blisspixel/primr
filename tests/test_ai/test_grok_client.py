@@ -62,9 +62,7 @@ def test_grok_llm_retries_on_503_then_succeeds(monkeypatch):
 
     monkeypatch.setattr(grok_client, "_get_grok_client", lambda: client)
     monkeypatch.setattr(openai_compatible.time, "sleep", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(
-        openai_compatible, "_compute_backoff_delay", lambda *_args, **_kwargs: 0.0
-    )
+    monkeypatch.setattr(openai_compatible, "_compute_backoff_delay", lambda *_args, **_kwargs: 0.0)
 
     out = grok_client.grok_llm("hello", retries=1)
 
@@ -87,9 +85,7 @@ def test_grok_llm_exhausts_retryable_errors(monkeypatch):
 
     monkeypatch.setattr(grok_client, "_get_grok_client", lambda: client)
     monkeypatch.setattr(openai_compatible.time, "sleep", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(
-        openai_compatible, "_compute_backoff_delay", lambda *_args, **_kwargs: 0.0
-    )
+    monkeypatch.setattr(openai_compatible, "_compute_backoff_delay", lambda *_args, **_kwargs: 0.0)
 
     with pytest.raises(RuntimeError, match="after 2 attempts"):
         grok_client.grok_llm("hello", retries=1)

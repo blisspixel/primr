@@ -87,9 +87,7 @@ class TestBuildComprehensivePrompt:
         composed.content = "FULL PROMPT FOR Acme Corp"
         composer = MagicMock()
         composer.compose.return_value = composed
-        with patch(
-            "primr.prompts.composer.PromptComposer", return_value=composer
-        ):
+        with patch("primr.prompts.composer.PromptComposer", return_value=composer):
             result = builder.build_comprehensive_prompt("Acme Corp")
             assert result == "FULL PROMPT FOR Acme Corp"
             # Composer was called with "company_overview"
@@ -101,12 +99,8 @@ class TestBuildComprehensivePrompt:
         composed.content = "PROMPT"
         composer = MagicMock()
         composer.compose.return_value = composed
-        with patch(
-            "primr.prompts.composer.PromptComposer", return_value=composer
-        ):
-            builder.build_comprehensive_prompt(
-                "Acme", website_url="https://acme.example"
-            )
+        with patch("primr.prompts.composer.PromptComposer", return_value=composer):
+            builder.build_comprehensive_prompt("Acme", website_url="https://acme.example")
         context = composer.compose.call_args.args[1]
         assert context.website_url == "https://acme.example"
 
@@ -115,9 +109,7 @@ class TestBuildComprehensivePrompt:
         composed.content = "PROMPT"
         composer = MagicMock()
         composer.compose.return_value = composed
-        with patch(
-            "primr.prompts.composer.PromptComposer", return_value=composer
-        ):
+        with patch("primr.prompts.composer.PromptComposer", return_value=composer):
             builder.build_comprehensive_prompt("Acme")
         context = composer.compose.call_args.args[1]
         assert context.website_url is None

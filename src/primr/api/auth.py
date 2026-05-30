@@ -153,9 +153,7 @@ class APIKeyAuth:
             # — effectively reviving a retired credential indefinitely.
             now = datetime.now()
             if old_info.expires_at and now > old_info.expires_at:
-                logger.warning(
-                    "Refusing to rotate expired key: %s", old_info.name
-                )
+                logger.warning("Refusing to rotate expired key: %s", old_info.name)
                 old_info.is_active = False
                 return None
             if old_info.rotation_grace_until and now > old_info.rotation_grace_until:

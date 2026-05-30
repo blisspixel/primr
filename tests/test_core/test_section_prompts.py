@@ -58,33 +58,25 @@ class TestLoadFastFeedbackGuidance:
     def test_returns_file_contents(self, tmp_path, monkeypatch):
         path = tmp_path / "rules.md"
         path.write_text("guidance text", encoding="utf-8")
-        monkeypatch.setattr(
-            "primr.core.section_prompts.FAST_FEEDBACK_RULES_PATH", str(path)
-        )
+        monkeypatch.setattr("primr.core.section_prompts.FAST_FEEDBACK_RULES_PATH", str(path))
         assert _load_fast_feedback_guidance() == "guidance text"
 
     def test_returns_empty_when_file_blank(self, tmp_path, monkeypatch):
         path = tmp_path / "rules.md"
         path.write_text("   \n\n", encoding="utf-8")
-        monkeypatch.setattr(
-            "primr.core.section_prompts.FAST_FEEDBACK_RULES_PATH", str(path)
-        )
+        monkeypatch.setattr("primr.core.section_prompts.FAST_FEEDBACK_RULES_PATH", str(path))
         assert _load_fast_feedback_guidance() == ""
 
     def test_caps_at_4000_chars(self, tmp_path, monkeypatch):
         path = tmp_path / "rules.md"
         path.write_text("x" * 5_000, encoding="utf-8")
-        monkeypatch.setattr(
-            "primr.core.section_prompts.FAST_FEEDBACK_RULES_PATH", str(path)
-        )
+        monkeypatch.setattr("primr.core.section_prompts.FAST_FEEDBACK_RULES_PATH", str(path))
         assert len(_load_fast_feedback_guidance()) == 4_000
 
     def test_returns_empty_on_read_error(self, tmp_path, monkeypatch):
         path = tmp_path / "rules.md"
         path.write_text("text", encoding="utf-8")
-        monkeypatch.setattr(
-            "primr.core.section_prompts.FAST_FEEDBACK_RULES_PATH", str(path)
-        )
+        monkeypatch.setattr("primr.core.section_prompts.FAST_FEEDBACK_RULES_PATH", str(path))
         # Patch read_text to raise
         with patch(
             "primr.core.section_prompts.Path.read_text",
@@ -248,8 +240,16 @@ class TestBuildFastBatchPrompt:
             return_value="REVISED RULES",
         ):
             prompt = _build_fast_batch_prompt(
-                "Acme", "https://a.example", "WB", "RAW", "EXT",
-                ["https://a.example"], [_FakeSection(id="s")], [], 0, 1,
+                "Acme",
+                "https://a.example",
+                "WB",
+                "RAW",
+                "EXT",
+                ["https://a.example"],
+                [_FakeSection(id="s")],
+                [],
+                0,
+                1,
             )
         assert "REVISED RULES" in prompt
         assert "FAST FEEDBACK GUIDANCE" in prompt
@@ -326,15 +326,11 @@ class TestBuildFastSectionPrompt:
         assert "..." in prompt
 
     def test_word_target_reflects_section_id(self):
-        prompt = self._build(
-            section=_FakeSection(id="executive_summary", name="Exec")
-        )
+        prompt = self._build(section=_FakeSection(id="executive_summary", name="Exec"))
         assert "1,200" in prompt
 
     def test_word_target_default_for_unknown_id(self):
-        prompt = self._build(
-            section=_FakeSection(id="random", name="Random")
-        )
+        prompt = self._build(section=_FakeSection(id="random", name="Random"))
         assert "800" in prompt
 
     def test_empty_sources_block(self):
@@ -362,9 +358,16 @@ def test_section_prompt_index_in_header(section_index, total):
         return_value="",
     ):
         prompt = _build_fast_section_prompt(
-            "Acme", "https://a.example", "WB", "RAW", "EXT",
-            [], _FakeSection(id="s", name="Name"),
-            [], section_index, [f"Name-{i}" for i in range(total)],
+            "Acme",
+            "https://a.example",
+            "WB",
+            "RAW",
+            "EXT",
+            [],
+            _FakeSection(id="s", name="Name"),
+            [],
+            section_index,
+            [f"Name-{i}" for i in range(total)],
             reasoning_mode="standard",
         )
     assert f"Section:** {section_index + 1} of {total}" in prompt

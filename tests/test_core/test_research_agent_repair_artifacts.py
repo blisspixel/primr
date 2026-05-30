@@ -25,9 +25,7 @@ class TestRepairStrategyArtifactIssues:
 
     def test_no_issues_returns_unchanged(self):
         original = "## Section\n\nbody content here"
-        result = _repair_strategy_artifact_issues(
-            original, "Acme", "azure", "Microsoft", [], []
-        )
+        result = _repair_strategy_artifact_issues(original, "Acme", "azure", "Microsoft", [], [])
         assert result == original
 
     def test_llm_exception_returns_original(self, monkeypatch):
@@ -47,9 +45,7 @@ class TestRepairStrategyArtifactIssues:
         assert result == original
 
     def test_empty_llm_response_returns_original(self, monkeypatch):
-        monkeypatch.setattr(
-            "primr.ai.grok_client.grok_llm", MagicMock(return_value="")
-        )
+        monkeypatch.setattr("primr.ai.grok_client.grok_llm", MagicMock(return_value=""))
         original = "## Section\n\nbody"
         result = _repair_strategy_artifact_issues(
             original,
@@ -63,9 +59,7 @@ class TestRepairStrategyArtifactIssues:
 
     def test_repaired_content_returned(self, monkeypatch):
         repaired = "## Section\n\nrepaired body"
-        monkeypatch.setattr(
-            "primr.ai.grok_client.grok_llm", MagicMock(return_value=repaired)
-        )
+        monkeypatch.setattr("primr.ai.grok_client.grok_llm", MagicMock(return_value=repaired))
         result = _repair_strategy_artifact_issues(
             "## Section\n\noriginal body",
             "Acme",
@@ -123,10 +117,6 @@ class TestPrepareStrategyForOutput:
         assert isinstance(rejected, list)
 
     def test_returns_tuple_of_three(self, monkeypatch):
-        monkeypatch.setattr(
-            "primr.ai.grok_client.grok_llm", MagicMock(return_value="ok")
-        )
-        result = _prepare_strategy_for_output(
-            "", "Acme", "azure", "Microsoft", []
-        )
+        monkeypatch.setattr("primr.ai.grok_client.grok_llm", MagicMock(return_value="ok"))
+        result = _prepare_strategy_for_output("", "Acme", "azure", "Microsoft", [])
         assert len(result) == 3

@@ -37,7 +37,11 @@ class TestManagedHttpClient:
 
     def test_closes_on_exception(self):
         fake_client = MagicMock()
-        with patch("httpx.Client", return_value=fake_client), pytest.raises(RuntimeError), managed_http_client():
+        with (
+            patch("httpx.Client", return_value=fake_client),
+            pytest.raises(RuntimeError),
+            managed_http_client(),
+        ):
             raise RuntimeError("boom")
         fake_client.close.assert_called_once()
 
@@ -46,7 +50,11 @@ class TestManagedTempDir:
     def test_cleanup_failure_logs_warning(self, caplog):
         import logging
 
-        with caplog.at_level(logging.WARNING), patch("shutil.rmtree", side_effect=OSError("locked")), managed_temp_dir() as d:
+        with (
+            caplog.at_level(logging.WARNING),
+            patch("shutil.rmtree", side_effect=OSError("locked")),
+            managed_temp_dir() as d,
+        ):
             assert d.exists()
         assert any("Failed to delete temp dir" in r.message for r in caplog.records)
 
@@ -209,9 +217,7 @@ class TestSigintHandlers:
         install_sigint_handler()
         try:
             handler = captured["handler"]
-            with patch.object(
-                res, "get_resource_manager"
-            ) as mock_get:
+            with patch.object(res, "get_resource_manager") as mock_get:
                 mock_get.return_value = MagicMock()
                 with pytest.raises(SystemExit):
                     handler(2, None)

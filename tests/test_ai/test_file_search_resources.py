@@ -69,9 +69,7 @@ class TestResourceAgeSeconds:
 
     def test_falls_back_to_display_name_timestamp(self):
         ts = int(time.time()) - 200
-        age = _resource_age_seconds(
-            SimpleNamespace(display_name=f"primr-vendor_research_{ts}")
-        )
+        age = _resource_age_seconds(SimpleNamespace(display_name=f"primr-vendor_research_{ts}"))
         assert age is not None
         assert 199 < age < 201
 

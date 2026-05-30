@@ -133,31 +133,19 @@ class TestDetermineSectionReasoningMode:
 
     def test_industry_outlook_without_evidence(self):
         section = _FakeSection(id="industry_outlook")
-        assert (
-            _determine_section_reasoning_mode(section, "")
-            == "constrained_evidence"
-        )
+        assert _determine_section_reasoning_mode(section, "") == "constrained_evidence"
 
     def test_empty_workbook_returns_constrained_for_known_id(self):
         section = _FakeSection(id="financial_profile")
-        assert (
-            _determine_section_reasoning_mode(section, "")
-            == "constrained_evidence"
-        )
+        assert _determine_section_reasoning_mode(section, "") == "constrained_evidence"
 
     def test_none_workbook_returns_constrained_for_known_id(self):
         section = _FakeSection(id="financial_profile")
-        assert (
-            _determine_section_reasoning_mode(section, None)
-            == "constrained_evidence"
-        )
+        assert _determine_section_reasoning_mode(section, None) == "constrained_evidence"
 
     def test_case_insensitive_match(self):
         section = _FakeSection(id="financial_profile")
-        assert (
-            _determine_section_reasoning_mode(section, "REVENUE is strong")
-            == "standard"
-        )
+        assert _determine_section_reasoning_mode(section, "REVENUE is strong") == "standard"
 
 
 class TestGroupSectionsByPart:

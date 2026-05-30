@@ -13,9 +13,7 @@ class TestFastCrossValidate:
             "primr.ai.grok_client.grok_llm",
             MagicMock(return_value=""),
         )
-        result = _fast_cross_validate(
-            "Acme", "https://acme.example", "report body", []
-        )
+        result = _fast_cross_validate("Acme", "https://acme.example", "report body", [])
         assert result["weak_sections"] == []
         assert result["contradictions"] == []
 
@@ -24,9 +22,7 @@ class TestFastCrossValidate:
             "primr.ai.grok_client.grok_llm",
             MagicMock(side_effect=RuntimeError("LLM down")),
         )
-        result = _fast_cross_validate(
-            "Acme", "https://acme.example", "report body", []
-        )
+        result = _fast_cross_validate("Acme", "https://acme.example", "report body", [])
         assert result["weak_sections"] == []
         assert result.get("_failed") is True
 
@@ -40,9 +36,7 @@ class TestFastCrossValidate:
             "primr.ai.grok_client.grok_llm",
             MagicMock(return_value=response),
         )
-        result = _fast_cross_validate(
-            "Acme", "https://acme.example", "body", []
-        )
+        result = _fast_cross_validate("Acme", "https://acme.example", "body", [])
         assert len(result["weak_sections"]) == 1
         assert result["weak_sections"][0]["title"] == "## Financials"
         assert result["contradictions"] == ["revenue conflicts"]
@@ -53,30 +47,23 @@ class TestFastCrossValidate:
             "primr.ai.grok_client.grok_llm",
             MagicMock(return_value=response),
         )
-        result = _fast_cross_validate(
-            "Acme", "https://acme.example", "body", []
-        )
+        result = _fast_cross_validate("Acme", "https://acme.example", "body", [])
         assert result["weak_sections"] == []
         assert result["contradictions"] == []
 
     def test_extracts_json_when_surrounded_by_prose(self, monkeypatch):
         response = (
-            'Here is the analysis: {"weak_sections": [], "contradictions": []} '
-            "End of analysis."
+            'Here is the analysis: {"weak_sections": [], "contradictions": []} End of analysis.'
         )
         monkeypatch.setattr(
             "primr.ai.grok_client.grok_llm",
             MagicMock(return_value=response),
         )
-        result = _fast_cross_validate(
-            "Acme", "https://acme.example", "body", []
-        )
+        result = _fast_cross_validate("Acme", "https://acme.example", "body", [])
         assert result["weak_sections"] == []
 
     def test_caps_weak_sections_at_3(self, monkeypatch):
-        weak_sections = [
-            {"title": f"## S{i}", "reason": "r", "queries": ["q"]} for i in range(10)
-        ]
+        weak_sections = [{"title": f"## S{i}", "reason": "r", "queries": ["q"]} for i in range(10)]
         import json
 
         response = json.dumps({"weak_sections": weak_sections, "contradictions": []})

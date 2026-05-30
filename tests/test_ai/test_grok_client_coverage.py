@@ -18,9 +18,7 @@ from primr.ai import grok_client
 
 
 def test_is_billing_exhausted_delegates(monkeypatch):
-    monkeypatch.setattr(
-        "primr.ai.error_policy.is_billing_exhausted", lambda e: True
-    )
+    monkeypatch.setattr("primr.ai.error_policy.is_billing_exhausted", lambda e: True)
     assert grok_client._is_billing_exhausted(Exception("402")) is True
 
 
@@ -100,13 +98,9 @@ def test_grok_llm_cross_provider_dispatch(monkeypatch):
     cross_provider.chat.return_value = SimpleNamespace(
         text="gemini reply", input_tokens=5, output_tokens=3
     )
-    monkeypatch.setattr(
-        "primr.ai.routing.get_provider_for_model", lambda model: cross_provider
-    )
+    monkeypatch.setattr("primr.ai.routing.get_provider_for_model", lambda model: cross_provider)
 
-    out = grok_client.grok_llm(
-        "hello", model="gemini-3.1-flash-lite", reasoning_effort="low"
-    )
+    out = grok_client.grok_llm("hello", model="gemini-3.1-flash-lite", reasoning_effort="low")
 
     assert out == "gemini reply"
     # reasoning_effort forwarded

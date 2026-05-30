@@ -81,7 +81,9 @@ def test_build_full_document():
         "value_theory": "Value is created through scale.",
         "industry_insights": "The industry faces fierce competition and uncertainty.",
     }
-    builder = DocumentBuilder("Acme", sections, citations=[{"title": "Ref", "url": "https://r.example"}])
+    builder = DocumentBuilder(
+        "Acme", sections, citations=[{"title": "Ref", "url": "https://r.example"}]
+    )
     doc = builder.build()
     assert isinstance(doc, DocxDocument)
     # Document should contain headings we know are added.
@@ -175,7 +177,9 @@ def test_render_block_paragraph_with_inline_header():
         "paragraph",
         [
             ParsedLine("text", "leading text", 0, "leading text"),
-            ParsedLine("inline_header", "the value", 0, "Label: the value", {"header_text": "Label"}),
+            ParsedLine(
+                "inline_header", "the value", 0, "Label: the value", {"header_text": "Label"}
+            ),
             ParsedLine("text", "trailing text", 0, "trailing text"),
         ],
     )

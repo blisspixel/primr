@@ -36,9 +36,7 @@ def _enforce_fast_section_quality_guards(report_content: str) -> str:
     if not sections:
         return report_content
 
-    label_pattern = re.compile(
-        r"\((Confirmed|Reported|Estimated|Hypothesis)[^)]*\)", re.IGNORECASE
-    )
+    label_pattern = re.compile(r"\((Confirmed|Reported|Estimated|Hypothesis)[^)]*\)", re.IGNORECASE)
     reference_headings = {"sources", "citations", "references"}
     rebuilt: list[str] = [preamble] if preamble else []
 
@@ -51,8 +49,7 @@ def _enforce_fast_section_quality_guards(report_content: str) -> str:
                 guarded_body = (guarded_body + "\n\n(Reported)").strip()
             if "what to validate" not in guarded_body.lower():
                 guarded_body = (
-                    guarded_body
-                    + "\n\nWhat to validate: Confirm this section's key claim "
+                    guarded_body + "\n\nWhat to validate: Confirm this section's key claim "
                     "with primary customer or operator evidence."
                 ).strip()
 
@@ -81,9 +78,7 @@ def _compute_fast_report_qa_metrics(
                 cited_numbers.add(int(raw_num))
 
     sources_block = ""
-    match = re.search(
-        r"^##\s+Sources\s*$", report_content, flags=re.IGNORECASE | re.MULTILINE
-    )
+    match = re.search(r"^##\s+Sources\s*$", report_content, flags=re.IGNORECASE | re.MULTILINE)
     if match:
         sources_block = report_content[match.start() :]
     defined: set[int] = set()
@@ -100,8 +95,7 @@ def _compute_fast_report_qa_metrics(
     with_validate = sum(
         1
         for h, body in sections
-        if h.strip().lower() not in reference_headings
-        and "what to validate:" in body.lower()
+        if h.strip().lower() not in reference_headings and "what to validate:" in body.lower()
     )
 
     heading_counts: dict[str, int] = {}
@@ -152,9 +146,7 @@ def _parse_batch_sections(
     preamble, blocks = _extract_generated_section_blocks(content)
 
     for idx, (title, body) in enumerate(blocks):
-        expected_title = (
-            expected_sections[idx].name if idx < len(expected_sections) else title
-        )
+        expected_title = expected_sections[idx].name if idx < len(expected_sections) else title
         parsed.append(_normalize_generated_section_payload(title, body, expected_title))
 
     if not parsed and content.strip():

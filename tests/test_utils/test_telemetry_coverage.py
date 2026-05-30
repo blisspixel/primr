@@ -135,9 +135,7 @@ class TestRecordEventAndCost:
     def test_record_cost_attaches_attributes(self, monkeypatch):
         ts, span = _make_enabled_system()
         span.is_recording.return_value = True
-        monkeypatch.setattr(
-            tel, "trace", MagicMock(get_current_span=lambda: span), raising=False
-        )
+        monkeypatch.setattr(tel, "trace", MagicMock(get_current_span=lambda: span), raising=False)
         cost = ts.record_cost(
             "gemini-1.5-pro",
             input_tokens=1000,
@@ -151,9 +149,7 @@ class TestRecordEventAndCost:
     def test_record_cost_without_operation(self, monkeypatch):
         ts, span = _make_enabled_system()
         span.is_recording.return_value = True
-        monkeypatch.setattr(
-            tel, "trace", MagicMock(get_current_span=lambda: span), raising=False
-        )
+        monkeypatch.setattr(tel, "trace", MagicMock(get_current_span=lambda: span), raising=False)
         cost = ts.record_cost("gemini-1.5-pro", 100, 50)
         assert cost >= 0
         span.set_attribute.assert_not_called()
@@ -170,9 +166,7 @@ class TestGetCurrentSpanAndCorrelation:
 
     def test_get_current_span_enabled_none_returns_nullspan(self, monkeypatch):
         ts, _ = _make_enabled_system()
-        monkeypatch.setattr(
-            tel, "trace", MagicMock(get_current_span=lambda: None), raising=False
-        )
+        monkeypatch.setattr(tel, "trace", MagicMock(get_current_span=lambda: None), raising=False)
         assert isinstance(ts.get_current_span(), NullSpan)
 
     def test_correlation_id_prefers_async_context(self):

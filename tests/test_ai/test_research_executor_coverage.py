@@ -120,9 +120,7 @@ async def test_execute_chapter_success(executor, chapter):
     executor._get_interaction = MagicMock(return_value=completed)
 
     progress = []
-    result = await executor._execute_chapter_internal(
-        chapter, "Acme", on_progress=progress.append
-    )
+    result = await executor._execute_chapter_internal(chapter, "Acme", on_progress=progress.append)
     assert result.success is True
     assert result.content == "A great chapter with words."
     assert result.interaction_id == "int-1"
@@ -144,9 +142,7 @@ async def test_execute_chapter_failed_status(executor, chapter):
 @pytest.mark.asyncio
 async def test_execute_chapter_timeout(executor, chapter):
     executor._start_research = MagicMock(return_value=SimpleNamespace(id="int-3"))
-    executor._get_interaction = MagicMock(
-        return_value=SimpleNamespace(status="in_progress")
-    )
+    executor._get_interaction = MagicMock(return_value=SimpleNamespace(status="in_progress"))
     # Force the elapsed-time check to exceed the timeout immediately.
     times = iter([0.0] + [executor.CHAPTER_TIMEOUT + 1] * 20)
     with patch("primr.ai.research_executor.time.time", lambda: next(times)):

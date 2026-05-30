@@ -258,9 +258,7 @@ def _register_v1_24_0_matrix() -> None:
     )
     for slot in all_slots:
         register_eval_profile(slot, replace=True)
-    logger.debug(
-        "Registered %d v1.24.0 cross-provider eval profile slots", len(all_slots)
-    )
+    logger.debug("Registered %d v1.24.0 cross-provider eval profile slots", len(all_slots))
 
 
 _register_v1_24_0_matrix()

@@ -70,17 +70,13 @@ class TestCheckDirWritableErrors:
         assert "Cannot create directory" in err
 
     def test_eloop_maps_to_symlink_message(self, tmp_path):
-        with patch.object(
-            fs_safety.os, "open", side_effect=OSError(errno.ELOOP, "loop")
-        ):
+        with patch.object(fs_safety.os, "open", side_effect=OSError(errno.ELOOP, "loop")):
             ok, err = check_dir_writable(tmp_path)
         assert ok is False
         assert "Symlink detected" in err
 
     def test_generic_open_error_returns_not_writable(self, tmp_path):
-        with patch.object(
-            fs_safety.os, "open", side_effect=OSError(errno.EACCES, "denied")
-        ):
+        with patch.object(fs_safety.os, "open", side_effect=OSError(errno.EACCES, "denied")):
             ok, err = check_dir_writable(tmp_path)
         assert ok is False
         assert "Not writable" in err

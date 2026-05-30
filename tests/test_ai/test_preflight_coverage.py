@@ -20,9 +20,7 @@ from primr.ai.preflight import PreflightResult, PreflightValidator, run_prefligh
 
 
 def test_summary_success():
-    r = PreflightResult(
-        success=True, estimated_duration="10m", estimated_cost="$1"
-    )
+    r = PreflightResult(success=True, estimated_duration="10m", estimated_cost="$1")
     out = r.summary()
     assert "passed" in out
     assert "10m" in out
@@ -163,9 +161,7 @@ def test_check_yaml_config_missing_prompts_and_few_sections(validator):
 
 
 def test_check_yaml_config_exception(validator):
-    with patch(
-        "primr.prompts.composer.PromptComposer", side_effect=RuntimeError("boom")
-    ):
+    with patch("primr.prompts.composer.PromptComposer", side_effect=RuntimeError("boom")):
         errors, warnings, checks = [], [], {}
         validator._check_yaml_config(errors, warnings, checks, _noop)
     assert any("YAML configuration error" in e for e in errors)
@@ -301,9 +297,7 @@ async def test_check_website_reachable(validator):
         ),
     ):
         errors, warnings, checks = [], [], {}
-        await validator._check_website(
-            "example.com", errors, warnings, checks, _noop
-        )
+        await validator._check_website("example.com", errors, warnings, checks, _noop)
     assert checks["website"]["passed"] is True
     assert not errors
 
@@ -324,9 +318,7 @@ async def test_check_website_unsafe_redirect(validator):
         ),
     ):
         errors, warnings, checks = [], [], {}
-        await validator._check_website(
-            "https://example.com", errors, warnings, checks, _noop
-        )
+        await validator._check_website("https://example.com", errors, warnings, checks, _noop)
     assert any("unsafe URL" in e for e in errors)
     assert checks["website"]["status"] == "unsafe_redirect"
 
@@ -347,9 +339,7 @@ async def test_check_website_http_error_status_warns(validator):
         ),
     ):
         errors, warnings, checks = [], [], {}
-        await validator._check_website(
-            "https://example.com", errors, warnings, checks, _noop
-        )
+        await validator._check_website("https://example.com", errors, warnings, checks, _noop)
     assert any("HTTP 503" in w for w in warnings)
 
 
@@ -357,9 +347,7 @@ async def test_check_website_http_error_status_warns(validator):
 async def test_check_website_unreachable(validator):
     with patch("httpx.AsyncClient", side_effect=RuntimeError("dns fail")):
         errors, warnings, checks = [], [], {}
-        await validator._check_website(
-            "https://example.com", errors, warnings, checks, _noop
-        )
+        await validator._check_website("https://example.com", errors, warnings, checks, _noop)
     assert any("Could not reach website" in w for w in warnings)
     assert checks["website"]["status"] == "unreachable"
 
@@ -407,9 +395,7 @@ async def test_validate_orchestration_scrape_mode(validator):
         patch.object(validator, "_check_playwright", side_effect=_ok_playwright),
         patch.object(validator, "_check_output_dir"),
     ):
-        result = await validator.validate(
-            mode="scrape", on_progress=progress_msgs.append
-        )
+        result = await validator.validate(mode="scrape", on_progress=progress_msgs.append)
     assert result.success is True
     assert result.estimated_duration  # populated from ESTIMATES
     assert any("passed" in m for m in progress_msgs)

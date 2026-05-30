@@ -39,14 +39,10 @@ def _load_run_state(folder_path: str) -> dict[str, Any]:
             data = json.load(f)
         return data if isinstance(data, dict) else {}
     except json.JSONDecodeError as e:
-        logger.warning(
-            "Run state file corrupted (%s), starting with empty state: %s", path, e
-        )
+        logger.warning("Run state file corrupted (%s), starting with empty state: %s", path, e)
         return {}
     except Exception as e:
-        logger.warning(
-            "Failed to load run state from %s, starting with empty state: %s", path, e
-        )
+        logger.warning("Failed to load run state from %s, starting with empty state: %s", path, e)
         return {}
 
 
@@ -85,9 +81,7 @@ def _save_run_state(folder_path: str, state: dict[str, Any]) -> None:
             try:
                 os.remove(tmp)
             except OSError:
-                logger.debug(
-                    "Failed to remove stale run-state temp file %s", tmp, exc_info=True
-                )
+                logger.debug("Failed to remove stale run-state temp file %s", tmp, exc_info=True)
 
 
 def _update_run_state(folder_path: str, **updates: Any) -> None:
@@ -158,9 +152,7 @@ def _append_background_abort(folder_path: str, event_dict: dict[str, Any]) -> No
     _save_run_state(folder_path, state)
 
 
-def _init_run_state_with_resilience(
-    folder_path: str, base_state: dict[str, Any]
-) -> None:
+def _init_run_state_with_resilience(folder_path: str, base_state: dict[str, Any]) -> None:
     """Initialize run state with resilience keys included."""
     _ensure_resilience_keys(base_state)
     _save_run_state(folder_path, base_state)

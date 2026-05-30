@@ -108,9 +108,7 @@ class SkillPackConfig:
     def validate(self) -> None:
         """Raise ValueError on out-of-bounds config."""
         if not MIN_ROLES <= self.roles_count <= MAX_ROLES:
-            raise ValueError(
-                f"roles_count must be {MIN_ROLES}-{MAX_ROLES}, got {self.roles_count}"
-            )
+            raise ValueError(f"roles_count must be {MIN_ROLES}-{MAX_ROLES}, got {self.roles_count}")
         if not MIN_SKILLS_PER_ROLE <= self.skills_per_role <= MAX_SKILLS_PER_ROLE:
             raise ValueError(
                 f"skills_per_role must be {MIN_SKILLS_PER_ROLE}-{MAX_SKILLS_PER_ROLE}, "
@@ -122,6 +120,7 @@ class SkillPackConfig:
             raise ValueError("max_cost_per_role_usd must be > 0")
         if self.max_total_cost_usd is not None and self.max_total_cost_usd <= 0:
             raise ValueError("max_total_cost_usd must be > 0 when set")
+
         # Light hygiene on operator-supplied role names.
         def _clean(raw_list: list[str], flag_name: str) -> list[str]:
             cleaned: list[str] = []
@@ -131,15 +130,12 @@ class SkillPackConfig:
                 if not label or label.lower() in seen:
                     continue
                 if len(label) > 80:
-                    raise ValueError(
-                        f"{flag_name} entry exceeds 80 characters: {label!r}"
-                    )
+                    raise ValueError(f"{flag_name} entry exceeds 80 characters: {label!r}")
                 seen.add(label.lower())
                 cleaned.append(label)
             if len(cleaned) > MAX_ROLES:
                 raise ValueError(
-                    f"{flag_name} accepts at most {MAX_ROLES} role names, "
-                    f"got {len(cleaned)}"
+                    f"{flag_name} accepts at most {MAX_ROLES} role names, got {len(cleaned)}"
                 )
             return cleaned
 

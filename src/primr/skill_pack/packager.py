@@ -106,9 +106,10 @@ def _build_manifest(
     """
     safe_short = company_short_name[:30]
     safe_full = f"{company_name} Skills for Copilot Cowork"[:100]
-    package_name = "com.primr.skill-pack." + re.sub(
-        r"[^a-z0-9.-]+", "-", company_name.lower()
-    ).strip("-.")[:60]
+    package_name = (
+        "com.primr.skill-pack."
+        + re.sub(r"[^a-z0-9.-]+", "-", company_name.lower()).strip("-.")[:60]
+    )
 
     manifest: dict[str, Any] = {
         "$schema": MANIFEST_SCHEMA_URL,
@@ -128,8 +129,7 @@ def _build_manifest(
         },
         "description": {
             "short": (
-                f"Generated skill pack for {safe_short} — top roles and "
-                "their AI-augmented skills."
+                f"Generated skill pack for {safe_short} — top roles and their AI-augmented skills."
             )[:80],
             "full": (
                 f"A primr-generated skill pack for {company_name}, covering "
@@ -173,19 +173,21 @@ def _build_pack_report_md(
 
     if pack.plan is not None:
         plan = pack.plan
-        lines.extend([
-            "## Role Composition",
-            "",
-            f"- Observed (from job postings): **{pack.observed_role_count}**",
-            f"- Plausible (from research / industry): **{pack.plausible_role_count}**",
-            f"- Operator-added (via --roles-add): **{pack.operator_added_role_count}**",
-            f"- Final roster size: **{len(pack.roles)}**",
-            f"- Industry: **{plan.industry.business_model}** / "
-            f"**{plan.industry.industry_vertical}** / "
-            f"**{plan.industry.company_stage}** "
-            f"(source: `{plan.industry.source}`, "
-            f"confidence: {plan.industry.confidence})",
-        ])
+        lines.extend(
+            [
+                "## Role Composition",
+                "",
+                f"- Observed (from job postings): **{pack.observed_role_count}**",
+                f"- Plausible (from research / industry): **{pack.plausible_role_count}**",
+                f"- Operator-added (via --roles-add): **{pack.operator_added_role_count}**",
+                f"- Final roster size: **{len(pack.roles)}**",
+                f"- Industry: **{plan.industry.business_model}** / "
+                f"**{plan.industry.industry_vertical}** / "
+                f"**{plan.industry.company_stage}** "
+                f"(source: `{plan.industry.source}`, "
+                f"confidence: {plan.industry.confidence})",
+            ]
+        )
         if plan.operator_skipped:
             lines.append(
                 f"- Operator-skipped (via --roles-skip): "
@@ -202,10 +204,12 @@ def _build_pack_report_md(
             )
         lines.append("")
 
-    lines.extend([
-        "## Roles and Skills",
-        "",
-    ])
+    lines.extend(
+        [
+            "## Roles and Skills",
+            "",
+        ]
+    )
     for role in pack.roles:
         lines.append(f"### {role.display_name} (`{role.name}`)")
         lines.append("")
@@ -219,9 +223,7 @@ def _build_pack_report_md(
             lines.append(f"- Hiring posting count: {role.evidence.posting_count}")
         if role.evidence.citations:
             top_citations = role.evidence.citations[:3]
-            rendered = "; ".join(
-                c if len(c) <= 100 else c[:97] + "..." for c in top_citations
-            )
+            rendered = "; ".join(c if len(c) <= 100 else c[:97] + "..." for c in top_citations)
             lines.append(f"- Citations: {rendered}")
         if role.summary:
             lines.append("")
@@ -366,9 +368,7 @@ def package_skill_pack(
         # programmatic gradient+shape Pillow render, then to a solid PNG.
         # Adding Foundry / Bedrock / Anthropic later is a localized change
         # in image_generation.py.
-        company_blurb = (
-            pack.roles[0].summary[:120] if pack.roles and pack.roles[0].summary else ""
-        )
+        company_blurb = pack.roles[0].summary[:120] if pack.roles and pack.roles[0].summary else ""
         color_png, outline_png = generate_icons(
             pack.company_name,
             company_description=company_blurb or None,

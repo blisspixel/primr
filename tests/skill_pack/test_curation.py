@@ -177,17 +177,13 @@ class TestApplyCuration:
         assert plan.operator_added[0].evidence.provenance == RoleProvenance.OVERRIDE
 
     def test_skip_removes_by_display_name(self):
-        plan = _plan(
-            observed=[_role("data-engineer"), _role("marketing-manager")]
-        )
+        plan = _plan(observed=[_role("data-engineer"), _role("marketing-manager")])
         apply_curation(plan, roles_add=[], roles_skip=["Marketing Manager"], cap=5)
         assert [r.name for r in plan.final_roster] == ["data-engineer"]
         assert plan.operator_skipped == ["marketing-manager"]
 
     def test_skip_removes_by_slug(self):
-        plan = _plan(
-            observed=[_role("data-engineer"), _role("marketing-manager")]
-        )
+        plan = _plan(observed=[_role("data-engineer"), _role("marketing-manager")])
         apply_curation(plan, roles_add=[], roles_skip=["marketing-manager"], cap=5)
         assert [r.name for r in plan.final_roster] == ["data-engineer"]
 
@@ -213,16 +209,10 @@ class TestApplyCuration:
     def test_add_dedupes_by_archetype(self):
         # An existing role with archetype=salesforce-admin blocks an add
         # that resolves to the same archetype.
-        plan = _plan(
-            observed=[
-                _role("crm-admin-acme", archetype="salesforce-admin")
-            ]
-        )
+        plan = _plan(observed=[_role("crm-admin-acme", archetype="salesforce-admin")])
         # "Salesforce Administrator" resolves to archetype salesforce-admin
         # via the bundled archetype list.
-        apply_curation(
-            plan, roles_add=["Salesforce Administrator"], roles_skip=[], cap=5
-        )
+        apply_curation(plan, roles_add=["Salesforce Administrator"], roles_skip=[], cap=5)
         assert plan.operator_added == []
         assert [r.name for r in plan.final_roster] == ["crm-admin-acme"]
 
@@ -252,9 +242,7 @@ class TestApplyCuration:
         import logging
 
         caplog.set_level(logging.WARNING, logger="primr.skill_pack.planner")
-        plan = _plan(
-            observed=[_role("crm-admin-acme", archetype="salesforce-admin")]
-        )
+        plan = _plan(observed=[_role("crm-admin-acme", archetype="salesforce-admin")])
         apply_curation(
             plan,
             roles_add=["Salesforce Administrator"],
@@ -295,6 +283,7 @@ class TestApplyCuration:
 
     def test_unmatched_skip_logs_warning(self, caplog):
         import logging
+
         caplog.set_level(logging.WARNING, logger="primr.skill_pack.planner")
         plan = _plan(observed=[_role("a")])
         apply_curation(
@@ -324,8 +313,7 @@ class TestCapClampedToMaxRoles:
         # Build a plan at the MAX_ROLES ceiling, then try to add more.
         plan = _plan(
             observed=[
-                _role(f"obs-{i}", provenance=RoleProvenance.POSTING)
-                for i in range(MAX_ROLES)
+                _role(f"obs-{i}", provenance=RoleProvenance.POSTING) for i in range(MAX_ROLES)
             ]
         )
         # Adding 3 more should not push the roster over MAX_ROLES.

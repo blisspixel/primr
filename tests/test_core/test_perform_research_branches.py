@@ -45,9 +45,7 @@ class TestEarlyReturns:
 class TestDispatch:
     def test_dispatches_to_fast_mode_when_fast_flag_set(self, isolated_run, monkeypatch):
         fast_mock = MagicMock(return_value="/path/to/fast_report.docx")
-        monkeypatch.setattr(
-            "primr.core.research_agent.perform_fast_research", fast_mock
-        )
+        monkeypatch.setattr("primr.core.research_agent.perform_fast_research", fast_mock)
         # Avoid network calls in recon path
         result = perform_research(
             company_name="Acme",
@@ -62,9 +60,7 @@ class TestDispatch:
 
     def test_dispatches_to_scrape_only_for_scrape_mode(self, isolated_run, monkeypatch):
         scrape_mock = MagicMock(return_value="/path/scrape_dir")
-        monkeypatch.setattr(
-            "primr.core.research_agent.perform_scrape_only", scrape_mock
-        )
+        monkeypatch.setattr("primr.core.research_agent.perform_scrape_only", scrape_mock)
         result = perform_research(
             company_name="Acme",
             website="https://acme.example",
@@ -75,13 +71,9 @@ class TestDispatch:
         )
         assert result == "/path/scrape_dir"
 
-    def test_dispatches_to_deep_research_for_deep_mode(
-        self, isolated_run, monkeypatch
-    ):
+    def test_dispatches_to_deep_research_for_deep_mode(self, isolated_run, monkeypatch):
         deep_mock = MagicMock(return_value="/path/to/deep.docx")
-        monkeypatch.setattr(
-            "primr.core.research_agent.perform_deep_research", deep_mock
-        )
+        monkeypatch.setattr("primr.core.research_agent.perform_deep_research", deep_mock)
         # Force fast_mode auto-detect to be off by removing XAI key.
         monkeypatch.delenv("XAI_API_KEY", raising=False)
         result = perform_research(
@@ -126,19 +118,13 @@ class TestRunStateInitialization:
         assert loaded["company_name"] == "Acme"
         assert loaded["mode"] == "complete"
 
-    def test_premium_mode_disables_fast_auto_detect(
-        self, isolated_run, monkeypatch
-    ):
+    def test_premium_mode_disables_fast_auto_detect(self, isolated_run, monkeypatch):
         # Even with XAI key set, premium mode should NOT trigger fast-mode dispatch.
         monkeypatch.setenv("XAI_API_KEY", "x" * 30)
         fast_mock = MagicMock(return_value="/should-not-call.docx")
         deep_mock = MagicMock(return_value="/deep.docx")
-        monkeypatch.setattr(
-            "primr.core.research_agent.perform_fast_research", fast_mock
-        )
-        monkeypatch.setattr(
-            "primr.core.research_agent.perform_deep_research", deep_mock
-        )
+        monkeypatch.setattr("primr.core.research_agent.perform_fast_research", fast_mock)
+        monkeypatch.setattr("primr.core.research_agent.perform_deep_research", deep_mock)
 
         result = perform_research(
             company_name="Acme",
@@ -161,9 +147,7 @@ class TestRunFolder:
     def test_uses_explicit_output_dir(self, isolated_run, tmp_path, monkeypatch):
         custom_out = tmp_path / "custom_out"
         fast_mock = MagicMock(return_value="/x.docx")
-        monkeypatch.setattr(
-            "primr.core.research_agent.perform_fast_research", fast_mock
-        )
+        monkeypatch.setattr("primr.core.research_agent.perform_fast_research", fast_mock)
 
         perform_research(
             company_name="Acme",

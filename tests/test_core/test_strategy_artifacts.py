@@ -56,10 +56,10 @@ class TestIsAuditableSourceUrl:
         "url",
         [
             "",
-            "https://localhost",        # no dot
-            "https://-bad-.example",    # leading hyphen
-            "https://example-.com",     # trailing hyphen
-            "https://EX$AMPLE.com",     # invalid char
+            "https://localhost",  # no dot
+            "https://-bad-.example",  # leading hyphen
+            "https://example-.com",  # trailing hyphen
+            "https://EX$AMPLE.com",  # invalid char
         ],
     )
     def test_invalid_urls(self, url):
@@ -100,9 +100,7 @@ class TestExtractStrategyCitationDefinitions:
         # Each cite-N followed by ANY non-whitespace token is considered a
         # candidate definition; non-URL tokens land in `invalid` while the
         # valid URL wins for that number in the dict.
-        content = (
-            "## Sources\n[cite: 1] https://example.com/a\n[cite: 2] https://example.com/b\n"
-        )
+        content = "## Sources\n[cite: 1] https://example.com/a\n[cite: 2] https://example.com/b\n"
         cited, valid, invalid = _extract_strategy_citation_definitions(content)
         assert cited == {1, 2}
         assert valid == {
@@ -254,8 +252,7 @@ class TestNormalizeFastCitations:
 
     def test_duplicate_sources_deduped(self):
         content = (
-            "First [Source: https://example.com/a] then "
-            "[Source: https://example.com/a] again."
+            "First [Source: https://example.com/a] then [Source: https://example.com/a] again."
         )
         result = _normalize_fast_citations(content)
         # Both [Source: ...] tags collapse to [cite: 1], and the URL appears

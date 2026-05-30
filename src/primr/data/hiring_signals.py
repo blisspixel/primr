@@ -1046,7 +1046,10 @@ def _careers_url_candidates(website: str, corpus: dict[str, str] | None) -> list
             if any(p in path for p in ("/careers", "/jobs")) and url not in seen:
                 seen.add(url)
                 urls.append(url)
-            elif any(host.startswith(p + ".") for p in _CAREERS_SUBDOMAIN_PREFIXES) and url not in seen:
+            elif (
+                any(host.startswith(p + ".") for p in _CAREERS_SUBDOMAIN_PREFIXES)
+                and url not in seen
+            ):
                 # Corpus pages on a careers subdomain are also candidates.
                 seen.add(url)
                 urls.append(url)
@@ -1136,9 +1139,17 @@ _ATS_HOST_FETCHERS: tuple[tuple[re.Pattern[str], str, str | None], ...] = (
     (re.compile(r"^boards\.greenhouse\.io", re.IGNORECASE), "greenhouse", "_fetch_greenhouse"),
     (re.compile(r"^jobs\.lever\.co", re.IGNORECASE), "lever", "_fetch_lever"),
     (re.compile(r"^jobs\.ashbyhq\.com", re.IGNORECASE), "ashby", "_fetch_ashby"),
-    (re.compile(r"^jobs\.smartrecruiters\.com", re.IGNORECASE), "smartrecruiters", "_fetch_smartrecruiters"),
+    (
+        re.compile(r"^jobs\.smartrecruiters\.com", re.IGNORECASE),
+        "smartrecruiters",
+        "_fetch_smartrecruiters",
+    ),
     (re.compile(r"^apply\.workable\.com", re.IGNORECASE), "workable", "_fetch_workable"),
-    (re.compile(r"^([A-Za-z0-9][A-Za-z0-9-]*)\.recruitee\.com", re.IGNORECASE), "recruitee", "_fetch_recruitee"),
+    (
+        re.compile(r"^([A-Za-z0-9][A-Za-z0-9-]*)\.recruitee\.com", re.IGNORECASE),
+        "recruitee",
+        "_fetch_recruitee",
+    ),
     (re.compile(r"^jobs\.jobvite\.com", re.IGNORECASE), "jobvite", "_fetch_jobvite"),
 )
 
@@ -1238,9 +1249,7 @@ def _discover_via_html(
             html_bytes = corpus[careers_url].encode("utf-8", errors="ignore")
             final_url = careers_url
         else:
-            status, body, resolved = _http_get(
-                careers_url, timeout=_HTML_LIST_TIMEOUT_S
-            )
+            status, body, resolved = _http_get(careers_url, timeout=_HTML_LIST_TIMEOUT_S)
             if status == 200 and body:
                 html_bytes = body
                 final_url = resolved or careers_url

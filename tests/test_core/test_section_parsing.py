@@ -57,12 +57,8 @@ class TestParseStructuredSectionEnvelopes:
         assert _parse_structured_section_envelopes("plain text") == []
 
     def test_multiline_body_preserved(self):
-        content = (
-            "<section><title>Multi</title><body>line 1\n\nline 2</body></section>"
-        )
-        assert _parse_structured_section_envelopes(content) == [
-            ("Multi", "line 1\n\nline 2")
-        ]
+        content = "<section><title>Multi</title><body>line 1\n\nline 2</body></section>"
+        assert _parse_structured_section_envelopes(content) == [("Multi", "line 1\n\nline 2")]
 
 
 class TestExtractGeneratedSectionBlocks:
@@ -80,8 +76,7 @@ class TestExtractGeneratedSectionBlocks:
 
     def test_mixed_envelope_and_heading(self):
         content = (
-            "<section><title>One</title><body>first body</body></section>\n\n"
-            "## Two\n\nsecond body"
+            "<section><title>One</title><body>first body</body></section>\n\n## Two\n\nsecond body"
         )
         preamble, blocks = _extract_generated_section_blocks(content)
         assert preamble == ""
@@ -98,9 +93,7 @@ class TestExtractGeneratedSectionBlocks:
 
     def test_headings_inside_envelope_ignored(self):
         # A '##' inside an envelope's body should not register as its own section.
-        content = (
-            "<section><title>Wrap</title><body>## Inner heading\nbody</body></section>"
-        )
+        content = "<section><title>Wrap</title><body>## Inner heading\nbody</body></section>"
         _, blocks = _extract_generated_section_blocks(content)
         assert len(blocks) == 1
         assert blocks[0][0] == "Wrap"

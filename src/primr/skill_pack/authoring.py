@@ -57,8 +57,7 @@ def _provenance_guidance(role: Role) -> str:
             "tools, and language the postings use. Prefer concrete posting "
             "phrases over generic capability descriptions. When a skill "
             "covers a workflow the postings explicitly mention, say so in "
-            "the body's customization."
-            + citation_block
+            "the body's customization." + citation_block
         )
     if provenance == RoleProvenance.RESEARCH:
         return (
@@ -68,8 +67,7 @@ def _provenance_guidance(role: Role) -> str:
             "designations). Anchor every skill in the cited research "
             "phrases. The body should reference the practice or program "
             "the inference came from (e.g. \"as part of the company's "
-            "<named practice>\")."
-            + citation_block
+            '<named practice>").' + citation_block
         )
     if provenance == RoleProvenance.INDUSTRY:
         return (
@@ -79,8 +77,7 @@ def _provenance_guidance(role: Role) -> str:
             "research. Skills should reflect what this role typically does "
             "at companies of this shape, tuned to the company's named tools "
             "and stack where possible. Avoid claims about specific company "
-            "programs that are not in the evidence."
-            + citation_block
+            "programs that are not in the evidence." + citation_block
         )
     if provenance == RoleProvenance.OVERRIDE:
         return (

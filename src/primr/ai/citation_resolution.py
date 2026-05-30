@@ -66,9 +66,7 @@ async def resolve_redirect_url(url: str, timeout: float = 10.0, retries: int = 2
                 logger.debug(f"URL resolution timeout (attempt {attempt + 1}), retrying...")
                 await asyncio.sleep(0.5)
                 continue
-            logger.warning(
-                f"URL resolution timed out after {retries + 1} attempts: {url[:50]}..."
-            )
+            logger.warning(f"URL resolution timed out after {retries + 1} attempts: {url[:50]}...")
             return _extract_domain_from_redirect(url)
         except Exception as e:
             if attempt < retries:

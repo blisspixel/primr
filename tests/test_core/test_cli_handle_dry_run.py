@@ -35,9 +35,7 @@ def mocks(monkeypatch):
         "primr.pipeline.recovery.build_default_recovery_table",
         MagicMock(return_value=recovery_table),
     )
-    monkeypatch.setattr(
-        "primr.pipeline.stages.STAGE_CLASSIFICATIONS", {}
-    )
+    monkeypatch.setattr("primr.pipeline.stages.STAGE_CLASSIFICATIONS", {})
     return estimate
 
 
@@ -84,9 +82,7 @@ class TestDryRunCostEstimator:
             "primr.utils.cost_estimator.estimate_cost",
             est_mock,
         )
-        _handle_dry_run(
-            _config(mode="complete", platforms=("aws", "azure", "gcp"))
-        )
+        _handle_dry_run(_config(mode="complete", platforms=("aws", "azure", "gcp")))
         kwargs = est_mock.call_args.kwargs
         assert kwargs["num_vendors"] == 3
 

@@ -783,9 +783,7 @@ def auto_stage_existing_reports(
             if not selected:
                 continue
             safe_target = _sanitize_target_company(target)
-            staged_name = (
-                f"{safe_target.replace(' ', '_')}_Strategic_Overview{selected.suffix}"
-            )
+            staged_name = f"{safe_target.replace(' ', '_')}_Strategic_Overview{selected.suffix}"
             staged_path = profile_dir / staged_name
             # Defense in depth: confirm the staged path stays under the
             # profile dir even after path resolution.
