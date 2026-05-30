@@ -211,6 +211,9 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 asyncio_mode = "strict"
+# No silent xfail rot: an xfail that unexpectedly passes (XPASS) fails the run.
+# The codebase currently uses zero xfail markers — this keeps it that way.
+xfail_strict = true
 markers = [
     "integration: tests that make real API calls (require valid API keys)",
     "slow: tests that take a long time to run",
