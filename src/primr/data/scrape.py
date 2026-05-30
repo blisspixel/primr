@@ -1029,7 +1029,9 @@ def fetch_web_content(
         try:
             _hp_text = extract_main_content(homepage_html)
             if _hp_text and _hp_text.strip():
-                _seen_content_hashes.add(hashlib.md5(_hp_text.encode()).hexdigest())
+                _seen_content_hashes.add(
+                    hashlib.md5(_hp_text.encode(), usedforsecurity=False).hexdigest()
+                )
         except Exception as e:
             logger.warning("Homepage content hash failed: %s", e)
 
@@ -1072,7 +1074,9 @@ def fetch_web_content(
         elif result.success and result.raw_content:
             _text_for_hash = result.extracted_text or ""
             _content_hash = (
-                hashlib.md5(_text_for_hash.encode()).hexdigest() if _text_for_hash else ""
+                hashlib.md5(_text_for_hash.encode(), usedforsecurity=False).hexdigest()
+                if _text_for_hash
+                else ""
             )
             if _content_hash and _content_hash in _seen_content_hashes:
                 dup_count += 1
