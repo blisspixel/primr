@@ -25,6 +25,12 @@ jobs:
   build:
     name: Build sdist + wheel
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Required for actions/attest-build-provenance to mint a signed SLSA
+      # provenance attestation via the GitHub attestations API + Sigstore.
+      id-token: write
+      attestations: write
 
     steps:
       - name: Resolve and validate tag
@@ -88,6 +94,14 @@ jobs:
         run: |
           pipx run uv export --frozen --no-dev --no-emit-project \
             --format requirements-txt -o "dist/primr-${TAG_VERSION}-requirements.txt"
+
+      - name: Generate SLSA build provenance attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          # Attest the published artifacts (not the dependency manifest), so
+          # consumers can cryptographically verify these wheels/sdists were
+          # built by this workflow from this repo at this tag.
+          subject-path: "dist/*.whl,dist/*.tar.gz"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

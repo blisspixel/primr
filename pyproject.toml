@@ -8,7 +8,11 @@ version = "1.27.1"
 description = "Turn any company or organization URL into a strategic intelligence brief. Adaptive scraping + AI-powered research and synthesis."
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.11"
+# Floor is 3.12 (EOL-driven): 3.10 reaches EOL Oct 2026 and 3.11 Oct 2027,
+# while 3.12 carries security support to Oct 2028. Standardizing above the
+# soon-to-be-legacy line removes legacy codepaths and aligns with the
+# ecosystem. See ROADMAP "Engineering Standards & Toolchain".
+requires-python = ">=3.12"
 authors = [
     {name = "Nick Seal", email = "nick@pueo.io"}
 ]
@@ -22,7 +26,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
@@ -131,7 +134,7 @@ primr = [
 ]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 warn_redundant_casts = true
@@ -157,6 +160,10 @@ disallow_incomplete_defs = true
 
 [tool.ruff]
 line-length = 100
+# Intentionally one minor below requires-python (3.12): this controls which
+# modern-syntax rewrites ruff SUGGESTS (pyupgrade/UP). Bumping to py312 surfaces
+# ~55 PEP 695 / typing rewrites that belong with the one-time Phase-2 reflow,
+# not Phase 1. The supported floor is still 3.12 (see [project].requires-python).
 target-version = "py311"
 
 [tool.ruff.lint]

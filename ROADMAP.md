@@ -462,11 +462,11 @@ Target: all three monster files at 80%+ line coverage. This is a refactor for te
 
 primr is a mature, shipping PyPI application (`py.typed`, ~6,500 tests, heavy native deps: playwright / patchright / curl_cffi / DrissionPage / pymupdf / pandas), not a greenfield internal service. The standards below are calibrated for that reality: adopt the high-leverage, low-risk discipline; defer code-reshaping behind non-regression ratchets; and decline the maximalist conventions that would churn a stable codebase or hurt downstream consumers. The buckets are explicit so the decisions are durable and don't get re-litigated.
 
-**Decision principle:** modern where it pays, conservative where users feel it. Widen the supported-Python *ceiling* without raising the *floor*; gate on reproducibility and security; ratchet type-strictness and complexity rather than flipping them globally.
+**Decision principle:** modern where it pays, conservative where users feel it. Track the Python floor to the EOL line (not the bleeding edge) and the ceiling to current stable; gate on reproducibility and supply-chain integrity; ratchet type-strictness, complexity, and verification (contracts, mutation, fault-injection) rather than flipping them globally; and stay deliberately native-dep-first where the scraping/document engine demands it, pure-Python-preferred everywhere else.
 
 ### Adopted (load-bearing today)
 
-- Ruff as the single linter (`E/F/W/I/N/UP/B/C4/SIM/RUF/PIE/PT/TCH`), line-length 100, `target-version = py311`. CI hard-fails on any violation.
+- Ruff as the single linter (`E/F/W/I/N/UP/B/C4/SIM/RUF/PIE/PT/TCH`), line-length 100. CI hard-fails on any violation. `target-version` intentionally trails the 3.12 floor at `py311` so pyupgrade doesn't push PEP 695 / typing rewrites until the one-time Phase-2 reflow.
 - mypy on an incremental strict ratchet: `check_untyped_defs` + `strict_optional` + `no_implicit_optional` globally; `disallow_untyped_defs` enabled per-module on an allowlist (`primr.types`, `primr.utils.errors`, `primr.utils.circuit_breaker`, `primr.agentic.hooks`, `primr.agentic.errors`).
 - Ships `py.typed` — primr is a good typing citizen for downstream importers.
 - Property-based tests (Hypothesis) for core invariants; a hard-gated hardcoded-secret scanner in CI.
@@ -478,27 +478,32 @@ primr is a mature, shipping PyPI application (`py.typed`, ~6,500 tests, heavy na
 
 The current active engineering initiative. Each item is verified locally, then landed; findings are triaged (targeted ignore or downgraded to a Phase-2 ratchet) rather than force-passed.
 
-- **Supported-Python window**: keep `requires-python = ">=3.11"` (the floor most users run); add a `3.11 / 3.12 / 3.13` CI matrix as hard gates plus a `3.14` experimental leg (allowed-to-fail until the native-dep stack is green on 3.14). Add the 3.14 classifier and a `.python-version` dev default. Free-threading (PEP 703) is a non-goal — primr is I/O-bound.
+- **Supported-Python window**: `requires-python = ">=3.12"`, EOL-driven — 3.10 reaches EOL Oct 2026 and 3.11 Oct 2027, while 3.12 carries security support to Oct 2028. CI runs a `3.12 / 3.13` hard matrix plus a `3.14` experimental leg (allowed-to-fail until the native-dep stack is green on 3.14). 3.14 classifier shipped; `.python-version` pins the dev default. Free-threading (PEP 703 / 3.14t) is a non-goal — primr is I/O-bound and its native deps aren't free-threading-ready.
 - **uv toolchain + reproducibility**: commit a `uv.lock`; CI installs via `uv sync --frozen`; keep the proven setuptools build backend. Reconcile the divergence where `requirements.txt` carries lower bounds but `pyproject.toml` deps are unpinned — lift sensible lower bounds into `[project.dependencies]` (no hard upper caps except the existing intentional `ruff<0.16` / `a2a-sdk<0.4`).
 - **Security gates in CI**: wire the already-configured `bandit` (`.bandit`) and a dependency-vulnerability audit (`pip-audit`) as gates; add `.github/dependabot.yml` (weekly `pip` + `github-actions`, grouped patch/minor, majors flagged for manual review); attach a dependency manifest (`uv export`) to each GitHub release.
 - **Coverage baseline + non-regression ratchet**: measured global branch coverage is **78%** (8,471 tests, branch mode); CI gates at `--cov-branch --cov-fail-under=77` (1-point margin for platform variance). A ratchet that only ever rises — not the brief's blanket 95%, which is the wrong target for heavy I/O / LLM glue.
-- **pre-commit**: `.pre-commit-config.yaml` running `ruff check` + `ruff format --check` (check-only) + a fast mypy hook; opt-in for contributors, CI stays the hard gate.
+- **pre-commit**: `.pre-commit-config.yaml` running `ruff check` + a fast mypy hook + hygiene hooks; opt-in for contributors, CI stays the hard gate. `ruff format --check` is intentionally omitted until the Phase-2 reflow (174 legacy files predate format enforcement, so it would block commits today).
+- **SLSA build provenance**: `release.yml` generates a signed SLSA provenance attestation (`actions/attest-build-provenance`) for the published wheel + sdist; publishing already uses OIDC trusted publishing (no static credentials). First exercised on the next `v*` tag.
 
 ### Phased ratchets (tracked, not yet started — Phase 2/3)
 
 - **mypy strict expansion**: grow the `disallow_untyped_defs` allowlist module-by-module (next: `skill_pack/`, `utils/`, `data/hiring_signals.py`) toward eventual `--strict`, never regressing. Evaluate Astral `ty` as a fast local supplement (not the CI gate while it is preview).
 - **One-time `ruff format` reflow**: apply formatting across the tree in a single isolated commit, then flip pre-commit/CI to enforce mode and stop ignoring `E501`.
 - **Complexity budget**: add `C901` + `max-complexity` once the documented monsters are refactored (`perform_fast_research` ~1900 lines, `_execute_consulting_research` ~270 lines — Active Queue #23).
-- **Targeted Pydantic boundaries**: strict Pydantic models at the MCP / API input boundary where validation isn't already enforced (most MCP inputs are JSON-schema-validated today) — audit and fill gaps, not a blanket conversion.
+- **Parse-don't-validate boundaries**: parse external data once at the system boundary into rich domain types — `NewType` / frozen dataclasses / Pydantic `strict=True, extra='forbid'` — so core logic never receives raw, possibly-invalid primitives. Targets the MCP / API input boundary first (most MCP inputs are JSON-schema-validated today); audit and fill gaps, not a blanket conversion.
+- **Design by Contract on critical invariants (`deal`)**: declaratively encode preconditions/postconditions/invariants on the handful of places where correctness is load-bearing — the SSRF guard, `CostGuardHook` budget bounds, the scraping tier-escalation state machine, and the skill-pack roster-cap merge. Evaluated aggressively in tests/dev, compiled out with `-O` in production for zero runtime overhead. Selective, not codebase-wide.
+- **Mutation testing on a core slice (`mutmut`)**: periodically inject regressions into the highest-stakes modules (`utils/security`, `cost_estimator`, `skill_pack/planner`, `utils/circuit_breaker`) and verify the suite catches them — proving test efficacy, not just line coverage. Scoped to a core slice, never the full 8,500-test suite (prohibitively slow).
+- **Stateful + fault-injection testing**: add Hypothesis `RuleBasedStateMachine` coverage for the job lifecycle and tier-escalation state machines, and deterministic boundary fault-injection (network delay, malformed payloads, mid-stream service failure) at the scrape / LLM seams to prove exception hygiene and structured-logging behavior under turbulence. Extends the existing recovery-regression suite.
 - **Per-module coverage targets**: raise the 80% line-coverage target on core modules (`deep_research.py` 72%, `research_agent.py` 30%) as their refactors land.
-- **CycloneDX SBOM + container scan** (Trivy) if/when container images become a shipped artifact.
+- **Supply-chain hardening (Sigstore + Trivy + SBOM)**: layer on top of the shipped SLSA provenance + OIDC publish — PEP 740 Sigstore attestations on PyPI artifacts (default-on in the publish action), Trivy scanning, and a CycloneDX SBOM. Target SLSA L3 with ephemeral isolated builds. Container scan applies once container images become a shipped artifact.
 
 ### Out of scope (rejected, with rationale)
 
 So future contributors don't re-open these:
 
-- **`requires-python >= 3.14` floor** — would cut off the majority of current PyPI users; the native-dep stack isn't reliably 3.14/free-threaded-ready.
-- **Free-threaded build adoption** — primr is I/O-bound (scrape + LLM); removing the GIL buys ~nothing and risks native-dep instability.
+- **`requires-python >= 3.14` floor** — too aggressive; would cut off most current users and the native-dep stack isn't reliably 3.14-ready. The floor tracks the EOL line (3.12), not the bleeding edge. 3.14 is the experimental ceiling, not the floor.
+- **Free-threaded build adoption (3.14t)** — primr is I/O-bound (scrape + LLM); removing the GIL buys ~nothing and the native deps (playwright/pymupdf/curl_cffi/DrissionPage) aren't `cp314t`-ABI-ready. The free-threading concurrency discipline (no shared mutable state, message-passing) is therefore moot here.
+- **Pure-Python-first as a hard rule / "C-extensions disallowed by default"** — primr's moat *is* its native stack: playwright, patchright, pymupdf, pandas, curl_cffi, pytesseract are load-bearing and have no pure-Python equivalent of comparable quality. Adopted instead as a *new-dependency policy*: prefer pure-Python for additions, and treat a new C-extension dependency as a reviewed exception (justify, and check `cp314t` ABI impact if free-threading is ever revisited). Existing native deps stay.
 - **structlog everywhere / Pydantic-everywhere / dataclass → Pydantic conversion** — high churn, low payoff on a stable codebase that already has a `get_logger` abstraction and uses dataclasses deliberately. Structured output, if wanted, goes behind `get_logger`.
 - **NASA Power-of-10 literalism** (forbid recursion, mandate "two asserts per public API", forbid post-`__init__` attributes) — dogmatic for an AI/scraping pipeline. Keep the spirit (complexity budget, boundary validation), not the letter.
 - **>95% global branch coverage** — wrong target for I/O/LLM-heavy code; replaced by a measured ratchet + per-module targets.

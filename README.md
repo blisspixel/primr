@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/blisspixel/primr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/primr/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 
 **Turn any company or organization URL into deep strategic analysis that gets a consultant maximally up to speed.**
 
@@ -79,7 +79,7 @@ primr doctor                    # Verify everything works
 primr "ExampleCo" https://example.co
 ```
 
-Requires Python 3.11+. On Windows, prefer `py -3.13` instead of bare `python` if your default interpreter is older. `primr init` walks through user-level API keys, browser dependencies, and verification. Local `.env` files and shell environment variables still work and can override user-level keys. Set `XAI_API_KEY` for the standard Grok pipeline (it covers analysis, writing, and utility-tier calls like scraping summaries and link selection). Set `GEMINI_API_KEY` only if you also want `--premium` mode or you do not have an xAI key. Web search uses DuckDuckGo (no key needed).
+Requires Python 3.12+. On Windows, prefer `py -3.13` instead of bare `python` if your default interpreter is older. `primr init` walks through user-level API keys, browser dependencies, and verification. Local `.env` files and shell environment variables still work and can override user-level keys. Set `XAI_API_KEY` for the standard Grok pipeline (it covers analysis, writing, and utility-tier calls like scraping summaries and link selection). Set `GEMINI_API_KEY` only if you also want `--premium` mode or you do not have an xAI key. Web search uses DuckDuckGo (no key needed).
 
 Working from a source checkout? See [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) for the dev setup.
 

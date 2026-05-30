@@ -13,8 +13,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.11-3.13 are hard gates (the supported floor through current stable).
-        python-version: ["3.11", "3.12", "3.13"]
+        # 3.12-3.13 are hard gates (3.12 is the supported floor through current stable).
+        python-version: ["3.12", "3.13"]
         experimental: [false]
         include:
           # 3.14 is an experimental leg: allowed to fail until the native-dep
