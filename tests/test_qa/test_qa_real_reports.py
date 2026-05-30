@@ -17,21 +17,21 @@ from src.primr.qa.simple_analyzer import SimpleQAAnalyzer, SimpleQAResult
 class TestRealReportValidation:
     """Test QA system with realistic report content."""
 
-    def test_evertrue_llc_style_comprehensive_report(self):
+    def test_acme_llc_style_comprehensive_report(self):
         """
-        Test with a comprehensive strategic analysis similar to the Evertrue LLC case
+        Test with a comprehensive strategic analysis similar to the Acme LLC case
         mentioned in the requirements. This validates the system can handle real-world
         comprehensive reports without falling back to generic responses.
         """
         # Create realistic comprehensive report content
-        evertrue_content = """
-# Evertrue LLC - Strategic Analysis
+        acme_content = """
+# Acme LLC - Strategic Analysis
 
 ## Executive Summary
 
-Evertrue LLC operates as a leading provider of alumni engagement technology solutions, serving higher education institutions across North America. The company has demonstrated strong market positioning with a 23% year-over-year revenue growth and expanding client base of 150+ institutions.
+Acme LLC operates as a leading provider of alumni engagement technology solutions, serving higher education institutions across North America. The company has demonstrated strong market positioning with a 23% year-over-year revenue growth and expanding client base of 150+ institutions.
 
-Key findings suggest Evertrue maintains competitive advantages through its integrated platform approach, combining donor management, event coordination, and analytics capabilities. However, the analysis reveals potential vulnerabilities in international expansion and dependency on the higher education sector.
+Key findings suggest Acme maintains competitive advantages through its integrated platform approach, combining donor management, event coordination, and analytics capabilities. However, the analysis reveals potential vulnerabilities in international expansion and dependency on the higher education sector.
 
 ## Market Analysis
 
@@ -46,7 +46,7 @@ Market segmentation shows higher education institutions (65% market share) leadi
 
 ## Competitive Landscape
 
-Evertrue competes in a fragmented market with several key players:
+Acme competes in a fragmented market with several key players:
 
 **Direct Competitors:**
 - Blackbaud (market leader, 35% share)
@@ -58,7 +58,7 @@ Evertrue competes in a fragmented market with several key players:
 - CRM generalists expanding into nonprofit space
 - New entrants focusing on mobile-first experiences
 
-Competitive analysis reveals Evertrue's differentiation through user experience design and higher education specialization, though this creates both strength and vulnerability.
+Competitive analysis reveals Acme's differentiation through user experience design and higher education specialization, though this creates both strength and vulnerability.
 
 ## SWOT Analysis
 
@@ -157,57 +157,57 @@ Based on comprehensive analysis, recommend the following strategic priorities:
 
 ## Conclusion
 
-Evertrue LLC demonstrates strong fundamentals with clear growth trajectory in the alumni engagement technology market. The company's focus on higher education provides both competitive advantage and strategic risk. Recommended strategic initiatives focus on diversification and international expansion while maintaining core market leadership.
+Acme LLC demonstrates strong fundamentals with clear growth trajectory in the alumni engagement technology market. The company's focus on higher education provides both competitive advantage and strategic risk. Recommended strategic initiatives focus on diversification and international expansion while maintaining core market leadership.
 
-The analysis suggests Evertrue is well-positioned for continued growth, with particular strength in product-market fit and client relationships. However, success will depend on execution of diversification strategies and ability to scale operations effectively.
+The analysis suggests Acme is well-positioned for continued growth, with particular strength in product-market fit and client relationships. However, success will depend on execution of diversification strategies and ability to scale operations effectively.
         """
 
         # Create comprehensive report structure
-        evertrue_report = ReportContent(
-            company_name="Evertrue LLC",
-            content=evertrue_content,
+        acme_report = ReportContent(
+            company_name="Acme LLC",
+            content=acme_content,
             sections={
-                "Executive Summary": evertrue_content[
-                    evertrue_content.find("## Executive Summary") : evertrue_content.find(
+                "Executive Summary": acme_content[
+                    acme_content.find("## Executive Summary") : acme_content.find(
                         "## Market Analysis"
                     )
                 ],
-                "Market Analysis": evertrue_content[
-                    evertrue_content.find("## Market Analysis") : evertrue_content.find(
+                "Market Analysis": acme_content[
+                    acme_content.find("## Market Analysis") : acme_content.find(
                         "## Competitive Landscape"
                     )
                 ],
-                "Competitive Landscape": evertrue_content[
-                    evertrue_content.find("## Competitive Landscape") : evertrue_content.find(
+                "Competitive Landscape": acme_content[
+                    acme_content.find("## Competitive Landscape") : acme_content.find(
                         "## SWOT Analysis"
                     )
                 ],
-                "SWOT Analysis": evertrue_content[
-                    evertrue_content.find("## SWOT Analysis") : evertrue_content.find(
+                "SWOT Analysis": acme_content[
+                    acme_content.find("## SWOT Analysis") : acme_content.find(
                         "## Financial Overview"
                     )
                 ],
-                "Financial Overview": evertrue_content[
-                    evertrue_content.find("## Financial Overview") : evertrue_content.find(
+                "Financial Overview": acme_content[
+                    acme_content.find("## Financial Overview") : acme_content.find(
                         "## Value Chain Analysis"
                     )
                 ],
-                "Value Chain Analysis": evertrue_content[
-                    evertrue_content.find("## Value Chain Analysis") : evertrue_content.find(
+                "Value Chain Analysis": acme_content[
+                    acme_content.find("## Value Chain Analysis") : acme_content.find(
                         "## Strategic Recommendations"
                     )
                 ],
-                "Strategic Recommendations": evertrue_content[
-                    evertrue_content.find("## Strategic Recommendations") : evertrue_content.find(
+                "Strategic Recommendations": acme_content[
+                    acme_content.find("## Strategic Recommendations") : acme_content.find(
                         "## Risk Assessment"
                     )
                 ],
-                "Risk Assessment": evertrue_content[
-                    evertrue_content.find("## Risk Assessment") : evertrue_content.find(
+                "Risk Assessment": acme_content[
+                    acme_content.find("## Risk Assessment") : acme_content.find(
                         "## Conclusion"
                     )
                 ],
-                "Conclusion": evertrue_content[evertrue_content.find("## Conclusion") :],
+                "Conclusion": acme_content[acme_content.find("## Conclusion") :],
             },
             citations=[
                 "Higher Education Marketing Report 2024",
@@ -222,13 +222,13 @@ The analysis suggests Evertrue is well-positioned for continued growth, with par
                 "Industry Expert Interviews",
             ],
             metadata=ReportMetadata(
-                company_name="Evertrue LLC",
+                company_name="Acme LLC",
                 generation_date=datetime.now(),
                 generation_mode="full",
                 model_used="gemini-3-flash-preview",
-                file_path=Path("evertrue_comprehensive_analysis.txt"),
+                file_path=Path("acme_comprehensive_analysis.txt"),
             ),
-            file_path=Path("evertrue_comprehensive_analysis.txt"),
+            file_path=Path("acme_comprehensive_analysis.txt"),
         )
 
         # Test with the enhanced QA analyzer
@@ -258,7 +258,7 @@ The analysis suggests Evertrue is well-positioned for continued growth, with par
         with patch.object(analyzer, "ai_client") as mock_client:
             mock_client.generate.return_value = mock_response
 
-            result = analyzer.assess_report(evertrue_report)
+            result = analyzer.assess_report(acme_report)
 
             # Validate that comprehensive reports receive proper assessment
             assert isinstance(result, SimpleQAResult)

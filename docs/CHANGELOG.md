@@ -9,6 +9,132 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No unreleased changes.
 
+## [1.27.1] - 2026-05-29
+
+### Skill pack: operator roster curation
+
+The v1.27.0 planning architecture decides "what roles should exist at this company" by analyzing job postings + research. Operators still need to override that decision when they know something the data doesn't show — augment with specific roles ("the discovered list misses Account Executive"), prune roles they don't want ("drop Marketing Manager"), or do both at once ("swap Marketing Manager for Demand Generation Manager"). v1.27.0 covered the binary cases (full override via `--roles-override`, accept-as-is via `--from-plan`) but had no augmentation surface — the only way to do partial curation was to hand-edit `role_plan.json`. v1.27.1 closes that gap.
+
+#### Four-flag curation surface
+
+- `--plan-only`: run the planning step, write `role_plan.md` + `role_plan.json`, exit before authoring (existing).
+- `--from-plan PATH`: load a previously-persisted plan and skip planning (existing).
+- `--roles-add "A, B"` (new): comma-separated list of role labels to APPEND to the discovered roster. Each label is materialized as a `Role` with `provenance: override`, archetype matching applied so authoring picks up the closest scaffolding.
+- `--roles-skip "X, Y"` (new): comma-separated list of role labels or kebab-case slugs to REMOVE from the discovered roster. Match is exact, case-insensitive, against either `display_name` or `name`. Unmatched names log a warning so typos are visible.
+
+The four compose:
+- `--from-plan PATH --roles-add "..."` → load plan, append added roles, author the union
+- `--from-plan PATH --roles-skip "..."` → load plan, drop skipped roles, author the rest
+- `--from-plan PATH --roles-add "..." --roles-skip "..."` → load plan, drop skipped first, then append added
+- `--roles-add "..."` alone → plan normally, append added before cap
+- `--roles-skip "..."` alone → plan normally, drop skipped after merge
+- `--plan-only --roles-add ... --roles-skip ...` → plan, apply curation, persist the curated plan, exit
+- `--roles-override "..."` + `--roles-add/skip "..."` → override wins, curation flags warned and ignored (mutually exclusive per design)
+
+#### Cap-aware merge with operator priority
+
+When operator additions push the roster over `MAX_ROLES=15`, trim order is deterministic and operator-favoring:
+
+1. Plausible roles trim first (research / industry provenance)
+2. Observed roles trim next (posting provenance)
+3. Operator-added roles never trim
+
+Trimmed entries flow to `gap_flagged` so the plan artifact records what got dropped.
+
+#### Name + archetype dedup
+
+When `--roles-add "Marketing Manager"` lands in a roster that already contains a Marketing Manager (or any role with archetype `marketing-manager`), the existing role wins — its posting/research citations are richer than the bare operator label. The add is silently skipped with a one-line log. Operators who want to force a specific variant can combine `--roles-skip "Marketing Manager"` with `--roles-add "Demand Generation Manager"` to swap.
+
+#### Hard failure modes
+
+- **Clash between add and skip**: `SkillPackConfig.validate()` raises `ValueError` if the same name appears in both lists (normalized).
+- **Curation leaves empty roster**: `apply_curation` raises `RuntimeError` rather than shipping an empty pack.
+- **Add list exceeds MAX_ROLES alone**: rejected at config validation.
+
+#### Artifact changes
+
+- `role_plan.md` gains `## Operator-Added Roles` and `## Operator-Skipped Roles` sections.
+- `role_plan.json` `RolePlan` schema gains `operator_added: list[Role]` and `operator_skipped: list[str]` fields. `load_plan` hydrates them on `--from-plan`.
+- Pack report (`<Company>_Skills_Pack_Report.md`) Role Composition section adds an `Operator-added (via --roles-add): N` line and an `Operator-skipped (via --roles-skip): N (<names>)` line when applicable.
+- CLI completion message reports the full breakdown: `Roles: 7 (5 observed, 0 plausible, 2 added; target 5)`.
+
+#### MCP
+
+`generate_skill_pack` tool gains `roles_add: array[string]` and `roles_skip: array[string]` params alongside the existing `roles_override` / `plan_only` / `from_plan_path` / `allow_recon_only`. Backward compat preserved.
+
+#### Tests
+
+21 new curation tests in `tests/skill_pack/test_curation.py` covering: normalization, role materialization, cap trim order (plausible → observed → never override), the full composition matrix (add-alone / skip-alone / add+skip swap / add dedup by name / add dedup by archetype / cap overflow), and edge cases (empty roster hard error, unmatched skip warning, config-level clash detection, add-exceeds-cap rejection, dedup within `roles_add` and `roles_skip` lists). All pass; ruff clean.
+
+## [1.27.0] - 2026-05-29
+
+### Skill pack: holistic input layer + planning architecture rebuild
+
+The skill pack subsystem treats job postings as primary input and research as supporting context. Two problems showed up against real services / reseller / consultancy companies: (1) the input layer covered only four ATS providers, missing Workday-using companies entirely; (2) the single-call discovery layer collapsed observed roles and inferred roles into one list with no provenance, making it impossible to distinguish "this role appears in actual postings" from "this role plausibly exists given the business model." Both gaps are fixed.
+
+#### Input layer
+
+Hiring-signal gathering (`src/primr/data/hiring_signals.py`) expands from 4 ATS providers to 8:
+
+- **Workday** with two discovery paths: corpus-driven URL extraction (when the scrape already saw a `myworkdayjobs.com` URL, hit the exact endpoint directly) and bounded blind discovery (4 datacenters × 5 site-ids per slug candidate). Posts to the public `/wday/cxs/{tenant}/{site}/jobs` JSON endpoint and fails closed on schema mismatch.
+- **Workable** via the public widget API at `apply.workable.com/api/v1/widget/accounts/{slug}`.
+- **Recruitee** via the public offers API at `{slug}.recruitee.com/api/offers/`.
+- **Jobvite** via the public RSS feed at `jobs.jobvite.com/{slug}/jobs?format=rss`.
+
+New **DuckDuckGo web-search fallback** (`_discover_via_web_search`) fires only when the ATS chain + HTML careers-page crawl both return zero postings. Filters results to known job-board hosts (LinkedIn, Indeed, Glassdoor, Workday boards, the ATS hosts) and returns metadata-only postings. The no-bodies branch was extended to populate `signals.roles` from posting titles when bodies aren't recoverable, so the skill pack discovery layer still sees role-type signal even when posting hosts block automated scraping.
+
+iCIMS and BambooHR are still not covered as dedicated providers — they have no clean public JSON APIs, and the existing HTML fallback handles them.
+
+#### Planning architecture
+
+`src/primr/skill_pack/planner.py` replaces the single-call `discover_roles` with a two-call planning step:
+
+- **Call A — observed roles**: extracts roles from hiring signals only. Every role MUST carry at least one verbatim posting citation or it's dropped. Provenance: `posting`. Confidence: `Confirmed`.
+- **Call B — plausible roles**: infers roles from recon + research evidence + an `IndustryClassification` (business model, vertical, stage, employee estimate, citations). Every plausible role MUST carry at least one specific research citation OR an explicit business-model + stage rationale. Common org-shape roles (Marketing, Sales, Customer Success, Finance, HR) become plausible only when company stage is Mid-market or larger. Generic VP and Chief-X titles are forbidden without specific evidence. Provenance: `research` or `industry`. Confidence: `Inferred` or `Speculated`.
+
+Merge is archetype-based with observed-wins dedupe. The split is signal-driven — no hard ratio. Rich postings + thin research yields observed-dominant; thin postings + rich research yields plausible-dominant. Cap is `roles_count`; overflow goes to `gap_flagged` so operators can re-run with `--roles-override` to promote any of them.
+
+`IndustryClassification` resolution is LLM-only (deterministic heuristics were considered and rejected): first parse structured fields from a primr strategic report when one is supplied via `--from-report`, otherwise run a single cheap LLM classification call. `source` field on the result records which path produced it.
+
+#### Artifacts
+
+The planning step writes two artifacts into the working directory before authoring begins:
+
+- `role_plan.md` — human-readable view with industry classification, evidence summary, observed roles + citations, plausible roles + citations, gap-flagged roles, final roster, and operator next-step hints.
+- `role_plan.json` — machine view used by `--from-plan`. Includes the full role payload, evidence, citations, industry, and provenance per role.
+
+The pack report (`<Company>_Skills_Pack_Report.md`) now shows the observed/plausible split, industry classification, per-role provenance with citation excerpts, and a reference back to `role_plan.md`.
+
+#### Authoring
+
+`author_role_skills` branches the authoring prompt on `RoleEvidence.provenance` so observed roles ground in posting evidence, research-inferred roles ground in research citations and named practices, industry-inferred roles ground in business-model typicality, and operator overrides pass through cleanly. A new `provenance_guidance` placeholder in `author_skill.yaml` injects the per-provenance steering text.
+
+#### CLI
+
+- `--plan-only` — run through the planning step, persist `role_plan.md` / `role_plan.json`, exit before authoring.
+- `--from-plan PATH` — load a previously-persisted plan and author against its `final_roster` verbatim. Supports the plan → inspect → author workflow.
+- `--roles-override "Role A, Role B, ..."` — bypass planning entirely; up to `MAX_ROLES` labels.
+- `--allow-recon-only` — opt in to the degraded recon-only path when both posting and research evidence are empty (the default is hard failure with a clear error message).
+
+#### Configuration
+
+- `MAX_ROLES` raised from 8 to 15 for holistic packs that mix observed and plausible roles.
+- New `SkillPackConfig` fields: `allow_recon_only`, `roles_override`, `plan_only`, `from_plan_path`.
+- New `RoleProvenance` enum (`posting` / `research` / `industry` / `override`) carried on `RoleEvidence` end-to-end.
+- New `IndustryClassification` and `RolePlan` dataclasses in `schema.py`; `SkillPack` carries an optional `plan` reference.
+
+#### Hard failure on empty inputs
+
+`discover_roles` and `plan_roles` now raise `EmptyHiringEvidenceError` when both posting evidence and research evidence are empty unless `allow_recon_only=True` is passed. Prevents the silent shipping of thin recon-only packs against services / reseller / consultancy companies where DNS fingerprints can't reveal the revenue-generating role layer.
+
+#### Tests
+
+- 13 new planner tests in `tests/skill_pack/test_planner.py` (observed/plausible split, merge+cap behavior, hard-failure path, allow-recon-only proceeds, plan roundtrip persistence).
+- 17 new provider tests in `tests/test_data/test_hiring_signals_new_providers.py` (Workday corpus discovery + bounded discovery + POST parsing, Workable, Recruitee, Jobvite, web-search filtering, title cleanup).
+- Existing `tests/test_data/test_hiring_signals.py` updated to mock the web-search fallback explicitly.
+- Existing `tests/skill_pack/test_pipeline.py` mock updated to recognize the new planning prompts.
+- Full suite: 7917 passed, 31 skipped, 0 failed. Ruff clean.
+
 ## [1.24.4] - 2026-05-16
 
 ### Cost estimator now reflects cross-provider routing

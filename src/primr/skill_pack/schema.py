@@ -46,6 +46,22 @@ class SkillIssue:
         }
 
 
+class RoleProvenance(str, Enum):
+    """How a role entered the plan.
+
+    The authoring stage branches on this so observed roles ground their
+    skills in actual posting evidence and plausible roles ground theirs in
+    research / industry context. Consumers of the pack can also surface
+    provenance to end users so a Confirmed posting-grounded role is
+    visibly different from an Inferred research-grounded one.
+    """
+
+    POSTING = "posting"  # found in actual job postings
+    RESEARCH = "research"  # inferred from company-specific research artifacts
+    INDUSTRY = "industry"  # inferred from business-model + stage typicality
+    OVERRIDE = "override"  # operator-supplied via --roles-override
+
+
 @dataclass
 class RoleEvidence:
     """Citations and grounding for one discovered role."""
@@ -54,6 +70,11 @@ class RoleEvidence:
     dns_signals: list[str] = field(default_factory=list)  # e.g. "Salesforce (DNS-confirmed)"
     posting_count: int = 0
     archetype: str | None = None  # canonical archetype slug, e.g. "ml-engineer"
+    provenance: RoleProvenance = RoleProvenance.POSTING
+    # Verbatim phrase-level citations from the input evidence that support
+    # this role. Required for plausible roles; populated where available
+    # for observed roles. Empty list for operator overrides.
+    citations: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -118,10 +139,141 @@ class SkillPack:
     validation: ValidationReport = field(default_factory=ValidationReport)
     refinement_iterations_used: dict[str, int] = field(default_factory=dict)  # role name -> count
     dropped_roles: list[tuple[str, str]] = field(default_factory=list)  # (name, reason)
+    # Populated by run_skill_pack_pipeline so the pack report can render
+    # the observed / plausible split and link back to role_plan.md.
+    plan: RolePlan | None = None
 
     @property
     def total_skills(self) -> int:
         return sum(len(r.skills) for r in self.roles)
+
+    @property
+    def observed_role_count(self) -> int:
+        return sum(
+            1 for r in self.roles
+            if r.evidence.provenance == RoleProvenance.POSTING
+        )
+
+    @property
+    def plausible_role_count(self) -> int:
+        return sum(
+            1 for r in self.roles
+            if r.evidence.provenance in (RoleProvenance.RESEARCH, RoleProvenance.INDUSTRY)
+        )
+
+    @property
+    def operator_added_role_count(self) -> int:
+        return sum(
+            1 for r in self.roles
+            if r.evidence.provenance == RoleProvenance.OVERRIDE
+        )
+
+
+@dataclass
+class IndustryClassification:
+    """Coarse industry / business-model classification used to gate which
+    plausible roles are reasonable inferences for this company at this
+    stage.
+
+    Resolution order during planning (cheapest first):
+      1. Pull structured fields from a primr strategic report when
+         --from-report is set and the report exposes them.
+      2. Fall back to a single cheap LLM classification call against
+         recon + hiring + research evidence.
+
+    `cited_evidence` carries the verbatim phrases from the inputs that
+    justify the classification so downstream consumers can audit it.
+    `source` records which path produced the classification.
+    """
+
+    business_model: str = "Unknown"
+    industry_vertical: str = "Unknown"
+    company_stage: str = "Unknown"
+    employee_estimate: str = "Unknown"  # rough headcount band
+    confidence: str = "Low"  # High | Medium | Low
+    cited_evidence: list[str] = field(default_factory=list)
+    source: str = "unknown"  # "report" | "llm" | "unavailable" | "unknown"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "business_model": self.business_model,
+            "industry_vertical": self.industry_vertical,
+            "company_stage": self.company_stage,
+            "employee_estimate": self.employee_estimate,
+            "confidence": self.confidence,
+            "cited_evidence": list(self.cited_evidence),
+            "source": self.source,
+        }
+
+
+@dataclass
+class RolePlan:
+    """The planning-step output. Persisted as role_plan.md + role_plan.json
+    in the working directory before authoring begins.
+
+    `observed` are roles whose existence is confirmed by actual job
+    postings; their skills will be authored with posting-grounded prompts.
+    `plausible` are roles inferred from research + industry context; their
+    skills will be authored with research-grounded prompts that
+    acknowledge the inference. `gap_flagged` are roles that the industry
+    pattern suggests but were excluded from the final roster (no citation
+    found, or the requested count was hit first); they appear in the plan
+    artifact so the operator can re-run with overrides if needed.
+
+    `final_roster` is `observed + plausible` deduped and capped at the
+    requested `roles_count`. This is what feeds the authoring stage.
+    """
+
+    observed: list[Role] = field(default_factory=list)
+    plausible: list[Role] = field(default_factory=list)
+    gap_flagged: list[Role] = field(default_factory=list)
+    # Operator-supplied roles that augmented the discovered set via
+    # --roles-add. Materialized with provenance=override; subject to the
+    # MAX_ROLES cap with operator-priority (plausible trims first).
+    operator_added: list[Role] = field(default_factory=list)
+    # Names the operator asked to drop via --roles-skip. Recorded so the
+    # plan artifact preserves the curation history. Unmatched names are
+    # logged at planning time and surfaced here.
+    operator_skipped: list[str] = field(default_factory=list)
+    final_roster: list[Role] = field(default_factory=list)
+    industry: IndustryClassification = field(default_factory=IndustryClassification)
+    evidence_summary: dict[str, Any] = field(default_factory=dict)
+    plan_md_path: str | None = None
+    plan_json_path: str | None = None
+
+    @property
+    def total_planned(self) -> int:
+        return len(self.final_roster)
+
+    def to_dict(self) -> dict[str, Any]:
+        def _serialize_role(role: Role) -> dict[str, Any]:
+            return {
+                "name": role.name,
+                "display_name": role.display_name,
+                "confidence": role.confidence,
+                "summary": role.summary,
+                "evidence": {
+                    "sources": list(role.evidence.sources),
+                    "dns_signals": list(role.evidence.dns_signals),
+                    "posting_count": role.evidence.posting_count,
+                    "archetype": role.evidence.archetype,
+                    "provenance": role.evidence.provenance.value,
+                    "citations": list(role.evidence.citations),
+                },
+            }
+
+        return {
+            "observed": [_serialize_role(r) for r in self.observed],
+            "plausible": [_serialize_role(r) for r in self.plausible],
+            "gap_flagged": [_serialize_role(r) for r in self.gap_flagged],
+            "operator_added": [_serialize_role(r) for r in self.operator_added],
+            "operator_skipped": list(self.operator_skipped),
+            "final_roster": [_serialize_role(r) for r in self.final_roster],
+            "industry": self.industry.to_dict(),
+            "evidence_summary": dict(self.evidence_summary),
+            "plan_md_path": self.plan_md_path,
+            "plan_json_path": self.plan_json_path,
+        }
 
 
 @dataclass

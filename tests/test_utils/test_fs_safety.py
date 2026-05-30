@@ -7,7 +7,7 @@ from __future__ import annotations
 import os
 import stat
 import sys
-from pathlib import Path  # noqa: TC003 - used at runtime in fixtures below
+from pathlib import Path
 
 import pytest
 

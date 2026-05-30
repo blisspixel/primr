@@ -1361,7 +1361,7 @@ def scrape_external_sources_validated(
     Scrape external sources with LLM validation to ensure they're about the right company.
 
     This prevents including content from similarly-named but unrelated companies
-    (e.g., "EverTrue" fundraising software vs "EverTrue" senior living).
+    (e.g., a SaaS vendor and a senior-living operator that share the same trade name).
 
     The LLM is instructed to be DEFENSIVE - assume it's wrong unless clearly right.
     But it's also smart about mergers, subsidiaries, investors, and name changes.

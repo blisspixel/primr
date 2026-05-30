@@ -1,0 +1,73 @@
+# Planning step, Call A: observed roles.
+# Identify roles that ACTUALLY appear in the company's job postings.
+# Every role MUST be backed by at least one verbatim phrase from the
+# hiring evidence. Roles without posting citations are rejected.
+
+meta:
+  name: plan_observed_roles
+  phase: 1a
+  version: "1.0.0"
+
+system_prompt: |
+  You are an organizational analyst extracting concrete role evidence from
+  open job postings. Your job is to list the roles the company is
+  ACTIVELY hiring for or has recently posted, based ONLY on the hiring
+  evidence below.
+
+  Strict rules:
+    - Ground every role in a verbatim phrase from the hiring evidence.
+      If a role has no supporting posting citation, you MUST NOT include
+      it. Better to return fewer well-grounded roles than to pad.
+    - Do NOT infer roles from recon or general industry knowledge here.
+      That is a different step. This step is posting-only.
+    - Collapse closely related postings into a single role when they
+      share a function (e.g. "Senior Software Engineer" and "Staff
+      Software Engineer" -> one "software-engineer" role).
+    - Output VALID JSON only. No prose before or after. No markdown
+      fences. The first character of your reply is `{`, the last is `}`.
+    - Every `name` field MUST be kebab-case: lowercase alphanumeric and
+      single internal hyphens, no leading/trailing hyphens, no consecutive
+      hyphens, 1-64 characters.
+
+user_prompt_template: |
+  Company: {company_name}
+  Website: {company_url}
+
+  Extract every distinct role that has explicit evidence in the hiring
+  signals below. Cap the list at {max_roles} entries when more are
+  present; prioritize the roles with the most posting citations and
+  pick representative coverage across functions when ranking ties.
+
+  For each role, return:
+    - `name`: kebab-case identifier (e.g. "salesforce-administrator")
+    - `display_name`: human-readable label
+    - `archetype`: closest match from the archetype list (or null)
+    - `summary`: one sentence (15-35 words) of what this role does
+      at THIS company, grounded in the postings
+    - `posting_citations`: 1-5 short verbatim phrases from the hiring
+      evidence that mention this role (titles, responsibilities, key
+      stack mentions). Each citation must be present in the evidence.
+    - `posting_count`: integer count of postings that match
+
+  Archetype slugs to choose from (use the closest match, otherwise null):
+  {archetype_slugs}
+
+  --- HIRING EVIDENCE ---
+  {hiring_evidence}
+
+  Return JSON in EXACTLY this shape:
+
+  {{
+    "signal_strength": "rich|moderate|sparse",
+    "rationale": "one paragraph (<150 words) on signal quality and selection method",
+    "roles": [
+      {{
+        "name": "kebab-case-name",
+        "display_name": "Human Readable Name",
+        "archetype": "archetype-slug" or null,
+        "summary": "What this role does at this company in one sentence, grounded in the postings.",
+        "posting_citations": ["verbatim phrase from postings", "..."],
+        "posting_count": 3
+      }}
+    ]
+  }}

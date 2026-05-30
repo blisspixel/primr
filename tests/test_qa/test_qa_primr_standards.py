@@ -427,7 +427,7 @@ class TestComprehensiveReportReliability:
         **Feature: qa-grading-fix, Property 3: Comprehensive reports complete successfully**
         **Validates: Requirements 3.1**
 
-        For any well-structured report like the Evertrue LLC analysis, the system should
+        For any well-structured report like the Acme LLC analysis, the system should
         provide a complete assessment without falling back to error responses.
         """
         analyzer = SimpleQAAnalyzer()
@@ -630,18 +630,18 @@ class TestComprehensiveReportReliability:
 
     @given(report=generate_report_content())
     @settings(suppress_health_check=[HealthCheck.too_slow], max_examples=5, deadline=None)
-    def test_evertrue_llc_style_report_handling(self, report: ReportContent):
+    def test_acme_llc_style_report_handling(self, report: ReportContent):
         """
-        Test handling of comprehensive reports similar to the Evertrue LLC case mentioned in requirements.
+        Test handling of comprehensive reports similar to the Acme LLC case mentioned in requirements.
         This ensures the system can handle real-world comprehensive strategic analyses.
         """
         analyzer = SimpleQAAnalyzer()
 
-        # Simulate a comprehensive 35+ page strategic analysis like Evertrue LLC
+        # Simulate a comprehensive 35+ page strategic analysis like Acme LLC
         comprehensive_content = (
             """
         EXECUTIVE SUMMARY
-        Evertrue LLC demonstrates strong market positioning in the alumni engagement technology sector...
+        Acme LLC demonstrates strong market positioning in the alumni engagement technology sector...
 
         MARKET ANALYSIS
         The alumni engagement market has grown significantly, with total addressable market estimated at $2.1B...
@@ -667,8 +667,8 @@ class TestComprehensiveReportReliability:
             * 10
         )  # Simulate comprehensive content
 
-        evertrue_style_report = ReportContent(
-            company_name="Evertrue LLC",
+        acme_style_report = ReportContent(
+            company_name="Acme LLC",
             content=comprehensive_content,
             sections={
                 "Executive Summary": comprehensive_content[:500],
@@ -681,17 +681,17 @@ class TestComprehensiveReportReliability:
             },
             citations=[f"Source {i}" for i in range(25)],  # Comprehensive citation base
             metadata=ReportMetadata(
-                company_name="Evertrue LLC",
+                company_name="Acme LLC",
                 generation_date=datetime.now(),
                 generation_mode="full",
                 model_used="gemini-3-flash-preview",
-                file_path=Path("evertrue_comprehensive.txt"),
+                file_path=Path("acme_comprehensive.txt"),
             ),
-            file_path=Path("evertrue_comprehensive.txt"),
+            file_path=Path("acme_comprehensive.txt"),
         )
 
         # Mock high-quality assessment response
-        evertrue_response = """{
+        acme_response = """{
             "ready_for_use": true,
             "confidence_level": "high",
             "key_strengths": [
@@ -710,13 +710,13 @@ class TestComprehensiveReportReliability:
         }"""
 
         with patch.object(analyzer, "ai_client") as mock_client:
-            mock_client.generate.return_value = evertrue_response
+            mock_client.generate.return_value = acme_response
 
-            result = analyzer.assess_report(evertrue_style_report)
+            result = analyzer.assess_report(acme_style_report)
 
-            # Should handle comprehensive reports like Evertrue LLC successfully
+            # Should handle comprehensive reports like Acme LLC successfully
             assert isinstance(result, SimpleQAResult), (
-                "Should handle Evertrue-style comprehensive reports"
+                "Should handle Acme-style comprehensive reports"
             )
             assert result.parsing_success, (
                 "Should successfully parse comprehensive strategic analysis"

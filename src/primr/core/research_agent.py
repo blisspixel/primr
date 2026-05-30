@@ -824,7 +824,7 @@ def run_research(
 
     # External research - with LLM validation to ensure correct company
     # This prevents including content from similarly-named but unrelated companies
-    # (e.g., "EverTrue" fundraising software vs "EverTrue" senior living)
+    # (e.g., a SaaS vendor and an unrelated services firm that share the same trade name)
     progress("Searching for external sources...")
 
     external_data = {}

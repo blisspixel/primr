@@ -10,8 +10,8 @@ Usage:
     python tests/manual/test_external_source_relevance.py "Company Name" "https://website.com"
 
 Examples:
-    python tests/manual/test_external_source_relevance.py "Softchoice" "https://www.softchoice.com"
-    python tests/manual/test_external_source_relevance.py "EverTrue" "https://www.evertrue.com"
+    python tests/manual/test_external_source_relevance.py "Acme Corp" "https://www.acme.example"
+    python tests/manual/test_external_source_relevance.py "ExampleCo" "https://www.example.co"
 """
 
 import sys

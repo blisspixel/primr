@@ -496,9 +496,11 @@ class TestGatherHiringSignalsE2E:
         assert (hiring_dir / "postings_index.json").exists()
 
     def test_no_ats_and_no_careers_page_returns_none_source(self, tmp_path):
-        """Every provider misses, HTML fallback finds nothing → source='none', signals empty."""
+        """Every provider misses, HTML fallback finds nothing, web-search
+        fallback also misses → source='none', signals empty."""
         with (
             patch.object(hs, "_http_get", return_value=(404, b"", None)),
+            patch.object(hs, "_discover_via_web_search", return_value=[]),
             patch("primr.ai.grok_client.grok_llm") as grok,
         ):
             signals = gather_hiring_signals(
@@ -506,7 +508,7 @@ class TestGatherHiringSignalsE2E:
                 "https://obscure.example",
                 working_folder=str(tmp_path),
             )
-            # Zero LLM calls when nothing found
+            # Zero LLM calls when nothing found anywhere
             grok.assert_not_called()
 
         assert signals is not None

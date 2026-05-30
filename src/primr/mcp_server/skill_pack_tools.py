@@ -163,6 +163,60 @@ def register_skill_pack_tools(server: Server, mcp_server: PrimrMCPServer) -> lis
                             "exceeds this cap."
                         ),
                     },
+                    "allow_recon_only": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": (
+                            "When True, proceed even when no posting and "
+                            "no research evidence are available. Default "
+                            "fails closed."
+                        ),
+                    },
+                    "plan_only": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": (
+                            "When True, run the planning step, persist "
+                            "role_plan.md / role_plan.json, and return "
+                            "without authoring. Useful for inspecting "
+                            "the planned roster before paying for skills."
+                        ),
+                    },
+                    "from_plan_path": {
+                        "type": "string",
+                        "description": (
+                            "Optional path to a previously-persisted "
+                            "role_plan.json. Skips planning and authors "
+                            "against the plan's final_roster verbatim."
+                        ),
+                    },
+                    "roles_override": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "Optional list of role labels that bypass "
+                            "automatic planning. Mutually exclusive with "
+                            "roles_add / roles_skip."
+                        ),
+                    },
+                    "roles_add": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "Optional list of role labels to ADD to the "
+                            "planned roster (operator-supplied augmentation). "
+                            "Composes with from_plan_path."
+                        ),
+                    },
+                    "roles_skip": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "Optional list of role labels or kebab-case "
+                            "slugs to REMOVE from the planned roster. "
+                            "Composes with from_plan_path."
+                        ),
+                    },
                 },
                 "required": ["company_name"],
             },
@@ -280,6 +334,22 @@ async def _handle_generate_skill_pack(arguments: dict[str, Any]) -> list[TextCon
     max_refine = int(arguments.get("max_refine_iterations") or DEFAULT_MAX_REFINE_ITERATIONS)
     destination = arguments.get("destination") or "output"
     max_cost = arguments.get("max_estimated_cost_usd")
+    allow_recon_only = bool(arguments.get("allow_recon_only") or False)
+    plan_only = bool(arguments.get("plan_only") or False)
+    from_plan_path = arguments.get("from_plan_path") or None
+
+    def _coerce_list(raw: object) -> list[str]:
+        if not raw:
+            return []
+        if isinstance(raw, str):
+            return [s.strip() for s in raw.split(",") if s.strip()]
+        if isinstance(raw, list):
+            return [str(s).strip() for s in raw if str(s).strip()]
+        return []
+
+    roles_override = _coerce_list(arguments.get("roles_override"))
+    roles_add = _coerce_list(arguments.get("roles_add"))
+    roles_skip = _coerce_list(arguments.get("roles_skip"))
 
     # Cost gate
     estimate = _estimate_skill_pack_cost(
@@ -302,7 +372,9 @@ async def _handle_generate_skill_pack(arguments: dict[str, Any]) -> list[TextCon
 
     try:
         config = SkillPackConfig(
-            roles_count=roles_count,
+            roles_count=(
+                len(roles_override) if roles_override else roles_count
+            ),
             skills_per_role=skills_per_role,
             formats=SkillPackFormat(formats_value),
             max_refine_iterations=max_refine,
@@ -310,6 +382,12 @@ async def _handle_generate_skill_pack(arguments: dict[str, Any]) -> list[TextCon
             reuse_existing_evidence=bool(report_path),
             max_cost_per_role_usd=DEFAULT_MAX_COST_PER_ROLE_USD,
             max_total_cost_usd=float(max_cost) if max_cost is not None else None,
+            allow_recon_only=allow_recon_only,
+            roles_override=roles_override,
+            roles_add=roles_add,
+            roles_skip=roles_skip,
+            plan_only=plan_only,
+            from_plan_path=from_plan_path,
         )
         config.validate()
     except ValueError as exc:

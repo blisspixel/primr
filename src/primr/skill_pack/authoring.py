@@ -19,7 +19,7 @@ from primr.skill_pack.archetypes import (
 )
 from primr.skill_pack.discovery import load_evidence
 from primr.skill_pack.prompts_loader import extract_json, load_skill_pack_prompt
-from primr.skill_pack.schema import Role, Skill
+from primr.skill_pack.schema import Role, RoleProvenance, Skill
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +36,67 @@ def _resolve_archetype_grounding(role: Role) -> tuple[ArchetypeMatch, str]:
         return match, "(no bundled archetype matched — author from company evidence only)"
     grounding = grounding_prompt_fragment(match.archetype, max_skills=8)
     return match, grounding
+
+
+def _provenance_guidance(role: Role) -> str:
+    """Return per-provenance guidance text injected into the authoring
+    prompt. Steers the LLM to ground in posting evidence, research
+    evidence, business-model context, or to honor an operator override.
+    """
+    citations = role.evidence.citations or []
+    citation_block = ""
+    if citations:
+        rendered = "\n".join(f"  - {c[:200]}" for c in citations[:5])
+        citation_block = f"\n\nSupporting citations for this role:\n{rendered}"
+
+    provenance = role.evidence.provenance
+    if provenance == RoleProvenance.POSTING:
+        return (
+            "OBSERVED FROM POSTINGS. This role is grounded in actual job "
+            "postings. Anchor every skill in the specific responsibilities, "
+            "tools, and language the postings use. Prefer concrete posting "
+            "phrases over generic capability descriptions. When a skill "
+            "covers a workflow the postings explicitly mention, say so in "
+            "the body's customization."
+            + citation_block
+        )
+    if provenance == RoleProvenance.RESEARCH:
+        return (
+            "INFERRED FROM RESEARCH. This role was not in the posting data "
+            "but is a confident inference from the company's strategic "
+            "research (named practices, services, programs, or partner "
+            "designations). Anchor every skill in the cited research "
+            "phrases. The body should reference the practice or program "
+            "the inference came from (e.g. \"as part of the company's "
+            "<named practice>\")."
+            + citation_block
+        )
+    if provenance == RoleProvenance.INDUSTRY:
+        return (
+            "INFERRED FROM BUSINESS MODEL + STAGE. This role is plausible "
+            "given the company's business model, industry vertical, and "
+            "employee-size estimate, but is not specifically named in the "
+            "research. Skills should reflect what this role typically does "
+            "at companies of this shape, tuned to the company's named tools "
+            "and stack where possible. Avoid claims about specific company "
+            "programs that are not in the evidence."
+            + citation_block
+        )
+    if provenance == RoleProvenance.OVERRIDE:
+        return (
+            "OPERATOR-SUPPLIED ROLE. This role was supplied directly by "
+            "the operator and bypasses automatic discovery. Author skills "
+            "that fit the role label and the company's general evidence; "
+            "no posting or research citation is required."
+        )
+    # The enum covers POSTING / RESEARCH / INDUSTRY / OVERRIDE; if a new
+    # value is added to RoleProvenance without updating this function we
+    # fail loudly rather than ship a generic-guidance prompt that would
+    # silently degrade authoring quality.
+    raise ValueError(
+        f"Unhandled RoleProvenance value in _provenance_guidance: "
+        f"{provenance!r}. Add a branch for it here when the enum is extended."
+    )
 
 
 def author_role_skills(
@@ -73,6 +134,7 @@ def author_role_skills(
         recon_signals=recon_evidence,
         hiring_signals=hiring_evidence,
         archetype_grounding=archetype_grounding,
+        provenance_guidance=_provenance_guidance(role),
         skills_per_role=skills_per_role,
     )
 
