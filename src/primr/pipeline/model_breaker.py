@@ -93,7 +93,7 @@ PREMIUM_FALLBACK_CHAIN = FallbackChain(
     name="premium",
     models=(
         PrimrModels.PRO_MODEL,  # gemini-3.1-pro (primary)
-        "claude-opus-4-7",  # Anthropic fallback
+        "claude-opus-4-8",  # Anthropic fallback
         "gpt-5.5",  # OpenAI fallback
         PrimrModels.GROK_MODEL_43,  # xAI fallback
     ),

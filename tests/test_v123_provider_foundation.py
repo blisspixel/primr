@@ -249,12 +249,12 @@ class TestAnthropicModelCorrectness:
     """
 
     def test_opus_has_1m_context(self) -> None:
-        config = PrimrModels.get_model_config("claude-opus-4-7")
+        config = PrimrModels.get_model_config("claude-opus-4-8")
         assert config is not None
         assert config.max_input_tokens == 1_000_000
 
     def test_opus_has_128k_output(self) -> None:
-        config = PrimrModels.get_model_config("claude-opus-4-7")
+        config = PrimrModels.get_model_config("claude-opus-4-8")
         assert config is not None
         assert config.max_output_tokens == 128_000
 

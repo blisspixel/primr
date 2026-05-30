@@ -552,4 +552,4 @@ class TestProfileRecipe:
         """ProfileRecipe is frozen — mutation should raise."""
         recipe = ProfileRecipe(reasoning="grok-4.3")
         with pytest.raises(AttributeError):
-            recipe.reasoning = "claude-opus-4-7"  # type: ignore[misc]
+            recipe.reasoning = "claude-opus-4-8"  # type: ignore[misc]
