@@ -18,6 +18,8 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 
+from primr.utils.security import mask_sensitive_data
+
 # =============================================================================
 # LOG FORMATTERS
 # =============================================================================
@@ -97,6 +99,7 @@ def setup_logging(
     console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setLevel(getattr(logging, console_level.upper()))
     console_handler.setFormatter(ColoredFormatter("%(levelname)s: %(message)s"))
+    console_handler.addFilter(SecretMaskingFilter())
     logger.addHandler(console_handler)
 
     # File handler - everything
@@ -116,6 +119,8 @@ def setup_logging(
         )
         # Wire up ContextFilter so LogContext data appears in structured log output
         file_handler.addFilter(ContextFilter())
+        # Redact secrets before anything is written to the persistent log file
+        file_handler.addFilter(SecretMaskingFilter())
         logger.addHandler(file_handler)
 
         logger.info(f"Logging to {log_file}")
@@ -195,6 +200,29 @@ class ContextFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         record.extra = _get_log_context().copy()
+        return True
+
+
+class SecretMaskingFilter(logging.Filter):
+    """Redacts secrets (API keys, tokens, passwords) from every log record.
+
+    Defense-in-depth at the logging sink: even if a caller accidentally logs a
+    secret (e.g. ``logger.info("key=%s", api_key)``), it is masked before the
+    record reaches any handler, regardless of caller discipline. Renders the
+    record's message (applying %-args) and runs it through
+    ``mask_sensitive_data``; only rewrites the record when something changed.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            rendered = record.getMessage()
+        except Exception:
+            # Never let masking break logging — emit the record untouched.
+            return True
+        masked = mask_sensitive_data(rendered)
+        if masked != rendered:
+            record.msg = masked
+            record.args = None  # already interpolated into masked text
         return True
 
 

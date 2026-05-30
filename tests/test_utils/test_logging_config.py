@@ -7,6 +7,7 @@ import logging
 from primr.utils.logging_config import (
     ColoredFormatter,
     LogContext,
+    SecretMaskingFilter,
     StructuredFormatter,
     get_logger,
     setup_logging,
@@ -228,3 +229,50 @@ class TestLoggingIntegration:
         content = log_file.read_text()
         assert "Child log message" in content
         assert "child_module" in content
+
+
+class TestSecretMaskingFilter:
+    """The logging sink redacts secrets regardless of caller discipline."""
+
+    def test_filter_masks_rendered_message(self):
+        """A secret passed via %-args is masked after rendering."""
+        f = SecretMaskingFilter()
+        record = logging.LogRecord(
+            name="primr.test",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="auth with key=%s",
+            args=("AIzaSyA1234567890abcdefghijklmnopqrstuv",),
+            exc_info=None,
+        )
+        assert f.filter(record) is True
+        rendered = record.getMessage()
+        assert "AIzaSyA1234567890" not in rendered
+
+    def test_filter_passes_clean_messages_untouched(self):
+        """Non-secret records keep their original msg/args (no needless rewrite)."""
+        f = SecretMaskingFilter()
+        record = logging.LogRecord(
+            name="primr.test",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="scraped %d pages",
+            args=(7,),
+            exc_info=None,
+        )
+        assert f.filter(record) is True
+        assert record.msg == "scraped %d pages"
+        assert record.getMessage() == "scraped 7 pages"
+
+    def test_secret_never_reaches_log_file(self, tmp_path):
+        """End-to-end: an xAI key logged anywhere is redacted before it hits disk."""
+        setup_logging(level="DEBUG", log_dir=tmp_path, session_id="mask_test")
+        logger = get_logger("masking_module")
+        secret = "xai-abc123DEF456ghi789JKL012mno345PQR678stu"
+        logger.info("calling provider with token %s", secret)
+
+        content = (tmp_path / "research_mask_test.log").read_text()
+        assert secret not in content
+        assert "[XAI_API_KEY]" in content
