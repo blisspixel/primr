@@ -325,6 +325,7 @@ mypy src/primr --ignore-missing-imports     # Type check
 | Crash recovery | [Recovery Guide](docs/RECOVERY.md) |
 | Output improvement | [Improve Guide](docs/IMPROVE.md) |
 | Configuration | [Full Config Reference](docs/CONFIG.md) |
+| Security & threat model | [Security Policy](docs/SECURITY.md) |
 | Architecture | [System Design](docs/ARCHITECTURE.md) |
 | Adding a new model | [Model Onboarding Playbook](docs/MODEL_ONBOARDING.md) |
 | Cloud deployment | [Deployment Guide](docs/CLOUD_DEPLOYMENT.md) |

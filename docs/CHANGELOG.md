@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### AI / agent security posture
+
+Completes the in-scope security work from `docs/SECURITY.md` (threat model
+T1-T7). No change to research-pipeline behavior beyond defensive sanitization.
+
+- **Indirect prompt-injection hardening (T1)**: new `fence_untrusted()` in
+  `utils/content_sanitizer.py` sanitizes untrusted retrieved content and wraps it
+  in an explicit "data, never instructions" fence. Applied at the previously
+  unfenced external-content→prompt boundaries: insights extraction
+  (`data/insights_extractor.py`), the Deep Research dossier + stage-1 website
+  context (`ai/deep_research.py`), and operator discovery notes are now sanitized
+  (`prompts/composer.py`). Backed by `tests/security/test_prompt_injection_corpus.py`.
+- **Egress guardrails (T2/T6)**: locked the "no fetch bypasses `is_safe_url`"
+  invariant across all three egress helpers with
+  `tests/security/test_egress_guardrails.py` (loopback / RFC1918 / link-local /
+  cloud-metadata all refused, initial + post-redirect).
+- **Chat-log secret redaction (T3)**: `utils/chat_logger.py` now runs
+  `mask_sensitive_data` over prompt + response before persisting and writes
+  atomically (temp + `os.replace`); errors go through the logger, not `print`.
+- **Threat model (T1-T8)**: `docs/SECURITY.md` rewritten as a scoped MITRE-ATLAS
+  threat model — explicitly declares model-training/serving security out of scope
+  (primr owns no weights), documents per-threat control status + residual risk,
+  and refreshes supported versions / disclosure. Linked from README + docs index.
+- Drive-by: fixed genuine pre-existing typing/dead-code nits in touched files
+  (`ContextVar[dict | None]` annotation; `.items()`→`.values()` where keys unused).
+
 ### Engineering standards & toolchain hardening
 
 Infrastructure and supply-chain work; no runtime behavior change to the research

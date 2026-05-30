@@ -15,6 +15,7 @@ Current version: 1.27.1 (Python 3.12+; CI tests 3.12/3.13/3.14)
 |----------|-------------|
 | [API](API.md) | MCP server, programmatic usage |
 | [SKILL_PACK](SKILL_PACK.md) | `primr skills` end-to-end guide: planning, curation, artifacts, CLI/MCP |
+| [SECURITY](SECURITY.md) | Security policy + scoped AI/agent threat model |
 | [OPENCLAW](OPENCLAW.md) | Open Claw integration |
 | [STRATEGY_PORTFOLIO](STRATEGY_PORTFOLIO.md) | Strategy document types |
 

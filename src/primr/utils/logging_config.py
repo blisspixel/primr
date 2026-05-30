@@ -151,7 +151,9 @@ def get_logger(name: str) -> logging.Logger:
 
 
 # Thread-local and async-safe context storage
-_log_context_var: contextvars.ContextVar[dict] = contextvars.ContextVar("log_context", default=None)
+_log_context_var: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
+    "log_context", default=None
+)
 
 
 def _get_log_context() -> dict:
