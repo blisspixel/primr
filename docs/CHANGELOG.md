@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Verification ratchets
+
+- **Invariant property tests** (Hypothesis) pinning the load-bearing correctness
+  invariants, chosen over the `deal` library (no new dependency; fits the
+  exception-based style): skill-pack roster-cap merge
+  (`tests/skill_pack/test_invariant_properties.py` — partition, cap, observed
+  priority, archetype-dedup-for-plausible, trim-priority order), the SSRF guard
+  result shape (`tests/security/test_invariant_properties.py` —
+  always `(True, None)` or `(False, <non-empty>)`), and the `CostGuardHook`
+  budget rule (`tests/agentic/test_costguard_properties.py` — `remaining ≥ 0`;
+  BLOCK iff `spent + max(0, estimate) > max_cost`). The roster property test
+  also sharpened the documented contract (observed-vs-observed archetype repeats
+  are intentional; dedup applies to plausible roles only).
+- **Stateful property test** for the per-host tier circuit breaker
+  (`tests/test_data/test_scraping/test_circuit_breaker_stateful.py`): a
+  `RuleBasedStateMachine` driving arbitrary attempt sequences and asserting
+  failures ≤ attempts, any-success ⇒ never-skipped, skip ⇒ all-failures-past-threshold.
+- **Fault-injection hardening**: closed a real redaction gap surfaced by the
+  fault lens — `SecretMaskingFilter` now also masks secrets inside **exception
+  tracebacks** (`exc_text`), not just the log message. A secret raised in an
+  exception and logged with `exc_info=True` no longer leaks to the log file.
+
 ### AI / agent security posture
 
 Completes the in-scope security work from `docs/SECURITY.md` (threat model

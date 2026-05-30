@@ -276,3 +276,25 @@ class TestSecretMaskingFilter:
         content = (tmp_path / "research_mask_test.log").read_text()
         assert secret not in content
         assert "[XAI_API_KEY]" in content
+
+
+class TestSecretMaskingUnderFaults:
+    """Fault-injection: secrets must be redacted even on the error/exception
+    path, not just in clean log messages."""
+
+    def test_secret_in_exception_traceback_is_masked(self, tmp_path):
+        """A secret embedded in an exception reaches the log via the formatted
+        traceback (not getMessage()). The filter must mask it there too."""
+        setup_logging(level="DEBUG", log_dir=tmp_path, session_id="exc_test")
+        logger = get_logger("faulty_module")
+        secret = "xai-abc123DEF456ghi789JKL012mno345PQR678stu"
+        try:
+            raise RuntimeError(f"provider rejected key {secret}")
+        except RuntimeError:
+            logger.error("call failed", exc_info=True)
+
+        content = (tmp_path / "research_exc_test.log").read_text(encoding="utf-8")
+        assert secret not in content
+        assert "[XAI_API_KEY]" in content
+        # The traceback frame is still present (we masked, not dropped).
+        assert "RuntimeError" in content

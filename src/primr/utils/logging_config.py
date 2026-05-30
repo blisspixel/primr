@@ -225,6 +225,20 @@ class SecretMaskingFilter(logging.Filter):
         if masked != rendered:
             record.msg = masked
             record.args = None  # already interpolated into masked text
+
+        # The message alone is not enough: a secret inside an exception (e.g.
+        # `logger.error("call failed", exc_info=True)` where the exception text
+        # contains an API key) reaches the log via the formatted traceback, not
+        # getMessage(). Pre-format the traceback, mask it, and cache it on the
+        # record so the handler's formatter uses the redacted version.
+        if record.exc_info:
+            try:
+                if record.exc_text is None:
+                    record.exc_text = logging.Formatter().formatException(record.exc_info)
+                record.exc_text = mask_sensitive_data(record.exc_text)
+            except Exception:
+                # Masking the traceback must never break logging.
+                pass
         return True
 
 
