@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.types import Message, TaskState, TaskStatus, TaskStatusUpdateEvent
 from a2a.utils import new_agent_text_message
-from typing_extensions import override
+from typing_extensions import override  # noqa: UP035 - mypy resolves override here, not typing
 
 from primr.a2a.types import A2ATaskMapping
 from primr.mcp_server.pipeline_runner import PipelineRunner, get_doctor_status, run_qa_analysis

@@ -177,17 +177,17 @@ class LogContext:
             logger.info("Starting research")  # Will include company and url
     """
 
-    def __init__(self, **context):
+    def __init__(self, **context: object) -> None:
         self.context = context
         self._token: contextvars.Token | None = None
 
-    def __enter__(self):
+    def __enter__(self) -> "LogContext":
         previous = _get_log_context()
         merged = {**previous, **self.context}
         self._token = _log_context_var.set(merged)
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: object) -> None:
         if self._token is not None:
             _log_context_var.reset(self._token)
 

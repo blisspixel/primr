@@ -133,38 +133,17 @@ primr = [
     "skill_pack/archetypes/*.yaml",
 ]
 
-[tool.mypy]
-python_version = "3.12"
-warn_return_any = true
-warn_unused_configs = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-ignore_missing_imports = true
-disable_error_code = ["import-untyped"]  # Don't require stubs for all libraries
-# Enable stricter checks - code has been improved to support these
-check_untyped_defs = true
-disallow_untyped_defs = false  # Enable incrementally per-module
-no_implicit_optional = true
-strict_optional = true
-# Per-module overrides for stricter checking on well-typed modules
-[[tool.mypy.overrides]]
-module = [
-    "primr.types",
-    "primr.utils.errors",
-    "primr.utils.circuit_breaker",
-    "primr.agentic.hooks",
-    "primr.agentic.errors",
-]
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
+# mypy configuration lives in mypy.ini (authoritative — mypy ignores a
+# [tool.mypy] block here when mypy.ini is present). Edit strictness, the
+# per-module ignore list, and the strict allowlist there, not here. This
+# avoids the two-config drift trap (the prior [tool.mypy] block was dead
+# config that never took effect).
 
 [tool.ruff]
 line-length = 100
-# Intentionally one minor below requires-python (3.12): this controls which
-# modern-syntax rewrites ruff SUGGESTS (pyupgrade/UP). Bumping to py312 surfaces
-# ~55 PEP 695 / typing rewrites that belong with the one-time Phase-2 reflow,
-# not Phase 1. The supported floor is still 3.12 (see [project].requires-python).
-target-version = "py311"
+# Matches the supported floor (requires-python >= 3.12) so pyupgrade (UP) keeps
+# the codebase on modern 3.12+ idioms.
+target-version = "py312"
 
 [tool.ruff.lint]
 select = [
@@ -187,6 +166,9 @@ ignore = [
     "E402",   # Module level import not at top (intentional lazy imports)
     "UP017",  # Allow timezone.utc for broader compatibility
     "UP042",  # Prefer StrEnum - requires larger refactor
+    "UP046",  # PEP 695 generic class - migration deferred (TypeVar generics are
+    "UP047",  # PEP 695 generic function - correct; bulk unsafe-rewrite not worth the risk now
+
     "N802",   # Function name should be lowercase (intentional for color constants)
     "N806",   # Variable in function should be lowercase (intentional for constants)
     "SIM108", # Use ternary operator - sometimes less readable
