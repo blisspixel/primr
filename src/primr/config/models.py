@@ -5,7 +5,7 @@ Centralized Model Configuration for Primr
 THIS IS THE SINGLE SOURCE OF TRUTH FOR ALL AI MODELS.
 UPDATE HERE TO CHANGE MODELS GLOBALLY.
 
-Last audited: May 8, 2026 (see ROADMAP "Model Landscape Audit — May 2026").
+Last audited: May 30, 2026 (refresh of the May 8 "Model Landscape Audit").
 Pricing checked against provider docs the same day. Re-audit before each major
 eval — see ROADMAP "Model Adaptability".
 
@@ -18,8 +18,12 @@ xAI / GROK:
   grok-4.1-fast-*            - DEPRECATED, retired May 15, 2026
 
 GOOGLE / GEMINI:
+  gemini-3.5-flash           - NEW (GA May 19, 2026, I/O '26), $1.50/$9.00 + $0.15 cached,
+                               1M ctx, 65k out. Beats 3.1 Pro on benchmarks at lower cost.
+                               AVAILABLE but not yet a default tier — Pro-tier replacement
+                               candidate (eval-gated). 3.5 Pro (June) + Omni (weeks) pending.
   gemini-3.1-pro-preview     - PRO default, $2/$12 (<=200k) | $4/$18 (>200k), 1M ctx, 65k out
-  gemini-3.1-flash-lite      - NEW (Mar 2026), $0.25/$1.50, 1M ctx, 65k out
+  gemini-3.1-flash-lite      - $0.25/$1.50, 1M ctx, 65k out
                                Leading writing-tier candidate for v1.24.0 sub-$1 default
   gemini-3-flash-preview     - $0.50/$3.00, 1M ctx, 65k out
   gemini-3-pro-preview       - DEPRECATED Mar 9, 2026 (replaced by 3.1 Pro)
@@ -37,7 +41,8 @@ OPENAI:
   All gpt-5.x: 2x input / 1.5x output above 272K input tokens.
 
 ANTHROPIC:
-  claude-opus-4-7            - Most capable, $5.00/$25.00 + $0.50 cached, 1M ctx, 128k out
+  claude-opus-4-8            - Most capable (GA May 28, 2026), $5.00/$25.00 + $0.50 cached,
+                               1M ctx, 128k out. Drop-in over 4.7 (identical pricing).
   claude-sonnet-4-6          - Balance, $3.00/$15.00 + $0.30 cached, 1M ctx, 64k out
   claude-haiku-4-5           - Utility candidate, $1.00/$5.00 + $0.10 cached, 200k ctx
   claude-haiku-3-5           - Cheaper utility option, $0.80/$4.00 + $0.08 cached, 200k ctx
@@ -51,6 +56,17 @@ WHEN TO USE EACH (post-v1.24.0 eval-driven defaults will refine these):
 - WRITING tier (bulk section generation): Gemini 3.1 Flash-Lite (cheapest sub-$1 candidate)
 - REASONING tier (gap analysis, workbook, cross-validation): Grok 4.3 with cache
 - PREMIUM tier (Deep Research): Gemini Deep Research Agent
+
+KEY CHANGES (May 30, 2026 refresh):
+- Claude Opus 4.7 -> 4.8 (`claude-opus-4-8`, GA May 28). Identical pricing; the
+  canonical Anthropic flagship slug swapped repo-wide (registry, fallback chain,
+  routing tests). Historical CHANGELOG references to 4.7 left intact.
+- Gemini 3.5 Flash (`gemini-3.5-flash`, GA May 19) REGISTERED as available, not
+  yet a default tier. Stronger than 3.1 Pro at lower cost ($1.50/$9 vs $2/$12) —
+  a Pro-tier replacement candidate, NOT a sub-$1 writing-tier swap. Default
+  repoint is eval-gated. Gemini 3.5 Pro (June) + Omni (weeks) not yet on the API.
+- xAI Grok 4.3 remains flagship; new Grok Build 0.1 is coding-specialized and not
+  relevant to primr's research/writing pipeline. OpenAI GPT-5.5 remains latest.
 
 KEY CHANGES SINCE v1.22.0:
 - Grok 4.1 line retired May 15, 2026 — `deprecated=True` on legacy entries
@@ -233,6 +249,35 @@ class ModelRegistry:
         cost_per_1m_input_tokens_high=4.00,  # >200k prompts
         cost_per_1m_output_tokens_high=18.00,  # >200k prompts
         tier_threshold_tokens=200_000,
+    )
+
+    # =========================================================================
+    # GEMINI 3.5 FLASH - Frontier agentic/coding Flash (GA May 19, 2026, I/O '26)
+    # Google's strongest agentic + coding model in the Flash line; benchmarks
+    # above Gemini 3.1 Pro at lower cost. Registered as AVAILABLE; NOT yet wired
+    # as a default tier — switching the PRO tier (gemini-3.1-pro-preview, $2/$12)
+    # to this ($1.50/$9, cheaper AND stronger) is eval-gated. See ROADMAP
+    # "Engineering Standards" / "Model Adaptability". NOTE: this is dearer than
+    # gemini-3.1-flash-lite ($0.25/$1.50), so it is a Pro-tier replacement
+    # candidate, NOT a sub-$1 writing-tier swap.
+    # $1.50 input / $9.00 output per 1M tokens, cached input $0.15. No tiered
+    # (>200k) pricing. Context: 1M tokens, Output: 65k tokens.
+    # Sibling models from the same launch not yet GA on the API: Gemini 3.5 Pro
+    # (rolling out June 2026) and Gemini Omni (multimodal video, weeks out) —
+    # register them once their API slugs go live.
+    # =========================================================================
+    GEMINI_3_5_FLASH = ModelConfig(
+        name="gemini-3.5-flash",
+        display_name="Gemini 3.5 Flash",
+        provider="google",
+        cost_per_1m_input_tokens=1.50,
+        cost_per_1m_output_tokens=9.00,
+        max_input_tokens=1_048_576,  # 1M tokens
+        max_output_tokens=65_536,  # 65k tokens
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=True,
+        cost_per_1m_input_tokens_cached=0.15,
     )
 
     # =========================================================================
@@ -571,16 +616,18 @@ class ModelRegistry:
     )
 
     # =========================================================================
-    # ANTHROPIC CLAUDE OPUS 4.7 - Most capable
-    # $5.00 input / $25.00 output per 1M tokens, cached input $0.50
-    # Context: 1M tokens, Output: 128k tokens
-    # NOTE: Opus 4.7 uses a new tokenizer that produces up to ~35% more tokens
-    # for the same input vs Opus 4.6 — pre-run cost estimates may under-count
-    # for long inputs until the cost estimator's tokenizer is updated.
+    # ANTHROPIC CLAUDE OPUS 4.8 - Most capable (GA May 28, 2026)
+    # $5.00 input / $25.00 output per 1M tokens, cached input $0.50 (identical
+    # pricing to Opus 4.7 — drop-in replacement). Context: 1M tokens, Output: 128k.
+    # Over 4.7: sharper judgement, more honesty about its own progress, longer
+    # autonomous runs, and ~4x less likely to let flaws in generated code pass.
+    # NOTE: shares the Opus 4.7 tokenizer profile (up to ~35% more tokens for the
+    # same input vs Opus 4.6) — pre-run cost estimates may under-count for long
+    # inputs until the cost estimator's tokenizer is updated.
     # =========================================================================
     ANTHROPIC_OPUS = ModelConfig(
-        name="claude-opus-4-7",
-        display_name="Claude Opus 4.7",
+        name="claude-opus-4-8",
+        display_name="Claude Opus 4.8",
         provider="anthropic",
         cost_per_1m_input_tokens=5.00,
         cost_per_1m_output_tokens=25.00,
@@ -930,6 +977,7 @@ class PrimrModels:
     # Model registry for lookups
     ALL_MODELS = {
         # Google / Gemini
+        ModelRegistry.GEMINI_3_5_FLASH.name: ModelRegistry.GEMINI_3_5_FLASH,
         ModelRegistry.GEMINI_3_1_PRO.name: ModelRegistry.GEMINI_3_1_PRO,
         ModelRegistry.GEMINI_3_1_PRO_CUSTOMTOOLS.name: ModelRegistry.GEMINI_3_1_PRO_CUSTOMTOOLS,
         ModelRegistry.GEMINI_3_1_FLASH_LITE.name: ModelRegistry.GEMINI_3_1_FLASH_LITE,

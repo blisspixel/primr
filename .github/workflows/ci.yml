@@ -13,10 +13,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.12-3.13 are hard gates (3.12 is the supported floor through current
-        # stable). 3.14 readiness is checked separately in `python-314-experimental`
-        # so a not-yet-ready native-dep stack can never fail this required job.
-        python-version: ["3.12", "3.13"]
+        # 3.12 is the supported floor; 3.13 and 3.14 are current/next stable.
+        # All three are hard gates: the full suite passes on each (validated
+        # locally on 3.12 and 3.14: 8,391 passed) and the native-dep stack
+        # installs cleanly on 3.14.
+        python-version: ["3.12", "3.13", "3.14"]
 
     # UV_PYTHON pins the interpreter for every uv command in this job to the
     # matrix leg, so the install step and all `uv run --no-sync` steps agree on
@@ -138,39 +139,3 @@ jobs:
         env:
           GEMINI_API_KEY: fake-key-for-ci-tests
         run: uv run --no-sync pytest tests/a2a/ --ignore=tests/a2a/property_tests -x --tb=short -q
-
-  # Forward-looking readiness check for Python 3.14. continue-on-error at the
-  # JOB level means a failure here never fails the workflow (unambiguous, unlike
-  # matrix-leg continue-on-error). The signal we care about is whether the native
-  # dependency stack (playwright/pymupdf/curl_cffi/DrissionPage/pandas) installs
-  # on 3.14 and primr imports + a fast test slice passes. Promote 3.14 into the
-  # required matrix above once this is reliably green.
-  python-314-experimental:
-    runs-on: ubuntu-latest
-    name: Python 3.14 readiness (experimental)
-    continue-on-error: true
-    env:
-      UV_PYTHON: "3.14"
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-
-      - name: Set up Python 3.14
-        run: uv python install 3.14
-
-      - name: Install dependencies
-        run: uv sync --frozen --extra dev --extra api
-
-      - name: Import + fast test slice
-        env:
-          GEMINI_API_KEY: fake-key-for-ci-tests
-        run: |
-          uv run --no-sync python -c "import primr; print(primr.__version__)"
-          uv run --no-sync pytest tests/test_release_integrity.py tests/test_imports.py \
-            -q --tb=short

@@ -38,7 +38,7 @@ class TestFallbackChainOrder:
         """Premium chain: Gemini Pro -> Claude Opus -> GPT-5.5 -> Grok 4.3."""
         assert PREMIUM_FALLBACK_CHAIN.models == (
             PrimrModels.PRO_MODEL,
-            "claude-opus-4-7",
+            "claude-opus-4-8",
             "gpt-5.5",
             PrimrModels.GROK_MODEL_43,
         )

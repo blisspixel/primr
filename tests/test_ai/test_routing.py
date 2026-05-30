@@ -348,15 +348,15 @@ class TestEvalRecipeOverride:
             assert pick_model_for_role(Role.WRITING) == "gemini-3.1-flash-lite"
 
     def test_override_replaces_reasoning(self) -> None:
-        recipe = ProfileRecipe(reasoning="claude-opus-4-7")
+        recipe = ProfileRecipe(reasoning="claude-opus-4-8")
         with EvalRecipeOverride(recipe):
-            assert pick_model_for_role(Role.REASONING) == "claude-opus-4-7"
+            assert pick_model_for_role(Role.REASONING) == "claude-opus-4-8"
 
     def test_override_replaces_legacy_pro_alias(self) -> None:
         """Role.PRO with override should still hit the recipe's reasoning slot."""
-        recipe = ProfileRecipe(reasoning="claude-opus-4-7")
+        recipe = ProfileRecipe(reasoning="claude-opus-4-8")
         with EvalRecipeOverride(recipe):
-            assert pick_model_for_role(Role.PRO) == "claude-opus-4-7"
+            assert pick_model_for_role(Role.PRO) == "claude-opus-4-8"
 
     def test_partial_recipe_falls_through_for_unset_roles(self) -> None:
         """A recipe with only writing set should override writing but leave
