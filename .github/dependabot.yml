@@ -1,0 +1,34 @@
+version: 2
+
+updates:
+  # Python dependencies declared in pyproject.toml. Patch + minor bumps are
+  # grouped into a single weekly PR; majors come as individual PRs flagged
+  # for manual review (breaking changes need a human, e.g. the a2a-sdk<0.4 pin).
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    groups:
+      python-patch-minor:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions used in CI / release workflows.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "ci"
+    groups:
+      actions-all:
+        update-types:
+          - "minor"
+          - "patch"

@@ -79,6 +79,16 @@ jobs:
       - name: Validate distribution metadata
         run: twine check dist/*
 
+      - name: Generate dependency manifest (SBOM-lite)
+        env:
+          TAG_VERSION: ${{ steps.meta.outputs.version }}
+        # A pinned, fully-resolved dependency manifest for the released version,
+        # attached to the release for supply-chain transparency. Full CycloneDX
+        # SBOM is a tracked Phase-3 item (see ROADMAP).
+        run: |
+          pipx run uv export --frozen --no-dev --no-emit-project \
+            --format requirements-txt -o "dist/primr-${TAG_VERSION}-requirements.txt"
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:

@@ -11,9 +11,12 @@ Provides multiple strategies for discovering URLs on a website:
 import gzip
 import logging
 import re
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # ParseError type + Element API only
 from dataclasses import dataclass
 from urllib.parse import urljoin, urlparse
+
+from defusedxml.common import DefusedXmlException
+from defusedxml.ElementTree import fromstring as defused_fromstring
 
 from .config import COMMON_PAGE_PATTERNS, SitemapConfig
 from .net import extract_host, head_exists, is_same_domain, make_request
@@ -174,21 +177,15 @@ def _parse_sitemap_recursive(
     if size_mb > config.max_sitemap_size_mb:
         logger.warning(f"Sitemap {sitemap_url} is {size_mb:.1f}MB, using streaming mode")
 
-    # Parse XML securely (prevent XXE attacks)
+    # Parse XML securely with defusedxml. Sitemaps are fetched from untrusted
+    # origins, so XXE / entity-expansion defense is mandatory; defusedxml blocks
+    # those by default. A detected attack (DefusedXmlException) or malformed XML
+    # (ParseError) yields no links rather than falling back to an unsafe parse.
     try:
-        # Disable external entity processing to prevent XXE
-        parser = ET.XMLParser()
-        parser.entity = {}  # Disable entity expansion
-        parser.parser.SetParamEntityParsing(0)  # Disable parameter entities
-        root = ET.fromstring(content, parser=parser)
-    except (ET.ParseError, AttributeError):
-        # AttributeError can occur if parser doesn't support security features
-        # Fall back to basic parsing for sitemaps (low risk as we control the source)
-        try:
-            root = ET.fromstring(content)
-        except ET.ParseError as parse_err:
-            logger.warning(f"Failed to parse sitemap XML: {parse_err}")
-            return []
+        root = defused_fromstring(content)
+    except (ET.ParseError, DefusedXmlException) as parse_err:
+        logger.warning(f"Failed to parse sitemap XML: {parse_err}")
+        return []
 
     links: list[DiscoveredLink] = []
 

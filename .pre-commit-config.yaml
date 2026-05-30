@@ -1,0 +1,35 @@
+# Opt-in local hooks. CI remains the authoritative hard gate; these give
+# contributors fast feedback before pushing. Install with:
+#   uv run pre-commit install      (or: pre-commit install)
+#
+# ruff-format is intentionally NOT enabled here yet: 174 legacy files predate
+# format enforcement, so a --check hook would block commits that touch them.
+# The one-time tree-wide reflow + format enforcement is a tracked Phase-2
+# ratchet (see ROADMAP "Engineering Standards & Toolchain").
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.5
+    hooks:
+      - id: ruff
+        name: ruff (lint)
+        args: ["--fix"]
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.13.0
+    hooks:
+      - id: mypy
+        name: mypy (src)
+        files: ^src/primr/
+        args: ["--ignore-missing-imports", "--disable-error-code=import-untyped"]
+        additional_dependencies: []

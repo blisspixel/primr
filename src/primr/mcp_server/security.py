@@ -57,7 +57,8 @@ SYSTEM_DIRECTORIES = [
     "/bin/",
     "/sbin/",
     "/root/",
-    "/tmp/",
+    # Denylist entry that BLOCKS this path; not a temp file primr creates.
+    "/tmp/",  # nosec B108
     "C:\\Windows\\",
     "C:\\Windows\\System32\\",
     "C:\\Program Files\\",

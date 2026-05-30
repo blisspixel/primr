@@ -6,9 +6,24 @@ Thanks for your interest in contributing to Primr! This document provides guidel
 
 1. Fork the repository
 2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/primr.git`
-3. Set up the development environment. Two options:
+3. Set up the development environment. Three options:
 
-   **Option A — manual (cross-platform):**
+   **Option A — uv (recommended, fastest, reproducible):**
+   ```bash
+   cd primr
+   uv sync --frozen --extra dev --extra api   # installs from uv.lock
+   uv run playwright install chromium
+   # run tooling without activating a venv:
+   uv run pytest tests/ -q
+   uv run ruff check src/primr/
+   uv run mypy src/primr/ --ignore-missing-imports
+   ```
+   `uv sync --frozen` installs the exact pinned set from `uv.lock`, so your
+   environment matches CI and other contributors byte-for-byte. After changing
+   dependencies in `pyproject.toml`, run `uv lock` and commit the updated
+   `uv.lock`. Install uv from https://docs.astral.sh/uv/ if you don't have it.
+
+   **Option B — manual pip (cross-platform):**
    ```bash
    cd primr
    python -m venv .venv
@@ -18,7 +33,7 @@ Thanks for your interest in contributing to Primr! This document provides guidel
    playwright install chromium
    ```
 
-   **Option B — guided bootstrap (Windows-friendly):**
+   **Option C — guided bootstrap (Windows-friendly):**
    ```bash
    cd primr
    py -3.13 setup_env.py           # Windows
@@ -45,17 +60,29 @@ python -m pytest tests/ --cov=src/primr --cov-report=html
 
 ### Code Quality
 
-Before submitting a PR, ensure your code passes all checks:
+Before submitting a PR, ensure your code passes all checks (CI gates on all of
+these — see the [Engineering Standards & Toolchain](../ROADMAP.md#engineering-standards--toolchain)
+section of the ROADMAP for the full standards):
 
 ```bash
-# Type checking
-python -m mypy src/primr/ --ignore-missing-imports
-
 # Linting
-python -m ruff check src/primr/
+uv run ruff check src/primr/
 
-# Security scan
-python -m bandit -r src/primr/ -c .bandit
+# Type checking (incremental strict ratchet — see ROADMAP)
+uv run mypy src/primr/ --ignore-missing-imports
+
+# Security scan (gated at medium severity in CI)
+uv run bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium
+
+# Dependency vulnerability audit
+uv run pip-audit
+```
+
+Optionally install the pre-commit hooks so ruff + mypy run automatically on
+each commit (CI is still the authoritative gate):
+
+```bash
+uv run pre-commit install
 ```
 
 ### Code Style
