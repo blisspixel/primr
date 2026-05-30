@@ -43,7 +43,7 @@ To revert to Gemini 3.0 Pro (flat $2/$12 pricing):
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `PRIMR_MAX_HEADED_POPUPS` | Total number of visible-browser challenges allowed per run. Shared across the Patchright stealth tier (main-site rescue) and the orchestrator's adaptive Playwright retry. Default is 0 (no popups ever); set to `5` (or any N) to opt in for a run. | `0` |
-| `PRIMR_SKIP_HIRING_SIGNALS` | When set to `1` / `true` / `yes`, skips the hiring-signals stage entirely — no ATS probes, no careers-page crawl, no LLM extraction. Use when researching companies where hiring data is irrelevant or when debugging. | unset |
+| `PRIMR_SKIP_HIRING_SIGNALS` | When set to `1` / `true` / `yes`, skips the hiring-signals stage entirely — no ATS probes (eight providers: Greenhouse, Lever, Ashby, SmartRecruiters, Workday, Workable, Recruitee, Jobvite), no careers-page crawl, no DuckDuckGo web-search fallback, no LLM extraction. Use when researching companies where hiring data is irrelevant or when debugging. Note: skill packs treat job postings as their primary input, so packs generated against companies with `PRIMR_SKIP_HIRING_SIGNALS=1` will fall back to recon + research only and may require `--allow-recon-only`. | unset |
 | `PRIMR_ALLOW_HEADED_FALLBACK` | Master switch for the visible-browser path in the stealth tier. Set to `0` / `false` / `no` to disable entirely regardless of budget. | `1` |
 | `PRIMR_ENABLE_DRISSION` | Include DrissionPage tiers in the external validation orchestrator. | `0` |
 | `PRIMR_BROWSER_HEADED` | Force the Playwright tiers to launch in headed mode for a specific call. Normally set internally by the adaptive-retry path, not by users. | unset |

@@ -173,6 +173,10 @@ user_prompt_template: |
   customize every skill to the company specifics above):
   {archetype_grounding}
 
+  PROVENANCE GUIDANCE (how this role entered the plan — adjust grounding
+  emphasis accordingly):
+  {provenance_guidance}
+
   TASK:
 
   Produce {skills_per_role} skills for this role. Each skill should

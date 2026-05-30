@@ -14,6 +14,7 @@ Current version: 1.16.0
 | Document | Description |
 |----------|-------------|
 | [API](API.md) | MCP server, programmatic usage |
+| [SKILL_PACK](SKILL_PACK.md) | `primr skills` end-to-end guide: planning, curation, artifacts, CLI/MCP |
 | [OPENCLAW](OPENCLAW.md) | Open Claw integration |
 | [STRATEGY_PORTFOLIO](STRATEGY_PORTFOLIO.md) | Strategy document types |
 

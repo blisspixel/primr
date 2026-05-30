@@ -82,8 +82,88 @@ The body continues below to meet the 1500-word target. """ + ("Detail. " * 220)
 
 def _mock_grok_llm(prompt: str, **_kwargs: Any) -> str:
     """Mocked grok_llm responder that branches based on prompt content."""
+    if "Classify the company below" in prompt:
+        # Industry classification call
+        return json.dumps(
+            {
+                "business_model": "B2B SaaS",
+                "industry_vertical": "Data Platform",
+                "company_stage": "Growth / Late-stage",
+                "employee_estimate": "Mid-market (500-5000)",
+                "confidence": "Medium",
+                "cited_evidence": [
+                    "Snowflake account: acme.snowflakecomputing.com",
+                    "dbt/Snowflake (2 postings)",
+                ],
+            }
+        )
+
+    if "Extract every distinct role" in prompt:
+        # plan_observed_roles call
+        return json.dumps(
+            {
+                "signal_strength": "moderate",
+                "rationale": "Two roles clearly visible in postings.",
+                "roles": [
+                    {
+                        "name": "data-engineer",
+                        "display_name": "Data Engineer",
+                        "archetype": "data-engineer",
+                        "summary": (
+                            "Builds dbt models and Snowflake pipelines for Acme's "
+                            "analytics stack, integrating with Salesforce."
+                        ),
+                        "posting_citations": [
+                            "Data Engineer with dbt/Snowflake (2 postings)",
+                            "Salesforce + Snowflake integration",
+                        ],
+                        "posting_count": 2,
+                    },
+                    {
+                        "name": "salesforce-administrator",
+                        "display_name": "Salesforce Administrator",
+                        "archetype": "salesforce-admin",
+                        "summary": (
+                            "Owns Salesforce flows, permissions, and reporting for "
+                            "Acme's sales motion."
+                        ),
+                        "posting_citations": [
+                            "Salesforce Administrator (1 posting)",
+                        ],
+                        "posting_count": 1,
+                    },
+                ],
+            }
+        )
+
+    if "Identify up to" in prompt and "plausible" in prompt:
+        # plan_plausible_roles call
+        return json.dumps(
+            {
+                "signal_strength": "moderate",
+                "rationale": "Filling gap-coverage roles given the SaaS profile.",
+                "roles": [
+                    {
+                        "name": "customer-success-manager",
+                        "display_name": "Customer Success Manager",
+                        "archetype": None,
+                        "confidence": "Inferred",
+                        "summary": (
+                            "Drives customer adoption and renewal at Acme's growing "
+                            "B2B SaaS customer base."
+                        ),
+                        "research_citations": [
+                            "Mid-market B2B SaaS at this stage typically employs "
+                            "a Customer Success Manager.",
+                        ],
+                        "provenance": "industry",
+                    },
+                ],
+            }
+        )
+
     if "Identify exactly" in prompt or "discover_roles" in prompt:
-        # Discovery response
+        # Legacy discovery response (kept for backward-compat callers)
         return json.dumps(
             {
                 "signal_strength": "moderate",

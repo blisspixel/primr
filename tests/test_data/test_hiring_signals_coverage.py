@@ -45,10 +45,13 @@ class TestCareersUrlCandidates:
         urls = _careers_url_candidates("https://acme.com", corpus)
         assert "https://acme.com/about/careers" in urls
 
-    def test_caps_at_six(self):
-        corpus = {f"https://acme.com/careers/{i}": "x" for i in range(20)}
+    def test_caps_at_documented_budget(self):
+        # Cap raised from 6 to 14 in the subdomain-probing change so the
+        # six subdomain probes plus the four on-path probes plus corpus
+        # carryovers all fit. Verify we still cap.
+        corpus = {f"https://acme.com/careers/{i}": "x" for i in range(40)}
         urls = _careers_url_candidates("https://acme.com", corpus)
-        assert len(urls) <= 6
+        assert len(urls) <= 14
 
 
 # =============================================================================
@@ -65,7 +68,7 @@ class TestDiscoverViaHtml:
         corpus = {"https://acme.com/careers": careers_html}
         # Any non-corpus careers candidate misses; the corpus hit needs no HTTP.
         with patch.object(hs, "_http_get", return_value=(404, b"", None)):
-            postings = _discover_via_html("https://acme.com", corpus)
+            postings, _source = _discover_via_html("https://acme.com", corpus)
         titles = {p.title for p in postings}
         assert "Staff Engineer" in titles
         assert "Product Lead" in titles
@@ -79,12 +82,14 @@ class TestDiscoverViaHtml:
             return 404, b"", None
 
         with patch.object(hs, "_http_get", side_effect=fake_http_get):
-            postings = _discover_via_html("https://acme.com", None)
+            postings, _source = _discover_via_html("https://acme.com", None)
         assert any("data-engineer" in p.url for p in postings)
 
     def test_returns_empty_when_nothing_found(self):
         with patch.object(hs, "_http_get", return_value=(404, b"", None)):
-            assert _discover_via_html("https://acme.com", None) == []
+            postings, source = _discover_via_html("https://acme.com", None)
+        assert postings == []
+        assert source is None
 
 
 # =============================================================================

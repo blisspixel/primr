@@ -338,19 +338,21 @@ The `scrape_page` primitive uses a tiered fallback system for web scraping, desi
 - **Adaptive Timeout**: 45s max per page (reduced to 25s when best_tier is known for the host)
 - **Headed Popup Budget**: Opt-in counter (env `PRIMR_MAX_HEADED_POPUPS`, default `0`) shared across the Patchright stealth tier and the orchestrator's adaptive Playwright retry. When unset no visible-browser windows ever open; set to `N` to allow up to N total popups for a single run. External-source validation uses a separate orchestrator that excludes Patchright entirely, so validation scrapes never trigger popups regardless of the budget. On Linux the budget is treated as 0 unless `DISPLAY` or `WAYLAND_DISPLAY` is set, so headless runs never attempt a visible launch.
 
-### Hiring-Signal Gathering (v1.19.0)
+### Hiring-Signal Gathering (v1.19.0, expanded v1.27.0)
 
 Location: `src/primr/data/hiring_signals.py`
 
-Runs after the main-site scrape (fast mode) and before Phase 2 research deepening. Extracts strategic signals from a company's open job postings — often the most honest public statement of what they're building right now.
+Runs after the main-site scrape (fast mode) and before Phase 2 research deepening. Extracts strategic signals from a company's open job postings — often the most honest public statement of what they're building right now. Job postings are also the primary input to the skill pack subsystem (`primr skills`) — see *Skill Pack Planning* below.
 
 Discovery chain:
 1. **Slug candidates** — derived from the company name, website hostname, and any recon-supplied ATS subdomain hints. Capped at 6.
-2. **ATS board APIs (parallel)** — Greenhouse (`boards-api.greenhouse.io`), Lever (`api.lever.co`), Ashby (`api.ashbyhq.com`), SmartRecruiters (`api.smartrecruiters.com`). First provider returning postings wins. All four are free, public, and designed for programmatic reading.
-3. **HTML careers-page fallback** — if every ATS misses, crawl the company's own `/careers` or `/jobs` page via the popup-free external orchestrator, extract individual posting URLs with a regex scan, cap at 80 discovered links.
-4. **LLM triage** — small Grok call picks up to 15 signal-rich postings (biased toward senior / engineering / product / data / security / platform roles; down-weights retail / sales SDR / entry-level). Deterministic title-based ranker as fallback when the LLM call fails.
-5. **Body fetch** — ATS postings usually include the body inline. HTML postings fetched in parallel via the external orchestrator.
-6. **Batched LLM extraction** — one Grok reasoning call over the aggregated JD text produces structured JSON: roles & locations, tech-stack frequency, strategic initiatives, culture signals, notable absences, hiring volume, summary.
+2. **Corpus-driven Workday URL discovery** — scans the already-scraped corpus for canonical `https://{tenant}.{wd*}.myworkdayjobs.com/{site}` URLs. When found, hits the matching `/wday/cxs/{tenant}/{site}/jobs` endpoint directly — zero blind guesses.
+3. **ATS board APIs (parallel)** — eight providers, first returning postings wins: Greenhouse (`boards-api.greenhouse.io`), Lever (`api.lever.co`), Ashby (`api.ashbyhq.com`), SmartRecruiters (`api.smartrecruiters.com`), Workday (bounded blind probing across `wd1`/`wd3`/`wd5`/`wd103` × `External`/`Careers`/`External_Careers`/`External_Career_Site`/`Global_External`), Workable (`apply.workable.com/api/v1/widget/accounts/{slug}`), Recruitee (`{slug}.recruitee.com/api/offers/`), Jobvite (RSS feed at `jobs.jobvite.com/{slug}/jobs?format=rss`). All are free, public, and designed for programmatic reading. Workday's JSON endpoint is undocumented; the provider fails closed on schema mismatch and falls through to subsequent paths rather than crashing.
+4. **HTML careers-page fallback** — if every ATS misses, crawl the company's own `/careers` or `/jobs` page via the popup-free external orchestrator, extract individual posting URLs with a regex scan, cap at 80 discovered links.
+5. **DuckDuckGo web-search fallback** — only fires when the entire chain above returns zero postings. Searches `"{company}" jobs OR careers OR hiring {domain}`, filters results to known job-board hosts (LinkedIn, Indeed, Glassdoor, Workday boards, the ATS hosts, ZipRecruiter, BuiltIn, Monster, Dice, iCIMS pattern), strips suffix noise from titles ("| LinkedIn", "at {Company}"), returns metadata-only postings. Bodies are rarely recoverable from these hosts and the downstream no-bodies branch populates `signals.roles` directly from posting titles so the skill pack still sees role-type signal.
+6. **LLM triage** — small Grok call picks up to 15 signal-rich postings (biased toward senior / engineering / product / data / security / platform roles; down-weights retail / sales SDR / entry-level). Deterministic title-based ranker as fallback when the LLM call fails.
+7. **Body fetch** — ATS postings usually include the body inline. HTML postings fetched in parallel via the external orchestrator.
+8. **Batched LLM extraction** — one Grok reasoning call over the aggregated JD text produces structured JSON: roles & locations, tech-stack frequency, strategic initiatives, culture signals, notable absences, hiring volume, summary.
 
 Outputs:
 - `<working>/_hiring/hiring_signals.md` — human-readable summary
@@ -360,7 +362,33 @@ Outputs:
 
 Integration: the extracted signals are rendered via `render_for_prompt` into a `=== HIRING SIGNALS ===` block and appended to `insights.txt` plus the raw external-sources bundle. The Phase 2 gap-filling rebuild preserves this block so every downstream phase (workbook, section writing, cross-validation, Phase 6 strategy) can see it.
 
-Fail-open at every stage. No ATS match + no careers page → `source: none`, run continues unchanged. Companies that don't publish jobs produce reports as if the phase never ran. Skip entirely with `PRIMR_SKIP_HIRING_SIGNALS=1`.
+Fail-open at every stage. No ATS match + no careers page + no web-search hits → `source: none`, run continues unchanged. Companies that don't publish jobs produce reports as if the phase never ran. Skip entirely with `PRIMR_SKIP_HIRING_SIGNALS=1`.
+
+### Skill Pack Planning (v1.27.0)
+
+Location: `src/primr/skill_pack/planner.py`, `industry.py`, `discovery.py`
+
+Job postings are the primary input to the skill pack subsystem; DNS recon and the strategic report are supporting context. The planning step replaces the single-call `discover_roles` with a structured two-call plan that preserves provenance end-to-end.
+
+Pipeline:
+1. **Evidence load** — recon (`_recon_context.txt`), hiring (`_hiring/hiring_signals.md`), research (`insights.txt` / `report.md` / `analysis_workbook.md`). Fails closed when both posting and research evidence are empty unless `allow_recon_only=True`.
+2. **Industry classification** — LLM-only resolution (no heuristics): parse structured fields from a primr strategic report when one is supplied via `--from-report`, otherwise one cheap LLM call against the evidence inputs. Produces `IndustryClassification` with business_model / industry_vertical / company_stage / employee_estimate / confidence / cited_evidence / source.
+3. **Call A — observed roles** — LLM extracts roles from the hiring evidence only. Every role MUST carry at least one verbatim posting citation or it's dropped at parse time. Provenance: `posting`. Confidence: `Confirmed`.
+4. **Call B — plausible roles** — LLM infers roles from recon + research + the industry classification + the Call A output (to exclude duplicates). Every role MUST carry at least one specific research citation OR an explicit business-model + stage rationale. Common org-shape roles (Marketing, Sales, Customer Success, Finance, HR) become plausible only when company stage is Mid-market or larger. Generic VP / Chief-X titles are forbidden without specific evidence. Provenance: `research` or `industry`. Confidence: `Inferred` or `Speculated`.
+5. **Merge and cap** — archetype-based dedupe with observed-wins; signal-driven split with no hard ratio; cap at `roles_count`; overflow goes to `gap_flagged`.
+6. **Persist** — writes `<working>/role_plan.md` (human view) and `<working>/role_plan.json` (machine view, used by `--from-plan`).
+
+Operator surface (roster curation):
+- `--plan-only` writes the plan and exits before authoring.
+- `--from-plan PATH` skips planning and authors against a saved plan's `final_roster` verbatim.
+- `--roles-add "A, B"` augments the discovered or saved-plan roster with operator-supplied labels (materialized as `provenance: override`).
+- `--roles-skip "X, Y"` removes named roles from the discovered or saved-plan roster (matches `display_name` or kebab-case slug, exact, case-insensitive).
+- `--roles-override "A, B, ..."` bypasses planning entirely; up to `MAX_ROLES` labels. Mutually exclusive with `--roles-add` / `--roles-skip` (override wins, curation warned).
+- `--allow-recon-only` opts in to the degraded path when both posting and research evidence are empty.
+
+Cap-aware merge with operator priority: when curation pushes the roster over `MAX_ROLES`, plausible roles trim first, then observed, then never operator-added. Trimmed entries flow to `gap_flagged` for plan-artifact transparency. Name + archetype dedupe between added and discovered roles: existing role wins (preserves citations); operator can force a specific variant with `--roles-skip` + `--roles-add` in one shot. Empty roster after curation is a hard error.
+
+Authoring (`author_role_skills`) branches the prompt on `RoleEvidence.provenance`: posting-grounded roles emphasize "anchor every skill in the specific responsibilities the postings name"; research-inferred roles emphasize "this role isn't in posting data but is plausible because of [citations]; reference the named practice"; industry-inferred roles emphasize "this role reflects business-model typicality, tuned to the company's named stack where possible"; operator-supplied roles pass through.
 
 ### Link Discovery (Homepage-First, v1.1.0)
 

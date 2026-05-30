@@ -384,27 +384,27 @@ class TestLLMValidation:
         from primr.data.scrape import scrape_external_sources_validated
 
         search_results = [
-            {"url": "https://news.com/article", "title": "EverTrue Senior Living"},
+            {"url": "https://news.com/article", "title": "Acme Senior Living"},
         ]
 
         with patch("primr.data.scrape.get_external_orchestrator") as mock_orch:
             mock_result = Mock()
             mock_result.success = True
             mock_result.extracted_text = (
-                "EverTrue Senior Living at evertrue-living.com announced..." + "x" * 200
+                "Acme Senior Living at acme-living.example announced..." + "x" * 200
             )
             mock_orch.return_value.scrape_url.return_value = mock_result
 
             with patch("primr.ai.llm.llm") as mock_llm:
                 # LLM says NO - different company
                 mock_llm.return_value = (
-                    "NO\nThis is about EverTrue Senior Living, not EverTrue fundraising software"
+                    "NO\nThis is about Acme Senior Living, not Acme Corp fundraising software"
                 )
 
                 result = scrape_external_sources_validated(
                     search_results,
-                    company_name="EverTrue",
-                    website="https://www.evertrue.com",
+                    company_name="Acme Corp",
+                    website="https://www.acme.example",
                     max_sources=1,
                 )
 

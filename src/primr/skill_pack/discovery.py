@@ -3,11 +3,18 @@
 Reads primr's existing evidence files (recon + hiring signals) and uses one
 LLM call to identify the top N roles at the target company. Roles are
 returned with confidence labels and citations.
+
+Job postings are the primary input to this stage. DNS recon is supporting
+context. When hiring evidence is empty the pipeline fails closed by
+default — see `EmptyHiringEvidenceError`. Operators can opt into the
+degraded recon-only path with `allow_recon_only=True`, which the CLI
+surfaces as `--allow-recon-only`.
 """
 
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -25,11 +32,59 @@ HIRING_FILENAMES = [
     "_hiring/hiring_signals.txt",
     "_hiring/hiring_summary.md",
 ]
+# Research evidence — the strategic report and scraped-content insights.
+# When present these are the load-bearing input for plausible-role
+# inference (Phase C-E) and the report-derived industry classification.
+RESEARCH_FILENAMES = [
+    "report.md",
+    "insights.txt",
+    "scraped_website_summary.txt",
+    "analysis_workbook.md",
+]
 
 # Max evidence we forward to the LLM. Larger contexts cost tokens and
 # rarely improve discovery quality past a saturation point.
 _RECON_MAX_CHARS = 8_000
 _HIRING_MAX_CHARS = 14_000
+_RESEARCH_MAX_CHARS = 18_000
+
+# Hiring-evidence text that looks like a populated artifact but reflects
+# zero postings discovered. Both shapes can appear: the placeholder
+# returned by load_evidence when no file exists, and the "Source: none"
+# marker written by gather_hiring_signals when the full discovery chain
+# came up empty.
+#
+# All markers anchor at line start (MULTILINE) to avoid false positives
+# on legitimate hiring summaries that quote "0 postings" inline (e.g.,
+# "year-over-year hiring grew from 0 postings found in Q1 to 40 in Q4").
+_HIRING_PLACEHOLDER = "(no hiring evidence available)"
+_HIRING_EMPTY_MARKERS = (
+    re.compile(r"^\s*source:\s*\*?\*?none\*?\*?\s*$", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^\s*0\s+postings\s+found\s*$", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^\s*0\s+(?:postings\s+)?analysed\s*$", re.IGNORECASE | re.MULTILINE),
+)
+
+
+class EmptyHiringEvidenceError(RuntimeError):
+    """Raised when role discovery is asked to run with no job-posting input.
+
+    Skill packs are job-posting-first. Failing closed here prevents the
+    pipeline from silently shipping a recon-only pack that's structurally
+    incomplete for services / reseller / consultancy companies where the
+    revenue layer never shows up in DNS.
+    """
+
+
+def hiring_evidence_is_empty(text: str) -> bool:
+    """True when the hiring evidence text represents zero postings."""
+    if not text:
+        return True
+    stripped = text.strip()
+    if not stripped:
+        return True
+    if _HIRING_PLACEHOLDER in stripped.lower():
+        return True
+    return any(marker.search(stripped) for marker in _HIRING_EMPTY_MARKERS)
 
 
 def _read_first_existing(base_dir: Path, candidates: list[str]) -> str | None:
@@ -46,24 +101,57 @@ def _read_first_existing(base_dir: Path, candidates: list[str]) -> str | None:
 def load_evidence(working_dir: Path) -> tuple[str, str]:
     """Load (recon, hiring) evidence text from a working directory.
 
+    Kept for backward compatibility with callers that only need the two
+    primary evidence streams. New planning code should use
+    ``load_full_evidence`` which also returns the research stream
+    (insights + report) used by the plausible-roles inference.
+
     Returns "(no evidence)" placeholders for any source that isn't on disk.
-    The discovery prompt is built to handle sparse signal gracefully —
-    it returns fewer roles flagged as Speculated rather than fabricating.
+    """
+    recon, hiring, _ = load_full_evidence(working_dir)
+    return recon, hiring
+
+
+def load_full_evidence(working_dir: Path) -> tuple[str, str, str]:
+    """Load (recon, hiring, research) evidence text from a working directory.
+
+    Research evidence is drawn from the primr strategic report and the
+    scraped-content insights when those files are present in the working
+    dir (typical when --from-report points at a finished primr run).
+    Returns "(no evidence)" placeholders for any source that isn't on
+    disk so downstream prompts can render uniform inputs.
+
+    Raises FileNotFoundError only when ALL three sources are missing — a
+    working dir with at least one file is enough to proceed; the
+    plan_roles caller decides whether the available signal is rich enough
+    to justify running.
     """
     recon = _read_first_existing(working_dir, RECON_FILENAMES)
     hiring = _read_first_existing(working_dir, HIRING_FILENAMES)
+    research = _read_first_existing(working_dir, RESEARCH_FILENAMES)
 
-    if recon is None and hiring is None:
+    if recon is None and hiring is None and research is None:
         raise FileNotFoundError(
-            f"No recon or hiring evidence found under {working_dir}. "
+            f"No recon, hiring, or research evidence found under {working_dir}. "
             "Run `primr <Company> <url> --mode scrape` first, or supply "
-            "--from-report pointing at a directory that contains "
-            "_recon_context.txt and _hiring/."
+            "--from-report pointing at a directory that contains at least "
+            "one of _recon_context.txt, _hiring/, report.md, or insights.txt."
         )
 
     recon = (recon or "(no recon evidence available)")[:_RECON_MAX_CHARS]
     hiring = (hiring or "(no hiring evidence available)")[:_HIRING_MAX_CHARS]
-    return recon, hiring
+    research = (research or "(no research evidence available)")[:_RESEARCH_MAX_CHARS]
+    return recon, hiring, research
+
+
+def research_evidence_is_empty(text: str) -> bool:
+    """True when the research evidence text represents no useful content."""
+    if not text:
+        return True
+    stripped = text.strip()
+    if not stripped:
+        return True
+    return "(no research evidence available)" in stripped.lower()
 
 
 def discover_roles(
@@ -73,6 +161,7 @@ def discover_roles(
     roles_count: int,
     *,
     reasoning_session: Any | None = None,
+    allow_recon_only: bool = False,
 ) -> list[Role]:
     """Identify top `roles_count` roles at the company.
 
@@ -84,11 +173,32 @@ def discover_roles(
         reasoning_session: Optional ContinuousReasoningSession to use
             instead of a fresh `grok_llm` call. When provided, the
             discovery turn becomes part of the shared session history.
+        allow_recon_only: When False (default), raise
+            EmptyHiringEvidenceError if the hiring evidence is empty.
+            Set True to opt in to the degraded recon-only path.
 
     Returns a list of Role objects with empty `skills` (Phase 3 fills
     those in).
+
+    Raises:
+        EmptyHiringEvidenceError: when hiring evidence is empty and
+            allow_recon_only is False.
     """
-    recon, hiring = load_evidence(working_dir)
+    recon, hiring, research = load_full_evidence(working_dir)
+    if (
+        hiring_evidence_is_empty(hiring)
+        and research_evidence_is_empty(research)
+        and not allow_recon_only
+    ):
+        raise EmptyHiringEvidenceError(
+            "Role discovery refused: no job-posting evidence and no "
+            "research evidence were gathered. Skill packs need either "
+            "actual postings (primary) or strategic research (for "
+            "plausible-role inference). DNS recon alone produces "
+            "structurally incomplete packs. Pass --allow-recon-only "
+            "(CLI) or allow_recon_only=True (API) to proceed with "
+            "reduced confidence."
+        )
     archetype_slugs = sorted(load_archetypes().keys())
 
     prompt = load_skill_pack_prompt("discover_roles")

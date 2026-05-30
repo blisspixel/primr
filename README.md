@@ -23,14 +23,14 @@ Company research is tedious. You visit the website, click around, search the com
 ## What Makes It Different
 
 - **DNS intelligence pre-flight**: Automatic domain reconnaissance detects cloud platforms, SaaS services, email security, and identity providers from DNS records — zero API keys, 2-3 seconds. Strategies are grounded in real tech stack data.
-- **Hiring-signal gathering**: After the main scrape, Primr discovers open job postings (Greenhouse, Lever, Ashby, SmartRecruiters board APIs first; HTML careers-page fallback if every ATS misses), LLM-triages the most signal-rich roles, and extracts tech-stack frequency, strategic initiatives, culture cues, and notable absences. Job posts are often the most honest statement of what a company is actually building right now — they feed every downstream phase from gap analysis to final strategy. Skip with `PRIMR_SKIP_HIRING_SIGNALS=1`.
+- **Hiring-signal gathering**: After the main scrape, Primr discovers open job postings across eight ATS providers (Greenhouse, Lever, Ashby, SmartRecruiters, Workday, Workable, Recruitee, Jobvite) plus a corpus-driven Workday URL discovery path, an HTML careers-page fallback, and a DuckDuckGo web-search fallback that sweeps LinkedIn / Indeed / Glassdoor / job-board hosts when every other path comes up empty. The pipeline LLM-triages the most signal-rich postings and extracts tech-stack frequency, strategic initiatives, culture cues, and notable absences. Job posts are the most honest statement of what a company is actually building right now — they feed every downstream phase from gap analysis to final strategy and are the primary input to the skill pack subsystem. Skip with `PRIMR_SKIP_HIRING_SIGNALS=1`.
 - **Adaptive scraping**: 8 retrieval methods from browser rendering to TLS fingerprinting to screenshot+vision extraction, with per-host optimization. Starts with full browser rendering (what works on 95%+ of modern sites) and falls back through increasingly specialized methods.
 - **Org-aware site selection**: Link discovery and prioritization now adapt for commercial companies, government sites, nonprofits, education, and healthcare organizations instead of assuming every site looks like a SaaS company.
 - **Fail-fast scrape quality gate**: Full/scrape modes now abort when site extraction is too thin, while still preserving short structured pages like contact, leadership, and org-chart references when they carry useful signal (override with `--skip-scrape-validation`).
 - **Autonomous external research**: Gemini Deep Research for comprehensive analysis, Grok 4.3 for fast turnaround — both plan queries, follow leads, cross-validate sources, and synthesize findings.
 - **Cost controls built in**: `--dry-run` estimates (including recovery table and stage classifications), usage tracking, and governance hooks for budget limits.
 - **Agent-native interfaces**: CLI, MCP server, OpenClaw integration, and Claude Skills, all first-class.
-- **Skill pack generation**: `primr skills "<Company>" <url>` produces a QA-refined Agent Skills pack — top N roles × M skills, grounded in DNS recon + hiring postings, with both an unpacked Claude/Cursor/VS Code tree AND a Microsoft 365 Copilot Cowork sideload `.zip`. Internal pipeline: role discovery, archetype-grounded authoring, deterministic ASKILL-* validation, capped refinement loop, and pack-level coherence pass. The same byte-identical SKILL.md files work across both ecosystems.
+- **Skill pack generation**: `primr skills "<Company>" <url>` produces a QA-refined Agent Skills pack — up to 15 roles × M skills, grounded in DNS recon + actual job postings + strategic research. Internal pipeline: a two-call role planning step that emits an inspectable `role_plan.md` / `role_plan.json` (observed roles backed by posting citations + plausible roles inferred from research and industry classification, with provenance preserved end-to-end), archetype-grounded authoring with provenance-aware prompts, deterministic ASKILL-* validation, capped refinement loop, and pack-level coherence pass. Emits both an unpacked Claude/Cursor/VS Code tree AND a Microsoft 365 Copilot Cowork sideload `.zip` from the same byte-identical SKILL.md files. Full **operator roster curation**: `--plan-only` to inspect, `--from-plan` to author from a saved plan, `--roles-add` to augment the discovered roster, `--roles-skip` to prune from it (composes with `--from-plan`), `--roles-override` for full control.
 
 ## Artifact Model
 
@@ -116,13 +116,20 @@ primr recon acme.com --json                                    # Structured JSON
 
 # Skill pack — QA-refined Agent Skills for Claude + Microsoft 365 Copilot Cowork
 primr skills "ExampleCo" https://example.co                              # 5 roles x 3 skills, ~$0.30
-primr skills "ExampleCo" https://example.co --roles 3 --skills-per-role 2
+primr skills "ExampleCo" https://example.co --roles 10 --skills-per-role 3   # holistic pack (1-15 roles)
 primr skills "ExampleCo" https://example.co --formats cowork             # only the .zip
 primr skills "ExampleCo" https://example.co --from-report working/<existing-run>
+primr skills "ExampleCo" https://example.co --plan-only                  # inspect the role plan, no authoring
+primr skills "ExampleCo" https://example.co --from-plan path/to/role_plan.json  # author from a saved plan
+primr skills "ExampleCo" https://example.co --roles-add "Account Executive,Procurement Manager"   # augment the discovered plan
+primr skills "ExampleCo" https://example.co --roles-skip "Marketing Manager"                       # prune from the discovered plan
+primr skills "ExampleCo" https://example.co --from-plan path/role_plan.json --roles-add "Cybersecurity Lead"  # augment a saved plan
+primr skills "ExampleCo" https://example.co --roles-override "Account Executive,Cloud Migration Consultant,Practice Lead"  # bypass planning entirely
+primr skills "ExampleCo" https://example.co --allow-recon-only           # proceed when no postings + no research
 primr skills "ExampleCo" https://example.co --dry-run                    # estimate first
 ```
 
-The skill pack output contains both a `roles/<slug>/SKILL.md` tree (drop-in for Claude Code, Cursor, VS Code Copilot, Gemini CLI, Junie) and a `<Company>_Cowork_Pack.zip` (sideload via M365 Admin Center > Manage Apps > Upload custom app). Each pack also emits a markdown pack report with the validation scorecard and per-role refinement counts.
+The skill pack output contains both a `roles/<slug>/SKILL.md` tree (drop-in for Claude Code, Cursor, VS Code Copilot, Gemini CLI, Junie) and a `<Company>_Cowork_Pack.zip` (sideload via M365 Admin Center > Manage Apps > Upload custom app). Each pack also emits a markdown pack report with the validation scorecard, per-role refinement counts, observed/plausible split, and role-plan reference. The planning step writes `role_plan.md` and `role_plan.json` into the working directory before authoring so operators can audit which roles came from actual postings vs which were inferred from research and industry classification.
 
 When `--platform` is omitted, Primr runs recon first and uses strong infrastructure signals (for example Azure DNS/App Service/CDN, AWS Route53/CloudFront, or GCP DNS) to choose the AI strategy platform. If multiple strong platforms are detected, it generates one strategy per platform. Productivity, certificate, and email-only signals do not count as primary-cloud proof. If recon is unclear or skipped, the default strategy posture is Microsoft Azure plus private cloud/NVIDIA (`azure private`).
 
@@ -312,6 +319,7 @@ mypy src/primr --ignore-missing-imports     # Type check
 
 | Topic | Guide |
 |-------|-------|
+| Skill pack subsystem | [Skill Pack Guide](docs/SKILL_PACK.md) |
 | Batch processing | [Batch Guide](docs/BATCH.md) |
 | Model evaluation | [Evaluation Guide](docs/EVAL.md) |
 | Crash recovery | [Recovery Guide](docs/RECOVERY.md) |

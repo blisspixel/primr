@@ -1,0 +1,381 @@
+# Skill Pack — Generate Agent Skills for Claude + Microsoft 365 Copilot Cowork
+
+`primr skills` produces a QA-refined Agent Skills pack for a target company. The same byte-identical `SKILL.md` files ship to both ecosystems: an unpacked `roles/<slug>/SKILL.md` tree (drop-in for Claude Code, Cursor, VS Code Copilot, Gemini CLI, JetBrains Junie) and a Microsoft 365 Copilot Cowork sideload `.zip` (Unified App Manifest v1.28, deterministic UUID v5).
+
+This guide covers the planning architecture, input layer, operator curation surface, output artifacts, authoring + validation, CLI + MCP reference, costs, and troubleshooting.
+
+## Quick start
+
+```bash
+primr skills "ExampleCo" https://example.co
+# default: 5 roles x 3 skills, ~$0.30, 60-120s
+# emits:
+#   output/ExampleCo_Skills_Pack_<YYYYMMDD>/roles/<slug>/SKILL.md      (Claude tree)
+#   output/ExampleCo_Skills_Pack_<YYYYMMDD>/ExampleCo_Cowork_Pack.zip   (Cowork sideload)
+#   output/ExampleCo_Skills_Pack_<YYYYMMDD>/ExampleCo_Skills_Pack_Report.md
+#   working/ExampleCo/.../role_plan.md  +  role_plan.json
+```
+
+`primr skills` requires either `company_url` (standalone evidence collection) or `--from-report <dir>` (reuse evidence from an existing primr run).
+
+## When to use it
+
+- You ran `primr "Company" url` and have a strategic report — generate role-grounded skills from it for an account team.
+- You need a Microsoft 365 Copilot Cowork plugin for a specific company without writing manifest JSON by hand.
+- You're seeding a Claude Code or Cursor workspace with company-specific skill files.
+- You want to give an agent (or a colleague) a curated skill set that reflects the company's actual practices and stack rather than generic role templates.
+
+## Architecture overview
+
+```
+EVIDENCE         PLANNING                CURATION         AUTHORING         VALIDATION       PACKAGING
+recon  ────┐
+hiring ────┼───► industry classify ───┐
+research ──┘                           ├─► plan_roles  ──► apply_curation ──► author_role_skills ──► validate_pack ──► package
+                                       │   (Calls A+B)     (add/skip)         (provenance-branched)   (ASKILL-*)        (Claude + Cowork)
+                                       └─► role_plan.md + role_plan.json
+```
+
+Job postings are the **primary input**. DNS recon and strategic research are supporting context. When both posting evidence and research evidence are empty the pipeline fails closed unless `--allow-recon-only` is set — recon alone is structurally incomplete for services / reseller / consultancy companies.
+
+### Phase 1 — Planning (`src/primr/skill_pack/planner.py`)
+
+`plan_roles` runs three LLM calls in sequence and produces a `RolePlan`:
+
+1. **Industry classification** (`industry.py`) — one cheap call. Returns `IndustryClassification` with `business_model`, `industry_vertical`, `company_stage`, `employee_estimate`, `confidence`, `cited_evidence`, `source`. Resolution order: parse structured fields from a primr strategic report if `--from-report` is set; otherwise call the LLM.
+2. **Call A — observed roles** (`plan_observed_roles.yaml`) — extracts roles from hiring evidence only. Every role MUST cite at least one verbatim phrase from the hiring evidence or it's dropped at parse time. Provenance: `posting`. Confidence: `Confirmed`.
+3. **Call B — plausible roles** (`plan_plausible_roles.yaml`) — infers roles from research + recon + industry classification. Every role MUST cite either a specific research phrase OR a business-model + stage rationale. Plausible-roles guidance broadens for larger `roles_count` and tightens for smaller stage / employee estimates: common org-shape roles (Marketing, Sales, Customer Success, Finance, HR) are reasonable inferences only when `company_stage` is Mid-market or larger. Generic VP / Chief-X titles are forbidden without specific evidence. Provenance: `research` or `industry`. Confidence: `Inferred` or `Speculated`.
+
+Merge runs archetype-based dedupe (observed wins; if both calls return roles matching the same archetype, the observed entry survives and the plausible entry is dropped). The split is signal-driven — no hard ratio between observed and plausible. Cap is `roles_count`; overflow flows to `gap_flagged` so the plan artifact records what got dropped.
+
+### Phase 2 — Curation (`apply_curation`)
+
+When `--roles-add` or `--roles-skip` are set, `apply_curation` runs after the merge. Skip pass runs first (so swap-style curation like `--roles-skip A --roles-add B` works), then add pass with name + archetype dedup, then a cap-aware trim. See [Operator curation](#operator-curation) below.
+
+### Phase 3 — Authoring (`authoring.py`)
+
+`author_role_skills` runs in parallel (ThreadPoolExecutor, max 4 concurrent) per role. The prompt (`author_skill.yaml`) branches on `RoleEvidence.provenance`:
+
+- `posting` — emphasize "anchor every skill in the specific responsibilities and tools the postings name; cite postings."
+- `research` — emphasize "this role isn't in posting data but is plausible because of these research citations; reference the named practice or program."
+- `industry` — emphasize "this role reflects business-model typicality, tuned to the company's named stack; avoid claims about specific company programs not in the evidence."
+- `override` — pass through; operator supplied the label, ground in the company's general recon + research context.
+
+Every skill body must reference at least 2 company-specific signals (DNS-confirmed tool, hiring-mentioned technology, named practice, etc.) per the Anthropic-aligned `author_skill.yaml` system prompt.
+
+### Phase 4 — Validation (`validator.py`)
+
+Deterministic checks against each `SKILL.md`. Codes prefixed `ASKILL-` (hard) and others (soft). Hard findings trigger per-skill refinement (capped); roles that still carry hard findings after refinement are dropped before packaging.
+
+Key validators:
+- `ASKILL-P006` — kebab-case `name` matches folder name
+- `DESC-VOICE` — description is third-person
+- `DESC-PUSHY` — description lists multiple trigger phrases
+- `DESC-TRIG` — description includes explicit "Use when..." guidance
+- `NAME-GERUND` — skill name uses gerund form (verb + -ing)
+- `BODY-LEN` — body word count within target band (default 150-3000)
+- `SEC-INJECT` — body does not contain agent-instruction patterns (prompt-injection guard)
+
+### Phase 5 — Pack-level coherence (`refiner.py`)
+
+One LLM pass over the assembled pack checks for cross-role inconsistencies:
+- `PACK-TRIGGER` — two skills' descriptions would fire on overlapping intents
+- `PACK-OVERLAP-LLM` — two skills semantically cover the same ground
+- `PACK-STRAT` — roles assume contradicting tech stacks (e.g., one says Java/Spring, another says Python/AWS)
+
+Findings are appended to the pack-level `ValidationReport` and rendered in the pack report.
+
+### Phase 6 — Packaging (`packager.py`)
+
+Emits both formats from one byte-identical `SKILL.md` set:
+- Unpacked tree at `<output_dir>/<Company>_Skills_Pack_<date>/roles/<slug>/SKILL.md`
+- Cowork sideload `.zip` containing `manifest.json` (UUID v5 deterministic on company name), `color.png` (192x192), `outline.png` (32x32), and `skills/<slug>/SKILL.md`. Re-running against the same company produces the same UUID, so sideload **replaces** the previous install rather than creating a parallel one.
+
+## Input layer
+
+### Recon (`src/primr/core/recon_context.py` via the `recon-tool` package)
+
+DNS intelligence pre-flight: detects cloud platforms (Azure / AWS / GCP), SaaS services (Salesforce, M365, Okta, Snowflake, ...), email security configuration (DMARC / DKIM / SPF / MTA-STS / BIMI), identity providers. Costs $0, takes 2-3s. The output (`_recon_context.txt`) seeds the plausible-roles call with verified tool presence.
+
+### Hiring signals (`src/primr/data/hiring_signals.py`)
+
+Eight ATS providers tried in parallel against slug candidates:
+
+1. **Greenhouse** — `boards-api.greenhouse.io/v1/boards/{slug}/jobs`
+2. **Lever** — `api.lever.co/v0/postings/{slug}`
+3. **Ashby** — `api.ashbyhq.com/posting-api/job-board/{slug}`
+4. **SmartRecruiters** — `api.smartrecruiters.com/v1/companies/{slug}/postings`
+5. **Workday** — bounded blind probing across `wd1` / `wd3` / `wd5` / `wd103` × `External` / `Careers` / `External_Careers` / `External_Career_Site` / `Global_External`, plus **corpus-driven URL discovery** that scans the scraped corpus for canonical `myworkdayjobs.com` URLs and hits the exact endpoint
+6. **Workable** — `apply.workable.com/api/v1/widget/accounts/{slug}`
+7. **Recruitee** — `{slug}.recruitee.com/api/offers/`
+8. **Jobvite** — `jobs.jobvite.com/{slug}/jobs?format=rss`
+
+If every ATS misses, the **HTML careers-page fallback** crawls the company's `/careers` or `/jobs` page with a regex-based posting-link extractor. If that also misses, the **DuckDuckGo web-search fallback** sweeps across major job-board hosts (LinkedIn, Indeed, Glassdoor, Workday boards, the ATS hosts, ZipRecruiter, BuiltIn, Monster, Dice, iCIMS pattern) and returns metadata-only postings. Bodies are rarely recoverable from those hosts, so the downstream no-bodies branch populates `signals.roles` directly from posting titles.
+
+Output persists to `<working>/_hiring/` (`hiring_signals.md` + `hiring_signals.json` + `postings_index.json` + `raw/jd_NNN_*.txt`). Skip with `PRIMR_SKIP_HIRING_SIGNALS=1`.
+
+iCIMS and BambooHR are not covered as dedicated providers — they have no clean public JSON APIs, and the HTML fallback handles them.
+
+### Research (when `--from-report` is set)
+
+`load_full_evidence` reads `report.md`, `insights.txt`, `scraped_website_summary.txt`, or `analysis_workbook.md` from the working directory in that priority order. Trimmed to 18,000 chars before being passed to the plausible-roles call. The research stream is what enables strong inference for revenue-layer roles (consultants, account roles, practice leads) that DNS fingerprints can't reveal.
+
+## Operator curation
+
+When the auto-discovery doesn't match what you want, four flags compose to give you full control:
+
+| Flag | Effect | When to use |
+|---|---|---|
+| `--plan-only` | Plan, persist, exit before authoring | Inspect the plan before paying for skills |
+| `--from-plan PATH` | Skip planning; load saved plan and author against it | Author a previously-reviewed plan |
+| `--roles-add "A, B"` | Append operator-supplied labels to the planned roster | Plan looked good but missed X |
+| `--roles-skip "X, Y"` | Drop named roles from the planned roster | Plan looked good except for one role |
+| `--roles-override "..."` | Bypass planning entirely; author exactly these roles | You know what you want, skip discovery |
+
+All four compose. Common patterns:
+
+```bash
+# Plan + augment in one command
+primr skills "Co" url --from-report dir --roles-add "Account Executive, Procurement Manager"
+
+# Plan + prune
+primr skills "Co" url --from-report dir --roles-skip "Marketing Manager"
+
+# Plan + swap (drop one, add another)
+primr skills "Co" url --from-report dir \
+  --roles-skip "Marketing Manager" \
+  --roles-add "Demand Generation Manager"
+
+# Inspect → edit → author
+primr skills "Co" url --from-report dir --plan-only
+# inspect working/.../role_plan.md
+primr skills "Co" url --from-report dir --from-plan working/.../role_plan.json \
+  --roles-add "Cybersecurity Lead"
+
+# Hand-curated set from scratch (bypasses planning)
+primr skills "Co" url --from-report dir \
+  --roles-override "Role A, Role B, Role C"
+```
+
+### Composition matrix (locked behavior)
+
+| Flags | Behavior |
+|---|---|
+| `--roles-override` alone | Bypasses planning; the four other curation/plan flags are ignored if `--roles-override` is set (CLI warns) |
+| `--from-plan PATH` | Load plan, no planning LLM calls |
+| `--from-plan PATH --roles-add "..."` | Load plan, append added |
+| `--from-plan PATH --roles-skip "..."` | Load plan, drop skipped |
+| `--from-plan PATH --roles-add "..." --roles-skip "..."` | Load plan, drop skipped first, then append added |
+| `--roles-add "..."` (no `--from-plan`) | Plan normally, append added before cap |
+| `--roles-skip "..."` (no `--from-plan`) | Plan normally, drop skipped after merge |
+| `--plan-only` alone | Plan, persist, exit |
+| `--plan-only --roles-add ... --roles-skip ...` | Plan, apply curation, persist the curated plan, exit |
+
+### Cap-aware merge with operator priority
+
+`MAX_ROLES = 15` is the global cap. When curation pushes the roster over the cap, the trim order is deterministic:
+
+1. **Plausible roles trim first** (research / industry provenance)
+2. **Observed roles trim next** (posting provenance)
+3. **Operator-added roles never trim**
+
+Trimmed entries flow to `gap_flagged` so the plan artifact records what got dropped. Operator added roles always survive — they're explicit intent and outweigh inference.
+
+### Name + archetype dedup
+
+When `--roles-add "Marketing Manager"` lands in a roster that already contains a role named `marketing-manager` OR a role with archetype `marketing-manager`, the **existing role wins** — its citations are richer than the bare operator label. The add is silently skipped with a one-line log entry. If you want to force a specific variant, combine `--roles-skip "Marketing Manager"` with `--roles-add "Demand Generation Manager"` to swap in one command.
+
+### Hard failure modes
+
+- **Clash between add and skip**: `SkillPackConfig.validate()` raises `ValueError` if the same name (normalized: lowercase, kebab-case) appears in both lists.
+- **Curation leaves empty roster**: `apply_curation` raises `RuntimeError` rather than ship an empty pack.
+- **Add list exceeds `MAX_ROLES` alone**: rejected at config validation.
+- **No posting evidence and no research evidence**: pipeline fails closed with `EmptyHiringEvidenceError` unless `--allow-recon-only` is set.
+
+## Output artifacts
+
+Each `primr skills` run produces:
+
+### `<output_dir>/<Company>_Skills_Pack_<YYYYMMDD>/`
+
+- `roles/<skill-slug>/SKILL.md` — one folder per skill, the canonical Agent Skills layout. Drop into `~/.claude/skills/`, `.cursor/skills/`, `.vscode/skills/`, or any other Agent Skills host.
+- `<Company>_Cowork_Pack.zip` — the Microsoft 365 Copilot Cowork sideload. Upload via **M365 Admin Center → Manage Apps → Upload custom app**. Contents:
+  - `manifest.json` — Unified App Manifest v1.28 with deterministic UUID v5 (the same company name always yields the same UUID, so re-installs replace rather than duplicate)
+  - `color.png` (192x192) and `outline.png` (32x32) — icons. Generated via multi-provider fallback: Grok Imagine → Gemini Imagen → OpenAI image → Pillow gradient+shape → solid PNG
+  - `skills/<skill-slug>/SKILL.md` — byte-identical to the unpacked tree
+- `<Company>_Skills_Pack_Report.md` — human-readable pack summary:
+  - Configuration (target roles, skills per role, formats, coherence pass)
+  - Role Composition (observed / plausible / operator-added counts; industry classification; plan reference; gap-flagged count; operator-skipped names)
+  - Per-role section showing confidence, provenance, archetype, citations, summary, and the skills authored
+  - Validation Scorecard (HARD / SOFT counts + per-finding table)
+  - Refinement Iterations used
+  - Dropped Roles (roles that failed validation even after refinement)
+  - Artifacts list
+  - Sideload Instructions
+
+### `<working>/role_plan.md` and `role_plan.json`
+
+Written during planning **before** authoring begins. Inspect the markdown to see what the planner discovered + inferred + curated; pass the JSON to `--from-plan` on a subsequent run to author against it.
+
+The markdown layout:
+- `## Industry Classification` — business model, vertical, stage, employee estimate, confidence, cited evidence, source (report / llm)
+- `## Evidence Summary` — character counts and per-stage counts
+- `## Observed Roles` — posting-grounded roles with verbatim posting citations
+- `## Plausible Roles` — research/industry-grounded roles with citations
+- `## Operator-Added Roles` (when `--roles-add` was used) — operator-supplied labels with `provenance: override`
+- `## Operator-Skipped Roles` (when `--roles-skip` was used) — normalized skip keys
+- `## Gap-flagged Roles` — plausible roles that didn't make the cap
+- `## Final Roster` — numbered list with provenance + confidence per role
+- `## How to act on this plan` — operator next-step hints
+
+The JSON contains the full `RolePlan` shape (`observed`, `plausible`, `gap_flagged`, `operator_added`, `operator_skipped`, `final_roster`, `industry`, `evidence_summary`, `plan_md_path`, `plan_json_path`).
+
+## SKILL.md structure
+
+Authored bodies follow Anthropic's Agent Skills authoring conventions enforced by the validator:
+
+```markdown
+---
+name: "facilitating-m365-customer-immersion-experiences"
+description: "Facilitates 90-minute M365 Customer Immersion Experiences (CIEs) workshops for ExampleCo commercial accounts. Use when the user asks to schedule a CIE, prepare Modern Workplace demo content, align Intune scenarios, or document post-workshop outcomes."
+---
+
+## What This Skill Does
+
+<2-4 short paragraphs grounded in 2+ company-specific signals>
+
+## Workflow
+
+Progress:
+- [ ] Step 1: ...
+- [ ] Step 2: ...
+
+1. <step that names a specific tool or system at this company>
+2. ...
+
+## Output Format
+
+<concrete template — table, list, or document structure>
+```
+
+Hard rules (validator-enforced):
+- `name` is kebab-case, 1-64 chars, matches folder name (ASKILL-P006)
+- `description` is 1-1024 chars, third person, includes explicit "Use when..." trigger phrases
+- Body contains the three H2 sections in order
+- Body target 300-1500 words (sweet spot 500-800)
+- No agent-instruction patterns, no hardcoded local paths, no fenced shell blocks, no credential references
+
+## CLI reference
+
+```
+primr skills <company_name> [company_url] [options]
+```
+
+Positional arguments:
+- `company_name` — display name (quote multi-word names)
+- `company_url` — required unless `--from-report` is provided
+
+Planning + roster:
+- `--roles N` — number of roles to generate (1-15, default 5)
+- `--skills-per-role N` — skills per role (1-5, default 3)
+- `--from-report PATH` — reuse evidence from an existing primr working dir
+- `--plan-only` — plan, persist, exit before authoring
+- `--from-plan PATH` — author from a saved `role_plan.json`; skip planning
+- `--roles-add "A, B"` — augment the discovered roster
+- `--roles-skip "X, Y"` — prune from the discovered roster
+- `--roles-override "A, B, C"` — bypass planning entirely (mutually exclusive with add/skip)
+- `--allow-recon-only` — proceed when both posting and research evidence are empty
+
+Output + validation:
+- `--formats {claude,cowork,both}` — which artifact formats to emit (default `both`)
+- `--output-dir PATH` — where the dated pack folder is written (default `output/`)
+- `--max-refine-iterations N` — cap on per-skill refinement (default 2)
+- `--no-coherence-pass` — skip the pack-level coherence LLM pass (saves ~$0.02)
+- `--dry-run` — estimate cost + time, exit before running
+
+## MCP reference
+
+`primr-mcp` (and the bundled `primr mcp` subcommand) exposes two skill pack tools:
+
+### `estimate_skill_pack`
+
+Cost + time estimate. Call before `generate_skill_pack`. Required:
+- `company_name`
+
+Optional:
+- `roles_count` (1-15, default 5)
+- `skills_per_role` (1-5, default 3)
+- `report_path` (skips standalone evidence collection)
+
+Returns `{cost_usd, min_minutes, max_minutes}`.
+
+### `generate_skill_pack`
+
+Synchronous (~30-120s). Required:
+- `company_name`
+
+Optional:
+- `company_url` (required unless `report_path` is set)
+- `report_path` — reuse an existing primr working dir
+- `roles_count`, `skills_per_role`, `formats`, `max_refine_iterations`, `destination`, `max_estimated_cost_usd`
+- `allow_recon_only: bool` — fail-closed override
+- `plan_only: bool` — write plan, return without authoring
+- `from_plan_path: string` — author against a saved plan
+- `roles_override: array[string]` — bypass planning entirely
+- `roles_add: array[string]` — augment discovered roster
+- `roles_skip: array[string]` — prune from discovered roster
+
+Mirrors the CLI flags. Returns the pack metadata + artifact paths.
+
+## Cost + time
+
+Cost is dominated by authoring (~$0.03 per role per skill). Planning adds ~$0.04 ($0.005 industry classification + $0.02 observed + $0.02 plausible). Coherence pass ~$0.02. Refinement ~$0.015 per failing skill (typically 30% of skills need at least one refinement pass).
+
+Indicative numbers for a default run (5 roles × 3 skills = 15 skills):
+- Pack with `--from-report`: ~$0.25-$0.35, 60-90s
+- Pack with standalone evidence collection (no `--from-report`): ~$0.30-$0.40, 90-150s
+- Larger pack (10 roles × 3 skills = 30 skills): ~$0.55-$0.75, 120-240s
+- `--plan-only`: ~$0.05, 10-30s
+
+Use `--dry-run` for a per-run estimate that reflects your exact flag combination.
+
+## Troubleshooting
+
+**`EmptyHiringEvidenceError: no job-posting evidence and no research evidence were gathered`**
+
+Both the posting layer and the research layer came up empty. Most often: the company uses an ATS provider primr doesn't support yet AND `--from-report` wasn't used. Options:
+1. Run a full primr research run first, then pass `--from-report working/<company>/<timestamp>` so the strategic research grounds the plausible-roles call.
+2. Pass `--allow-recon-only` to proceed with DNS-only role discovery (structurally incomplete for services / reseller / consultancy companies — the pack will skew toward IT-ops admin roles only).
+3. Use `--roles-override "Role A, Role B, ..."` to supply roles manually.
+
+**`Curation left an empty roster`**
+
+`--roles-skip` removed every role from the planned roster. Re-run with fewer skip names, or supply `--roles-add` to fill the roster.
+
+**`roles_add and roles_skip share entries`**
+
+A role name appears in both `--roles-add` and `--roles-skip` (normalized: case-insensitive, kebab-case). Pick one.
+
+**Role dropped with `DESC-TRIG` / `SEC-INJECT` / other HARD finding**
+
+The validator caught a quality issue that refinement couldn't recover within the cap. Pack ships with the surviving roles; the drop is logged in the pack report's "Dropped Roles" section. To author more aggressively, raise `--max-refine-iterations` (default 2). To investigate, re-run with `PRIMR_LOG_LEVEL=DEBUG` and inspect the per-skill validation findings in the pack report.
+
+**Archetype mismatch in pack report** (e.g., `sales-director` matched to `salesforce-admin` archetype)
+
+The bundled archetype catalog doesn't yet cover every common role, so `match_archetype` falls through to its display-name similarity heuristic which can pick the wrong neighbor. Authoring still works — the archetype is a scaffolding hint, not a template — but the pack-report "Archetype" line shows the closest match the matcher found. Tracked on the roadmap.
+
+**Plan looks right but authoring produces generic skills**
+
+Most often a result of thin research evidence. Re-run with `--from-report` pointing at a richer primr run (e.g., the standard `primr "Company" url` output rather than a `--mode scrape` run), or augment by running the full pipeline first.
+
+**Pack manifest UUID changed unexpectedly**
+
+The UUID is deterministic on `(company name + primr namespace)`. Changing the case or punctuation of the company name changes the UUID. Re-installs land as new plugins instead of replacements. Keep `company_name` byte-identical across runs when iterating.
+
+## Related
+
+- [Architecture](ARCHITECTURE.md) — full system design including the planning architecture
+- [Changelog](CHANGELOG.md) — v1.27.0 (input layer + planning rebuild) and v1.27.1 (operator curation)
+- [API](API.md) — MCP server reference
+- [Config](CONFIG.md) — environment variables, including `PRIMR_SKIP_HIRING_SIGNALS`
+- [Copilot Cowork Guide](COPILOT_COWORK_GUIDE.md) — publishing the primr research agent itself to the M365 Agent Store (different from skill pack sideload)

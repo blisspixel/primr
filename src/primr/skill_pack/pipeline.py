@@ -19,14 +19,16 @@ gives the refiner full pack context for free.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from primr.skill_pack.archetypes import match_archetype
 from primr.skill_pack.authoring import author_all_roles
-from primr.skill_pack.config import SkillPackConfig
-from primr.skill_pack.discovery import discover_roles
+from primr.skill_pack.config import MAX_ROLES, SkillPackConfig
 from primr.skill_pack.packager import package_skill_pack
+from primr.skill_pack.planner import apply_curation, load_plan, plan_roles
 from primr.skill_pack.refiner import (
     attach_coherence_findings_as_issues,
     refine_role,
@@ -35,12 +37,53 @@ from primr.skill_pack.refiner import (
 from primr.skill_pack.schema import (
     IssueSeverity,
     Role,
+    RoleEvidence,
+    RolePlan,
     SkillPack,
     SkillPackArtifacts,
 )
 from primr.skill_pack.validator import validate_pack
 
 logger = logging.getLogger(__name__)
+
+
+_NAME_SAFE_RE = re.compile(r"[^a-z0-9]+")
+
+
+def _slugify_role_name(label: str) -> str:
+    slug = _NAME_SAFE_RE.sub("-", label.lower()).strip("-")
+    return slug or "role"
+
+
+def _materialize_override_roles(labels: list[str]) -> list[Role]:
+    """Turn operator-supplied role labels into Role objects.
+
+    The label is used verbatim as `display_name`; `name` is the slugified
+    form; archetype matching runs against the label so authoring picks up
+    the right grounding fragment when a known archetype is close enough.
+    Confidence is 'Operator' to make clear these roles bypassed automatic
+    discovery and were supplied by the caller.
+    """
+    out: list[Role] = []
+    for label in labels:
+        slug = _slugify_role_name(label)
+        match = match_archetype(label)
+        archetype_slug = match.archetype.slug if match.archetype is not None else None
+        out.append(
+            Role(
+                name=slug,
+                display_name=label,
+                confidence="Operator",
+                summary=f"Operator-supplied role: {label}.",
+                evidence=RoleEvidence(
+                    sources=["override"],
+                    dns_signals=[],
+                    posting_count=0,
+                    archetype=archetype_slug,
+                ),
+            )
+        )
+    return out
 
 
 def _build_company_context(company_name: str, company_url: str | None, roles: list[Role]) -> str:
@@ -104,29 +147,104 @@ def run_skill_pack_pipeline(
     Args:
         company_name: Display name.
         company_url: Optional URL.
-        working_dir: Directory containing recon + hiring evidence.
+        working_dir: Directory containing recon + hiring evidence (and
+            optionally research artifacts like insights.txt / report.md).
         config: Tuning knobs.
         output_dir: Directory where the dated output folder is written.
         industry_context: Optional one-paragraph industry summary to
-            improve authoring grounding. The CLI standalone path passes
-            "(unknown)"; --from-report can extract this from the report.
+            improve authoring grounding. Used when no plan industry
+            classification is available.
         reasoning_session: Optional ContinuousReasoningSession.
 
     Raises ValueError on config out-of-bounds, FileNotFoundError on
-    missing evidence, RuntimeError if no roles survive refinement.
+    missing evidence, RuntimeError if no roles survive refinement, and
+    EmptyHiringEvidenceError when both posting and research evidence
+    are empty (unless allow_recon_only is set).
     """
     config.validate()
     company_url = company_url or None
 
+    plan: RolePlan | None = None
+    roles: list[Role]
+
     # -- Phase 1 -----------------------------------------------------------
-    logger.info("[skill_pack] Phase 1: discovering roles for %s", company_name)
-    roles = discover_roles(
-        company_name=company_name,
-        company_url=company_url,
-        working_dir=working_dir,
-        roles_count=config.roles_count,
-        reasoning_session=reasoning_session,
-    )
+    if config.roles_override:
+        if config.roles_add or config.roles_skip:
+            logger.warning(
+                "[skill_pack] roles_override is mutually exclusive with "
+                "roles_add/roles_skip — curation flags ignored."
+            )
+        logger.info(
+            "[skill_pack] Phase 1: roles_override supplied (%d names) — "
+            "skipping automatic discovery",
+            len(config.roles_override),
+        )
+        roles = _materialize_override_roles(config.roles_override)
+    elif config.from_plan_path:
+        logger.info(
+            "[skill_pack] Phase 1: loading saved plan from %s",
+            config.from_plan_path,
+        )
+        plan = load_plan(Path(config.from_plan_path))
+        if config.roles_add or config.roles_skip:
+            # When --from-plan is in use, honor the saved plan size + adds
+            # rather than the user's --roles flag, but never exceed the
+            # global MAX_ROLES ceiling. _drop_excess_to_cap trims plausible
+            # first, then observed, never operator-added.
+            curation_cap = min(
+                MAX_ROLES,
+                max(
+                    config.roles_count,
+                    len(plan.final_roster) + len(config.roles_add),
+                ),
+            )
+            apply_curation(
+                plan,
+                roles_add=list(config.roles_add),
+                roles_skip=list(config.roles_skip),
+                cap=curation_cap,
+            )
+        roles = list(plan.final_roster)
+        if not roles:
+            raise RuntimeError(
+                f"Saved plan at {config.from_plan_path} has an empty "
+                "final_roster — nothing to author."
+            )
+    else:
+        logger.info("[skill_pack] Phase 1: planning roles for %s", company_name)
+        plan = plan_roles(
+            company_name=company_name,
+            company_url=company_url,
+            working_dir=working_dir,
+            roles_count=config.roles_count,
+            reasoning_session=reasoning_session,
+            allow_recon_only=config.allow_recon_only,
+            roles_add=list(config.roles_add),
+            roles_skip=list(config.roles_skip),
+        )
+        roles = list(plan.final_roster)
+
+    if config.plan_only:
+        logger.info("[skill_pack] --plan-only set; skipping authoring + packaging")
+        empty_pack = SkillPack(
+            company_name=company_name,
+            company_url=company_url,
+            generated_at=datetime.now(tz=timezone.utc).isoformat(),
+            roles=[],
+            plan=plan,
+        )
+        return empty_pack, SkillPackArtifacts(output_dir=str(output_dir))
+
+    # When an industry classification was computed during planning, prefer
+    # it over the caller-supplied industry_context so authoring grounds
+    # against the same context the plan was built on.
+    if plan is not None and plan.industry.business_model != "Unknown":
+        industry_context = (
+            f"Business model: {plan.industry.business_model}; "
+            f"vertical: {plan.industry.industry_vertical}; "
+            f"stage: {plan.industry.company_stage}; "
+            f"headcount: {plan.industry.employee_estimate}."
+        )
 
     # -- Phase 3 (Phase 2 resolved per-role inside authoring) --------------
     logger.info("[skill_pack] Phase 3: authoring %d roles in parallel", len(roles))
@@ -144,6 +262,7 @@ def run_skill_pack_pipeline(
         company_url=company_url,
         generated_at=datetime.now(tz=timezone.utc).isoformat(),
         roles=roles,
+        plan=plan,
     )
 
     # -- Phase 4: deterministic validation --------------------------------

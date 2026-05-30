@@ -169,19 +169,60 @@ def _build_pack_report_md(
         f"- Pack-level coherence pass: {'yes' if config.run_pack_coherence_pass else 'no'}",
         f"- Pillow available: {'yes' if pillow_available() else 'no (using solid PNG fallback)'}",
         "",
+    ]
+
+    if pack.plan is not None:
+        plan = pack.plan
+        lines.extend([
+            "## Role Composition",
+            "",
+            f"- Observed (from job postings): **{pack.observed_role_count}**",
+            f"- Plausible (from research / industry): **{pack.plausible_role_count}**",
+            f"- Operator-added (via --roles-add): **{pack.operator_added_role_count}**",
+            f"- Final roster size: **{len(pack.roles)}**",
+            f"- Industry: **{plan.industry.business_model}** / "
+            f"**{plan.industry.industry_vertical}** / "
+            f"**{plan.industry.company_stage}** "
+            f"(source: `{plan.industry.source}`, "
+            f"confidence: {plan.industry.confidence})",
+        ])
+        if plan.operator_skipped:
+            lines.append(
+                f"- Operator-skipped (via --roles-skip): "
+                f"{len(plan.operator_skipped)} "
+                f"({', '.join(plan.operator_skipped[:6])}"
+                f"{'...' if len(plan.operator_skipped) > 6 else ''})"
+            )
+        if plan.plan_md_path:
+            lines.append(f"- Full role plan: `{plan.plan_md_path}`")
+        if plan.gap_flagged:
+            lines.append(
+                f"- Gap-flagged roles not authored: {len(plan.gap_flagged)} "
+                "(see role plan for details)"
+            )
+        lines.append("")
+
+    lines.extend([
         "## Roles and Skills",
         "",
-    ]
+    ])
     for role in pack.roles:
         lines.append(f"### {role.display_name} (`{role.name}`)")
         lines.append("")
         lines.append(f"- Confidence: **{role.confidence}**")
+        lines.append(f"- Provenance: `{role.evidence.provenance.value}`")
         if role.evidence.archetype:
             lines.append(f"- Archetype: `{role.evidence.archetype}`")
         if role.evidence.dns_signals:
             lines.append("- DNS signals: " + ", ".join(role.evidence.dns_signals))
         if role.evidence.posting_count:
             lines.append(f"- Hiring posting count: {role.evidence.posting_count}")
+        if role.evidence.citations:
+            top_citations = role.evidence.citations[:3]
+            rendered = "; ".join(
+                c if len(c) <= 100 else c[:97] + "..." for c in top_citations
+            )
+            lines.append(f"- Citations: {rendered}")
         if role.summary:
             lines.append("")
             lines.append(role.summary)
