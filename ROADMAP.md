@@ -91,7 +91,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 
 - Cost estimation, usage tracking, job recovery, crash/reboot recovery
 - System diagnostics (`primr doctor`)
-- 6,500+ tests, full ruff and mypy compliance
+- 6,500+ tests, full ruff compliance, mypy clean on an incremental strict ratchet (see [Engineering Standards & Toolchain](#engineering-standards--toolchain))
 - Serverless cloud deployment templates (AWS, Azure, GCP); Azure validated end-to-end (remaining hardening below)
 - Agentic architecture: hypothesis tracking, subagents, hooks, orchestrator
 - Content sanitization for prompt injection protection
@@ -117,6 +117,8 @@ Primr is intentionally not designed as a generic web scraper, a SaaS collaborati
 ## Active Queue
 
 The active queue is ordered top-down by priority. Each item is concrete enough to start without further design work.
+
+> Cross-cutting engineering-standards and toolchain work is tracked separately in [Engineering Standards & Toolchain](#engineering-standards--toolchain) rather than as a numbered queue item, since it spans the whole repo and runs in parallel with feature work. Phase 1 (uv lockfile, CI Python matrix, security gates, coverage ratchet, pre-commit) is the current active engineering initiative.
 
 ### 1. Artifact Drift — Remaining Work
 
@@ -453,6 +455,54 @@ After the v1.25.x refactor extracted `cli_batch.py`, `cli_doctor.py`, `cli_parse
 - `deep_research.DeepResearchOrchestrator._execute_consulting_research` (~270 lines) — split Phase 1 (dossier) and Phase 2 (section-by-section writing) into discrete async helpers that take pre-built prompts and return structured results, so failure modes (consecutive-failure stop, fallback to Stage 1 context) can be tested without standing up the full pipeline
 
 Target: all three monster files at 80%+ line coverage. This is a refactor for testability, not a new feature — the rule should be no behavior change, only seam introduction, and existing eval scores should remain identical.
+
+---
+
+## Engineering Standards & Toolchain
+
+primr is a mature, shipping PyPI application (`py.typed`, ~6,500 tests, heavy native deps: playwright / patchright / curl_cffi / DrissionPage / pymupdf / pandas), not a greenfield internal service. The standards below are calibrated for that reality: adopt the high-leverage, low-risk discipline; defer code-reshaping behind non-regression ratchets; and decline the maximalist conventions that would churn a stable codebase or hurt downstream consumers. The buckets are explicit so the decisions are durable and don't get re-litigated.
+
+**Decision principle:** modern where it pays, conservative where users feel it. Widen the supported-Python *ceiling* without raising the *floor*; gate on reproducibility and security; ratchet type-strictness and complexity rather than flipping them globally.
+
+### Adopted (load-bearing today)
+
+- Ruff as the single linter (`E/F/W/I/N/UP/B/C4/SIM/RUF/PIE/PT/TCH`), line-length 100, `target-version = py311`. CI hard-fails on any violation.
+- mypy on an incremental strict ratchet: `check_untyped_defs` + `strict_optional` + `no_implicit_optional` globally; `disallow_untyped_defs` enabled per-module on an allowlist (`primr.types`, `primr.utils.errors`, `primr.utils.circuit_breaker`, `primr.agentic.hooks`, `primr.agentic.errors`).
+- Ships `py.typed` — primr is a good typing citizen for downstream importers.
+- Property-based tests (Hypothesis) for core invariants; a hard-gated hardcoded-secret scanner in CI.
+- SSRF protection on every outbound URL (`primr.utils.security`); content sanitization for prompt-injection defense.
+- Single source of version truth enforced by `tests/test_release_integrity.py` (pyproject ↔ `__version__` ↔ ROADMAP "Current State").
+- No-real-company-data rule across the repo (see `docs/CONTRIBUTING.md`).
+
+### In progress — Phase 1: infrastructure & cheap gates
+
+The current active engineering initiative. Each item is verified locally, then landed; findings are triaged (targeted ignore or downgraded to a Phase-2 ratchet) rather than force-passed.
+
+- **Supported-Python window**: keep `requires-python = ">=3.11"` (the floor most users run); add a `3.11 / 3.12 / 3.13` CI matrix as hard gates plus a `3.14` experimental leg (allowed-to-fail until the native-dep stack is green on 3.14). Add the 3.14 classifier and a `.python-version` dev default. Free-threading (PEP 703) is a non-goal — primr is I/O-bound.
+- **uv toolchain + reproducibility**: commit a `uv.lock`; CI installs via `uv sync --frozen`; keep the proven setuptools build backend. Reconcile the divergence where `requirements.txt` carries lower bounds but `pyproject.toml` deps are unpinned — lift sensible lower bounds into `[project.dependencies]` (no hard upper caps except the existing intentional `ruff<0.16` / `a2a-sdk<0.4`).
+- **Security gates in CI**: wire the already-configured `bandit` (`.bandit`) and a dependency-vulnerability audit (`pip-audit`) as gates; add `.github/dependabot.yml` (weekly `pip` + `github-actions`, grouped patch/minor, majors flagged for manual review); attach a dependency manifest (`uv export`) to each GitHub release.
+- **Coverage baseline + non-regression ratchet**: measure real global branch coverage once, then gate CI at `--cov-branch --cov-fail-under=<measured floor>`. A ratchet that only ever rises — not the brief's blanket 95%, which is the wrong target for heavy I/O / LLM glue.
+- **pre-commit**: `.pre-commit-config.yaml` running `ruff check` + `ruff format --check` (check-only) + a fast mypy hook; opt-in for contributors, CI stays the hard gate.
+
+### Phased ratchets (tracked, not yet started — Phase 2/3)
+
+- **mypy strict expansion**: grow the `disallow_untyped_defs` allowlist module-by-module (next: `skill_pack/`, `utils/`, `data/hiring_signals.py`) toward eventual `--strict`, never regressing. Evaluate Astral `ty` as a fast local supplement (not the CI gate while it is preview).
+- **One-time `ruff format` reflow**: apply formatting across the tree in a single isolated commit, then flip pre-commit/CI to enforce mode and stop ignoring `E501`.
+- **Complexity budget**: add `C901` + `max-complexity` once the documented monsters are refactored (`perform_fast_research` ~1900 lines, `_execute_consulting_research` ~270 lines — Active Queue #23).
+- **Targeted Pydantic boundaries**: strict Pydantic models at the MCP / API input boundary where validation isn't already enforced (most MCP inputs are JSON-schema-validated today) — audit and fill gaps, not a blanket conversion.
+- **Per-module coverage targets**: raise the 80% line-coverage target on core modules (`deep_research.py` 72%, `research_agent.py` 30%) as their refactors land.
+- **CycloneDX SBOM + container scan** (Trivy) if/when container images become a shipped artifact.
+
+### Out of scope (rejected, with rationale)
+
+So future contributors don't re-open these:
+
+- **`requires-python >= 3.14` floor** — would cut off the majority of current PyPI users; the native-dep stack isn't reliably 3.14/free-threaded-ready.
+- **Free-threaded build adoption** — primr is I/O-bound (scrape + LLM); removing the GIL buys ~nothing and risks native-dep instability.
+- **structlog everywhere / Pydantic-everywhere / dataclass → Pydantic conversion** — high churn, low payoff on a stable codebase that already has a `get_logger` abstraction and uses dataclasses deliberately. Structured output, if wanted, goes behind `get_logger`.
+- **NASA Power-of-10 literalism** (forbid recursion, mandate "two asserts per public API", forbid post-`__init__` attributes) — dogmatic for an AI/scraping pipeline. Keep the spirit (complexity budget, boundary validation), not the letter.
+- **>95% global branch coverage** — wrong target for I/O/LLM-heavy code; replaced by a measured ratchet + per-module targets.
+- **Copier / multi-repo template** — a portfolio-level concern, not primr's. primr can instead serve as the *reference implementation* a template is later extracted from.
 
 ---
 
