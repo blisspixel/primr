@@ -42,10 +42,10 @@ console = Console(legacy_windows=False) if RICH else None
 
 
 def find_best_python():
-    """Find the best Python interpreter (3.11+) on the system."""
+    """Find the best Python interpreter (3.12+) on the system."""
     # Check current interpreter first
     v = sys.version_info
-    if v.major >= 3 and v.minor >= 11:
+    if v.major >= 3 and v.minor >= 12:
         return sys.executable
 
     # On Windows, try py launcher
@@ -54,7 +54,7 @@ def find_best_python():
             # Check what versions are available
             result = subprocess.run(["py", "-0"], capture_output=True, text=True, timeout=5)
 
-            # Parse output to find 3.11+
+            # Parse output to find 3.12+
             for line in result.stdout.split("\n"):
                 if "-3." in line:
                     # Extract version like "-3.13-64"
@@ -64,7 +64,7 @@ def find_best_python():
                             version_str = part.replace("-", "").split("-")[0]
                             try:
                                 minor = int(version_str.split(".")[1])
-                                if minor >= 11:
+                                if minor >= 12:
                                     # Found a good version, get its path
                                     py_result = subprocess.run(
                                         ["py", part, "-c", "import sys; print(sys.executable)"],
@@ -80,7 +80,7 @@ def find_best_python():
             pass
 
     # Try common names
-    for cmd in ["python3.13", "python3.12", "python3.11", "python3"]:
+    for cmd in ["python3.14", "python3.13", "python3.12", "python3"]:
         try:
             result = subprocess.run([cmd, "--version"], capture_output=True, text=True, timeout=5)
             if result.returncode == 0:
@@ -89,7 +89,7 @@ def find_best_python():
                 if "Python 3." in version_line:
                     version_str = version_line.split()[1]
                     minor = int(version_str.split(".")[1])
-                    if minor >= 11:
+                    if minor >= 12:
                         # Get full path
                         path_result = subprocess.run(
                             [cmd, "-c", "import sys; print(sys.executable)"],
@@ -435,11 +435,11 @@ def main_rich():
 
         # Try to find a better Python
         console.print()
-        console.print("  [yellow]Looking for Python 3.11+...[/yellow]")
+        console.print("  [yellow]Looking for Python 3.12+...[/yellow]")
         better_python = find_best_python()
 
         if better_python:
-            console.print(f"  [green]✓[/green] Found Python 3.11+ at: [cyan]{better_python}[/cyan]")
+            console.print(f"  [green]✓[/green] Found Python 3.12+ at: [cyan]{better_python}[/cyan]")
             console.print()
             console.print("  [yellow]Restarting with correct Python...[/yellow]")
             console.print()
@@ -455,7 +455,7 @@ def main_rich():
                 os.execv(better_python, [better_python, *sys.argv])
         else:
             console.print()
-            console.print("  [yellow]Python 3.11 or newer is required[/yellow]")
+            console.print("  [yellow]Python 3.12 or newer is required[/yellow]")
             console.print()
             console.print("  [cyan]Download from:[/cyan] https://www.python.org/downloads/")
             console.print()
@@ -675,9 +675,9 @@ def main_basic():
 
     v = sys.version_info
     if v.major < 3 or (v.major == 3 and v.minor < 11):
-        print(f"  x Python {v.major}.{v.minor} (need 3.11+)")
+        print(f"  x Python {v.major}.{v.minor} (need 3.12+)")
         print()
-        print("  Python 3.11 or newer is required")
+        print("  Python 3.12 or newer is required")
         print()
         print("  Download from: https://www.python.org/downloads/")
         print()
