@@ -85,29 +85,43 @@ jobs:
       - name: Validate distribution metadata
         run: twine check dist/*
 
-      - name: Generate dependency manifest (SBOM-lite)
+      - name: Generate SBOM (pinned manifest + CycloneDX)
         env:
           TAG_VERSION: ${{ steps.meta.outputs.version }}
-        # A pinned, fully-resolved dependency manifest for the released version,
-        # attached to the release for supply-chain transparency. Full CycloneDX
-        # SBOM is a tracked Phase-3 item (see ROADMAP).
+        # SBOM artifacts go in sbom/ (NOT dist/) so they are attached to the
+        # GitHub release but never handed to twine/PyPI, which rejects
+        # non-distribution files. Two forms: a pinned uv requirements manifest
+        # (human-diffable) and a CycloneDX JSON SBOM (machine/standard).
         run: |
+          mkdir -p sbom
           pipx run uv export --frozen --no-dev --no-emit-project \
-            --format requirements-txt -o "dist/primr-${TAG_VERSION}-requirements.txt"
+            --format requirements-txt -o "sbom/primr-${TAG_VERSION}-requirements.txt"
+          pipx run --spec cyclonedx-bom cyclonedx-py requirements \
+            "sbom/primr-${TAG_VERSION}-requirements.txt" \
+            --of JSON -o "sbom/primr-${TAG_VERSION}-sbom.cdx.json"
 
       - name: Generate SLSA build provenance attestation
         uses: actions/attest-build-provenance@v2
         with:
-          # Attest the published artifacts (not the dependency manifest), so
-          # consumers can cryptographically verify these wheels/sdists were
-          # built by this workflow from this repo at this tag.
+          # Attest the published artifacts, so consumers can cryptographically
+          # verify these wheels/sdists were built by this workflow from this
+          # repo at this tag.
           subject-path: "dist/*.whl,dist/*.tar.gz"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
+          # dist/ holds ONLY the wheel + sdist — the publish job uploads this
+          # verbatim to PyPI, so it must contain no extra files.
           name: dist
           path: dist/
+          retention-days: 7
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom/
           retention-days: 7
 
   publish:
@@ -137,6 +151,9 @@ jobs:
           # lets the workflow exit cleanly in that case — the wheels on PyPI
           # stay as the originally-published artifacts.
           skip-existing: true
+          # PEP 740 digital attestations (Sigstore) for each artifact — default
+          # on for Trusted Publishing, set explicit so it can't silently regress.
+          attestations: true
 
   github-release:
     name: Create GitHub Release
@@ -178,6 +195,12 @@ jobs:
           name: dist
           path: dist/
 
+      - name: Download SBOM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: sbom
+          path: sbom/
+
       - name: Extract release notes from CHANGELOG.md
         env:
           RELEASE_VERSION: ${{ steps.meta.outputs.version }}
@@ -217,10 +240,10 @@ jobs:
             # Opt-in path: refresh notes and replace artifacts in place.
             echo "::warning::ALLOW_RELEASE_ASSET_REPLACE=true — replacing assets for $TAG"
             gh release edit "$TAG" --notes-file RELEASE_NOTES.md
-            gh release upload "$TAG" dist/* --clobber
+            gh release upload "$TAG" dist/* sbom/* --clobber
           else
             gh release create "$TAG" \
               --title "$TAG" \
               --notes-file RELEASE_NOTES.md \
-              dist/*
+              dist/* sbom/*
           fi
