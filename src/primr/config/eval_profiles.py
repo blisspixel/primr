@@ -160,6 +160,49 @@ _V1_24_0_CEILING_CANDIDATE = EvalProfileSlot(
 
 
 # =============================================================================
+# Gemini 3.5 Flash PRO-tier evaluation (May 30, 2026 model refresh)
+# =============================================================================
+# Gemini 3.5 Flash (GA May 19, 2026) benchmarks above Gemini 3.1 Pro at lower
+# cost ($1.50/$9 vs $2/$12). The eval-gated question (ROADMAP "model landscape
+# refresh"): should the PRO/quality writing tier repoint from 3.1 Pro to
+# 3.5 Flash? These two slots are a direct head-to-head — same reasoning +
+# utility, only the quality-writing model differs — so the scorecard isolates
+# the writer's quality/cost. The default pipeline does NOT change until this
+# scorecard shows 3.5 Flash at-or-above 3.1 Pro quality at lower cost.
+
+_GEMINI_35_PRO_TIER_EVAL = (
+    EvalProfileSlot(
+        name="protier-gemini31pro",  # reference (current PRO model)
+        recipe=ProfileRecipe(
+            reasoning="grok-4.3",
+            writing="gemini-3.1-pro-preview",
+            utility="gemini-3-flash-preview",
+        ),
+        estimated_cost_usd=1.30,
+        description=(
+            "PRO-tier REFERENCE: Gemini 3.1 Pro ($2/$12) as the quality writer. "
+            "Baseline for the 3.5-Flash repoint decision."
+        ),
+    ),
+    EvalProfileSlot(
+        name="protier-gemini35flash",  # candidate (May 2026 refresh)
+        recipe=ProfileRecipe(
+            reasoning="grok-4.3",
+            writing="gemini-3.5-flash",
+            utility="gemini-3-flash-preview",
+        ),
+        estimated_cost_usd=1.05,
+        description=(
+            "PRO-tier CANDIDATE: Gemini 3.5 Flash ($1.50/$9) as the quality "
+            "writer — benchmarks above 3.1 Pro at lower cost. If this slot "
+            "matches or beats protier-gemini31pro on the scorecard, repoint the "
+            "PRO/quality tier to gemini-3.5-flash."
+        ),
+    ),
+)
+
+
+# =============================================================================
 # Local / hybrid candidates (zero or low cost, RTX 4090 ceiling tests)
 # =============================================================================
 #
@@ -253,6 +296,7 @@ def _register_v1_24_0_matrix() -> None:
     all_slots: tuple[EvalProfileSlot, ...] = (
         *_V1_24_0_CLOUD_CANDIDATES,
         _V1_24_0_CEILING_CANDIDATE,
+        *_GEMINI_35_PRO_TIER_EVAL,
         *_V1_24_0_LOCAL_CANDIDATES,
         _V1_24_0_CURRENT_BASELINE,
     )
