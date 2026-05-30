@@ -28,12 +28,11 @@ ENV PATH="/home/primr/.local/bin:${PATH}"
 # Install primr package
 RUN pip install --user --no-cache-dir primr
 
-# Declare environment variables (passed at runtime)
-# These are NOT set here to avoid baking secrets into the image
-ENV XAI_API_KEY=""
-ENV GEMINI_API_KEY=""
-ENV SEARCH_API_KEY=""
-ENV SEARCH_ENGINE_ID=""
+# Secret API keys (XAI_API_KEY, GEMINI_API_KEY, SEARCH_API_KEY, SEARCH_ENGINE_ID)
+# are NOT declared here — pass them at runtime (`docker run -e XAI_API_KEY=...`
+# or a secrets mount). Declaring them as ENV, even empty, bakes secret-named
+# vars into image layers (Trivy DS-0031) and serves no purpose, since the app
+# reads them from the runtime environment regardless.
 ENV PRIMR_OUTPUT_DIR="/workspace/output"
 
 # Create output directory with correct permissions

@@ -29,9 +29,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **PEP 740 Sigstore attestations** made explicit (`attestations: true`) on the
   PyPI publish step (default-on for Trusted Publishing; pinned so it can't
   silently regress), complementing the existing SLSA build-provenance attestation.
-- **Trivy supply-chain scan** added to CI (filesystem vuln + secret + misconfig,
+- **Trivy supply-chain scan** added to CI (filesystem vuln + misconfig,
   HIGH/CRITICAL, unfixed-ignored) as a signal-only `continue-on-error` job —
-  complements the pip-audit + bandit hard gates; promote to a gate once baseline-clean.
+  complements the pip-audit + bandit hard gates. It immediately earned its keep:
+  - **Fixed (CRITICAL ×3)**: `openclaw/Dockerfile.primr` declared secret API
+    keys via `ENV` (bakes secret-named vars into image layers); removed — they
+    are runtime-provided.
+  - **Triaged (HIGH)**: the Cloud Run job's default security context (KSV-0118)
+    added to `.trivyignore` with rationale (Cloud Run sandboxes containers;
+    non-root hardening tracked as a deploy follow-up needing re-validation).
+  Dependency scan came back clean. Promote Trivy to a hard gate once confirmed
+  baseline-clean in CI.
 
 ### Hygiene ratchets
 
