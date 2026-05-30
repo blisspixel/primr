@@ -13,15 +13,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.12-3.13 are hard gates (3.12 is the supported floor through current stable).
+        # 3.12-3.13 are hard gates (3.12 is the supported floor through current
+        # stable). 3.14 readiness is checked separately in `python-314-experimental`
+        # so a not-yet-ready native-dep stack can never fail this required job.
         python-version: ["3.12", "3.13"]
-        experimental: [false]
-        include:
-          # 3.14 is an experimental leg: allowed to fail until the native-dep
-          # stack (playwright/pymupdf/curl_cffi/DrissionPage) is green on 3.14.
-          - python-version: "3.14"
-            experimental: true
-    continue-on-error: ${{ matrix.experimental }}
+
+    # UV_PYTHON pins the interpreter for every uv command in this job to the
+    # matrix leg, so the install step and all `uv run --no-sync` steps agree on
+    # one .venv. `uv run --no-sync` then reuses exactly what the install step
+    # built (base + dev + api) instead of re-resolving and dropping extras.
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
 
     steps:
       - uses: actions/checkout@v4
@@ -36,33 +38,33 @@ jobs:
         run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --frozen --extra dev --extra api --python ${{ matrix.python-version }}
+        run: uv sync --frozen --extra dev --extra api
 
       # Lint / type-check / security gates are version-independent, so run them
       # once on the primary interpreter to save matrix minutes.
       - name: Lint
         if: matrix.python-version == '3.13'
-        run: uv run ruff check src/primr/
+        run: uv run --no-sync ruff check src/primr/
 
       - name: Type check
         if: matrix.python-version == '3.13'
-        run: uv run mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'
+        run: uv run --no-sync mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'
 
       - name: Security scan (bandit)
         if: matrix.python-version == '3.13'
-        run: uv run bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q
+        run: uv run --no-sync bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q
 
       - name: Dependency vulnerability audit (pip-audit)
         if: matrix.python-version == '3.13'
         # Audits the synced venv against the advisory DB. Add --ignore-vuln <ID>
         # here (with a comment) only for reviewed, non-actionable advisories.
-        run: uv run pip-audit
+        run: uv run --no-sync pip-audit
 
       - name: Recovery Regression Suite
         env:
           GEMINI_API_KEY: fake-key-for-ci-tests
         run: |
-          uv run pytest -q \
+          uv run --no-sync pytest -q \
             tests/test_core/test_resume_recovery.py \
             tests/test_core/test_research_agent_resume.py \
             tests/test_data/test_scrape_resume.py \
@@ -80,11 +82,11 @@ jobs:
         # legs run the suite without the coverage gate.
         run: |
           if [ "${{ matrix.python-version }}" = "3.13" ]; then
-            uv run pytest tests/ --ignore=tests/manual -x --tb=short -q \
+            uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q \
               -k "not test_wait_times_out_when_no_change" -m "not integration" \
               --cov=src/primr --cov-branch --cov-fail-under=77
           else
-            uv run pytest tests/ --ignore=tests/manual -x --tb=short -q \
+            uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q \
               -k "not test_wait_times_out_when_no_change" -m "not integration"
           fi
 
@@ -98,7 +100,7 @@ jobs:
         env:
           GEMINI_API_KEY: fake-key-for-ci-tests
         run: |
-          uv run pytest tests/property_tests tests/agentic/property_tests \
+          uv run --no-sync pytest tests/property_tests tests/agentic/property_tests \
             --tb=short -q -m "not integration"
 
       # Hard-gated security slice: the deploy/** hardcoded-secret scanner cannot
@@ -108,12 +110,14 @@ jobs:
         env:
           GEMINI_API_KEY: fake-key-for-ci-tests
         run: |
-          uv run pytest tests/property_tests/test_no_hardcoded_secrets_properties.py \
+          uv run --no-sync pytest tests/property_tests/test_no_hardcoded_secrets_properties.py \
             --tb=short -q
 
   a2a-tests:
     runs-on: ubuntu-latest
     name: A2A Integration Tests
+    env:
+      UV_PYTHON: "3.13"
 
     steps:
       - uses: actions/checkout@v4
@@ -128,9 +132,45 @@ jobs:
         run: uv python install 3.13
 
       - name: Install dependencies (with A2A SDK)
-        run: uv sync --frozen --extra dev --extra api --extra a2a --python 3.13
+        run: uv sync --frozen --extra dev --extra api --extra a2a
 
       - name: A2A Tests
         env:
           GEMINI_API_KEY: fake-key-for-ci-tests
-        run: uv run pytest tests/a2a/ --ignore=tests/a2a/property_tests -x --tb=short -q
+        run: uv run --no-sync pytest tests/a2a/ --ignore=tests/a2a/property_tests -x --tb=short -q
+
+  # Forward-looking readiness check for Python 3.14. continue-on-error at the
+  # JOB level means a failure here never fails the workflow (unambiguous, unlike
+  # matrix-leg continue-on-error). The signal we care about is whether the native
+  # dependency stack (playwright/pymupdf/curl_cffi/DrissionPage/pandas) installs
+  # on 3.14 and primr imports + a fast test slice passes. Promote 3.14 into the
+  # required matrix above once this is reliably green.
+  python-314-experimental:
+    runs-on: ubuntu-latest
+    name: Python 3.14 readiness (experimental)
+    continue-on-error: true
+    env:
+      UV_PYTHON: "3.14"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python 3.14
+        run: uv python install 3.14
+
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev --extra api
+
+      - name: Import + fast test slice
+        env:
+          GEMINI_API_KEY: fake-key-for-ci-tests
+        run: |
+          uv run --no-sync python -c "import primr; print(primr.__version__)"
+          uv run --no-sync pytest tests/test_release_integrity.py tests/test_imports.py \
+            -q --tb=short
