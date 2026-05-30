@@ -65,6 +65,7 @@ from primr.ai.deep_research_polling import (
     poll_interval_for_elapsed,
 )
 from primr.config.settings import get_settings
+from primr.utils.content_sanitizer import fence_untrusted
 from primr.utils.errors import AIError
 from primr.utils.logging_config import get_logger
 
@@ -2872,14 +2873,22 @@ Write the content now, following the formatting rules above.""",
             stage1_truncated = (
                 stage1_context[:6000] if len(stage1_context) > 6000 else stage1_context
             )
-            stage1_section = f"""## STAGE 1 RESEARCH (Website Analysis - Ground Truth)
-This is verified information from the company's own website and public sources.
-Prioritize this data when it conflicts with external research.
+            # Stage 1 is derived from scraped website content -> untrusted.
+            # Keep primr's own "ground truth, prioritize" framing OUTSIDE the
+            # fence (that is our instruction), fence only the retrieved data.
+            stage1_section = (
+                "## STAGE 1 RESEARCH (Website Analysis - Ground Truth)\n"
+                "This is verified information from the company's own website and public sources.\n"
+                "Prioritize this data when it conflicts with external research.\n\n"
+                + fence_untrusted("STAGE1_WEBSITE_RESEARCH", stage1_truncated)
+                + "\n\n---\n"
+            )
 
-{stage1_truncated}
-
----
-"""
+        # Research dossier is external (Deep Research findings) -> untrusted;
+        # fence so embedded directives are read as data, not obeyed. previous
+        # sections are primr's OWN prior output (continuity context), not an
+        # external injection vector, so they are not untrusted-fenced.
+        dossier_fenced = fence_untrusted("RESEARCH_DOSSIER", research_dossier[:8000])
 
         # Get section writing prompt template from YAML
         prompt_template = accordion_prompts.get("section_writing_prompt", "")
@@ -2889,7 +2898,7 @@ Prioritize this data when it conflicts with external research.
             return prompt_template.format(
                 company_name=company_name,
                 stage1_context=stage1_section,
-                research_dossier=research_dossier[:8000],
+                research_dossier=dossier_fenced,
                 previous_sections=prev_context,
                 section_title=section["title"],
                 section_instructions=section["instructions"],
@@ -2900,7 +2909,7 @@ Prioritize this data when it conflicts with external research.
             return f"""You are writing a section of a strategic company overview for {company_name}.
 
 {stage1_section}## RESEARCH DOSSIER (Deep Research Findings)
-{research_dossier[:8000]}
+{dossier_fenced}
 
 ## PREVIOUS SECTIONS
 {prev_context}

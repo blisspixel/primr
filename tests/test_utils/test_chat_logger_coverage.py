@@ -9,6 +9,7 @@ logs directory.
 from __future__ import annotations
 
 import json
+import logging
 
 import pytest
 
@@ -43,24 +44,39 @@ class TestLogChatInteraction:
         chat_logger.log_chat_interaction("p", "r")
         assert (log_dir / "general.json").exists()
 
-    def test_corrupt_existing_file_starts_fresh(self, log_dir, capsys):
+    def test_corrupt_existing_file_starts_fresh(self, log_dir, caplog):
         path = log_dir / "bad.json"
         path.write_text("{ not valid json", encoding="utf-8")
-        chat_logger.log_chat_interaction("p", "r", session_id="bad")
-        out = capsys.readouterr().out
-        assert "Corrupt log file" in out
+        with caplog.at_level(logging.WARNING):
+            chat_logger.log_chat_interaction("p", "r", session_id="bad")
+        assert "Corrupt chat log" in caplog.text
         data = json.loads(path.read_text(encoding="utf-8"))
         assert len(data) == 1
 
-    def test_save_failure_prints_error(self, log_dir, capsys, monkeypatch):
+    def test_save_failure_logs_error(self, log_dir, caplog, monkeypatch):
         def boom(*args, **kwargs):
             raise OSError("disk full")
 
         monkeypatch.setattr(chat_logger, "open", boom, raising=False)
         # No file exists, so the read branch is skipped and the write fails.
-        chat_logger.log_chat_interaction("p", "r", session_id="fail")
-        out = capsys.readouterr().out
-        assert "Failed to save chat log" in out
+        with caplog.at_level(logging.ERROR):
+            chat_logger.log_chat_interaction("p", "r", session_id="fail")
+        assert "Failed to save chat log" in caplog.text
+
+    def test_secrets_are_redacted_before_persist(self, log_dir):
+        """API keys in prompt/response are masked before hitting disk."""
+        secret = "xai-abc123DEF456ghi789JKL012mno345PQR678stu"
+        chat_logger.log_chat_interaction(
+            f"call provider with {secret}", f"done using {secret}", session_id="sec"
+        )
+        raw = (log_dir / "sec.json").read_text(encoding="utf-8")
+        assert secret not in raw
+        assert "[XAI_API_KEY]" in raw
+
+    def test_atomic_write_leaves_no_tmp_file(self, log_dir):
+        chat_logger.log_chat_interaction("p", "r", session_id="atomic")
+        assert (log_dir / "atomic.json").exists()
+        assert not list(log_dir.glob("*.tmp"))
 
 
 class TestReadChatLogs:

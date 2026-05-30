@@ -34,6 +34,7 @@ from primr.utils.content_sanitizer import (
     SanitizationIssue,
     SanitizationMode,
     SanitizationResult,
+    fence_untrusted,
     sanitize_for_llm,
 )
 from primr.utils.errors import (
@@ -199,6 +200,7 @@ __all__ = [
     "ensure_sync",
     "error_context",
     "export_schema",
+    "fence_untrusted",
     "format_currency",
     "format_number",
     "gather_with_concurrency",

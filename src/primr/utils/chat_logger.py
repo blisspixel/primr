@@ -2,7 +2,9 @@
 Chat logging utility for AI interactions.
 """
 
+import contextlib
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -10,6 +12,10 @@ from colorama import Fore, Style
 
 # Get project root for log directory
 from primr.config.config import PROJECT_ROOT
+from primr.utils.logging_config import get_logger
+from primr.utils.security import mask_sensitive_data
+
+logger = get_logger("chat_logger")
 
 # Directory for storing chat logs
 CHAT_LOG_DIR = Path(PROJECT_ROOT) / "logs" / "chat_history"
@@ -38,23 +44,31 @@ def log_chat_interaction(prompt, response, session_id="general"):
             with open(log_file_path, encoding="utf-8") as f:
                 chat_history = json.load(f)
         except json.JSONDecodeError:
-            print(
-                Fore.RED
-                + "[ERROR] Corrupt log file detected. Starting fresh log."
-                + Style.RESET_ALL
-            )
+            logger.warning("Corrupt chat log %s detected; starting a fresh log.", log_file_path)
 
-    # Append new log entry
+    # Redact secrets before persisting. Chat logs are written directly to disk
+    # (not routed through the logging SecretMaskingFilter), so an API key that
+    # slips into a prompt or response would otherwise land in plaintext.
     chat_history.append(
-        {"timestamp": datetime.now().isoformat(), "prompt": prompt, "response": response}
+        {
+            "timestamp": datetime.now().isoformat(),
+            "prompt": mask_sensitive_data(str(prompt)),
+            "response": mask_sensitive_data(str(response)),
+        }
     )
 
-    # Save the updated chat log
+    # Atomic write: serialize to a PID-suffixed temp file then os.replace, so a
+    # crash mid-write can't corrupt the existing log (was a plain truncating write).
+    tmp_path = log_file_path.with_suffix(f".{os.getpid()}.tmp")
     try:
-        with open(log_file_path, "w", encoding="utf-8") as f:
+        with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(chat_history, f, indent=4)
+        os.replace(tmp_path, log_file_path)
     except Exception as e:
-        print(Fore.RED + f"[ERROR] Failed to save chat log: {e}" + Style.RESET_ALL)
+        logger.error("Failed to save chat log %s: %s", log_file_path, e)
+        with contextlib.suppress(OSError):
+            if tmp_path.exists():
+                tmp_path.unlink()
 
 
 def read_chat_logs(session_id="general"):

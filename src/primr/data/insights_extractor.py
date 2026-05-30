@@ -10,6 +10,7 @@ from google import genai
 from primr.config.config import GEMINI_API_KEY, MAX_RETRIES
 from primr.config.env import load_primr_env
 from primr.config.models import PrimrModels
+from primr.utils.content_sanitizer import fence_untrusted
 from primr.utils.logging_config import get_logger
 
 load_primr_env()
@@ -83,13 +84,18 @@ def extract_insights(search_results, scraped_content):
             if not isinstance(raw_text, str) or len(raw_text) < 50:
                 continue
 
+            # Scraped page text is untrusted — fence + sanitize so embedded
+            # instructions are treated as data, not obeyed (indirect injection).
+            fenced_content = fence_untrusted("SCRAPED_SOURCE", raw_text[:2000])
+
             ai_prompt = f"""
             Extract **detailed and structured insights** from this company research source.
             Provide **financial trends, executive statements, product strategies**, and **competitive positioning**.
 
             **Title:** {title}
             **Source:** {url}
-            **Extracted Content:** {raw_text[:2000]}
+            **Extracted Content:**
+            {fenced_content}
 
             - Use **detailed bullet points**.
             - Include **metrics, financial figures, and executive statements if available**.

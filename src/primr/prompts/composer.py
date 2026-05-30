@@ -31,6 +31,7 @@ from primr.prompts.schema import (
     SectionSpec,
 )
 from primr.prompts.shared_loader import SharedComponentLoader
+from primr.utils.content_sanitizer import sanitize_for_llm
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("prompts.composer")
@@ -383,7 +384,11 @@ class PromptComposer:
                     "",
                     "NOTES ARE FREEFORM - extract what's relevant for this strategy.",
                     "",
-                    context.discovery_notes_content.strip(),
+                    # Operator notes are trusted as primary source but still
+                    # sanitized (strip control chars / injection patterns) in
+                    # case pasted text carries scraped content with stray
+                    # directives. Not hard-fenced — the framing above is intentional.
+                    sanitize_for_llm(context.discovery_notes_content.strip())[0],
                     "",
                 ]
             )
@@ -466,7 +471,7 @@ class PromptComposer:
         lines.append("EPISTEMIC RULES:")
         epistemic_rules = dict(shared.epistemic_rules)
         epistemic_rules.update(config.epistemic_rules_override)
-        for _rule_name, rule_text in epistemic_rules.items():
+        for rule_text in epistemic_rules.values():
             lines.append(f"- {rule_text.strip()}")
         lines.append("")
 
@@ -474,14 +479,14 @@ class PromptComposer:
         lines.append("FORMATTING:")
         formatting_rules = dict(shared.formatting_rules)
         formatting_rules.update(config.formatting_override)
-        for _rule_name, rule_text in formatting_rules.items():
+        for rule_text in formatting_rules.values():
             lines.append(f"- {rule_text.strip()}")
         lines.append("")
 
         # Add heuristics if present
         if config.heuristics:
             lines.append("HEURISTICS AND RULES OF THUMB:")
-            for _name, text in config.heuristics.items():
+            for text in config.heuristics.values():
                 lines.append(f"- {text.strip()}")
             lines.append("")
 
