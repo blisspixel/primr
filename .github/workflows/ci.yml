@@ -143,3 +143,24 @@ jobs:
         env:
           GEMINI_API_KEY: fake-key-for-ci-tests
         run: uv run --no-sync pytest tests/a2a/ --ignore=tests/a2a/property_tests -x --tb=short -q
+
+  # Supply-chain scan (Trivy): filesystem vuln + secret + misconfig scan.
+  # Signal-only for now (continue-on-error) so it surfaces issues without
+  # blocking merges while the baseline is established; promote to a hard gate
+  # once it is reliably clean. Complements the pip-audit + bandit hard gates.
+  supply-chain-scan:
+    runs-on: ubuntu-latest
+    name: Supply-chain scan (Trivy)
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Supply-chain hardening
+
+- **Fixed a latent release-breaking bug**: the dependency manifest was written
+  into `dist/`, which the PyPI publish step uploads verbatim — twine would have
+  rejected the non-distribution file and failed the next release. SBOM artifacts
+  now go in a separate `sbom/` artifact, attached to the GitHub release but never
+  to PyPI; `dist/` holds only the wheel + sdist.
+- **CycloneDX SBOM**: releases now ship a standard CycloneDX JSON SBOM
+  (`cyclonedx-py`, invocation validated locally) alongside the pinned uv
+  requirements manifest.
+- **PEP 740 Sigstore attestations** made explicit (`attestations: true`) on the
+  PyPI publish step (default-on for Trusted Publishing; pinned so it can't
+  silently regress), complementing the existing SLSA build-provenance attestation.
+- **Trivy supply-chain scan** added to CI (filesystem vuln + secret + misconfig,
+  HIGH/CRITICAL, unfixed-ignored) as a signal-only `continue-on-error` job —
+  complements the pip-audit + bandit hard gates; promote to a gate once baseline-clean.
+
 ### Hygiene ratchets
 
 - **One-time `ruff format` reflow** (173 files, behavior-preserving) and
