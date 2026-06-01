@@ -303,6 +303,13 @@ remaining items from Anthropic's [skill-creator workflow](https://github.com/ant
 and [best-practices guide](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)
 are structural and worth their own milestone:
 
+- **Agent-handoff declarations in SKILL.md frontmatter** (near-term — being
+  implemented now): today the generated frontmatter is just `name` +
+  `description`. Add an explicit capability/budget contract so a primr-authored
+  skill is immediately usable by an agent without inferring what it implies —
+  declared tool surface (`allowed-tools`), an MCP/A2A capability hint, and an
+  estimated per-invocation budget. This makes the pack self-describing to a
+  consuming agent (e.g. Deepr) and folds into the agent control-plane work (#21).
 - **Per-skill trigger eval generation**: after authoring, generate 8-10
   should-trigger queries + 8-10 should-not-trigger near-misses, run the
   description through a discovery simulator, and iterate the description
@@ -532,6 +539,33 @@ So future contributors don't re-open these:
 ## Considered for Later
 
 Concepts where the design is sketched but the work isn't queued for the next active cycle — either because they depend on an upstream item, the scope is large, or the value is real but not yet pressing.
+
+### Strategy Delta Mode (incremental re-analysis)
+
+Ongoing monitoring of a company should produce an incremental update against a
+prior run rather than a full re-run. Given a previous report + its run state,
+diff the freshly gathered signals (recon, hiring, external sources) against the
+last snapshot and regenerate only the sections whose evidence materially
+changed, emitting a "what changed since <date>" delta artifact alongside the
+refreshed report.
+
+- Depends on durable per-company run state and a changed-signal layer; connects
+  to vendor-news caching (#13) and the per-user cache (#12).
+- Must respect the single-job model — delta mode is still one job, not a daemon.
+- Value is real (cheap refreshes, change tracking) but scope is a meaningful
+  build; sketch first, queue once #12/#13 land.
+
+### Watch / Delta as a Consumed Primitive (not a push daemon)
+
+A "detect strategic change" primitive is legitimate primr surface: expose the
+delta (above) and the skill-pack capability declarations as **artifacts and
+job-scoped resources** that a downstream orchestrator can poll/consume. The
+boundary is deliberate and load-bearing: **downstream experts (e.g. Deepr)
+integrate *into* primr by consuming its outputs; primr stands on its own and
+never runs an always-on watcher that pushes into, or depends on, a downstream
+system.** That keeps primr "URL in, serious artifact out" rather than becoming
+generic orchestration middleware (see Design Philosophy: "product over
+middleware"). The auto-feed/scheduling half lives on the consumer side.
 
 ### Gemini 3.1 Pro Enhancements for Premium Mode
 

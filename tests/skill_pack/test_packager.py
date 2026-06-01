@@ -74,6 +74,53 @@ def test_package_emits_claude_tree_and_cowork_zip(tmp_path: Path):
     assert "## Workflow" in text
 
 
+def test_skill_md_has_agent_metadata_block(tmp_path: Path):
+    pack = _make_pack()
+    config = SkillPackConfig(formats=SkillPackFormat.CLAUDE)  # default emit_agent_metadata=True
+    artifacts = package_skill_pack(pack, config, tmp_path)
+
+    assert artifacts.claude_tree_root is not None
+    skill_path = Path(artifacts.claude_tree_root) / "draft-dbt-models" / "SKILL.md"
+    text = skill_path.read_text(encoding="utf-8")
+
+    # name/description preserved, metadata block added, all grounded in pack data.
+    assert 'name: "draft-dbt-models"' in text
+    assert "metadata:" in text
+    assert 'primr-role: "Data Engineer"' in text
+    assert 'primr-provenance: "posting"' in text  # RoleEvidence default provenance
+    assert 'primr-confidence: "Inferred"' in text
+    assert "primr-context-tokens:" in text
+    assert "mcp:primr/generate_skill_pack" in text
+
+
+def test_skill_md_metadata_can_be_disabled(tmp_path: Path):
+    pack = _make_pack()
+    config = SkillPackConfig(formats=SkillPackFormat.CLAUDE, emit_agent_metadata=False)
+    artifacts = package_skill_pack(pack, config, tmp_path)
+
+    assert artifacts.claude_tree_root is not None
+    text = (Path(artifacts.claude_tree_root) / "draft-dbt-models" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+    assert 'name: "draft-dbt-models"' in text
+    assert "metadata:" not in text
+    assert "primr-role" not in text
+
+
+def test_claude_and_cowork_skill_md_byte_identical(tmp_path: Path):
+    # The pack invariant: the same SKILL.md bytes ship in both formats, metadata included.
+    pack = _make_pack()
+    config = SkillPackConfig(formats=SkillPackFormat.BOTH)
+    artifacts = package_skill_pack(pack, config, tmp_path)
+
+    assert artifacts.claude_tree_root is not None
+    assert artifacts.cowork_zip_path is not None
+    claude_bytes = (Path(artifacts.claude_tree_root) / "draft-dbt-models" / "SKILL.md").read_bytes()
+    with zipfile.ZipFile(artifacts.cowork_zip_path) as zf:
+        cowork_bytes = zf.read("skills/draft-dbt-models/SKILL.md")
+    assert claude_bytes == cowork_bytes
+
+
 def test_package_claude_only(tmp_path: Path):
     pack = _make_pack()
     config = SkillPackConfig(formats=SkillPackFormat.CLAUDE)

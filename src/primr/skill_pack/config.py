@@ -54,6 +54,13 @@ class SkillPackConfig:
     # its "no overlapping skills, distinct triggers" quality.
     run_pack_coherence_pass: bool = True
 
+    # Stamp a primr-namespaced `metadata` block into each SKILL.md frontmatter
+    # (role, provenance, confidence, approx context-token budget, and how to
+    # refresh/extend the skill via primr's MCP/A2A surface) so a consuming
+    # agent can use the pack without inferring its capability/cost contract.
+    # On by default; turn off for a minimal name+description frontmatter.
+    emit_agent_metadata: bool = True
+
     # Skip evidence-collection scrape; assume recon + hiring already exist
     # in the working dir (set by --from-report and by MCP when report_path
     # is supplied).
