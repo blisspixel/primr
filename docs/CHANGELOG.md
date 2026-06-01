@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Artifact pipeline hardening
+
+- **Scaffolding-leak shipping gate**: the leak scan (bare `[workbook]` /
+  `[cross-ref]` refs, bold `**What to validate:**` lines, informal `[cite: label]`)
+  was promoted from a QA warning to a configurable ship-time gate. Factored into
+  the pure `qa.report_analyzer.scan_scaffolding_leakage()` and wired into
+  `output.artifact_validation._validate_output_markdown`; leaks above
+  `PRIMR_MAX_SCAFFOLDING_LEAKS` (default 0) withhold the polished DOCX (MD/TXT +
+  sidecar still written). Canonicalization runs upstream, so a healthy run sits
+  at 0 and never trips — the gate only fires on a regression. Eval harness now
+  tracks `scaffolding_leaks` per report + `total_scaffolding_leaks` per profile,
+  surfaced in a scorecard `## Artifact Drift` section and a CSV column.
+- **Upstream cause of bold `What to validate:` lines** addressed: the section
+  prompts now instruct the writer to emit that line as plain text (no
+  bold/italics/bullet) in both `section_prompts.py` OUTPUT CONTRACT blocks and
+  the `research_agent.py` regeneration prompt, reducing the rate the bold form
+  is produced at all.
+- **Citation-integrity shipping gate**: new pure
+  `qa.report_analyzer.scan_citation_integrity()` flags inline `[cite: N]` (incl.
+  grouped `[cite: 1, 2]`) with no matching `## Sources` entry; wired into the
+  same validator with a configurable `PRIMR_MAX_DANGLING_CITATIONS` (default 0).
+  The deterministic backstop behind the upstream LLM citation repair, which
+  keeps the original possibly-still-dangling report when it cannot reach zero.
+  Covers report and strategy docs (both ship through the same validator).
+- **Artifact regression corpus**: `tests/fixtures/artifacts/` (placeholder
+  companies) + `manifest.json` of expected gate outcomes, exercised by the
+  data-driven harness `tests/test_output/test_artifact_corpus.py` — which also
+  renders the clean fixtures end-to-end through `markdown_to_docx` +
+  `_validate_output_docx`. A completeness test fails if a fixture is added
+  without a manifest entry. Sanitized real artifacts can be dropped in later
+  with no test-code changes.
+
+### Skill pack
+
+- **Agent-handoff metadata in `SKILL.md` frontmatter**: a primr-namespaced
+  `metadata` block (role, provenance, confidence, an approximate
+  `primr-context-tokens` budget, and `primr-refresh-via: mcp:primr/generate_skill_pack, a2a:primr`)
+  makes each generated skill self-describing to a consuming agent without
+  inferring its capability/cost contract. Grounded entirely in pack data; on by
+  default, opt out via `SkillPackConfig(emit_agent_metadata=False)`.
+- **Fixed a latent Windows bug**: the Claude-tree `SKILL.md` was written via
+  `Path.write_text` (CRLF translation) while the Cowork zip used raw LF, so the
+  documented "byte-identical SKILL.md" invariant silently broke on Windows. The
+  Claude-tree write now uses `newline="\n"` so it holds cross-platform.
+
 ### Model eval wiring (Gemini 3.5 Flash PRO-tier decision)
 
 - Registered a head-to-head eval pair in `config/eval_profiles.py` —
@@ -30,16 +75,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   PyPI publish step (default-on for Trusted Publishing; pinned so it can't
   silently regress), complementing the existing SLSA build-provenance attestation.
 - **Trivy supply-chain scan** added to CI (filesystem vuln + misconfig,
-  HIGH/CRITICAL, unfixed-ignored) as a signal-only `continue-on-error` job —
-  complements the pip-audit + bandit hard gates. It immediately earned its keep:
+  HIGH/CRITICAL, unfixed-ignored), now a **hard gate** — complements the
+  pip-audit + bandit hard gates. It immediately earned its keep:
   - **Fixed (CRITICAL ×3)**: `openclaw/Dockerfile.primr` declared secret API
     keys via `ENV` (bakes secret-named vars into image layers); removed — they
     are runtime-provided.
-  - **Triaged (HIGH)**: the Cloud Run job's default security context (KSV-0118)
-    added to `.trivyignore` with rationale (Cloud Run sandboxes containers;
-    non-root hardening tracked as a deploy follow-up needing re-validation).
-  Dependency scan came back clean. Promote Trivy to a hard gate once confirmed
-  baseline-clean in CI.
+  - **KSV-0118 resolved as a platform false-positive (corrected from the
+    initial triage)**: verified against the Cloud Run v1 YAML schema that
+    fully-managed Cloud Run does not expose a container `securityContext`
+    (the RunV1 type carries only `runAsUser`, "Not supported by Cloud Run"), so
+    `runAsNonRoot` is rejected by `gcloud run ... replace` — no manifest change
+    can clear it. Non-root is already enforced by the image (`deploy/Dockerfile`
+    + `openclaw/Dockerfile.primr` run `USER primr`, uid 1000). The `.trivyignore`
+    entry is now a permanent, doc-cited false-positive, pinned by a regression
+    test (`TestGCPSecurityContext`) that forbids adding a deploy-breaking
+    `securityContext`, with inline rationale in both manifests.
+  - With the baseline clean (Trivy exits 0 after the ignore), the scan was
+    **promoted from signal-only to a hard gate** (`continue-on-error` removed).
 
 ### Hygiene ratchets
 
