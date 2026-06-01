@@ -62,6 +62,20 @@ Notes on continuous reasoning:
 - Quantified quality benefit: bare leaked-instruction lines in the final report drop from an average of 5.3 (fresh-call) to 1.0 (continuous) — about 81% fewer. Hard count, not LLM-judge opinion.
 - Env var precedence: `PRIMR_CONTINUOUS_REASONING` overrides the CLI flag if explicitly set, so you can disable across all runs on a machine without changing CLI invocations.
 
+### Artifact Shipping Gates
+
+Final reports and strategy documents pass through deterministic ship-time gates
+(`primr.output.artifact_validation`). When a gate trips it withholds the polished
+DOCX while still writing the Markdown/TXT and a sidecar `*_validation.txt`
+report — so you always get the content, just not a deliverable that looks broken.
+Both default to zero tolerance; a malformed or negative value falls back to `0`
+so a gate can never be silently disabled by a bad env value.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PRIMR_MAX_SCAFFOLDING_LEAKS` | Max tolerated internal-scaffolding markers in a shipped report — bare `[workbook]` / `[cross-ref ...]` references, bold-wrapped `**What to validate:**` lines, and informal `[cite: label]` markers. These are normally stripped upstream at the canonicalization seam; the gate is the regression backstop. | `0` |
+| `PRIMR_MAX_DANGLING_CITATIONS` | Max tolerated dangling inline citations — `[cite: N]` references with no matching entry in the `## Sources` appendix. The deterministic backstop behind the upstream LLM citation repair, which keeps the original (possibly still-dangling) report when it cannot reach zero. | `0` |
+
 Notes on the popup budget:
 - The budget is a single shared counter — opt in once with `PRIMR_MAX_HEADED_POPUPS=N` and that N is the total allowance across all trigger points in the run.
 - External-source validation (web-search results) uses a separate orchestrator that excludes the Patchright stealth tier by design, so validation-pass popups are already impossible even when the budget is set.

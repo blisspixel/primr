@@ -43,8 +43,10 @@ What is already in place:
 - Typed generated-section normalization at the section-writing seam, including validation-line cleanup, embedded reference stripping, and citation extraction
 - Mixed-format parsing resilience so section batches can recover cleanly even if the model blends XML-style section envelopes with legacy `##` headings
 - Cleaner artifact validation for rendered DOCX outputs, including reduced false positives from literal `#` content inside tables
+- Configurable ship-time gates that withhold the polished DOCX (Markdown/TXT plus a sidecar diagnostic still ship) when a deliverable carries leaked internal scaffolding (`PRIMR_MAX_SCAFFOLDING_LEAKS`) or dangling citations — inline `[cite: N]` with no matching Sources entry (`PRIMR_MAX_DANGLING_CITATIONS`). Both default to zero tolerance and act as regression backstops behind the upstream cleanup/repair steps
+- An artifact regression corpus (`tests/fixtures/artifacts/`) of long-form report/strategy fixtures that exercises the gates and renders the clean ones end-to-end to DOCX, so validator/renderer changes are tested against real-shaped output
 
-Near-term work remains focused on pushing more structure upstream into the long-form writing steps, reducing arbitrary markdown repair before shipping, and strengthening artifact gates against real-world failed artifacts.
+Near-term work remains focused on pushing more structure upstream into the long-form writing steps, reducing arbitrary markdown repair before shipping, and extending the shipping gates to section-structure validation (required sections, no empty/duplicate sections) now that the regression corpus is in place.
 
 ## Modes
 

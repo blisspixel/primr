@@ -58,6 +58,7 @@ This is useful for evaluating local models against existing cloud-generated repo
 - Reuse quality (human + AI): structured headings, tables, machine-friendly signal density, and readable appendix-style sourcing
 - Efficiency: utility-per-dollar and total estimated cost
 - Runtime: end-to-end duration per company
+- Artifact drift: per-report `scaffolding_leaks` count and a per-profile `total_scaffolding_leaks` aggregate (leaked internal scaffolding that should never reach a deliverable). Surfaced in the scorecard's `## Artifact Drift` section (clean/DRIFT per profile) and a `scaffolding_leaks` CSV column. Target: 0 — non-zero is a regression, tracked every eval run rather than via ad-hoc offline scans.
 
 These dimensions are aligned to the README goal: producing deep strategic analysis that gets humans and AI up to speed quickly and safely, not just producing long reports.
 
