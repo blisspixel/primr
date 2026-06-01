@@ -2,6 +2,14 @@
 # Resource limits and timeout configuration (up to 120 min)
 # Secret references for LLM keys
 # Requirements: 7.3, 7.8
+#
+# NOTE: no securityContext block here on purpose. Cloud Run fully managed does
+# not expose securityContext in its v1 YAML schema (runAsNonRoot is unsupported;
+# adding it is rejected by `gcloud run jobs replace`). Non-root execution is
+# enforced by the runtime image instead — deploy/Dockerfile runs `USER primr`
+# (uid 1000), which Cloud Run honors. Trivy's KSV0118 flags the missing
+# securityContext as a generic-Kubernetes false-positive; it is justified-ignored
+# in .trivyignore. Do not add a securityContext here — it will break the deploy.
 
 apiVersion: run.googleapis.com/v1
 kind: Job

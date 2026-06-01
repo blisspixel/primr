@@ -1,6 +1,14 @@
 # Cloud Run service configuration for Primr control plane API
 # Scale-to-zero configuration with service account binding
 # Requirements: 7.1, 7.7
+#
+# NOTE: no securityContext block here on purpose. Cloud Run fully managed does
+# not expose securityContext in its v1 YAML schema (runAsNonRoot is unsupported;
+# adding it is rejected by `gcloud run services replace`). Non-root execution is
+# enforced by the runtime image instead — deploy/Dockerfile runs `USER primr`
+# (uid 1000), which Cloud Run honors. Trivy's KSV0118 flags the missing
+# securityContext as a generic-Kubernetes false-positive; it is justified-ignored
+# in .trivyignore. Do not add a securityContext here — it will break the deploy.
 
 apiVersion: serving.knative.dev/v1
 kind: Service

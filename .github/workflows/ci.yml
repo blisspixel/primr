@@ -144,14 +144,15 @@ jobs:
           GEMINI_API_KEY: fake-key-for-ci-tests
         run: uv run --no-sync pytest tests/a2a/ --ignore=tests/a2a/property_tests -x --tb=short -q
 
-  # Supply-chain scan (Trivy): filesystem vuln + secret + misconfig scan.
-  # Signal-only for now (continue-on-error) so it surfaces issues without
-  # blocking merges while the baseline is established; promote to a hard gate
-  # once it is reliably clean. Complements the pip-audit + bandit hard gates.
+  # Supply-chain scan (Trivy): filesystem vuln + misconfig scan.
+  # HARD GATE: the baseline is clean (the only misconfig finding, KSV0118 on the
+  # Cloud Run manifests, is a documented platform false-positive justified-ignored
+  # in .trivyignore — see that file), so this blocks on any new HIGH/CRITICAL
+  # fixable vuln or misconfig. Complements the pip-audit + bandit hard gates.
+  # Dependabot (weekly) handles the dependency bumps this gate will demand.
   supply-chain-scan:
     runs-on: ubuntu-latest
     name: Supply-chain scan (Trivy)
-    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
