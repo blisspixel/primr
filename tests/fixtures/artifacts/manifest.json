@@ -1,0 +1,47 @@
+{
+  "description": "Artifact regression corpus. Each entry is a long-form report/strategy fixture and the expected outcome of the ship-time markdown gate (primr.output.artifact_validation._validate_output_markdown). Renderer/validator changes are tested against these realistic artifacts. See README.md. All company names are placeholders (no-real-company-data rule).",
+  "fixtures": [
+    {
+      "file": "clean_report.md",
+      "expect_pass": true,
+      "issue_prefixes": [],
+      "render_docx": true,
+      "notes": "Representative clean strategic report: confidence labels, plain 'What to validate:' lines, resolved [cite: N], proper ## Sources appendix. Must pass every gate and render to a clean DOCX."
+    },
+    {
+      "file": "clean_strategy.md",
+      "expect_pass": true,
+      "issue_prefixes": [],
+      "render_docx": true,
+      "notes": "Representative clean AI-strategy doc; ships through the same validator as reports."
+    },
+    {
+      "file": "dangling_citation.md",
+      "expect_pass": false,
+      "issue_prefixes": ["citation_integrity:"],
+      "render_docx": false,
+      "notes": "Inline [cite: 9] has no matching Sources entry -> citation-integrity gate fires."
+    },
+    {
+      "file": "missing_sources_appendix.md",
+      "expect_pass": false,
+      "issue_prefixes": ["citation_integrity:"],
+      "render_docx": false,
+      "notes": "Inline citations but no Sources appendix at all -> citation-integrity gate fires."
+    },
+    {
+      "file": "scaffolding_leak.md",
+      "expect_pass": false,
+      "issue_prefixes": ["scaffolding_leak:"],
+      "render_docx": false,
+      "notes": "Bare [workbook] marker, bold '**What to validate:**' line, and informal [cite: bbb] -> scaffolding-leak gate fires."
+    },
+    {
+      "file": "forbidden_marker.md",
+      "expect_pass": false,
+      "issue_prefixes": ["raw_source_tag:", "workbook_ref:"],
+      "render_docx": false,
+      "notes": "Raw [Source: URL] tag and [Workbook: ...] reference -> zero-tolerance forbidden-marker scan fires."
+    }
+  ]
+}
