@@ -121,3 +121,46 @@ class TestGCPJobConfig:
         """Job should reference secrets for LLM keys."""
         content = (gcp_dir / "job.yaml").read_text()
         assert "secretKeyRef" in content
+
+
+class TestGCPSecurityContext:
+    """Guard the non-root posture of the Cloud Run manifests.
+
+    Non-root execution on Cloud Run fully managed is enforced by the runtime
+    image (deploy/Dockerfile runs `USER primr`, uid 1000), which Cloud Run
+    honors. The v1 YAML schema does NOT expose a container `securityContext`
+    (runAsNonRoot is unsupported and `gcloud run ... replace` rejects it), so
+    Trivy's KSV0118 is a justified-ignored platform false-positive (.trivyignore).
+
+    These tests pin that contract so a well-meaning contributor cannot "fix"
+    KSV0118 by adding a securityContext block that would break the deploy.
+    """
+
+    @pytest.mark.parametrize("manifest", ["job.yaml", "service.yaml"])
+    def test_no_security_context(self, gcp_dir: Path, manifest: str) -> None:
+        """Cloud Run manifests must not declare a securityContext.
+
+        The field is unsupported by Cloud Run fully managed; adding it breaks
+        `gcloud run ... replace`. Non-root is enforced via the Dockerfile USER.
+        """
+        import yaml
+
+        config = yaml.safe_load((gcp_dir / manifest).read_text())
+        spec = config["spec"]["template"]["spec"]
+        # Cloud Run Job nests a second template; Service does not.
+        if "template" in spec:
+            spec = spec["template"]["spec"]
+        for container in spec["containers"]:
+            assert "securityContext" not in container, (
+                f"{manifest} declares a container securityContext; Cloud Run fully "
+                "managed does not support it and the deploy will be rejected. "
+                "Non-root is enforced via the Dockerfile USER directive."
+            )
+
+    def test_dockerfile_enforces_non_root(self) -> None:
+        """The image these manifests run must enforce non-root (USER primr)."""
+        dockerfile = (Path(__file__).parent.parent.parent / "deploy" / "Dockerfile").read_text()
+        assert "USER primr" in dockerfile, (
+            "deploy/Dockerfile must run as non-root (USER primr) — this is where "
+            "the Cloud Run non-root guarantee lives, since the manifests cannot."
+        )

@@ -1,10 +1,22 @@
-# Trivy ignore list — reviewed, non-actionable-now findings. Keep each entry
-# justified; remove the entry when the underlying issue is fixed.
+# Trivy ignore list — reviewed findings. Keep each entry justified; remove the
+# entry when the underlying issue is fixed (or, for platform-dictated
+# false-positives, when the platform constraint changes).
 
-# KSV-0118: deploy/gcp/job.yaml — "default security context allows root".
-# This is a Cloud Run Job (run.googleapis.com), where the platform sandboxes
-# each container and does not honor a raw-Kubernetes securityContext the same
-# way; adding runAsNonRoot would require a matching non-root USER in the runner
-# image and re-validating the end-to-end Cloud Run deploy. Tracked as a deploy
-# hardening follow-up in ROADMAP rather than changed blind here.
+# KSV-0118: deploy/gcp/{job,service}.yaml — "default security context allows
+# root". PERMANENT, platform-dictated false-positive — not a TODO.
+#
+# Trivy applies a generic Kubernetes rule that wants `securityContext.runAsNonRoot:
+# true` in the manifest. But these are Cloud Run *fully managed* manifests
+# (run.googleapis.com/v1, serving.knative.dev/v1), and the Cloud Run v1 YAML
+# schema does not expose `securityContext` at all — the RunV1 SecurityContext
+# type carries only `runAsUser`, itself documented "Not supported by Cloud Run".
+# Adding runAsNonRoot would be rejected/dropped by `gcloud run ... replace`, so
+# no manifest change can clear this check.
+#   Ref: https://docs.cloud.google.com/run/docs/reference/yaml/v1 (no securityContext field)
+#
+# Non-root IS enforced where Cloud Run honors it — the image: both deploy/Dockerfile
+# and openclaw/Dockerfile.primr run `USER primr` (uid 1000), and Cloud Run respects
+# the Dockerfile USER directive at runtime. A regression test
+# (tests/test_deploy/test_gcp_deployment.py::TestGCPSecurityContext) guards against
+# a future contributor "fixing" this by adding a securityContext that breaks deploy.
 KSV-0118
