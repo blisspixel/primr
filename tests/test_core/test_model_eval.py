@@ -90,6 +90,74 @@ def test_evaluate_outputs_writes_scorecards(tmp_path: Path):
     assert result.missing_pairs == []
 
 
+def _write_leaky_report(path: Path, company: str) -> None:
+    """Sample report carrying scaffolding leaks the drift gate must surface."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"""# {company} Strategic Overview
+
+## Executive Summary
+{company} operates in enterprise software. (Reported) Per [workbook] the margin is thin.
+
+**What to validate:** confirm the ARR estimate with a primary source.
+
+## Citations
+[cite: 1] https://example.com/source-1
+""",
+        encoding="utf-8",
+    )
+
+
+def test_eval_surfaces_scaffolding_leaks(tmp_path: Path):
+    eval_root = tmp_path / "evals"
+    eval_id = "eval-leak-001"
+    full_dir = eval_root / eval_id / "full"
+    _write_leaky_report(full_dir / "LeakyCo_Strategic_Overview_02-25-2026.md", "LeakyCo")
+
+    result = evaluate_outputs(
+        eval_id=eval_id,
+        eval_root=eval_root,
+        profiles=("full",),
+        baseline="full",
+        quality_ratio_threshold=0.8,
+        cost_ratio_threshold=0.2,
+        manifest_path=None,
+    )
+
+    # Per-report metric carries the leak count (>=2: bare [workbook] + bold validate).
+    assert result.metrics[0].scaffolding_leaks >= 2
+    # Profile summary aggregates it.
+    summary = result.profile_summaries[0]
+    assert summary.total_scaffolding_leaks == result.metrics[0].scaffolding_leaks
+    # Scorecard MD surfaces the drift signal and CSV has the column.
+    md = result.scorecard_md.read_text(encoding="utf-8")
+    assert "## Artifact Drift" in md
+    assert "DRIFT" in md
+    csv_text = result.scorecard_csv.read_text(encoding="utf-8")
+    assert "scaffolding_leaks" in csv_text.splitlines()[0]
+
+
+def test_eval_clean_report_has_no_drift(tmp_path: Path):
+    eval_root = tmp_path / "evals"
+    eval_id = "eval-clean-001"
+    full_dir = eval_root / eval_id / "full"
+    _write_sample_report(full_dir / "ExampleCo_Strategic_Overview_02-25-2026.md", "ExampleCo")
+
+    result = evaluate_outputs(
+        eval_id=eval_id,
+        eval_root=eval_root,
+        profiles=("full",),
+        baseline="full",
+        quality_ratio_threshold=0.8,
+        cost_ratio_threshold=0.2,
+        manifest_path=None,
+    )
+
+    assert result.metrics[0].scaffolding_leaks == 0
+    assert result.profile_summaries[0].total_scaffolding_leaks == 0
+    assert "clean" in result.scorecard_md.read_text(encoding="utf-8")
+
+
 def test_evaluate_outputs_detects_missing_pairs_from_manifest(tmp_path: Path):
     eval_root = tmp_path / "evals"
     eval_id = "eval-test-002"

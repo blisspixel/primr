@@ -15,9 +15,12 @@ from primr.output.artifact_validation import (
     _FORBIDDEN_INTERNAL_TERMS,
     _FORBIDDEN_OUTPUT_CLEANERS,
     _FORBIDDEN_OUTPUT_PATTERNS,
+    _SCAFFOLDING_LEAK_THRESHOLD_ENV,
     _auto_strip_forbidden_patterns,
     _extract_docx_text,
+    _scaffolding_leak_threshold,
     _scan_forbidden_output_patterns,
+    _scan_scaffolding_leakage_issues,
     _validate_output_docx,
     _validate_output_markdown,
     _write_output_validation_report,
@@ -166,6 +169,79 @@ class TestValidateOutputMarkdown:
         # Fail-closed: empty issues, exception recorded in errors
         assert result["issues"] == []
         assert result["errors"] == ["scanner boom"]
+
+
+class TestScaffoldingLeakThreshold:
+    def test_default_is_zero(self, monkeypatch):
+        monkeypatch.delenv(_SCAFFOLDING_LEAK_THRESHOLD_ENV, raising=False)
+        assert _scaffolding_leak_threshold() == 0
+
+    def test_reads_valid_int(self, monkeypatch):
+        monkeypatch.setenv(_SCAFFOLDING_LEAK_THRESHOLD_ENV, "3")
+        assert _scaffolding_leak_threshold() == 3
+
+    def test_negative_clamped_to_zero(self, monkeypatch):
+        monkeypatch.setenv(_SCAFFOLDING_LEAK_THRESHOLD_ENV, "-5")
+        assert _scaffolding_leak_threshold() == 0
+
+    def test_garbage_falls_back_to_zero(self, monkeypatch):
+        # Must never silently disable the gate via a bad env value.
+        monkeypatch.setenv(_SCAFFOLDING_LEAK_THRESHOLD_ENV, "lots")
+        assert _scaffolding_leak_threshold() == 0
+
+
+class TestScanScaffoldingLeakageIssues:
+    def test_clean_returns_empty(self):
+        assert _scan_scaffolding_leakage_issues("Clean report prose.", 0) == []
+
+    def test_bold_validate_over_threshold_flags(self):
+        issues = _scan_scaffolding_leakage_issues("**What to validate:** the TAM", 0)
+        assert any(i.startswith("scaffolding_leak:total=") for i in issues)
+        assert any("bold_validate_lines=1" in i for i in issues)
+
+    def test_bare_workbook_marker_flags(self):
+        issues = _scan_scaffolding_leakage_issues("Per [workbook] the margin is thin.", 0)
+        assert any("workbook_markers=1" in i for i in issues)
+
+    def test_informal_cite_flags(self):
+        issues = _scan_scaffolding_leakage_issues("Revenue grew [cite: workbook] sharply.", 0)
+        assert any("informal_cite_markers=1" in i for i in issues)
+
+    def test_within_threshold_passes(self):
+        # One leak, threshold 1 -> not over threshold -> no issues.
+        assert _scan_scaffolding_leakage_issues("Per [workbook] note.", 1) == []
+
+    def test_numeric_cite_not_flagged(self):
+        # Real numeric citations are legitimate, not scaffolding.
+        assert _scan_scaffolding_leakage_issues("Revenue grew [cite: 12] sharply.", 0) == []
+
+
+class TestValidateOutputMarkdownScaffolding:
+    def test_leak_blocks_by_default(self, monkeypatch):
+        monkeypatch.delenv(_SCAFFOLDING_LEAK_THRESHOLD_ENV, raising=False)
+        result = _validate_output_markdown("intro\n**What to validate:** the ARR claim")
+        assert result["passed"] is False
+        assert any(i.startswith("scaffolding_leak:") for i in result["issues"])
+
+    def test_env_threshold_relaxes_gate(self, monkeypatch):
+        monkeypatch.setenv(_SCAFFOLDING_LEAK_THRESHOLD_ENV, "1")
+        # Exactly one leak, threshold 1 -> ships.
+        result = _validate_output_markdown("intro\n**What to validate:** the ARR claim")
+        assert result["passed"] is True
+        assert result["issues"] == []
+
+    def test_explicit_threshold_arg_overrides_env(self, monkeypatch):
+        monkeypatch.setenv(_SCAFFOLDING_LEAK_THRESHOLD_ENV, "9")
+        result = _validate_output_markdown(
+            "intro\n**What to validate:** x", scaffolding_threshold=0
+        )
+        assert result["passed"] is False
+
+    def test_clean_still_passes(self, monkeypatch):
+        monkeypatch.delenv(_SCAFFOLDING_LEAK_THRESHOLD_ENV, raising=False)
+        result = _validate_output_markdown("A clean strategic report.")
+        assert result["passed"] is True
+        assert result["issues"] == []
 
 
 class TestExtractDocxText:

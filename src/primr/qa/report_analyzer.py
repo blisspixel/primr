@@ -9,6 +9,61 @@ import re
 from pathlib import Path
 
 
+def scan_scaffolding_leakage(content: str) -> dict:
+    """Scan a report string for leaked internal scaffolding markers.
+
+    Pure, file-independent counterpart to
+    ``ReportAnalyzer.analyze_scaffolding_leakage`` so the same detection logic
+    can back both the QA scorecard and the ship-time artifact gate
+    (``primr.output.artifact_validation``). Strategic reports should read as
+    deliverables, not internal template machinery; this flags markers the
+    writer pipeline should have stripped but didn't: bare ``[workbook]`` /
+    ``[cross-ref ...]`` references, bold-wrapped ``**What to validate:**`` lines
+    that survived normalization, and informal (non-numeric) ``[cite: label]``
+    markers.
+
+    A non-zero ``total_leaked`` is a shipping-artifact regression, not a
+    content-quality issue.
+    """
+    # Cross-ref markers: colon-separated, space-separated, or bare. Inner scan
+    # length-bounded (was [^\]]*) so an attacker-shaped report full of unclosed
+    # "[cross-ref " markers can't drive quadratic regex work — same fix as
+    # _clean_fast_report_output.
+    cross_ref_count = len(
+        re.findall(r"\[cross-ref(?:[\s:][^\]]{0,200})?\]", content, re.IGNORECASE)
+    )
+
+    # Workbook markers: bare, plus ":", " ", and "§" separated forms.
+    workbook_count = len(re.findall(r"\[workbook(?:[\s:§][^\]]{0,200})?\]", content, re.IGNORECASE))
+
+    # Bold-wrapped instruction-style "What to validate:" lines that survived the
+    # writer-side normalization (the canonical form is plain text).
+    bold_validate_count = len(
+        re.findall(
+            r"^\s*\*{1,2}What to validate\b[^\n]*",
+            content,
+            re.MULTILINE | re.IGNORECASE,
+        )
+    )
+
+    # Internal cite labels that should never ship: [cite: workbook], [cite: bbb],
+    # etc. Numeric cites and URL-bearing cites are fine.
+    informal_cite_count = len(
+        re.findall(r"\[cite:\s*(?!\d|https?:)[a-z]+[^\]]*\]", content, re.IGNORECASE)
+    )
+
+    total = cross_ref_count + workbook_count + bold_validate_count + informal_cite_count
+
+    return {
+        "cross_ref_markers": cross_ref_count,
+        "workbook_markers": workbook_count,
+        "bare_bold_validate": bold_validate_count,
+        "informal_cite_markers": informal_cite_count,
+        "total_leaked": total,
+        "clean": total == 0,
+    }
+
+
 class ReportAnalyzer:
     def __init__(self, report_path: str):
         self.report_path = Path(report_path)
@@ -219,60 +274,11 @@ class ReportAnalyzer:
     def analyze_scaffolding_leakage(self) -> dict:
         """Detect internal scaffolding that leaked into the shipping artifact.
 
-        Strategic reports should read as deliverables, not as internal template
-        machinery. This check flags markers that the writer pipeline should
-        have stripped but didn't: bare ``[workbook]`` / ``[cross-ref ...]``
-        references, bold-wrapped ``**What to validate:**`` lines that survived
-        normalization, and known internal cite labels.
-
-        A non-zero ``total_leaked`` is a shipping-artifact regression, not a
-        content-quality issue — the body content may be fine, but the
-        formatting reveals scaffolding that callers should not see.
+        Thin instance wrapper over the module-level
+        :func:`scan_scaffolding_leakage`, which holds the single source of truth
+        for the detection patterns (shared with the ship-time artifact gate).
         """
-        # Cross-ref markers: colon-separated, space-separated, or bare.
-        # Inner scan length-bounded (was [^\]]*) so an attacker-shaped report
-        # full of unclosed "[cross-ref " markers can't drive quadratic regex
-        # work — same fix as _clean_fast_report_output.
-        cross_ref_count = len(
-            re.findall(r"\[cross-ref(?:[\s:][^\]]{0,200})?\]", self.content, re.IGNORECASE)
-        )
-
-        # Workbook markers: bare, plus ":", " ", and "§" separated forms.
-        # Same bounded inner scan rationale as cross-ref above.
-        workbook_count = len(
-            re.findall(r"\[workbook(?:[\s:§][^\]]{0,200})?\]", self.content, re.IGNORECASE)
-        )
-
-        # Bold-wrapped instruction-style "What to validate:" lines that survived
-        # the writer-side normalization (the canonical form is plain text).
-        bold_validate_count = len(
-            re.findall(
-                r"^\s*\*{1,2}What to validate\b[^\n]*",
-                self.content,
-                re.MULTILINE | re.IGNORECASE,
-            )
-        )
-
-        # Internal cite labels that should never ship: [cite: workbook],
-        # [cite: bbb], etc. Numeric cites and URL-bearing cites are fine.
-        informal_cite_count = len(
-            re.findall(
-                r"\[cite:\s*(?!\d|https?:)[a-z]+[^\]]*\]",
-                self.content,
-                re.IGNORECASE,
-            )
-        )
-
-        total = cross_ref_count + workbook_count + bold_validate_count + informal_cite_count
-
-        return {
-            "cross_ref_markers": cross_ref_count,
-            "workbook_markers": workbook_count,
-            "bare_bold_validate": bold_validate_count,
-            "informal_cite_markers": informal_cite_count,
-            "total_leaked": total,
-            "clean": total == 0,
-        }
+        return scan_scaffolding_leakage(self.content)
 
     def analyze_hypothesis_coverage(self) -> dict:
         """Analyze hypothesis framing quality.

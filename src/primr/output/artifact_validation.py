@@ -11,11 +11,65 @@ shipping prep stage leaves residue behind.
 from __future__ import annotations
 
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Any, TypedDict
 
 logger = logging.getLogger(__name__)
+
+# Configurable ceiling for leaked internal-scaffolding markers in a shipped
+# report (bare [workbook] / [cross-ref ...] refs, bold-wrapped "What to
+# validate:" lines, informal [cite: label] markers). Default 0 = zero
+# tolerance: any leak that survived the upstream canonicalization seam blocks
+# the polished DOCX (MD/TXT + a sidecar validation report are still written).
+# Operators can relax it via PRIMR_MAX_SCAFFOLDING_LEAKS for a noisy corpus.
+_SCAFFOLDING_LEAK_THRESHOLD_ENV = "PRIMR_MAX_SCAFFOLDING_LEAKS"
+
+
+def _scaffolding_leak_threshold() -> int:
+    """Resolve the max tolerated scaffolding-leak count from the environment.
+
+    Defaults to 0 (zero tolerance). A malformed or negative value falls back to
+    0 so the gate can never be silently disabled by a bad env value.
+    """
+    raw = os.environ.get(_SCAFFOLDING_LEAK_THRESHOLD_ENV)
+    if raw is None:
+        return 0
+    try:
+        return max(0, int(raw))
+    except (TypeError, ValueError):
+        logger.warning(
+            "Invalid %s=%r; falling back to zero-tolerance (0)",
+            _SCAFFOLDING_LEAK_THRESHOLD_ENV,
+            raw,
+        )
+        return 0
+
+
+def _scan_scaffolding_leakage_issues(markdown_content: str, threshold: int) -> list[str]:
+    """Return shipping-gate issue strings when scaffolding leaks exceed threshold.
+
+    Empty list when the leak count is within the configured threshold. The
+    detection logic lives in ``primr.qa.report_analyzer.scan_scaffolding_leakage``
+    (single source of truth, shared with the QA scorecard).
+    """
+    from primr.qa.report_analyzer import scan_scaffolding_leakage
+
+    leak = scan_scaffolding_leakage(markdown_content)
+    if leak["total_leaked"] <= threshold:
+        return []
+
+    issues = [f"scaffolding_leak:total={leak['total_leaked']} (threshold {threshold})"]
+    for key, label in (
+        ("workbook_markers", "workbook_markers"),
+        ("cross_ref_markers", "cross_ref_markers"),
+        ("bare_bold_validate", "bold_validate_lines"),
+        ("informal_cite_markers", "informal_cite_markers"),
+    ):
+        if leak[key]:
+            issues.append(f"scaffolding_leak:{label}={leak[key]}")
+    return issues
 
 
 # Detection patterns are partial-match (no closing-bracket requirement) so the
@@ -102,10 +156,23 @@ def _scan_forbidden_output_patterns(text: str) -> list[str]:
     return issues
 
 
-def _validate_output_markdown(markdown_content: str) -> _ArtifactValidation:
-    """Validate that a markdown artifact contains no forbidden internal markers."""
+def _validate_output_markdown(
+    markdown_content: str, *, scaffolding_threshold: int | None = None
+) -> _ArtifactValidation:
+    """Validate that a markdown artifact contains no forbidden internal markers.
+
+    Two layered checks, both fail-closed:
+    - zero-tolerance forbidden-marker scan (raw [Source:], [Workbook:], etc.);
+    - a configurable scaffolding-leak gate (bare [workbook]/[cross-ref], bold
+      "What to validate:" lines, informal [cite: label]) that blocks shipping
+      once the leak count exceeds the threshold (default 0; override via
+      ``PRIMR_MAX_SCAFFOLDING_LEAKS``).
+    """
+    if scaffolding_threshold is None:
+        scaffolding_threshold = _scaffolding_leak_threshold()
     try:
         issues = _scan_forbidden_output_patterns(markdown_content)
+        issues.extend(_scan_scaffolding_leakage_issues(markdown_content, scaffolding_threshold))
         return {"passed": len(issues) == 0, "issues": issues, "errors": []}
     except Exception as exc:
         # Fail closed: an exception inside the scanner means we could not
