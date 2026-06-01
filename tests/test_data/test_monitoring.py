@@ -1,6 +1,6 @@
 """Tests for company monitoring module."""
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
 
@@ -20,6 +20,7 @@ from primr.data.monitoring import (
     get_company_monitor,
     reset_company_monitor,
 )
+from primr.utils.timeutils import utcnow_naive
 
 
 @pytest.fixture
@@ -255,7 +256,7 @@ class TestGetChanges:
         monitor.detect_changes("Test Corp", content)
 
         # Get changes since yesterday
-        since = datetime.utcnow() - timedelta(days=1)
+        since = utcnow_naive() - timedelta(days=1)
         changes = monitor.get_changes("Test Corp", since=since)
 
         assert isinstance(changes, list)

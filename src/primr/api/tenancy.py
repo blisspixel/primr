@@ -17,6 +17,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from primr.utils.timeutils import utcnow_naive
+
 
 class TenantTier(Enum):
     """Tenant subscription tiers."""
@@ -305,7 +307,7 @@ class TenantManager:
             Created tenant
         """
         tenant_id = self._generate_tenant_id(name)
-        now = datetime.utcnow()
+        now = utcnow_naive()
         limits = TenantLimits.for_tier(tier)
         config = config or TenantConfig()
 
@@ -418,7 +420,7 @@ class TenantManager:
             if limits is not None:
                 tenant.limits = limits
 
-            tenant.updated_at = datetime.utcnow()
+            tenant.updated_at = utcnow_naive()
 
             self._execute(
                 """
@@ -540,7 +542,7 @@ class TenantManager:
         """
         record = UsageRecord(
             tenant_id=tenant_id,
-            timestamp=datetime.utcnow(),
+            timestamp=utcnow_naive(),
             request_type=request_type,
             resource_used=resource_used,
             quantity=quantity,
@@ -581,7 +583,7 @@ class TenantManager:
         Returns:
             Usage summary
         """
-        now = datetime.utcnow()
+        now = utcnow_naive()
         if period_start is None:
             period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         if period_end is None:
@@ -665,7 +667,7 @@ class TenantManager:
         if not tenant:
             return {"error": "Tenant not found"}
 
-        now = datetime.utcnow()
+        now = utcnow_naive()
         day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
@@ -736,7 +738,7 @@ class TenantManager:
             INSERT INTO tenant_workspaces (tenant_id, workspace_path, created_at)
             VALUES (?, ?, ?)
             """,
-            (tenant_id, str(workspace_path), datetime.utcnow().isoformat()),
+            (tenant_id, str(workspace_path), utcnow_naive().isoformat()),
         )
 
         return workspace_path

@@ -17,6 +17,8 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
+from primr.utils.timeutils import utcnow_naive
+
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
@@ -68,7 +70,7 @@ class CompanyChange:
     title: str
     description: str
     source_url: str | None = None
-    detected_at: datetime = field(default_factory=datetime.utcnow)
+    detected_at: datetime = field(default_factory=utcnow_naive)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -95,7 +97,7 @@ class Alert:
     company_name: str
     status: AlertStatus
     message: str
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=utcnow_naive)
     sent_at: datetime | None = None
     acknowledged_at: datetime | None = None
 
@@ -121,7 +123,7 @@ class ContentSnapshot:
     company_name: str
     content_hash: str
     content_summary: str
-    captured_at: datetime = field(default_factory=datetime.utcnow)
+    captured_at: datetime = field(default_factory=utcnow_naive)
     source_urls: list[str] = field(default_factory=list)
 
 
@@ -246,7 +248,7 @@ class CompanyMonitor:
 
     def add_monitoring(self, config: MonitoringConfig) -> None:
         """Add or update monitoring configuration."""
-        now = datetime.utcnow().isoformat()
+        now = utcnow_naive().isoformat()
         config_json = json.dumps(
             {
                 "check_interval_minutes": config.check_interval_minutes,
@@ -471,7 +473,7 @@ class CompanyMonitor:
 
     def acknowledge_alert(self, alert_id: str) -> bool:
         """Acknowledge an alert."""
-        now = datetime.utcnow().isoformat()
+        now = utcnow_naive().isoformat()
         result = self._execute(
             "UPDATE alerts SET status = ?, acknowledged_at = ? WHERE alert_id = ?",
             (AlertStatus.ACKNOWLEDGED.value, now, alert_id),
@@ -503,7 +505,7 @@ class CompanyMonitor:
         days: int = 30,
     ) -> dict[str, Any]:
         """Get summary of changes over a period."""
-        since = datetime.utcnow() - timedelta(days=days)
+        since = utcnow_naive() - timedelta(days=days)
         changes = self.get_changes(company_name, since=since)
 
         by_type: dict[str, int] = {}
@@ -561,7 +563,7 @@ class CompanyMonitor:
                 company_name,
                 content_hash,
                 summary,
-                datetime.utcnow().isoformat(),
+                utcnow_naive().isoformat(),
                 json.dumps(source_urls),
             ),
         )

@@ -13,6 +13,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
+from primr.utils.timeutils import utcnow_naive
+
 
 class CompetitorType(Enum):
     """Types of competitors."""
@@ -62,7 +64,7 @@ class SWOTAnalysis:
     weaknesses: list[SWOTItem] = field(default_factory=list)
     opportunities: list[SWOTItem] = field(default_factory=list)
     threats: list[SWOTItem] = field(default_factory=list)
-    generated_at: datetime = field(default_factory=datetime.utcnow)
+    generated_at: datetime = field(default_factory=utcnow_naive)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""

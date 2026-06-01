@@ -2,7 +2,7 @@
 
 import os
 import tempfile
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
 
@@ -19,6 +19,7 @@ from primr.api.tenancy import (
     record_usage,
     reset_tenant_manager,
 )
+from primr.utils.timeutils import utcnow_naive
 
 
 @pytest.fixture
@@ -405,7 +406,7 @@ class TestUsageTracking:
 
     def test_get_usage_summary_custom_period(self, manager, sample_tenant):
         """Test usage summary with custom period."""
-        now = datetime.utcnow()
+        now = utcnow_naive()
         yesterday = now - timedelta(days=1)
 
         summary = manager.get_usage_summary(

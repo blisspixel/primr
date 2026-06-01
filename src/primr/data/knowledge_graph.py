@@ -15,6 +15,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
+from primr.utils.timeutils import utcnow_naive
+
 
 class EntityType(Enum):
     """Types of entities in the knowledge graph."""
@@ -50,8 +52,8 @@ class Entity:
     entity_type: EntityType
     name: str
     properties: dict[str, Any] = field(default_factory=dict)
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=utcnow_naive)
+    updated_at: datetime = field(default_factory=utcnow_naive)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -74,7 +76,7 @@ class Relationship:
     properties: dict[str, Any] = field(default_factory=dict)
     confidence: float = 0.8
     source_url: str | None = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=utcnow_naive)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -252,7 +254,7 @@ class KnowledgeGraph:
             return existing
 
         entity_id = self._generate_id(entity_type.value)
-        now = datetime.utcnow()
+        now = utcnow_naive()
 
         entity = Entity(
             entity_id=entity_id,
@@ -328,7 +330,7 @@ class KnowledgeGraph:
             Created relationship
         """
         relationship_id = self._generate_id("rel")
-        now = datetime.utcnow()
+        now = utcnow_naive()
 
         relationship = Relationship(
             relationship_id=relationship_id,
