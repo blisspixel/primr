@@ -2040,7 +2040,8 @@ RULES:
 - Label claims: Confirmed, Reported, Estimated, Hypothesis
 - Stress-test the company narrative — separate claims from evidence
 - Keep roughly the same scope as the original section
-- End with a single "What to validate:" line followed by a concrete check question"""
+- End with a single "What to validate:" line followed by a concrete check question
+- Write that line as plain text — no bold, italics, or bullet prefix (it is prose, not a label)"""
 
     system_prompt = (
         "You are a senior strategic analyst rewriting a section of a consulting dossier. "

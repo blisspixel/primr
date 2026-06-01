@@ -246,6 +246,10 @@ class ReportMetrics:
     reuse_quality_score: float
     trust_gate_passed: bool
     utility_per_dollar: float
+    # Artifact-drift signal: count of leaked internal-scaffolding markers
+    # (bare [workbook]/[cross-ref], bold "What to validate:" lines, informal
+    # [cite: label]). Must stay 0 on shipped reports — see ROADMAP item #1.
+    scaffolding_leaks: int = 0
 
 
 @dataclass(frozen=True)
@@ -262,6 +266,8 @@ class ProfileSummary:
     avg_utility_per_dollar: float
     trust_pass_rate: float
     estimated_cost_usd: float
+    # Sum of scaffolding-leak counts across the profile's reports (drift gate).
+    total_scaffolding_leaks: int = 0
 
 
 @dataclass(frozen=True)
@@ -389,6 +395,7 @@ def _find_profile_reports(profile_dir: Path, profile: str) -> list[ReportMetrics
         confidence = analyzer.analyze_confidence_labels()
         citation_density = analyzer.analyze_citation_density()
         hypothesis = analyzer.analyze_hypothesis_coverage()
+        leakage = analyzer.analyze_scaffolding_leakage()
 
         key_total = len(structure["key_sections_found"]) + len(structure["key_sections_missing"])
         key_found = len(structure["key_sections_found"])
@@ -485,6 +492,7 @@ def _find_profile_reports(profile_dir: Path, profile: str) -> list[ReportMetrics
                 reuse_quality_score=reuse_quality,
                 trust_gate_passed=trust_gate_passed,
                 utility_per_dollar=0.0,  # set during profile summarization
+                scaffolding_leaks=int(leakage["total_leaked"]),
             )
         )
 
@@ -563,6 +571,7 @@ def _summarize_profile(profile: str, metrics: list[ReportMetrics]) -> ProfileSum
             reuse_quality_score=m.reuse_quality_score,
             trust_gate_passed=m.trust_gate_passed,
             utility_per_dollar=round(m.decision_utility_score / max(0.01, est_cost), 2),
+            scaffolding_leaks=m.scaffolding_leaks,
         )
 
     return ProfileSummary(
@@ -578,6 +587,7 @@ def _summarize_profile(profile: str, metrics: list[ReportMetrics]) -> ProfileSum
         avg_utility_per_dollar=avg_utility_per_dollar,
         trust_pass_rate=trust_pass_rate,
         estimated_cost_usd=est_cost,
+        total_scaffolding_leaks=sum(m.scaffolding_leaks for m in metrics),
     )
 
 
@@ -950,6 +960,21 @@ def _write_scorecard_markdown(
         )
 
     lines.append("")
+    lines.append("## Artifact Drift")
+    lines.append("")
+    lines.append(
+        "Scaffolding-leak markers ([workbook]/[cross-ref], bold 'What to validate:' "
+        "lines, informal [cite: label]) that should never reach a shipped report. "
+        "Target: 0 per profile (see ROADMAP item #1)."
+    )
+    lines.append("")
+    lines.append("| Profile | Reports | Scaffolding Leaks | Status |")
+    lines.append("|---|---:|---:|---|")
+    for s in summaries:
+        status = "clean" if s.total_scaffolding_leaks == 0 else "DRIFT"
+        lines.append(f"| {s.profile} | {s.report_count} | {s.total_scaffolding_leaks} | {status} |")
+
+    lines.append("")
     lines.append("## Decision")
     lines.append("")
     for row in decisions:
@@ -989,6 +1014,7 @@ def _write_scorecard_csv(path: Path, metrics: list[ReportMetrics]) -> None:
                 "key_sections_found",
                 "key_sections_total",
                 "confidence_labels",
+                "scaffolding_leaks",
             ]
         )
         for m in metrics:
@@ -1010,6 +1036,7 @@ def _write_scorecard_csv(path: Path, metrics: list[ReportMetrics]) -> None:
                     m.key_sections_found,
                     m.key_sections_total,
                     m.confidence_labels,
+                    m.scaffolding_leaks,
                 ]
             )
 

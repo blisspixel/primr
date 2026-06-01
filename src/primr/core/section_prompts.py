@@ -325,6 +325,7 @@ OUTPUT CONTRACT (strict):
 - If you do not use the XML envelope, start each section with exactly one ## heading matching the requested section name
 - Do not add a ## Sources, ## References, or ## Citations subsection inside section output
 - Include exactly one What to validate: line per section, and make it the final line of that section
+- Write that line as plain text — no bold, no italics, no bullet prefix (it is prose, not a label)
 - Do not include any preamble or commentary outside the requested section bodies
 """
 
@@ -499,5 +500,6 @@ OUTPUT CONTRACT (strict):
 - If you do not use the XML envelope, start each section with exactly one ## heading matching the requested section name
 - Do not add a ## Sources, ## References, or ## Citations subsection inside section output
 - Include exactly one What to validate: line per section, and make it the final line of that section
+- Write that line as plain text — no bold, no italics, no bullet prefix (it is prose, not a label)
 - Do not include any preamble or commentary outside the requested section bodies
 """
