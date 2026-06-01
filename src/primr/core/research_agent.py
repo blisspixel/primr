@@ -74,6 +74,7 @@ from primr.core.report_cleanup import (
     _clean_fast_report_output,
     _preserves_report_structure,
     _strip_internal_source_placeholders,
+    compute_repair_report,
 )
 from primr.core.report_cleanup import (
     _extract_markdown_headings as _extract_markdown_headings,
@@ -3775,9 +3776,29 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
             source_urls,
             model=grok_writing,
         )
+        pre_repair_content = report_content
         report_content = _clean_fast_report_output(report_content)
         report_content = _normalize_fast_citations(report_content, source_urls=source_urls)
         report_content = _enforce_fast_section_quality_guards(report_content)
+        # Observability: measure how much the deterministic cleanup actually had
+        # to repair. The goal is to push consistency upstream so this trends to
+        # zero; surfacing it makes a writer that emits dirty markdown visible
+        # instead of silently patched. Never let diagnostics fail the run.
+        try:
+            repair_report = compute_repair_report(pre_repair_content, report_content)
+            if not repair_report["writer_output_clean"]:
+                console.info(
+                    "Shipping repair: "
+                    f"{repair_report['scaffolding_removed']} scaffolding marker(s) removed, "
+                    f"{repair_report['chars_removed']} chars stripped"
+                )
+            with open(
+                os.path.join(folder_path, "_shipping_repair.json"), "w", encoding="utf-8"
+            ) as _rf:
+                json.dump(repair_report, _rf, indent=2)
+        except Exception as _repair_err:
+            # Diagnostics must never break shipping.
+            logger.debug("Repair report skipped: %s", _repair_err)
         qa_metrics = _compute_fast_report_qa_metrics(
             report_content,
             unresolved_contradictions=unresolved_contradictions,
