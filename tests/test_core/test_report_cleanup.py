@@ -19,6 +19,7 @@ from primr.core.report_cleanup import (
     _sanitize_numeric_cite_bracket,
     _strip_internal_source_placeholders,
     _strip_unresolved_section_cross_references,
+    compute_repair_report,
 )
 
 
@@ -282,3 +283,34 @@ def test_internal_reference_terms_is_tuple_of_strings():
 def test_clean_fast_report_output_workbook_variants_param(marker):
     cleaned = _clean_fast_report_output(f"text {marker} more")
     assert "workbook" not in cleaned.lower()
+
+
+class TestComputeRepairReport:
+    """The repair-observability signal behind 'push consistency upstream'."""
+
+    def test_clean_writer_output_needs_no_repair(self):
+        text = "## Summary\n\nClean prose. [cite: 1]\n\n## Sources\n[cite: 1] https://a.example\n"
+        report = compute_repair_report(text, text)
+        assert report["writer_output_clean"] is True
+        assert report["scaffolding_before"] == 0
+        assert report["scaffolding_removed"] == 0
+        assert report["chars_removed"] == 0
+        assert report["changed"] is False
+
+    def test_dirty_writer_output_is_measured(self):
+        before = (
+            "## Summary\n\nMargins are thin [workbook] and see [cross-ref ## Risks] for more.\n"
+        )
+        after = _clean_fast_report_output(before)
+        report = compute_repair_report(before, after)
+        assert report["writer_output_clean"] is False
+        assert report["scaffolding_before"] >= 2  # [workbook] + [cross-ref ...]
+        assert report["scaffolding_removed"] >= 2
+        assert report["chars_removed"] > 0
+        assert report["changed"] is True
+
+    def test_counts_never_go_negative(self):
+        # If 'after' is somehow longer/cleaner, removed counts clamp at 0.
+        report = compute_repair_report("x", "x with much more appended content here")
+        assert report["chars_removed"] == 0
+        assert report["scaffolding_removed"] == 0

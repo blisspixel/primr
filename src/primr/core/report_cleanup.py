@@ -184,6 +184,40 @@ def _strip_unresolved_section_cross_references(content: str) -> str:
     return cleaned
 
 
+def compute_repair_report(before: str, after: str) -> dict:
+    """Measure how much the final-stage deterministic cleanup actually changed.
+
+    The cleanup (`_clean_fast_report_output` + citation normalization + section
+    guards) silently strips internal-scaffolding markers, malformed citations,
+    disclaimers, and word-count tags from raw writer output. This makes that
+    work *visible*: it counts the scaffolding markers present before vs after,
+    so a run's reliance on arbitrary repair is tracked instead of silent.
+
+    The goal (ROADMAP "Artifact Pipeline Hardening") is to push consistency
+    upstream into the writing/regeneration prompts so this trends toward zero —
+    a writer that emits clean markdown needs no repair. ``writer_output_clean``
+    is the headline signal: when it is consistently true, the cleanup is a
+    safety net rather than load-bearing.
+
+    Reuses the ship-time scanner (`scan_scaffolding_leakage`) so the categories
+    match the gates exactly — no duplicated marker definitions.
+    """
+    from primr.qa.report_analyzer import scan_scaffolding_leakage
+
+    before_leak = scan_scaffolding_leakage(before)
+    after_leak = scan_scaffolding_leakage(after)
+    before_total = int(before_leak["total_leaked"])
+    after_total = int(after_leak["total_leaked"])
+    return {
+        "scaffolding_before": before_total,
+        "scaffolding_after": after_total,
+        "scaffolding_removed": max(0, before_total - after_total),
+        "chars_removed": max(0, len(before) - len(after)),
+        "writer_output_clean": before_total == 0,
+        "changed": before.strip() != after.strip(),
+    }
+
+
 def _extract_markdown_headings(content: str) -> list[str]:
     """Return normalized markdown headings in document order."""
     return [heading.strip() for heading in re.findall(r"^##\s+(.+?)\s*$", content, re.MULTILINE)]

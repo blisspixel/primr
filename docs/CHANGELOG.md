@@ -39,6 +39,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deliberately not gated — it is report-type-dependent and too false-positive-
   prone to block shipping on; it stays a QA-scoring signal. Validated against
   the regression corpus so it does not false-block clean long-form reports.
+- **Repair observability**: `report_cleanup.compute_repair_report(before, after)`
+  (reusing the ship-time scaffolding scanner) measures how much the silent
+  deterministic cleanup actually changed — scaffolding markers removed, chars
+  stripped, and whether the raw writer output was already clean. Wired at the
+  report cleanup seam to log a one-line summary and persist `_shipping_repair.json`.
+  This is the measurement foundation for "push consistency upstream": the
+  `writer_output_clean` signal makes the cleanup's load-bearing-vs-safety-net
+  status trackable so prompt hardening can target the repairs that actually fire.
 - **Artifact regression corpus**: `tests/fixtures/artifacts/` (placeholder
   companies) + `manifest.json` of expected gate outcomes, exercised by the
   data-driven harness `tests/test_output/test_artifact_corpus.py` — which also
