@@ -111,6 +111,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Hygiene ratchets
 
+- **Removed deprecated `datetime.utcnow()`** across the codebase (deprecated in
+  3.12+, scheduled for removal; the project tests on 3.14). New
+  `primr.utils.timeutils` exposes `utcnow()` (timezone-aware) and `utcnow_naive()`
+  (naive, behaviour-identical to the old call). The SQLite-backed monitoring /
+  tenancy / knowledge-graph stores were migrated to `utcnow_naive()` on purpose:
+  they persist offset-free ISO-8601 strings compared lexically in SQL, so an
+  aware datetime would append `+00:00` and silently break `WHERE ts >= ?`
+  comparisons and `fromisoformat` round-trips against existing rows. Behaviour
+  is byte-for-byte preserved; verified by running the affected suites with
+  `-W error::DeprecationWarning`.
 - **One-time `ruff format` reflow** (173 files, behavior-preserving) and
   `ruff format --check` now enforced in pre-commit + CI. `E501` stays ignored
   deliberately (ruff format wraps code; remaining long lines are strings/URLs).

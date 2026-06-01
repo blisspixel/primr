@@ -12,6 +12,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
+from primr.utils.timeutils import utcnow_naive
+
 
 class RiskCategory(Enum):
     """Categories of business risk."""
@@ -159,7 +161,7 @@ class InsightReport:
     risks: list[Risk] = field(default_factory=list)
     opportunities: list[Opportunity] = field(default_factory=list)
     recommendations: list[Recommendation] = field(default_factory=list)
-    generated_at: datetime = field(default_factory=datetime.utcnow)
+    generated_at: datetime = field(default_factory=utcnow_naive)
 
     def get_summary(self) -> dict[str, Any]:
         """Get summary of insights."""
