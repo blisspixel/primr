@@ -64,6 +64,62 @@ def scan_scaffolding_leakage(content: str) -> dict:
     }
 
 
+def scan_citation_integrity(content: str) -> dict:
+    """Scan a report string for dangling inline citations.
+
+    Citation integrity = every inline ``[cite: N]`` reference resolves to a
+    source defined in the Sources/References/Citations appendix. A dangling
+    citation (``[cite: 7]`` with no source 7) is a shipping-artifact integrity
+    violation, not a content-quality issue — it makes the deliverable look
+    broken. This is the deterministic backstop behind the upstream LLM citation
+    repair, which keeps the original (possibly still-dangling) report when it
+    cannot reach zero missing citations.
+
+    Pure / file-independent counterpart used by the ship-time artifact gate
+    (``primr.output.artifact_validation``). Deliberately a touch more lenient
+    than ``ReportAnalyzer.analyze_citations`` on appendix-header matching
+    (allows ``## Sources Consulted`` etc.) so it does not *false-block* a real
+    report — a ship gate should err toward shipping, not toward withholding a
+    clean deliverable.
+
+    Returns counts plus the sorted list of unresolved citation numbers.
+    """
+    # Inline references, including grouped forms like "[cite: 1, 2]".
+    used: set[int] = set()
+    for group in re.findall(r"\[cite:\s*(\d+(?:\s*,\s*\d+)*)\]", content, re.IGNORECASE):
+        for raw in group.split(","):
+            raw = raw.strip()
+            if raw.isdigit():
+                used.add(int(raw))
+
+    # Find the LAST Sources/References/Citations/Bibliography heading and treat
+    # everything from there to the end as the appendix (lenient: allow trailing
+    # words like "Sources Consulted"). Numbers defined there are "resolved".
+    appendix_starts = [
+        m.start()
+        for m in re.finditer(
+            r"^#{1,6}\s+(?:Sources|References|Citations|Bibliography)\b.*$",
+            content,
+            flags=re.IGNORECASE | re.MULTILINE,
+        )
+    ]
+    has_bibliography = bool(appendix_starts)
+    defined: set[int] = set()
+    if has_bibliography:
+        appendix = content[appendix_starts[-1] :]
+        defined = {int(n) for n in re.findall(r"\[cite:\s*(\d+)\]", appendix, re.IGNORECASE)}
+
+    missing = sorted(used - defined)
+    return {
+        "inline_citations": len(used),
+        "defined_citations": len(defined),
+        "has_bibliography": has_bibliography,
+        "missing_citations": missing,
+        "missing_count": len(missing),
+        "clean": len(missing) == 0,
+    }
+
+
 class ReportAnalyzer:
     def __init__(self, report_path: str):
         self.report_path = Path(report_path)

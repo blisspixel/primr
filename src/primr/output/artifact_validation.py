@@ -47,6 +47,55 @@ def _scaffolding_leak_threshold() -> int:
         return 0
 
 
+# Configurable ceiling for dangling inline citations (`[cite: N]` with no
+# matching Sources-appendix entry) in a shipped report. Default 0 = zero
+# tolerance: a citation that did not resolve after the upstream LLM repair
+# blocks the polished DOCX (MD/TXT + sidecar validation report still written).
+# Malformed/negative values fall back to 0 so the gate can't be silently
+# disabled. Operators can relax it via PRIMR_MAX_DANGLING_CITATIONS.
+_DANGLING_CITATION_THRESHOLD_ENV = "PRIMR_MAX_DANGLING_CITATIONS"
+
+
+def _dangling_citation_threshold() -> int:
+    """Resolve the max tolerated dangling-citation count from the environment."""
+    raw = os.environ.get(_DANGLING_CITATION_THRESHOLD_ENV)
+    if raw is None:
+        return 0
+    try:
+        return max(0, int(raw))
+    except (TypeError, ValueError):
+        logger.warning(
+            "Invalid %s=%r; falling back to zero-tolerance (0)",
+            _DANGLING_CITATION_THRESHOLD_ENV,
+            raw,
+        )
+        return 0
+
+
+def _scan_citation_integrity_issues(markdown_content: str, threshold: int) -> list[str]:
+    """Return shipping-gate issue strings when dangling citations exceed threshold.
+
+    Empty list when integrity is within the configured threshold. Detection
+    lives in ``primr.qa.report_analyzer.scan_citation_integrity`` (single source
+    of truth, shared with the QA layer's citation concept).
+    """
+    from primr.qa.report_analyzer import scan_citation_integrity
+
+    result = scan_citation_integrity(markdown_content)
+    if result["missing_count"] <= threshold:
+        return []
+
+    missing_preview = ", ".join(str(n) for n in result["missing_citations"][:10])
+    detail = (
+        "no Sources appendix"
+        if not result["has_bibliography"]
+        else f"unresolved: {missing_preview}"
+    )
+    return [
+        f"citation_integrity:dangling={result['missing_count']} (threshold {threshold}; {detail})"
+    ]
+
+
 def _scan_scaffolding_leakage_issues(markdown_content: str, threshold: int) -> list[str]:
     """Return shipping-gate issue strings when scaffolding leaks exceed threshold.
 
@@ -157,22 +206,32 @@ def _scan_forbidden_output_patterns(text: str) -> list[str]:
 
 
 def _validate_output_markdown(
-    markdown_content: str, *, scaffolding_threshold: int | None = None
+    markdown_content: str,
+    *,
+    scaffolding_threshold: int | None = None,
+    citation_threshold: int | None = None,
 ) -> _ArtifactValidation:
-    """Validate that a markdown artifact contains no forbidden internal markers.
+    """Validate that a markdown artifact is ship-ready. All checks fail-closed:
 
-    Two layered checks, both fail-closed:
     - zero-tolerance forbidden-marker scan (raw [Source:], [Workbook:], etc.);
     - a configurable scaffolding-leak gate (bare [workbook]/[cross-ref], bold
-      "What to validate:" lines, informal [cite: label]) that blocks shipping
-      once the leak count exceeds the threshold (default 0; override via
-      ``PRIMR_MAX_SCAFFOLDING_LEAKS``).
+      "What to validate:" lines, informal [cite: label]) — default 0, override
+      via ``PRIMR_MAX_SCAFFOLDING_LEAKS``;
+    - a configurable citation-integrity gate (inline [cite: N] with no matching
+      Sources-appendix entry) — default 0, override via
+      ``PRIMR_MAX_DANGLING_CITATIONS``.
+
+    A non-empty issue list withholds the polished DOCX (MD/TXT + a sidecar
+    validation report are still written).
     """
     if scaffolding_threshold is None:
         scaffolding_threshold = _scaffolding_leak_threshold()
+    if citation_threshold is None:
+        citation_threshold = _dangling_citation_threshold()
     try:
         issues = _scan_forbidden_output_patterns(markdown_content)
         issues.extend(_scan_scaffolding_leakage_issues(markdown_content, scaffolding_threshold))
+        issues.extend(_scan_citation_integrity_issues(markdown_content, citation_threshold))
         return {"passed": len(issues) == 0, "issues": issues, "errors": []}
     except Exception as exc:
         # Fail closed: an exception inside the scanner means we could not
