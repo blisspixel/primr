@@ -29,7 +29,8 @@ prerequisite for a future section-structure gate.
 2. Add a `manifest.json` entry:
    - `expect_pass`: whether `_validate_output_markdown` should pass it.
    - `issue_prefixes`: issue-string prefixes that must appear when it fails
-     (e.g. `citation_integrity:`, `scaffolding_leak:`, `raw_source_tag:`).
+     (e.g. `citation_integrity:`, `scaffolding_leak:`, `section_structure:`,
+     `raw_source_tag:`).
    - `render_docx`: `true` only for clean fixtures that should render to a
      clean DOCX.
    - `notes`: what failure mode (or clean shape) the fixture exercises.

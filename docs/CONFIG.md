@@ -75,6 +75,7 @@ so a gate can never be silently disabled by a bad env value.
 |----------|-------------|---------|
 | `PRIMR_MAX_SCAFFOLDING_LEAKS` | Max tolerated internal-scaffolding markers in a shipped report — bare `[workbook]` / `[cross-ref ...]` references, bold-wrapped `**What to validate:**` lines, and informal `[cite: label]` markers. These are normally stripped upstream at the canonicalization seam; the gate is the regression backstop. | `0` |
 | `PRIMR_MAX_DANGLING_CITATIONS` | Max tolerated dangling inline citations — `[cite: N]` references with no matching entry in the `## Sources` appendix. The deterministic backstop behind the upstream LLM citation repair, which keeps the original (possibly still-dangling) report when it cannot reach zero. | `0` |
+| `PRIMR_MAX_STRUCTURE_DEFECTS` | Max tolerated structural defects — duplicate top-level `##` headings (a merge/regeneration artifact) and empty sections (a `##` heading with no body before the next heading). Required-section *presence* is intentionally not gated here — it is report-type-dependent and stays a QA-scoring signal. | `0` |
 
 Notes on the popup budget:
 - The budget is a single shared counter — opt in once with `PRIMR_MAX_HEADED_POPUPS=N` and that N is the total allowance across all trigger points in the run.
