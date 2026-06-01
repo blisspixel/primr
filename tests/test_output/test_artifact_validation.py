@@ -12,13 +12,16 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from primr.output.artifact_validation import (
+    _DANGLING_CITATION_THRESHOLD_ENV,
     _FORBIDDEN_INTERNAL_TERMS,
     _FORBIDDEN_OUTPUT_CLEANERS,
     _FORBIDDEN_OUTPUT_PATTERNS,
     _SCAFFOLDING_LEAK_THRESHOLD_ENV,
     _auto_strip_forbidden_patterns,
+    _dangling_citation_threshold,
     _extract_docx_text,
     _scaffolding_leak_threshold,
+    _scan_citation_integrity_issues,
     _scan_forbidden_output_patterns,
     _scan_scaffolding_leakage_issues,
     _validate_output_docx,
@@ -240,6 +243,86 @@ class TestValidateOutputMarkdownScaffolding:
     def test_clean_still_passes(self, monkeypatch):
         monkeypatch.delenv(_SCAFFOLDING_LEAK_THRESHOLD_ENV, raising=False)
         result = _validate_output_markdown("A clean strategic report.")
+        assert result["passed"] is True
+        assert result["issues"] == []
+
+
+class TestDanglingCitationThreshold:
+    def test_default_is_zero(self, monkeypatch):
+        monkeypatch.delenv(_DANGLING_CITATION_THRESHOLD_ENV, raising=False)
+        assert _dangling_citation_threshold() == 0
+
+    def test_reads_valid_int(self, monkeypatch):
+        monkeypatch.setenv(_DANGLING_CITATION_THRESHOLD_ENV, "2")
+        assert _dangling_citation_threshold() == 2
+
+    def test_negative_clamped_to_zero(self, monkeypatch):
+        monkeypatch.setenv(_DANGLING_CITATION_THRESHOLD_ENV, "-1")
+        assert _dangling_citation_threshold() == 0
+
+    def test_garbage_falls_back_to_zero(self, monkeypatch):
+        monkeypatch.setenv(_DANGLING_CITATION_THRESHOLD_ENV, "all")
+        assert _dangling_citation_threshold() == 0
+
+
+class TestScanCitationIntegrityIssues:
+    RESOLVED = "Revenue grew [cite: 1].\n\n## Sources\n[cite: 1] https://example.com/a\n"
+
+    def test_resolved_citations_pass(self):
+        assert _scan_citation_integrity_issues(self.RESOLVED, 0) == []
+
+    def test_no_citations_pass(self):
+        assert _scan_citation_integrity_issues("A clean report with no citations.", 0) == []
+
+    def test_dangling_citation_flagged(self):
+        text = "Revenue grew [cite: 2].\n\n## Sources\n[cite: 1] https://example.com/a\n"
+        issues = _scan_citation_integrity_issues(text, 0)
+        assert any(i.startswith("citation_integrity:dangling=1") for i in issues)
+        assert any("unresolved: 2" in i for i in issues)
+
+    def test_inline_cites_without_appendix_flagged(self):
+        issues = _scan_citation_integrity_issues("Revenue grew [cite: 1] sharply.", 0)
+        assert any("no Sources appendix" in i for i in issues)
+
+    def test_grouped_inline_citation_resolved(self):
+        text = (
+            "Margins compressed [cite: 1, 2].\n\n"
+            "## Sources\n[cite: 1] https://a.example\n[cite: 2] https://b.example\n"
+        )
+        assert _scan_citation_integrity_issues(text, 0) == []
+
+    def test_lenient_appendix_heading(self):
+        # "## Sources Consulted" should still count as the appendix (no false block).
+        text = "Claim [cite: 1].\n\n## Sources Consulted\n[cite: 1] https://a.example\n"
+        assert _scan_citation_integrity_issues(text, 0) == []
+
+    def test_within_threshold_passes(self):
+        text = "A [cite: 9] claim.\n\n## Sources\n[cite: 1] https://a.example\n"
+        assert _scan_citation_integrity_issues(text, 1) == []
+
+
+class TestValidateOutputMarkdownCitations:
+    def test_dangling_blocks_by_default(self, monkeypatch):
+        monkeypatch.delenv(_DANGLING_CITATION_THRESHOLD_ENV, raising=False)
+        result = _validate_output_markdown(
+            "Claim [cite: 5].\n\n## Sources\n[cite: 1] https://a.example\n"
+        )
+        assert result["passed"] is False
+        assert any(i.startswith("citation_integrity:") for i in result["issues"])
+
+    def test_env_threshold_relaxes_gate(self, monkeypatch):
+        monkeypatch.setenv(_DANGLING_CITATION_THRESHOLD_ENV, "1")
+        result = _validate_output_markdown(
+            "Claim [cite: 5].\n\n## Sources\n[cite: 1] https://a.example\n"
+        )
+        assert result["passed"] is True
+        assert result["issues"] == []
+
+    def test_resolved_citations_pass(self, monkeypatch):
+        monkeypatch.delenv(_DANGLING_CITATION_THRESHOLD_ENV, raising=False)
+        result = _validate_output_markdown(
+            "Claim [cite: 1].\n\n## Sources\n[cite: 1] https://a.example\n"
+        )
         assert result["passed"] is True
         assert result["issues"] == []
 
