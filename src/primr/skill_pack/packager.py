@@ -70,12 +70,44 @@ def _today_yyyymmdd() -> str:
     return datetime.now(tz=timezone.utc).strftime("%Y%m%d")
 
 
-def _format_skill_md(skill: Skill) -> str:
+# How a consuming agent reaches primr to refresh or extend a generated skill.
+# primr exposes `generate_skill_pack` over MCP (mcp__primr__*) and an A2A
+# surface — this is the capability declaration, not a claim that the skill
+# itself calls those tools. Stable string so SKILL.md output stays deterministic.
+_PRIMR_REFRESH_VIA = "mcp:primr/generate_skill_pack, a2a:primr"
+
+
+def _agent_metadata(skill: Skill, role: Role) -> dict[str, str]:
+    """Build the primr-namespaced SKILL.md frontmatter metadata for one skill.
+
+    Grounded entirely in data primr already has — no fabrication:
+    - primr-role / primr-provenance / primr-confidence: how the role was
+      discovered and how strongly it is grounded;
+    - primr-context-tokens: an approximate context-load budget for the skill
+      (4-chars-per-token heuristic over the loadable content);
+    - primr-refresh-via: the MCP/A2A capability hint for regenerating it.
+    """
+    # Approximate the context cost of loading this skill (name + trigger +
+    # body). Stable regardless of the metadata block itself, so re-rendering
+    # is deterministic.
+    loadable = f"{skill.name}{skill.description}{skill.body}"
+    context_tokens = len(loadable) // 4
+    return {
+        "primr-role": role.display_name,
+        "primr-provenance": role.evidence.provenance.value,
+        "primr-confidence": role.confidence,
+        "primr-context-tokens": str(context_tokens),
+        "primr-refresh-via": _PRIMR_REFRESH_VIA,
+    }
+
+
+def _format_skill_md(skill: Skill, metadata: dict[str, str] | None = None) -> str:
     """Serialize a Skill into the SKILL.md on-disk format.
 
-    YAML frontmatter (name + description) followed by the body. The body is
-    expected to already contain the required H2 sections — validator enforces
-    that upstream. We escape double quotes in the YAML scalar values.
+    YAML frontmatter (name + description, plus an optional primr-namespaced
+    `metadata` block) followed by the body. The body is expected to already
+    contain the required H2 sections — validator enforces that upstream. We
+    escape double quotes in the YAML scalar values.
     """
     safe_name = skill.name.replace('"', '\\"')
     safe_desc = skill.description.replace('"', '\\"').replace("\n", " ").strip()
@@ -83,11 +115,20 @@ def _format_skill_md(skill: Skill) -> str:
         "---",
         f'name: "{safe_name}"',
         f'description: "{safe_desc}"',
-        "---",
-        "",
-        skill.body.rstrip(),
-        "",
     ]
+    if metadata:
+        lines.append("metadata:")
+        for key, value in metadata.items():
+            safe_value = str(value).replace('"', '\\"').replace("\n", " ").strip()
+            lines.append(f'  {key}: "{safe_value}"')
+    lines.extend(
+        [
+            "---",
+            "",
+            skill.body.rstrip(),
+            "",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -335,6 +376,14 @@ def package_skill_pack(
 
     flat_skills = _ensure_unique_slugs(_flatten_skills(pack))
 
+    # Precompute the agent-handoff metadata once per skill so the Claude tree
+    # and the Cowork zip render byte-identical SKILL.md files (a pack invariant).
+    agent_meta: dict[str, dict[str, str]] = (
+        {slug: _agent_metadata(skill, role) for slug, role, skill in flat_skills}
+        if config.emit_agent_metadata
+        else {}
+    )
+
     if config.emit_claude:
         roles_root = output_dir / "roles"
         roles_root.mkdir(parents=True, exist_ok=True)
@@ -348,7 +397,15 @@ def package_skill_pack(
                 continue
             skill_dir.mkdir(parents=True, exist_ok=True)
             skill_path = skill_dir / "SKILL.md"
-            skill_path.write_text(_format_skill_md(skill), encoding="utf-8")
+            # newline="\n": write LF verbatim (no platform CRLF translation) so
+            # the Claude-tree SKILL.md is byte-identical to the Cowork zip copy,
+            # which zipfile.writestr emits with raw LF. Without this the
+            # invariant silently breaks on Windows.
+            skill_path.write_text(
+                _format_skill_md(skill, agent_meta.get(slug)),
+                encoding="utf-8",
+                newline="\n",
+            )
             artifacts.skill_md_paths.append(str(skill_path))
 
     if config.emit_cowork:
@@ -380,7 +437,10 @@ def package_skill_pack(
             zf.writestr("color.png", color_png)
             zf.writestr("outline.png", outline_png)
             for slug, _role, skill in flat_skills:
-                zf.writestr(f"skills/{slug}/SKILL.md", _format_skill_md(skill))
+                zf.writestr(
+                    f"skills/{slug}/SKILL.md",
+                    _format_skill_md(skill, agent_meta.get(slug)),
+                )
 
         zip_path.write_bytes(buf.getvalue())
         artifacts.cowork_zip_path = str(zip_path)

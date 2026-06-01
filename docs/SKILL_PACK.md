@@ -232,12 +232,18 @@ The JSON contains the full `RolePlan` shape (`observed`, `plausible`, `gap_flagg
 
 ## SKILL.md structure
 
-Authored bodies follow Anthropic's Agent Skills authoring conventions enforced by the validator:
+Authored bodies follow Anthropic's Agent Skills authoring conventions enforced by the validator. The frontmatter carries `name` + `description` plus a primr-namespaced `metadata` block — an agent-handoff contract (role, provenance, confidence, an approximate context-token budget, and how to refresh/extend the skill via primr's MCP/A2A surface) so a consuming agent can use the pack without inferring its capability/cost shape. The metadata block is byte-identical across the Claude tree and Cowork zip, and can be turned off via `SkillPackConfig(emit_agent_metadata=False)` for a minimal `name`+`description` frontmatter:
 
 ```markdown
 ---
 name: "facilitating-m365-customer-immersion-experiences"
 description: "Facilitates 90-minute M365 Customer Immersion Experiences (CIEs) workshops for ExampleCo commercial accounts. Use when the user asks to schedule a CIE, prepare Modern Workplace demo content, align Intune scenarios, or document post-workshop outcomes."
+metadata:
+  primr-role: "Customer Success Manager"
+  primr-provenance: "posting"
+  primr-confidence: "Confirmed"
+  primr-context-tokens: "1180"
+  primr-refresh-via: "mcp:primr/generate_skill_pack, a2a:primr"
 ---
 
 ## What This Skill Does
