@@ -42,6 +42,20 @@
       "issue_prefixes": ["raw_source_tag:", "workbook_ref:"],
       "render_docx": false,
       "notes": "Raw [Source: URL] tag and [Workbook: ...] reference -> zero-tolerance forbidden-marker scan fires."
+    },
+    {
+      "file": "duplicate_section.md",
+      "expect_pass": false,
+      "issue_prefixes": ["section_structure:"],
+      "render_docx": false,
+      "notes": "Two '## Executive Summary' headings (merge artifact) -> section-structure gate fires on the duplicate. Citations resolve, so only structure trips."
+    },
+    {
+      "file": "empty_section.md",
+      "expect_pass": false,
+      "issue_prefixes": ["section_structure:"],
+      "render_docx": false,
+      "notes": "'## Competitive Landscape' heading with no body before the next heading -> section-structure gate fires on the empty section. Citations resolve, so only structure trips."
     }
   ]
 }

@@ -17,6 +17,7 @@ from primr.output.artifact_validation import (
     _FORBIDDEN_OUTPUT_CLEANERS,
     _FORBIDDEN_OUTPUT_PATTERNS,
     _SCAFFOLDING_LEAK_THRESHOLD_ENV,
+    _STRUCTURE_DEFECT_THRESHOLD_ENV,
     _auto_strip_forbidden_patterns,
     _dangling_citation_threshold,
     _extract_docx_text,
@@ -24,6 +25,8 @@ from primr.output.artifact_validation import (
     _scan_citation_integrity_issues,
     _scan_forbidden_output_patterns,
     _scan_scaffolding_leakage_issues,
+    _scan_section_structure_issues,
+    _structure_defect_threshold,
     _validate_output_docx,
     _validate_output_markdown,
     _write_output_validation_report,
@@ -323,6 +326,64 @@ class TestValidateOutputMarkdownCitations:
         result = _validate_output_markdown(
             "Claim [cite: 1].\n\n## Sources\n[cite: 1] https://a.example\n"
         )
+        assert result["passed"] is True
+        assert result["issues"] == []
+
+
+class TestStructureDefectThreshold:
+    def test_default_is_zero(self, monkeypatch):
+        monkeypatch.delenv(_STRUCTURE_DEFECT_THRESHOLD_ENV, raising=False)
+        assert _structure_defect_threshold() == 0
+
+    def test_reads_valid_int(self, monkeypatch):
+        monkeypatch.setenv(_STRUCTURE_DEFECT_THRESHOLD_ENV, "2")
+        assert _structure_defect_threshold() == 2
+
+    def test_negative_clamped_to_zero(self, monkeypatch):
+        monkeypatch.setenv(_STRUCTURE_DEFECT_THRESHOLD_ENV, "-3")
+        assert _structure_defect_threshold() == 0
+
+    def test_garbage_falls_back_to_zero(self, monkeypatch):
+        monkeypatch.setenv(_STRUCTURE_DEFECT_THRESHOLD_ENV, "none")
+        assert _structure_defect_threshold() == 0
+
+
+class TestScanSectionStructureIssues:
+    CLEAN = "## Executive Summary\n\nSolid prose here.\n\n## Outlook\n\nMore prose.\n"
+
+    def test_clean_structure_passes(self):
+        assert _scan_section_structure_issues(self.CLEAN, 0) == []
+
+    def test_no_headings_passes(self):
+        assert _scan_section_structure_issues("Just prose, no sections.", 0) == []
+
+    def test_duplicate_heading_flagged(self):
+        text = "## Summary\n\nA.\n\n## Summary\n\nB.\n"
+        issues = _scan_section_structure_issues(text, 0)
+        assert any(i.startswith("section_structure:defects=1") for i in issues)
+        assert any("duplicate=Summary" in i for i in issues)
+
+    def test_empty_section_flagged(self):
+        text = "## Summary\n\nA.\n\n## Outlook\n\n## Sources\n\n[cite: 1] https://a.example\n"
+        issues = _scan_section_structure_issues(text, 0)
+        assert any("empty=Outlook" in i for i in issues)
+
+    def test_within_threshold_passes(self):
+        # One duplicate, threshold 1 -> not over threshold.
+        text = "## Summary\n\nA.\n\n## Summary\n\nB.\n"
+        assert _scan_section_structure_issues(text, 1) == []
+
+
+class TestValidateOutputMarkdownStructure:
+    def test_duplicate_blocks_by_default(self, monkeypatch):
+        monkeypatch.delenv(_STRUCTURE_DEFECT_THRESHOLD_ENV, raising=False)
+        result = _validate_output_markdown("## A\n\nx.\n\n## A\n\ny.\n")
+        assert result["passed"] is False
+        assert any(i.startswith("section_structure:") for i in result["issues"])
+
+    def test_env_threshold_relaxes_gate(self, monkeypatch):
+        monkeypatch.setenv(_STRUCTURE_DEFECT_THRESHOLD_ENV, "1")
+        result = _validate_output_markdown("## A\n\nx.\n\n## A\n\ny.\n")
         assert result["passed"] is True
         assert result["issues"] == []
 

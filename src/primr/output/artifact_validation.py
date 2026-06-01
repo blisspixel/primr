@@ -96,6 +96,53 @@ def _scan_citation_integrity_issues(markdown_content: str, threshold: int) -> li
     ]
 
 
+# Configurable ceiling for unambiguous structural defects in a shipped report
+# (duplicate top-level `##` headings, empty sections). Default 0 = zero
+# tolerance. Malformed/negative values fall back to 0. Relax via
+# PRIMR_MAX_STRUCTURE_DEFECTS. Only catches always-broken structure — required-
+# section presence is deliberately NOT gated (report-type-dependent / heuristic).
+_STRUCTURE_DEFECT_THRESHOLD_ENV = "PRIMR_MAX_STRUCTURE_DEFECTS"
+
+
+def _structure_defect_threshold() -> int:
+    """Resolve the max tolerated structural-defect count from the environment."""
+    raw = os.environ.get(_STRUCTURE_DEFECT_THRESHOLD_ENV)
+    if raw is None:
+        return 0
+    try:
+        return max(0, int(raw))
+    except (TypeError, ValueError):
+        logger.warning(
+            "Invalid %s=%r; falling back to zero-tolerance (0)",
+            _STRUCTURE_DEFECT_THRESHOLD_ENV,
+            raw,
+        )
+        return 0
+
+
+def _scan_section_structure_issues(markdown_content: str, threshold: int) -> list[str]:
+    """Return shipping-gate issue strings when structural defects exceed threshold.
+
+    Empty list when structure is within the configured threshold. Detection
+    lives in ``primr.qa.report_analyzer.scan_section_structure`` (single source
+    of truth). Catches duplicate `##` headings and empty sections only.
+    """
+    from primr.qa.report_analyzer import scan_section_structure
+
+    result = scan_section_structure(markdown_content)
+    if result["total_defects"] <= threshold:
+        return []
+
+    issues: list[str] = [
+        f"section_structure:defects={result['total_defects']} (threshold {threshold})"
+    ]
+    if result["duplicate_headings"]:
+        issues.append("section_structure:duplicate=" + ", ".join(result["duplicate_headings"][:10]))
+    if result["empty_sections"]:
+        issues.append("section_structure:empty=" + ", ".join(result["empty_sections"][:10]))
+    return issues
+
+
 def _scan_scaffolding_leakage_issues(markdown_content: str, threshold: int) -> list[str]:
     """Return shipping-gate issue strings when scaffolding leaks exceed threshold.
 
@@ -210,6 +257,7 @@ def _validate_output_markdown(
     *,
     scaffolding_threshold: int | None = None,
     citation_threshold: int | None = None,
+    structure_threshold: int | None = None,
 ) -> _ArtifactValidation:
     """Validate that a markdown artifact is ship-ready. All checks fail-closed:
 
@@ -219,7 +267,9 @@ def _validate_output_markdown(
       via ``PRIMR_MAX_SCAFFOLDING_LEAKS``;
     - a configurable citation-integrity gate (inline [cite: N] with no matching
       Sources-appendix entry) — default 0, override via
-      ``PRIMR_MAX_DANGLING_CITATIONS``.
+      ``PRIMR_MAX_DANGLING_CITATIONS``;
+    - a configurable section-structure gate (duplicate ``##`` headings, empty
+      sections) — default 0, override via ``PRIMR_MAX_STRUCTURE_DEFECTS``.
 
     A non-empty issue list withholds the polished DOCX (MD/TXT + a sidecar
     validation report are still written).
@@ -228,10 +278,13 @@ def _validate_output_markdown(
         scaffolding_threshold = _scaffolding_leak_threshold()
     if citation_threshold is None:
         citation_threshold = _dangling_citation_threshold()
+    if structure_threshold is None:
+        structure_threshold = _structure_defect_threshold()
     try:
         issues = _scan_forbidden_output_patterns(markdown_content)
         issues.extend(_scan_scaffolding_leakage_issues(markdown_content, scaffolding_threshold))
         issues.extend(_scan_citation_integrity_issues(markdown_content, citation_threshold))
+        issues.extend(_scan_section_structure_issues(markdown_content, structure_threshold))
         return {"passed": len(issues) == 0, "issues": issues, "errors": []}
     except Exception as exc:
         # Fail closed: an exception inside the scanner means we could not

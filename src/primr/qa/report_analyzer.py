@@ -120,6 +120,53 @@ def scan_citation_integrity(content: str) -> dict:
     }
 
 
+def scan_section_structure(content: str) -> dict:
+    """Scan a report string for unambiguous structural defects.
+
+    Two defect classes, both of which always indicate a broken deliverable:
+    - **duplicate top-level (``##``) headings** — a merge/regeneration artifact
+      that produces two sections with the same title;
+    - **empty sections** — a ``##`` heading with no body content before the next
+      heading or end of document (e.g. a suppressed section whose heading was
+      left behind).
+
+    Deliberately does **not** check "required sections present": that is
+    report-type-dependent and heuristic (a report may cover SWOT-style content
+    under a differently named heading), so it is too false-positive-prone to
+    block shipping on. That signal stays in ``ReportAnalyzer.analyze_structure``
+    for QA scoring. Pure / file-independent counterpart used by the ship-time
+    artifact gate.
+
+    ``total_defects`` counts extra duplicate occurrences (occurrences beyond the
+    first) plus empty sections.
+    """
+    heading_re = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
+    matches = list(heading_re.finditer(content))
+    titles = [m.group(1).strip() for m in matches]
+
+    counts: dict[str, int] = {}
+    for title in titles:
+        key = title.lower()
+        counts[key] = counts.get(key, 0) + 1
+    duplicate_titles = sorted({t for t in titles if counts[t.lower()] > 1}, key=str.lower)
+    extra_duplicate_occurrences = sum(c - 1 for c in counts.values() if c > 1)
+
+    empty_sections: list[str] = []
+    for i, match in enumerate(matches):
+        body_start = match.end()
+        body_end = matches[i + 1].start() if i + 1 < len(matches) else len(content)
+        if not content[body_start:body_end].strip():
+            empty_sections.append(titles[i])
+
+    total = extra_duplicate_occurrences + len(empty_sections)
+    return {
+        "duplicate_headings": duplicate_titles,
+        "empty_sections": empty_sections,
+        "total_defects": total,
+        "clean": total == 0,
+    }
+
+
 class ReportAnalyzer:
     def __init__(self, report_path: str):
         self.report_path = Path(report_path)

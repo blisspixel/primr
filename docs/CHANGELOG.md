@@ -31,6 +31,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The deterministic backstop behind the upstream LLM citation repair, which
   keeps the original possibly-still-dangling report when it cannot reach zero.
   Covers report and strategy docs (both ship through the same validator).
+- **Section-structure shipping gate**: new pure
+  `qa.report_analyzer.scan_section_structure()` flags duplicate top-level `##`
+  headings (merge/regeneration artifacts) and empty sections (a `##` heading
+  with no body); wired into the same validator with a configurable
+  `PRIMR_MAX_STRUCTURE_DEFECTS` (default 0). Required-section *presence* is
+  deliberately not gated — it is report-type-dependent and too false-positive-
+  prone to block shipping on; it stays a QA-scoring signal. Validated against
+  the regression corpus so it does not false-block clean long-form reports.
 - **Artifact regression corpus**: `tests/fixtures/artifacts/` (placeholder
   companies) + `manifest.json` of expected gate outcomes, exercised by the
   data-driven harness `tests/test_output/test_artifact_corpus.py` — which also
