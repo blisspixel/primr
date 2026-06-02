@@ -39,7 +39,11 @@ jobs:
         run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --frozen --extra dev --extra api
+        # Includes the a2a extra so the 165 a2a tests run under the coverage
+        # gate in this job (they importorskip without the SDK), instead of only
+        # in the separate uncovered a2a-tests job — this counts the a2a package
+        # in the global coverage ratchet.
+        run: uv sync --frozen --extra dev --extra api --extra a2a
 
       # Lint / type-check / security gates are version-independent, so run them
       # once on the primary interpreter to save matrix minutes.
@@ -89,7 +93,7 @@ jobs:
           if [ "${{ matrix.python-version }}" = "3.13" ]; then
             uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q \
               -k "not test_wait_times_out_when_no_change" -m "not integration" \
-              --cov=src/primr --cov-branch --cov-fail-under=77
+              --cov=src/primr --cov-branch --cov-fail-under=81
           else
             uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q \
               -k "not test_wait_times_out_when_no_change" -m "not integration"
