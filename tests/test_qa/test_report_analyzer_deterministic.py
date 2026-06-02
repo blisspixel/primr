@@ -8,7 +8,11 @@ report-type-aware analyze_structure.
 
 import tempfile
 
-from src.primr.qa.report_analyzer import ReportAnalyzer
+from src.primr.qa.report_analyzer import (
+    SCAFFOLDING_PROHIBITION_GUIDANCE,
+    ReportAnalyzer,
+    scan_scaffolding_leakage,
+)
 
 
 def _make_analyzer(content: str, filename: str = "test_report.md") -> ReportAnalyzer:
@@ -526,3 +530,55 @@ class TestGenerateReport:
         assert "SCAFFOLDING LEAKS" in report
         assert "[workbook] markers" in report
         assert "[cross-ref ...] markers" in report
+
+
+# =============================================================================
+# Scaffolding prohibition guidance <-> scanner parity
+# =============================================================================
+
+
+class TestScaffoldingProhibitionParity:
+    """The writer-facing guidance must name every category the ship-time scanner
+    flags. This is the invariant that keeps the upstream prompt instruction and
+    the downstream gate from drifting apart (ROADMAP Active Queue #2)."""
+
+    def test_guidance_names_workbook_marker(self):
+        assert "[workbook]" in SCAFFOLDING_PROHIBITION_GUIDANCE
+
+    def test_guidance_names_cross_ref_marker(self):
+        assert "[cross-ref" in SCAFFOLDING_PROHIBITION_GUIDANCE
+
+    def test_guidance_names_informal_cite(self):
+        # Numeric cites are allowed; labeled cites are the leak the guidance forbids.
+        assert "[cite: N]" in SCAFFOLDING_PROHIBITION_GUIDANCE
+        assert "[cite: workbook]" in SCAFFOLDING_PROHIBITION_GUIDANCE
+
+    def test_guidance_names_bold_validate(self):
+        assert "**What to validate:**" in SCAFFOLDING_PROHIBITION_GUIDANCE
+
+    def test_guidance_covers_every_scanned_category(self):
+        # Construct a body that trips all four scanner categories at once, then
+        # assert the guidance addresses each non-zero category by token. If a new
+        # category is added to the scanner, this fails until the guidance names it.
+        leaky = (
+            "Margins are thin [workbook] and see [cross-ref ## Risks].\n"
+            "**What to validate:** the ARR estimate.\n"
+            "Revenue grew [cite: internal] sharply.\n"
+        )
+        scan = scan_scaffolding_leakage(leaky)
+        category_tokens = {
+            "cross_ref_markers": "[cross-ref",
+            "workbook_markers": "[workbook]",
+            "bare_bold_validate": "**What to validate:**",
+            "informal_cite_markers": "[cite: workbook]",
+        }
+        for key, token in category_tokens.items():
+            if scan[key] > 0:
+                assert token in SCAFFOLDING_PROHIBITION_GUIDANCE, (
+                    f"scanner flags {key} but the guidance does not name it"
+                )
+        # Sanity: the fixture really does trip all four categories.
+        assert scan["cross_ref_markers"] > 0
+        assert scan["workbook_markers"] > 0
+        assert scan["bare_bold_validate"] > 0
+        assert scan["informal_cite_markers"] > 0

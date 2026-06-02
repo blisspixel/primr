@@ -46,7 +46,7 @@ What is already in place:
 - Configurable ship-time gates that withhold the polished DOCX (Markdown/TXT plus a sidecar diagnostic still ship) when a deliverable carries leaked internal scaffolding (`PRIMR_MAX_SCAFFOLDING_LEAKS`), dangling citations — inline `[cite: N]` with no matching Sources entry (`PRIMR_MAX_DANGLING_CITATIONS`), or structural defects — duplicate `##` headings and empty sections (`PRIMR_MAX_STRUCTURE_DEFECTS`). All default to zero tolerance and act as regression backstops behind the upstream cleanup/repair steps
 - An artifact regression corpus (`tests/fixtures/artifacts/`) of long-form report/strategy fixtures that exercises the gates and renders the clean ones end-to-end to DOCX, so validator/renderer changes are tested against real-shaped output
 
-Near-term work remains focused on pushing more structure upstream into the long-form writing steps, reducing arbitrary markdown repair before shipping, and continuing to move final rendering toward structured document data rather than free-form markdown recovery.
+The writing and regeneration prompts now carry an explicit prohibition against the internal-scaffolding markers the ship-time gate strips, sourced from a single shared constant co-located with the scanner so the upstream instruction and the downstream gate stay in lockstep — the deterministic cleanup is meant to be a safety net, not load-bearing, and the `writer_output_clean` signal tracks whether it stays that way. Near-term work remaining focuses on continuing to move final rendering toward structured document data rather than free-form markdown recovery.
 
 ## Modes
 

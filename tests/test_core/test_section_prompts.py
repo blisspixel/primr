@@ -18,6 +18,7 @@ from primr.core.section_prompts import (
     _build_link_selection_prompt,
     _load_fast_feedback_guidance,
 )
+from primr.qa.report_analyzer import SCAFFOLDING_PROHIBITION_GUIDANCE
 
 
 @dataclass
@@ -196,6 +197,12 @@ class TestBuildFastBatchPrompt:
         assert "RAW" in prompt
         assert "EXT" in prompt
 
+    def test_includes_scaffolding_prohibition(self):
+        # The batch writer must be told not to leak the markers the ship-time
+        # gate strips (ROADMAP Active Queue #2).
+        prompt = self._build()
+        assert SCAFFOLDING_PROHIBITION_GUIDANCE in prompt
+
     def test_no_previous_sections_message(self):
         prompt = self._build(previous_sections=[])
         assert "first batch" in prompt
@@ -293,6 +300,11 @@ class TestBuildFastSectionPrompt:
         assert "[DONE] A" in prompt
         assert "[NOW]  B" in prompt
         assert "[TODO] C" in prompt
+
+    def test_includes_scaffolding_prohibition(self):
+        # Single-section writer carries the same prohibition as the batch writer.
+        prompt = self._build()
+        assert SCAFFOLDING_PROHIBITION_GUIDANCE in prompt
 
     def test_first_section_message_when_no_previous(self):
         prompt = self._build(written_sections=[])
