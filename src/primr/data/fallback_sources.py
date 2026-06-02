@@ -30,7 +30,10 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from urllib.parse import urljoin, urlparse
-from xml.etree import ElementTree as ET
+from xml.etree.ElementTree import ParseError
+
+import defusedxml.ElementTree as DefusedET
+from defusedxml.common import DefusedXmlException
 
 logger = logging.getLogger(__name__)
 
@@ -366,10 +369,14 @@ def _parse_feed(body: bytes) -> tuple[str | None, list[dict[str, str]]]:
     Namespace-agnostic (matches by local tag name) so it handles RSS without a
     namespace and Atom's default namespace from one path. Malformed XML yields
     ``(None, [])`` — feed recovery fails open like every other fallback source.
+
+    Parsed with ``defusedxml`` because the body is untrusted XML from an
+    arbitrary external host: this blocks entity-expansion ("billion laughs")
+    and external-entity/DTD attacks that the stdlib parser is vulnerable to.
     """
     try:
-        root = ET.fromstring(body)
-    except ET.ParseError:
+        root = DefusedET.fromstring(body)
+    except (ParseError, DefusedXmlException):
         return None, []
 
     root_name = _local_tag(root.tag)
