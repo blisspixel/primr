@@ -84,7 +84,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 - Foreground/background stage classification — foreground stages retry aggressively, background stages bail on API overload or budget stress
 - Recovery executor that orchestrates retry/fallback/skip logic and logs events to `_run_state.json`
 - `--dry-run` shows the full recovery table (stage classifications + recovery hierarchies)
-- Public-data fallback fan-out (`src/primr/data/fallback_sources.py`): when origin is blocked, fetches in parallel from Wayback CDX, sister subdomains, SEC EDGAR 10-Ks, Wikipedia REST, and Grok web_search synthesis
+- Public-data fallback fan-out (`src/primr/data/fallback_sources.py`): when origin is blocked, fetches in parallel from Wayback CDX, sister subdomains, RSS/Atom feeds, SEC EDGAR 10-Ks, Wikipedia REST, and Grok web_search synthesis
 - Hiring-signal gathering (`src/primr/data/hiring_signals.py`): eight ATS providers (Greenhouse / Lever / Ashby / SmartRecruiters / Workday / Workable / Recruitee / Jobvite), corpus-driven Workday URL discovery for known boards, HTML careers-page fallback, DuckDuckGo web-search fallback across major job-board hosts when every other path comes up empty, LLM-triaged extraction threaded into all downstream phases. Skill packs are job-posting-first — when both posting and research evidence are empty the pipeline fails closed unless `--allow-recon-only` is passed.
 
 ### Operational Maturity
@@ -147,7 +147,7 @@ Decision principle: permissive about formatting in the research pipeline, strict
 
 The shared page-access classifier, evidence-backed classification, Kasada/KPSDK challenge-shell coverage, homepage fast-path validation, first-party sitemap/guessed-path recovery, Wayback challenge-shell filtering, and public-data fallback fan-out have all shipped. What remains:
 
-- Expand first-party fallback probing beyond current sitemap/guessed-path recovery: investor/news/about/help PDFs, feeds, and structured data endpoints with better prioritization
+- Expand first-party fallback probing beyond current sitemap/guessed-path recovery: investor/news/about/help PDFs, feeds, and structured data endpoints with better prioritization. **RSS/Atom feeds — DONE:** `fallback_sources.fetch_feed_content` recovers recent press/news/blog content from the host's own feeds — clean XML that is frequently served uncached/unprotected even when the marketing origin sits behind a WAF. Discovers feeds via HTML `<link rel="alternate">` autodiscovery plus a common-path sweep, same-site-filtered (defense-in-depth on top of the SSRF guard in `_http_get`), parses RSS 2.0 + Atom namespace-agnostically with stdlib (no new dependency), dedupes items across feeds, and joins the parallel fan-out as a first-class `source="feed"` alongside subdomain/EDGAR/Wikipedia/Wayback. Remaining: investor/news PDFs and structured-data endpoints with better prioritization
 - Add host-level learning so once Primr sees a confirmed real page for a host it can persist useful positive markers for later pages
 - Add optional screenshot/text-snapshot comparison for browser tiers to distinguish stable real homepages from interstitial templates
 - Surface a clearer user-facing blocked-site summary in the CLI with evidence snippets and recommended next actions
