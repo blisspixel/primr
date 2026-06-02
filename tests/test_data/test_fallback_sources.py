@@ -464,3 +464,136 @@ def test_fetch_feed_content_dedupes_items_across_feeds():
     # news/1 is counted once: the mirror feed contributes only news/3.
     total_items = sum(p.metadata["item_count"] for p in pages)
     assert total_items == 3
+
+
+# =============================================================================
+# Feed recovery — review hardening (body cap, RDF, content precedence, dedup)
+# =============================================================================
+
+RDF_FIXTURE = b"""<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns="http://purl.org/rss/1.0/"
+         xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel rdf:about="https://acme.example/">
+    <title>Acme RDF Feed</title>
+    <link>https://acme.example/</link>
+  </channel>
+  <item rdf:about="https://acme.example/news/rdf-1">
+    <title>RDF story one</title>
+    <link>https://acme.example/news/rdf-1</link>
+    <description>First RDF item body.</description>
+  </item>
+  <item rdf:about="https://acme.example/news/rdf-2">
+    <title>RDF story two</title>
+    <link>https://acme.example/news/rdf-2</link>
+    <description>Second RDF item body.</description>
+  </item>
+</rdf:RDF>
+"""
+
+
+def test_parse_feed_rss10_rdf():
+    title, items = _parse_feed(RDF_FIXTURE)
+    assert title == "Acme RDF Feed"
+    assert [i["title"] for i in items] == ["RDF story one", "RDF story two"]
+    assert items[0]["link"] == "https://acme.example/news/rdf-1"
+    assert "First RDF item body" in items[0]["summary"]
+
+
+def test_parse_feed_oversized_body_refused():
+    # A body over the cap is refused before parsing (DoS guard), even if valid XML.
+    from primr.data.fallback_sources import _FEED_MAX_BYTES
+
+    head = b'<?xml version="1.0"?><rss version="2.0"><channel><title>X</title>'
+    padded = head + b"<!-- " + b"a" * (_FEED_MAX_BYTES + 1) + b" --></channel></rss>"
+    assert _parse_feed(padded) == (None, [])
+
+
+def test_parse_feed_prefers_content_encoded_over_short_description():
+    # WordPress-style: short <description> teaser + full <content:encoded>.
+    body = (
+        b'<?xml version="1.0"?>'
+        b'<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">'
+        b"<channel><title>Blog</title>"
+        b"<item><title>Post</title><link>https://acme.example/p/1</link>"
+        b"<description>Short teaser.</description>"
+        b"<content:encoded>&lt;p&gt;The full post body with much more detail than the teaser line.&lt;/p&gt;</content:encoded>"
+        b"</item></channel></rss>"
+    )
+    _title, items = _parse_feed(body)
+    assert len(items) == 1
+    # The richer encoded body wins over the short teaser.
+    assert "full post body" in items[0]["summary"]
+
+
+def test_parse_feed_atom_xhtml_content_recovered():
+    # Atom xhtml content lives in child elements; .text is whitespace-only.
+    body = (
+        b'<?xml version="1.0" encoding="utf-8"?>'
+        b'<feed xmlns="http://www.w3.org/2005/Atom"><title>Blog</title>'
+        b"<entry><title>Post</title>"
+        b'<link href="https://acme.example/p/1" rel="alternate"/>'
+        b'<content type="xhtml">\n  <div>Real xhtml body content.</div>\n</content>'
+        b"</entry></feed>"
+    )
+    _title, items = _parse_feed(body)
+    assert len(items) == 1
+    assert "Real xhtml body content" in items[0]["summary"]
+
+
+def test_fetch_feed_content_keeps_summary_only_item():
+    # An item with no title and no link but a real summary must survive (its
+    # dedup key falls back to the summary).
+    body = (
+        b'<?xml version="1.0"?><rss version="2.0"><channel><title>News</title>'
+        b"<item><description>Acme acquired Foo for two billion dollars.</description></item>"
+        b"</channel></rss>"
+    )
+
+    def fake_http(url, **_kwargs):
+        if url == "https://acme.example/":
+            return (200, b"<html><head></head><body>hi</body></html>", url)
+        if url == "https://acme.example/feed":
+            return (200, body, url)
+        return (404, None, None)
+
+    with patch("primr.data.fallback_sources._http_get", side_effect=fake_http):
+        pages = fetch_feed_content("acme.example")
+
+    assert len(pages) == 1
+    assert "acquired Foo" in pages[0].content
+
+
+def test_fetch_feed_content_probes_www_when_apex_dead():
+    # Apex returns nothing; www serves the homepage AND the feed. Common-path
+    # probing must target the host that actually served the homepage (www).
+    rss = (
+        b'<?xml version="1.0"?><rss version="2.0"><channel><title>WWW Feed</title>'
+        b"<item><title>WWW story</title><link>https://www.acme.example/n/1</link>"
+        b"<description>body</description></item></channel></rss>"
+    )
+
+    def fake_http(url, **_kwargs):
+        if url == "https://acme.example/":
+            return (None, None, None)  # apex dead
+        if url == "https://www.acme.example/":
+            return (200, b"<html><head></head><body>hi</body></html>", url)
+        if url == "https://www.acme.example/feed":
+            return (200, rss, url)
+        return (404, None, None)
+
+    with patch("primr.data.fallback_sources._http_get", side_effect=fake_http):
+        pages = fetch_feed_content("acme.example")
+
+    assert len(pages) == 1
+    assert pages[0].title == "WWW Feed"
+
+
+def test_discover_feed_urls_drops_userinfo_offsite_href():
+    # https://acme.example@evil.example/feed has hostname evil.example -> dropped.
+    homepage = (
+        b'<html><head><link rel="alternate" type="application/rss+xml" '
+        b'href="https://acme.example@evil.example/feed"></head></html>'
+    )
+    urls = _discover_feed_urls("acme.example", homepage)
+    assert all("evil.example" not in u for u in urls)

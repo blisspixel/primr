@@ -288,6 +288,10 @@ COMMON_FEED_PATHS = [
 _FEED_MAX_FEEDS = 3
 _FEED_MAX_ITEMS = 20
 _FEED_CONTENT_CHAR_CAP = 8_000
+# Refuse to parse an untrusted feed body larger than this. defusedxml blocks
+# entity-expansion bombs but not a flat multi-GB document; httpx has already
+# decompressed the body into memory, so this bounds the parse + iteration cost.
+_FEED_MAX_BYTES = 5_000_000
 
 # rel=alternate <link> tags advertising a feed in the document head.
 _FEED_LINK_RE = re.compile(rb"<link\b[^>]*>", re.IGNORECASE)
@@ -346,7 +350,9 @@ def _discover_feed_urls(base_host: str, homepage_html: bytes | None) -> list[str
             if not href_match:
                 continue
             resolved = urljoin(f"https://{base_host}/", href_match.group(1).strip())
-            host = urlparse(resolved).netloc
+            # .hostname (not .netloc) so the relevance filter reasons about the
+            # same value the SSRF guard uses — strips userinfo@ and :port.
+            host = urlparse(resolved).hostname or ""
             if _same_site(host, base_host):
                 candidates.append(resolved)
 
@@ -373,7 +379,13 @@ def _parse_feed(body: bytes) -> tuple[str | None, list[dict[str, str]]]:
     Parsed with ``defusedxml`` because the body is untrusted XML from an
     arbitrary external host: this blocks entity-expansion ("billion laughs")
     and external-entity/DTD attacks that the stdlib parser is vulnerable to.
+    Oversized bodies are refused before parsing (defusedxml does not bound a
+    flat, non-expanding multi-GB document). Handles RSS 2.0, Atom, and RSS 1.0
+    (RDF, where ``<item>`` elements are siblings of ``<channel>``).
     """
+    if len(body) > _FEED_MAX_BYTES:
+        logger.info("Feed fallback: body exceeds %d bytes — skipping parse", _FEED_MAX_BYTES)
+        return None, []
     try:
         root = DefusedET.fromstring(body)
     except (ParseError, DefusedXmlException):
@@ -390,6 +402,13 @@ def _parse_feed(body: bytes) -> tuple[str | None, list[dict[str, str]]]:
         container, item_name = channel, "item"
     elif root_name == "feed":  # Atom
         container, item_name = root, "entry"
+    elif root_name == "rdf":  # RSS 1.0 / RDF — <item>s are direct children of root
+        channel = next((c for c in root if _local_tag(c.tag) == "channel"), None)
+        if channel is not None:
+            title_el = next((c for c in channel if _local_tag(c.tag) == "title"), None)
+            if title_el is not None:
+                feed_title = (title_el.text or "").strip() or None
+        container, item_name = root, "item"
     else:
         return None, []
 
@@ -415,9 +434,17 @@ def _parse_feed(body: bytes) -> tuple[str | None, list[dict[str, str]]]:
                     link = href.strip()
                 elif field_el.text:
                     link = field_el.text.strip()
-            elif fname in ("description", "summary", "encoded", "content") and not summary:
-                raw = field_el.text or "".join(field_el.itertext())
-                summary = _strip_html(raw)
+            elif fname in ("description", "summary", "encoded", "content"):
+                # Prefer the richest body: content:encoded / Atom <content> (full
+                # post) over a short <description>/<summary> teaser by keeping the
+                # longest candidate, and fall back to child markup (Atom xhtml)
+                # when .text is blank rather than whitespace-only.
+                text = field_el.text or ""
+                if not text.strip():
+                    text = "".join(field_el.itertext())
+                candidate = _strip_html(text, limit=1_000)
+                if len(candidate) > len(summary):
+                    summary = candidate
 
         if title or summary:
             items.append({"title": title, "link": link, "summary": summary})
@@ -441,15 +468,19 @@ def fetch_feed_content(
     sweep, parses RSS 2.0 + Atom, and returns one ``FallbackPage`` per feed that
     yields items (capped). Fails open — any error returns whatever was gathered.
     """
-    # Fetch the homepage once for autodiscovery (try apex, then www).
+    # Fetch the homepage once for autodiscovery (try apex, then www). Track which
+    # host actually served it so the common-path sweep and relative-href base
+    # target the live host — some sites serve only on www, with a dead apex.
     homepage_html: bytes | None = None
-    for candidate in (f"https://{base_host}/", f"https://www.{base_host}/"):
-        status, body, _ = _http_get(candidate, timeout=per_request_timeout)
+    homepage_host = base_host
+    for candidate_host in (base_host, f"www.{base_host}"):
+        status, body, _ = _http_get(f"https://{candidate_host}/", timeout=per_request_timeout)
         if status == 200 and body:
             homepage_html = body
+            homepage_host = candidate_host
             break
 
-    feed_urls = _discover_feed_urls(base_host, homepage_html)
+    feed_urls = _discover_feed_urls(homepage_host, homepage_html)
     if not feed_urls:
         return []
 
@@ -472,7 +503,9 @@ def fetch_feed_content(
         # same feed) by item identity, and cap the total item budget.
         fresh: list[dict[str, str]] = []
         for item in items:
-            key = item.get("link") or item.get("title", "")
+            # Fall back to summary for the dedup key so a title-less, link-less
+            # item (kept by _parse_feed when it has a summary) is not dropped.
+            key = item.get("link") or item.get("title") or item.get("summary", "")[:200]
             if not key or key in seen_items:
                 continue
             seen_items.add(key)
