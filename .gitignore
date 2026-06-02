@@ -309,3 +309,7 @@ nul
 .pytest_tmp/
 .tmp/
 
+
+# Coverage analysis artifact (local measurement)
+coverage_full.json
+.cov_*
