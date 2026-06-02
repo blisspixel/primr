@@ -21,6 +21,7 @@ and merges whatever comes back.
 
 from __future__ import annotations
 
+import html
 import json
 import logging
 import re
@@ -28,7 +29,11 @@ import socket
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
+from xml.etree.ElementTree import ParseError
+
+import defusedxml.ElementTree as DefusedET
+from defusedxml.common import DefusedXmlException
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +109,7 @@ class FallbackPage:
     """A page of content recovered from a fallback source."""
 
     url: str
-    source: str  # "subdomain" | "edgar" | "wikipedia" | "wayback"
+    source: str  # "subdomain" | "feed" | "edgar" | "wikipedia" | "wayback"
     content: str  # extracted plain text
     raw_html: bytes | None = None
     title: str | None = None
@@ -254,6 +259,286 @@ def fetch_subdomain_content(
                 )
             )
             logger.info("Subdomain fallback: fetched %s (%d chars)", url, len(extracted))
+
+    return pages
+
+
+# =============================================================================
+# RSS / Atom feeds
+# =============================================================================
+
+# Feed paths probed on the base host when HTML autodiscovery finds nothing.
+# Ordered by how common each convention is across CMS / static-site generators.
+COMMON_FEED_PATHS = [
+    "/feed",
+    "/feed/",
+    "/rss",
+    "/rss.xml",
+    "/feed.xml",
+    "/atom.xml",
+    "/index.xml",  # Hugo default
+    "/blog/feed",
+    "/blog/rss.xml",
+    "/news/feed",
+    "/news/rss.xml",
+    "/press/feed",
+]
+
+# Caps keep feed recovery within the downstream token budget and bounded in time.
+_FEED_MAX_FEEDS = 3
+_FEED_MAX_ITEMS = 20
+_FEED_CONTENT_CHAR_CAP = 8_000
+# Refuse to parse an untrusted feed body larger than this. defusedxml blocks
+# entity-expansion bombs but not a flat multi-GB document; httpx has already
+# decompressed the body into memory, so this bounds the parse + iteration cost.
+_FEED_MAX_BYTES = 5_000_000
+
+# rel=alternate <link> tags advertising a feed in the document head.
+_FEED_LINK_RE = re.compile(rb"<link\b[^>]*>", re.IGNORECASE)
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _local_tag(tag: str) -> str:
+    """Return an XML element's local name, dropping any ``{namespace}`` prefix.
+
+    Lets one parser handle RSS (no namespace) and Atom (default namespace)
+    without hard-coding namespace URIs.
+    """
+    return tag.rsplit("}", 1)[-1].lower()
+
+
+def _strip_html(text: str, *, limit: int = 600) -> str:
+    """Flatten an HTML feed summary to bounded plain text."""
+    unescaped = html.unescape(text or "")
+    stripped = _HTML_TAG_RE.sub(" ", unescaped)
+    collapsed = re.sub(r"\s+", " ", stripped).strip()
+    return collapsed[:limit]
+
+
+def _same_site(host: str, base_host: str) -> bool:
+    """True when ``host`` is the base host, its www form, or a subdomain of it.
+
+    Defense-in-depth + relevance: autodiscovered feed hrefs that point off the
+    company's own registrable domain are dropped (the SSRF guard in ``_http_get``
+    still validates whatever survives this filter).
+    """
+    host = (host or "").lower().removeprefix("www.")
+    base_host = (base_host or "").lower().removeprefix("www.")
+    if not host or not base_host:
+        return False
+    return host == base_host or host.endswith("." + base_host)
+
+
+def _discover_feed_urls(base_host: str, homepage_html: bytes | None) -> list[str]:
+    """Build an ordered, deduped list of candidate feed URLs for a host.
+
+    Combines (1) HTML autodiscovery — ``<link rel="alternate"
+    type="application/rss+xml|atom+xml">`` in the homepage head, the robust
+    standard — with (2) a fallback sweep of common feed paths. Same-site only.
+    """
+    candidates: list[str] = []
+
+    if homepage_html:
+        for tag_match in _FEED_LINK_RE.findall(homepage_html[:200_000]):
+            tag = tag_match.decode("utf-8", errors="ignore")
+            low = tag.lower()
+            if "alternate" not in low:
+                continue
+            if "rss+xml" not in low and "atom+xml" not in low:
+                continue
+            href_match = re.search(r'href\s*=\s*["\']([^"\']+)["\']', tag, re.IGNORECASE)
+            if not href_match:
+                continue
+            resolved = urljoin(f"https://{base_host}/", href_match.group(1).strip())
+            # .hostname (not .netloc) so the relevance filter reasons about the
+            # same value the SSRF guard uses — strips userinfo@ and :port.
+            host = urlparse(resolved).hostname or ""
+            if _same_site(host, base_host):
+                candidates.append(resolved)
+
+    for path in COMMON_FEED_PATHS:
+        candidates.append(f"https://{base_host}{path}")
+
+    # Dedupe, preserve discovery order (autodiscovered URLs first).
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for url in candidates:
+        if url not in seen:
+            seen.add(url)
+            ordered.append(url)
+    return ordered
+
+
+def _parse_feed(body: bytes) -> tuple[str | None, list[dict[str, str]]]:
+    """Parse RSS 2.0 or Atom bytes into ``(feed_title, [items])``.
+
+    Namespace-agnostic (matches by local tag name) so it handles RSS without a
+    namespace and Atom's default namespace from one path. Malformed XML yields
+    ``(None, [])`` — feed recovery fails open like every other fallback source.
+
+    Parsed with ``defusedxml`` because the body is untrusted XML from an
+    arbitrary external host: this blocks entity-expansion ("billion laughs")
+    and external-entity/DTD attacks that the stdlib parser is vulnerable to.
+    Oversized bodies are refused before parsing (defusedxml does not bound a
+    flat, non-expanding multi-GB document). Handles RSS 2.0, Atom, and RSS 1.0
+    (RDF, where ``<item>`` elements are siblings of ``<channel>``).
+    """
+    if len(body) > _FEED_MAX_BYTES:
+        logger.info("Feed fallback: body exceeds %d bytes — skipping parse", _FEED_MAX_BYTES)
+        return None, []
+    try:
+        root = DefusedET.fromstring(body)
+    except (ParseError, DefusedXmlException):
+        return None, []
+
+    root_name = _local_tag(root.tag)
+    feed_title: str | None = None
+    items: list[dict[str, str]] = []
+
+    if root_name == "rss":
+        channel = next((c for c in root if _local_tag(c.tag) == "channel"), None)
+        if channel is None:
+            return None, []
+        container, item_name = channel, "item"
+    elif root_name == "feed":  # Atom
+        container, item_name = root, "entry"
+    elif root_name == "rdf":  # RSS 1.0 / RDF — <item>s are direct children of root
+        channel = next((c for c in root if _local_tag(c.tag) == "channel"), None)
+        if channel is not None:
+            title_el = next((c for c in channel if _local_tag(c.tag) == "title"), None)
+            if title_el is not None:
+                feed_title = (title_el.text or "").strip() or None
+        container, item_name = root, "item"
+    else:
+        return None, []
+
+    for child in container:
+        name = _local_tag(child.tag)
+        if name == "title" and feed_title is None:
+            feed_title = (child.text or "").strip() or None
+        if name != item_name:
+            continue
+
+        title = ""
+        link = ""
+        summary = ""
+        for field_el in child:
+            fname = _local_tag(field_el.tag)
+            if fname == "title" and not title:
+                title = (field_el.text or "").strip()
+            elif fname == "link" and not link:
+                # RSS: text node. Atom: href attribute (prefer rel=alternate).
+                href = field_el.get("href")
+                rel = (field_el.get("rel") or "alternate").lower()
+                if href and rel == "alternate":
+                    link = href.strip()
+                elif field_el.text:
+                    link = field_el.text.strip()
+            elif fname in ("description", "summary", "encoded", "content"):
+                # Prefer the richest body: content:encoded / Atom <content> (full
+                # post) over a short <description>/<summary> teaser by keeping the
+                # longest candidate, and fall back to child markup (Atom xhtml)
+                # when .text is blank rather than whitespace-only.
+                text = field_el.text or ""
+                if not text.strip():
+                    text = "".join(field_el.itertext())
+                candidate = _strip_html(text, limit=1_000)
+                if len(candidate) > len(summary):
+                    summary = candidate
+
+        if title or summary:
+            items.append({"title": title, "link": link, "summary": summary})
+
+    return feed_title, items
+
+
+def fetch_feed_content(
+    base_host: str,
+    *,
+    per_request_timeout: float = 12.0,
+    max_feeds: int = _FEED_MAX_FEEDS,
+    max_items: int = _FEED_MAX_ITEMS,
+) -> list[FallbackPage]:
+    """Recover recent press/news/blog content from the host's RSS/Atom feeds.
+
+    Feeds are clean, lightweight XML of exactly the "what is this company doing
+    right now" content that matters most for strategic analysis, and they are
+    frequently served uncached and unprotected even when the marketing origin
+    sits behind a WAF. Discovers feeds via HTML autodiscovery plus a common-path
+    sweep, parses RSS 2.0 + Atom, and returns one ``FallbackPage`` per feed that
+    yields items (capped). Fails open — any error returns whatever was gathered.
+    """
+    # Fetch the homepage once for autodiscovery (try apex, then www). Track which
+    # host actually served it so the common-path sweep and relative-href base
+    # target the live host — some sites serve only on www, with a dead apex.
+    homepage_html: bytes | None = None
+    homepage_host = base_host
+    for candidate_host in (base_host, f"www.{base_host}"):
+        status, body, _ = _http_get(f"https://{candidate_host}/", timeout=per_request_timeout)
+        if status == 200 and body:
+            homepage_html = body
+            homepage_host = candidate_host
+            break
+
+    feed_urls = _discover_feed_urls(homepage_host, homepage_html)
+    if not feed_urls:
+        return []
+
+    pages: list[FallbackPage] = []
+    seen_items: set[str] = set()
+
+    for feed_url in feed_urls:
+        if len(pages) >= max_feeds:
+            break
+
+        status, body, final_url = _http_get(feed_url, timeout=per_request_timeout)
+        if status != 200 or not body:
+            continue
+
+        feed_title, items = _parse_feed(body)
+        if not items:
+            continue
+
+        # Dedupe across feeds (autodiscovery + common paths can resolve to the
+        # same feed) by item identity, and cap the total item budget.
+        fresh: list[dict[str, str]] = []
+        for item in items:
+            # Fall back to summary for the dedup key so a title-less, link-less
+            # item (kept by _parse_feed when it has a summary) is not dropped.
+            key = item.get("link") or item.get("title") or item.get("summary", "")[:200]
+            if not key or key in seen_items:
+                continue
+            seen_items.add(key)
+            fresh.append(item)
+            if len(seen_items) >= max_items:
+                break
+        if not fresh:
+            continue
+
+        blocks: list[str] = []
+        for item in fresh:
+            parts = [p for p in (item.get("title"), item.get("summary")) if p]
+            if item.get("link"):
+                parts.append(f"({item['link']})")
+            blocks.append("\n".join(parts))
+        content = "\n\n".join(blocks)[:_FEED_CONTENT_CHAR_CAP]
+
+        pages.append(
+            FallbackPage(
+                url=final_url or feed_url,
+                source="feed",
+                content=content,
+                raw_html=None,
+                title=feed_title,
+                metadata={"feed_url": feed_url, "item_count": len(fresh)},
+            )
+        )
+        logger.info(
+            "Feed fallback: %s yielded %d item(s) (%d chars)",
+            feed_url,
+            len(fresh),
+            len(content),
+        )
 
     return pages
 
@@ -756,6 +1041,7 @@ def gather_fallback_content(
 
     Sources:
     - subdomain probe (fast, ~5-15s per live subdomain)
+    - RSS/Atom feeds (fast, ~3-10s; recent press/news/blog content)
     - SEC EDGAR (public companies only, ~10-30s including filing fetch)
     - Wikipedia (almost always available for known companies, ~5s)
     - Wayback replays for a provided list of blocked URLs (slow, ~30-60s)
@@ -777,10 +1063,11 @@ def gather_fallback_content(
 
     results: list[FallbackPage] = []
 
-    pool = ThreadPoolExecutor(max_workers=5)
+    pool = ThreadPoolExecutor(max_workers=6)
     try:
         futures = {
             pool.submit(fetch_subdomain_content, base_host): "subdomain",
+            pool.submit(fetch_feed_content, base_host): "feed",
             pool.submit(fetch_edgar_content, company_name): "edgar",
             pool.submit(fetch_wikipedia_content, company_name): "wikipedia",
         }
