@@ -11,7 +11,12 @@ from unittest.mock import patch
 
 from primr.data.fallback_sources import (
     FallbackPage,
+    _discover_feed_urls,
     _normalize_company_name,
+    _parse_feed,
+    _same_site,
+    _strip_html,
+    fetch_feed_content,
     find_edgar_cik,
     find_wikipedia_title,
     gather_fallback_content,
@@ -187,12 +192,16 @@ def test_gather_fallback_content_merges_all_sources():
         "wikipedia": [FallbackPage(url="https://w", source="wikipedia", content="wiki text " * 60)],
         "edgar": [FallbackPage(url="https://e", source="edgar", content="10-K text " * 300)],
         "subdomain": [FallbackPage(url="https://s", source="subdomain", content="IR text " * 80)],
+        "feed": [FallbackPage(url="https://f", source="feed", content="feed text " * 40)],
         "wayback": [FallbackPage(url="https://y", source="wayback", content="archive text " * 100)],
         "grok": [FallbackPage(url="https://g", source="grok", content="grok synth text " * 50)],
     }
 
     def fake_subdomain(base_host, **_kwargs):
         return fake_pages_by_source["subdomain"]
+
+    def fake_feed(base_host, **_kwargs):
+        return fake_pages_by_source["feed"]
 
     def fake_edgar(name, **_kwargs):
         return fake_pages_by_source["edgar"]
@@ -208,6 +217,7 @@ def test_gather_fallback_content_merges_all_sources():
 
     with (
         patch("primr.data.fallback_sources.fetch_subdomain_content", side_effect=fake_subdomain),
+        patch("primr.data.fallback_sources.fetch_feed_content", side_effect=fake_feed),
         patch("primr.data.fallback_sources.fetch_edgar_content", side_effect=fake_edgar),
         patch("primr.data.fallback_sources.fetch_wikipedia_content", side_effect=fake_wikipedia),
         patch("primr.data.fallback_sources.fetch_wayback_pages", side_effect=fake_wayback),
@@ -221,7 +231,7 @@ def test_gather_fallback_content_merges_all_sources():
         )
 
     sources = sorted(p.source for p in pages)
-    assert sources == ["edgar", "grok", "subdomain", "wayback", "wikipedia"]
+    assert sources == ["edgar", "feed", "grok", "subdomain", "wayback", "wikipedia"]
 
 
 def test_gather_fallback_content_tolerates_individual_source_failure():
@@ -233,6 +243,7 @@ def test_gather_fallback_content_tolerates_individual_source_failure():
 
     with (
         patch("primr.data.fallback_sources.fetch_subdomain_content", side_effect=raises),
+        patch("primr.data.fallback_sources.fetch_feed_content", side_effect=raises),
         patch("primr.data.fallback_sources.fetch_edgar_content", side_effect=raises),
         patch("primr.data.fallback_sources.fetch_wikipedia_content", return_value=[good_page]),
         patch("primr.data.fallback_sources.fetch_wayback_pages", side_effect=raises),
@@ -250,6 +261,7 @@ def test_gather_fallback_content_tolerates_individual_source_failure():
 def test_gather_fallback_content_returns_empty_when_all_sources_empty():
     with (
         patch("primr.data.fallback_sources.fetch_subdomain_content", return_value=[]),
+        patch("primr.data.fallback_sources.fetch_feed_content", return_value=[]),
         patch("primr.data.fallback_sources.fetch_edgar_content", return_value=[]),
         patch("primr.data.fallback_sources.fetch_wikipedia_content", return_value=[]),
         patch("primr.data.fallback_sources.fetch_wayback_pages", return_value=[]),
@@ -261,3 +273,194 @@ def test_gather_fallback_content_returns_empty_when_all_sources_empty():
         )
 
     assert pages == []
+
+
+# =============================================================================
+# RSS / Atom feed recovery
+# =============================================================================
+
+RSS_FIXTURE = b"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Acme Newsroom</title>
+    <link>https://acme.example/news</link>
+    <item>
+      <title>Acme launches widget</title>
+      <link>https://acme.example/news/1</link>
+      <description>&lt;p&gt;The new widget ships today.&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Acme hires CFO</title>
+      <link>https://acme.example/news/2</link>
+      <description>Leadership update.</description>
+    </item>
+  </channel>
+</rss>
+"""
+
+ATOM_FIXTURE = b"""<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Acme Blog</title>
+  <entry>
+    <title>Engineering update</title>
+    <link href="https://acme.example/blog/1" rel="alternate"/>
+    <summary>We scaled the platform.</summary>
+  </entry>
+</feed>
+"""
+
+HOMEPAGE_WITH_AUTODISCOVERY = (
+    b"<html><head>"
+    b'<link rel="alternate" type="application/rss+xml" title="Acme" href="/news/rss.xml">'
+    b"</head><body>hi</body></html>"
+)
+
+
+def test_strip_html_flattens_and_unescapes():
+    assert _strip_html("<p>Hello &amp; welcome</p>") == "Hello & welcome"
+
+
+def test_strip_html_caps_length():
+    assert len(_strip_html("x" * 1000, limit=50)) == 50
+
+
+def test_same_site_matches_apex_www_and_subdomain():
+    assert _same_site("acme.example", "acme.example")
+    assert _same_site("www.acme.example", "acme.example")
+    assert _same_site("news.acme.example", "acme.example")
+
+
+def test_same_site_rejects_offsite_and_lookalike():
+    assert not _same_site("evil.example", "acme.example")
+    assert not _same_site("acme.example.evil.com", "acme.example")
+    # endswith-style false match guard: must be a real subdomain, not a suffix.
+    assert not _same_site("notacme.example", "acme.example")
+
+
+def test_parse_feed_rss():
+    title, items = _parse_feed(RSS_FIXTURE)
+    assert title == "Acme Newsroom"
+    assert len(items) == 2
+    assert items[0]["title"] == "Acme launches widget"
+    assert items[0]["link"] == "https://acme.example/news/1"
+    assert "widget ships today" in items[0]["summary"]
+    # HTML in the description is flattened out.
+    assert "<p>" not in items[0]["summary"]
+
+
+def test_parse_feed_atom():
+    title, items = _parse_feed(ATOM_FIXTURE)
+    assert title == "Acme Blog"
+    assert len(items) == 1
+    assert items[0]["title"] == "Engineering update"
+    # Atom link is the rel=alternate href attribute, not element text.
+    assert items[0]["link"] == "https://acme.example/blog/1"
+    assert "scaled the platform" in items[0]["summary"]
+
+
+def test_parse_feed_malformed_returns_empty():
+    assert _parse_feed(b"<not valid xml <<<") == (None, [])
+
+
+def test_parse_feed_non_feed_xml_returns_empty():
+    assert _parse_feed(b"<html><body>nope</body></html>") == (None, [])
+
+
+def test_discover_feed_urls_autodiscovery_first_and_deduped():
+    urls = _discover_feed_urls("acme.example", HOMEPAGE_WITH_AUTODISCOVERY)
+    # Autodiscovered feed ranks ahead of the common-path sweep.
+    assert urls[0] == "https://acme.example/news/rss.xml"
+    assert "https://acme.example/feed" in urls
+    # /news/rss.xml is also a common path; it must appear exactly once.
+    assert urls.count("https://acme.example/news/rss.xml") == 1
+
+
+def test_discover_feed_urls_drops_offsite_autodiscovery():
+    homepage = (
+        b'<html><head><link rel="alternate" type="application/rss+xml" '
+        b'href="https://evil.example/feed"></head></html>'
+    )
+    urls = _discover_feed_urls("acme.example", homepage)
+    assert all("evil.example" not in u for u in urls)
+
+
+def test_discover_feed_urls_no_html_uses_common_paths():
+    urls = _discover_feed_urls("acme.example", None)
+    assert "https://acme.example/feed" in urls
+    assert "https://acme.example/index.xml" in urls
+
+
+def test_fetch_feed_content_via_autodiscovery():
+    def fake_http(url, **_kwargs):
+        if url == "https://acme.example/":
+            return (200, HOMEPAGE_WITH_AUTODISCOVERY, url)
+        if url == "https://acme.example/news/rss.xml":
+            return (200, RSS_FIXTURE, url)
+        return (404, None, None)
+
+    with patch("primr.data.fallback_sources._http_get", side_effect=fake_http):
+        pages = fetch_feed_content("acme.example")
+
+    assert len(pages) == 1
+    assert pages[0].source == "feed"
+    assert pages[0].title == "Acme Newsroom"
+    assert "Acme launches widget" in pages[0].content
+    assert pages[0].metadata["item_count"] == 2
+
+
+def test_fetch_feed_content_via_common_path_when_no_autodiscovery():
+    homepage = b"<html><head></head><body>no feed link</body></html>"
+
+    def fake_http(url, **_kwargs):
+        if url in ("https://acme.example/", "https://www.acme.example/"):
+            return (200, homepage, url)
+        if url == "https://acme.example/feed":
+            return (200, ATOM_FIXTURE, url)
+        return (404, None, None)
+
+    with patch("primr.data.fallback_sources._http_get", side_effect=fake_http):
+        pages = fetch_feed_content("acme.example")
+
+    assert len(pages) == 1
+    assert pages[0].source == "feed"
+    assert "Engineering update" in pages[0].content
+
+
+def test_fetch_feed_content_returns_empty_when_no_feeds():
+    def fake_http(url, **_kwargs):
+        if url in ("https://acme.example/", "https://www.acme.example/"):
+            return (200, b"<html><head></head><body>hi</body></html>", url)
+        return (404, None, None)
+
+    with patch("primr.data.fallback_sources._http_get", side_effect=fake_http):
+        pages = fetch_feed_content("acme.example")
+
+    assert pages == []
+
+
+def test_fetch_feed_content_dedupes_items_across_feeds():
+    feed_b = (
+        b'<?xml version="1.0"?><rss version="2.0"><channel><title>Mirror</title>'
+        b"<item><title>Acme launches widget</title>"
+        b"<link>https://acme.example/news/1</link><description>dup</description></item>"
+        b"<item><title>Third story</title>"
+        b"<link>https://acme.example/news/3</link><description>new</description></item>"
+        b"</channel></rss>"
+    )
+
+    def fake_http(url, **_kwargs):
+        if url == "https://acme.example/":
+            return (200, HOMEPAGE_WITH_AUTODISCOVERY, url)
+        if url == "https://acme.example/news/rss.xml":
+            return (200, RSS_FIXTURE, url)  # news/1, news/2
+        if url == "https://acme.example/feed":
+            return (200, feed_b, url)  # news/1 (dup), news/3
+        return (404, None, None)
+
+    with patch("primr.data.fallback_sources._http_get", side_effect=fake_http):
+        pages = fetch_feed_content("acme.example")
+
+    assert len(pages) == 2
+    # news/1 is counted once: the mirror feed contributes only news/3.
+    total_items = sum(p.metadata["item_count"] for p in pages)
+    assert total_items == 3
