@@ -201,6 +201,7 @@ from primr.output.artifact_validation import (
 from primr.output.artifact_validation import (
     _scan_forbidden_output_patterns as _scan_forbidden_output_patterns,
 )
+from primr.qa.report_analyzer import SCAFFOLDING_PROHIBITION_GUIDANCE
 
 # =============================================================================
 # PUBLIC API
@@ -2042,7 +2043,9 @@ RULES:
 - Stress-test the company narrative — separate claims from evidence
 - Keep roughly the same scope as the original section
 - End with a single "What to validate:" line followed by a concrete check question
-- Write that line as plain text — no bold, italics, or bullet prefix (it is prose, not a label)"""
+- Write that line as plain text — no bold, italics, or bullet prefix (it is prose, not a label)
+
+{SCAFFOLDING_PROHIBITION_GUIDANCE}"""
 
     system_prompt = (
         "You are a senior strategic analyst rewriting a section of a consulting dossier. "
@@ -2232,7 +2235,10 @@ RULES:
 - Keep citations compact, usually at paragraph ends, and use [cite: N] references in the body
 - Keep roughly the same scope as the original section
 - Include concrete next steps or validation questions
-- Keep the densest supporting reference list in the final Sources appendix"""
+- If you end with a "What to validate:" line, write it as plain text — no bold, italics, or bullet prefix
+- Keep the densest supporting reference list in the final Sources appendix
+
+{SCAFFOLDING_PROHIBITION_GUIDANCE}"""
 
     system_prompt = (
         f"You are a senior strategy consultant rewriting a section of {article} {vendor.upper()} "

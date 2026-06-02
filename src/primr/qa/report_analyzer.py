@@ -8,6 +8,26 @@ import argparse
 import re
 from pathlib import Path
 
+# Writer-facing counterpart to ``scan_scaffolding_leakage``: prose guidance that
+# tells the long-form writer/regeneration prompts NOT to emit the markers this
+# module flags at ship time. Co-located with the scanner on purpose — every
+# category ``scan_scaffolding_leakage`` detects must be named here so the upstream
+# instruction and the downstream gate cannot drift. Parity is enforced by
+# tests/test_qa/test_report_analyzer_deterministic.py::TestScaffoldingProhibitionParity.
+SCAFFOLDING_PROHIBITION_GUIDANCE = (
+    "SCAFFOLDING (never leak internal pipeline markers into the prose):\n"
+    "- Do NOT reference the analysis workbook with a bracket marker such as "
+    "[workbook], [Analysis Workbook], or [Analysis: ...]. Fold the analysis into the "
+    "narrative as plain prose.\n"
+    "- Do NOT use bracketed cross-references such as [cross-ref ...] or [see ## ...]. "
+    'Refer to other sections in prose instead ("as noted in the Executive Summary").\n'
+    "- Citations must be numeric only: [cite: N]. NEVER write a labeled citation such "
+    "as [cite: workbook] or [cite: internal] — if you have no source number, state the "
+    "claim as prose and label its confidence (Reported/Estimated/Hypothesis).\n"
+    '- Write the "What to validate:" line as plain text — never bold, italic, or '
+    "bulleted. **What to validate:** is a leak, not a label."
+)
+
 
 def scan_scaffolding_leakage(content: str) -> dict:
     """Scan a report string for leaked internal scaffolding markers.
