@@ -109,7 +109,7 @@ jobs:
           subject-path: "dist/*.whl,dist/*.tar.gz"
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           # dist/ holds ONLY the wheel + sdist — the publish job uploads this
           # verbatim to PyPI, so it must contain no extra files.
@@ -118,7 +118,7 @@ jobs:
           retention-days: 7
 
       - name: Upload SBOM artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sbom
           path: sbom/
@@ -137,7 +137,7 @@ jobs:
 
     steps:
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
@@ -190,13 +190,13 @@ jobs:
           python-version: '3.11'
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
 
       - name: Download SBOM artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: sbom
           path: sbom/
