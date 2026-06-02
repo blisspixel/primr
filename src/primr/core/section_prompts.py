@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING
 from primr.config.config import FAST_FEEDBACK_RULES_PATH
 from primr.core.section_planning import _get_section_word_target
 from primr.data.scraping.org_profile import get_focus_areas_for_org_type
+from primr.qa.report_analyzer import SCAFFOLDING_PROHIBITION_GUIDANCE
 
 if TYPE_CHECKING:
     from primr.output.final_artifact import GeneratedSection
@@ -319,6 +320,8 @@ CITATION FORMAT (strict):
 - Do NOT emit [Source: URL] inline; use [cite: N] only
 - Do NOT invent citation numbers — only cite N values present in the key above
 
+{SCAFFOLDING_PROHIBITION_GUIDANCE}
+
 OUTPUT CONTRACT (strict):
 - Preferred format: emit each section inside a lightweight XML envelope:
   <section><title>Exact Section Name</title><body>Section body here</body></section>
@@ -493,6 +496,8 @@ CITATION FORMAT (strict):
 - Reuse the same N every time you cite the same URL
 - Do NOT emit [Source: URL] inline; use [cite: N] only
 - Do NOT invent citation numbers — only cite N values present in the key above
+
+{SCAFFOLDING_PROHIBITION_GUIDANCE}
 
 OUTPUT CONTRACT (strict):
 - Preferred format: emit each section inside a lightweight XML envelope:
