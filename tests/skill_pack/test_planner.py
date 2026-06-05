@@ -151,6 +151,29 @@ class TestMergeAndCap:
         bumped_observed = [r for r in gap if r.evidence.provenance == RoleProvenance.POSTING]
         assert len(bumped_observed) == 2
 
+    def test_plausible_kept_when_colliding_with_a_BUMPED_observed_archetype(self):
+        # Regression: plausible roles were deduped against ALL observed
+        # archetypes, including observed roles the reserve then bumps to gap.
+        # A reserved business-function slot must NOT be lost to an archetype
+        # that doesn't survive into the final roster.
+        observed = [
+            _make_role("eng-0", archetype="eng-0"),
+            _make_role("eng-1", archetype="eng-1"),
+            _make_role("internal-sales-eng", archetype="sales"),  # bumped at cap=3
+            _make_role("eng-3", archetype="eng-3"),
+        ]
+        plausible = [
+            _make_role("account-executive", archetype="sales", provenance=RoleProvenance.INDUSTRY),
+        ]
+        final, gap = _merge_and_cap(observed, plausible, cap=3)
+        names = [r.name for r in final]
+        # account-executive (archetype 'sales') is kept even though the
+        # bumped observed 'internal-sales-eng' shares the 'sales' archetype.
+        assert "account-executive" in names
+        # The observed role that owns 'sales' was bumped to gap, not final.
+        assert "internal-sales-eng" in {r.name for r in gap}
+        assert "internal-sales-eng" not in names
+
 
 # =============================================================================
 # plan_roles orchestrator

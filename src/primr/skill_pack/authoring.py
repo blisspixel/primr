@@ -191,7 +191,12 @@ def _parse_bundled_files(raw: object) -> list[BundledFile]:
             continue
         relpath = str(item.get("path") or item.get("relpath") or "").strip()
         content = str(item.get("content") or "")
-        content = content.replace("\\n", "\n")
+        # Normalize double-escaped \n -> newline ONLY for markdown references.
+        # Do NOT touch script (.py) or data (.json) content: a literal
+        # backslash-n there is meaningful (regex, Windows path, JSON string)
+        # and rewriting it would silently corrupt the file.
+        if relpath.endswith(".md"):
+            content = content.replace("\\n", "\n")
         if relpath and content.strip():
             out.append(BundledFile(relpath=relpath, content=content))
     return out

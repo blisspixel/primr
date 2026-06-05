@@ -249,22 +249,39 @@ def _merge_and_cap(
         an earlier-kept plausible role). Two distinct observed postings may
         share an archetype — both deserve representation.
     """
-    observed_archetypes: set[str] = set()
+    # Backfill every observed role's archetype for downstream rendering.
     for role in observed:
         archetype = _resolve_archetype(role)
-        if archetype is not None:
-            observed_archetypes.add(archetype)
-            # Backfill the role's evidence.archetype for downstream
-            # authoring + report rendering.
-            if not role.evidence.archetype:
-                role.evidence.archetype = archetype
+        if archetype is not None and not role.evidence.archetype:
+            role.evidence.archetype = archetype
 
-    # Pre-filter plausible into the subset that survives name + archetype
-    # dedupe against observed (and earlier plausible). Done before slotting
-    # so the reserve only reserves slots for plausible roles that could
-    # actually fill them.
-    seen_names: set[str] = {r.name for r in observed}
-    seen_archetypes: set[str] = set(observed_archetypes)
+    observed_names: set[str] = {r.name for r in observed}
+
+    # Reserve up to `reserve` slots for plausible org-shape roles. Bound it by
+    # the count of plausible roles that could plausibly fill a slot (name-unique
+    # vs observed) — NOT by archetype-eligibility, which depends on which
+    # observed roles are kept (computed next). Basing the reserve on archetype-
+    # eligibility-vs-all-observed was the bug: a plausible role colliding with
+    # an observed role that the reserve then BUMPS would shrink the reserve and
+    # then be dropped, even though its archetype isn't in the final roster.
+    fillable_plausible = sum(1 for c in plausible if c.name not in observed_names)
+    reserve = min(fillable_plausible, int(cap * PLAUSIBLE_RESERVE_FRACTION))
+
+    # How many observed roles would fit WITHOUT the reserve (historical cap
+    # behavior) vs WITH it. The difference is the set displaced *by the reserve*
+    # — only those flow to gap_flagged. Observed beyond the cap entirely (plain
+    # overflow, no plausible competing) is truncated silently as before.
+    observed_keep_naive = min(len(observed), cap)
+    observed_keep = min(len(observed), max(1, cap - reserve)) if observed else 0
+    kept_observed = observed[:observed_keep]
+
+    # Dedupe plausible against the archetypes of the KEPT observed roles only,
+    # so a bumped observed role's archetype never suppresses a reserved
+    # plausible role.
+    seen_names: set[str] = set(observed_names)
+    seen_archetypes: set[str] = {
+        a for r in kept_observed if (a := _resolve_archetype(r)) is not None
+    }
     eligible_plausible: list[Role] = []
     for candidate in plausible:
         archetype = _resolve_archetype(candidate)
@@ -279,19 +296,7 @@ def _merge_and_cap(
         if archetype is not None:
             seen_archetypes.add(archetype)
 
-    # Reserve up to `reserve` slots for plausible org-shape roles, but never
-    # more than there are eligible plausible roles to fill them, and always
-    # keep at least one observed role when any exist.
-    reserve = min(len(eligible_plausible), int(cap * PLAUSIBLE_RESERVE_FRACTION))
-    # How many observed roles would fit WITHOUT the reserve (the historical
-    # cap behavior), vs WITH it. The difference is the set displaced *by the
-    # reserve* — only those are surfaced in gap_flagged. Observed beyond the
-    # cap entirely (plain overflow, no plausible competing for the slot) is
-    # truncated silently as before.
-    observed_keep_naive = min(len(observed), cap)
-    observed_keep = min(len(observed), max(1, cap - reserve)) if observed else 0
-
-    final: list[Role] = list(observed[:observed_keep])
+    final: list[Role] = list(kept_observed)
     # Observed roles the reserve bumped out (a suffix of the would-have-fit
     # observed) are gap-flagged so they stay visible / promotable.
     gap: list[Role] = list(observed[observed_keep:observed_keep_naive])
