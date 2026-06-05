@@ -327,15 +327,26 @@ def auto_resolve_overlaps(
             field="description",
         )
 
-        before_hard = sum(
-            1 for f in validate_skill(skill, role.name) if f.severity == IssueSeverity.HARD
-        )
+        # Compare HARD finding IDENTITY, not count: a re-scope that swaps one
+        # HARD finding for a different one keeps the count equal but still
+        # ships a freshly-broken skill, so revert if ANY new HARD code appears.
+        before_hard = {
+            (f.code, f.field)
+            for f in validate_skill(skill, role.name)
+            if f.severity == IssueSeverity.HARD
+        }
         refined = refine_skill(skill, [issue], company_context, reasoning_session=reasoning_session)
-        after_hard = sum(
-            1 for f in validate_skill(refined, role.name) if f.severity == IssueSeverity.HARD
-        )
-        if after_hard > before_hard:
-            logger.info("Auto-resolve of %s introduced a HARD finding; reverting", b_key)
+        after_hard = {
+            (f.code, f.field)
+            for f in validate_skill(refined, role.name)
+            if f.severity == IssueSeverity.HARD
+        }
+        if after_hard - before_hard:
+            logger.info(
+                "Auto-resolve of %s introduced a new HARD finding (%s); reverting",
+                b_key,
+                sorted(after_hard - before_hard),
+            )
             continue
 
         role.skills[idx] = refined

@@ -368,6 +368,18 @@ def _build_pack_report_md(
     return "\n".join(lines)
 
 
+# A folder slug must be a single safe path segment: lowercase alphanumerics,
+# hyphens (incl. the `--` disambiguator), dots, underscores; no slash,
+# backslash, traversal, or leading separator/dot.
+_SAFE_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
+
+
+def _is_safe_slug(slug: str) -> bool:
+    if not slug or ".." in slug or "/" in slug or "\\" in slug:
+        return False
+    return bool(_SAFE_SLUG_RE.match(slug))
+
+
 def _flatten_skills(pack: SkillPack) -> list[tuple[Role, Skill]]:
     return [(role, skill) for role in pack.roles for skill in role.skills]
 
@@ -425,6 +437,19 @@ def package_skill_pack(
     artifacts = SkillPackArtifacts(output_dir=str(output_dir))
 
     flat_skills = _ensure_unique_slugs(_flatten_skills(pack))
+
+    # Defense-in-depth: a folder slug is used verbatim as a path segment in
+    # BOTH the Claude tree and the Cowork zip member path. Validation enforces
+    # kebab-case (ASKILL-P007) upstream, but drop any slug that isn't a single
+    # safe path segment here so a malformed/authored name can't write outside
+    # the skill folder in either artifact.
+    safe_flat_skills: list[tuple[str, Role, Skill]] = []
+    for slug, role, skill in flat_skills:
+        if _is_safe_slug(slug):
+            safe_flat_skills.append((slug, role, skill))
+        else:
+            logger.warning("Dropping skill with unsafe folder slug %r", slug)
+    flat_skills = safe_flat_skills
 
     # Precompute the agent-handoff metadata once per skill so the Claude tree
     # and the Cowork zip render byte-identical SKILL.md files (a pack invariant).

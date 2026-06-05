@@ -233,11 +233,25 @@ def optimize_skill_description(
         logger.info("Too few trigger evals for %s (%d); skipping", skill.name, len(evals))
         return SkillTriggerResult(skill.name, 0.0, 0.0, optimized=False, n_evals=len(evals))
 
+    # Require BOTH classes: a single-class eval set scores degenerately (an
+    # all-fire or never-fire description would ace it), so optimizing against
+    # it can push the description over-broad with no false-positive penalty.
+    if not any(e.should_trigger for e in evals) or all(e.should_trigger for e in evals):
+        logger.info("Trigger evals for %s are single-class; skipping optimization", skill.name)
+        return SkillTriggerResult(skill.name, 0.0, 0.0, optimized=False, n_evals=len(evals))
+
     train, test = _split_train_test(evals)
     score_set = test or train
     baseline = score_description(
         skill.name, skill.description, score_set, reasoning_session=reasoning_session
     )
+
+    # No signal (the simulator response was malformed -> empty score). Do NOT
+    # treat 0.0 as "below threshold" and optimize against a non-measurement;
+    # keep the original description.
+    if baseline.total == 0:
+        logger.info("Trigger score for %s had no signal; keeping original", skill.name)
+        return SkillTriggerResult(skill.name, 0.0, 0.0, optimized=False, n_evals=len(evals))
 
     if baseline.accuracy >= threshold:
         return SkillTriggerResult(

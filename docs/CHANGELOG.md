@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.29.2] - 2026-06-05
+
+### Skill pack - hardening (post-1.29.1 code review)
+
+- `behavioral_eval.grade_output`: strict verdict coercion - string verdicts
+  like "false"/"no"/"0" no longer count as passes (every non-empty string is
+  truthy in Python), and grader length-mismatch is logged instead of silently
+  skewing the with/baseline delta.
+- `refiner.auto_resolve_overlaps`: revert decision now compares HARD finding
+  identity, not count - a re-scope that swaps one HARD finding for a different
+  one is correctly reverted.
+- `validator`: removed generic words (`front`/`door`/`functions`) from the
+  NAME-PRODUCT brand set (false-flagged task names like `front-desk-triage`);
+  DESC-PUSHY intent counter no longer splits on "and" (which over-counted and
+  let thin descriptions pass); SEC-INJECT patterns tightened so benign domain
+  prose ("ignore previously assigned licenses", "run the scripts/x.py helper")
+  no longer trips the injection guard while real injection is still caught.
+- `planner._merge_and_cap`: plausible roles are deduped against the archetypes
+  of KEPT observed roles only, so a reserved business-function slot is not lost
+  to an observed role the reserve bumps to gap.
+- `authoring._parse_bundled_files`: the double-escaped-`\n` normalization runs
+  only for markdown references, never for `scripts/*.py` / `evals/*.json` where
+  a literal backslash-n is meaningful.
+- `pipeline`: failing roles are now dropped BEFORE the opt-in trigger/behavioral
+  passes, so no LLM budget is spent on roles that are then discarded.
+- `packager`: a shared folder-slug safety check guards both the Claude tree and
+  the Cowork zip against path traversal.
+- New `tests/test_no_brand_leak.py` CI guard fails the build if a denylisted
+  real-company / third-party brand token appears in `src/` or `tests/`.
+
 ## [1.29.1] - 2026-06-05
 
 Supersedes 1.29.0 (yanked): removed an inadvertent third-party product name

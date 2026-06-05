@@ -92,6 +92,39 @@ def test_bundled_files_written_to_cowork_zip(tmp_path: Path):
     assert not any("escape.md" in n for n in names)
 
 
+def test_unsafe_folder_slug_is_dropped_from_both_artifacts(tmp_path: Path):
+    """A skill whose name is not a safe single path segment must not be
+    written to the Claude tree or the Cowork zip (path-traversal guard)."""
+    good = _make_pack().roles[0].skills[0]
+    evil = Skill(
+        name="../evil",
+        display_name="Evil",
+        description="Use when the user asks to do X, Y, or Z.",
+        body=good.body,
+    )
+    role = Role(
+        name="data-engineer",
+        display_name="Data Engineer",
+        confidence="Inferred",
+        evidence=RoleEvidence(archetype="data-engineer"),
+        skills=[good, evil],
+    )
+    pack = SkillPack(
+        company_name="Acme Corp",
+        company_url=None,
+        generated_at="2026-01-01T00:00:00+00:00",
+        roles=[role],
+        validation=ValidationReport(),
+    )
+    artifacts = package_skill_pack(pack, SkillPackConfig(formats=SkillPackFormat.BOTH), tmp_path)
+    # No traversal escaped the output dir.
+    assert not (tmp_path.parent / "evil").exists()
+    with zipfile.ZipFile(artifacts.cowork_zip_path) as zf:
+        names = zf.namelist()
+    assert not any("evil" in n for n in names)
+    assert any("draft-dbt-models/SKILL.md" in n for n in names)  # good skill survived
+
+
 def test_package_emits_claude_tree_and_cowork_zip(tmp_path: Path):
     pack = _make_pack()
     config = SkillPackConfig(formats=SkillPackFormat.BOTH)

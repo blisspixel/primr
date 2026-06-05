@@ -142,10 +142,7 @@ _PRODUCT_BRAND_TOKENS = frozenset(
         "pubsub",
         "gke",
         "firestore",
-        "front",
-        "door",
         "appservice",
-        "functions",
         "kubernetes",
         "k8s",
         "openshift",
@@ -223,13 +220,26 @@ _BODY_HARD_MAX_WORDS = 5000
 # a HARD failure that drops the role rather than risking a downstream agent
 # host obeying scraped third-party content as an instruction.
 _AGENT_INSTRUCTION_PATTERNS = [
+    # "ignore previous instructions"-style injection. Requires an
+    # instruction-like OBJECT after previous/prior/above so benign domain
+    # prose ("ignore previously assigned licenses", "disregard prior true-up
+    # estimates") does not false-positive and drop a good skill.
     re.compile(
-        r"(?:^|\b)(?:ignore|disregard|forget)\b[^\n]{0,80}(?:previous|prior|above)",
+        r"\b(?:ignore|disregard|forget)\b[^\n]{0,60}"
+        r"(?:previous|prior|earlier|preceding|above|foregoing)\b[^\n]{0,40}"
+        r"(?:instruction|directive|prompt|message|context|rule|guidance|persona|system)",
         re.IGNORECASE,
     ),
     re.compile(r"\bsystem\s+prompt\b", re.IGNORECASE),
+    # "run a shell command"-style injection. Requires a real shell indicator
+    # (bash/powershell/terminal/...) rather than the bare words "script" or
+    # "command", so legitimate skill prose like "run the scripts/foo.py
+    # helper" or "run the assessment" does not false-positive. Actual shell
+    # blocks are still caught by the fenced-code and curl/wget patterns below.
     re.compile(
-        r"\b(?:run|execute|invoke)\b[^\n]{0,80}(?:command|bash|shell|script)",
+        r"\b(?:run|execute|invoke)\b[^\n]{0,40}"
+        r"(?:bash|powershell|pwsh|zsh|\bsh\b|terminal|sudo|/bin/|"
+        r"(?:shell|bash|system|terminal)\s+command)",
         re.IGNORECASE,
     ),
     re.compile(
@@ -321,7 +331,10 @@ def _find_hardcoded_path(text: str) -> str | None:
     return None
 
 
-_INTENT_SPLIT_RE = re.compile(r",|;|\bor\b|\band\b|/", re.IGNORECASE)
+# Split the trigger tail into enumerated intents on list separators only.
+# Deliberately NOT splitting on "and": "review and report on X" is one intent,
+# and splitting on "and" inflated the count enough to pass thin descriptions.
+_INTENT_SPLIT_RE = re.compile(r",|;|\bor\b|/", re.IGNORECASE)
 
 
 def _count_trigger_intents(desc: str) -> int:
