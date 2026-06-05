@@ -164,7 +164,29 @@ def grade_output(
     results = parsed.get("results") or []
     if not isinstance(results, list):
         return 0
-    return sum(1 for r in results[: len(assertions)] if bool(r))
+    if len(results) != len(assertions):
+        # Length mismatch corrupts the with/baseline delta asymmetrically.
+        # Log and score only the verdicts we got (missing ones count as fail),
+        # mirroring trigger_eval's defensive handling.
+        logger.warning(
+            "grade returned %d verdicts for %d assertions; scoring the overlap only",
+            len(results),
+            len(assertions),
+        )
+    return sum(1 for r in results[: len(assertions)] if _is_pass(r))
+
+
+def _is_pass(verdict: Any) -> bool:
+    """Strict truthiness for a grader verdict. A real JSON `true` passes;
+    string verdicts like "false"/"no"/"0" must NOT pass (every non-empty
+    string is truthy in Python, so a bare bool() would inflate pass counts)."""
+    if isinstance(verdict, bool):
+        return verdict
+    if isinstance(verdict, (int, float)):
+        return verdict == 1
+    if isinstance(verdict, str):
+        return verdict.strip().lower() in {"true", "yes", "pass", "passed", "1"}
+    return False
 
 
 def benchmark_skill(

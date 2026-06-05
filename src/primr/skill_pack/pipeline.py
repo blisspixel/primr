@@ -323,6 +323,18 @@ def run_skill_pack_pipeline(
         except Exception as exc:
             logger.warning("Pack coherence pass failed (non-fatal): %s", exc)
 
+    # Drop failing roles BEFORE the expensive opt-in passes so we never spend
+    # trigger-optimization / behavioral-eval LLM budget on roles that are
+    # about to be discarded for unrecovered HARD findings (incl. a HARD
+    # PACK-STRAT from coherence). Cowork won't accept them either.
+    _drop_failing_roles(pack)
+    if not pack.roles:
+        raise RuntimeError(
+            "Pipeline produced no valid roles after refinement and pack-level review. "
+            "Inspect the validation report for HARD findings; consider lowering "
+            "roles_count or supplying richer evidence."
+        )
+
     # -- Phase 5c: trigger-description optimization (opt-in) ---------------
     if config.optimize_triggers and pack.roles:
         logger.info("[skill_pack] Phase 5c: trigger-description optimization")
@@ -358,17 +370,6 @@ def run_skill_pack_pipeline(
             )
         except Exception as exc:
             logger.warning("Behavioral eval failed (non-fatal): %s", exc)
-
-    # Drop any role that still has HARD findings — Cowork won't accept it
-    # and downstream consumers shouldn't see a half-broken skill.
-    _drop_failing_roles(pack)
-
-    if not pack.roles:
-        raise RuntimeError(
-            "Pipeline produced no valid roles after refinement and pack-level review. "
-            "Inspect the validation report for HARD findings; consider lowering "
-            "roles_count or supplying richer evidence."
-        )
 
     # -- Phase 6: packaging ----------------------------------------------
     logger.info(

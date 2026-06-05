@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.29.1
+Current State: v1.29.2
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 

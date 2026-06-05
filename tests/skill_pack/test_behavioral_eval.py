@@ -85,6 +85,19 @@ def test_grade_output_counts_passed_assertions():
     assert passed == 2
 
 
+def test_grade_output_string_verdicts_are_not_all_truthy():
+    """Regression: bool('false') is True in Python, so string verdicts must be
+    coerced strictly. 'false'/'no'/'0' must NOT count as passes."""
+
+    def _mock(prompt: str, **_kwargs: Any) -> str:
+        return json.dumps({"results": ["true", "false", "no", "1", "0"]})
+
+    with patch("primr.ai.grok_client.grok_llm", side_effect=_mock):
+        passed = grade_output("task", "output", ["a", "b", "c", "d", "e"])
+    # Only "true" and "1" should count.
+    assert passed == 2
+
+
 def test_benchmark_skill_with_beats_baseline():
     """With-skill output is graded higher than baseline; delta is positive."""
 

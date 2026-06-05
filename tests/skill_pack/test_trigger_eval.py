@@ -131,6 +131,28 @@ def test_optimize_skill_description_improves_below_threshold():
     assert _GOOD_DESC_MARKER in skill.description
 
 
+def test_optimize_skips_single_class_eval_set():
+    """Regression: an all-positive (single-class) eval set scores degenerately,
+    so optimization must be skipped rather than pushed toward an over-broad
+    description with no false-positive penalty."""
+    skill = _skill("Does SAM stuff.")
+
+    def _mock(prompt: str, **_kwargs: Any) -> str:
+        if "Produce exactly" in prompt:
+            # Only should_trigger queries, no should_not_trigger.
+            return json.dumps(
+                {
+                    "should_trigger": ["a query", "b query", "c query", "d query"],
+                    "should_not_trigger": [],
+                }
+            )
+        raise AssertionError("must not score/optimize a single-class eval set")
+
+    with patch("primr.ai.grok_client.grok_llm", side_effect=_mock):
+        result = optimize_skill_description(skill, "Test Co context", threshold=0.8)
+    assert result.optimized is False
+
+
 def test_optimize_skill_description_noop_when_already_good():
     skill = _skill(
         "Conducts SAM assessments. Use when the user asks to run a SAM "
