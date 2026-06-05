@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.28.0
+Current State: v1.29.1
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -298,42 +298,46 @@ Reduce false negatives and transient failures on Windows machines where the repo
 The v1.26 skill pack ships Anthropic's published authoring conventions
 already (third-person descriptions, gerund-form names, checklist
 workflows, template-pattern output formats, explain-WHY style, concision
-over padding — all enforced via prompt + validator SOFT checks). The
-remaining items from Anthropic's [skill-creator workflow](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md)
-and [best-practices guide](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)
-are structural and worth their own milestone:
+over padding — all enforced via prompt + validator SOFT checks). A four-tier
+refinement pass then landed (see Changelog, Unreleased), closing most of the
+gap against Anthropic's [skill-creator workflow](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md)
+and [best-practices guide](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices):
 
-- **Agent-handoff declarations in SKILL.md frontmatter** (near-term — being
-  implemented now): today the generated frontmatter is just `name` +
-  `description`. Add an explicit capability/budget contract so a primr-authored
-  skill is immediately usable by an agent without inferring what it implies —
-  declared tool surface (`allowed-tools`), an MCP/A2A capability hint, and an
-  estimated per-invocation budget. This makes the pack self-describing to a
-  consuming agent (e.g. Deepr) and folds into the agent control-plane work (#21).
-- **Per-skill trigger eval generation**: after authoring, generate 8-10
-  should-trigger queries + 8-10 should-not-trigger near-misses, run the
-  description through a discovery simulator, and iterate the description
-  until trigger accuracy clears a threshold. This is Anthropic's published
-  description-optimization loop applied per-skill.
-- **Multi-model testing**: Anthropic recommends testing skills against
-  Haiku, Sonnet, and Opus before shipping — "what works perfectly for
-  Opus might need more detail for Haiku." Wire the skill pack pipeline
-  to run a quick comprehension probe against multiple model tiers.
-- **Progressive disclosure with `references/` and `scripts/` subfolders**:
-  v1 emits single-file SKILL.md only. For richer skills, move deep
-  reference material to `references/<topic>.md` (loaded on-demand,
-  one level deep per Anthropic guidance) and deterministic helpers to
-  `scripts/<name>.py` (executed via bash, output-only context cost).
-- **Verifiable intermediate outputs (plan-validate-execute pattern)**:
-  for skills that perform batch or high-stakes operations, emit a
+- **Quality baseline (Tier 1) — SHIPPED:** holistic rosters (plausible
+  reserve + universal-function coverage so a posting-heavy company still gets
+  sales/marketing/HR/finance/ops/IT alongside named practices); task-named
+  skills enforced (`NAME-PRODUCT` — no bare product titles); `DESC-PUSHY`
+  rewritten to count enumerated trigger intents (no more false positives on
+  services descriptions); thin bodies auto-expanded; cross-role overlaps
+  auto-resolved (`PACK-OVERLAP-LLM` / `PACK-TRIGGER`) instead of only flagged.
+- **Per-skill trigger eval generation — SHIPPED (Tier 2, `--optimize-triggers`):**
+  generate should/should-not-trigger queries, score the description against a
+  blind discovery simulator, and rewrite it when below threshold — kept only
+  if it beats the original on a held-out split (`skill_pack/trigger_eval.py`).
+- **Progressive disclosure with `references/` and `scripts/` subfolders —
+  SHIPPED (Tier 3):** `BundledFile` on the schema; authoring may emit
+  `references/*.md` (load-on-demand) and `scripts/*.py` (deterministic
+  helpers); packager writes them to both the Claude tree and the Cowork zip;
+  `BUNDLE-PATH` validates paths and drops unsafe ones.
+- **"Solve, don't punt" hardening — SHIPPED (Tier 3):** the authoring prompt
+  instructs the model to ship the actual `scripts/<name>.py` when a workflow
+  needs a deterministic helper, rather than telling the agent to write it.
+- **Skill-level evals with grader — SHIPPED (Tier 4, `--with-evals`):**
+  per skill, generate task cases + assertions, run the task WITH vs WITHOUT
+  the skill, grade both blind, report the pass-rate delta, and write
+  `evals/evals.json` (`skill_pack/behavioral_eval.py`).
+- **Agent-handoff declarations in SKILL.md frontmatter** — PARTIAL: the
+  primr-namespaced `metadata` block (role, provenance, confidence,
+  context-token budget, MCP/A2A refresh hint) ships today. Remaining: an
+  explicit declared tool surface (`allowed-tools`) so the pack is fully
+  self-describing to a consuming agent. Folds into the control-plane work (#21).
+- **Multi-model testing** — PLANNED: Anthropic recommends testing skills
+  against Haiku, Sonnet, and Opus before shipping. The Tier-4 behavioral
+  harness gives the natural seam — run the with/without grading across model
+  tiers and flag skills that regress on the cheaper tier.
+- **Verifiable intermediate outputs (plan-validate-execute pattern)** —
+  PLANNED: for skills that perform batch or high-stakes operations, emit a
   separate plan-file step the agent can validate before applying.
-- **"Solve, don't punt" hardening**: when a skill references a script
-  it would author later, generate the actual `.py` file alongside —
-  per Anthropic's "bundled helper scripts make skills more reliable
-  than letting Claude write them per-run."
-- **Skill-level evals with grader**: produce `evals/evals.json` per
-  skill (Anthropic's published structure) so users can re-grade the
-  pack against their own assertions later.
 
 After the standard pipeline, add domain-specific scrutiny of findings.
 
@@ -352,10 +356,14 @@ Perspectives:
 When the pack-level coherence pass flags a HARD `PACK-STRAT` finding
 (roles assume contradicting stacks — e.g. one says Java/Spring, others
 say Python/AWS, because both stacks exist in the company's hiring
-postings), the v1.26 pipeline surfaces it in the report but doesn't
-auto-fix. Add an explicit reconciliation round: when PACK-STRAT fires,
-re-author the conflicting skills with cross-role context so they
-acknowledge the multi-stack reality rather than contradict each other.
+postings), the pipeline surfaces it in the report but doesn't auto-fix.
+Add an explicit reconciliation round: when PACK-STRAT fires, re-author the
+conflicting skills with cross-role context so they acknowledge the
+multi-stack reality rather than contradict each other. **Seam now exists:**
+the Tier-1 `auto_resolve_overlaps` pass (which re-scopes one skill of an
+overlapping/colliding pair and reverts on a new HARD finding) is the same
+shape this needs — extend it to the PACK-STRAT case with a reconcile-both
+prompt instead of the narrow-the-second-skill prompt.
 
 ### 17. Auto-Eval on Model Releases
 

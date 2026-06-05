@@ -54,6 +54,30 @@ class SkillPackConfig:
     # its "no overlapping skills, distinct triggers" quality.
     run_pack_coherence_pass: bool = True
 
+    # When the coherence pass finds overlapping / colliding skill pairs,
+    # auto-resolve them by re-scoping one skill of each pair (conservative:
+    # only the second skill is touched, reverted if it gains a HARD finding)
+    # rather than only reporting them. Requires run_pack_coherence_pass.
+    auto_resolve_overlaps: bool = True
+
+    # Opt-in trigger-description optimization (Tier 2). For each skill,
+    # generate should/should-not-trigger queries, MEASURE how well the
+    # description triggers via a discovery simulator, and improve the
+    # description when it scores below threshold (kept only if it beats the
+    # original on a held-out split). Adds LLM calls per skill, so it is OFF
+    # by default; enable with the CLI --optimize-triggers flag.
+    optimize_triggers: bool = False
+    trigger_accuracy_threshold: float = 0.8
+
+    # Opt-in behavioral evaluation (Tier 4). For each skill, generate task
+    # cases + assertions, run the task WITH the skill vs WITHOUT it, grade
+    # both, and report the pass-rate delta — proving the skill changes
+    # output, not just that it is well-formed. Also writes evals/evals.json
+    # per skill. Expensive (~3 LLM calls per case per skill), so OFF by
+    # default; enable with the CLI --with-evals flag.
+    with_evals: bool = False
+    eval_cases_per_skill: int = 3
+
     # Stamp a primr-namespaced `metadata` block into each SKILL.md frontmatter
     # (role, provenance, confidence, approx context-token budget, and how to
     # refresh/extend the skill via primr's MCP/A2A surface) so a consuming

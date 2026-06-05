@@ -52,6 +52,14 @@ from primr.skill_pack.schema import (
 
 logger = logging.getLogger(__name__)
 
+# Fraction of the roster reserved for plausible (research / industry / org-shape)
+# roles so a posting set dominated by one function can't crowd out the universal
+# business functions (sales, marketing, HR, operations, finance, IT, leadership).
+# Observed roles still take the leading slots and win on ties; this only caps how
+# many observed slots are filled when eligible plausible roles are waiting. At
+# cap=5 this reserves up to 2 slots; at cap=10, up to 4.
+PLAUSIBLE_RESERVE_FRACTION = 0.4
+
 
 # =============================================================================
 # LLM call helpers
@@ -220,12 +228,26 @@ def _merge_and_cap(
     cap: int,
 ) -> tuple[list[Role], list[Role]]:
     """Merge observed and plausible roles into a final roster, capped at
-    `cap`. Returns (final_roster, gap_flagged) where gap_flagged contains
-    plausible roles that were excluded because the cap was reached.
+    `cap`. Returns (final_roster, gap_flagged).
 
-    Rule of thumb: observed always wins. Plausible fills remaining slots.
-    Archetype-level dedupe runs across the merged set so closely related
-    role labels collapse predictably.
+    Rules:
+      - Observed (posting-grounded) roles take the LEADING slots and win on
+        ties / archetype collisions — postings stay the primary input.
+      - But observed roles do NOT get to consume the *entire* roster when
+        plausible org-shape roles are waiting. A fraction of the roster
+        (``PLAUSIBLE_RESERVE_FRACTION``) is reserved so the universal
+        business functions (sales, marketing, HR, operations, finance, IT,
+        leadership) still appear even when a company's postings are
+        dominated by one technical function (e.g. an infra-heavy reseller
+        whose every posting is a cloud-engineer role).
+      - When the reserve bumps observed roles out of the roster, those
+        bumped observed roles flow to ``gap_flagged`` (a contiguous suffix
+        of ``observed``) so they stay visible and promotable via
+        ``--roles-override``.
+      - Archetype-level dedupe applies to PLAUSIBLE roles only (a plausible
+        role is dropped if its archetype already appears among observed or
+        an earlier-kept plausible role). Two distinct observed postings may
+        share an archetype — both deserve representation.
     """
     observed_archetypes: set[str] = set()
     for role in observed:
@@ -237,29 +259,48 @@ def _merge_and_cap(
             if not role.evidence.archetype:
                 role.evidence.archetype = archetype
 
-    final: list[Role] = list(observed[:cap])
-    seen_names: set[str] = {r.name for r in final}
+    # Pre-filter plausible into the subset that survives name + archetype
+    # dedupe against observed (and earlier plausible). Done before slotting
+    # so the reserve only reserves slots for plausible roles that could
+    # actually fill them.
+    seen_names: set[str] = {r.name for r in observed}
     seen_archetypes: set[str] = set(observed_archetypes)
-    gap: list[Role] = []
-
+    eligible_plausible: list[Role] = []
     for candidate in plausible:
         archetype = _resolve_archetype(candidate)
         if archetype is not None and not candidate.evidence.archetype:
             candidate.evidence.archetype = archetype
-
         if candidate.name in seen_names:
             continue
         if archetype is not None and archetype in seen_archetypes:
             continue
-
-        if len(final) >= cap:
-            gap.append(candidate)
-            continue
-
-        final.append(candidate)
+        eligible_plausible.append(candidate)
         seen_names.add(candidate.name)
         if archetype is not None:
             seen_archetypes.add(archetype)
+
+    # Reserve up to `reserve` slots for plausible org-shape roles, but never
+    # more than there are eligible plausible roles to fill them, and always
+    # keep at least one observed role when any exist.
+    reserve = min(len(eligible_plausible), int(cap * PLAUSIBLE_RESERVE_FRACTION))
+    # How many observed roles would fit WITHOUT the reserve (the historical
+    # cap behavior), vs WITH it. The difference is the set displaced *by the
+    # reserve* — only those are surfaced in gap_flagged. Observed beyond the
+    # cap entirely (plain overflow, no plausible competing for the slot) is
+    # truncated silently as before.
+    observed_keep_naive = min(len(observed), cap)
+    observed_keep = min(len(observed), max(1, cap - reserve)) if observed else 0
+
+    final: list[Role] = list(observed[:observed_keep])
+    # Observed roles the reserve bumped out (a suffix of the would-have-fit
+    # observed) are gap-flagged so they stay visible / promotable.
+    gap: list[Role] = list(observed[observed_keep:observed_keep_naive])
+
+    for candidate in eligible_plausible:
+        if len(final) >= cap:
+            gap.append(candidate)
+        else:
+            final.append(candidate)
 
     return final, gap
 

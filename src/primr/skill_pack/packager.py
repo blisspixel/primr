@@ -34,11 +34,13 @@ from primr.skill_pack.config import SkillPackConfig
 from primr.skill_pack.icons import pillow_available
 from primr.skill_pack.image_generation import generate_icons
 from primr.skill_pack.schema import (
+    BundledFile,
     Role,
     Skill,
     SkillPack,
     SkillPackArtifacts,
 )
+from primr.skill_pack.validator import validate_bundled_path
 
 logger = logging.getLogger(__name__)
 
@@ -303,6 +305,37 @@ def _build_pack_report_md(
             lines.append(f"- `{role_name}`: {count} iteration(s)")
         lines.append("")
 
+    if pack.trigger_results:
+        improved = [r for r in pack.trigger_results if getattr(r, "optimized", False)]
+        lines.append("## Trigger Optimization")
+        lines.append("")
+        lines.append(
+            f"- Skills measured: {len(pack.trigger_results)}; "
+            f"descriptions improved: {len(improved)}"
+        )
+        for r in improved:
+            lines.append(
+                f"- `{r.skill_name}`: trigger accuracy "
+                f"{r.baseline_accuracy:.0%} -> {r.final_accuracy:.0%}"
+            )
+        lines.append("")
+
+    if pack.behavioral_results:
+        helped = [b for b in pack.behavioral_results if getattr(b, "delta", 0) > 0]
+        lines.append("## Behavioral Eval (with-skill vs baseline)")
+        lines.append("")
+        lines.append(
+            f"- Skills benchmarked: {len(pack.behavioral_results)}; "
+            f"improved output vs baseline: {len(helped)}"
+        )
+        for b in pack.behavioral_results:
+            lines.append(
+                f"- `{b.skill_name}`: with-skill {b.with_skill_pass_rate:.0%} vs "
+                f"baseline {b.baseline_pass_rate:.0%} "
+                f"(delta {b.delta:+.0%}, {b.n_cases} case(s))"
+            )
+        lines.append("")
+
     if pack.dropped_roles:
         lines.append("## Dropped Roles")
         lines.append("")
@@ -337,6 +370,23 @@ def _build_pack_report_md(
 
 def _flatten_skills(pack: SkillPack) -> list[tuple[Role, Skill]]:
     return [(role, skill) for role in pack.roles for skill in role.skills]
+
+
+def _valid_bundled_files(skill: Skill) -> list[BundledFile]:
+    """Filter a skill's bundled files to those with safe paths, de-duped by
+    relpath. Unsafe paths are dropped here (the validator already recorded a
+    SOFT BUNDLE-PATH finding) so a bad path can never write outside the
+    skill folder or collide."""
+    out: list[BundledFile] = []
+    seen: set[str] = set()
+    for bf in skill.bundled_files:
+        if validate_bundled_path(bf.relpath) is not None:
+            continue
+        if bf.relpath in seen:
+            continue
+        seen.add(bf.relpath)
+        out.append(bf)
+    return out
 
 
 def _ensure_unique_slugs(items: list[tuple[Role, Skill]]) -> list[tuple[str, Role, Skill]]:
@@ -407,6 +457,15 @@ def package_skill_pack(
                 newline="\n",
             )
             artifacts.skill_md_paths.append(str(skill_path))
+            # Progressive-disclosure resources (references/*.md, scripts/*.py).
+            for bf in _valid_bundled_files(skill):
+                bf_path = skill_dir / bf.relpath
+                bf_resolved = bf_path.resolve()
+                if not str(bf_resolved).startswith(str(skill_dir.resolve())):
+                    logger.warning("Path traversal blocked for bundled file %r", bf.relpath)
+                    continue
+                bf_path.parent.mkdir(parents=True, exist_ok=True)
+                bf_path.write_text(bf.content, encoding="utf-8", newline="\n")
 
     if config.emit_cowork:
         zip_path = output_dir / f"{company_token}_Cowork_Pack.zip"
@@ -441,6 +500,8 @@ def package_skill_pack(
                     f"skills/{slug}/SKILL.md",
                     _format_skill_md(skill, agent_meta.get(slug)),
                 )
+                for bf in _valid_bundled_files(skill):
+                    zf.writestr(f"skills/{slug}/{bf.relpath}", bf.content)
 
         zip_path.write_bytes(buf.getvalue())
         artifacts.cowork_zip_path = str(zip_path)

@@ -36,9 +36,26 @@ from primr.skill_pack.schema import (
     SkillPack,
     ValidationReport,
 )
-from primr.skill_pack.validator import validate_skill
+from primr.skill_pack.validator import is_body_too_short, validate_skill
 
 logger = logging.getLogger(__name__)
+
+
+def _actionable_findings(skill: Skill, role_name: str) -> list[SkillIssue]:
+    """Findings worth a refinement turn: all HARD findings, plus the
+    too-short-body SOFT (a thin body is cheaply fixable and materially
+    improves the skill). Other SOFT findings (e.g. DESC-PUSHY, gerund
+    hints) are advisory and intentionally NOT auto-refined here — they are
+    handled by the description-optimization loop, not per-skill rewrites.
+    """
+    findings = validate_skill(skill, role_name)
+    actionable: list[SkillIssue] = []
+    for f in findings:
+        if f.severity == IssueSeverity.HARD or (
+            f.code == "BODY-LEN" and is_body_too_short(skill.body)
+        ):
+            actionable.append(f)
+    return actionable
 
 
 # ---------------------------------------------------------------------------
@@ -82,6 +99,7 @@ def _apply_refined(skill: Skill, parsed: dict) -> Skill:
             else skill.canonical_skill_basis
         ),
         references=list(skill.references),
+        bundled_files=list(skill.bundled_files),
     )
 
 
@@ -139,11 +157,11 @@ def refine_role(
     iterations_per_skill: dict[str, int] = {}
 
     for idx, skill in enumerate(role.skills):
-        findings = [f for f in validate_skill(skill, role.name) if f.severity == IssueSeverity.HARD]
+        findings = _actionable_findings(skill, role.name)
         if not findings:
             continue
 
-        last_hard = len(findings)
+        last_count = len(findings)
         for iteration in range(1, config.max_refine_iterations + 1):
             refined = refine_skill(
                 skill,
@@ -154,23 +172,21 @@ def refine_role(
             role.skills[idx] = refined
             skill = refined
 
-            new_findings = [
-                f for f in validate_skill(skill, role.name) if f.severity == IssueSeverity.HARD
-            ]
+            new_findings = _actionable_findings(skill, role.name)
             iterations_per_skill[skill.name] = iteration
 
             if not new_findings:
                 logger.info(
-                    "Skill %s/%s cleared HARD findings after %d iteration(s)",
+                    "Skill %s/%s cleared actionable findings after %d iteration(s)",
                     role.name,
                     skill.name,
                     iteration,
                 )
                 break
 
-            # Diminishing returns: if fewer than half of HARD findings were
-            # resolved, further iterations rarely converge.
-            reduction = (last_hard - len(new_findings)) / max(1, last_hard)
+            # Diminishing returns: if fewer than half of the actionable
+            # findings were resolved, further iterations rarely converge.
+            reduction = (last_count - len(new_findings)) / max(1, last_count)
             if reduction < 0.5:
                 logger.info(
                     "Skill %s/%s diminishing returns at iteration %d "
@@ -182,7 +198,7 @@ def refine_role(
                 )
                 break
 
-            last_hard = len(new_findings)
+            last_count = len(new_findings)
             findings = new_findings
 
     return iterations_per_skill
@@ -242,6 +258,102 @@ def run_pack_coherence_pass(
         return {"verdict": "ship", "_error": str(exc)}
 
 
+def _locate_skill(pack: SkillPack, key: str | None) -> tuple[Role, int, Skill] | None:
+    """Find a skill by its `role-name/skill-name` key. Returns
+    (role, index_in_role, skill) or None. Tolerant of a bare skill name
+    (no role prefix) by falling back to a name search across the pack.
+    """
+    if not key:
+        return None
+    role_part, _, skill_part = key.partition("/")
+    skill_name = skill_part or role_part
+    for role in pack.roles:
+        if skill_part and role.name != role_part:
+            continue
+        for idx, skill in enumerate(role.skills):
+            if skill.name == skill_name:
+                return role, idx, skill
+    return None
+
+
+def auto_resolve_overlaps(
+    pack: SkillPack,
+    coherence: dict,
+    company_context: str,
+    *,
+    reasoning_session: Any | None = None,
+) -> list[str]:
+    """Re-scope ONE skill of each overlapping / colliding pair so the two
+    stop overlapping, instead of merely flagging them.
+
+    Conservative by design (the coherence signal is LLM-derived, not
+    deterministic):
+      - Only the SECOND skill of a pair (`skill_b`) is touched; `skill_a`
+        is left as the owner of the shared ground.
+      - A re-scope that introduces a NEW hard finding is reverted.
+      - Resolved entries are POPPED from `coherence` so a later
+        `attach_coherence_findings_as_issues` reflects only what remains
+        unresolved.
+
+    Returns human-readable descriptions of the pairs it resolved.
+    """
+    resolved: list[str] = []
+
+    plans: list[tuple[str, str, dict]] = []
+    for entry in coherence.get("semantic_overlaps") or []:
+        plans.append(("PACK-OVERLAP-LLM", entry.get("overlap_summary") or "", entry))
+    for entry in coherence.get("trigger_collisions") or []:
+        plans.append(("PACK-TRIGGER", entry.get("fix") or "", entry))
+
+    for code, detail, entry in plans:
+        a_key = entry.get("skill_a")
+        b_key = entry.get("skill_b")
+        located = _locate_skill(pack, b_key)
+        if located is None:
+            continue
+        role, idx, skill = located
+
+        issue = SkillIssue(
+            code=code,
+            severity=IssueSeverity.SOFT,
+            message=(
+                f"This skill overlaps with `{a_key}`. Narrow THIS skill's scope, "
+                f"workflow, and trigger phrasing so it no longer overlaps with "
+                f"`{a_key}` — treat `{a_key}` as the owner of the shared ground and "
+                f"move this skill to the distinct part of the work. Do NOT broaden. "
+                f"Overlap detail: {detail}"
+            ),
+            role_name=role.name,
+            field="description",
+        )
+
+        before_hard = sum(
+            1 for f in validate_skill(skill, role.name) if f.severity == IssueSeverity.HARD
+        )
+        refined = refine_skill(skill, [issue], company_context, reasoning_session=reasoning_session)
+        after_hard = sum(
+            1 for f in validate_skill(refined, role.name) if f.severity == IssueSeverity.HARD
+        )
+        if after_hard > before_hard:
+            logger.info("Auto-resolve of %s introduced a HARD finding; reverting", b_key)
+            continue
+
+        role.skills[idx] = refined
+        resolved.append(f"{b_key} re-scoped to not overlap {a_key}")
+        # Drop the resolved entry so the attached report reflects reality.
+        try:
+            if code == "PACK-OVERLAP-LLM":
+                coherence["semantic_overlaps"].remove(entry)
+            else:
+                coherence["trigger_collisions"].remove(entry)
+        except (KeyError, ValueError):
+            pass
+
+    if resolved:
+        logger.info("Auto-resolved %d overlap/collision pair(s)", len(resolved))
+    return resolved
+
+
 def attach_coherence_findings_as_issues(pack: SkillPack, coherence: dict) -> ValidationReport:
     """Convert pack coherence verdict into SkillIssue objects for the
     validation report shown in the pack report markdown.
@@ -293,6 +405,7 @@ def attach_coherence_findings_as_issues(pack: SkillPack, coherence: dict) -> Val
 
 __all__ = [
     "attach_coherence_findings_as_issues",
+    "auto_resolve_overlaps",
     "refine_role",
     "refine_skill",
     "run_pack_coherence_pass",

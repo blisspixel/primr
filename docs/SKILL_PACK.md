@@ -44,9 +44,9 @@ Job postings are the **primary input**. DNS recon and strategic research are sup
 
 1. **Industry classification** (`industry.py`) — one cheap call. Returns `IndustryClassification` with `business_model`, `industry_vertical`, `company_stage`, `employee_estimate`, `confidence`, `cited_evidence`, `source`. Resolution order: parse structured fields from a primr strategic report if `--from-report` is set; otherwise call the LLM.
 2. **Call A — observed roles** (`plan_observed_roles.yaml`) — extracts roles from hiring evidence only. Every role MUST cite at least one verbatim phrase from the hiring evidence or it's dropped at parse time. Provenance: `posting`. Confidence: `Confirmed`.
-3. **Call B — plausible roles** (`plan_plausible_roles.yaml`) — infers roles from research + recon + industry classification. Every role MUST cite either a specific research phrase OR a business-model + stage rationale. Plausible-roles guidance broadens for larger `roles_count` and tightens for smaller stage / employee estimates: common org-shape roles (Marketing, Sales, Customer Success, Finance, HR) are reasonable inferences only when `company_stage` is Mid-market or larger. Generic VP / Chief-X titles are forbidden without specific evidence. Provenance: `research` or `industry`. Confidence: `Inferred` or `Speculated`.
+3. **Call B — plausible roles** (`plan_plausible_roles.yaml`) — infers roles from research + recon + industry classification. Every role MUST cite either a specific research phrase OR a business-model + stage rationale. The call is instructed to cover BOTH (1) the company-specific named practices / services from the research (highest priority — these are listed first and are what make the pack about *this* company; a flagship branded offering named in the research always earns a role) AND (2) the universal go-to-market and back-office functions every org of this size runs (Sales, Marketing, Customer Success, HR/People, Operations, Finance, Legal/Compliance, IT) — so the roster doesn't collapse into only generic functions or only technical practices. Common org-shape functions are reasonable inferences only when `company_stage` is Mid-market or larger. Generic VP / Chief-X titles are forbidden without specific evidence. Provenance: `research` or `industry`. Confidence: `Inferred` or `Speculated`.
 
-Merge runs archetype-based dedupe (observed wins; if both calls return roles matching the same archetype, the observed entry survives and the plausible entry is dropped). The split is signal-driven — no hard ratio between observed and plausible. Cap is `roles_count`; overflow flows to `gap_flagged` so the plan artifact records what got dropped.
+Merge (`_merge_and_cap`) runs archetype-based dedupe (observed wins; if both calls return roles matching the same archetype, the observed entry survives and the plausible entry is dropped). The split is signal-driven — no hard ratio between observed and plausible — but a **plausible reserve** (`PLAUSIBLE_RESERVE_FRACTION`, default 0.4) keeps a fraction of the roster available for plausible org-shape roles when eligible plausible roles are waiting, so a posting set dominated by one technical function can't crowd out the universal business functions. Observed roles still take the leading slots and win on ties; observed roles the reserve displaces flow to `gap_flagged` (a contiguous suffix of observed) rather than being silently dropped. Cap is `roles_count`; overflow also flows to `gap_flagged` so the plan artifact records what got dropped.
 
 ### Phase 2 — Curation (`apply_curation`)
 
@@ -73,8 +73,10 @@ Key validators:
 - `DESC-PUSHY` — description lists multiple trigger phrases
 - `DESC-TRIG` — description includes explicit "Use when..." guidance
 - `NAME-GERUND` — skill name uses gerund form (verb + -ing)
+- `NAME-PRODUCT` — skill name reads as a bare product/feature (`azure-front-door`, `aks`) rather than a task; refinement re-scopes the title to the capability the product is used for (the product stays in the body). SOFT — fires only when the name carries a known brand token and no verb/task token
 - `BODY-LEN` — body word count within target band (default 150-3000)
 - `SEC-INJECT` — body does not contain agent-instruction patterns (prompt-injection guard)
+- `BUNDLE-PATH` — bundled progressive-disclosure files use safe paths (`references/*.md`, `scripts/*.py`, `evals/*.json`, single subdir, no traversal). SOFT; unsafe files are dropped at package time
 
 ### Phase 5 — Pack-level coherence (`refiner.py`)
 
@@ -83,7 +85,15 @@ One LLM pass over the assembled pack checks for cross-role inconsistencies:
 - `PACK-OVERLAP-LLM` — two skills semantically cover the same ground
 - `PACK-STRAT` — roles assume contradicting tech stacks (e.g., one says Java/Spring, another says Python/AWS)
 
-Findings are appended to the pack-level `ValidationReport` and rendered in the pack report.
+Findings are appended to the pack-level `ValidationReport` and rendered in the pack report. When `auto_resolve_overlaps` is on (default), `PACK-OVERLAP-LLM` / `PACK-TRIGGER` pairs are auto-resolved by re-scoping one skill of each pair (conservative: only the second skill is touched, reverted if it gains a HARD finding) rather than only reported; resolved entries are dropped from the report.
+
+### Phase 5c — Trigger-description optimization (`trigger_eval.py`, opt-in)
+
+Enabled with `--optimize-triggers`. For each skill: generate should/should-not-trigger queries, score the current description against a blind discovery simulator, and — when below `trigger_accuracy_threshold` — propose an improved description, keeping it only if it beats the original on a held-out split. The measured replacement for the `DESC-PUSHY` heuristic. Results render in the pack report.
+
+### Phase 5d — Behavioral evaluation (`behavioral_eval.py`, opt-in)
+
+Enabled with `--with-evals`. For each skill: generate task cases + objective assertions, run each task WITH the skill body as guidance vs WITHOUT it (baseline), grade both blind, and report the with-skill-vs-baseline pass-rate delta — proving the skill changes output. Also attaches `evals/evals.json` (Anthropic's published structure) so users can re-grade. Expensive (~3 LLM calls per case per skill); off by default.
 
 ### Phase 6 — Packaging (`packager.py`)
 
@@ -297,6 +307,8 @@ Output + validation:
 - `--output-dir PATH` — where the dated pack folder is written (default `output/`)
 - `--max-refine-iterations N` — cap on per-skill refinement (default 2)
 - `--no-coherence-pass` — skip the pack-level coherence LLM pass (saves ~$0.02)
+- `--optimize-triggers` — measure + optimize each skill's trigger description against a discovery simulator (Phase 5c; adds LLM calls, off by default)
+- `--with-evals` — behavioral eval: run each skill's task cases with vs without the skill, grade, report the delta, write `evals/evals.json` (Phase 5d; expensive, off by default)
 - `--dry-run` — estimate cost + time, exit before running
 
 ## MCP reference

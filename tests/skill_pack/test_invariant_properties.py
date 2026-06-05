@@ -116,8 +116,19 @@ class TestMergeAndCap:
         ]
         assert len(plaus_archs) == len(set(plaus_archs))
         assert set(plaus_archs).isdisjoint(observed_archs)
-        # gap holds only plausible roles, never observed.
-        assert all(r.name.startswith("plaus-") for r in gap)
+        # gap holds plausible roles that overflowed AND any observed roles
+        # the plausible-reserve bumped out. No name appears in both lists.
+        final_names = {r.name for r in final}
+        gap_names = {r.name for r in gap}
+        assert final_names.isdisjoint(gap_names)
+        # Observed roles that land in gap are a contiguous suffix of the
+        # observed list: the reserve bumps the LAST observed roles first, so
+        # every bumped observed index is >= the count of observed kept in
+        # final — the leading-observed-wins guarantee still holds.
+        kept_obs = sum(1 for r in final if r.name.startswith("obs-"))
+        for r in gap:
+            if r.name.startswith("obs-"):
+                assert int(r.name.split("-")[1]) >= kept_obs
 
     @given(_roster_specs, _roster_specs, st.integers(min_value=1, max_value=15))
     def test_observed_take_priority_prefix(self, obs_specs, plaus_specs, cap):

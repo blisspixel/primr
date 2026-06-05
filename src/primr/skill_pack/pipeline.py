@@ -7,7 +7,9 @@ Coordinates phases 1-6 end-to-end:
   Phase 3: author_all_roles  (parallel SKILL.md drafts)
   Phase 4: validate          (deterministic, no LLM)
   Phase 5: refine_role       (per-skill refinement, capped)
-  Phase 5b: run_pack_coherence_pass (pack-level checks)
+  Phase 5b: run_pack_coherence_pass + auto_resolve_overlaps (pack-level)
+  Phase 5c: optimize_pack_triggers   (opt-in, --optimize-triggers)
+  Phase 5d: run_pack_behavioral_evals (opt-in, --with-evals)
   Phase 6: package_skill_pack (write artifacts)
 
 The shared ContinuousReasoningSession is wired through refinement only —
@@ -26,11 +28,13 @@ from typing import Any
 
 from primr.skill_pack.archetypes import match_archetype
 from primr.skill_pack.authoring import author_all_roles
+from primr.skill_pack.behavioral_eval import run_pack_behavioral_evals
 from primr.skill_pack.config import MAX_ROLES, SkillPackConfig
 from primr.skill_pack.packager import package_skill_pack
 from primr.skill_pack.planner import apply_curation, load_plan, plan_roles
 from primr.skill_pack.refiner import (
     attach_coherence_findings_as_issues,
+    auto_resolve_overlaps,
     refine_role,
     run_pack_coherence_pass,
 )
@@ -42,6 +46,7 @@ from primr.skill_pack.schema import (
     SkillPack,
     SkillPackArtifacts,
 )
+from primr.skill_pack.trigger_eval import optimize_pack_triggers
 from primr.skill_pack.validator import validate_pack
 
 logger = logging.getLogger(__name__)
@@ -300,9 +305,59 @@ def run_skill_pack_pipeline(
         logger.info("[skill_pack] Phase 5b: pack coherence pass")
         try:
             coherence = run_pack_coherence_pass(pack, reasoning_session=reasoning_session)
+            # Auto-resolve overlapping/colliding pairs (mutates coherence to
+            # drop resolved entries) before recording the remaining findings.
+            if config.auto_resolve_overlaps:
+                resolved = auto_resolve_overlaps(
+                    pack,
+                    coherence,
+                    _build_company_context(company_name, company_url, roles),
+                    reasoning_session=reasoning_session,
+                )
+                if resolved:
+                    logger.info(
+                        "[skill_pack] Phase 5b: auto-resolved %d overlap pair(s)",
+                        len(resolved),
+                    )
             pack.validation = attach_coherence_findings_as_issues(pack, coherence)
         except Exception as exc:
             logger.warning("Pack coherence pass failed (non-fatal): %s", exc)
+
+    # -- Phase 5c: trigger-description optimization (opt-in) ---------------
+    if config.optimize_triggers and pack.roles:
+        logger.info("[skill_pack] Phase 5c: trigger-description optimization")
+        try:
+            trigger_results = optimize_pack_triggers(
+                pack,
+                _build_company_context(company_name, company_url, roles),
+                threshold=config.trigger_accuracy_threshold,
+                reasoning_session=reasoning_session,
+            )
+            pack.trigger_results = trigger_results
+            # Descriptions changed — re-validate, then re-attach coherence
+            # findings so the report reflects the optimized descriptions.
+            coherence_issues = [
+                i
+                for i in pack.validation.issues
+                if i.code in ("PACK-OVERLAP-LLM", "PACK-TRIGGER", "PACK-VOICE", "PACK-STRAT")
+            ]
+            pack.validation = validate_pack(pack)
+            pack.validation.issues.extend(coherence_issues)
+        except Exception as exc:
+            logger.warning("Trigger optimization failed (non-fatal): %s", exc)
+
+    # -- Phase 5d: behavioral evaluation (opt-in, expensive) --------------
+    if config.with_evals and pack.roles:
+        logger.info("[skill_pack] Phase 5d: behavioral eval (with-skill vs baseline)")
+        try:
+            pack.behavioral_results = run_pack_behavioral_evals(
+                pack,
+                _build_company_context(company_name, company_url, roles),
+                n_cases=config.eval_cases_per_skill,
+                reasoning_session=reasoning_session,
+            )
+        except Exception as exc:
+            logger.warning("Behavioral eval failed (non-fatal): %s", exc)
 
     # Drop any role that still has HARD findings — Cowork won't accept it
     # and downstream consumers shouldn't see a half-broken skill.
