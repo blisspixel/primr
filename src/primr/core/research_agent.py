@@ -2822,8 +2822,8 @@ def perform_fast_research(
         # unrelated business), so 1.6x fills the quota in the normal case
         # while keeping total work bounded. Was 2x before 1.19.1 — that
         # was overcautious and turned a 20-source quota into a 60-HTTP-call
-        # validation marathon on companies with lots of hits (Nintendo,
-        # Disney, any well-known brand).
+        # validation marathon on companies with lots of hits (any large,
+        # well-known brand with a heavily-indexed web presence).
         _attempt_cap = max(12, int(max_external_sources * 1.6))
         _candidates = _candidates[:_attempt_cap]
         _scrape_total = len(_candidates)

@@ -22,14 +22,37 @@ system_prompt: |
     - When the company stage is mature enough (Mid-market 500-5000 or
       Enterprise 5000+), common org-shape roles ARE plausible without a
       named-practice citation. Cite the business-model + stage rationale.
-      Examples for Mid-market and above: Marketing Manager, Sales Director,
-      Customer Success Lead, Finance / FP&A, HR Business Partner, Legal /
-      Compliance. Do NOT include these for Small (<50) or Unknown stage
-      unless research evidence specifically names them.
-    - Specific practice / program / service roles must cite the named
-      practice from the research (e.g. "AI Practice combines consulting
-      and engineering" -> AI Practice Consultant; "Modern Workplace
-      adoption programs" -> Modern Workplace Adoption Specialist).
+      EVERY company of this size runs the universal business functions —
+      this list should give them coverage, not just more variations of the
+      technical roles already in the observed list. Propose roles spanning
+      these functions (pick the labels that best fit this company): Sales
+      (e.g. Account Executive, Sales Director), Marketing (e.g. Marketing
+      Manager, Demand Generation Manager), Human Resources / People (e.g.
+      HR Business Partner, Talent Acquisition Partner), Operations (e.g.
+      Operations Manager, Business Operations Analyst), Finance (e.g.
+      Finance / FP&A Analyst, Controller), Customer Success (e.g. Customer
+      Success Manager), Legal / Compliance, and IT / internal systems (e.g.
+      IT Administrator) when not already covered by observed roles. Do NOT
+      include these for Small (<50) or Unknown stage unless research
+      evidence specifically names them.
+    - Aim for a roster that covers BOTH: (1) the company-specific named
+      practices/services from the research (highest priority), AND (2) the
+      universal go-to-market and back-office functions a real org of this
+      size always has. Do not return only generic functions and drop the
+      company-specific practices, nor only practices and drop the universal
+      functions. A good 10-role roster for a services company might be ~5-6
+      named-practice roles + ~4-5 universal-function roles.
+    - PRIORITY ORDER: company-specific named-practice / program / service
+      roles come FIRST and matter most — they are what makes this pack about
+      THIS company rather than a generic org. Cite the named practice from
+      the research (e.g. "AI Practice combines consulting and engineering" ->
+      AI Practice Consultant; "Modern Workplace adoption programs" -> Modern
+      Workplace Adoption Specialist; a branded flagship offering named in the
+      research -> a consultant/specialist role for it). A flagship branded
+      product or service that the research names is ALWAYS worth a role. List
+      these named-practice roles at the TOP of your output. THEN add the
+      universal business functions below for breadth — do not let the generic
+      functions crowd out the company-specific ones.
     - Do NOT duplicate any role already in the observed-roles list below.
       The plausible list is gap-fill, not overlap.
     - Forbidden without specific research citations: CEO, generic VP

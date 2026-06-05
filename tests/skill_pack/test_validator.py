@@ -6,6 +6,8 @@ primr's security/injection filters. No LLM calls — pure rule checks.
 
 from __future__ import annotations
 
+import pytest
+
 from primr.skill_pack.schema import IssueSeverity, Role, RoleEvidence, Skill, SkillPack
 from primr.skill_pack.validator import (
     validate_kebab_case,
@@ -186,6 +188,31 @@ def test_rich_description_passes_pushy_check():
     assert "DESC-PUSHY" not in codes
 
 
+def test_services_description_with_enumerated_intents_passes_pushy():
+    """Regression: a well-formed enumeration using consulting verbs outside
+    the old keyword lexicon (perform/prepare/identify) must NOT be flagged.
+    The intent-counter counts the enumerated clauses, not lexicon hits."""
+    skill = _good_skill()
+    skill.description = (
+        "Conducts software asset management assessments through the SAM+ Hub. "
+        "Use when the user asks to perform a SAM assessment, analyze client "
+        "subscriptions, identify cost savings, or prepare optimization "
+        "recommendations."
+    )
+    issues = validate_skill(skill, role_name="sam-plus-consultant")
+    codes = {i.code for i in issues}
+    assert "DESC-PUSHY" not in codes
+
+
+def test_single_intent_description_still_flagged():
+    """A description advertising only one intent is still DESC-PUSHY."""
+    skill = _good_skill()
+    skill.description = "Use when the user asks to run an assessment."
+    issues = validate_skill(skill, role_name="sam-plus-consultant")
+    soft = {i.code for i in issues if i.severity == IssueSeverity.SOFT}
+    assert "DESC-PUSHY" in soft
+
+
 def test_non_gerund_name_is_soft_hint():
     """Anthropic prefers gerund form; non-gerund is informational only."""
     skill = _good_skill(name="draft-dbt-models")
@@ -199,6 +226,94 @@ def test_gerund_name_passes():
     issues = validate_skill(skill, role_name="data-engineer")
     codes = {i.code for i in issues}
     assert "NAME-GERUND" not in codes
+
+
+def test_bare_product_name_is_soft_warning():
+    """A skill named after a product/feature ('azure-front-door') is a SOFT
+    NAME-PRODUCT finding so refinement re-scopes the title to a task."""
+    skill = _good_skill(name="azure-front-door")
+    skill.display_name = "Azure Front Door"
+    issues = validate_skill(skill, role_name="azure-cloud-engineer")
+    soft = {i.code for i in issues if i.severity == IssueSeverity.SOFT}
+    assert "NAME-PRODUCT" in soft
+
+
+def test_task_name_with_product_passes_product_check():
+    """A capability title that happens to mention a product is fine — the
+    verb/gerund proves it names a task, not a bare product."""
+    skill = _good_skill(name="configuring-azure-front-door")
+    skill.display_name = "Configuring edge traffic routing"
+    issues = validate_skill(skill, role_name="azure-cloud-engineer")
+    codes = {i.code for i in issues}
+    assert "NAME-PRODUCT" not in codes
+
+
+def test_non_product_name_skips_product_check():
+    """Names with no brand token never trip NAME-PRODUCT."""
+    skill = _good_skill(name="triaging-incidents")
+    issues = validate_skill(skill, role_name="sre")
+    codes = {i.code for i in issues}
+    assert "NAME-PRODUCT" not in codes
+
+
+# ---------------------------------------------------------------------------
+# Bundled-file (progressive disclosure) path validation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "relpath",
+    [
+        "references/api-patterns.md",
+        "scripts/calculate_savings.py",
+        "references/sku_map.md",
+        "scripts/validate-input.py",
+    ],
+)
+def test_validate_bundled_path_accepts_safe_paths(relpath: str):
+    from primr.skill_pack.validator import validate_bundled_path
+
+    assert validate_bundled_path(relpath) is None
+
+
+@pytest.mark.parametrize(
+    "relpath",
+    [
+        "../escape.md",
+        "/etc/passwd",
+        "references/../../x.md",
+        "scripts/evil.sh",  # wrong ext for scripts
+        "references/notes.py",  # py under references
+        "assets/logo.png",  # wrong subdir
+        "deep/nested/path.md",
+        "references/UPPER.md",  # not lowercase
+        "scripts\\win.py",  # backslash
+    ],
+)
+def test_validate_bundled_path_rejects_unsafe_paths(relpath: str):
+    from primr.skill_pack.validator import validate_bundled_path
+
+    assert validate_bundled_path(relpath) is not None
+
+
+def test_unsafe_bundled_file_is_soft_finding():
+    from primr.skill_pack.schema import BundledFile
+
+    skill = _good_skill()
+    skill.bundled_files = [BundledFile(relpath="../escape.md", content="x")]
+    issues = validate_skill(skill, role_name="data-engineer")
+    soft = {i.code for i in issues if i.severity == IssueSeverity.SOFT}
+    assert "BUNDLE-PATH" in soft
+
+
+def test_safe_bundled_file_passes():
+    from primr.skill_pack.schema import BundledFile
+
+    skill = _good_skill()
+    skill.bundled_files = [BundledFile(relpath="references/x.md", content="# notes")]
+    issues = validate_skill(skill, role_name="data-engineer")
+    codes = {i.code for i in issues}
+    assert "BUNDLE-PATH" not in codes
 
 
 def test_short_body_is_soft_warning():

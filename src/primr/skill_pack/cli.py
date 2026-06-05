@@ -98,6 +98,28 @@ def _create_parser() -> argparse.ArgumentParser:
         help="Skip the pack-level coherence LLM pass (saves ~$0.02).",
     )
     parser.add_argument(
+        "--optimize-triggers",
+        action="store_true",
+        help=(
+            "Measure and optimize each skill's trigger description: generate "
+            "should/should-not-trigger queries, score the description against "
+            "a discovery simulator, and improve it when below threshold (kept "
+            "only if it beats the original on a held-out split). Adds LLM "
+            "calls per skill; off by default."
+        ),
+    )
+    parser.add_argument(
+        "--with-evals",
+        action="store_true",
+        help=(
+            "Behavioral evaluation: for each skill, run task cases WITH the "
+            "skill vs WITHOUT it, grade both, and report the pass-rate delta "
+            "(proves the skill changes output). Also writes evals/evals.json "
+            "per skill. Expensive (~3 LLM calls per case per skill); off by "
+            "default."
+        ),
+    )
+    parser.add_argument(
         "--allow-recon-only",
         action="store_true",
         help=(
@@ -200,6 +222,15 @@ def _estimate(config: SkillPackConfig, has_from_report: bool) -> tuple[float, in
     cost += 0.015 * config.roles_count * config.skills_per_role * 0.3
     if config.run_pack_coherence_pass:
         cost += 0.02
+    if config.optimize_triggers:
+        # ~3-4 LLM calls per skill (generate evals, score, optimize, re-score).
+        cost += 0.02 * config.roles_count * config.skills_per_role
+        minutes += 0.25 * config.roles_count
+    if config.with_evals:
+        # ~1 gen + 3 calls per case (with/baseline/grade x2) per skill.
+        calls_per_skill = 1 + config.eval_cases_per_skill * 3
+        cost += 0.006 * calls_per_skill * config.roles_count * config.skills_per_role
+        minutes += 0.5 * config.roles_count
     minutes += 0.5 * config.roles_count
     return cost, max(1, int(minutes))
 
@@ -257,6 +288,8 @@ def run_skills_cli(args: list[str] | None) -> int:
             formats=SkillPackFormat(parsed.formats),
             max_refine_iterations=parsed.max_refine_iterations,
             run_pack_coherence_pass=not parsed.no_coherence_pass,
+            optimize_triggers=parsed.optimize_triggers,
+            with_evals=parsed.with_evals,
             reuse_existing_evidence=bool(from_report),
             allow_recon_only=parsed.allow_recon_only,
             roles_override=override_labels,

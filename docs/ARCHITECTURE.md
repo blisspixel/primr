@@ -675,7 +675,7 @@ src/primr/
 │
 ├── data/                    # Data collection
 │   ├── scrape.py            # 9-tier scraping engine + public-data fallback routing
-│   ├── fallback_sources.py  # Wayback / subdomain / EDGAR / Wikipedia / Grok surrogate fan-out
+│   ├── fallback_sources.py  # Wayback / subdomain / RSS-Atom feed / EDGAR / Wikipedia / Grok fan-out
 │   ├── adaptive_scraper.py  # Domain-learning scraper
 │   ├── parallel_scraper.py  # Concurrent scraping
 │   ├── http_client.py       # HTTP client wrapper

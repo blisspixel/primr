@@ -1,6 +1,6 @@
 # Primr Documentation
 
-Current version: 1.27.1 (Python 3.12+; CI tests 3.12/3.13/3.14)
+Current version: 1.29.0 (Python 3.12+; CI tests 3.12/3.13/3.14)
 
 ## Getting Started
 

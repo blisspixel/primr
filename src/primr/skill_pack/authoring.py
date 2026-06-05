@@ -19,7 +19,7 @@ from primr.skill_pack.archetypes import (
 )
 from primr.skill_pack.discovery import load_evidence
 from primr.skill_pack.prompts_loader import extract_json, load_skill_pack_prompt
-from primr.skill_pack.schema import Role, RoleProvenance, Skill
+from primr.skill_pack.schema import BundledFile, Role, RoleProvenance, Skill
 
 logger = logging.getLogger(__name__)
 
@@ -170,10 +170,31 @@ def author_role_skills(
                     if entry.get("canonical_skill_basis")
                     else None
                 ),
+                bundled_files=_parse_bundled_files(entry.get("bundled_files")),
             )
         )
 
     return skills
+
+
+def _parse_bundled_files(raw: object) -> list[BundledFile]:
+    """Parse the optional bundled_files array from an authored skill.
+
+    Tolerant: skips malformed entries. Path-safety is validated downstream
+    (validator BUNDLE-PATH + packager drop), so here we only shape-check.
+    """
+    if not isinstance(raw, list):
+        return []
+    out: list[BundledFile] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        relpath = str(item.get("path") or item.get("relpath") or "").strip()
+        content = str(item.get("content") or "")
+        content = content.replace("\\n", "\n")
+        if relpath and content.strip():
+            out.append(BundledFile(relpath=relpath, content=content))
+    return out
 
 
 def author_all_roles(

@@ -1,0 +1,32 @@
+# Tier 4: grade one task output against a case's objective assertions.
+# Blind to whether the output came from the with-skill or baseline run, so
+# the grade is fair. Returns one pass/fail per assertion.
+
+meta:
+  name: grade_skill_output
+  phase: 5d
+  version: "1.0.0"
+
+system_prompt: |
+  You are a strict, fair grader. Given a task, a produced output, and a list
+  of objective assertions, decide for EACH assertion whether the output
+  satisfies it. Judge only what the output actually contains — do not give
+  credit for intentions or for things a reasonable answer "would" include.
+
+  Output VALID JSON only — first char `{`, last `}`. No commentary.
+
+user_prompt_template: |
+  TASK:
+  {task}
+
+  OUTPUT TO GRADE:
+  {output}
+
+  ASSERTIONS (return one boolean per assertion, in order):
+  {assertions_block}
+
+  Return JSON in EXACTLY this shape, one boolean per assertion in order:
+
+  {{
+    "results": [true, false, true]
+  }}

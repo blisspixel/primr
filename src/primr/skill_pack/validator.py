@@ -65,11 +65,16 @@ _FIRST_PERSON_PATTERN = re.compile(
 )
 
 # A "pushy" description (Anthropic: combats undertriggering) lists multiple
-# concrete trigger phrases or synonyms. We approximate by counting
-# trigger-context keywords. SOFT warning when too few. The pattern is
-# intentionally broad — IT/ML/business verbs all signal a concrete user
-# intent the skill can serve. False negatives (missing a verb the user
-# might use) are worse than false positives.
+# concrete things the user might ask for. The RELIABLE structural signal is
+# the enumeration after the trigger phrase — "Use when the user asks to X, Y,
+# or Z" advertises three intents. We count those comma/and/or-separated
+# clauses (see _count_trigger_intents). The keyword pattern below is only the
+# FALLBACK signal for descriptions with no explicit trigger phrase, and for
+# that it stays broad — IT/ML/business/consulting verbs all signal a concrete
+# user intent. (The old heuristic counted only lexicon hits across the whole
+# description, which under-counted well-formed enumerations that happened to
+# use verbs outside the list, e.g. "perform/prepare/conduct" — a false-positive
+# source on services packs. Counting enumerated intents fixes that.)
 _PUSHY_KEYWORD_PATTERN = re.compile(
     r"\b(ask(?:s|ed|ing)?|request|need|want|trying to|look(?:ing)? for|"
     r"how to|help with|review|analyze|analy[sz]e|generate|extract|draft|"
@@ -78,10 +83,16 @@ _PUSHY_KEYWORD_PATTERN = re.compile(
     r"refactor|optimi[sz]e|automate|validate|verify|audit|implement|"
     r"design|model|maintain|update|tune|test|ingest|transform|load|"
     r"export|import|merge|split|trace|profile|benchmark|forecast|"
-    r"clean|enrich|normali[sz]e)\b",
+    r"clean|enrich|normali[sz]e|"
+    # Consulting / services / ops verbs — common in role-based packs.
+    r"perform|prepare|assess|conduct|plan|calculat(?:e|ing)|reconcil(?:e|ing)|"
+    r"facilitat(?:e|ing)|coordinat(?:e|ing)|produc(?:e|ing)|oversee|enabl(?:e|ing)|"
+    r"deliver|support|map|track|identif(?:y|ies)|evaluat(?:e|ing)|recommend|"
+    r"calculate|provision|onboard|reconcile)\b",
     re.IGNORECASE,
 )
-_MIN_PUSHY_KEYWORDS = 3
+# A description should advertise at least this many distinct user intents.
+_MIN_TRIGGER_INTENTS = 3
 
 # Anthropic prefers gerund-form names (`processing-pdfs`, `analyzing-data`)
 # because they describe the *capability* clearly. We accept gerund as
@@ -90,6 +101,95 @@ _MIN_PUSHY_KEYWORDS = 3
 # phrases like `pipeline-orchestration` are explicitly acceptable per
 # Anthropic so this stays SOFT regardless.
 _GERUND_HINT_PATTERN = re.compile(r"^(?:[a-z]+-)?[a-z]+ing(?:-|$)")
+
+# A skill name should describe a TASK, not be a bare product/feature name
+# ("azure-front-door", "aks", "salesforce-sales-cloud"). When a name is
+# composed *only* of vendor/product brand tokens with no action verb, it has
+# been scoped as a product, not a capability. This is a SOFT hint — refinement
+# re-scopes the title. The lexicon is intentionally NON-EXHAUSTIVE: it covers
+# the high-frequency cloud/SaaS brands that dominate hiring evidence and most
+# often leak into titles. A false negative (a product we don't list) is far
+# cheaper than blocking a legitimate task name, so the check only fires when
+# EVERY non-product token is also absent (i.e. the name carries no verb/task
+# word at all).
+_PRODUCT_BRAND_TOKENS = frozenset(
+    {
+        # Cloud platforms + their flagship services / features
+        "azure",
+        "aws",
+        "gcp",
+        "ec2",
+        "s3",
+        "lambda",
+        "eks",
+        "ecs",
+        "rds",
+        "aks",
+        "acr",
+        "synapse",
+        "fabric",
+        "sentinel",
+        "cosmos",
+        "cosmosdb",
+        "entra",
+        "defender",
+        "purview",
+        "bicep",
+        "cloudfront",
+        "dynamodb",
+        "redshift",
+        "bigquery",
+        "pubsub",
+        "gke",
+        "firestore",
+        "front",
+        "door",
+        "appservice",
+        "functions",
+        "kubernetes",
+        "k8s",
+        "openshift",
+        # Data / analytics SaaS
+        "snowflake",
+        "databricks",
+        "tableau",
+        "powerbi",
+        "looker",
+        "dbt",
+        "fivetran",
+        "airflow",
+        "kafka",
+        "spark",
+        # CRM / business SaaS
+        "salesforce",
+        "sfdc",
+        "hubspot",
+        "servicenow",
+        "workday",
+        "netsuite",
+        "sap",
+        "dynamics",
+        "marketo",
+        "pardot",
+        "zendesk",
+        "jira",
+        "confluence",
+        "sharepoint",
+        "m365",
+        "office365",
+        "okta",
+        # Observability / infra
+        "datadog",
+        "splunk",
+        "grafana",
+        "prometheus",
+        "terraform",
+        "ansible",
+    }
+)
+# Verb/task tokens whose presence proves the name describes a capability, not
+# just a product. Reuses the shape of the pushy-keyword set plus gerunds.
+_TASK_TOKEN_PATTERN = re.compile(r"(?:ing|ation|ment|sis|tion)$|^(?:manage|operate|run|build)$")
 
 # --- Body rules -----------------------------------------------------------
 
@@ -159,6 +259,34 @@ _HARDCODED_PATH_PATTERNS = [
 ]
 
 
+# Bundled progressive-disclosure files: markdown under references/, python
+# under scripts/, JSON eval sets under evals/. Path must be safe (no
+# traversal, no absolute, forward slashes, single subdir). Anything else is
+# dropped at package time.
+_BUNDLED_PATH_PATTERN = re.compile(
+    r"^(references|scripts|evals)/[a-z0-9][a-z0-9._-]*\.(md|py|json)$"
+)
+_BUNDLED_SUBDIR_EXT = {"references": "md", "scripts": "py", "evals": "json"}
+
+
+def validate_bundled_path(relpath: str) -> str | None:
+    """Return None if the bundled-file relpath is safe, else a reason string."""
+    if not relpath:
+        return "empty path"
+    if "\\" in relpath or ".." in relpath or relpath.startswith("/"):
+        return "path traversal or absolute path not allowed"
+    m = _BUNDLED_PATH_PATTERN.match(relpath)
+    if not m:
+        return (
+            "must be references/<name>.md, scripts/<name>.py, or "
+            "evals/<name>.json (lowercase, single subdir)"
+        )
+    subdir, ext = m.group(1), m.group(2)
+    if _BUNDLED_SUBDIR_EXT[subdir] != ext:
+        return f"{subdir}/ files must be .{_BUNDLED_SUBDIR_EXT[subdir]}"
+    return None
+
+
 def _word_count(text: str) -> int:
     return len(re.findall(r"\b\w+\b", text))
 
@@ -193,6 +321,54 @@ def _find_hardcoded_path(text: str) -> str | None:
     return None
 
 
+_INTENT_SPLIT_RE = re.compile(r",|;|\bor\b|\band\b|/", re.IGNORECASE)
+
+
+def _count_trigger_intents(desc: str) -> int:
+    """Count the distinct user-intent phrases a description advertises.
+
+    Primary signal: the enumeration after the trigger phrase ("Use when the
+    user asks to X, Y, or Z" → 3). We split the trigger tail on commas /
+    semicolons / and / or / slashes and count clauses with real content
+    (>=2 words). Falls back to a verb-keyword count across the whole
+    description when there is no explicit trigger phrase, so a description
+    that signals intent without the canonical "Use when..." form still
+    scores. This is deliberately generous: under-counting a well-formed
+    description (the old failure mode) is worse than over-counting.
+    """
+    if not desc:
+        return 0
+    match = _TRIGGER_PATTERN.search(desc)
+    if match is None:
+        return len(_PUSHY_KEYWORD_PATTERN.findall(desc))
+    tail = desc[match.end() :]
+    clauses = [c for c in _INTENT_SPLIT_RE.split(tail) if len(c.split()) >= 2]
+    # The trigger phrase itself implies one intent even if nothing parses out.
+    intents = max(len(clauses), 1)
+    # Never score below the whole-description verb count — a long prose
+    # description with many verbs but few commas still advertises intent.
+    return max(intents, len(_PUSHY_KEYWORD_PATTERN.findall(desc)))
+
+
+def _looks_like_product_name(name: str, display_name: str) -> bool:
+    """True when a skill title reads as a bare product/feature rather than a
+    task. Fires only when the name contains a known brand token AND carries
+    no task/verb token — so `azure-front-door` flags but
+    `configuring-azure-front-door` does not.
+    """
+    tokens = [t for t in re.split(r"[-\s]+", name.lower()) if t]
+    if not tokens:
+        return False
+    has_brand = any(t in _PRODUCT_BRAND_TOKENS for t in tokens)
+    if not has_brand:
+        return False
+    # Any verb/gerund/nominalized-action token anywhere in the kebab name OR
+    # the display name rescues it (the title names an action on the product).
+    display_tokens = [t for t in re.split(r"[-\s]+", display_name.lower()) if t]
+    has_task = any(_TASK_TOKEN_PATTERN.search(t) for t in tokens + display_tokens)
+    return not has_task
+
+
 def _has_required_sections(body: str) -> list[str]:
     """Return the list of REQUIRED sections that are MISSING from body."""
     missing: list[str] = []
@@ -208,6 +384,13 @@ def validate_kebab_case(name: str) -> bool:
     if not name or len(name) > _MAX_NAME_LEN:
         return False
     return bool(_KEBAB_PATTERN.match(name))
+
+
+def is_body_too_short(body: str) -> bool:
+    """True when a skill body is under the soft word floor. Public so the
+    refiner can treat a too-short body (but not a too-long one) as an
+    actionable finding worth one expansion turn."""
+    return _word_count(body) < _BODY_MIN_WORDS
 
 
 def validate_skill(skill: Skill, role_name: str) -> list[SkillIssue]:
@@ -281,19 +464,22 @@ def validate_skill(skill: Skill, role_name: str) -> list[SkillIssue]:
         )
 
     # DESC-PUSHY — Anthropic explicitly recommends descriptions be a "little
-    # bit pushy" with multiple trigger keywords to combat undertriggering.
-    # Count action/intent keywords; <3 is too thin.
+    # bit pushy", advertising multiple concrete user intents to combat
+    # undertriggering. We count distinct intents (enumerated clauses after the
+    # trigger phrase), not raw keyword hits, so a well-formed enumeration that
+    # uses verbs outside the keyword set is not falsely flagged.
     if desc:
-        pushy_hits = len(_PUSHY_KEYWORD_PATTERN.findall(desc))
-        if pushy_hits < _MIN_PUSHY_KEYWORDS:
+        intents = _count_trigger_intents(desc)
+        if intents < _MIN_TRIGGER_INTENTS:
             issues.append(
                 SkillIssue(
                     code="DESC-PUSHY",
                     severity=IssueSeverity.SOFT,
                     message=(
-                        f"description has only {pushy_hits} trigger-context "
-                        f"keyword(s); Anthropic recommends listing multiple "
-                        f"concrete user-intent phrases to combat undertriggering"
+                        f"description advertises only {intents} distinct user "
+                        f"intent(s); Anthropic recommends listing multiple "
+                        f"concrete triggers (e.g. 'Use when the user asks to X, "
+                        f"Y, or Z') to combat undertriggering"
                     ),
                     role_name=role_name,
                     field="description",
@@ -313,6 +499,25 @@ def validate_skill(skill: Skill, role_name: str) -> list[SkillIssue]:
                     "name does not use gerund form (verb + -ing); "
                     "Anthropic recommends gerund for clearer capability "
                     "description (e.g. 'drafting-models' over 'draft-models')"
+                ),
+                role_name=role_name,
+                field="name",
+                excerpt=skill.name,
+            )
+        )
+
+    # NAME-PRODUCT — a skill title should name a task, not a bare product /
+    # feature ("azure-front-door", "aks"). SOFT: refinement re-scopes the
+    # title to the job the person uses that product to do.
+    if skill.name and _looks_like_product_name(skill.name, skill.display_name or ""):
+        issues.append(
+            SkillIssue(
+                code="NAME-PRODUCT",
+                severity=IssueSeverity.SOFT,
+                message=(
+                    "name reads as a bare product/feature, not a task; "
+                    "re-scope to the capability the product is used for "
+                    "(e.g. 'configuring-edge-routing' not 'azure-front-door')"
                 ),
                 role_name=role_name,
                 field="name",
@@ -379,6 +584,23 @@ def validate_skill(skill: Skill, role_name: str) -> list[SkillIssue]:
                     role_name=role_name,
                     field=field_name,
                     excerpt=hit[:120],
+                )
+            )
+
+    # BUNDLE-PATH — progressive-disclosure files must use safe references/ or
+    # scripts/ paths. SOFT: the packager drops an unsafe file rather than
+    # failing the whole skill.
+    for bf in skill.bundled_files:
+        reason = validate_bundled_path(bf.relpath)
+        if reason:
+            issues.append(
+                SkillIssue(
+                    code="BUNDLE-PATH",
+                    severity=IssueSeverity.SOFT,
+                    message=f"bundled file {bf.relpath!r} rejected: {reason}",
+                    role_name=role_name,
+                    field="bundled_files",
+                    excerpt=bf.relpath[:120],
                 )
             )
 

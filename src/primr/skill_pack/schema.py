@@ -78,6 +78,21 @@ class RoleEvidence:
 
 
 @dataclass
+class BundledFile:
+    """A progressive-disclosure resource shipped alongside a SKILL.md.
+
+    `relpath` is relative to the skill's own folder and must live under
+    `references/` (load-on-demand markdown) or `scripts/` (a deterministic
+    helper the agent runs instead of re-deriving logic per call). The
+    Anthropic Agent Skills standard treats these as the second/third tiers
+    of progressive disclosure — kept out of the always-loaded SKILL.md body.
+    """
+
+    relpath: str  # e.g. "references/api-patterns.md" or "scripts/validate.py"
+    content: str
+
+
+@dataclass
 class Skill:
     """One skill within a role. Maps 1:1 to a SKILL.md file when authored."""
 
@@ -87,6 +102,9 @@ class Skill:
     body: str  # the SKILL.md body (post-frontmatter)
     references: list[str] = field(default_factory=list)
     canonical_skill_basis: str | None = None  # archetype skill this was grounded in
+    # Progressive-disclosure resources written under the skill folder
+    # (references/*.md, scripts/*.py). Empty for simple single-file skills.
+    bundled_files: list[BundledFile] = field(default_factory=list)
 
 
 @dataclass
@@ -142,6 +160,12 @@ class SkillPack:
     # Populated by run_skill_pack_pipeline so the pack report can render
     # the observed / plausible split and link back to role_plan.md.
     plan: RolePlan | None = None
+    # Tier-2 trigger-optimization results (list of SkillTriggerResult);
+    # typed loosely to avoid a schema -> trigger_eval import cycle.
+    trigger_results: list[Any] = field(default_factory=list)
+    # Tier-4 behavioral-eval results (list of SkillBenchmark); typed loosely
+    # to avoid a schema -> behavioral_eval import cycle.
+    behavioral_results: list[Any] = field(default_factory=list)
 
     @property
     def total_skills(self) -> int:

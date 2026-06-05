@@ -217,7 +217,7 @@ def main(argv: list[str]) -> int:
     arm_b = _load_run(continuous_dir)
 
     print("=" * 70)
-    print("PILOT: Continuous Reasoning A/B (WinMagic)")
+    print("PILOT: Continuous Reasoning A/B")
     print("=" * 70)
     print(cost_summary(arm_a, "Arm A (baseline)"))
     print(cost_summary(arm_b, "Arm B (continuous)"))
