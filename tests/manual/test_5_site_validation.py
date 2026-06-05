@@ -1,13 +1,23 @@
 """
 5-Site Validation Test
 
-Tests scraping success rate on real company websites.
+Tests scraping success rate across a set of live websites.
 Goal: 90%+ success rate (pages scraped / pages attempted)
 
+Targets are NOT hardcoded — supply your own via the PRIMR_VALIDATION_SITES
+env var so no real company names live in the repo (see CONTRIBUTING's
+no-real-company-data rule). Format: comma-separated `url|label` pairs.
+
 Usage:
-    python tests/manual/test_5_site_validation.py
+    PRIMR_VALIDATION_SITES="https://site.example|Site A,https://b.example|Site B" \\
+        python tests/manual/test_5_site_validation.py
+
+With no env var set, the test runs against neutral example placeholders
+(which will not produce meaningful scrape results — set the env var for a
+real run).
 """
 
+import os
 import sys
 import time
 from pathlib import Path
@@ -86,14 +96,28 @@ def main():
     print("\nGoal: 90%+ success rate across diverse company sites")
     print("Testing: Link discovery -> Scrape first 5 pages -> Verify content\n")
 
-    # Test sites - diverse industries
-    test_sites = [
-        ("https://www.nintendo.com", "Nintendo"),
-        ("https://www.basecamp.com", "Basecamp"),
-        ("https://www.cloudflare.com", "Cloudflare"),
-        ("https://www.patagonia.com", "Patagonia"),
-        ("https://www.mailchimp.com", "Mailchimp"),
-    ]
+    # Test sites — supplied via PRIMR_VALIDATION_SITES so no real company
+    # names are committed. Format: "url|label,url|label,...".
+    raw = os.environ.get("PRIMR_VALIDATION_SITES", "").strip()
+    if raw:
+        test_sites = []
+        for entry in raw.split(","):
+            url, _, label = entry.strip().partition("|")
+            url = url.strip()
+            if not url:
+                continue
+            test_sites.append((url, label.strip() or url))
+    else:
+        # Neutral placeholders — set the env var for a meaningful run.
+        test_sites = [
+            ("https://example.com", "Example One"),
+            ("https://example.org", "Example Two"),
+            ("https://example.net", "Example Three"),
+        ]
+        print(
+            "  (PRIMR_VALIDATION_SITES not set — using example.* placeholders; "
+            "set the env var with your own targets for a real validation run)\n"
+        )
 
     results = []
 

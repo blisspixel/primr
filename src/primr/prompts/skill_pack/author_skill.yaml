@@ -67,6 +67,20 @@ system_prompt: |
     - Noun phrases acceptable when more natural: `pipeline-orchestration`,
       `incident-triage`.
     - Avoid generic names: `helper`, `utils`, `tools`, `documents`, `data`.
+    - A skill name and display_name describe a TASK OR CAPABILITY, NEVER a
+      bare product, service, or feature name. A skill is something a person
+      DOES, not a product they touch. The product belongs in the body, as
+      the tool the workflow uses — not in the title.
+        BAD (product as title):  `azure-front-door`, "AKS", "Salesforce
+                                 Sales Cloud", `cosmos-db`, "Microsoft Sentinel"
+        GOOD (capability title):  `configuring-edge-traffic-routing`
+                                 (uses Azure Front Door), `operating-aks-clusters`,
+                                 `managing-the-sales-pipeline` (in Salesforce
+                                 Sales Cloud), `triaging-security-alerts`
+                                 (in Microsoft Sentinel)
+      If the most natural name for a skill is a product name, you have
+      scoped the skill wrong — re-scope it to the job the person uses that
+      product to accomplish, then name that job.
 
     **The "explain why" doctrine, not "MUST" caps-lock**:
     - When the SKILL.md body gives an instruction, give the REASONING
@@ -200,8 +214,12 @@ user_prompt_template: |
   }}
 
   Body must be valid markdown (use \\n for line breaks inside the JSON
-  string). Target 300-1500 words per body; favor 500-800 when possible.
-  Each body must explicitly reference at least 2 company-specific signals
+  string). Each body MUST be at least 150 words (a body under 150 words is
+  too thin to be useful and will be rejected) and at most ~1500; 250-600 is
+  the sweet spot for a dense, company-specific skill. If a draft body is
+  short, add a concrete worked example to the Output Format section or a
+  company-specific edge-case note to the Workflow — do NOT pad with generic
+  filler. Each body must explicitly reference at least 2 company-specific signals
   — a named tool from DNS, a named technology from hiring postings, the
   company's industry, or a strategic initiative visible in the evidence.
 
@@ -212,3 +230,34 @@ user_prompt_template: |
     1024 cap, but specific enough to fire reliably)
 
   Each name should use gerund form (verb + -ing) when natural.
+
+  PROGRESSIVE DISCLOSURE (optional bundled_files — use sparingly):
+
+    Most skills are a single SKILL.md and need NOTHING here. Only add a
+    bundled file when it genuinely earns its place (Anthropic's progressive-
+    disclosure guidance — keep the always-loaded SKILL.md lean and push deep
+    or deterministic material into separate files loaded on demand):
+
+      - A `references/<topic>.md` file when the skill needs DEEP reference
+        material the agent only sometimes needs (a long lookup table, a
+        detailed spec, an extended example set). Reference it from the body
+        ("See references/<topic>.md for the full mapping") instead of
+        inlining it. Keeps the body concise.
+      - A `scripts/<name>.py` file when the workflow repeatedly needs a
+        DETERMINISTIC helper (parsing, validation, a calculation). Per
+        Anthropic's "solve, don't punt": ship the actual runnable, self-
+        contained Python rather than telling the agent to write it each run.
+        The body should say when to run it.
+
+    Rules: paths MUST be exactly `references/<name>.md` or
+    `scripts/<name>.py` (lowercase, single subdir, no other folders, no
+    paths outside the skill). Scripts must be complete and runnable. If a
+    skill doesn't clearly need a bundled file, OMIT the array entirely — do
+    not invent filler resources.
+
+  To include bundled files, add an OPTIONAL "bundled_files" array to a skill:
+
+    "bundled_files": [
+      {{"path": "references/license-sku-map.md", "content": "# SKU map\\n..."}},
+      {{"path": "scripts/calculate_savings.py", "content": "import sys\\n..."}}
+    ]

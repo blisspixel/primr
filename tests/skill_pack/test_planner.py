@@ -109,7 +109,47 @@ class TestMergeAndCap:
         assert len(final) == 3
         # The truncated observed entries are NOT moved to gap (gap is for
         # plausible overflow; trimming observed is a quiet cap behavior).
+        # Reserve only fires when eligible plausible roles are waiting.
         assert gap == []
+
+    def test_reserve_guarantees_org_roles_when_postings_all_technical(self):
+        # The infra-heavy-reseller case: a company whose postings are ALL one
+        # technical function. Without the reserve, 5 observed technical roles
+        # would fill cap=5 and every plausible business role would be
+        # gap-flagged. The reserve guarantees org-shape roles still land.
+        observed = [
+            _make_role(f"cloud-engineer-{i}", archetype=f"azure-cloud-engineer-{i}")
+            for i in range(5)
+        ]
+        plausible = [
+            _make_role(
+                "account-executive",
+                archetype="account-executive",
+                provenance=RoleProvenance.INDUSTRY,
+            ),
+            _make_role(
+                "marketing-manager",
+                archetype="marketing-manager",
+                provenance=RoleProvenance.INDUSTRY,
+            ),
+            _make_role(
+                "hr-business-partner",
+                archetype="hr-business-partner",
+                provenance=RoleProvenance.INDUSTRY,
+            ),
+        ]
+        final, gap = _merge_and_cap(observed, plausible, cap=5)
+        assert len(final) == 5
+        # At cap=5, reserve = int(5 * 0.4) = 2 → 3 observed kept + 2 plausible.
+        kept_plausible = [r for r in final if r.evidence.provenance == RoleProvenance.INDUSTRY]
+        kept_observed = [r for r in final if r.evidence.provenance == RoleProvenance.POSTING]
+        assert len(kept_observed) == 3
+        assert len(kept_plausible) == 2
+        # Leading slots are still observed (postings stay primary).
+        assert all(r.evidence.provenance == RoleProvenance.POSTING for r in final[:3])
+        # The 2 bumped observed roles are surfaced in gap, not silently dropped.
+        bumped_observed = [r for r in gap if r.evidence.provenance == RoleProvenance.POSTING]
+        assert len(bumped_observed) == 2
 
 
 # =============================================================================

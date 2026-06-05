@@ -234,8 +234,15 @@ def test_property_invalid_flags_return_nonzero(invalid_flag: str):
         timeout=30,
         cwd=str(PROJECT_ROOT),
     )
-    # Invalid flags should cause argparse to exit with error
+    # Invalid flags should cause a non-zero exit.
     assert result.returncode != 0, f"Expected non-zero exit for --{invalid_flag}"
-    # Should have error message in stderr
-    stderr = result.stderr.decode()
-    assert len(stderr) > 0 or "error" in result.stdout.decode().lower()
+    # The CLI must emit a diagnostic — but it may land on stdout rather than
+    # stderr (e.g. the "required arguments" path), and argparse prefix-matching
+    # can turn a short flag like `--ref` into a valid abbreviation that then
+    # fails on missing positionals with a usage message that lacks the literal
+    # word "error". Accept any recognizable diagnostic on either stream.
+    combined = (result.stderr.decode() + result.stdout.decode()).lower()
+    assert any(
+        token in combined
+        for token in ("error", "usage", "invalid", "required", "unrecognized", "no such")
+    ), f"Expected a diagnostic message for --{invalid_flag}, got: {combined!r}"

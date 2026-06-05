@@ -7,6 +7,114 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.29.1] - 2026-06-05
+
+Supersedes 1.29.0 (yanked): removed an inadvertent third-party product name
+from internal test fixtures and one prompt example. No functional change.
+
+### Skill pack - four-tier quality overhaul
+
+A staged refinement of the skill-pack pipeline that closes most of the gap
+against Anthropic's skill-creator workflow (see ROADMAP #15). Tiers 1 and 3
+are on by default at no extra LLM cost; Tiers 2 and 4 are opt-in measured
+proof loops behind CLI flags.
+
+**Tier 1 — roster + authoring quality (default, no added cost):**
+
+- **Holistic rosters.** `plan_plausible_roles.yaml` now produces a roster
+  spanning BOTH the company-specific named practices/services (highest
+  priority — a flagship branded offering named in the research always earns a
+  role) AND the universal functions every Mid-market+ org runs (Sales,
+  Marketing, Customer Success, HR/People, Operations, Finance,
+  Legal/Compliance, IT). `_merge_and_cap` reserves a fraction of the roster
+  (`PLAUSIBLE_RESERVE_FRACTION`, default 0.4) for plausible org-shape roles so
+  a one-function posting set can't crowd them out; observed (posting) roles
+  still take the leading slots and win ties, and reserve-displaced observed
+  roles flow to `gap_flagged` rather than being silently dropped.
+- **Task-named skills, not product names.** `author_skill.yaml` forbids bare
+  product/feature titles (`azure-front-door`, `aks`); the skill names the
+  capability the product is used for (`configuring-edge-traffic-routing`),
+  product in the body. New SOFT validator `NAME-PRODUCT` flags violations.
+- **`DESC-PUSHY` counts trigger intents, not keywords.** Previously counted
+  hits from a fixed verb lexicon and false-flagged well-formed enumerations
+  using verbs outside the list (perform / prepare / conduct). Now counts the
+  distinct enumerated intents after the trigger phrase, broadened verb set as
+  a fallback only.
+- **Thin bodies are refined, not just flagged.** `refine_role` treats a
+  too-short body (under the 150-word floor) as an actionable finding worth one
+  expansion turn; the authoring prompt states the minimum with "add a worked
+  example, don't pad" guidance.
+- **Cross-role overlaps are auto-resolved.** `auto_resolve_overlaps` re-scopes
+  one skill of each `PACK-OVERLAP-LLM` / `PACK-TRIGGER` pair (conservative:
+  only the second is touched, reverted if it gains a HARD finding) instead of
+  only reporting them. Toggle `SkillPackConfig.auto_resolve_overlaps`.
+
+**Tier 2 — measured trigger optimization (`--optimize-triggers`, opt-in):**
+
+- New `skill_pack/trigger_eval.py`: per skill, generate should/should-not-
+  trigger queries, score the description against a blind discovery simulator,
+  and rewrite it when below threshold — kept only if it beats the original on
+  a held-out split. The rigorous replacement for the `DESC-PUSHY` heuristic
+  (Anthropic's published description-optimization loop). Results in the report.
+
+**Tier 3 — progressive disclosure (default):**
+
+- Skills can ship bundled resources alongside `SKILL.md`: `references/*.md`
+  (load-on-demand deep material) and `scripts/*.py` (deterministic helpers —
+  "solve, don't punt"). New `BundledFile` on the `Skill` schema; authoring may
+  emit them; the packager writes them to both the Claude tree and the Cowork
+  `.zip`. `BUNDLE-PATH` validates paths (`references/*.md`, `scripts/*.py`,
+  `evals/*.json`, single subdir, no traversal); unsafe paths dropped.
+
+**Tier 4 — behavioral evaluation (`--with-evals`, opt-in):**
+
+- New `skill_pack/behavioral_eval.py`: per skill, generate task cases +
+  objective assertions, run each task WITH the skill vs WITHOUT, grade both
+  blind, and report the with-skill-vs-baseline pass-rate delta — proving the
+  skill changes output, not just that it is well-formed. Also writes
+  `evals/evals.json` per skill (Anthropic's published structure). Expensive,
+  so gated and off by default. Results surfaced in the pack report.
+
+## [1.28.0] - 2026-06-02
+
+### Artifact pipeline — prompt hardening (Active Queue #2 closed)
+
+- Writer and regeneration prompts now explicitly forbid the internal-scaffolding
+  markers the ship-time gate strips (`[workbook]`/`[Analysis Workbook]`,
+  `[cross-ref ...]`/`[see ## ...]`, informal `[cite: label]`, bold
+  `**What to validate:**`), sourced from a single
+  `qa.report_analyzer.SCAFFOLDING_PROHIBITION_GUIDANCE` constant co-located with
+  `scan_scaffolding_leakage` so the upstream instruction and the downstream gate
+  cannot drift. Spliced into both `section_prompts.py` writers and both
+  `research_agent.py` regenerators (the strategy regenerator also gained the
+  plain-text "What to validate:" rule). Parity locked by a deterministic test;
+  runtime tracked by `writer_output_clean` (`_shipping_repair.json`) + the eval
+  `## Artifact Drift` metric.
+
+### Verified page access — first-party RSS/Atom feed recovery (Active Queue #3)
+
+- `fallback_sources.fetch_feed_content` adds the host's own RSS/Atom feeds as a
+  first-class source in the blocked-origin fallback fan-out — HTML
+  `<link rel="alternate">` autodiscovery + common-path sweep, same-site-filtered
+  (defense-in-depth on the SSRF guard), RSS 2.0 / Atom / RSS 1.0-RDF parsed
+  namespace-agnostically with `defusedxml` (untrusted-XML safe; 5 MB body cap;
+  no new dependency), `content:encoded` preferred over short teasers, cross-feed
+  item dedup. Wired into `gather_fallback_content` as `source="feed"`.
+
+### Test coverage + CI
+
+- Global branch coverage 78.65% → **82.05%**; CI ratchet raised 77 → 81. The
+  coverage job now installs the `a2a` extra so the 165 a2a tests are counted,
+  plus ~630 new unit tests across `research_orchestrator`, `utils.security`
+  (incl. 100 adversarial SSRF cases — no vuln found), `skill_pack.evidence`,
+  `data.scrape`, `model_eval`, `mcp_server.{skill_pack_tools,server}`, the
+  `agentic` modules, `hiring_signals`, the `scraping` helpers, and `ai_strategy`.
+- **Dependabot removed** (`.github/dependabot.yml` deleted) in favor of manual
+  review-and-bump backed by the pip-audit + Trivy hard gates. Applied the
+  pending action bumps by hand: `actions/checkout` v4→v6, `actions/setup-python`
+  v5→v6, `astral-sh/setup-uv` v5→v7, `actions/upload-artifact` v4→v7,
+  `actions/download-artifact` v4→v8.
+
 ### Artifact pipeline hardening
 
 - **Scaffolding-leak shipping gate**: the leak scan (bare `[workbook]` /

@@ -19,6 +19,7 @@ from primr.skill_pack.packager import (
     package_skill_pack,
 )
 from primr.skill_pack.schema import (
+    BundledFile,
     Role,
     RoleEvidence,
     Skill,
@@ -52,6 +53,43 @@ def _make_pack(company: str = "Acme Corp") -> SkillPack:
         roles=[role],
         validation=ValidationReport(),
     )
+
+
+def _make_pack_with_bundled_files(company: str = "Acme Corp") -> SkillPack:
+    pack = _make_pack(company)
+    pack.roles[0].skills[0].bundled_files = [
+        BundledFile(relpath="references/sku-map.md", content="# SKU map\n\n- A -> B\n"),
+        BundledFile(relpath="scripts/calc.py", content="print('savings')\n"),
+        # Unsafe path — must be dropped, not written.
+        BundledFile(relpath="../escape.md", content="should not be written"),
+    ]
+    return pack
+
+
+def test_bundled_files_written_to_claude_tree(tmp_path: Path):
+    pack = _make_pack_with_bundled_files()
+    config = SkillPackConfig(formats=SkillPackFormat.CLAUDE)
+    artifacts = package_skill_pack(pack, config, tmp_path)
+
+    skill_dir = Path(artifacts.claude_tree_root) / "draft-dbt-models"
+    assert (skill_dir / "references" / "sku-map.md").is_file()
+    assert (skill_dir / "scripts" / "calc.py").is_file()
+    # The unsafe path was dropped and never escaped the skill folder.
+    assert not (skill_dir.parent / "escape.md").exists()
+    assert not (tmp_path / "escape.md").exists()
+
+
+def test_bundled_files_written_to_cowork_zip(tmp_path: Path):
+    pack = _make_pack_with_bundled_files()
+    config = SkillPackConfig(formats=SkillPackFormat.COWORK)
+    artifacts = package_skill_pack(pack, config, tmp_path)
+
+    with zipfile.ZipFile(artifacts.cowork_zip_path) as zf:
+        names = zf.namelist()
+    assert "skills/draft-dbt-models/references/sku-map.md" in names
+    assert "skills/draft-dbt-models/scripts/calc.py" in names
+    # No unsafe entry anywhere in the archive.
+    assert not any("escape.md" in n for n in names)
 
 
 def test_package_emits_claude_tree_and_cowork_zip(tmp_path: Path):

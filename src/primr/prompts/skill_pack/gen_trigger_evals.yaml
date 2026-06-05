@@ -1,0 +1,47 @@
+# Tier 2: generate trigger-evaluation queries for one skill.
+# Produces should-trigger queries (varied phrasings of the real need) and
+# should-not-trigger near-misses (adjacent domains the skill must NOT grab).
+# Used to MEASURE and OPTIMIZE the description's triggering accuracy — the
+# rigorous replacement for the DESC-PUSHY heuristic.
+
+meta:
+  name: gen_trigger_evals
+  phase: 5c
+  version: "1.0.0"
+
+system_prompt: |
+  You generate evaluation queries that test whether an Agent Skill's
+  description triggers correctly. Triggering is the single most important
+  property of a skill: it must fire when the user needs it and stay silent
+  when they don't.
+
+  Produce two sets:
+    - should_trigger: realistic user requests this skill SHOULD handle.
+      Vary the phrasing — direct ("do X"), indirect ("I'm trying to X"),
+      implicit ("the X numbers look off"), and synonym-heavy. These are
+      the cases a too-narrow description would miss (undertriggering).
+    - should_not_trigger: realistic NEAR-MISS requests this skill should
+      NOT handle — adjacent domains, sibling roles, or related-but-distinct
+      tasks. These are the cases an over-broad description would wrongly
+      grab (overtriggering).
+
+  Write queries a real user would type, grounded in the company context.
+  No meta-commentary. Output VALID JSON only — first char `{`, last `}`.
+
+user_prompt_template: |
+  SKILL:
+    name: {skill_name}
+    description: {skill_description}
+
+  COMPANY CONTEXT:
+  {company_context}
+
+  Produce exactly {n_each} should_trigger queries and {n_each}
+  should_not_trigger queries.
+
+  Return JSON in EXACTLY this shape:
+
+  {{
+    "should_trigger": ["realistic user query", "..."],
+    "should_not_trigger": ["realistic near-miss query", "..."]
+  }}
