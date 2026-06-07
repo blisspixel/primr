@@ -22,6 +22,7 @@ Spec references:
 
 from __future__ import annotations
 
+import ast
 import re
 from difflib import SequenceMatcher
 
@@ -242,6 +243,41 @@ _AGENT_INSTRUCTION_PATTERNS = [
         r"(?:shell|bash|system|terminal)\s+command)",
         re.IGNORECASE,
     ),
+    # Bare "command"/"script" injection, gated on the DEMONSTRATIVE that
+    # signals an inline payload ("run THIS command", "execute THE FOLLOWING
+    # script", "paste THESE commands"). This closes the bypass where the
+    # shell-indicator pattern above misses "run this command: rm -rf ..." or
+    # "execute the script that ..." while preserving the false-positive guard
+    # the narrowing was added for: benign prose says "run the scripts/foo.py
+    # helper" / "run the assessment", never "run THIS command" with a payload.
+    # Bare "the"/"a" are intentionally NOT in the alternation so the legit
+    # forms stay clean.
+    re.compile(
+        r"\b(?:run|execute|invoke|paste|enter|type)\b[^\n]{0,30}"
+        r"\b(?:this|that|these|below|the\s+following|the\s+next)\b"
+        r"[^\n]{0,25}\b(?:commands?|scripts?|code|payloads?|snippets?|one[-\s]?liners?)\b",
+        re.IGNORECASE,
+    ),
+    # Literal destructive shell commands — caught regardless of the English
+    # framing around them, so a reworded injection still trips on its actual
+    # payload. These tokens never legitimately appear in a SKILL.md body.
+    re.compile(
+        r"\brm\s+-[rf]{1,2}\b|\bdel\s+/[a-z]|\bformat\s+[a-z]:|\bmkfs\b|"
+        r"\bdd\s+if=|\bchmod\s+[0-7]{3,4}\b|:\(\)\s*\{\s*:\s*\|\s*:|"
+        r"\bshutdown\b\s+-|\bsudo\s+rm\b|>\s*/dev/sd",
+        re.IGNORECASE,
+    ),
+    # Destructive action explicitly targeting the USER'S OWN environment
+    # ("deletes local files", "wipe your disk", "encrypt all files on the
+    # host"). The local/system/your/all qualifier on a filesystem noun is the
+    # tell that separates an attack instruction from benign data work
+    # ("removes duplicate rows from the staging files").
+    re.compile(
+        r"\b(?:delet|remov|wip|eras|destroy|overwrit|encrypt|exfiltrat|corrupt)\w*\b"
+        r"[^\n]{0,30}\b(?:local|system|your|all)\b[^\n]{0,15}"
+        r"\b(?:file|files|data|disk|drive|machine|directory|folder|host|home)\b",
+        re.IGNORECASE,
+    ),
     re.compile(
         r"\b(?:read|cat|exfiltrate|exfil|dump|leak)\b[^\n]{0,80}"
         r"(?:~/\.ssh|id_rsa|\.env|credentials|secrets?)",
@@ -294,6 +330,165 @@ def validate_bundled_path(relpath: str) -> str | None:
     subdir, ext = m.group(1), m.group(2)
     if _BUNDLED_SUBDIR_EXT[subdir] != ext:
         return f"{subdir}/ files must be .{_BUNDLED_SUBDIR_EXT[subdir]}"
+    return None
+
+
+# --- Bundled-script content safety ---------------------------------------
+#
+# Bundled `scripts/*.py` files are LLM-authored from adversarial web/hiring
+# evidence and ship verbatim into agent hosts (Claude/Cursor/Cowork) that may
+# execute them. A path-only check is a supply-chain RCE hole, so we AST-scan
+# every Python script for the constructs a "deterministic helper (parsing,
+# validation, a calculation)" never needs and an exfiltration payload always
+# does: process execution, network egress, dynamic eval/exec, credential/env
+# reads, destructive filesystem calls, and file-writes. Any hit is fail-closed.
+#
+# AST (not regex) so the scan can't be bypassed by string-concatenation,
+# whitespace, or comment tricks. A script that doesn't parse is itself
+# rejected — a real helper is "complete and runnable" per the authoring prompt.
+
+# Importing any of these modules from a deterministic helper is disqualifying:
+# process control, raw network, remote shells, and (de)serialization RCE sinks.
+_DANGEROUS_IMPORT_MODULES = frozenset(
+    {
+        "subprocess",
+        "socket",
+        "requests",
+        "httpx",
+        "urllib",
+        "http",
+        "ftplib",
+        "telnetlib",
+        "smtplib",
+        "poplib",
+        "imaplib",
+        "paramiko",
+        "pickle",
+        "marshal",
+        "ctypes",
+        "pty",
+        "shutil",
+        "multiprocessing",
+    }
+)
+
+# Fully-qualified calls that are disqualifying regardless of imports.
+_DANGEROUS_CALL_NAMES = frozenset(
+    {
+        "eval",
+        "exec",
+        "compile",
+        "__import__",
+        "breakpoint",
+        "os.system",
+        "os.popen",
+        "os.remove",
+        "os.unlink",
+        "os.rmdir",
+        "os.removedirs",
+        "os.rename",
+        "os.replace",
+        "os.chmod",
+        "os.chown",
+        "os.kill",
+        "os.fork",
+        "os.putenv",
+        "os.setuid",
+    }
+)
+
+# Attribute prefixes for the os.exec*/os.spawn* process-replacement family.
+_DANGEROUS_CALL_PREFIXES = ("os.exec", "os.spawn")
+
+# Attribute reads that pull credentials / secrets out of the environment —
+# the classic first half of an exfiltration chain.
+_SECRET_ATTRS = frozenset({"os.environ"})
+
+
+def _dotted_name(node: ast.AST) -> str:
+    """Reconstruct a dotted attribute/name chain (``os.path.join``) from an
+    AST node. Returns "" when the base isn't a plain Name (e.g. a call or
+    subscript), which the caller treats as unresolvable rather than safe."""
+    parts: list[str] = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if isinstance(node, ast.Name):
+        parts.append(node.id)
+        return ".".join(reversed(parts))
+    return ""
+
+
+def _is_write_open(call: ast.Call) -> bool:
+    """True when a call is ``open(..., 'w'|'a'|'x'|'+')`` — a filesystem write."""
+    if _dotted_name(call.func) not in ("open", "io.open"):
+        return False
+    mode = None
+    if len(call.args) >= 2 and isinstance(call.args[1], ast.Constant):
+        mode = call.args[1].value
+    for kw in call.keywords:
+        if kw.arg == "mode" and isinstance(kw.value, ast.Constant):
+            mode = kw.value.value
+    return isinstance(mode, str) and any(c in mode for c in ("w", "a", "x", "+"))
+
+
+def _scan_python_script(content: str) -> str | None:
+    """Return a reason string if a bundled Python script is unsafe, else None."""
+    try:
+        tree = ast.parse(content)
+    except SyntaxError as exc:
+        return f"script is not valid, runnable Python (does not parse): {exc.msg}"
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                root = alias.name.split(".")[0]
+                if root in _DANGEROUS_IMPORT_MODULES:
+                    return f"imports disallowed module {alias.name!r}"
+        elif isinstance(node, ast.ImportFrom):
+            root = (node.module or "").split(".")[0]
+            if root in _DANGEROUS_IMPORT_MODULES:
+                return f"imports from disallowed module {node.module!r}"
+        elif isinstance(node, ast.Call):
+            name = _dotted_name(node.func)
+            if name:
+                if name in _DANGEROUS_CALL_NAMES or name.startswith(_DANGEROUS_CALL_PREFIXES):
+                    return f"calls disallowed function {name}()"
+                if name.split(".")[0] in _DANGEROUS_IMPORT_MODULES:
+                    return f"calls into disallowed module via {name}()"
+            if _is_write_open(node):
+                return "opens a file for writing (helpers must be read-only)"
+        elif isinstance(node, ast.Attribute):
+            if _dotted_name(node) in _SECRET_ATTRS:
+                return "reads credentials/secrets from os.environ"
+    return None
+
+
+def scan_bundled_content(relpath: str, content: str) -> str | None:
+    """Return a reason string if a bundled file's CONTENT is unsafe, else None.
+
+    Runs the agent-instruction (injection) and hardcoded-path filters over all
+    authored bundled content, plus a strict AST danger-scan over ``scripts/*.py``.
+    ``evals/*.json`` is intentionally skipped: it is primr-generated (not the
+    adversarial authoring vector) and may legitimately embed adversarial test
+    strings that the injection filter would false-positive on.
+
+    Used by both the validator (HARD SEC-BUNDLE finding) and the packager
+    (defense-in-depth file drop) so unreviewed executable/injected content
+    can never reach the Claude tree or the Cowork zip.
+    """
+    if relpath.endswith(".json"):
+        return None
+    hit = _find_injection_match(content)
+    if hit:
+        return f"agent-instruction pattern in bundled content: {hit[:80]}"
+    path_hit = _find_hardcoded_path(content)
+    if path_hit:
+        return f"hardcoded local path in bundled content: {path_hit}"
+    if relpath.endswith(".py"):
+        danger = _scan_python_script(content)
+        if danger:
+            return f"unsafe Python helper: {danger}"
     return None
 
 
@@ -617,6 +812,26 @@ def validate_skill(skill: Skill, role_name: str) -> list[SkillIssue]:
                 )
             )
 
+    # SEC-BUNDLE — scan bundled-file CONTENT, not just the path. Bundled
+    # scripts/*.py and references/*.md are LLM-authored from adversarial
+    # evidence and ship verbatim to downstream agent hosts that may execute
+    # them, so a path-only gate is a supply-chain hole. HARD: a content hit
+    # drops the role (fail closed — no unreviewed executable/injected content
+    # ships). The packager re-checks this as defense-in-depth.
+    for bf in skill.bundled_files:
+        unsafe = scan_bundled_content(bf.relpath, bf.content)
+        if unsafe:
+            issues.append(
+                SkillIssue(
+                    code="SEC-BUNDLE",
+                    severity=IssueSeverity.HARD,
+                    message=f"bundled file {bf.relpath!r}: {unsafe}",
+                    role_name=role_name,
+                    field="bundled_files",
+                    excerpt=bf.relpath[:120],
+                )
+            )
+
     # SEC-PATH
     path_hit = _find_hardcoded_path(skill.body)
     if path_hit:
@@ -659,6 +874,31 @@ def validate_role(role: Role) -> list[SkillIssue]:
                 role_name=role.name,
             )
         )
+
+    # SEC-INJECT on role metadata. display_name / confidence / summary can come
+    # from job postings, research evidence, LLM planning, saved plans, or
+    # operator labels, and the packager emits display_name + confidence into
+    # SKILL.md frontmatter (primr-role / primr-confidence) by default. Without
+    # this scan an attacker who influences role discovery could land a
+    # prompt-injection string in agent-consumed metadata even though every
+    # Skill field passed SEC-INJECT. HARD: a hit drops the role (fail closed).
+    for field_name, content in [
+        ("display_name", role.display_name),
+        ("confidence", role.confidence),
+        ("summary", role.summary or ""),
+    ]:
+        hit = _find_injection_match(content)
+        if hit:
+            issues.append(
+                SkillIssue(
+                    code="SEC-INJECT",
+                    severity=IssueSeverity.HARD,
+                    message=f"agent-instruction pattern detected in role {field_name}",
+                    role_name=role.name,
+                    field=field_name,
+                    excerpt=hit[:120],
+                )
+            )
 
     for skill in role.skills:
         issues.extend(validate_skill(skill, role.name))
@@ -720,6 +960,8 @@ def validate_pack(pack: SkillPack) -> ValidationReport:
 
 
 __all__ = [
+    "scan_bundled_content",
+    "validate_bundled_path",
     "validate_kebab_case",
     "validate_pack",
     "validate_role",
