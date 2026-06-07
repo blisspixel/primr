@@ -11,12 +11,14 @@ run_skill_pack_pipeline) is mocked so no real generation runs.
 from __future__ import annotations
 
 import json
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from primr.mcp_server import skill_pack_tools as spt
+from primr.mcp_server.security import PathValidator
 from primr.skill_pack.config import (
     DEFAULT_ROLES,
     DEFAULT_SKILLS_PER_ROLE,
@@ -33,9 +35,43 @@ from primr.skill_pack.schema import SkillPack, SkillPackArtifacts, ValidationRep
 # ---------------------------------------------------------------------------
 
 
-async def _call(name, arguments):
+def _mcp_server_for(arguments):
+    """A mock MCP server whose path_validator is REAL.
+
+    generate_skill_pack now contains report_path / destination through the
+    server's PathValidator (the same containment every other path-taking MCP
+    tool uses), so a bare MagicMock would make every path "valid" and defeat
+    the test. The validator is scoped to the deliverable roots PLUS any
+    report_path / destination argument that lives under the OS temp dir
+    (pytest's tmp_path). Passing the EXACT tmp path as an allowed root matters
+    on Linux: PathValidator rejects paths under a system dir (e.g. /tmp) unless
+    the allowed root itself is under that system dir, in which case the check
+    is skipped — so the root must be the tmp_path, not gettempdir(). Absolute
+    paths NOT under the temp dir (e.g. /etc) are never auto-allowed, so the
+    rejection tests still reject.
+    """
+    roots: list[str] = ["output", "logs", "working"]
+    tmp_base = Path(tempfile.gettempdir()).resolve()
+    for key in ("report_path", "destination"):
+        val = arguments.get(key)
+        if not val:
+            continue
+        try:
+            rp = Path(str(val)).resolve()
+        except OSError:
+            continue
+        if rp == tmp_base or tmp_base in rp.parents:
+            roots.append(str(rp))
+    server = MagicMock()
+    server.path_validator = PathValidator(allowed_roots=roots)
+    return server
+
+
+async def _call(name, arguments, mcp_server=None):
     """Invoke the dispatcher and return the parsed JSON of the first block."""
-    result = await spt.handle_skill_pack_tool(name, arguments, mcp_server=MagicMock())
+    result = await spt.handle_skill_pack_tool(
+        name, arguments, mcp_server=mcp_server or _mcp_server_for(arguments)
+    )
     assert result is not None
     return json.loads(result[0].text)
 
@@ -434,11 +470,10 @@ async def test_unparseable_role_list_coerces_to_empty(tmp_path, patched_pipeline
 
 
 @pytest.mark.asyncio
-async def test_non_numeric_cost_cap_gate_swallows_parse_error(monkeypatch, tmp_path):
-    # max_cost present + enforcement on, but float() raises inside the gate's
-    # try -> the gate swallows it (lines 368-369) and falls through. The
-    # subsequent config construction then surfaces the bad value as an
-    # "Invalid config" error rather than blowing up uncaught.
+async def test_non_numeric_cost_cap_is_rejected_when_enforced(monkeypatch, tmp_path):
+    # Enforcement on + a non-numeric cap must FAIL CLOSED: the gate rejects the
+    # bad value up front rather than swallowing the parse error and proceeding
+    # with an effectively-absent cap (the previous, vulnerable behavior).
     monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
     payload = await _call(
         "generate_skill_pack",
@@ -449,7 +484,65 @@ async def test_non_numeric_cost_cap_gate_swallows_parse_error(monkeypatch, tmp_p
         },
     )
     assert payload["error"] is True
-    assert "Invalid config" in payload["message"]
+    assert "must be a number" in payload["message"]
+
+
+@pytest.mark.asyncio
+async def test_missing_cost_cap_is_rejected_when_enforced(monkeypatch, tmp_path):
+    # Fail closed: enforcement on but NO cap supplied must be rejected, not run.
+    monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
+    payload = await _call(
+        "generate_skill_pack",
+        {"company_name": "Acme Corp", "report_path": str(tmp_path)},
+    )
+    assert payload["error"] is True
+    assert "max_estimated_cost_usd is required" in payload["message"]
+
+
+@pytest.mark.asyncio
+async def test_roles_override_estimate_uses_effective_count(monkeypatch, tmp_path):
+    # roles_count=1 but 15 overrides must be estimated (and capped) on the
+    # effective roster of 15, not 1 — otherwise a cap sized for one role lets
+    # a 15-role run through.
+    monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
+    one_role = spt._estimate_skill_pack_cost(1, 3, has_report_path=True)["cost_usd"]
+    payload = await _call(
+        "generate_skill_pack",
+        {
+            "company_name": "Acme Corp",
+            "report_path": str(tmp_path),
+            "roles_count": 1,
+            "roles_override": [f"Role {i}" for i in range(15)],
+            "max_estimated_cost_usd": one_role,  # only covers a single role
+        },
+    )
+    assert payload["error"] is True
+    assert "exceeds cap" in payload["message"]
+
+
+@pytest.mark.asyncio
+async def test_path_outside_allowed_roots_is_rejected():
+    # An absolute server path outside the allowed roots must be refused.
+    payload = await _call(
+        "generate_skill_pack",
+        {"company_name": "Acme Corp", "report_path": "/etc"},
+    )
+    assert payload["error"] is True
+    assert "report_path rejected" in payload["message"]
+
+
+@pytest.mark.asyncio
+async def test_destination_outside_allowed_roots_is_rejected(tmp_path):
+    payload = await _call(
+        "generate_skill_pack",
+        {
+            "company_name": "Acme Corp",
+            "report_path": str(tmp_path),
+            "destination": "/etc/primr-out",
+        },
+    )
+    assert payload["error"] is True
+    assert "destination rejected" in payload["message"]
 
 
 @pytest.mark.asyncio

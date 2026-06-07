@@ -603,12 +603,15 @@ def _load_edgar_ticker_index(timeout: float = 20.0) -> dict:
         return _ticker_index_cache
 
     # Format is { "0": {"cik_str": N, "ticker": "X", "title": "NAME"}, ... }
+    # Multiple rows can share a title (multi-class share lines for one issuer).
+    # Keep the FIRST occurrence (the primary listing) rather than letting the
+    # last row silently overwrite it with a secondary share class.
     index: dict = {}
     for entry in raw.values():
         title = (entry.get("title") or "").strip()
         if not title:
             continue
-        index[title.lower()] = entry
+        index.setdefault(title.lower(), entry)
 
     _ticker_index_cache = index
     logger.info("Loaded EDGAR ticker index: %d companies", len(index))
@@ -1079,9 +1082,16 @@ def gather_fallback_content(
         # Cap the total gather — some sources (Wayback over slow CDX) can hang.
         # Any futures that aren't done when we hit the deadline are abandoned.
         deadline = time.time() + timeout_per_source * 2
+        # Track futures already drained by the as_completed loop so the
+        # timeout handler below doesn't extend `results` a SECOND time for a
+        # source that finished before the deadline — that double-counted
+        # recovered pages (duplicated EDGAR/Wikipedia/feed text) into the
+        # downstream corpus on every timeout.
+        collected: set = set()
         try:
             for f in as_completed(futures, timeout=max(1.0, deadline - time.time())):
                 source = futures[f]
+                collected.add(f)
                 try:
                     pages = f.result()
                     logger.info("Fallback source %s returned %d page(s)", source, len(pages))
@@ -1089,8 +1099,11 @@ def gather_fallback_content(
                 except Exception as e:
                     logger.warning("Fallback source %s raised: %s", source, e)
         except TimeoutError:
-            # Collect whatever already finished; abandon the rest.
+            # Collect whatever already finished (and wasn't already drained
+            # above); abandon the rest.
             for f, source in futures.items():
+                if f in collected:
+                    continue
                 if f.done():
                     try:
                         pages = f.result(timeout=0)

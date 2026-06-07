@@ -67,9 +67,13 @@ def scan_scaffolding_leakage(content: str) -> dict:
     )
 
     # Internal cite labels that should never ship: [cite: workbook], [cite: bbb],
-    # etc. Numeric cites and URL-bearing cites are fine.
+    # etc. Numeric cites and URL-bearing cites are fine. Inner scan is
+    # length-bounded and excludes "[" (was the unbounded "[a-z]+[^\]]*") so an
+    # attacker-shaped report full of unclosed "[cite: a" markers can't drive
+    # quadratic regex work — same fix already applied to the cross-ref/workbook
+    # patterns above.
     informal_cite_count = len(
-        re.findall(r"\[cite:\s*(?!\d|https?:)[a-z]+[^\]]*\]", content, re.IGNORECASE)
+        re.findall(r"\[cite:\s{0,10}(?!\d|https?:)[a-z][^\[\]\n]{0,100}\]", content, re.IGNORECASE)
     )
 
     total = cross_ref_count + workbook_count + bold_validate_count + informal_cite_count

@@ -241,7 +241,13 @@ def optimize_skill_description(
         return SkillTriggerResult(skill.name, 0.0, 0.0, optimized=False, n_evals=len(evals))
 
     train, test = _split_train_test(evals)
-    score_set = test or train
+    # No held-out test means the split collapsed (too few evals in a class).
+    # Scoring an improved description on the same set it was tuned against would
+    # reward memorization, so keep the original rather than risk an overfit swap.
+    if not test:
+        logger.info("No held-out trigger test split for %s; skipping optimization", skill.name)
+        return SkillTriggerResult(skill.name, 0.0, 0.0, optimized=False, n_evals=len(evals))
+    score_set = test
     baseline = score_description(
         skill.name, skill.description, score_set, reasoning_session=reasoning_session
     )
