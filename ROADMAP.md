@@ -114,6 +114,82 @@ Primr is intentionally not designed as a generic web scraper, a SaaS collaborati
 
 ---
 
+## Release Cadence
+
+The queue is worked top-down, but a release is never *only* features. Every
+release cycle folds in a standing **bug-hunt + harden** lane, independent of
+whatever feature lands:
+
+1. **Adversarial review.** A focused sweep for correctness and security bugs
+   across the modules touched since the last release, plus a rotating "cold"
+   module that hasn't been reviewed in a while. Findings are fixed *with
+   regression tests* in the same release — the test pins the bug so it can't
+   silently return.
+2. **Supply-chain + dependency hygiene.** The `bandit` / `pip-audit` / Trivy
+   gates are re-checked; flagged action/dependency bumps are applied by hand
+   (no bot PRs — see Engineering Standards).
+3. **Coverage ratchet.** The branch-coverage gate only ever rises. New code
+   ships with tests, and the ratchet is bumped when a focused push clears
+   headroom.
+4. **Release pre-flight.** Version integrity (`pyproject` ↔ `__version__` ↔
+   ROADMAP "Current State"), `ruff` check + format, `mypy`, and a dry-run cost
+   estimate all run locally before any `v*` tag is pushed.
+
+This is why the changelog shows hardening-only points (e.g. 1.29.2, 1.29.3)
+interleaved with feature points: hardening is a recurring lane, not a one-time
+milestone. A release is "done" when the feature works **and** the harden pass
+is clean — not before.
+
+---
+
+## Path to 2.0 and Beyond
+
+The version line is deliberately incremental — primr ships small, verifiable
+releases, not big-bang rewrites. The major-version arc is about *what primr
+is*, not a feature count. (No dates: these are bands of work, gated on quality,
+not a schedule.)
+
+**1.x — the excellent single-shot brief (current line).** The job is "URL in,
+consultant-grade artifact out," done well. The remaining 1.x work is the top of
+the Active Queue: consultant-grade strategic writing (#4), the artifact
+pipeline hardened into a strict shipping contract (#1–2), verified page-access
+recovery (#3), and the cost/observability surface (#5–9) that keeps the sub-$1
+default honest. 1.x is "done" when a sparse-company run still feels
+substantive, a rich-company run is sharp and differentiated, and the
+deliverable ships clean every time.
+
+**2.0 — primr as a composable, cost-tunable research _role_.** The step-change
+that earns the major bump is three things landing together:
+
+- **Backend freedom** — the capability-requirement routing layer (#18) plus
+  validated local / hybrid inference (see "Local Inference Mode"), so a run is
+  cost-tunable from sub-$1 cloud down to $0 local *without changing the
+  pipeline*.
+- **Memory** — research that compounds across runs (cross-run claim store +
+  persistent company tracking + Strategy Delta Mode) instead of starting cold
+  every time.
+- **Interoperability** — primr presented as a *role* other agents assign work
+  to (A2A output negotiation, job-scoped resources, the hardened agent control
+  plane #21), not just a CLI a human runs.
+
+2.0 is "done" when primr is something a downstream agent can delegate to, on a
+backend the operator chose, with memory of what it already learned — while
+still being the same "serious artifact out" tool when run locally by a human.
+
+**Beyond 2.0 — the research frontier, same guardrails.** First-class VLM
+extraction for data-dense pages, knowledge compounding / meta-research across
+whole verticals, and a generic post-artifact skill-processing handoff. These
+extend reach without changing what primr *is*, and they stay inside the
+standing non-goals: no web app, no always-on watcher, no collaboration
+platform, no DAG framework (see "Explicitly Deferred" and "Why Not a Research
+DAG").
+
+The guardrails hold across every band: local-first, CLI-first, artifact-first;
+the pipeline is the product and the model is a commodity; cost discipline over
+feature sprawl.
+
+---
+
 ## Active Queue
 
 The active queue is ordered top-down by priority. Each item is concrete enough to start without further design work.
