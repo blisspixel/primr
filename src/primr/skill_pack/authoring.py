@@ -180,8 +180,10 @@ def author_role_skills(
 def _parse_bundled_files(raw: object) -> list[BundledFile]:
     """Parse the optional bundled_files array from an authored skill.
 
-    Tolerant: skips malformed entries. Path-safety is validated downstream
-    (validator BUNDLE-PATH + packager drop), so here we only shape-check.
+    Tolerant: skips malformed entries. Both path-safety AND content-safety are
+    validated downstream (validator BUNDLE-PATH + SEC-BUNDLE, plus the packager
+    defense-in-depth drop), so here we only shape-check — never trust this
+    content, it is LLM output derived from adversarial web/hiring evidence.
     """
     if not isinstance(raw, list):
         return []

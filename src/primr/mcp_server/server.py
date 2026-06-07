@@ -68,7 +68,11 @@ class PrimrMCPServer:
 
         # Initialize components
         self.job_store = SingleJobStore(journal_path=journal_path)
-        self.path_validator = PathValidator()
+        # "working" is primr's own run/scratch root: report_path reuse
+        # (e.g. skill packs authored from `working/<run>` evidence) must be
+        # allowed alongside the deliverable roots, while still blocking
+        # traversal / symlinks / system dirs / arbitrary server paths.
+        self.path_validator = PathValidator(allowed_roots=["output", "logs", "working"])
         self.url_validator = URLValidator()
         self.rate_limiter = RateLimiter()
 

@@ -72,6 +72,65 @@ def test_find_edgar_cik_exact_match():
         assert canonical == "Example Holdings Inc."
 
 
+def test_edgar_index_keeps_first_on_duplicate_title():
+    """Multi-class share lines share a title; the FIRST (primary) row must win
+    rather than being silently overwritten by a later secondary class."""
+    body = json.dumps(
+        {
+            "0": {"cik_str": 111, "ticker": "PRIMARY", "title": "Dup Holdings Inc."},
+            "1": {"cik_str": 111, "ticker": "SECONDARY", "title": "Dup Holdings Inc."},
+        }
+    ).encode()
+    with patch("primr.data.fallback_sources._http_get", return_value=(200, body, None)):
+        import primr.data.fallback_sources as fb
+
+        fb._ticker_index_cache = None
+        result = find_edgar_cik("Dup Holdings Inc.")
+        assert result is not None
+        _, ticker, _ = result
+        assert ticker == "PRIMARY"
+
+
+def test_gather_fallback_content_no_duplicates_on_timeout():
+    """On the as_completed timeout path, a source drained by the loop must NOT
+    be collected a second time by the timeout handler (which double-counted
+    recovered pages into the corpus)."""
+    import primr.data.fallback_sources as fb
+
+    def _page(src):
+        return [FallbackPage(url=f"https://{src}", source=src, content=f"{src} text " * 60)]
+
+    real_as_completed = fb.as_completed
+
+    def fake_as_completed(fmap, timeout=None):
+        # Drain exactly one future in the loop (it finished before the
+        # deadline), then trip the deadline with the rest still "pending" so
+        # the timeout handler runs over every future.
+        first = next(iter(fmap))
+        # Make sure it has really completed before we hand it back.
+        real_as_completed([first], timeout=5)
+        yield first
+        raise TimeoutError
+
+    with (
+        patch.object(fb, "as_completed", fake_as_completed),
+        patch.object(fb, "fetch_subdomain_content", lambda *a, **k: _page("subdomain")),
+        patch.object(fb, "fetch_feed_content", lambda *a, **k: _page("feed")),
+        patch.object(fb, "fetch_edgar_content", lambda *a, **k: _page("edgar")),
+        patch.object(fb, "fetch_wikipedia_content", lambda *a, **k: _page("wikipedia")),
+    ):
+        pages = gather_fallback_content(
+            company_name="Example Inc.",
+            website="https://example.com/",
+            wayback_urls=None,
+            grok_surrogate_urls=None,
+        )
+
+    sources = [p.source for p in pages]
+    # Every source appears at most once — no duplication from the timeout path.
+    assert len(sources) == len(set(sources)), f"duplicate sources: {sources}"
+
+
 def test_find_edgar_cik_fuzzy_substring_match():
     fake_index_body = json.dumps(
         {

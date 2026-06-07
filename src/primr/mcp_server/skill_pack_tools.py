@@ -280,7 +280,7 @@ async def handle_skill_pack_tool(
     if name == "estimate_skill_pack":
         return await _handle_estimate_skill_pack(arguments)
     if name == "generate_skill_pack":
-        return await _handle_generate_skill_pack(arguments)
+        return await _handle_generate_skill_pack(arguments, mcp_server)
     return None
 
 
@@ -310,7 +310,10 @@ async def _handle_estimate_skill_pack(arguments: dict[str, Any]) -> list[TextCon
     return [TextContent(type="text", text=json.dumps(payload, indent=2))]
 
 
-async def _handle_generate_skill_pack(arguments: dict[str, Any]) -> list[TextContent]:
+async def _handle_generate_skill_pack(
+    arguments: dict[str, Any],
+    mcp_server: PrimrMCPServer,
+) -> list[TextContent]:
     company_name = str(arguments.get("company_name", "")).strip()
     company_url = str(arguments.get("company_url", "")).strip() or None
     report_path = str(arguments.get("report_path", "")).strip() or None
@@ -349,24 +352,43 @@ async def _handle_generate_skill_pack(arguments: dict[str, Any]) -> list[TextCon
     roles_add = _coerce_list(arguments.get("roles_add"))
     roles_skip = _coerce_list(arguments.get("roles_skip"))
 
-    # Cost gate
+    # Cost gate. Estimate on the EFFECTIVE roster size that will actually be
+    # authored, not the raw roles_count: roles_override replaces the count and
+    # roles_add augments it, so estimating on roles_count alone let a caller
+    # pass roles_count=1 with 15 overrides and slip past a cap sized for one
+    # role. Capped at MAX_ROLES (the pipeline's hard ceiling).
+    effective_roles = len(roles_override) if roles_override else roles_count
+    effective_roles = min(effective_roles + len(roles_add), MAX_ROLES)
     estimate = _estimate_skill_pack_cost(
-        roles_count, skills_per_role, has_report_path=bool(report_path)
+        effective_roles, skills_per_role, has_report_path=bool(report_path)
     )
-    if max_cost is not None and _is_cost_cap_enforced():
+    if _is_cost_cap_enforced():
+        # Fail closed: when server-side caps are enforced, a cost-incurring run
+        # MUST carry an explicit cap. Other MCP tools behave the same way; this
+        # path previously only checked the cap when the caller chose to supply
+        # one, which silently defeated the enforcement toggle.
+        if max_cost is None:
+            return [
+                _error_response(
+                    "max_estimated_cost_usd is required when cost-cap "
+                    "enforcement is enabled (PRIMR_ENFORCE_MCP_COST_CAPS). "
+                    f"Estimated cost for this run is ${estimate['cost_usd']:.2f}; "
+                    "re-call with max_estimated_cost_usd at or above it."
+                )
+            ]
         try:
             cap = float(max_cost)
-            if estimate["cost_usd"] > cap:
-                return [
-                    _error_response(
-                        f"Estimated cost ${estimate['cost_usd']:.2f} exceeds cap "
-                        f"${cap:.2f}. Increase max_estimated_cost_usd, reduce "
-                        f"roles_count/skills_per_role, or supply a report_path "
-                        f"to skip evidence collection."
-                    )
-                ]
         except (TypeError, ValueError):
-            pass
+            return [_error_response("max_estimated_cost_usd must be a number")]
+        if estimate["cost_usd"] > cap:
+            return [
+                _error_response(
+                    f"Estimated cost ${estimate['cost_usd']:.2f} exceeds cap "
+                    f"${cap:.2f}. Increase max_estimated_cost_usd, reduce "
+                    f"roles_count/skills_per_role, or supply a report_path "
+                    f"to skip evidence collection."
+                )
+            ]
 
     try:
         config = SkillPackConfig(
@@ -391,7 +413,19 @@ async def _handle_generate_skill_pack(arguments: dict[str, Any]) -> list[TextCon
 
     # Working directory: existing report path or fresh temp dir + standalone evidence.
     if report_path:
-        working_dir = Path(report_path).resolve()
+        # Validate through the shared MCP PathValidator (allowed roots only,
+        # traversal/symlink/null-byte/system-dir checks) — same containment
+        # every other path-taking MCP tool uses. Previously report_path was
+        # resolved straight from caller input, letting an authenticated client
+        # point the run at any server-side directory.
+        path_result = mcp_server.path_validator.validate(report_path)
+        if not path_result.valid or path_result.resolved_path is None:
+            return [
+                _error_response(
+                    f"report_path rejected: {path_result.error_message or 'invalid path'}"
+                )
+            ]
+        working_dir = path_result.resolved_path
         if not working_dir.exists():
             return [_error_response(f"report_path does not exist: {working_dir}")]
         cleanup_tempdir: Path | None = None
@@ -416,7 +450,14 @@ async def _handle_generate_skill_pack(arguments: dict[str, Any]) -> list[TextCon
                 )
             ]
 
-    output_dir = Path(destination).resolve()
+    # Destination is caller-controlled too — contain it to allowed roots before
+    # creating directories and writing the SKILL.md tree / Cowork zip / report.
+    dest_result = mcp_server.path_validator.validate(destination)
+    if not dest_result.valid or dest_result.resolved_path is None:
+        return [
+            _error_response(f"destination rejected: {dest_result.error_message or 'invalid path'}")
+        ]
+    output_dir = dest_result.resolved_path
     output_dir.mkdir(parents=True, exist_ok=True)
 
     from primr.skill_pack.pipeline import run_skill_pack_pipeline

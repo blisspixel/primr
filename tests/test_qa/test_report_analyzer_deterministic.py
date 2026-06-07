@@ -325,6 +325,23 @@ class TestAnalyzeScaffoldingLeakage:
         result = analyzer.analyze_scaffolding_leakage()
         assert result["informal_cite_markers"] == 2
 
+    def test_informal_cite_scan_is_not_quadratic_on_unclosed_markers(self):
+        """Regression (ReDoS): the informal-cite regex used an unbounded tail
+        before a required ']'. A document full of unclosed '[cite: a' starts
+        made findall rescan the remainder per start (quadratic). The bounded,
+        '['-excluding pattern must scan a large adversarial input fast and
+        report zero closed informal cites."""
+        import time
+
+        # ~400 KB of repeated unclosed markers — the prior pattern took many
+        # seconds on far less than this.
+        hostile = "[cite: a" * 50_000
+        start = time.perf_counter()
+        result = scan_scaffolding_leakage(hostile)
+        elapsed = time.perf_counter() - start
+        assert result["informal_cite_markers"] == 0
+        assert elapsed < 1.0, f"scan took {elapsed:.2f}s — quadratic regression"
+
     def test_total_leaked_sums_all_categories(self):
         content = (
             "## Section\n\n"

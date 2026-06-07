@@ -57,6 +57,17 @@ def test_split_train_test_is_stratified_and_deterministic():
     assert [e.query for e in test] == [e.query for e in test2]
 
 
+def test_split_collapse_yields_empty_test():
+    """When a class has only one eval, the per-bucket split leaves no training
+    rows; the guard rebuilds train from test, which legitimately empties test.
+    optimize_skill_description keys off this to skip an un-validatable swap, so
+    the collapse must be observable as an empty test split."""
+    evals = [TriggerEval("only positive", True), TriggerEval("only negative", False)]
+    train, test = _split_train_test(evals)
+    assert train  # guard kept training data
+    assert test == []  # no held-out set -> optimizer must not swap on this
+
+
 def test_score_description_computes_accuracy():
     evals = _evals()
     # Perfect oracle: trigger exactly on the should_trigger queries.

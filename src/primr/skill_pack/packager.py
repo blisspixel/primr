@@ -40,9 +40,14 @@ from primr.skill_pack.schema import (
     SkillPack,
     SkillPackArtifacts,
 )
-from primr.skill_pack.validator import validate_bundled_path
+from primr.skill_pack.validator import scan_bundled_content, validate_bundled_path
 
 logger = logging.getLogger(__name__)
+
+# ASCII control characters (except the ones str handles via .replace below);
+# stripped from SKILL.md frontmatter metadata values so an injected CR/ESC/etc.
+# can't forge a log line or break the YAML.
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 MANIFEST_SCHEMA_URL = (
     "https://developer.microsoft.com/json-schemas/teams/v1.28/MicrosoftTeams.schema.json"
@@ -121,7 +126,13 @@ def _format_skill_md(skill: Skill, metadata: dict[str, str] | None = None) -> st
     if metadata:
         lines.append("metadata:")
         for key, value in metadata.items():
-            safe_value = str(value).replace('"', '\\"').replace("\n", " ").strip()
+            # Defense-in-depth: strip control chars and escape quotes/newlines so
+            # a role field (display_name/confidence) that reaches frontmatter
+            # can't break the YAML or inject a line. The validator's role-level
+            # SEC-INJECT is the primary gate (drops the role); this keeps the
+            # emitted document well-formed even if a value slips through.
+            safe_value = _CONTROL_CHARS_RE.sub("", str(value))
+            safe_value = safe_value.replace('"', '\\"').replace("\n", " ").strip()
             lines.append(f'  {key}: "{safe_value}"')
     lines.extend(
         [
@@ -385,16 +396,30 @@ def _flatten_skills(pack: SkillPack) -> list[tuple[Role, Skill]]:
 
 
 def _valid_bundled_files(skill: Skill) -> list[BundledFile]:
-    """Filter a skill's bundled files to those with safe paths, de-duped by
-    relpath. Unsafe paths are dropped here (the validator already recorded a
-    SOFT BUNDLE-PATH finding) so a bad path can never write outside the
-    skill folder or collide."""
+    """Filter a skill's bundled files to those that are safe to write, de-duped
+    by relpath.
+
+    Drops two classes of file defensively (the validator already recorded the
+    matching finding upstream):
+      - unsafe PATH (traversal / wrong subdir / wrong ext) — SOFT BUNDLE-PATH;
+      - unsafe CONTENT (injection markers, hardcoded paths, or an executable
+        Python helper that does process/network/eval/secret/destructive work)
+        — HARD SEC-BUNDLE.
+
+    This is defense-in-depth: even if a role somehow ships with a HARD finding
+    unresolved, no unreviewed executable or injected content reaches the
+    Claude tree or the Cowork zip.
+    """
     out: list[BundledFile] = []
     seen: set[str] = set()
     for bf in skill.bundled_files:
         if validate_bundled_path(bf.relpath) is not None:
             continue
         if bf.relpath in seen:
+            continue
+        unsafe = scan_bundled_content(bf.relpath, bf.content)
+        if unsafe is not None:
+            logger.warning("Dropping unsafe bundled file %r: %s", bf.relpath, unsafe)
             continue
         seen.add(bf.relpath)
         out.append(bf)
