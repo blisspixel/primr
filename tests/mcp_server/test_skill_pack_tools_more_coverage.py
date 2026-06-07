@@ -35,26 +35,42 @@ from primr.skill_pack.schema import SkillPack, SkillPackArtifacts, ValidationRep
 # ---------------------------------------------------------------------------
 
 
-def _mcp_server_mock():
+def _mcp_server_for(arguments):
     """A mock MCP server whose path_validator is REAL.
 
     generate_skill_pack now contains report_path / destination through the
     server's PathValidator (the same containment every other path-taking MCP
-    tool uses). The handler tests exercise real paths under the OS temp dir
-    (pytest tmp_path) and the deliverable roots, so the validator is scoped to
-    those — a bare MagicMock would make every path "valid" and defeat the test.
+    tool uses), so a bare MagicMock would make every path "valid" and defeat
+    the test. The validator is scoped to the deliverable roots PLUS any
+    report_path / destination argument that lives under the OS temp dir
+    (pytest's tmp_path). Passing the EXACT tmp path as an allowed root matters
+    on Linux: PathValidator rejects paths under a system dir (e.g. /tmp) unless
+    the allowed root itself is under that system dir, in which case the check
+    is skipped — so the root must be the tmp_path, not gettempdir(). Absolute
+    paths NOT under the temp dir (e.g. /etc) are never auto-allowed, so the
+    rejection tests still reject.
     """
+    roots: list[str] = ["output", "logs", "working"]
+    tmp_base = Path(tempfile.gettempdir()).resolve()
+    for key in ("report_path", "destination"):
+        val = arguments.get(key)
+        if not val:
+            continue
+        try:
+            rp = Path(str(val)).resolve()
+        except OSError:
+            continue
+        if rp == tmp_base or tmp_base in rp.parents:
+            roots.append(str(rp))
     server = MagicMock()
-    server.path_validator = PathValidator(
-        allowed_roots=[tempfile.gettempdir(), "output", "logs", "working"]
-    )
+    server.path_validator = PathValidator(allowed_roots=roots)
     return server
 
 
 async def _call(name, arguments, mcp_server=None):
     """Invoke the dispatcher and return the parsed JSON of the first block."""
     result = await spt.handle_skill_pack_tool(
-        name, arguments, mcp_server=mcp_server or _mcp_server_mock()
+        name, arguments, mcp_server=mcp_server or _mcp_server_for(arguments)
     )
     assert result is not None
     return json.loads(result[0].text)
