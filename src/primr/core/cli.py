@@ -597,6 +597,7 @@ def _run_keys(args: list[str] | None) -> int:
 
     from primr.config.env import (
         KEY_HELP,
+        describe_key_source,
         get_local_env_path,
         get_user_env_path,
         load_primr_env,
@@ -628,9 +629,15 @@ def _run_keys(args: list[str] | None) -> int:
             console.info(f"Local override: {local_path}")
         console.blank()
         for env_name, purpose in KEY_HELP.items():
-            value = os.environ.get(env_name)
-            if value:
-                console.ok(f"{env_name} configured ({mask_secret(value)}) - {purpose}")
+            active, _source, shadowed = describe_key_source(env_name)
+            if active:
+                console.ok(f"{env_name} configured ({mask_secret(active)}) - {purpose}")
+                if shadowed is not None:
+                    console.warn(
+                        f"  {env_name} is set by an OS environment variable, overriding the "
+                        f".env value ({mask_secret(shadowed)}). Clear the env var for the "
+                        f".env file to take effect."
+                    )
             else:
                 console.info(f"{env_name} not set - {purpose}")
         return 0

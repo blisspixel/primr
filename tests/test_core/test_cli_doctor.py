@@ -302,6 +302,7 @@ class TestRunDoctor:
             monkeypatch.setattr(cli_doctor, name, lambda ap, wc: (ap and all_passed, wc + warnings))
         monkeypatch.setattr(cli_doctor, "_check_providers", lambda wc: wc + warnings)
         monkeypatch.setattr(cli_doctor, "_check_dependencies", lambda wc: wc + warnings)
+        monkeypatch.setattr(cli_doctor, "_check_key_shadowing", lambda wc: wc + warnings)
 
     def test_all_pass_returns_zero(self, monkeypatch):
         self._stub_all_checks(monkeypatch, all_passed=True, warnings=0)

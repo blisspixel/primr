@@ -135,6 +135,53 @@ def read_user_env_values() -> dict[str, str]:
     return {key: value or "" for key, value in dotenv_values(path).items() if key}
 
 
+def _env_file_value(env_name: str) -> tuple[str | None, str | None]:
+    """Return ``(value, source_label)`` for ``env_name`` from the .env files.
+
+    Checks the local .env first (higher precedence), then the per-user config.
+    Returns ``(None, None)`` if neither file defines the key.
+    """
+    local_path = get_local_env_path()
+    if local_path:
+        local_path = Path(local_path)
+        if local_path.exists():
+            value = dotenv_values(local_path).get(env_name)
+            if value:
+                return value, "local .env"
+    user_path = Path(get_user_env_path())
+    if user_path.exists():
+        value = dotenv_values(user_path).get(env_name)
+        if value:
+            return value, "user config"
+    return None, None
+
+
+def describe_key_source(env_name: str) -> tuple[str | None, str | None, str | None]:
+    """Resolve where ``env_name``'s active value comes from and detect shadowing.
+
+    Returns ``(active_value, source_label, shadowed_file_value)``:
+
+    - ``active_value`` — current ``os.environ`` value (``None`` if unset).
+    - ``source_label`` — ``"OS environment variable"``, ``"local .env"``,
+      ``"user config"``, or ``None`` when unset.
+    - ``shadowed_file_value`` — set only when an OS environment variable overrides
+      a *different* value configured in a .env file, so callers can warn that
+      edits to the file have no effect until the env var is cleared. This is the
+      common "I changed the .env but it still uses the old key" failure mode.
+    """
+    active = os.environ.get(env_name)
+    file_value, file_source = _env_file_value(env_name)
+    if active is None:
+        return None, None, None
+    if file_value is not None and active == file_value:
+        return active, file_source, None
+    if file_value is not None:
+        # An OS environment variable (or other process-level source) wins over
+        # the differing .env value, so the file edit is silently ignored.
+        return active, "OS environment variable", file_value
+    return active, "OS environment variable", None
+
+
 def _format_env_assignment(key: str, value: str) -> str:
     return f"{key}={value}"
 

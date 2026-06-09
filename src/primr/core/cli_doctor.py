@@ -275,6 +275,27 @@ def _check_gemini_resources(all_passed: bool, warnings_count: int) -> tuple[bool
     return all_passed, warnings_count
 
 
+def _check_key_shadowing(warnings_count: int) -> int:
+    """Warn when an OS environment variable shadows a configured .env key.
+
+    A common, confusing failure mode: the user edits the .env file but a stale
+    shell/OS environment variable keeps overriding it, so the change never takes
+    effect and key validation keeps using the old value.
+    """
+    from primr.config.env import KEY_HELP, describe_key_source, mask_secret
+
+    for env_name in KEY_HELP:
+        _active, _source, shadowed = describe_key_source(env_name)
+        if shadowed is not None:
+            console.warn(
+                f"{env_name} is set by an OS environment variable, which overrides your "
+                f".env file value ({mask_secret(shadowed)}). Edits to the .env file are "
+                f"ignored until you clear the environment variable."
+            )
+            warnings_count += 1
+    return warnings_count
+
+
 def run_doctor(*, fix: bool = False) -> int:
     """Run system diagnostics. Exit code 0 if all checks pass, 1 otherwise."""
     console.banner("Primr Doctor")
@@ -293,6 +314,7 @@ def run_doctor(*, fix: bool = False) -> int:
 
     console.step("API Configuration")
     all_passed, warnings_count = _check_api_keys(all_passed, warnings_count)
+    warnings_count = _check_key_shadowing(warnings_count)
 
     console.step("Providers")
     warnings_count = _check_providers(warnings_count)
