@@ -52,6 +52,7 @@ import yaml  # type: ignore[import-untyped]
 
 from primr.agentic.errors import MemoryError
 from primr.agentic.models import ConfidenceLevel, Hypothesis
+from primr.utils.atomic_io import atomic_replace
 
 logger = logging.getLogger(__name__)
 
@@ -338,7 +339,7 @@ class ResearchMemory:
                     allow_unicode=True,
                     sort_keys=False,
                 )
-            tmp_path.replace(path)
+            atomic_replace(tmp_path, path)
         except OSError as e:
             raise MemoryError(
                 message=f"Cannot write memory file: {e}",

@@ -547,6 +547,23 @@ After the v1.25.x refactor extracted `cli_batch.py`, `cli_doctor.py`, `cli_parse
 
 Target: all three monster files at 80%+ line coverage. This is a refactor for testability, not a new feature — the rule should be no behavior change, only seam introduction, and existing eval scores should remain identical.
 
+### 24. Runtime & Key Diagnostics Robustness (Python 3.14)
+
+Surfaced by a live standard run on a Python 3.14 interpreter: failures that degrade output silently or send debugging down the wrong path.
+
+- **Recon event-loop fix (landed)**: the inline recon call used `asyncio.get_event_loop().run_until_complete(...)`, which raises `RuntimeError: no current event loop` on 3.14, so recon was skipped with only a warning — silently degrading platform auto-detection and recon-grounded skill planning. Switched to `asyncio.run(...)` to match the skill-pack evidence path. Remaining: audit the other `get_event_loop()` call sites (`ai_strategy_runtime.py`, `async_utils.py`, `research_agent.py:~5505`) for the same 3.14 hazard and standardize on a single safe helper.
+- **Key-source diagnostics**: a stale OS-level environment variable can shadow the `.env` value while `doctor` and `keys list` still report "valid format," masking the real cause of an auth failure. `keys list` / `doctor` should show the resolved **source** of each key (OS env var vs user config vs local override) and warn when an env var overrides the file.
+- **Synced-folder log hardening**: chat-log writes corrupt under a synced working directory (`WinError 32`, "corrupt chat log detected"). Make the writer atomic + retry-tolerant, or keep `logs/chat_history` out of the synced path. Cross-refs #14.
+
+### 25. Skill Pack: JD-as-Evidence Input & Enterprise Role Discovery
+
+Surfaced building a skill pack for a specialized, non-technical role at a large multi-brand retailer, where the richest grounding was a pasted job description the pipeline could not ingest, and posting discovery returned only front-line roles.
+
+- **JD-as-evidence input**: `--roles-override` accepts only a label; add a `--from-jd` / role-brief input that feeds a pasted or attached job description into the authoring evidence layer, so a single well-specified role can be authored with full grounding without relying on discovered postings.
+- **Enterprise role-discovery honesty**: when discovered postings cluster in one narrow band (e.g. all store/front-line for a large org), the observed-roles set silently under-represents specialized corporate roles. Flag a roster as posting-incomplete in that case, and support segmented / multi-ATS career sites rather than treating a thin slice as full coverage. Reinforces the "postings are primary input" invariant.
+- **Authoring quality patterns**: bake the patterns that distinguished a strong hand-built pack into `author_skill.yaml` — an intake/elicitation opening, a worked input→output example per skill, one shared single-source reference per role family (instead of per-skill duplication that drifts), an explicit scope guardrail, and a human-gated self-refinement section. Cross-refs #15.
+- **Cowork packaging refresh**: re-check the Cowork docs/packager against current platform docs, which now allow companion files (`references/`, ~20 files / 10 MB) and a higher custom-skill cap. Cross-refs #15.
+
 ---
 
 ## Engineering Standards & Toolchain

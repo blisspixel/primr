@@ -4778,7 +4778,10 @@ def perform_research(
 
                 from recon_tool.resolver import resolve_tenant
 
-                info, _recon_results = asyncio.get_event_loop().run_until_complete(
+                # Use asyncio.run() (not get_event_loop) so this works on Python 3.14,
+                # where get_event_loop() raises "no current event loop" with no running loop.
+                # Mirrors skill_pack/evidence.py. This path is synchronous (no loop running).
+                info, _recon_results = asyncio.run(
                     asyncio.wait_for(resolve_tenant(domain), timeout=15.0)
                 )
                 recon_info = info  # noqa: F841 — kept for future downstream use

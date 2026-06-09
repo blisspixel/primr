@@ -22,6 +22,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+from primr.utils.atomic_io import atomic_replace
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("utils.usage_tracker")
@@ -243,7 +244,7 @@ class UsageTracker:
             try:
                 with os.fdopen(fd, "w", encoding="utf-8") as f:
                     json.dump(self.history, f, indent=2)
-                os.replace(tmp_name, self.storage_path)
+                atomic_replace(tmp_name, self.storage_path)
             except Exception:
                 # Clean up the partial temp file if the swap never happened.
                 with contextlib.suppress(OSError):
