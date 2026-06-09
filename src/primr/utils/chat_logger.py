@@ -12,6 +12,7 @@ from colorama import Fore, Style
 
 # Get project root for log directory
 from primr.config.config import PROJECT_ROOT
+from primr.utils.atomic_io import atomic_replace
 from primr.utils.logging_config import get_logger
 from primr.utils.security import mask_sensitive_data
 
@@ -57,15 +58,29 @@ def log_chat_interaction(prompt, response, session_id="general"):
         }
     )
 
-    # Atomic write: serialize to a PID-suffixed temp file then os.replace, so a
-    # crash mid-write can't corrupt the existing log (was a plain truncating write).
+    # Atomic write: serialize to a PID-suffixed temp file, then atomically replace.
+    # A crash mid-write can't corrupt the existing log. atomic_replace retries the
+    # rename through transient Windows/OneDrive file locks; if it still fails, fall
+    # back to a direct overwrite so an interaction is never silently dropped. Chat
+    # logging must never abort the run, so any final failure is logged, not raised.
     tmp_path = log_file_path.with_suffix(f".{os.getpid()}.tmp")
+    payload = json.dumps(chat_history, indent=4)
     try:
         with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(chat_history, f, indent=4)
-        os.replace(tmp_path, log_file_path)
+            f.write(payload)
+        try:
+            atomic_replace(tmp_path, log_file_path)
+        except PermissionError as e:
+            logger.warning(
+                "Atomic chat-log save failed for %s; falling back to direct overwrite: %s",
+                log_file_path,
+                e,
+            )
+            with open(log_file_path, "w", encoding="utf-8") as f:
+                f.write(payload)
     except Exception as e:
         logger.error("Failed to save chat log %s: %s", log_file_path, e)
+    finally:
         with contextlib.suppress(OSError):
             if tmp_path.exists():
                 tmp_path.unlink()

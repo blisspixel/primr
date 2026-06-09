@@ -17,6 +17,7 @@ from pathlib import Path
 from threading import Lock
 
 from primr.mcp_server.types import JobStatus, ResearchStage
+from primr.utils.atomic_io import atomic_replace
 
 
 def _utcnow() -> datetime:
@@ -395,7 +396,7 @@ class SingleJobStore(JobStore):
         temp_path = self._journal_path.with_suffix(".tmp")
         with open(temp_path, "w", encoding="utf-8") as f:
             json.dump(self._job.to_journal_dict(), f, indent=2)
-        temp_path.replace(self._journal_path)  # Atomic rename
+        atomic_replace(temp_path, self._journal_path)  # Atomic rename (retries transient locks)
 
     def create(
         self,

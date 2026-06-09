@@ -78,6 +78,23 @@ class TestLogChatInteraction:
         assert (log_dir / "atomic.json").exists()
         assert not list(log_dir.glob("*.tmp"))
 
+    def test_persistent_lock_falls_back_to_direct_write(self, log_dir, caplog, monkeypatch):
+        """A persistent lock that defeats atomic_replace must not drop the entry:
+        the logger falls back to a direct overwrite and still records it."""
+
+        def always_locked(src, dst, **kwargs):
+            raise PermissionError("WinError 32: file in use")
+
+        monkeypatch.setattr(chat_logger, "atomic_replace", always_locked)
+        with caplog.at_level(logging.WARNING):
+            chat_logger.log_chat_interaction("p", "r", session_id="locked")
+
+        assert "falling back to direct overwrite" in caplog.text
+        data = json.loads((log_dir / "locked.json").read_text(encoding="utf-8"))
+        assert len(data) == 1
+        assert data[0]["prompt"] == "p"
+        assert not list(log_dir.glob("*.tmp"))
+
 
 class TestReadChatLogs:
     def test_reads_existing_logs(self, log_dir):
