@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.29.3
+Current State: v1.30.0
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -143,51 +143,135 @@ is clean — not before.
 
 ---
 
-## Path to 2.0 and Beyond
+## Version Plan: 1.x → 2.0 → 3.0
 
 The version line is deliberately incremental — primr ships small, verifiable
 releases, not big-bang rewrites. The major-version arc is about *what primr
-is*, not a feature count. (No dates: these are bands of work, gated on quality,
-not a schedule.)
+is*, not a feature count. No dates anywhere in this plan: each band is gated
+on exit criteria, and the build sequence below is a **dependency order**, not
+a schedule. Detailed breakdowns live in [`docs/design/`](docs/design/README.md)
+— one design doc per workstream, kept in lockstep with this section.
 
-**1.x — the excellent single-shot brief (current line).** The job is "URL in,
-consultant-grade artifact out," done well. The remaining 1.x work is the top of
-the Active Queue: consultant-grade strategic writing (#4), the artifact
-pipeline hardened into a strict shipping contract (#1–2), verified page-access
-recovery (#3), and the cost/observability surface (#5–9) that keeps the sub-$1
-default honest. 1.x is "done" when a sparse-company run still feels
-substantive, a rich-company run is sharp and differentiated, and the
-deliverable ships clean every time.
+### 1.x — the excellent single-shot brief (current line)
 
-**2.0 — primr as a composable, cost-tunable research _role_.** The step-change
-that earns the major bump is three things landing together:
+The job is "URL in, consultant-grade artifact out," done well.
+
+**Status (as of v1.30.0):** most of the 1.x engineering backlog is closed —
+artifact pipeline contract (#1–2), cost/observability surface (#5, #7, #8,
+#12, #13), production failover (#6), QA iteration loop (#10), agentic write
+constraints (#11), and runtime robustness (#24) are DONE. What remains is the
+*quality* half, which by design needs paid evals and live sites to validate:
+
+- **#4 consultant-grade strategic writing** — the flagship remaining item;
+  prompt work validated by eval, not unit tests
+- **#3 remainder** — page-access recovery extensions (host-level learning,
+  blocked-site UX, premium-mode hiring signals)
+- **#23 orchestrator refactor** — `perform_fast_research` (~1,900 lines) split
+  for unit-testability; the precondition for per-module coverage targets and
+  the complexity budget
+- **#9 batch API** — cost lever, needs one live batch validation
+- Label-calibration measurement + evidence-fetching `--verify` (from the
+  v1.30 panel review) — converts the epistemic apparatus from style guide to
+  measured quantity
+
+**Exit criteria:** a sparse-company run still feels substantive; a
+rich-company run is sharp and differentiated; the deliverable ships clean
+every time; confidence labels have *measured* calibration; and the three
+monster functions are refactored so the test suite exercises the heart of the
+pipeline, not just its perimeter. Design doc:
+[`docs/design/1x-completion.md`](docs/design/1x-completion.md).
+
+### 2.0 — primr as a composable, cost-tunable research *role*
+
+The step-change that earns the major bump is three pillars landing together:
 
 - **Backend freedom** — the capability-requirement routing layer (#18) plus
-  validated local / hybrid inference (see "Local Inference Mode"), so a run is
-  cost-tunable from sub-$1 cloud down to $0 local *without changing the
-  pipeline*.
+  validated local / hybrid inference, so a run is cost-tunable from sub-$1
+  cloud down to $0 local *without changing the pipeline*. Design doc:
+  [`docs/design/2.0-backend-freedom.md`](docs/design/2.0-backend-freedom.md).
 - **Memory** — research that compounds across runs (cross-run claim store +
   persistent company tracking + Strategy Delta Mode) instead of starting cold
-  every time.
+  every time, shipped *with* its data-governance story (retention, deletion,
+  classification), not acquiring one later. Design doc:
+  [`docs/design/2.0-research-memory.md`](docs/design/2.0-research-memory.md).
 - **Interoperability** — primr presented as a *role* other agents assign work
-  to (A2A output negotiation, job-scoped resources, the hardened agent control
-  plane #21), not just a CLI a human runs.
+  to: per-tool capability-scoped authorization (T8), server-issued approval
+  tokens, a structured invocation audit log, job-scoped artifact resources,
+  A2A output negotiation (#21). Design doc:
+  [`docs/design/2.0-agent-control-plane.md`](docs/design/2.0-agent-control-plane.md).
 
-2.0 is "done" when primr is something a downstream agent can delegate to, on a
-backend the operator chose, with memory of what it already learned — while
-still being the same "serious artifact out" tool when run locally by a human.
+**Exit criteria:** a downstream agent can delegate to primr unattended — on a
+backend the operator chose, under enforced per-tool authorization and budget,
+with an auditable invocation trail — and primr remembers what it already
+learned, while still being the same "serious artifact out" tool when run
+locally by a human.
 
-**Beyond 2.0 — the research frontier, same guardrails.** First-class VLM
-extraction for data-dense pages, knowledge compounding / meta-research across
-whole verticals, and a generic post-artifact skill-processing handoff. These
-extend reach without changing what primr *is*, and they stay inside the
-standing non-goals: no web app, no always-on watcher, no collaboration
-platform, no DAG framework (see "Explicitly Deferred" and "Why Not a Research
-DAG").
+### 3.0 — the research frontier, same guardrails
 
-The guardrails hold across every band: local-first, CLI-first, artifact-first;
-the pipeline is the product and the model is a commodity; cost discipline over
-feature sprawl.
+Extends *reach* without changing what primr is:
+
+- **First-class VLM extraction** for data-dense pages (IR decks, org charts,
+  financial tables) — promoted from fallback tier to routed-by-content-type,
+  with structured JSON output and a per-run VLM budget
+- **Knowledge compounding / meta-research** across whole verticals — industry
+  context synthesized once and reused across a batch, claim-store queries
+  across companies ("AI strategy evolution across all fintech targets")
+- **Post-artifact skill-processing handoff** — a generic seam where consumers
+  (downstream experts, orchestrators) take primr artifacts forward, with the
+  skill pack as the first instance
+
+Design doc: [`docs/design/3.0-research-frontier.md`](docs/design/3.0-research-frontier.md).
+
+**Exit criteria:** primr reads what today it can only screenshot; the 50th
+company in a vertical is meaningfully cheaper and sharper than the 1st; and
+downstream systems consume primr artifacts through stable, versioned contracts.
+
+### Intentionally never (any version)
+
+The standing non-goals hold across every band — see
+[Explicitly Deferred (By Design)](#explicitly-deferred-by-design) and
+[Why Not a Research DAG](#why-not-a-research-dag--langgraph-style-orchestration):
+no web app or SaaS hosting, no always-on watcher/daemon, no collaboration
+platform, no generic agent middleware or DAG framework, no model
+training/serving. Loops and scheduling live on the *consumer* side; primr
+stays "URL in, serious artifact out." The engineering-standards rejections
+(coverage maximalism, Pydantic-everywhere, free-threading, etc.) are recorded
+in [Out of scope](#out-of-scope-rejected-with-rationale).
+
+### Order of operations (dependency order, not a schedule)
+
+Each step unblocks the ones after it; items within a step are independent.
+
+1. **Measure the epistemics** (1.x): label-calibration audit as an eval hard
+   gate + evidence-fetching `--verify`. Everything quality-shaped downstream
+   (#4 prompt work, refine-loop acceptance, 3.0 compounding) needs a trusted
+   measurement of claim quality first — otherwise improvements are vibes.
+2. **Refactor the orchestrators** (#23) (1.x): splitting
+   `perform_fast_research` unlocks unit coverage on the pipeline core, the
+   complexity budget, and makes every later pipeline change (batch API,
+   overlap, routing) reviewable. Do this *before* features that touch the
+   monster, not after.
+3. **Consultant-grade writing** (#4) (1.x): one focused prompt-and-eval cycle
+   on the standing corpus, judged by the now-trustworthy instruments from
+   step 1.
+4. **Cost levers** (#9 batch API, #19 pipeline overlap) (1.x): mechanical
+   after step 2; each validated with one cheap live run.
+5. **Control plane** (T8 + #21) (2.0): per-tool authz → approval tokens →
+   audit log, in that order (each builds on the previous). Independent of
+   steps 1–4; can proceed in parallel.
+6. **Backend freedom** (#18 + local inference) (2.0): capability-requirement
+   routing first (pure refactor of existing routing), then hybrid-mode
+   eval, then full-local eval. Depends on step 1's instruments to judge
+   local-quality acceptability honestly.
+7. **Memory layer 1 → 2 → 3** (2.0): persistent company tracking (filesystem,
+   no new deps) → claim store + priming (SQLite + embeddings) → Strategy
+   Delta Mode. Layer 3 also depends on the per-user cache (#12, shipped) and
+   benefits from step 1 (delta detection needs trustworthy claims).
+8. **2.0 release** when steps 5–7 all hold their exit criteria together.
+9. **3.0 workstreams** (VLM, compounding, handoff): VLM depends on nothing
+   above (can start anytime resources allow); compounding depends on the
+   claim store (step 7); the handoff contract depends on the control plane
+   (step 5).
 
 ---
 
@@ -995,6 +1079,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.30.0 | Jun 2026 | **Nine Active Queue items closed, a root-caused production-hang fix, and the 2.0/3.0 version plan.** **Observability & cost (#5, #12, #13):** cached-input tokens plumbed end-to-end (all four providers → session counters → `UsageRecord` → `primr show-usage` per-run/lifetime cache hit rate); actual-cost reporting is cache-aware; `--budget $N` per-run ceiling (pre-flight refusal + mid-run checkpoint that skips strategy generation at the cap); `show-usage` adds per-company history, per-mode totals, observed-mode listing, and a vendor-research freshness table; `primr doctor --scraper-stats` aggregates per-tier success rate / latency p95 / content quality from scrape traces; new per-user cache (`PRIMR_CACHE_DIR` → `%LOCALAPPDATA%\primr` / XDG) with vendor research migrated out of site-packages and shared across invocation dirs (one ~$0.50 DR file per vendor instead of per-folder regeneration); `PRIMR_VENDOR_NEWS_TTL_DAYS` drives all freshness gates; doctor gains a File Locations section. **Resilience (#6, #24 + hang fix):** all 14 production `grok_llm` call sites + the `llm()` utility dispatch route through the circuit-breaker failover seam (quota events fail over across providers instead of killing the run); the remaining inline `get_event_loop()` copies standardize on `run_sync`; and a live run that py-spy showed blocked 3.5h in `ssl.read` exposed that the google-genai SDK has **no default HTTP timeout** — every genai client now carries a finite request timeout (`PRIMR_GEMINI_HTTP_TIMEOUT_MS`, default 5 min) with a repo-invariant test so unguarded constructions fail the suite. **Quality loop (#7, #8, #10, #11):** diminishing-returns detector stops cross-validation regeneration after consecutive low-improvement rewrites (summary persisted to `cross_validation.json`); section/batch writing prompts split into byte-identical cached prefix + volatile suffix for provider prompt caching — validated on a live post-release-candidate run at **73% cache hit rate** with all trust gates PASS at ~split into byte-identical cached prefix + volatile suffix for provider prompt caching (measurable via the new cache-rate plumbing).78 actual cost; `primr refine "Company"` ships the QA iteration loop (Orient→Gather→Consolidate→Prune; stops at `--target-grade`, diminishing returns, or max iterations) writing through the new `ArtifactWriteGuard` — an enforced allowlist that converts "the LLM only edits the report" from policy to `PermissionError` (run state + pipeline dirs denied unconditionally). **Panel-review fixes:** a six-persona product review (consultant, engineer, enterprise architect, eval scientist, non-technical owner, dev-tools reviewer) drove doc-drift fixes (tier count 9, unified test counts), the confidence-label vocabulary defect (samples used bracketed `[Confidence: Inferred]`, outside the canonical `(Confirmed)/(Reported)/(Estimated)/(Hypothesis)` vocabulary the scorer counts), honest QA-score framing (it measures artifact discipline, not factual accuracy — `compute_quality_score()` factored as the single scoring API), MCP cost-cap enforcement defaulting ON for the HTTP transport (serve-time published, `mcp_server/cost_caps.py`), and a README repositioned around the differentiated signal layer (DNS recon + hiring signals → inference). **Docs:** Version Plan (1.x → 2.0 → 3.0 with exit criteria + dependency-ordered build sequence) and five breakdown design docs under `docs/design/`. ~150 new tests across four PRs; every PR shipped with the full 9,400+ suite green and the 81% branch-coverage ratchet held. |
 | 1.29.3 | Jun 2026 | **Security hardening + correctness fixes (post-review sweep).** Closed a batch of review findings across the skill-pack, MCP, scraping, and prompt-construction paths. **Skill pack:** bundled-file CONTENT is now validated, not just its path — `scan_bundled_content` runs the injection + hardcoded-path filters over every authored `references/*.md` / `scripts/*.py` and AST-scans Python helpers for process/network/eval/secret/destructive constructs (HARD `SEC-BUNDLE`, fail-closed), with a defense-in-depth drop in the packager; `validate_role` now scans `display_name` / `confidence` / `summary` (emitted into SKILL.md frontmatter) for injection; SEC-INJECT's narrowed run/execute pattern regained coverage of demonstrative-framed command/script injection and literal destructive payloads while keeping the benign-prose guards. **MCP:** `generate_skill_pack` now routes `report_path` / `destination` through the shared `PathValidator` and fails closed when `PRIMR_ENFORCE_MCP_COST_CAPS` is set without a cap; the cost estimate uses the effective roster size (so `roles_override` / `roles_add` can't slip past a cap sized for `roles_count`); server allowed-roots widened to include `working/` for legitimate evidence reuse. **Prompt injection:** `fence_untrusted` neutralizes forged fence delimiters/markers in untrusted content and adds a per-call nonce so the data-fence can't be closed early. **DoS:** bounded the informal-cite scaffolding-scan regex (the one pattern missed when cross-ref/workbook were bounded) to kill quadratic scanning on adversarial markdown. **Correctness:** fixed duplicate-page double-counting on the fallback fan-out timeout path; EDGAR ticker index keeps the primary listing on duplicate-title share classes instead of last-write-wins; trigger-optimizer no longer scores train-on-train when the held-out split collapses. Azure Container App MCP auth + hiring-signal SSRF + PDF metering confirmed already-fixed and pinned with regression guards. ~45 new tests; ruff + mypy + bandit clean. |
 | 1.29.2 | Jun 2026 | **Skill pack: four-tier quality overhaul + post-review hardening.** Shipped a staged refinement closing most of the gap to Anthropic's skill-creator workflow (1.29.0/1.29.1 were superseded — 1.29.0 yanked for an inadvertent third-party product name in test fixtures, scrubbed and re-shipped). Tier 1 (default, no added cost): holistic rosters (a plausible reserve guarantees the universal business functions appear alongside named practices; `_merge_and_cap` dedupes plausible against KEPT observed archetypes), task-named skills enforced via the new `NAME-PRODUCT` validator, `DESC-PUSHY` rewritten to count enumerated trigger intents, thin bodies auto-expanded, cross-role overlaps auto-resolved by HARD-finding identity. Tier 2 (`--optimize-triggers`): measured trigger-description optimization against a blind discovery simulator with a held-out split (`skill_pack/trigger_eval.py`). Tier 3 (default): progressive disclosure via `references/*.md`, `scripts/*.py`, `evals/*.json` bundled files (`BundledFile` + `BUNDLE-PATH` validation, written to both the Claude tree and the Cowork zip behind a shared slug-traversal guard). Tier 4 (`--with-evals`): with-skill-vs-baseline behavioral eval with per-skill `evals.json` (`skill_pack/behavioral_eval.py`); validated at +33–78% over baseline on real evidence. SEC-INJECT patterns tightened so benign domain prose no longer drops good roles. New `tests/test_no_brand_leak.py` CI guard (base64-encoded denylist, no plaintext names) blocks real-company/brand tokens in `src/` and `tests/`. ~60 new tests. |
 | 1.28.0 | Jun 2026 | **Artifact-pipeline prompt hardening, first-party feed recovery, and an 82% coverage ratchet.** (1) Closed the last Artifact Pipeline Hardening bullet (Active Queue #2): the long-form writer + regeneration prompts now explicitly forbid the internal-scaffolding markers the ship-time gate strips, sourced from a single `qa.report_analyzer.SCAFFOLDING_PROHIBITION_GUIDANCE` constant co-located with `scan_scaffolding_leakage` so the upstream instruction and the downstream gate cannot drift; spliced into both `section_prompts.py` writers and both `research_agent.py` regenerators (the strategy regenerator also gained the plain-text "What to validate:" rule). Parity locked by a deterministic test; runtime tracked by `writer_output_clean` + the eval drift metric. (2) Advanced Verified Page Access (Active Queue #3): `fallback_sources.fetch_feed_content` adds the host's own RSS/Atom feeds as a first-class recovery source in the blocked-origin fan-out — HTML `<link rel="alternate">` autodiscovery + common-path sweep, same-site-filtered (defense-in-depth on the SSRF guard), RSS 2.0 / Atom / RSS 1.0-RDF parsed namespace-agnostically with `defusedxml` (untrusted-XML safe; 5 MB body cap; no new dependency), content:encoded preferred over short teasers, cross-feed item dedup. (3) Global branch coverage 78.65% → **82.05%** (gate ratcheted 77 → 81): the coverage job now installs the `a2a` extra so the 165 a2a tests are counted, plus ~630 new unit tests across `research_orchestrator`, `utils.security` (incl. 100 adversarial SSRF cases — no vuln found), `skill_pack.evidence`, `data.scrape`, `model_eval`, `mcp_server.{skill_pack_tools,server}`, the `agentic` modules, `hiring_signals`, the `scraping` helpers, and `ai_strategy`. |

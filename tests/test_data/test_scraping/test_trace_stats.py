@@ -209,3 +209,33 @@ class TestCLIWiring:
         config = CLIConfig(command=Command.DOCTOR, doctor_scraper_stats=True)
         assert _handle_doctor(config) == 0
         assert called.get("stats") is True
+
+
+class TestProductionTracingWired:
+    def test_enable_scrape_tracing_attaches_logger(self, tmp_path, monkeypatch):
+        """Production orchestrators get a per-run TraceLogger (scraper-stats data source)."""
+        monkeypatch.chdir(tmp_path)
+        import primr.data.scrape as scrape_mod
+
+        # Fresh singletons for isolation
+        monkeypatch.setattr(scrape_mod, "_orchestrator", None)
+        monkeypatch.setattr(scrape_mod, "_external_orchestrator", None)
+
+        scrape_mod.enable_scrape_tracing("TestCo")
+
+        main = scrape_mod.get_orchestrator()
+        external = scrape_mod.get_external_orchestrator()
+        assert main.trace_logger is not None
+        assert external.trace_logger is main.trace_logger
+        assert main.trace_logger.get_path().exists()
+        assert "TestCo" in main.trace_logger.get_path().name
+
+    def test_tracing_failure_never_blocks(self, monkeypatch):
+        import primr.data.scrape as scrape_mod
+
+        def boom(*a, **k):
+            raise OSError("logs dir locked")
+
+        monkeypatch.setattr("primr.data.scraping.trace.TraceLogger", boom)
+        # Must not raise
+        scrape_mod.enable_scrape_tracing("TestCo")

@@ -341,6 +341,7 @@ mypy src/primr --ignore-missing-imports     # Type check
 | Contributing | [Contribution Guidelines](docs/CONTRIBUTING.md) |
 | Vulnerability reporting | [Security](docs/SECURITY.md) |
 | Roadmap | [What's Planned](ROADMAP.md) |
+| Version plan design docs | [docs/design/](docs/design/README.md) |
 
 ## About This Project
 

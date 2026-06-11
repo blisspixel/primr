@@ -347,6 +347,26 @@ def get_external_orchestrator(
     return _external_orchestrator
 
 
+def enable_scrape_tracing(company_name: str) -> None:
+    """Attach a fresh per-run TraceLogger to both orchestrator singletons.
+
+    Called at the start of each site-corpus build so per-tier attempts,
+    latencies, and content metrics land in ``logs/scrape_traces/`` for
+    ``primr doctor --scraper-stats``. Best-effort: tracing must never block
+    a run (e.g. an unwritable logs dir on a locked-down machine).
+    """
+    from primr.data.scraping.trace import TraceLogger
+
+    try:
+        trace_logger = TraceLogger(company_name)
+    except Exception as e:
+        logger.warning("Scrape tracing disabled (could not create trace file): %s", e)
+        return
+
+    get_orchestrator().trace_logger = trace_logger
+    get_external_orchestrator().trace_logger = trace_logger
+
+
 def get_orchestrator(
     enable_vision: bool = True,
     use_cache: bool = False,
@@ -498,6 +518,12 @@ def fetch_web_content(
     # Normalize so downstream helpers (validation prompts, fallback fan-out)
     # never have to handle the None case themselves.
     company_name = company_name or ""
+
+    # Per-run scrape tracing: the orchestrator has always supported a
+    # TraceLogger (and logs every ScrapeResult through it), but production
+    # never constructed one — only the diagnostic vertical-slice path did.
+    # Without this, `primr doctor --scraper-stats` reads an empty directory.
+    enable_scrape_tracing(company_name or "run")
 
     def _write_raw_file(file_path, url, tier, structured):
         """Write raw scrape file to disk (may run in background thread)."""
