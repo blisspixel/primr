@@ -253,7 +253,10 @@ class TestCleanupOrphanedResources:
             client.file_search_stores.list.return_value = []
             fake_genai.Client.return_value = client
             cleanup_orphaned_resources(api_key="custom-key")
-            fake_genai.Client.assert_called_with(api_key="custom-key")
+            kwargs = fake_genai.Client.call_args.kwargs
+            assert kwargs["api_key"] == "custom-key"
+            # Every genai client carries a finite HTTP timeout (hang fix)
+            assert kwargs["http_options"].timeout > 0
 
     def test_list_caches_exception_swallowed(self, monkeypatch):
         client = self._setup(monkeypatch)

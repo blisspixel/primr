@@ -15,6 +15,8 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from primr.ai.genai_factory import default_genai_http_options
+
 try:
     from google import genai as _google_genai
     from google.genai import types as _google_types
@@ -119,7 +121,9 @@ class AIClient:
         _require_genai_dependency()
         settings = get_settings()
         self._api_key = api_key or settings.api.gemini_key
-        self._client = genai.Client(api_key=self._api_key)
+        self._client = genai.Client(
+            api_key=self._api_key, http_options=default_genai_http_options()
+        )
         self._settings = settings.ai
         self._track_usage = track_usage
         self._pending_close_tasks: list[asyncio.Task[Any]] = []

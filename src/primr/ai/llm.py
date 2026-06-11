@@ -17,6 +17,8 @@ from typing import Any
 
 from colorama import Fore, Style
 
+from primr.ai.genai_factory import default_genai_http_options
+
 try:
     from google import genai as _google_genai
     from google.genai import types as _google_types
@@ -85,7 +87,7 @@ def _get_client() -> genai.Client:
     global _client
     _require_genai_dependency()
     if _client is None:
-        _client = genai.Client(api_key=GEMINI_API_KEY)
+        _client = genai.Client(api_key=GEMINI_API_KEY, http_options=default_genai_http_options())
     return _client
 
 

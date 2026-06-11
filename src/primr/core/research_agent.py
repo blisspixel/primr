@@ -26,6 +26,8 @@ Usage:
 # Suppress RuntimeWarning FIRST - before any other imports
 import warnings
 
+from primr.ai.genai_factory import default_genai_http_options
+
 warnings.filterwarnings("ignore", message=".*found in sys.modules.*", category=RuntimeWarning)
 
 # =============================================================================
@@ -7053,7 +7055,9 @@ def _check_api_quota():
     console.info("Testing Gemini API availability...")
 
     try:
-        client = genai.Client(api_key=settings.api.gemini_key)
+        client = genai.Client(
+            api_key=settings.api.gemini_key, http_options=default_genai_http_options()
+        )
 
         # Make a minimal API call to test quota
         response = client.models.generate_content(
@@ -7310,7 +7314,7 @@ def run_doctor():
         try:
             from google import genai
 
-            client = genai.Client(api_key=gemini_key)
+            client = genai.Client(api_key=gemini_key, http_options=default_genai_http_options())
             response = client.models.generate_content(
                 model=PrimrModels.FAST_MODEL,
                 contents="Reply with exactly: hello",

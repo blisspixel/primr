@@ -26,6 +26,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from primr.ai.genai_factory import default_genai_http_options
 from primr.config.config import OUTPUT_DIR
 from primr.utils.logging_config import get_logger
 
@@ -256,7 +257,9 @@ class AccordionTestRunner:
 
         settings = get_settings()
         self._api_key = settings.api.gemini_key
-        self._client = genai.Client(api_key=self._api_key)
+        self._client = genai.Client(
+            api_key=self._api_key, http_options=default_genai_http_options()
+        )
         self._api_call_count = 0
 
     async def run_test(

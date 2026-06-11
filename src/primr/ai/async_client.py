@@ -13,6 +13,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
+from primr.ai.genai_factory import default_genai_http_options
+
 try:
     from google import genai as _google_genai
     from google.genai import types as _google_types
@@ -152,7 +154,9 @@ class AsyncAIClient:
     async def __aenter__(self) -> "AsyncAIClient":
         """Async context manager entry."""
         _require_genai_dependency()
-        self._client = genai.Client(api_key=self._api_key)
+        self._client = genai.Client(
+            api_key=self._api_key, http_options=default_genai_http_options()
+        )
         self._semaphore = asyncio.Semaphore(self._max_concurrent)
         return self
 
@@ -183,7 +187,9 @@ class AsyncAIClient:
         """Ensure client is initialized."""
         _require_genai_dependency()
         if self._client is None:
-            self._client = genai.Client(api_key=self._api_key)
+            self._client = genai.Client(
+                api_key=self._api_key, http_options=default_genai_http_options()
+            )
         if self._semaphore is None:
             self._semaphore = asyncio.Semaphore(self._max_concurrent)
 
