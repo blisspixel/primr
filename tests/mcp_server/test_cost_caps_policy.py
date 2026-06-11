@@ -2,13 +2,16 @@
 
 import pytest
 
-from primr.mcp_server.cost_caps import is_cost_cap_enforced
+from primr.mcp_server.cost_caps import is_cost_cap_enforced, set_active_transport
 
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch):
     monkeypatch.delenv("PRIMR_ENFORCE_MCP_COST_CAPS", raising=False)
     monkeypatch.delenv("PRIMR_MCP_TRANSPORT", raising=False)
+    set_active_transport(None)
+    yield
+    set_active_transport(None)
 
 
 class TestExplicitOverrides:
@@ -43,26 +46,45 @@ class TestTransportDefault:
         assert is_cost_cap_enforced() is True
 
 
-class TestServerPublishesTransport:
-    def test_http_server_sets_transport_env(self, monkeypatch, tmp_path):
-        import os
+class TestTransportPublication:
+    def test_active_transport_http_enforces(self):
+        set_active_transport("streamable-http")
+        assert is_cost_cap_enforced() is True
 
+    def test_active_transport_stdio_does_not_enforce(self):
+        set_active_transport("stdio")
+        assert is_cost_cap_enforced() is False
+
+    def test_env_transport_fallback_when_no_server(self, monkeypatch):
+        # Deploy manifests can still signal transport via env when policy is
+        # checked without an in-process server having called run().
+        monkeypatch.setenv("PRIMR_MCP_TRANSPORT", "streamable-http")
+        assert is_cost_cap_enforced() is True
+
+    def test_constructing_a_server_does_not_change_policy(self, tmp_path):
+        # Construction must be side-effect free: only run() publishes the
+        # transport. Tests across the suite construct servers freely; that
+        # must never flip process-wide enforcement.
         from primr.mcp_server.server import PrimrMCPServer
 
-        monkeypatch.delenv("PRIMR_MCP_TRANSPORT", raising=False)
         PrimrMCPServer(
             transport="streamable-http",
             journal_path=str(tmp_path / "journal.json"),
         )
-        assert os.environ.get("PRIMR_MCP_TRANSPORT") == "streamable-http"
-        assert is_cost_cap_enforced() is True
+        assert is_cost_cap_enforced() is False
 
-    def test_stdio_server_sets_transport_env(self, monkeypatch, tmp_path):
-        import os
-
+    @pytest.mark.asyncio
+    async def test_run_publishes_transport(self, tmp_path, monkeypatch):
         from primr.mcp_server.server import PrimrMCPServer
 
-        monkeypatch.delenv("PRIMR_MCP_TRANSPORT", raising=False)
-        PrimrMCPServer(transport="stdio", journal_path=str(tmp_path / "journal.json"))
-        assert os.environ.get("PRIMR_MCP_TRANSPORT") == "stdio"
-        assert is_cost_cap_enforced() is False
+        server = PrimrMCPServer(
+            transport="streamable-http",
+            journal_path=str(tmp_path / "journal.json"),
+        )
+
+        async def fake_http(self):
+            return None
+
+        monkeypatch.setattr(PrimrMCPServer, "run_http", fake_http)
+        await server.run()
+        assert is_cost_cap_enforced() is True

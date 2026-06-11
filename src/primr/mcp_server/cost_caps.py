@@ -26,6 +26,17 @@ import os
 _TRUTHY = {"1", "true", "yes", "on"}
 _FALSY = {"0", "false", "no", "off"}
 
+# Set by PrimrMCPServer at construction; None until a server exists in this
+# process. Kept as a module global (not an env mutation) so constructing a
+# server never leaks state into the process environment.
+_active_transport: str | None = None
+
+
+def set_active_transport(transport: str | None) -> None:
+    """Record the transport the in-process MCP server is serving."""
+    global _active_transport
+    _active_transport = transport
+
 
 def is_cost_cap_enforced() -> bool:
     """Resolve the cost-cap enforcement policy (see module docstring)."""
@@ -34,4 +45,5 @@ def is_cost_cap_enforced() -> bool:
         return True
     if explicit in _FALSY:
         return False
-    return os.getenv("PRIMR_MCP_TRANSPORT", "").strip().lower() == "streamable-http"
+    transport = _active_transport or os.getenv("PRIMR_MCP_TRANSPORT", "")
+    return transport.strip().lower() == "streamable-http"

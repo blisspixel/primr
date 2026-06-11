@@ -45,3 +45,18 @@ def mcp_server_with_tasks():
         )
         server.rate_limiter.reset()
         yield server
+
+
+@pytest.fixture(autouse=True)
+def _reset_transport_policy():
+    """Reset the published MCP transport after every test.
+
+    Cost-cap enforcement defaults on for the HTTP transport, and
+    PrimrMCPServer.run() publishes its transport process-wide. Tests that
+    exercise run() (server coverage suites) must not leak that policy into
+    unrelated tool tests in the same process.
+    """
+    from primr.mcp_server.cost_caps import set_active_transport
+
+    yield
+    set_active_transport(None)

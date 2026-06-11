@@ -4,17 +4,19 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 
-**Turn any company or organization URL into deep strategic analysis that gets a consultant maximally up to speed.**
+**Point it at a company's website. It reads their DNS records, their job postings, and fifty pages of their site — then tells you what they're building, where they're constrained, and what nobody has written down.**
 
-Primr extracts primary-source data from company and organization websites using adaptive, org-aware scraping that handles modern site architectures, then synthesizes external research into long-form strategic analysis using AI-powered research and synthesis (Grok 4.3 hybrid by default, or Gemini Deep Research via `--premium`).
-
-Runs as a CLI, an MCP server, an OpenClaw integration, and a Claude Skill.
+Summaries of published articles are a commodity — any chat assistant's deep-research mode produces one. Primr is built for the layer underneath: primary-source signals that aren't in the articles. DNS records reveal the real tech stack. Job postings reveal what a company is actually building right now. The site corpus, external research, and that signal layer get triangulated into a long-form strategic analysis — competitive positioning, likely economics, operating constraints, consultant-grade hypotheses — with a confidence label on every non-obvious claim, so you always know what's confirmed, what's reported, and what's inference.
 
 ```
 primr "ExampleCo" https://example.co
 ```
 
-About 23-35 minutes later: a deep strategic analysis covering competitive positioning, technology stack, strategic initiatives, likely constraints, and consultant-grade hypotheses, with dense references consolidated at the end. **~$0.79 in API costs** when both `GEMINI_API_KEY` and `XAI_API_KEY` are set (Grok 4.3 for reasoning with cached input, Gemini 3.1 Flash-Lite for bulk writing — the v1.24.0 default after a cross-provider eval). XAI-only setups stay on the legacy Grok-NR writing path at ~$4.27/run.
+About 23-35 minutes later: a 23-section strategic analysis as Markdown and DOCX, with dense references consolidated at the end. **~$0.79 in API costs** when both `GEMINI_API_KEY` and `XAI_API_KEY` are set (Grok 4.3 for reasoning with cached input, Gemini 3.1 Flash-Lite for bulk writing — the v1.24.0 default after a cross-provider eval). XAI-only setups stay on the legacy Grok-NR writing path at ~$4.27/run.
+
+Primr is local-first and CLI-first; it also runs as an MCP server and a Claude Skill so agents can drive it ([details below](#use-primr-from-your-ai-tool)).
+
+> **Not a developer?** You (or whoever sets up your machine) need three things: Python, `pip install primr`, and API keys from one or two AI providers — `primr init` walks through all of it. Everything from [Agent Integration](#agent-integration-advanced) down is for developers and agent builders; you never need it to run research.
 
 ## Why This Exists
 
