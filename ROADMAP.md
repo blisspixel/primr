@@ -265,15 +265,13 @@ Detect when cross-validation section regeneration is making diminishing progress
 - Thresholds start conservative (3 consecutive, <5%) per this item's original spec — tune against eval results, not intuition.
 - Remaining: apply the same detector to the planned QA iteration loop (#10) when it lands, and consider a QA-score-based signal once section-level QA scoring is cheap enough to run per regeneration.
 
-### 8. Prompt Cache Preparation
+### 8. Prompt Cache Preparation — DONE (section writing)
 
 Split section-writing prompts into cached (stable across sections) and volatile (per-section) components as a clean architectural separation.
 
-- Cached prefix (identical across all parallel section writes): company context, analysis workbook, scrape summary, external research summary, general writing instructions, citation style guide
-- Volatile suffix (per-section): section name, section-specific prompt, section-specific evidence excerpts, word target
-- Ensure the cached prefix is byte-identical across all parallel section writes — no timestamps, no randomized evidence ordering, no section-specific context in the prefix
-- Zero-cost prep step: doesn't add caching API calls, just structures the prompts so caching works when providers support it
-- Applies the same principle to strategy generation prompts and cross-validation prompts where a shared context prefix is reused across multiple calls
+- **Shipped:** `build_fast_section_prompt_parts()` / `build_fast_batch_prompt_parts()` in `section_prompts.py` return `(cached_prefix, volatile_suffix)`; the existing builders concatenate them, so call sites are unchanged. The prefix carries only run-shared context (company header, analysis workbook, raw corpus, external research, citation key, general writing instructions, scaffolding prohibition, output contract) and is byte-identical across all parallel section writes — pinned by tests that build prompts for different sections/indexes/reasoning modes and assert prefix equality and no per-section leakage. Per-section material (TOC position, rolling context, reasoning mode, section spec, word target) moved to the suffix; instruction text is otherwise unchanged apart from direction words ("above" → named block references) since the volatile blocks now sit after the instructions.
+- Zero-cost prep step: no caching API calls added — providers' implicit prefix caching (xAI cached input at $0.20/M is the load-bearing case) now gets a shared prefix to key on; the `cached_input_tokens` plumbing from item #5 makes the effect measurable in `primr show-usage`.
+- Remaining: apply the same principle to strategy generation prompts and cross-validation prompts where a shared context prefix is reused across multiple calls; validate the measured cache-hit gain on a real run before tuning further.
 
 ### 9. Batch API for Section Writing (xAI + Anthropic Recipes)
 

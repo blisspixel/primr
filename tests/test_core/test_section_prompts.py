@@ -383,3 +383,140 @@ def test_section_prompt_index_in_header(section_index, total):
             reasoning_mode="standard",
         )
     assert f"Section:** {section_index + 1} of {total}" in prompt
+
+
+# ---------------------------------------------------------------------------
+# Prompt cache preparation (Active Queue #8): cached prefix / volatile suffix
+# ---------------------------------------------------------------------------
+
+
+class TestPromptCachePrefixSplit:
+    """The prefix must be byte-identical across parallel section writes."""
+
+    def _shared_kwargs(self):
+        return {
+            "company_name": "Acme Corp",
+            "website": "https://acme.example",
+            "analysis_workbook": "## Workbook\nshared analysis content",
+            "raw_corpus_subset": "shared scraped corpus",
+            "external_sources": "shared external research",
+            "source_urls": ["https://a.example", "https://b.example"],
+        }
+
+    def _sections(self):
+        return [
+            _FakeSection(id="exec", name="Executive Summary", position="framework"),
+            _FakeSection(id="market", name="Market Landscape"),
+            _FakeSection(id="tech", name="Technology Stack"),
+        ]
+
+    def test_section_prefix_identical_across_sections(self, tmp_path, monkeypatch):
+        from primr.core.section_prompts import build_fast_section_prompt_parts
+
+        monkeypatch.setattr(
+            "primr.core.section_prompts.FAST_FEEDBACK_RULES_PATH",
+            str(tmp_path / "missing.md"),
+        )
+        sections = self._sections()
+        names = [s.name for s in sections]
+        written = [_FakeGeneratedSection(title="Intro", content="intro words " * 50)]
+
+        prefixes = []
+        suffixes = []
+        for idx, section in enumerate(sections):
+            prefix, suffix = build_fast_section_prompt_parts(
+                **self._shared_kwargs(),
+                section=section,
+                written_sections=written,
+                section_index=idx,
+                all_section_names=names,
+                reasoning_mode="standard" if idx != 2 else "constrained_evidence",
+            )
+            prefixes.append(prefix)
+            suffixes.append(suffix)
+
+        # Byte-identical prefix across all parallel writes — this is the
+        # cacheable unit. Different sections, indexes, and reasoning modes
+        # must not perturb it.
+        assert prefixes[0] == prefixes[1] == prefixes[2]
+        # Suffixes carry the per-section variation.
+        assert len({s for s in suffixes}) == 3
+
+    def test_prefix_contains_shared_context_only(self, tmp_path, monkeypatch):
+        from primr.core.section_prompts import build_fast_section_prompt_parts
+
+        monkeypatch.setattr(
+            "primr.core.section_prompts.FAST_FEEDBACK_RULES_PATH",
+            str(tmp_path / "missing.md"),
+        )
+        section = _FakeSection(id="market", name="Market Landscape")
+        prefix, suffix = build_fast_section_prompt_parts(
+            **self._shared_kwargs(),
+            section=section,
+            written_sections=[_FakeGeneratedSection(title="Done Sec", content="prior words")],
+            section_index=1,
+            all_section_names=["Done Sec", "Market Landscape"],
+        )
+
+        # Shared context lives in the prefix
+        assert "shared analysis content" in prefix
+        assert "shared scraped corpus" in prefix
+        assert "shared external research" in prefix
+        assert "https://a.example" in prefix
+        assert SCAFFOLDING_PROHIBITION_GUIDANCE in prefix
+        # Per-section content must NOT leak into the prefix
+        assert "Market Landscape" not in prefix
+        assert "REPORT TABLE OF CONTENTS" not in prefix
+        assert "Done Sec" not in prefix
+        # ...and lives in the suffix instead
+        assert "Market Landscape" in suffix
+        assert "REPORT TABLE OF CONTENTS" in suffix
+        assert "PREVIOUS SECTIONS" in suffix
+        assert "LENGTH:" in suffix
+
+    def test_full_prompt_is_prefix_plus_suffix(self, tmp_path, monkeypatch):
+        from primr.core.section_prompts import build_fast_section_prompt_parts
+
+        monkeypatch.setattr(
+            "primr.core.section_prompts.FAST_FEEDBACK_RULES_PATH",
+            str(tmp_path / "missing.md"),
+        )
+        section = _FakeSection(id="market", name="Market Landscape")
+        kwargs = {
+            **self._shared_kwargs(),
+            "section": section,
+            "written_sections": [],
+            "section_index": 0,
+            "all_section_names": ["Market Landscape"],
+        }
+        prefix, suffix = build_fast_section_prompt_parts(**kwargs)
+        assert _build_fast_section_prompt(**kwargs) == prefix + suffix
+
+    def test_batch_prefix_identical_across_batches(self, tmp_path, monkeypatch):
+        from primr.core.section_prompts import build_fast_batch_prompt_parts
+
+        monkeypatch.setattr(
+            "primr.core.section_prompts.FAST_FEEDBACK_RULES_PATH",
+            str(tmp_path / "missing.md"),
+        )
+        sections = self._sections()
+
+        prefix_one, suffix_one = build_fast_batch_prompt_parts(
+            **self._shared_kwargs(),
+            sections=sections[:2],
+            previous_sections=[],
+            batch_number=0,
+            total_batches=2,
+        )
+        prefix_two, suffix_two = build_fast_batch_prompt_parts(
+            **self._shared_kwargs(),
+            sections=sections[2:],
+            previous_sections=[_FakeGeneratedSection(title="Exec", content="words " * 20)],
+            batch_number=1,
+            total_batches=2,
+        )
+
+        assert prefix_one == prefix_two
+        assert suffix_one != suffix_two
+        assert "Batch: 1 of 2" in suffix_one.replace("**", "")
+        assert "Batch: 2 of 2" in suffix_two.replace("**", "")
