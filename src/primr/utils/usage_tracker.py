@@ -440,9 +440,7 @@ class UsageTracker:
             avg = self.get_average_by_mode(mode)
             if avg:
                 status = (
-                    "✓ learning"
-                    if avg["sample_size"] >= 3
-                    else f"need {3 - avg['sample_size']} more"
+                    "learning" if avg["sample_size"] >= 3 else f"need {3 - avg['sample_size']} more"
                 )
                 mode_total = sum(
                     r.get("total_cost", 0) for r in self.history if r.get("mode") == mode
