@@ -353,6 +353,14 @@ class PrimrMCPServer:
 
     async def run(self) -> None:
         """Run the server with configured transport."""
+        # Publish the transport at serve time (not construction) so
+        # tool-call-time policy checks — cost-cap enforcement defaults on
+        # for HTTP, see mcp_server.cost_caps — know which surface they are
+        # serving. Constructing a server (tests do this freely) must not
+        # change process-wide policy.
+        from primr.mcp_server.cost_caps import set_active_transport
+
+        set_active_transport(self.transport)
         if self.transport == "stdio":
             await self.run_stdio()
         else:

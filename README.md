@@ -4,17 +4,19 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 
-**Turn any company or organization URL into deep strategic analysis that gets a consultant maximally up to speed.**
+**Point it at a company's website. It reads their DNS records, their job postings, and fifty pages of their site — then tells you what they're building, where they're constrained, and what nobody has written down.**
 
-Primr extracts primary-source data from company and organization websites using adaptive, org-aware scraping that handles modern site architectures, then synthesizes external research into long-form strategic analysis using AI-powered research and synthesis (Grok 4.3 hybrid by default, or Gemini Deep Research via `--premium`).
-
-Runs as a CLI, an MCP server, an OpenClaw integration, and a Claude Skill.
+Summaries of published articles are a commodity — any chat assistant's deep-research mode produces one. Primr is built for the layer underneath: primary-source signals that aren't in the articles. DNS records reveal the real tech stack. Job postings reveal what a company is actually building right now. The site corpus, external research, and that signal layer get triangulated into a long-form strategic analysis — competitive positioning, likely economics, operating constraints, consultant-grade hypotheses — with a confidence label on every non-obvious claim, so you always know what's confirmed, what's reported, and what's inference.
 
 ```
 primr "ExampleCo" https://example.co
 ```
 
-About 23-35 minutes later: a deep strategic analysis covering competitive positioning, technology stack, strategic initiatives, likely constraints, and consultant-grade hypotheses, with dense references consolidated at the end. **~$0.79 in API costs** when both `GEMINI_API_KEY` and `XAI_API_KEY` are set (Grok 4.3 for reasoning with cached input, Gemini 3.1 Flash-Lite for bulk writing — the v1.24.0 default after a cross-provider eval). XAI-only setups stay on the legacy Grok-NR writing path at ~$4.27/run.
+About 23-35 minutes later: a 23-section strategic analysis as Markdown and DOCX, with dense references consolidated at the end. **~$0.79 in API costs** when both `GEMINI_API_KEY` and `XAI_API_KEY` are set (Grok 4.3 for reasoning with cached input, Gemini 3.1 Flash-Lite for bulk writing — the v1.24.0 default after a cross-provider eval). XAI-only setups stay on the legacy Grok-NR writing path at ~$4.27/run.
+
+Primr is local-first and CLI-first; it also runs as an MCP server and a Claude Skill so agents can drive it ([details below](#use-primr-from-your-ai-tool)).
+
+> **Not a developer?** You (or whoever sets up your machine) need three things: Python, `pip install primr`, and API keys from one or two AI providers — `primr init` walks through all of it. Everything from [Agent Integration](#agent-integration-advanced) down is for developers and agent builders; you never need it to run research.
 
 ## Why This Exists
 
@@ -24,7 +26,7 @@ Company research is tedious. You visit the website, click around, search the com
 
 - **DNS intelligence pre-flight**: Automatic domain reconnaissance detects cloud platforms, SaaS services, email security, and identity providers from DNS records — zero API keys, 2-3 seconds. Strategies are grounded in real tech stack data.
 - **Hiring-signal gathering**: After the main scrape, Primr discovers open job postings across eight ATS providers (Greenhouse, Lever, Ashby, SmartRecruiters, Workday, Workable, Recruitee, Jobvite) plus a corpus-driven Workday URL discovery path, an HTML careers-page fallback, and a DuckDuckGo web-search fallback that sweeps LinkedIn / Indeed / Glassdoor / job-board hosts when every other path comes up empty. The pipeline LLM-triages the most signal-rich postings and extracts tech-stack frequency, strategic initiatives, culture cues, and notable absences. Job posts are the most honest statement of what a company is actually building right now — they feed every downstream phase from gap analysis to final strategy and are the primary input to the skill pack subsystem. Skip with `PRIMR_SKIP_HIRING_SIGNALS=1`.
-- **Adaptive scraping**: 8 retrieval methods from browser rendering to TLS fingerprinting to screenshot+vision extraction, with per-host optimization. Starts with full browser rendering (what works on 95%+ of modern sites) and falls back through increasingly specialized methods.
+- **Adaptive scraping**: 9 retrieval methods from browser rendering to TLS fingerprinting to screenshot+vision extraction, with per-host optimization. Starts with full browser rendering (what works on 95%+ of modern sites) and falls back through increasingly specialized methods.
 - **Org-aware site selection**: Link discovery and prioritization now adapt for commercial companies, government sites, nonprofits, education, and healthcare organizations instead of assuming every site looks like a SaaS company.
 - **Fail-fast scrape quality gate**: Full/scrape modes now abort when site extraction is too thin, while still preserving short structured pages like contact, leadership, and org-chart references when they carry useful signal (override with `--skip-scrape-validation`).
 - **Autonomous external research**: Gemini Deep Research for comprehensive analysis, Grok 4.3 for fast turnaround — both plan queries, follow leads, cross-validate sources, and synthesize findings.
@@ -191,15 +193,15 @@ From the executive summary of a sample report:
 >
 > **Key insights:**
 >
-> - Northwind's customer concentration is high. Cross-referencing case studies, press releases, and conference presentations, roughly 40% of referenced deployments involve just 3 carrier networks. Loss of any one would be material. *[Confidence: Inferred]*
-> - The company has no disclosed AI strategy, but 4 of their last 7 engineering hires have ML/optimization backgrounds. Combined with a patent filing for "autonomous route replanning under disruption," this suggests an unannounced product line. *[Confidence: Inferred]*
-> - Pricing has shifted from perpetual licenses to consumption-based billing (per-shipment), visible in public procurement portal RFP responses. *[Confidence: Reported]*
+> - Northwind's customer concentration is high. Cross-referencing case studies, press releases, and conference presentations, roughly 40% of referenced deployments involve just 3 carrier networks. Loss of any one would be material. *(Estimated)*
+> - The company has no disclosed AI strategy, but 4 of their last 7 engineering hires have ML/optimization backgrounds. Combined with a patent filing for "autonomous route replanning under disruption," this suggests an unannounced product line. *(Hypothesis)*
+> - Pricing has shifted from perpetual licenses to consumption-based billing (per-shipment), visible in public procurement portal RFP responses. *(Reported)*
 
 Reports include 23 structured sections, SWOT analysis, competitive landscape, discovery questions, and inline confidence levels on every non-obvious claim.
 
 ## Under the Hood
 
-Primr uses an 8-tier browser-first retrieval engine with sticky tier memory, circuit breakers, and cookie handoff. The v1.24.0 default recipe pairs Gemini 3.1 Flash-Lite ($0.25/$1.50 per 1M tokens) for bulk writing with Grok 4.3 ($1.25/$2.50, $0.20 cached input) for reasoning. Gemini Deep Research (~$2.50/task) handles premium-mode autonomous synthesis. The agentic architecture includes hypothesis tracking, subagents for each pipeline stage, governance hooks, and persistent research memory.
+Primr uses a 9-tier browser-first retrieval engine with sticky tier memory, circuit breakers, and cookie handoff. The v1.24.0 default recipe pairs Gemini 3.1 Flash-Lite ($0.25/$1.50 per 1M tokens) for bulk writing with Grok 4.3 ($1.25/$2.50, $0.20 cached input) for reasoning. Gemini Deep Research (~$2.50/task) handles premium-mode autonomous synthesis. The agentic architecture includes hypothesis tracking, subagents for each pipeline stage, governance hooks, and persistent research memory.
 
 For full architecture details, model pricing, and the retrieval tier breakdown, see [System Design](docs/ARCHITECTURE.md).
 

@@ -14,9 +14,10 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 
 ### Research Engines
 
-**Scrape Mode**: 8-tier web scraping with intelligent escalation (browser-first):
+**Scrape Mode**: 9-tier web scraping with intelligent escalation (browser-first):
 - Browser tiers: Playwright, Playwright aggressive
-- TLS impersonation: curl_cffi (tier 3 — tried before stealth browsers)
+- Patchright stealth browser (tier 3 — real Chrome + persistent profile for Kasada/Akamai challenge shells)
+- TLS impersonation: curl_cffi (tier 4)
 - Stealth browser tiers: DrissionPage stealth, DrissionPage (driverless CDP)
 - Vision tier: Screenshot + LLM extraction for image-heavy pages (enabled by default, can be disabled)
 - HTTP tiers: httpx, requests
@@ -65,7 +66,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 - A2A protocol (standalone or co-hosted with MCP)
 - OpenClaw integration with packaged skills plus governed research/strategy workflows
 - Claude Skills directory with MCP-first skill packages
-- Agent governance surfaces for generic MCP clients: estimate-first prompts/resources, next-action hints, and optional server-enforced cost caps (`max_estimated_cost_usd`, `PRIMR_ENFORCE_MCP_COST_CAPS`)
+- Agent governance surfaces for generic MCP clients: estimate-first prompts/resources, next-action hints, and server-enforced cost caps (`max_estimated_cost_usd`) — enforcement defaults ON for the HTTP transport (the networked, agent-facing surface), off for host-mediated stdio; `PRIMR_ENFORCE_MCP_COST_CAPS` overrides either way (`mcp_server/cost_caps.py`)
 - Long-running job guidance for agent clients: monitor/resume flows for standard runs and premium multi-vendor runs
 
 ### Quality & Trust
@@ -91,7 +92,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 
 - Cost estimation, usage tracking, job recovery, crash/reboot recovery
 - System diagnostics (`primr doctor`)
-- 6,500+ tests, full ruff compliance, mypy clean on an incremental strict ratchet (see [Engineering Standards & Toolchain](#engineering-standards--toolchain))
+- 9,000+ tests, full ruff compliance, mypy clean on an incremental strict ratchet (see [Engineering Standards & Toolchain](#engineering-standards--toolchain))
 - Serverless cloud deployment templates (AWS, Azure, GCP); Azure validated end-to-end (remaining hardening below)
 - Agentic architecture: hypothesis tracking, subagents, hooks, orchestrator
 - Content sanitization for prompt injection protection
@@ -108,7 +109,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 - Role over tool — Primr is an account strategist, not a "research command." Its outputs should be consumable by both humans and downstream agents.
 - Product over middleware — integrations should act as a disciplined control plane for Primr's long-running research jobs, not turn Primr into a generic orchestration framework.
 - Artifact-first delivery — the main unit of value is a report, strategy, or evaluation artifact, not a stream of chat-sized tool responses.
-- The pipeline is the product — Primr's value is the 8-tier scraping engine, the org-aware link selection, the research deepening, the cross-validation, the deterministic QA gate, the eval harness, the crash recovery, and the cost estimation. None of these are model calls. The model is a commodity; the orchestration pipeline is the moat.
+- The pipeline is the product — Primr's value is the 9-tier scraping engine, the org-aware link selection, the research deepening, the cross-validation, the deterministic QA gate, the eval harness, the crash recovery, and the cost estimation. None of these are model calls. The model is a commodity; the orchestration pipeline is the moat.
 
 Primr is intentionally not designed as a generic web scraper, a SaaS collaboration platform, a presentation builder, or a generic agent middleware layer.
 

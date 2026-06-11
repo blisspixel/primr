@@ -553,6 +553,15 @@ class ReportAnalyzer:
         Single source of truth for the deterministic grade: the scorecard in
         :meth:`generate_report` and the QA iteration loop (``primr refine``)
         both use this, so "grade >= 90" means the same thing everywhere.
+
+        Honest scope: this is an ARTIFACT-DISCIPLINE score. It measures the
+        presence and internal consistency of the epistemic apparatus —
+        citation coverage/density, section structure, framework presence,
+        confidence-label and hypothesis-framing counts. It does NOT verify
+        that any claim is factually accurate or that a label is correctly
+        assigned; that is the job of ``--verify`` and the eval harness's
+        label-calibration work. Treat a high score as "the artifact is
+        well-formed," never as "the analysis is true."
         """
         citations = self.analyze_citations()
         structure = self.analyze_structure()
@@ -720,13 +729,18 @@ class ReportAnalyzer:
         report += f"\n**Overall Quality Score: {total_score:.0f}/100**\n"
 
         if total_score >= 90:
-            report += "**Excellent** - Professional quality report\n"
+            report += "**Excellent** - Artifact discipline fully in shape\n"
         elif total_score >= 75:
-            report += "**Good** - High quality with minor improvements needed\n"
+            report += "**Good** - Solid artifact discipline with minor gaps\n"
         elif total_score >= 60:
-            report += "**Fair** - Acceptable but needs improvement\n"
+            report += "**Fair** - Artifact discipline needs improvement\n"
         else:
-            report += "**Poor** - Significant quality issues\n"
+            report += "**Poor** - Significant artifact-discipline issues\n"
+        report += (
+            "\n*This score measures artifact discipline — structure, citations, "
+            "and epistemic labeling — not factual accuracy. Use --verify for "
+            "claim-level checks.*\n"
+        )
 
         return report
 
