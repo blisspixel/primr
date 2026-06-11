@@ -70,11 +70,13 @@ def test_compute_backoff_delay_caps():
 def test_reset_grok_session_clears_counters():
     grok_client._session_input_tokens = 99
     grok_client._session_output_tokens = 88
+    grok_client._session_cached_input_tokens = 44
     grok_client._session_tokens_by_model = {"m": {"input_tokens": 1, "output_tokens": 1}}
     grok_client.reset_grok_session()
     assert grok_client.get_grok_session_usage() == {
         "input_tokens": 0,
         "output_tokens": 0,
+        "cached_input_tokens": 0,
     }
     assert grok_client.get_grok_session_usage_by_model() == {}
 
@@ -96,7 +98,7 @@ def test_grok_llm_cross_provider_dispatch(monkeypatch):
 
     cross_provider = MagicMock()
     cross_provider.chat.return_value = SimpleNamespace(
-        text="gemini reply", input_tokens=5, output_tokens=3
+        text="gemini reply", input_tokens=5, output_tokens=3, cached_input_tokens=0
     )
     monkeypatch.setattr("primr.ai.routing.get_provider_for_model", lambda model: cross_provider)
 
@@ -126,7 +128,9 @@ def test_grok_llm_includes_system_prompt(monkeypatch):
 
         def chat(self, messages, **kwargs):
             captured["messages"] = messages
-            return SimpleNamespace(text="ok", input_tokens=1, output_tokens=1)
+            return SimpleNamespace(
+                text="ok", input_tokens=1, output_tokens=1, cached_input_tokens=0
+            )
 
     monkeypatch.setattr(grok_client, "_get_provider", lambda: _Prov())
     monkeypatch.setattr(grok_client, "_get_grok_client", lambda: object())

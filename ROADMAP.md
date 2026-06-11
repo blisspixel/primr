@@ -246,36 +246,32 @@ Push the standard output from a strong research artifact to a genuinely strategi
 
 Cache hit rate is load-bearing on the sub-$1 default — Grok 4.3 cached input at $0.20/M is what makes 4.3-for-reasoning viable on the budget. Without visibility, regressions in the recipe go unnoticed. Cache-token plumbing already exists at the provider level; the missing piece is threading it through to historical records and the usage UI.
 
-- Bridge cached-token counts from providers into `tracker.record_usage()` and `UsageRecord` so `primr show-usage` displays cache hit rate per run
+- **Bridge cached-token counts — DONE.** `ChatResponse` now carries `cached_input_tokens` (xAI `cached_tokens`, OpenAI `prompt_tokens_details.cached_tokens`, Anthropic `cache_read_input_tokens`, Gemini `cached_content_token_count`); the grok session counters mirror it per model through a single `_mirror_session_usage` seam (all four call paths: grok_llm xAI, cross-provider dispatch, ContinuousReasoningSession, grok_browse_and_summarize); `UsageRecord`/`record_usage()` persist it and `primr show-usage` displays cache hit rate per run and lifetime. Actual-cost reporting (`_compute_session_llm_cost`) is now cache-aware — cached input is billed at the model's cached rate instead of overstating spend.
+- **`--budget $N` flag — DONE.** Per-run cost ceiling for standard research, activating the existing `CostGuardHook` accounting via `primr.utils.run_budget`. Pre-flight: refuses to start when the dry-run estimate exceeds the ceiling. Mid-run: a checkpoint before Phase 6 syncs actual session spend and skips strategy generation (the most expensive optional stage) once the ceiling is reached — report still ships. Budget is cleared in a `finally` so it can't leak across runs.
+- **`primr show-usage` enhancements — DONE.** Lifetime totals (already present) plus per-company history (top 10 by spend with run counts and last-run date), per-mode totals alongside averages, and the By Mode breakdown now lists *observed* modes (fast-mode runs previously never appeared in the fixed mode list).
 - Track real-usage cost variability across more companies and surface a continuous-reasoning regression signal in `primr show-usage`
 - `primr doctor --scraper-stats` to show per-tier success rate, latency p95, and content quality score across recent runs
-- `--budget $N` flag to enforce per-run cost ceiling (activates existing `CostGuardHook`)
-- `primr show-usage` enhancements: total lifetime spend, per-company history, cost-by-mode breakdown
 - Stored in run state JSON for post-hoc analysis; informs sticky tier policy and circuit breaker thresholds
 
-### 6. Wire Circuit Breaker Into Production LLM Call Sites
+### 6. Wire Circuit Breaker Into Production LLM Call Sites — DONE
 
-The `ModelCircuitBreaker.execute_with_fallback()` mechanism is callable and tested but not yet invoked from `research_agent.py` LLM call sites. Today a provider quota blip during a run can fail the run instead of advancing to the next model in the cross-provider chain. Wire it into the production pipeline so quota events trigger automatic provider failover.
+All direct `grok_llm()` call sites in `research_agent.py` (coherence pass, citation repair, trust polish, strategy artifact repair, fast + strategy cross-validation and their JSON retry, section + strategy regeneration, strategy polish, analysis workbook, contradiction resolution, both strategy-generation closures) now route through `call_with_failover()` with the stage's model as `preferred_model`, and the `llm()` utility-tier xAI dispatch routes through the same seam — so a `QuotaExhaustedError` on the primary model advances to the next provider in the chain instead of failing or silently degrading the stage. Explicit model params are honored as the first-tried model when registered + keyed; unknown model strings fall through to the chain default by design. Wiring pinned by `tests/test_core/test_llm_failover_wiring.py`. Remaining (deliberate): `ContinuousReasoningSession.send()` stays direct — a multi-turn session's history is bound to its model, and mid-session failover needs a session-replay design first; the Gemini pro-tier path in `llm()` keeps its explicit quota UI (premium mode is single-provider by user choice).
 
-### 7. Diminishing Returns Detection for Cross-Validation
+### 7. Diminishing Returns Detection for Cross-Validation — DONE (initial)
 
-Detect when cross-validation or section regeneration is making diminishing progress and stop early, rather than consuming the full token budget.
+Detect when cross-validation section regeneration is making diminishing progress and stop early, rather than consuming the full token budget.
 
-- After each section regeneration, measure improvement: word count delta, new citation count, QA score change
-- If 3+ consecutive regenerations each produce <5% improvement in QA score, stop the loop early
-- Log the early stop in the QA summary: `cross-validation: stopped early (diminishing returns after N iterations)`
-- Applies to both the existing cross-validation pass and the planned QA iteration loop
-- Start conservative and tune thresholds based on eval results
+- **Shipped:** `pipeline/diminishing_returns.py` — a pure `DiminishingReturnsDetector` + `assess_improvement()` (word-growth ratio and net-new `[cite: N]` markers, score = max of the two signals, never negative). Wired into the cross-validation regeneration loop in `perform_fast_research`: after each rewrite the detector records the measured improvement and the loop breaks after 3 consecutive regenerations below 5% improvement. The early stop is logged (`cross-validation: stopped early (diminishing returns after N iteration(s) ...)`) and a `diminishing_returns` summary (iterations, stopped_early, per-section scores) is persisted into `cross_validation.json`.
+- Thresholds start conservative (3 consecutive, <5%) per this item's original spec — tune against eval results, not intuition.
+- Remaining: apply the same detector to the planned QA iteration loop (#10) when it lands, and consider a QA-score-based signal once section-level QA scoring is cheap enough to run per regeneration.
 
-### 8. Prompt Cache Preparation
+### 8. Prompt Cache Preparation — DONE (section writing)
 
 Split section-writing prompts into cached (stable across sections) and volatile (per-section) components as a clean architectural separation.
 
-- Cached prefix (identical across all parallel section writes): company context, analysis workbook, scrape summary, external research summary, general writing instructions, citation style guide
-- Volatile suffix (per-section): section name, section-specific prompt, section-specific evidence excerpts, word target
-- Ensure the cached prefix is byte-identical across all parallel section writes — no timestamps, no randomized evidence ordering, no section-specific context in the prefix
-- Zero-cost prep step: doesn't add caching API calls, just structures the prompts so caching works when providers support it
-- Applies the same principle to strategy generation prompts and cross-validation prompts where a shared context prefix is reused across multiple calls
+- **Shipped:** `build_fast_section_prompt_parts()` / `build_fast_batch_prompt_parts()` in `section_prompts.py` return `(cached_prefix, volatile_suffix)`; the existing builders concatenate them, so call sites are unchanged. The prefix carries only run-shared context (company header, analysis workbook, raw corpus, external research, citation key, general writing instructions, scaffolding prohibition, output contract) and is byte-identical across all parallel section writes — pinned by tests that build prompts for different sections/indexes/reasoning modes and assert prefix equality and no per-section leakage. Per-section material (TOC position, rolling context, reasoning mode, section spec, word target) moved to the suffix; instruction text is otherwise unchanged apart from direction words ("above" → named block references) since the volatile blocks now sit after the instructions.
+- Zero-cost prep step: no caching API calls added — providers' implicit prefix caching (xAI cached input at $0.20/M is the load-bearing case) now gets a shared prefix to key on; the `cached_input_tokens` plumbing from item #5 makes the effect measurable in `primr show-usage`.
+- Remaining: apply the same principle to strategy generation prompts and cross-validation prompts where a shared context prefix is reused across multiple calls; validate the measured cache-hit gain on a real run before tuning further.
 
 ### 9. Batch API for Section Writing (xAI + Anthropic Recipes)
 

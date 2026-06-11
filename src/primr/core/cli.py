@@ -254,6 +254,7 @@ class CLIConfig:
     )
     no_qa: bool = False  # Disable automatic quality assessment
     verify: bool = False  # Run post-QA claim verification
+    budget_usd: float | None = None  # Per-run cost ceiling (--budget)
     skip_scrape_validation: bool = False  # Continue even when scrape quality is too low
     browser_headed: bool = False
     browser_session_mode: str = "persistent"
@@ -498,6 +499,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         continuous_reasoning=continuous_reasoning,
         no_qa=getattr(parsed, "no_qa", False),
         verify=getattr(parsed, "verify", False),
+        budget_usd=getattr(parsed, "budget", None),
         skip_scrape_validation=getattr(parsed, "skip_scrape_validation", False),
         browser_headed=getattr(parsed, "browser_headed", False),
         browser_session_mode=getattr(parsed, "browser_session", "isolated"),
@@ -1305,6 +1307,15 @@ Accordion Method Test (for development):
     )
     parser.add_argument(
         "--max-cost", type=float, help="Maximum cost budget for orchestrated research (USD)"
+    )
+    parser.add_argument(
+        "--budget",
+        type=float,
+        help=(
+            "Per-run cost ceiling in USD for standard research. Refuses to start "
+            "when the estimate exceeds it; skips optional stages (strategy "
+            "generation) once actual spend reaches it."
+        ),
     )
     parser.add_argument("--roadmap", action="store_true", help="Show roadmap information")
     parser.add_argument(
@@ -3003,32 +3014,76 @@ def _handle_research(config: CLIConfig) -> int:
     else:
         os.environ.pop("PRIMR_BROWSER_HEADED", None)
 
+    # --budget pre-flight gate: refuse to start a run whose estimate already
+    # exceeds the ceiling, then activate the run budget so the pipeline can
+    # skip optional stages once actual spend reaches it.
+    run_budget_active = False
+    if config.budget_usd is not None:
+        from primr.utils.cost_estimator import estimate_cost
+        from primr.utils.run_budget import set_run_budget
+
+        if config.budget_usd <= 0:
+            console.error(f"--budget must be positive, got {config.budget_usd}")
+            return 1
+
+        budget_estimate = estimate_cost(
+            config.mode,
+            config.ai_strategy,
+            num_vendors=len(config.cloud_vendors),
+            lite_strategy=config.lite_strategy,
+            fast_mode=use_fast_mode,
+            premium_mode=use_premium_mode,
+            grok_tier=config.grok_tier,
+        )
+        if budget_estimate.total_cost > config.budget_usd:
+            console.error(
+                f"Estimated cost ${budget_estimate.total_cost:.2f} exceeds "
+                f"--budget ${config.budget_usd:.2f}. Not starting."
+            )
+            console.info(
+                "Raise --budget, or use a cheaper mode (--mode scrape ~$0.10, "
+                "--dry-run for the full breakdown)."
+            )
+            return 1
+
+        set_run_budget(config.budget_usd)
+        run_budget_active = True
+        console.info(
+            f"Run budget: ${config.budget_usd:.2f} (estimated ${budget_estimate.total_cost:.2f})"
+        )
+
     # Run research
-    result_path = perform_research(
-        company_name,
-        website,
-        mode=config.mode,
-        citation_style=config.citation_style,
-        ai_strategy=config.ai_strategy,
-        platforms=config.platforms,
-        output_dir=config.output_dir,
-        skip_confirm=config.skip_confirm,
-        context_files=context_files if context_files else None,
-        refresh_vendor_research=config.refresh_vendor_research,
-        strategies=strategy_types,
-        no_qa=config.no_qa,
-        max_scrape_time=config.max_scrape_time,
-        discovery_notes_path=config.discovery_notes_path,
-        lite_strategy=config.lite_strategy,
-        fast_mode=use_fast_mode,
-        premium_mode=use_premium_mode,
-        skip_scrape_validation=config.skip_scrape_validation,
-        resume_local=config.resume_local,
-        verify=config.verify,
-        grok_tier=config.grok_tier,
-        skip_recon=config.skip_recon,
-        continuous_reasoning=config.continuous_reasoning,
-    )
+    try:
+        result_path = perform_research(
+            company_name,
+            website,
+            mode=config.mode,
+            citation_style=config.citation_style,
+            ai_strategy=config.ai_strategy,
+            platforms=config.platforms,
+            output_dir=config.output_dir,
+            skip_confirm=config.skip_confirm,
+            context_files=context_files if context_files else None,
+            refresh_vendor_research=config.refresh_vendor_research,
+            strategies=strategy_types,
+            no_qa=config.no_qa,
+            max_scrape_time=config.max_scrape_time,
+            discovery_notes_path=config.discovery_notes_path,
+            lite_strategy=config.lite_strategy,
+            fast_mode=use_fast_mode,
+            premium_mode=use_premium_mode,
+            skip_scrape_validation=config.skip_scrape_validation,
+            resume_local=config.resume_local,
+            verify=config.verify,
+            grok_tier=config.grok_tier,
+            skip_recon=config.skip_recon,
+            continuous_reasoning=config.continuous_reasoning,
+        )
+    finally:
+        if run_budget_active:
+            from primr.utils.run_budget import clear_run_budget
+
+            clear_run_budget()
 
     # Open report if requested
     if config.open_after and result_path:

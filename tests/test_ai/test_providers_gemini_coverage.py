@@ -186,18 +186,29 @@ def test_chat_generic_error_exhausts():
 
 
 def test_extract_usage_none_response():
-    assert GeminiProvider._extract_usage(None) == (0, 0)
+    assert GeminiProvider._extract_usage(None) == (0, 0, 0)
 
 
 def test_extract_usage_no_metadata():
-    assert GeminiProvider._extract_usage(SimpleNamespace(usage_metadata=None)) == (0, 0)
+    assert GeminiProvider._extract_usage(SimpleNamespace(usage_metadata=None)) == (0, 0, 0)
 
 
 def test_extract_usage_values():
     resp = SimpleNamespace(
         usage_metadata=SimpleNamespace(prompt_token_count=7, candidates_token_count=3)
     )
-    assert GeminiProvider._extract_usage(resp) == (7, 3)
+    assert GeminiProvider._extract_usage(resp) == (7, 3, 0)
+
+
+def test_extract_usage_cached_tokens():
+    resp = SimpleNamespace(
+        usage_metadata=SimpleNamespace(
+            prompt_token_count=10,
+            candidates_token_count=4,
+            cached_content_token_count=6,
+        )
+    )
+    assert GeminiProvider._extract_usage(resp) == (10, 4, 6)
 
 
 def test_rate_limited_false_for_daily():

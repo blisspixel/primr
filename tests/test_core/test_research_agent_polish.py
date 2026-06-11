@@ -91,6 +91,16 @@ class TestPolishFastReportForTrust:
         assert result == original
 
     def test_explicit_model_param_used(self, monkeypatch):
+        # The polish pass now routes through the failover seam: an explicit
+        # model param is honored as the preferred (first-tried) model when it
+        # is a real registered model with an available key. Unknown model
+        # strings intentionally fall through to the chain default instead of
+        # being dispatched verbatim (see llm_failover preferred_model docs).
+        from primr.pipeline.llm_failover import set_breaker_for_test
+        from primr.pipeline.model_breaker import ModelCircuitBreaker
+
+        set_breaker_for_test(ModelCircuitBreaker())
+        monkeypatch.setenv("XAI_API_KEY", "fake")
         mock = MagicMock(return_value="## S\n\nbody " * 100)
         monkeypatch.setattr("primr.ai.grok_client.grok_llm", mock)
         _polish_fast_report_for_trust(
@@ -98,7 +108,8 @@ class TestPolishFastReportForTrust:
             "https://acme.example",
             "## S\n\nbody " * 50,
             [],
-            model="custom-model",
+            model="grok-4.3",
         )
+        set_breaker_for_test(None)
         kwargs = mock.call_args.kwargs
-        assert kwargs["model"] == "custom-model"
+        assert kwargs["model"] == "grok-4.3"

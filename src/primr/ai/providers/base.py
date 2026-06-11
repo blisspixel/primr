@@ -33,12 +33,18 @@ class ChatResponse:
 
     ``input_tokens`` and ``output_tokens`` come from the provider's usage
     metadata when available; both default to 0 for transports (e.g. local
-    Ollama) that don't report usage.
+    Ollama) that don't report usage. ``cached_input_tokens`` is the subset of
+    ``input_tokens`` served from the provider's prompt cache (xAI
+    ``cached_tokens``, OpenAI ``prompt_tokens_details.cached_tokens``,
+    Anthropic ``cache_read_input_tokens``, Gemini
+    ``cached_content_token_count``) — cache hit rate is load-bearing on the
+    sub-$1 default recipe, so callers can thread it into usage records.
     """
 
     text: str
     input_tokens: int = 0
     output_tokens: int = 0
+    cached_input_tokens: int = 0
 
 
 @dataclass

@@ -335,3 +335,64 @@ class TestConsolidateWorkingFolder:
             body = f.read()
         # Company name should come from "Acme_Corp" (parent), not from the leaf.
         assert "Research Context: Acme Corp" in body
+
+
+# ---------------------------------------------------------------------------
+# _compute_session_llm_cost (cache-aware run-cost helper)
+# ---------------------------------------------------------------------------
+
+
+class TestComputeSessionLLMCost:
+    def _patch_flash_cost(self, monkeypatch, cost: float):
+        from types import SimpleNamespace
+
+        monkeypatch.setattr(
+            "primr.ai.client.get_client",
+            lambda: SimpleNamespace(get_usage_summary=lambda: {"total_cost": cost}),
+        )
+
+    def test_sums_grok_and_flash_costs_cache_aware(self, monkeypatch):
+        from primr.ai import grok_client
+        from primr.config.models import PrimrModels
+        from primr.core.research_agent import _compute_session_llm_cost
+
+        grok_client.reset_grok_session()
+        try:
+            grok_client._mirror_session_usage(
+                PrimrModels.GROK_MODEL, 100_000, 10_000, cached_input_tokens=40_000
+            )
+            self._patch_flash_cost(monkeypatch, 0.25)
+
+            expected_grok = PrimrModels.calculate_cost(
+                PrimrModels.GROK_MODEL, 100_000, 10_000, cached_input_tokens=40_000
+            )
+            assert _compute_session_llm_cost() == pytest.approx(expected_grok + 0.25)
+
+            # Cache-aware pricing must never exceed the uncached price
+            uncached = PrimrModels.calculate_cost(PrimrModels.GROK_MODEL, 100_000, 10_000)
+            assert expected_grok <= uncached
+        finally:
+            grok_client.reset_grok_session()
+
+    def test_unknown_model_falls_back_to_default_grok_pricing(self, monkeypatch):
+        from primr.ai import grok_client
+        from primr.config.models import PrimrModels
+        from primr.core.research_agent import _compute_session_llm_cost
+
+        grok_client.reset_grok_session()
+        try:
+            grok_client._mirror_session_usage("totally-unknown-model", 50_000, 5_000)
+            self._patch_flash_cost(monkeypatch, 0.0)
+
+            expected = PrimrModels.calculate_cost(PrimrModels.GROK_MODEL, 50_000, 5_000)
+            assert _compute_session_llm_cost() == pytest.approx(expected)
+        finally:
+            grok_client.reset_grok_session()
+
+    def test_empty_session_is_flash_only(self, monkeypatch):
+        from primr.ai import grok_client
+        from primr.core.research_agent import _compute_session_llm_cost
+
+        grok_client.reset_grok_session()
+        self._patch_flash_cost(monkeypatch, 0.42)
+        assert _compute_session_llm_cost() == pytest.approx(0.42)

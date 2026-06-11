@@ -143,3 +143,13 @@ class TestPremiumMode:
     def test_full_mode_does_not_set_premium(self):
         config = parse_args(["Acme", "https://acme.example", "--mode", "full"])
         assert config.premium_mode is False
+
+
+class TestBudgetFlag:
+    def test_budget_maps_to_config(self):
+        config = parse_args(["Acme", "https://acme.example", "--budget", "1.50"])
+        assert config.budget_usd == 1.50
+
+    def test_budget_defaults_to_none(self):
+        config = parse_args(["Acme", "https://acme.example"])
+        assert config.budget_usd is None

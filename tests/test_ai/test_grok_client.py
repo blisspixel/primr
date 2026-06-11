@@ -169,3 +169,92 @@ def test_continuous_session_records_usage_into_module_globals(monkeypatch):
     by_model = grok_client.get_grok_session_usage_by_model()
     assert by_model["grok-4.3"]["input_tokens"] == 11
     assert by_model["grok-4.3"]["output_tokens"] == 7
+
+
+# ---------------------------------------------------------------------------
+# Cached-input-token session tracking (cache-hit visibility)
+# ---------------------------------------------------------------------------
+
+
+class _FakeCachedResponse:
+    """Response whose usage reports xAI-style top-level cached_tokens."""
+
+    def __init__(self, text: str, prompt: int = 20, completion: int = 8, cached: int = 12):
+        self.choices = [SimpleNamespace(message=SimpleNamespace(content=text))]
+        self.usage = SimpleNamespace(
+            prompt_tokens=prompt, completion_tokens=completion, cached_tokens=cached
+        )
+
+
+def test_grok_llm_tracks_cached_input_tokens(monkeypatch):
+    grok_client.reset_grok_session()
+    client = _FakeClient([_FakeCachedResponse("ok")])
+    monkeypatch.setattr(grok_client, "_get_grok_client", lambda: client)
+
+    out = grok_client.grok_llm("hello")
+
+    assert out == "ok"
+    usage = grok_client.get_grok_session_usage()
+    assert usage["input_tokens"] == 20
+    assert usage["output_tokens"] == 8
+    assert usage["cached_input_tokens"] == 12
+
+    by_model = grok_client.get_grok_session_usage_by_model()
+    (bucket,) = by_model.values()
+    assert bucket["cached_input_tokens"] == 12
+
+
+def test_session_usage_without_cache_reports_zero_cached(monkeypatch):
+    grok_client.reset_grok_session()
+    client = _FakeClient([_FakeResponse("ok")])
+    monkeypatch.setattr(grok_client, "_get_grok_client", lambda: client)
+
+    grok_client.grok_llm("hello")
+
+    usage = grok_client.get_grok_session_usage()
+    assert usage["cached_input_tokens"] == 0
+
+
+def test_reset_grok_session_clears_cached_counter(monkeypatch):
+    grok_client.reset_grok_session()
+    client = _FakeClient([_FakeCachedResponse("ok")])
+    monkeypatch.setattr(grok_client, "_get_grok_client", lambda: client)
+    grok_client.grok_llm("hello")
+    assert grok_client.get_grok_session_usage()["cached_input_tokens"] == 12
+
+    grok_client.reset_grok_session()
+
+    usage = grok_client.get_grok_session_usage()
+    assert usage["input_tokens"] == 0
+    assert usage["cached_input_tokens"] == 0
+
+
+def test_continuous_session_tracks_cached_tokens(monkeypatch):
+    grok_client.reset_grok_session()
+    client = _FakeClient([_FakeCachedResponse("turn output")])
+    monkeypatch.setattr(grok_client, "_get_grok_client", lambda: client)
+
+    session = grok_client.ContinuousReasoningSession(model="grok-4.3")
+    session.send("draft")
+
+    usage = grok_client.get_grok_session_usage()
+    assert usage["cached_input_tokens"] == 12
+    assert grok_client.get_grok_session_usage_by_model()["grok-4.3"]["cached_input_tokens"] == 12
+
+
+def test_mirror_session_usage_tolerates_legacy_bucket_shape():
+    """Buckets persisted before the cached counter existed must not KeyError."""
+    grok_client.reset_grok_session()
+    # Simulate an old-shape bucket (no cached_input_tokens key)
+    grok_client._session_tokens_by_model["grok-4.3"] = {
+        "input_tokens": 5,
+        "output_tokens": 3,
+    }
+
+    grok_client._mirror_session_usage("grok-4.3", 10, 4, cached_input_tokens=6)
+
+    bucket = grok_client.get_grok_session_usage_by_model()["grok-4.3"]
+    assert bucket["input_tokens"] == 15
+    assert bucket["output_tokens"] == 7
+    assert bucket["cached_input_tokens"] == 6
+    grok_client.reset_grok_session()

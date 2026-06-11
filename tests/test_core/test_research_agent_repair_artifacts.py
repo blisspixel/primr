@@ -86,6 +86,14 @@ class TestRepairStrategyArtifactIssues:
         assert "Customer Experience" in prompt
 
     def test_explicit_model_used(self, monkeypatch):
+        # Routed through the failover seam: a real registered model passed
+        # explicitly is honored as the preferred (first-tried) model. Unknown
+        # model strings fall through to the chain default by design.
+        from primr.pipeline.llm_failover import set_breaker_for_test
+        from primr.pipeline.model_breaker import ModelCircuitBreaker
+
+        set_breaker_for_test(ModelCircuitBreaker())
+        monkeypatch.setenv("XAI_API_KEY", "fake")
         mock = MagicMock(return_value="## ok\n\nrepaired")
         monkeypatch.setattr("primr.ai.grok_client.grok_llm", mock)
         _repair_strategy_artifact_issues(
@@ -95,9 +103,10 @@ class TestRepairStrategyArtifactIssues:
             "Microsoft",
             [],
             ["missing_citations"],
-            model="custom-model",
+            model="grok-4.3",
         )
-        assert mock.call_args.kwargs["model"] == "custom-model"
+        set_breaker_for_test(None)
+        assert mock.call_args.kwargs["model"] == "grok-4.3"
 
 
 class TestPrepareStrategyForOutput:

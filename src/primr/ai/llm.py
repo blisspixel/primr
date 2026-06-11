@@ -137,13 +137,20 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
     config = PrimrModels.get_model_config(model_name)
     if config is not None and config.provider == "xai":
         # Utility-tier dispatch: caller asked for a Flash-class task and the
-        # resolver picked a Grok model because XAI_API_KEY is set. Route to
-        # the Grok client and return — thinking_level / streaming have no
+        # resolver picked a Grok model because XAI_API_KEY is set. Route
+        # through the circuit-breaker failover seam so a quota blip on the
+        # routed model advances to the next provider in the utility chain
+        # instead of failing the run — thinking_level / streaming have no
         # analogue on Grok 4.20-NR (it doesn't reason).
-        from primr.ai.grok_client import grok_llm
+        from primr.pipeline.llm_failover import LLMRole, call_with_failover
 
         log_chat_interaction(prompt, f"Model: {model_name} (xai dispatch)")
-        return grok_llm(prompt, model=model_name, temperature=temperature)
+        return call_with_failover(
+            LLMRole.WRITING,
+            prompt,
+            preferred_model=model_name,
+            temperature=temperature,
+        )
 
     # v1.24.0 cross-provider dispatch: when an eval recipe override picks an
     # OpenAI / Anthropic / Ollama model for a utility-tier role, the resolver

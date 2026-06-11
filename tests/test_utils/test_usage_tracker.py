@@ -483,3 +483,194 @@ class TestDisplayUsageHistory:
 
             assert "DR cost:" in output
             assert "$5.00" in output
+
+    def test_display_shows_observed_modes_including_fast(self):
+        """Fast-mode runs appear in the By Mode breakdown (not a fixed mode list)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage_path = Path(tmpdir) / "usage.json"
+            tracker = UsageTracker(storage_path=storage_path)
+            tracker.record_usage(
+                mode="fast",
+                company="TestCo",
+                input_tokens=100_000,
+                output_tokens=50_000,
+                pipeline_cost=0.79,
+            )
+            tracker.save()
+
+            output = UsageTracker(storage_path=storage_path).display_usage_history()
+
+            assert "fast:" in output
+            assert "Total Cost:" in output
+
+    def test_display_shows_per_company_history(self):
+        """Per-company section lists companies with run counts and spend."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage_path = Path(tmpdir) / "usage.json"
+            tracker = UsageTracker(storage_path=storage_path)
+            tracker.record_usage(
+                mode="fast",
+                company="AcmeCo",
+                input_tokens=1000,
+                output_tokens=500,
+                pipeline_cost=2.00,
+            )
+            tracker.record_usage(
+                mode="fast",
+                company="AcmeCo",
+                input_tokens=1000,
+                output_tokens=500,
+                pipeline_cost=1.00,
+            )
+            tracker.record_usage(
+                mode="fast",
+                company="BetaCo",
+                input_tokens=1000,
+                output_tokens=500,
+                pipeline_cost=0.50,
+            )
+            tracker.save()
+
+            output = UsageTracker(storage_path=storage_path).display_usage_history()
+
+            assert "By Company" in output
+            assert "AcmeCo" in output
+            assert "2 run(s)" in output
+            assert "BetaCo" in output
+
+    def test_display_shows_cache_hit_rate(self):
+        """Cache hit rate appears in totals and recent runs when cached tokens exist."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage_path = Path(tmpdir) / "usage.json"
+            tracker = UsageTracker(storage_path=storage_path)
+            tracker.record_usage(
+                mode="fast",
+                company="TestCo",
+                input_tokens=100_000,
+                output_tokens=50_000,
+                pipeline_cost=0.79,
+                cached_input_tokens=40_000,
+            )
+            tracker.save()
+
+            output = UsageTracker(storage_path=storage_path).display_usage_history()
+
+            assert "Cached Input:   40,000" in output
+            assert "(40% cache hit rate)" in output
+            assert "40% cached" in output  # recent-runs line
+
+    def test_display_omits_cache_line_when_no_cached_tokens(self):
+        """No cache noise for histories that predate cached-token tracking."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage_path = Path(tmpdir) / "usage.json"
+            tracker = UsageTracker(storage_path=storage_path)
+            tracker.record_usage(
+                mode="fast",
+                company="TestCo",
+                input_tokens=1000,
+                output_tokens=500,
+                pipeline_cost=0.10,
+            )
+            tracker.save()
+
+            output = UsageTracker(storage_path=storage_path).display_usage_history()
+
+            assert "Cached Input" not in output
+            assert "cached" not in output
+
+
+class TestCachedInputTokens:
+    """Cached-token plumbing through UsageRecord and record_usage."""
+
+    def test_record_persists_cached_tokens(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage_path = Path(tmpdir) / "usage.json"
+            tracker = UsageTracker(storage_path=storage_path)
+            tracker.record_usage(
+                mode="fast",
+                company="TestCo",
+                input_tokens=100_000,
+                output_tokens=50_000,
+                pipeline_cost=0.79,
+                cached_input_tokens=35_000,
+            )
+            tracker.save()
+
+            tracker2 = UsageTracker(storage_path=storage_path)
+            assert tracker2.history[0]["cached_input_tokens"] == 35_000
+
+    def test_cache_hit_rate_property(self):
+        record = UsageRecord.create(
+            mode="fast",
+            company="TestCo",
+            input_tokens=100_000,
+            output_tokens=0,
+            pipeline_cost=0.5,
+            cached_input_tokens=25_000,
+        )
+        assert abs(record.cache_hit_rate - 0.25) < 1e-9
+
+    def test_cache_hit_rate_zero_input_tokens(self):
+        record = UsageRecord.create(
+            mode="fast", company="TestCo", input_tokens=0, output_tokens=0, pipeline_cost=0.0
+        )
+        assert record.cache_hit_rate == 0.0
+
+    def test_cached_tokens_clamped_to_input_tokens(self):
+        """Defensive clamp: cached can never exceed input (and never negative)."""
+        record = UsageRecord.create(
+            mode="fast",
+            company="TestCo",
+            input_tokens=1_000,
+            output_tokens=0,
+            pipeline_cost=0.1,
+            cached_input_tokens=5_000,
+        )
+        assert record.cached_input_tokens == 1_000
+        assert record.cache_hit_rate == 1.0
+
+        negative = UsageRecord.create(
+            mode="fast",
+            company="TestCo",
+            input_tokens=1_000,
+            output_tokens=0,
+            pipeline_cost=0.1,
+            cached_input_tokens=-7,
+        )
+        assert negative.cached_input_tokens == 0
+
+    def test_default_is_zero_for_backward_compat(self):
+        record = UsageRecord.create(
+            mode="fast",
+            company="TestCo",
+            input_tokens=1_000,
+            output_tokens=500,
+            pipeline_cost=0.1,
+        )
+        assert record.cached_input_tokens == 0
+
+    def test_old_history_records_without_cached_field_display_fine(self):
+        """Old-schema persisted records (no cached_input_tokens key) don't crash display."""
+        import json
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage_path = Path(tmpdir) / "usage.json"
+            old_record = {
+                "timestamp": "2026-01-01T00:00:00",
+                "mode": "fast",
+                "company": "OldCo",
+                "input_tokens": 1000,
+                "output_tokens": 500,
+                "search_queries": 0,
+                "duration_seconds": 60.0,
+                "input_cost": 0.0,
+                "output_cost": 0.0,
+                "search_cost": 0.0,
+                "total_cost": 0.10,
+            }
+            storage_path.write_text(json.dumps([old_record]), encoding="utf-8")
+
+            output = UsageTracker(storage_path=storage_path).display_usage_history()
+
+            assert "OldCo" in output
+            assert "Cached Input" not in output

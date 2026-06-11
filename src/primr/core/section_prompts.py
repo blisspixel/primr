@@ -180,7 +180,7 @@ SUPPORTS. Be conservative on financial estimates — use wide ranges and note co
 """
 
 
-def _build_fast_batch_prompt(
+def build_fast_batch_prompt_parts(
     company_name: str,
     website: str | None,
     analysis_workbook: str,
@@ -191,63 +191,36 @@ def _build_fast_batch_prompt(
     previous_sections: list[GeneratedSection],
     batch_number: int,
     total_batches: int,
-) -> str:
-    """Build the prompt for writing one batch of report sections."""
+) -> tuple[str, str]:
+    """Build the (cached_prefix, volatile_suffix) for one batch-write prompt.
+
+    Same prompt-cache split as :func:`build_fast_section_prompt_parts`: the
+    prefix carries only run-shared context (company header, workbook, corpus,
+    external research, citation key, general instructions) and is
+    byte-identical across batches; the per-batch material (batch number,
+    rolling context, section list, word target) lives in the suffix.
+    """
     current_date = datetime.now().strftime("%B %d, %Y")
-
-    section_parts: list[str] = []
-    for section in sections:
-        covers_text = "\n".join(f"      - {item}" for item in section.covers)
-        depth_text = section.depth.strip() if section.depth else "Thorough analysis"
-        position_label = section.position or "middle"
-        section_parts.append(
-            f"### {section.name}\n"
-            f"**Purpose:** {section.purpose}\n"
-            f"**Position:** {position_label}\n"
-            f"**Must cover:**\n{covers_text}\n"
-            f"**Depth:** {depth_text}"
-        )
-    section_block = "\n\n".join(section_parts)
-
-    rolling_context = ""
-    if previous_sections:
-        recent = previous_sections[-7:]
-        context_parts: list[str] = []
-        for s in recent:
-            words = s.content.split()
-            summary = " ".join(words[:400])
-            if len(words) > 400:
-                summary += " ..."
-            context_parts.append(f"**{s.title}** (completed):\n{summary}")
-        rolling_context = "\n\n".join(context_parts)
-
-    rolling_block = (
-        f"## PREVIOUS SECTIONS (for narrative continuity)\n{rolling_context}"
-        if rolling_context
-        else "## PREVIOUS SECTIONS\n(This is the first batch — no prior sections.)"
-    )
 
     sources_text = (
         "\n".join(f"[{i}] {url}" for i, url in enumerate(source_urls, start=1))
         if source_urls
         else "(no external sources)"
     )
-    word_target = len(sections) * 800
     feedback_guidance = _load_fast_feedback_guidance()
     feedback_block = (
         f"=== FAST FEEDBACK GUIDANCE (from prior evals) ===\n{feedback_guidance}\n"
         if feedback_guidance
         else ""
     )
-    return f"""**Company:** {company_name}
+
+    cached_prefix = f"""**Company:** {company_name}
 **Website:** {website or "N/A"}
 **Date:** {current_date}
-**Batch:** {batch_number + 1} of {total_batches}
 
-You are writing batch {batch_number + 1} of {total_batches} for a Strategic Company Overview.
-This batch contains {len(sections)} sections. Write each section under its own ## heading.
-
-{rolling_block}
+You are writing one batch of sections for a Strategic Company Overview.
+Write each section under its own ## heading. The batch to write and the
+completed-section context appear after these shared materials and instructions.
 
 === ANALYSIS WORKBOOK ===
 {analysis_workbook}
@@ -263,20 +236,13 @@ This batch contains {len(sections)} sections. Write each section under its own #
 SOURCES CONSULTED:
 {sources_text}
 
----
-
-Write the following sections. Each section MUST start with a ## heading matching the section name exactly.
-
-{section_block}
-
 REQUIREMENTS:
-- Write at least {word_target:,} words total across all sections in this batch
 - Use specific facts, numbers, examples, and strategic comparisons — cite sources with [cite: N]
 - Be analytical and hypothesis-driven, not just descriptive
 - Label claims with confidence levels (Confirmed/Reported/Estimated/Hypothesis)
 - If direct evidence is limited, still write a deep section by anchoring on observed facts,
   extending with defensible inference, and making the strategic implication explicit
-- Build on the previous sections' narrative (see rolling context above)
+- Build on the previous sections' narrative (see the PREVIOUS SECTIONS block)
 - For framework sections (SWOT, Porter's, Value Chain): organize insights from
   earlier sections, don't introduce wholly new observations
 - Include tables where instructed (financials, competitors, timelines)
@@ -287,7 +253,7 @@ REQUIREMENTS:
   unless directly grounded in one or more cited sources or a transparent comparative heuristic
 - End each section with a short "What to validate:" line containing one concrete
   discovery question or data point to confirm in client interviews
-- ZERO REPETITION: Before writing a section, review the rolling context above.
+- ZERO REPETITION: Before writing a section, review the PREVIOUS SECTIONS block.
   If an insight, data point, or hypothesis already appeared in a prior section,
   do NOT restate it. Reference the earlier section instead ("as noted in the
   Executive Summary...") or build on it with new evidence.
@@ -332,8 +298,93 @@ OUTPUT CONTRACT (strict):
 - Do not include any preamble or commentary outside the requested section bodies
 """
 
+    section_parts: list[str] = []
+    for section in sections:
+        covers_text = "\n".join(f"      - {item}" for item in section.covers)
+        depth_text = section.depth.strip() if section.depth else "Thorough analysis"
+        position_label = section.position or "middle"
+        section_parts.append(
+            f"### {section.name}\n"
+            f"**Purpose:** {section.purpose}\n"
+            f"**Position:** {position_label}\n"
+            f"**Must cover:**\n{covers_text}\n"
+            f"**Depth:** {depth_text}"
+        )
+    section_block = "\n\n".join(section_parts)
 
-def _build_fast_section_prompt(
+    rolling_context = ""
+    if previous_sections:
+        recent = previous_sections[-7:]
+        context_parts: list[str] = []
+        for s in recent:
+            words = s.content.split()
+            summary = " ".join(words[:400])
+            if len(words) > 400:
+                summary += " ..."
+            context_parts.append(f"**{s.title}** (completed):\n{summary}")
+        rolling_context = "\n\n".join(context_parts)
+
+    rolling_block = (
+        f"## PREVIOUS SECTIONS (for narrative continuity)\n{rolling_context}"
+        if rolling_context
+        else "## PREVIOUS SECTIONS\n(This is the first batch — no prior sections.)"
+    )
+
+    word_target = len(sections) * 800
+
+    volatile_suffix = f"""
+---
+
+**Batch:** {batch_number + 1} of {total_batches}
+
+You are writing batch {batch_number + 1} of {total_batches}.
+This batch contains {len(sections)} sections. Write each section under its own ## heading.
+
+{rolling_block}
+
+Write the following sections. Each section MUST start with a ## heading matching the section name exactly.
+
+{section_block}
+
+LENGTH: Write at least {word_target:,} words total across all sections in this batch.
+"""
+    return cached_prefix, volatile_suffix
+
+
+def _build_fast_batch_prompt(
+    company_name: str,
+    website: str | None,
+    analysis_workbook: str,
+    raw_corpus_subset: str,
+    external_sources: str,
+    source_urls: list[str],
+    sections: list[SectionConfig],
+    previous_sections: list[GeneratedSection],
+    batch_number: int,
+    total_batches: int,
+) -> str:
+    """Build the prompt for writing one batch of report sections.
+
+    Structured as cached-prefix + volatile-suffix (see
+    :func:`build_fast_batch_prompt_parts`) so batch writes share a
+    byte-identical prompt prefix for provider-side prompt caching.
+    """
+    cached_prefix, volatile_suffix = build_fast_batch_prompt_parts(
+        company_name,
+        website,
+        analysis_workbook,
+        raw_corpus_subset,
+        external_sources,
+        source_urls,
+        sections,
+        previous_sections,
+        batch_number,
+        total_batches,
+    )
+    return cached_prefix + volatile_suffix
+
+
+def build_fast_section_prompt_parts(
     company_name: str,
     website: str | None,
     analysis_workbook: str,
@@ -345,10 +396,116 @@ def _build_fast_section_prompt(
     section_index: int,
     all_section_names: list[str],
     reasoning_mode: str = "standard",
-) -> str:
-    """Build prompt for writing a single report section."""
+) -> tuple[str, str]:
+    """Build the (cached_prefix, volatile_suffix) for one section-write prompt.
+
+    Prompt-cache preparation (Active Queue #8): the prefix is built ONLY from
+    inputs shared across every parallel section write in a run (company
+    context, workbook, corpus, external research, citation key, general
+    writing instructions) and is byte-identical across those calls — no
+    timestamps beyond the day-stable date, no section-specific content.
+    Provider prompt caches key on a shared prefix, so this ordering lets the
+    big context blocks hit cache across the parallel writes. Everything
+    per-section (TOC position, rolling context, reasoning mode, the section
+    spec, word target) lives in the suffix.
+    """
     current_date = datetime.now().strftime("%B %d, %Y")
     word_target = _get_section_word_target(section)
+
+    sources_text = (
+        "\n".join(f"[{i}] {url}" for i, url in enumerate(source_urls, start=1))
+        if source_urls
+        else "(no external sources)"
+    )
+    feedback_guidance = _load_fast_feedback_guidance()
+    feedback_block = (
+        f"=== FAST FEEDBACK GUIDANCE (from prior evals) ===\n{feedback_guidance}\n"
+        if feedback_guidance
+        else ""
+    )
+
+    cached_prefix = f"""**Company:** {company_name}
+**Website:** {website or "N/A"}
+**Date:** {current_date}
+
+You are writing ONE section of a Strategic Company Overview.
+Write this section under a single ## heading matching the section name exactly.
+The section to write, its position in the report, and the completed-section
+context appear after these shared materials and instructions.
+
+=== ANALYSIS WORKBOOK ===
+{analysis_workbook}
+
+=== RAW DATA (for evidence and citations) ===
+{raw_corpus_subset}
+
+=== EXTERNAL SOURCES ===
+{external_sources}
+
+{feedback_block}
+
+SOURCES CONSULTED:
+{sources_text}
+
+REQUIREMENTS:
+- Use specific facts, numbers, examples, and strategic comparisons — cite sources with [cite: N]
+- Be analytical and hypothesis-driven, not just descriptive
+- Label claims with confidence levels (Confirmed/Reported/Estimated/Hypothesis)
+- If direct evidence is limited, still write a deep section by anchoring on observed facts,
+  extending with defensible inference, and making the strategic implication explicit
+- Build on the previous sections' narrative (see the PREVIOUS SECTIONS block)
+- For framework sections (SWOT, Porter's, Value Chain): organize insights from
+  earlier sections, don't introduce wholly new observations
+- Include tables where instructed (financials, competitors, timelines)
+- This section should have substantive depth — multiple paragraphs with evidence
+- If a numeric claim cannot be supported by a cited source, replace it with
+  "Not publicly disclosed", a bounded qualitative range, or a clearly labeled low-confidence directional statement
+- Do not invent market sizes, CAGR, revenue ranges, headcount ranges, or shares
+  unless directly grounded in one or more cited sources or a transparent comparative heuristic
+- End the section with a short "What to validate:" line containing one concrete
+  discovery question or data point to confirm in client interviews
+- ZERO REPETITION: Before writing, review the PREVIOUS SECTIONS and REPORT
+  TABLE OF CONTENTS blocks. If an insight, data point, or hypothesis already
+  appeared in a prior section, do NOT restate it. Reference the earlier
+  section instead ("as noted in the Executive Summary...") or build on it
+  with new evidence.
+- AI/TECHNOLOGY INTEGRATION: When relevant, explicitly connect AI or technology
+  use cases to the company's specific business challenges. Don't just mention
+  "AI could help" — specify which AI capability maps to which concrete problem.
+- CITATION HYGIENE: Keep citations compact. Prefer paragraph-end citation clusters over
+  interrupting every sentence, and let the final Sources appendix carry the dense reference load.
+
+CONSULTING RIGOR (critical):
+- Do NOT paraphrase the company's marketing. When you cite their claims, immediately
+  stress-test them against external evidence or flag what's unverifiable.
+- For each major hypothesis or insight, include "What to validate": a specific question
+  or data point a consultant should probe in discovery.
+- Be CONSERVATIVE on financial estimates. If you're inferring revenue from employee
+  count, say "highly uncertain" and use wide ranges. Never state inferences as fact.
+- Frame "why now" for the company — what transition or inflection point makes this
+  moment interesting? Platform shifts, PE investment, leadership changes, etc.
+- Think like a buyer, not a narrator. Where does this company win deals? Where does
+  it lose? What would a competitor say about them?
+
+CITATION FORMAT (strict):
+- The SOURCES CONSULTED block above is a numbered citation key: [N] URL
+- Inline claims must reference citations as [cite: N], where N matches the
+  number assigned to that URL in the SOURCES CONSULTED block
+- Reuse the same N every time you cite the same URL
+- Do NOT emit [Source: URL] inline; use [cite: N] only
+- Do NOT invent citation numbers — only cite N values present in the key above
+
+{SCAFFOLDING_PROHIBITION_GUIDANCE}
+
+OUTPUT CONTRACT (strict):
+- Preferred format: emit each section inside a lightweight XML envelope:
+  <section><title>Exact Section Name</title><body>Section body here</body></section>
+- If you do not use the XML envelope, start each section with exactly one ## heading matching the requested section name
+- Do not add a ## Sources, ## References, or ## Citations subsection inside section output
+- Include exactly one What to validate: line per section, and make it the final line of that section
+- Write that line as plain text — no bold, no italics, no bullet prefix (it is prose, not a label)
+- Do not include any preamble or commentary outside the requested section bodies
+"""
 
     covers_text = "\n".join(f"      - {item}" for item in section.covers)
     depth_text = section.depth.strip() if section.depth else "Thorough analysis"
@@ -392,18 +549,6 @@ def _build_fast_section_prompt(
         else "## PREVIOUS SECTIONS\n(This is the first section — no prior sections.)"
     )
 
-    sources_text = (
-        "\n".join(f"[{i}] {url}" for i, url in enumerate(source_urls, start=1))
-        if source_urls
-        else "(no external sources)"
-    )
-    feedback_guidance = _load_fast_feedback_guidance()
-    feedback_block = (
-        f"=== FAST FEEDBACK GUIDANCE (from prior evals) ===\n{feedback_guidance}\n"
-        if feedback_guidance
-        else ""
-    )
-
     reasoning_guidance = (
         "CONSTRAINED-EVIDENCE MODE: Direct company-specific evidence for this section is limited. "
         "Do NOT collapse into a thin fact check. Use the website, news, industry structure, competitor "
@@ -414,97 +559,57 @@ def _build_fast_section_prompt(
         "and strategic inference."
     )
 
-    return f"""**Company:** {company_name}
-**Website:** {website or "N/A"}
-**Date:** {current_date}
+    volatile_suffix = f"""
+---
+
 **Section:** {section_index + 1} of {len(all_section_names)} — {section.name}
 
 {toc_block}
 
-You are writing ONE section of a Strategic Company Overview.
-Write this section under a single ## heading matching the section name exactly.
-
 {rolling_block}
-
-=== ANALYSIS WORKBOOK ===
-{analysis_workbook}
-
-=== RAW DATA (for evidence and citations) ===
-{raw_corpus_subset}
-
-=== EXTERNAL SOURCES ===
-{external_sources}
-
-{feedback_block}
 
 REASONING MODE:
 {reasoning_guidance}
-
-SOURCES CONSULTED:
-{sources_text}
-
----
 
 Write the following section. It MUST start with a ## heading matching the section name exactly.
 
 {section_block}
 
-REQUIREMENTS:
-- Write at least {word_target:,} words for this section
-- Use specific facts, numbers, examples, and strategic comparisons — cite sources with [cite: N]
-- Be analytical and hypothesis-driven, not just descriptive
-- Label claims with confidence levels (Confirmed/Reported/Estimated/Hypothesis)
-- If direct evidence is limited, still write a deep section by anchoring on observed facts,
-  extending with defensible inference, and making the strategic implication explicit
-- Build on the previous sections' narrative (see rolling context above)
-- For framework sections (SWOT, Porter's, Value Chain): organize insights from
-  earlier sections, don't introduce wholly new observations
-- Include tables where instructed (financials, competitors, timelines)
-- This section should have substantive depth — multiple paragraphs with evidence
-- If a numeric claim cannot be supported by a cited source, replace it with
-  "Not publicly disclosed", a bounded qualitative range, or a clearly labeled low-confidence directional statement
-- Do not invent market sizes, CAGR, revenue ranges, headcount ranges, or shares
-  unless directly grounded in one or more cited sources or a transparent comparative heuristic
-- End the section with a short "What to validate:" line containing one concrete
-  discovery question or data point to confirm in client interviews
-- ZERO REPETITION: Before writing, review the rolling context and TOC above.
-  If an insight, data point, or hypothesis already appeared in a prior section,
-  do NOT restate it. Reference the earlier section instead ("as noted in the
-  Executive Summary...") or build on it with new evidence.
-- AI/TECHNOLOGY INTEGRATION: When relevant, explicitly connect AI or technology
-  use cases to the company's specific business challenges. Don't just mention
-  "AI could help" — specify which AI capability maps to which concrete problem.
-- CITATION HYGIENE: Keep citations compact. Prefer paragraph-end citation clusters over
-  interrupting every sentence, and let the final Sources appendix carry the dense reference load.
-
-CONSULTING RIGOR (critical):
-- Do NOT paraphrase the company's marketing. When you cite their claims, immediately
-  stress-test them against external evidence or flag what's unverifiable.
-- For each major hypothesis or insight, include "What to validate": a specific question
-  or data point a consultant should probe in discovery.
-- Be CONSERVATIVE on financial estimates. If you're inferring revenue from employee
-  count, say "highly uncertain" and use wide ranges. Never state inferences as fact.
-- Frame "why now" for the company — what transition or inflection point makes this
-  moment interesting? Platform shifts, PE investment, leadership changes, etc.
-- Think like a buyer, not a narrator. Where does this company win deals? Where does
-  it lose? What would a competitor say about them?
-
-CITATION FORMAT (strict):
-- The SOURCES CONSULTED block above is a numbered citation key: [N] URL
-- Inline claims must reference citations as [cite: N], where N matches the
-  number assigned to that URL in the SOURCES CONSULTED block
-- Reuse the same N every time you cite the same URL
-- Do NOT emit [Source: URL] inline; use [cite: N] only
-- Do NOT invent citation numbers — only cite N values present in the key above
-
-{SCAFFOLDING_PROHIBITION_GUIDANCE}
-
-OUTPUT CONTRACT (strict):
-- Preferred format: emit each section inside a lightweight XML envelope:
-  <section><title>Exact Section Name</title><body>Section body here</body></section>
-- If you do not use the XML envelope, start each section with exactly one ## heading matching the requested section name
-- Do not add a ## Sources, ## References, or ## Citations subsection inside section output
-- Include exactly one What to validate: line per section, and make it the final line of that section
-- Write that line as plain text — no bold, no italics, no bullet prefix (it is prose, not a label)
-- Do not include any preamble or commentary outside the requested section bodies
+LENGTH: Write at least {word_target:,} words for this section.
 """
+    return cached_prefix, volatile_suffix
+
+
+def _build_fast_section_prompt(
+    company_name: str,
+    website: str | None,
+    analysis_workbook: str,
+    raw_corpus_subset: str,
+    external_sources: str,
+    source_urls: list[str],
+    section: SectionConfig,
+    written_sections: list[GeneratedSection],
+    section_index: int,
+    all_section_names: list[str],
+    reasoning_mode: str = "standard",
+) -> str:
+    """Build prompt for writing a single report section.
+
+    Structured as cached-prefix + volatile-suffix (see
+    :func:`build_fast_section_prompt_parts`) so parallel section writes share
+    a byte-identical prompt prefix for provider-side prompt caching.
+    """
+    cached_prefix, volatile_suffix = build_fast_section_prompt_parts(
+        company_name,
+        website,
+        analysis_workbook,
+        raw_corpus_subset,
+        external_sources,
+        source_urls,
+        section,
+        written_sections,
+        section_index,
+        all_section_names,
+        reasoning_mode,
+    )
+    return cached_prefix + volatile_suffix
