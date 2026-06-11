@@ -1208,7 +1208,7 @@ def _fast_coherence_pass(
     Guards against destructive compression — rejects output that loses
     too many words or sections.
     """
-    from primr.ai.grok_client import grok_llm
+    from primr.pipeline.llm_failover import LLMRole, call_with_failover
 
     if not report_content.strip():
         return report_content
@@ -1261,9 +1261,10 @@ Return the full markdown report. No preamble.
 """
     writing_model = model or _default_writing_model()
     try:
-        polished = grok_llm(
+        polished = call_with_failover(
+            LLMRole.WRITING,
             prompt,
-            model=writing_model,
+            preferred_model=writing_model,
             max_tokens=32_000,
             temperature=0.3,
             system_prompt=(
@@ -1312,7 +1313,7 @@ def _repair_strategy_artifact_issues(
     model: str | None = None,
 ) -> str:
     """Run one focused repair pass for strategy artifact issues before shipping."""
-    from primr.ai.grok_client import grok_llm
+    from primr.pipeline.llm_failover import LLMRole, call_with_failover
 
     if not strategy_content.strip() or not issues:
         return strategy_content
@@ -1353,9 +1354,10 @@ RULES:
 
     writing_model = model or _default_writing_model()
     try:
-        repaired = grok_llm(
+        repaired = call_with_failover(
+            LLMRole.WRITING,
             prompt,
-            model=writing_model,
+            preferred_model=writing_model,
             max_tokens=20_000,
             temperature=0.2,
             system_prompt=system_prompt,
@@ -1417,7 +1419,7 @@ def _repair_fast_report_citation_integrity(
     model: str | None = None,
 ) -> str:
     """Repair missing citation linkage while preserving report structure."""
-    from primr.ai.grok_client import grok_llm
+    from primr.pipeline.llm_failover import LLMRole, call_with_failover
 
     if not report_content.strip() or not source_urls:
         return report_content
@@ -1448,9 +1450,10 @@ Return the full corrected markdown report only.
 """
     writing_model = model or _default_writing_model()
     try:
-        repaired = grok_llm(
+        repaired = call_with_failover(
+            LLMRole.WRITING,
             prompt,
-            model=writing_model,
+            preferred_model=writing_model,
             max_tokens=40_000,
             temperature=0.2,
             system_prompt="You are a meticulous editor fixing citations in-place without rewriting content.",
@@ -1497,7 +1500,7 @@ def _polish_fast_report_for_trust(
     - improve citation discipline while keeping citations compact
     - preserve section structure and core meaning
     """
-    from primr.ai.grok_client import grok_llm
+    from primr.pipeline.llm_failover import LLMRole, call_with_failover
 
     if not report_content.strip():
         return report_content
@@ -1540,9 +1543,10 @@ Return the fully edited markdown report only.
 """
     writing_model = model or _default_writing_model()
     try:
-        polished = grok_llm(
+        polished = call_with_failover(
+            LLMRole.WRITING,
             prompt,
-            model=writing_model,
+            preferred_model=writing_model,
             max_tokens=10_000,
             temperature=0.2,
             system_prompt=(
@@ -1787,7 +1791,7 @@ def _fast_cross_validate(
         {"weak_sections": [{"title": str, "reason": str, "queries": [str, str]}],
          "contradictions": [str]}
     """
-    from primr.ai.grok_client import grok_llm
+    from primr.pipeline.llm_failover import LLMRole, call_with_failover
 
     source_list = "\n".join(f"- {url}" for url in source_urls[:50])
 
@@ -1862,9 +1866,10 @@ If the report is solid, return empty arrays."""
                 max_tokens=5_000,
             )
         else:
-            response = grok_llm(
+            response = call_with_failover(
+                LLMRole.REASONING,
                 prompt,
-                model=model,
+                preferred_model=model,
                 max_tokens=5_000,
                 temperature=0.2,
                 system_prompt=system_prompt,
@@ -1938,7 +1943,8 @@ If the report is solid, return empty arrays."""
             '"contradictions": ["..."]}'
         )
         try:
-            retry_response = grok_llm(
+            retry_response = call_with_failover(
+                LLMRole.REASONING,
                 retry_prompt,
                 max_tokens=3_000,
                 temperature=0.1,
@@ -2014,7 +2020,7 @@ def _fast_regenerate_section(
     Uses the same system prompt style as Phase 4 report writing.
     Returns the re-generated section content (starting with ## heading).
     """
-    from primr.ai.grok_client import grok_llm
+    from primr.pipeline.llm_failover import LLMRole, call_with_failover
 
     source_list = "\n".join(f"- {url}" for url in source_urls[:50])
 
@@ -2055,9 +2061,10 @@ RULES:
 
     writing_model = model or _default_writing_model()
     try:
-        result = grok_llm(
+        result = call_with_failover(
+            LLMRole.WRITING,
             prompt,
-            model=writing_model,
+            preferred_model=writing_model,
             max_tokens=5_000,
             temperature=0.7,
             system_prompt=system_prompt,
@@ -2109,7 +2116,7 @@ def _strategy_cross_validate(
         {"weak_sections": [{"title": str, "reason": str, "queries": [str, str]}],
          "issues": [str]}
     """
-    from primr.ai.grok_client import grok_llm
+    from primr.pipeline.llm_failover import LLMRole, call_with_failover
 
     source_list = "\n".join(f"- {url}" for url in source_urls[:50])
 
@@ -2145,9 +2152,10 @@ If the strategy is solid, return empty arrays."""
     )
 
     try:
-        response = grok_llm(
+        response = call_with_failover(
+            LLMRole.REASONING,
             prompt,
-            model=model,
+            preferred_model=model,
             max_tokens=4_000,
             temperature=0.2,
             system_prompt=system_prompt,
@@ -2211,7 +2219,7 @@ def _strategy_regenerate_section(
 
     Returns the re-generated section content (starting with ## heading).
     """
-    from primr.ai.grok_client import grok_llm
+    from primr.pipeline.llm_failover import LLMRole, call_with_failover
 
     article = _a_or_an(vendor.upper())
     prompt = f"""Re-write this section of {article} {vendor.upper()} strategy document for {company_name},
@@ -2248,9 +2256,10 @@ RULES:
 
     writing_model = model or _default_writing_model()
     try:
-        result = grok_llm(
+        result = call_with_failover(
+            LLMRole.WRITING,
             prompt,
-            model=writing_model,
+            preferred_model=writing_model,
             max_tokens=8_000,
             temperature=0.6,
             system_prompt=system_prompt,
@@ -2291,7 +2300,7 @@ def _strategy_polish(
     and ensures specificity. Guards against destructive compression (90% word count,
     section count preservation).
     """
-    from primr.ai.grok_client import grok_llm
+    from primr.pipeline.llm_failover import LLMRole, call_with_failover
 
     if not strategy_content.strip():
         return strategy_content
@@ -2329,9 +2338,10 @@ Return the fully edited markdown strategy document only. No preamble or commenta
 
     writing_model = model or _default_writing_model()
     try:
-        polished = grok_llm(
+        polished = call_with_failover(
+            LLMRole.WRITING,
             prompt,
-            model=writing_model,
+            preferred_model=writing_model,
             max_tokens=32_000,
             temperature=0.3,
             system_prompt=(
@@ -2593,9 +2603,9 @@ def perform_fast_research(
     from primr.ai.grok_client import (
         ContinuousReasoningSession,
         get_grok_session_usage,
-        grok_llm,
         reset_grok_session,
     )
+    from primr.pipeline.llm_failover import LLMRole, call_with_failover
 
     reset_grok_session()
 
@@ -3283,9 +3293,10 @@ def perform_fast_research(
                         max_tokens=18_000,
                         temperature=0.5,
                     )
-                return grok_llm(
+                return call_with_failover(
+                    LLMRole.REASONING,
                     analysis_prompt,
-                    model=grok_reasoning,
+                    preferred_model=grok_reasoning,
                     max_tokens=18_000,
                     temperature=0.5,
                     system_prompt=analysis_system,
@@ -3587,7 +3598,13 @@ def perform_fast_research(
             from concurrent.futures import ThreadPoolExecutor, as_completed
             from concurrent.futures import TimeoutError as _FutTimeout
 
+            from primr.pipeline.diminishing_returns import (
+                DiminishingReturnsDetector,
+                assess_improvement,
+            )
+
             _enrich_section_deadline_s = 300.0  # 5 min hard cap per section
+            _returns_detector = DiminishingReturnsDetector()
 
             for ws in weak_sections:
                 raw_title = str(ws.get("title", "")).lstrip("#").strip()
@@ -3728,6 +3745,27 @@ def perform_fast_research(
                     )
                     sections_enriched += 1
                     console.ok(f"Enriched: {section_title} ({cv_new_sources} new source(s))")
+
+                # Diminishing-returns check: stop the regeneration loop early
+                # when consecutive rewrites stop producing real improvement,
+                # rather than spending the full token budget on the tail.
+                _returns_detector.record(
+                    assess_improvement(section_title, original_section, regenerated or "")
+                )
+                if _returns_detector.should_stop():
+                    console.warn(_returns_detector.stop_reason())
+                    log_structured(
+                        "info",
+                        "Cross-validation regeneration stopped early",
+                        **{
+                            k: v
+                            for k, v in _returns_detector.summary().items()
+                            if k != "per_section"
+                        },
+                    )
+                    break
+
+            cv_result["diminishing_returns"] = _returns_detector.summary()
         else:
             console.ok("Review complete: no sections flagged for enrichment")
 
@@ -3764,9 +3802,10 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
 {report_content}
 --- END ---"""
 
-                resolved = grok_llm(
+                resolved = call_with_failover(
+                    LLMRole.WRITING,
                     resolve_prompt,
-                    model=grok_writing,
+                    preferred_model=grok_writing,
                     max_tokens=65_000,
                     temperature=0.2,
                     system_prompt="You are a fact-checker standardizing contradictory data points across report sections.",
@@ -4008,9 +4047,10 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                         from primr.pipeline.integration import strategy_with_recovery
 
                         def _do_strategy(_prompt=combined_strategy_prompt):
-                            return grok_llm(
+                            return call_with_failover(
+                                LLMRole.WRITING,
                                 _prompt,
-                                model=grok_writing,
+                                preferred_model=grok_writing,
                                 max_tokens=32_000,
                             )
 
@@ -4230,9 +4270,10 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                         from primr.pipeline.integration import strategy_with_recovery
 
                         def _do_yaml_strategy(_p=combined_prompt):
-                            return grok_llm(
+                            return call_with_failover(
+                                LLMRole.WRITING,
                                 _p,
-                                model=grok_writing,
+                                preferred_model=grok_writing,
                                 max_tokens=32_000,
                             )
 
