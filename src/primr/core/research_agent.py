@@ -6882,9 +6882,19 @@ def improve_output_file(
             f"gate={'PASS' if qa['qa_gate_passed'] else 'WARN'}"
         )
 
+    # Enforced write allowlist (roadmap #11): the agentic improve stage may
+    # only write the target artifact (or its _improved sibling) — never run
+    # state, raw scrapes, or anything else. Architectural constraint, not a
+    # trust-based policy.
+    from primr.utils.write_guard import ArtifactWriteGuard, WriteGuardError
+
+    guard = ArtifactWriteGuard(path)
     out_path = path if in_place else path.with_name(f"{path.stem}_improved{path.suffix}")
     try:
-        out_path.write_text(improved, encoding="utf-8")
+        guard.write_text(out_path, improved)
+    except WriteGuardError as e:
+        console.error(f"Improve blocked by write guard: {e}")
+        return None
     except Exception as e:
         console.error(f"Improve failed: could not write output: {e}")
         return None

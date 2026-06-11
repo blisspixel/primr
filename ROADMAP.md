@@ -304,18 +304,13 @@ Structure the refinement loop around a four-phase consolidation protocol (Orient
 
 Principle: separate reading (Orient/Gather) from writing (Consolidate/Prune). The LLM has full context before it starts editing, which prevents hallucinated improvements that contradict existing content.
 
-### 11. Constrained Agent Permissions for Agentic Improve
+### 11. Constrained Agent Permissions for Agentic Improve — DONE
 
 When `primr improve --improve-agentic` runs an agentic review pass, constrain the agent's write permissions to the output file only. This transforms agentic improve from a trust-based policy ("the LLM should only edit the report") into an enforced architectural constraint.
 
-- Allow: read any file in the working directory and output directory
-- Allow: write only to the target output file (or `*_improved` variant)
-- Allow: DDG search for additional evidence (read-only external)
-- Deny: write to `_run_state.json`, `_raw_scrapes/`, working directory state files
-- Deny: any shell commands that modify files outside the output target
-- Implement as a wrapper around file I/O that checks the target path against an allowlist before writing
-
-This pattern applies to any future agentic pipeline stage that modifies artifacts: expert perspective passes, strategy enrichment, cross-validation regeneration.
+- **Shipped:** `primr.utils.write_guard.ArtifactWriteGuard` — an enforced write allowlist constructed with the stage's target artifact. Allowed: the target file and its `*_improved` sibling (plus explicit `extra_allowed` destinations such as a sidecar diagnostics report). Denied unconditionally — even if mistakenly allowlisted: `_run_state.json`, `usage_history.json`, and anything under `_raw_scrapes/` / `_hiring/` / `_diagnostics/`. Paths are resolved before checking, so `..` traversal is judged by where the write actually lands. `improve_output_file` now writes through the guard (`WriteGuardError` surfaces as a blocked improve, not a silent write).
+- Reads remain unrestricted (the stage may read working/output files for context); DDG search is read-only external and unaffected.
+- The guard is the seam any future agentic artifact-modifying stage must use: expert perspective passes, strategy enrichment, cross-validation regeneration. Folds into the per-tool authorization work in #21 for the MCP surface.
 
 ### 12. Working-Directory Tidiness for CLI Users
 
