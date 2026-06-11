@@ -4,7 +4,6 @@ Legacy AI strategy runtime extracted from research_agent.
 
 from __future__ import annotations
 
-import asyncio
 import os
 from datetime import datetime
 from pathlib import Path
@@ -150,13 +149,9 @@ def generate_ai_strategy_section(
                 if progress.message:
                     console.info(f"AI Strategy: {progress.message}")
 
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
+            from primr.utils.async_utils import run_sync
 
-            result = loop.run_until_complete(
+            result = run_sync(
                 client.research(
                     query=prompt,
                     output_format=None,

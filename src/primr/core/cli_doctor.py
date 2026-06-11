@@ -296,6 +296,62 @@ def _check_key_shadowing(warnings_count: int) -> int:
     return warnings_count
 
 
+def _show_file_locations() -> None:
+    """Surface where each category of primr file lives.
+
+    One place that documents the on-disk story (roadmap #12): per-run
+    artifacts resolve relative to the invocation directory; shared state
+    (vendor research) lives in the per-user cache so it is never duplicated
+    per company folder.
+    """
+    from pathlib import Path
+
+    from primr.core.vendor_research import get_vendor_research_dir
+    from primr.utils.usage_tracker import USAGE_FILE
+    from primr.utils.user_cache import get_user_cache_dir
+
+    locations = [
+        ("Deliverables (per run)", str(Path(OUTPUT_DIR).resolve())),
+        ("Working files (per run)", str(Path(WORKING_DIR).resolve())),
+        ("User cache (shared)", str(get_user_cache_dir())),
+        ("Vendor research (shared)", str(get_vendor_research_dir())),
+        ("Usage history", str(Path(USAGE_FILE).resolve())),
+    ]
+    for label, path in locations:
+        console.info(f"{label}: {path}")
+    console.info(
+        "Per-run folders are safe to archive/delete after a run; "
+        "the user cache is shared across runs (PRIMR_CACHE_DIR to relocate)."
+    )
+
+
+def run_scraper_stats() -> int:
+    """`primr doctor --scraper-stats`: per-tier analytics across recent runs.
+
+    Aggregates the JSONL scrape traces (logs/scrape_traces/) into per-tier
+    success rate, latency p95, and content-quality signals so sticky-tier
+    policy and circuit-breaker thresholds can be tuned from data.
+    """
+    from primr.data.scraping.trace_stats import (
+        DEFAULT_TRACE_DIR,
+        aggregate_scraper_stats,
+        format_scraper_stats,
+    )
+
+    console.banner("Scraper Stats")
+    console.blank()
+
+    summary = aggregate_scraper_stats()
+    if summary is None:
+        console.info(f"No scrape traces found under {DEFAULT_TRACE_DIR.resolve()}")
+        console.info("Run a research job first — traces are written per run.")
+        return 0
+
+    for line in format_scraper_stats(summary).splitlines():
+        console.info(line)
+    return 0
+
+
 def run_doctor(*, fix: bool = False) -> int:
     """Run system diagnostics. Exit code 0 if all checks pass, 1 otherwise."""
     console.banner("Primr Doctor")
@@ -324,6 +380,9 @@ def run_doctor(*, fix: bool = False) -> int:
 
     console.step("File System")
     all_passed, warnings_count = _check_filesystem(all_passed, warnings_count)
+
+    console.step("File Locations")
+    _show_file_locations()
 
     console.step("API Connectivity")
     all_passed, warnings_count = _check_api_connectivity(all_passed, warnings_count)

@@ -249,8 +249,8 @@ Cache hit rate is load-bearing on the sub-$1 default — Grok 4.3 cached input a
 - **Bridge cached-token counts — DONE.** `ChatResponse` now carries `cached_input_tokens` (xAI `cached_tokens`, OpenAI `prompt_tokens_details.cached_tokens`, Anthropic `cache_read_input_tokens`, Gemini `cached_content_token_count`); the grok session counters mirror it per model through a single `_mirror_session_usage` seam (all four call paths: grok_llm xAI, cross-provider dispatch, ContinuousReasoningSession, grok_browse_and_summarize); `UsageRecord`/`record_usage()` persist it and `primr show-usage` displays cache hit rate per run and lifetime. Actual-cost reporting (`_compute_session_llm_cost`) is now cache-aware — cached input is billed at the model's cached rate instead of overstating spend.
 - **`--budget $N` flag — DONE.** Per-run cost ceiling for standard research, activating the existing `CostGuardHook` accounting via `primr.utils.run_budget`. Pre-flight: refuses to start when the dry-run estimate exceeds the ceiling. Mid-run: a checkpoint before Phase 6 syncs actual session spend and skips strategy generation (the most expensive optional stage) once the ceiling is reached — report still ships. Budget is cleared in a `finally` so it can't leak across runs.
 - **`primr show-usage` enhancements — DONE.** Lifetime totals (already present) plus per-company history (top 10 by spend with run counts and last-run date), per-mode totals alongside averages, and the By Mode breakdown now lists *observed* modes (fast-mode runs previously never appeared in the fixed mode list).
+- **`primr doctor --scraper-stats` — DONE.** `data/scraping/trace_stats.py` aggregates the per-run JSONL scrape traces (`logs/scrape_traces/`, already persisted by `TraceLogger`) across the most recent 20 runs into per-tier attempts / success rate / latency p95+avg, overall page success rate, and content-quality signals (avg chars/page, thin-page count, validation pass rate). Pure read-side analytics; unreadable trace files are skipped so analytics can never break doctor.
 - Track real-usage cost variability across more companies and surface a continuous-reasoning regression signal in `primr show-usage`
-- `primr doctor --scraper-stats` to show per-tier success rate, latency p95, and content quality score across recent runs
 - Stored in run state JSON for post-hoc analysis; informs sticky tier policy and circuit breaker thresholds
 
 ### 6. Wire Circuit Breaker Into Production LLM Call Sites — DONE
@@ -304,18 +304,13 @@ Structure the refinement loop around a four-phase consolidation protocol (Orient
 
 Principle: separate reading (Orient/Gather) from writing (Consolidate/Prune). The LLM has full context before it starts editing, which prevents hallucinated improvements that contradict existing content.
 
-### 11. Constrained Agent Permissions for Agentic Improve
+### 11. Constrained Agent Permissions for Agentic Improve — DONE
 
 When `primr improve --improve-agentic` runs an agentic review pass, constrain the agent's write permissions to the output file only. This transforms agentic improve from a trust-based policy ("the LLM should only edit the report") into an enforced architectural constraint.
 
-- Allow: read any file in the working directory and output directory
-- Allow: write only to the target output file (or `*_improved` variant)
-- Allow: DDG search for additional evidence (read-only external)
-- Deny: write to `_run_state.json`, `_raw_scrapes/`, working directory state files
-- Deny: any shell commands that modify files outside the output target
-- Implement as a wrapper around file I/O that checks the target path against an allowlist before writing
-
-This pattern applies to any future agentic pipeline stage that modifies artifacts: expert perspective passes, strategy enrichment, cross-validation regeneration.
+- **Shipped:** `primr.utils.write_guard.ArtifactWriteGuard` — an enforced write allowlist constructed with the stage's target artifact. Allowed: the target file and its `*_improved` sibling (plus explicit `extra_allowed` destinations such as a sidecar diagnostics report). Denied unconditionally — even if mistakenly allowlisted: `_run_state.json`, `usage_history.json`, and anything under `_raw_scrapes/` / `_hiring/` / `_diagnostics/`. Paths are resolved before checking, so `..` traversal is judged by where the write actually lands. `improve_output_file` now writes through the guard (`WriteGuardError` surfaces as a blocked improve, not a silent write).
+- Reads remain unrestricted (the stage may read working/output files for context); DDG search is read-only external and unaffected.
+- The guard is the seam any future agentic artifact-modifying stage must use: expert perspective passes, strategy enrichment, cross-validation regeneration. Folds into the per-tool authorization work in #21 for the MCP surface.
 
 ### 12. Working-Directory Tidiness for CLI Users
 
@@ -330,31 +325,39 @@ duplicated state. Tighten the story:
   invocation directory consistently, and the on-disk shape should
   document itself with a top-level README per output folder so the user
   knows what's safe to delete vs preserve.
-- Add a per-user cache directory (e.g. `~/.cache/primr/` or
-  `%LOCALAPPDATA%\primr\`) for shared state that has no business
-  per-company duplication — vendor research, recon caches, eval
-  baselines, prompt cache hints.
-- Vendor news (`vendor-research/`) is the prime example of shared
-  state that primr currently writes into the invocation directory; it
-  belongs in the per-user cache. Move it and add migration logic.
-- `primr doctor` should surface where each category of file lives so
-  users have a single page that documents the on-disk story.
+- **Per-user cache directory — DONE.** `primr.utils.user_cache` resolves
+  `PRIMR_CACHE_DIR` override → `%LOCALAPPDATA%\primr\` (Windows) →
+  `$XDG_CACHE_HOME/primr` → `~/.cache/primr`, with a `migrate_legacy_file`
+  helper for one-time moves. Recon caches / eval baselines / prompt cache
+  hints can adopt the same seam as they come up.
+- **Vendor news moved — DONE.** `get_vendor_research_path` now lives in the
+  per-user cache (the legacy location was `PROJECT_ROOT/vendor-research/`,
+  which lands inside site-packages for pip installs); a file at the legacy
+  path is migrated on first access. Preflight write-checks validate the new
+  directory.
+- **`primr doctor` file locations — DONE.** A "File Locations" section shows
+  where deliverables, working files, the user cache, vendor research, and
+  usage history live, and which are per-run vs shared.
 
-### 13. Vendor News Caching Across Runs + Weekly Freshness
+### 13. Vendor News Caching Across Runs + Weekly Freshness — DONE
 
 The `is_vendor_research_current` default was 14 days; v1.26 tightened it
-to 7 days (weekly). The remaining gaps:
+to 7 days (weekly). All three gaps closed:
 
-- Vendor news is currently regenerated per invocation directory because
-  the cache lives under the CWD. Multiple back-to-back runs in
-  different company folders each regenerate the same vendor research,
-  wasting Deep Research budget and time. Once item #12 lands the
-  per-user cache, this collapses to a single shared file per vendor.
-- Make the weekly freshness gate configurable via `PRIMR_VENDOR_NEWS_TTL_DAYS`
-  env var so power users can dial it for high-velocity vendors (Azure
-  during Ignite week) vs slow ones.
-- Expose a `--refresh-vendor-news` flag and a `primr show-usage` line
-  that says when each vendor research file was last refreshed.
+- **Shared per-vendor cache — DONE** (via #12's per-user cache): back-to-back
+  runs in different company folders now reuse one vendor research file per
+  vendor instead of regenerating a ~$0.50 Deep Research task each time.
+- **Configurable TTL — DONE.** `PRIMR_VENDOR_NEWS_TTL_DAYS` (default 7,
+  invalid/negative values fall back) drives `is_vendor_research_current` AND
+  the reuse/refresh gates in `get_or_generate_vendor_research[_sync]` — the
+  previously hardcoded 14-day fresh-gate now follows the same TTL. Refresh
+  still requires explicit opt-in (`--refresh-vendor-research`,
+  `PRIMR_ALLOW_VENDOR_REFRESH=1`, or `force_refresh`), preserving the
+  cost-cap behavior.
+- **Freshness visibility — DONE.** `primr show-usage` ends with a "Vendor
+  Research Freshness" section listing each cached file's age and
+  fresh/stale status against the TTL. (`--refresh-vendor-research` already
+  existed as the refresh flag.)
 
 ### 14. Windows Working-Directory Hardening
 
@@ -543,13 +546,13 @@ After the v1.25.x refactor extracted `cli_batch.py`, `cli_doctor.py`, `cli_parse
 
 Target: all three monster files at 80%+ line coverage. This is a refactor for testability, not a new feature — the rule should be no behavior change, only seam introduction, and existing eval scores should remain identical.
 
-### 24. Runtime & Key Diagnostics Robustness (Python 3.14)
+### 24. Runtime & Key Diagnostics Robustness (Python 3.14) — DONE
 
 Surfaced by a live standard run on a Python 3.14 interpreter: failures that degrade output silently or send debugging down the wrong path.
 
-- **Recon event-loop fix (landed)**: the inline recon call used `asyncio.get_event_loop().run_until_complete(...)`, which raises `RuntimeError: no current event loop` on 3.14, so recon was skipped with only a warning — silently degrading platform auto-detection and recon-grounded skill planning. Switched to `asyncio.run(...)` to match the skill-pack evidence path. Remaining: audit the other `get_event_loop()` call sites (`ai_strategy_runtime.py`, `async_utils.py`, `research_agent.py:~5505`) for the same 3.14 hazard and standardize on a single safe helper.
-- **Key-source diagnostics**: a stale OS-level environment variable can shadow the `.env` value while `doctor` and `keys list` still report "valid format," masking the real cause of an auth failure. `keys list` / `doctor` should show the resolved **source** of each key (OS env var vs user config vs local override) and warn when an env var overrides the file.
-- **Synced-folder log hardening**: chat-log writes corrupt under a synced working directory (`WinError 32`, "corrupt chat log detected"). Make the writer atomic + retry-tolerant, or keep `logs/chat_history` out of the synced path. Cross-refs #14.
+- **Recon event-loop fix — DONE**: the inline recon call used `asyncio.get_event_loop().run_until_complete(...)`, which raises `RuntimeError: no current event loop` on 3.14, so recon was skipped with only a warning. Switched to `asyncio.run(...)`. **Audit complete:** the three remaining inline `get_event_loop()` + `run_until_complete` copies (`ai_strategy_runtime.py`, `strategy_generation.py`, `research_agent.py` deep-research path) were RuntimeError-guarded but duplicated a deprecated pattern; all three now standardize on the single safe helper `primr.utils.async_utils.run_sync` (3.14-safe, refuses to run inside a live loop, reuses-or-creates the thread's loop). `run_sync` / `sync_context` keep their internally-guarded `get_event_loop()` — that is the one sanctioned location.
+- **Key-source diagnostics — DONE** (PR #20): `keys list` / `doctor` show the resolved source of each key (OS env var vs user config vs local override) and warn when an env var shadows the `.env` value.
+- **Synced-folder log hardening — DONE** (PR #19): chat-log writes are atomic (PID-suffixed temp + `atomic_replace` with retry) so OneDrive file locks can't corrupt the log. Cross-refs #14.
 
 ### 25. Skill Pack: JD-as-Evidence Input & Enterprise Role Discovery
 

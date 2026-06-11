@@ -5577,14 +5577,9 @@ def perform_deep_research(
             # Run async orchestrator with heartbeat for long operations
             orchestrator = get_orchestrator()
 
-            # Create event loop if needed
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
+            from primr.utils.async_utils import run_sync
 
-            result = loop.run_until_complete(
+            result = run_sync(
                 orchestrator.research(
                     company_name=company_name or display_name,
                     website=website,
@@ -6887,9 +6882,19 @@ def improve_output_file(
             f"gate={'PASS' if qa['qa_gate_passed'] else 'WARN'}"
         )
 
+    # Enforced write allowlist (roadmap #11): the agentic improve stage may
+    # only write the target artifact (or its _improved sibling) — never run
+    # state, raw scrapes, or anything else. Architectural constraint, not a
+    # trust-based policy.
+    from primr.utils.write_guard import ArtifactWriteGuard, WriteGuardError
+
+    guard = ArtifactWriteGuard(path)
     out_path = path if in_place else path.with_name(f"{path.stem}_improved{path.suffix}")
     try:
-        out_path.write_text(improved, encoding="utf-8")
+        guard.write_text(out_path, improved)
+    except WriteGuardError as e:
+        console.error(f"Improve blocked by write guard: {e}")
+        return None
     except Exception as e:
         console.error(f"Improve failed: could not write output: {e}")
         return None
