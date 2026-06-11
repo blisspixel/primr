@@ -253,19 +253,17 @@ Cache hit rate is load-bearing on the sub-$1 default — Grok 4.3 cached input a
 - `primr doctor --scraper-stats` to show per-tier success rate, latency p95, and content quality score across recent runs
 - Stored in run state JSON for post-hoc analysis; informs sticky tier policy and circuit breaker thresholds
 
-### 6. Wire Circuit Breaker Into Production LLM Call Sites
+### 6. Wire Circuit Breaker Into Production LLM Call Sites — DONE
 
-The `ModelCircuitBreaker.execute_with_fallback()` mechanism is callable and tested but not yet invoked from `research_agent.py` LLM call sites. Today a provider quota blip during a run can fail the run instead of advancing to the next model in the cross-provider chain. Wire it into the production pipeline so quota events trigger automatic provider failover.
+All direct `grok_llm()` call sites in `research_agent.py` (coherence pass, citation repair, trust polish, strategy artifact repair, fast + strategy cross-validation and their JSON retry, section + strategy regeneration, strategy polish, analysis workbook, contradiction resolution, both strategy-generation closures) now route through `call_with_failover()` with the stage's model as `preferred_model`, and the `llm()` utility-tier xAI dispatch routes through the same seam — so a `QuotaExhaustedError` on the primary model advances to the next provider in the chain instead of failing or silently degrading the stage. Explicit model params are honored as the first-tried model when registered + keyed; unknown model strings fall through to the chain default by design. Wiring pinned by `tests/test_core/test_llm_failover_wiring.py`. Remaining (deliberate): `ContinuousReasoningSession.send()` stays direct — a multi-turn session's history is bound to its model, and mid-session failover needs a session-replay design first; the Gemini pro-tier path in `llm()` keeps its explicit quota UI (premium mode is single-provider by user choice).
 
-### 7. Diminishing Returns Detection for Cross-Validation
+### 7. Diminishing Returns Detection for Cross-Validation — DONE (initial)
 
-Detect when cross-validation or section regeneration is making diminishing progress and stop early, rather than consuming the full token budget.
+Detect when cross-validation section regeneration is making diminishing progress and stop early, rather than consuming the full token budget.
 
-- After each section regeneration, measure improvement: word count delta, new citation count, QA score change
-- If 3+ consecutive regenerations each produce <5% improvement in QA score, stop the loop early
-- Log the early stop in the QA summary: `cross-validation: stopped early (diminishing returns after N iterations)`
-- Applies to both the existing cross-validation pass and the planned QA iteration loop
-- Start conservative and tune thresholds based on eval results
+- **Shipped:** `pipeline/diminishing_returns.py` — a pure `DiminishingReturnsDetector` + `assess_improvement()` (word-growth ratio and net-new `[cite: N]` markers, score = max of the two signals, never negative). Wired into the cross-validation regeneration loop in `perform_fast_research`: after each rewrite the detector records the measured improvement and the loop breaks after 3 consecutive regenerations below 5% improvement. The early stop is logged (`cross-validation: stopped early (diminishing returns after N iteration(s) ...)`) and a `diminishing_returns` summary (iterations, stopped_early, per-section scores) is persisted into `cross_validation.json`.
+- Thresholds start conservative (3 consecutive, <5%) per this item's original spec — tune against eval results, not intuition.
+- Remaining: apply the same detector to the planned QA iteration loop (#10) when it lands, and consider a QA-score-based signal once section-level QA scoring is cheap enough to run per regeneration.
 
 ### 8. Prompt Cache Preparation
 
