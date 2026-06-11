@@ -5577,14 +5577,9 @@ def perform_deep_research(
             # Run async orchestrator with heartbeat for long operations
             orchestrator = get_orchestrator()
 
-            # Create event loop if needed
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
+            from primr.utils.async_utils import run_sync
 
-            result = loop.run_until_complete(
+            result = run_sync(
                 orchestrator.research(
                     company_name=company_name or display_name,
                     website=website,
