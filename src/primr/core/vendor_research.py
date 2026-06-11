@@ -19,6 +19,7 @@ Usage:
     is_current = is_vendor_research_current("azure")
 """
 
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -28,8 +29,37 @@ from typing import Protocol
 from primr.config.config import PROJECT_ROOT
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
+from primr.utils.user_cache import get_user_cache_subdir, migrate_legacy_file
 
 logger = get_logger("vendor_research")
+
+# Default weekly TTL: vendor news (model releases, cloud feature announcements)
+# shifts often enough that one week balances freshness against regeneration
+# cost. Override per machine with PRIMR_VENDOR_NEWS_TTL_DAYS (e.g. dial down
+# during Ignite/re:Invent week, up for slow vendors).
+DEFAULT_VENDOR_NEWS_TTL_DAYS = 7
+
+
+def get_vendor_news_ttl_days() -> int:
+    """Resolve the vendor-news freshness TTL (days), env-overridable."""
+    raw = os.environ.get("PRIMR_VENDOR_NEWS_TTL_DAYS", "").strip()
+    if raw:
+        try:
+            value = int(raw)
+            if value > 0:
+                return value
+            logger.warning(
+                "PRIMR_VENDOR_NEWS_TTL_DAYS must be positive, got %r — using default %d",
+                raw,
+                DEFAULT_VENDOR_NEWS_TTL_DAYS,
+            )
+        except ValueError:
+            logger.warning(
+                "PRIMR_VENDOR_NEWS_TTL_DAYS is not an integer: %r — using default %d",
+                raw,
+                DEFAULT_VENDOR_NEWS_TTL_DAYS,
+            )
+    return DEFAULT_VENDOR_NEWS_TTL_DAYS
 
 
 # =============================================================================
@@ -90,13 +120,21 @@ class VendorPromptBuilder(Protocol):
 # =============================================================================
 
 
+def get_vendor_research_dir() -> Path:
+    """Directory holding generated vendor research (per-user cache)."""
+    return get_user_cache_subdir("vendor-research")
+
+
 def get_vendor_research_path(vendor: str, month: str | None = None) -> Path:
     """
     Get path for vendor research file.
 
-    Uses current month if month not specified.
-    Files are stored in vendor-research/ (gitignored) to keep generated
-    content separate from versioned documentation.
+    Uses current month if month not specified. Files live in the per-user
+    cache (``primr.utils.user_cache``) so vendor research is shared across
+    invocation directories — back-to-back runs in different company folders
+    reuse one file per vendor instead of regenerating (~$0.50 Deep Research
+    each). A file at the legacy ``PROJECT_ROOT/vendor-research/`` location is
+    migrated to the cache on first access.
 
     Args:
         vendor: Cloud vendor (azure, aws, gcp, agnostic)
@@ -108,7 +146,12 @@ def get_vendor_research_path(vendor: str, month: str | None = None) -> Path:
     if month is None:
         month = datetime.now().strftime("%Y-%m")
     filename = f"vendor-research-{vendor.lower()}-{month}.txt"
-    return Path(PROJECT_ROOT) / "vendor-research" / filename
+    new_path = get_vendor_research_dir() / filename
+
+    legacy_path = Path(PROJECT_ROOT) / "vendor-research" / filename
+    migrate_legacy_file(legacy_path, new_path)
+
+    return new_path
 
 
 def get_manual_research_path(vendor: str) -> Path | None:
@@ -129,22 +172,24 @@ def get_manual_research_path(vendor: str) -> Path | None:
     return None
 
 
-def is_vendor_research_current(vendor: str, max_age_days: int = 7) -> bool:
+def is_vendor_research_current(vendor: str, max_age_days: int | None = None) -> bool:
     """
     Check if we have fresh vendor research (within max_age_days).
 
-    AI moves fast — monthly is too stale, biweekly is borderline. Default
-    is 7 days (weekly): vendor news (model releases, Azure/AWS/GCP
-    feature announcements) shifts often enough that a one-week TTL is the
-    right balance between freshness and avoiding constant regeneration.
+    AI moves fast — monthly is too stale, biweekly is borderline. The
+    default TTL is weekly, overridable via ``PRIMR_VENDOR_NEWS_TTL_DAYS``
+    (see :func:`get_vendor_news_ttl_days`).
 
     Args:
         vendor: Cloud vendor
-        max_age_days: Maximum age in days before research is considered stale (default: 7)
+        max_age_days: Maximum age in days before research is considered
+            stale. ``None`` (default) resolves the configured TTL.
 
     Returns:
         True if current research exists and is fresh enough
     """
+    if max_age_days is None:
+        max_age_days = get_vendor_news_ttl_days()
     # Check manually curated files — these are always preferred but still age-checked
     manual_path = get_manual_research_path(vendor)
     if manual_path and manual_path.exists():
@@ -192,7 +237,7 @@ def get_or_generate_vendor_research_sync(
     # reason this defaults to reusing stale rather than auto-refreshing.
     research_path = get_vendor_research_path(vendor)
     research_exists, age_days = _vendor_research_age(research_path)
-    is_fresh = research_exists and age_days is not None and age_days <= 14
+    is_fresh = research_exists and age_days is not None and age_days <= get_vendor_news_ttl_days()
     is_stale = research_exists and not is_fresh
     refresh_now = force_refresh or (is_stale and _allow_vendor_auto_refresh())
 
@@ -203,7 +248,7 @@ def get_or_generate_vendor_research_sync(
     elif is_stale and not refresh_now:
         result_paths.append(str(research_path))
         console.warn(
-            f"Vendor research is {age_days}d old (>14d) — reusing without refresh "
+            f"Vendor research is {age_days}d old (>{get_vendor_news_ttl_days()}d TTL) — reusing without refresh "
             "(set PRIMR_ALLOW_VENDOR_REFRESH=1 or pass force_refresh=True to regenerate)"
         )
     elif refresh_now or not result_paths:
@@ -267,7 +312,7 @@ async def get_or_generate_vendor_research(
 
     research_path = get_vendor_research_path(vendor)
     research_exists, age_days = _vendor_research_age(research_path)
-    is_fresh = research_exists and age_days is not None and age_days <= 14
+    is_fresh = research_exists and age_days is not None and age_days <= get_vendor_news_ttl_days()
     is_stale = research_exists and not is_fresh
     refresh_now = force_refresh or (is_stale and _allow_vendor_auto_refresh())
 
@@ -286,7 +331,7 @@ async def get_or_generate_vendor_research(
             )
         )
         console.warn(
-            f"Vendor research is {age_days}d old (>14d) — reusing without refresh "
+            f"Vendor research is {age_days}d old (>{get_vendor_news_ttl_days()}d TTL) — reusing without refresh "
             "(set PRIMR_ALLOW_VENDOR_REFRESH=1 or pass force_refresh=True to regenerate)"
         )
         logger.info(
@@ -296,7 +341,9 @@ async def get_or_generate_vendor_research(
         )
     elif refresh_now or not files:
         if research_exists and not force_refresh:
-            console.info(f"Vendor research is {age_days}d old (>14d) — refreshing...")
+            console.info(
+                f"Vendor research is {age_days}d old (>{get_vendor_news_ttl_days()}d TTL) — refreshing..."
+            )
         result = await generate_vendor_research(vendor, on_progress)
         if result:
             files.append(
@@ -425,10 +472,10 @@ def _validate_vendor_research_preflight(vendor: str) -> list[str]:
         errors.append("GEMINI_API_KEY not configured")
 
     # Check the actual output directory is writable. Generated vendor research
-    # is saved under PROJECT_ROOT/vendor-research (see get_vendor_research_path),
-    # so validate that directory — not docs/ — or an unwritable output dir is
-    # only discovered after the expensive Deep Research call has completed.
-    vendor_dir = Path(PROJECT_ROOT) / "vendor-research"
+    # is saved in the per-user cache (see get_vendor_research_path), so
+    # validate that directory — or an unwritable output dir is only discovered
+    # after the expensive Deep Research call has completed.
+    vendor_dir = get_vendor_research_dir()
     try:
         vendor_dir.mkdir(parents=True, exist_ok=True)
         test_file = vendor_dir / ".write_test"

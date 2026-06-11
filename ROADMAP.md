@@ -330,31 +330,39 @@ duplicated state. Tighten the story:
   invocation directory consistently, and the on-disk shape should
   document itself with a top-level README per output folder so the user
   knows what's safe to delete vs preserve.
-- Add a per-user cache directory (e.g. `~/.cache/primr/` or
-  `%LOCALAPPDATA%\primr\`) for shared state that has no business
-  per-company duplication — vendor research, recon caches, eval
-  baselines, prompt cache hints.
-- Vendor news (`vendor-research/`) is the prime example of shared
-  state that primr currently writes into the invocation directory; it
-  belongs in the per-user cache. Move it and add migration logic.
-- `primr doctor` should surface where each category of file lives so
-  users have a single page that documents the on-disk story.
+- **Per-user cache directory — DONE.** `primr.utils.user_cache` resolves
+  `PRIMR_CACHE_DIR` override → `%LOCALAPPDATA%\primr\` (Windows) →
+  `$XDG_CACHE_HOME/primr` → `~/.cache/primr`, with a `migrate_legacy_file`
+  helper for one-time moves. Recon caches / eval baselines / prompt cache
+  hints can adopt the same seam as they come up.
+- **Vendor news moved — DONE.** `get_vendor_research_path` now lives in the
+  per-user cache (the legacy location was `PROJECT_ROOT/vendor-research/`,
+  which lands inside site-packages for pip installs); a file at the legacy
+  path is migrated on first access. Preflight write-checks validate the new
+  directory.
+- **`primr doctor` file locations — DONE.** A "File Locations" section shows
+  where deliverables, working files, the user cache, vendor research, and
+  usage history live, and which are per-run vs shared.
 
-### 13. Vendor News Caching Across Runs + Weekly Freshness
+### 13. Vendor News Caching Across Runs + Weekly Freshness — DONE
 
 The `is_vendor_research_current` default was 14 days; v1.26 tightened it
-to 7 days (weekly). The remaining gaps:
+to 7 days (weekly). All three gaps closed:
 
-- Vendor news is currently regenerated per invocation directory because
-  the cache lives under the CWD. Multiple back-to-back runs in
-  different company folders each regenerate the same vendor research,
-  wasting Deep Research budget and time. Once item #12 lands the
-  per-user cache, this collapses to a single shared file per vendor.
-- Make the weekly freshness gate configurable via `PRIMR_VENDOR_NEWS_TTL_DAYS`
-  env var so power users can dial it for high-velocity vendors (Azure
-  during Ignite week) vs slow ones.
-- Expose a `--refresh-vendor-news` flag and a `primr show-usage` line
-  that says when each vendor research file was last refreshed.
+- **Shared per-vendor cache — DONE** (via #12's per-user cache): back-to-back
+  runs in different company folders now reuse one vendor research file per
+  vendor instead of regenerating a ~$0.50 Deep Research task each time.
+- **Configurable TTL — DONE.** `PRIMR_VENDOR_NEWS_TTL_DAYS` (default 7,
+  invalid/negative values fall back) drives `is_vendor_research_current` AND
+  the reuse/refresh gates in `get_or_generate_vendor_research[_sync]` — the
+  previously hardcoded 14-day fresh-gate now follows the same TTL. Refresh
+  still requires explicit opt-in (`--refresh-vendor-research`,
+  `PRIMR_ALLOW_VENDOR_REFRESH=1`, or `force_refresh`), preserving the
+  cost-cap behavior.
+- **Freshness visibility — DONE.** `primr show-usage` ends with a "Vendor
+  Research Freshness" section listing each cached file's age and
+  fresh/stale status against the TTL. (`--refresh-vendor-research` already
+  existed as the refresh flag.)
 
 ### 14. Windows Working-Directory Hardening
 
@@ -543,13 +551,13 @@ After the v1.25.x refactor extracted `cli_batch.py`, `cli_doctor.py`, `cli_parse
 
 Target: all three monster files at 80%+ line coverage. This is a refactor for testability, not a new feature — the rule should be no behavior change, only seam introduction, and existing eval scores should remain identical.
 
-### 24. Runtime & Key Diagnostics Robustness (Python 3.14)
+### 24. Runtime & Key Diagnostics Robustness (Python 3.14) — DONE
 
 Surfaced by a live standard run on a Python 3.14 interpreter: failures that degrade output silently or send debugging down the wrong path.
 
-- **Recon event-loop fix (landed)**: the inline recon call used `asyncio.get_event_loop().run_until_complete(...)`, which raises `RuntimeError: no current event loop` on 3.14, so recon was skipped with only a warning — silently degrading platform auto-detection and recon-grounded skill planning. Switched to `asyncio.run(...)` to match the skill-pack evidence path. Remaining: audit the other `get_event_loop()` call sites (`ai_strategy_runtime.py`, `async_utils.py`, `research_agent.py:~5505`) for the same 3.14 hazard and standardize on a single safe helper.
-- **Key-source diagnostics**: a stale OS-level environment variable can shadow the `.env` value while `doctor` and `keys list` still report "valid format," masking the real cause of an auth failure. `keys list` / `doctor` should show the resolved **source** of each key (OS env var vs user config vs local override) and warn when an env var overrides the file.
-- **Synced-folder log hardening**: chat-log writes corrupt under a synced working directory (`WinError 32`, "corrupt chat log detected"). Make the writer atomic + retry-tolerant, or keep `logs/chat_history` out of the synced path. Cross-refs #14.
+- **Recon event-loop fix — DONE**: the inline recon call used `asyncio.get_event_loop().run_until_complete(...)`, which raises `RuntimeError: no current event loop` on 3.14, so recon was skipped with only a warning. Switched to `asyncio.run(...)`. **Audit complete:** the three remaining inline `get_event_loop()` + `run_until_complete` copies (`ai_strategy_runtime.py`, `strategy_generation.py`, `research_agent.py` deep-research path) were RuntimeError-guarded but duplicated a deprecated pattern; all three now standardize on the single safe helper `primr.utils.async_utils.run_sync` (3.14-safe, refuses to run inside a live loop, reuses-or-creates the thread's loop). `run_sync` / `sync_context` keep their internally-guarded `get_event_loop()` — that is the one sanctioned location.
+- **Key-source diagnostics — DONE** (PR #20): `keys list` / `doctor` show the resolved source of each key (OS env var vs user config vs local override) and warn when an env var shadows the `.env` value.
+- **Synced-folder log hardening — DONE** (PR #19): chat-log writes are atomic (PID-suffixed temp + `atomic_replace` with retry) so OneDrive file locks can't corrupt the log. Cross-refs #14.
 
 ### 25. Skill Pack: JD-as-Evidence Input & Enterprise Role Discovery
 

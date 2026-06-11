@@ -1600,7 +1600,44 @@ def _handle_show_usage(config: CLIConfig) -> int:
 
     tracker = get_usage_tracker()
     print(tracker.display_usage_history())
+    print(_format_vendor_research_freshness())
     return 0
+
+
+def _format_vendor_research_freshness() -> str:
+    """Show when each cached vendor research file was last refreshed.
+
+    Vendor research is shared per-user (one ~$0.50 Deep Research file per
+    vendor); surfacing the age here makes it visible when a refresh is due
+    instead of silently reusing stale context.
+    """
+    from datetime import datetime as _dt
+
+    from primr.core.vendor_research import (
+        get_vendor_news_ttl_days,
+        get_vendor_research_dir,
+    )
+
+    lines = ["", "Vendor Research Freshness:", "-" * 40]
+    ttl_days = get_vendor_news_ttl_days()
+    try:
+        research_files = sorted(get_vendor_research_dir().glob("vendor-research-*.txt"))
+    except Exception:
+        research_files = []
+
+    if not research_files:
+        lines.append("  (no cached vendor research yet)")
+        return "\n".join(lines)
+
+    for path in research_files:
+        age_days = (_dt.now() - _dt.fromtimestamp(path.stat().st_mtime)).days
+        status = "fresh" if age_days <= ttl_days else f"stale (> {ttl_days}d TTL)"
+        lines.append(f"  {path.name:<44} | {age_days}d old | {status}")
+    lines.append(
+        f"  TTL: {ttl_days} day(s) (PRIMR_VENDOR_NEWS_TTL_DAYS) | "
+        "refresh with --refresh-vendor-research"
+    )
+    return "\n".join(lines)
 
 
 def _handle_dry_run(config: CLIConfig) -> int:
