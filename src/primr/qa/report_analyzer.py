@@ -547,6 +547,58 @@ class ReportAnalyzer:
             "meets_threshold": density >= threshold,
         }
 
+    def compute_quality_score(self) -> tuple[float, dict[str, float]]:
+        """Compute the overall quality score (0-100) and its components.
+
+        Single source of truth for the deterministic grade: the scorecard in
+        :meth:`generate_report` and the QA iteration loop (``primr refine``)
+        both use this, so "grade >= 90" means the same thing everywhere.
+        """
+        citations = self.analyze_citations()
+        structure = self.analyze_structure()
+        quality = self.analyze_content_quality()
+        hypothesis = self.analyze_hypothesis_coverage()
+        section_lengths = self.analyze_section_lengths()
+        citation_density = self.analyze_citation_density()
+
+        if self.report_type == "ai_strategy":
+            score_components: dict[str, float] = {
+                "Citations": min(20, citations["citation_coverage"] * 16 + 4),
+                "Structure": min(20, len(structure["key_sections_found"]) * 4),
+                "Frameworks": 10,
+                "Confidence": min(20, quality["total_confidence_statements"] * 2),
+                "Hypothesis Framing": min(15, hypothesis["total_signals"] * 3),
+                "Citation Density": min(15, citation_density["density_per_1000_words"] * 5),
+            }
+        else:
+            score_components = {
+                "Citations": 20
+                if citations["citation_coverage"] >= 0.9
+                else int(citations["citation_coverage"] * 20),
+                "Structure": min(20, len(structure["key_sections_found"]) * 3),
+                "Frameworks": min(20, quality["frameworks_used"] * 7),
+                "Confidence": min(20, quality["total_confidence_statements"] * 0.5),
+                "Hypothesis Framing": min(10, hypothesis["total_signals"] * 2),
+                "Citation Density": min(10, citation_density["density_per_1000_words"] * 3),
+            }
+
+        # Penalize duplicate sections
+        if structure["duplicate_sections"]:
+            duplicate_penalty = len(structure["duplicate_sections"]) * 5
+            score_components["Structure"] = max(
+                0, score_components["Structure"] - duplicate_penalty
+            )
+
+        # Penalize truncated sections
+        if section_lengths["truncated_sections"]:
+            truncation_penalty = min(10, section_lengths["truncated_count"] * 5)
+            score_components["Structure"] = max(
+                0, score_components["Structure"] - truncation_penalty
+            )
+
+        total_score = min(100, sum(score_components.values()))
+        return total_score, score_components
+
     def generate_report(self) -> str:
         """Generate a comprehensive quality report."""
         citations = self.analyze_citations()
@@ -658,43 +710,9 @@ class ReportAnalyzer:
 ## Quality Score
 """
 
-        # Calculate overall quality score based on report type
-        if self.report_type == "ai_strategy":
-            score_components = {
-                "Citations": min(20, citations["citation_coverage"] * 16 + 4),
-                "Structure": min(20, len(structure["key_sections_found"]) * 4),
-                "Frameworks": 10,
-                "Confidence": min(20, quality["total_confidence_statements"] * 2),
-                "Hypothesis Framing": min(15, hypothesis["total_signals"] * 3),
-                "Citation Density": min(15, citation_density["density_per_1000_words"] * 5),
-            }
-        else:
-            score_components = {
-                "Citations": 20
-                if citations["citation_coverage"] >= 0.9
-                else int(citations["citation_coverage"] * 20),
-                "Structure": min(20, len(structure["key_sections_found"]) * 3),
-                "Frameworks": min(20, quality["frameworks_used"] * 7),
-                "Confidence": min(20, quality["total_confidence_statements"] * 0.5),
-                "Hypothesis Framing": min(10, hypothesis["total_signals"] * 2),
-                "Citation Density": min(10, citation_density["density_per_1000_words"] * 3),
-            }
-
-        # Penalize duplicate sections
-        if structure["duplicate_sections"]:
-            duplicate_penalty = len(structure["duplicate_sections"]) * 5
-            score_components["Structure"] = max(
-                0, score_components["Structure"] - duplicate_penalty
-            )
-
-        # Penalize truncated sections
-        if section_lengths["truncated_sections"]:
-            truncation_penalty = min(10, section_lengths["truncated_count"] * 5)
-            score_components["Structure"] = max(
-                0, score_components["Structure"] - truncation_penalty
-            )
-
-        total_score = min(100, sum(score_components.values()))
+        # Calculate overall quality score based on report type (single source
+        # of truth shared with the QA iteration loop — see compute_quality_score)
+        total_score, score_components = self.compute_quality_score()
 
         for component, score in score_components.items():
             report += f"- {component}: {score:.0f}\n"

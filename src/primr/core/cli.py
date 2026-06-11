@@ -201,6 +201,7 @@ class Command(Enum):
     ORCHESTRATE = "orchestrate"
     ROADMAP = "roadmap"
     IMPROVE = "improve"
+    REFINE = "refine"
 
 
 # =============================================================================
@@ -261,6 +262,8 @@ class CLIConfig:
     improve_path: str | None = None
     improve_in_place: bool = False
     improve_agentic: bool = False
+    refine_company: str | None = None
+    refine_target_grade: float = 90.0
     banner_mode: str = "auto"
     banner_explicit: bool = False
     # Agentic architecture options
@@ -483,6 +486,10 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         ),
         improve_in_place=getattr(parsed, "in_place", False),
         improve_agentic=getattr(parsed, "improve_agentic", False),
+        refine_company=(
+            parsed.website if (parsed.company and str(parsed.company).lower() == "refine") else None
+        ),
+        refine_target_grade=getattr(parsed, "target_grade", 90.0),
         banner_mode=banner_mode,
         banner_explicit=banner_explicit,
         resume_latest=getattr(parsed, "resume_latest", False),
@@ -913,6 +920,7 @@ def main(args: list[str] | None = None) -> int:
         Command.ORCHESTRATE: _handle_orchestrate,
         Command.ROADMAP: _handle_roadmap,
         Command.IMPROVE: _handle_improve,
+        Command.REFINE: _handle_refine,
     }
 
     handler = handlers.get(config.command, _handle_research)
@@ -946,6 +954,8 @@ Examples:
   primr --qa-recent 5                                # Show QA summary for recent reports
   primr improve "output/Company_Strategic_Overview_03-06-2026.md"   # Improve one output
   primr improve "output/Company_AI_Strategy_AZURE_03-06-2026.md" --improve-agentic
+  primr refine "Acme Corp"                           # QA loop: regenerate weak sections until grade >= 90
+  primr refine "Acme Corp" --target-grade 85 --in-place
   primr --banner                                     # Show startup banner only
 
 AI Strategy Retry (when main report succeeded but AI strategy failed):
@@ -1267,6 +1277,12 @@ Accordion Method Test (for development):
         action="store_true",
         help="With --improve, run an agentic review pass before deterministic cleanup",
     )
+    parser.add_argument(
+        "--target-grade",
+        type=float,
+        default=90.0,
+        help="With 'refine', the QA grade to iterate toward (default: 90)",
+    )
     # QA review
     parser.add_argument(
         "--qa",
@@ -1509,6 +1525,7 @@ _POSITIONAL_COMMANDS: dict[str, Command] = {
     "orchestrate": Command.ORCHESTRATE,
     "roadmap": Command.ROADMAP,
     "improve": Command.IMPROVE,
+    "refine": Command.REFINE,
 }
 
 # (attr_name, command) — checked with getattr(args, attr, None) for truthiness
@@ -1889,6 +1906,99 @@ def _handle_improve(config: CLIConfig) -> int:
 
     action = "Updated" if config.improve_in_place else "Improved"
     console.success_box(f"{action} output", result_path)
+    return 0
+
+
+def _find_refine_inputs(company: str) -> tuple[str | None, str | None, str, str | None]:
+    """Locate the latest markdown report + run context for a company.
+
+    Returns (report_path, website, analysis_workbook, working_folder).
+    """
+    import glob as _glob
+    import json as _json
+    from pathlib import Path
+
+    # Latest markdown Strategic Overview in OUTPUT_DIR
+    pattern = os.path.join(OUTPUT_DIR, _glob.escape(company.replace(" ", "_")) + "*Overview*.md")
+    candidates = _glob.glob(pattern) or _glob.glob(
+        os.path.join(OUTPUT_DIR, _glob.escape(company) + "*Overview*.md")
+    )
+    report_path = max(candidates, key=os.path.getmtime) if candidates else None
+
+    # Latest working folder for run context (website, workbook)
+    website: str | None = None
+    workbook = ""
+    working_folder: str | None = None
+    company_dir = Path(WORKING_DIR) / company.replace(" ", "_")
+    if company_dir.is_dir():
+        run_dirs = sorted(
+            (d for d in company_dir.iterdir() if d.is_dir()),
+            key=lambda d: d.stat().st_mtime,
+            reverse=True,
+        )
+        for run_dir in run_dirs:
+            state_file = run_dir / "_run_state.json"
+            if not state_file.exists():
+                continue
+            working_folder = str(run_dir)
+            try:
+                state = _json.loads(state_file.read_text(encoding="utf-8"))
+                website = state.get("website")
+            except Exception:
+                pass
+            workbook_file = run_dir / "analysis_workbook.md"
+            if workbook_file.exists():
+                try:
+                    workbook = workbook_file.read_text(encoding="utf-8")[:20_000]
+                except Exception:
+                    workbook = ""
+            break
+
+    return report_path, website, workbook, working_folder
+
+
+def _handle_refine(config: CLIConfig) -> int:
+    """Handle the QA iteration loop: primr refine "Company"."""
+    from primr.core.refine import refine_report
+
+    company = config.refine_company
+    if not company:
+        console.error("Company name is required for refine")
+        console.info('Usage: primr refine "Company Name" [--in-place] [--target-grade 90]')
+        return 1
+
+    report_path, website, workbook, working_folder = _find_refine_inputs(company)
+    if not report_path:
+        console.error(f"No markdown Strategic Overview found for '{company}' in {OUTPUT_DIR}")
+        console.info("Run research first, or pass the report through: primr improve <path>")
+        return 1
+
+    console.banner("QA Refine")
+    console.info(f"Report: {report_path}")
+    if working_folder:
+        console.info(f"Run context: {working_folder}")
+    console.info(f"Target grade: {config.refine_target_grade:.0f}")
+
+    result = refine_report(
+        company,
+        report_path,
+        website=website,
+        working_folder=working_folder,
+        analysis_workbook=workbook,
+        target_grade=config.refine_target_grade,
+        in_place=config.improve_in_place,
+    )
+
+    console.info(
+        f"Grade: {result.initial_grade:.0f} -> {result.final_grade:.0f} "
+        f"({result.iterations} iteration(s), "
+        f"{len(result.sections_regenerated)} section(s) regenerated)"
+    )
+    console.info(f"Stop reason: {result.stop_reason.replace('_', ' ')}")
+    if result.output_path:
+        console.success_box("Refined output", result.output_path)
+    else:
+        console.ok("No sections needed regeneration — report left unchanged")
     return 0
 
 
