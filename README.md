@@ -24,7 +24,7 @@ Company research is tedious. You visit the website, click around, search the com
 
 - **DNS intelligence pre-flight**: Automatic domain reconnaissance detects cloud platforms, SaaS services, email security, and identity providers from DNS records — zero API keys, 2-3 seconds. Strategies are grounded in real tech stack data.
 - **Hiring-signal gathering**: After the main scrape, Primr discovers open job postings across eight ATS providers (Greenhouse, Lever, Ashby, SmartRecruiters, Workday, Workable, Recruitee, Jobvite) plus a corpus-driven Workday URL discovery path, an HTML careers-page fallback, and a DuckDuckGo web-search fallback that sweeps LinkedIn / Indeed / Glassdoor / job-board hosts when every other path comes up empty. The pipeline LLM-triages the most signal-rich postings and extracts tech-stack frequency, strategic initiatives, culture cues, and notable absences. Job posts are the most honest statement of what a company is actually building right now — they feed every downstream phase from gap analysis to final strategy and are the primary input to the skill pack subsystem. Skip with `PRIMR_SKIP_HIRING_SIGNALS=1`.
-- **Adaptive scraping**: 8 retrieval methods from browser rendering to TLS fingerprinting to screenshot+vision extraction, with per-host optimization. Starts with full browser rendering (what works on 95%+ of modern sites) and falls back through increasingly specialized methods.
+- **Adaptive scraping**: 9 retrieval methods from browser rendering to TLS fingerprinting to screenshot+vision extraction, with per-host optimization. Starts with full browser rendering (what works on 95%+ of modern sites) and falls back through increasingly specialized methods.
 - **Org-aware site selection**: Link discovery and prioritization now adapt for commercial companies, government sites, nonprofits, education, and healthcare organizations instead of assuming every site looks like a SaaS company.
 - **Fail-fast scrape quality gate**: Full/scrape modes now abort when site extraction is too thin, while still preserving short structured pages like contact, leadership, and org-chart references when they carry useful signal (override with `--skip-scrape-validation`).
 - **Autonomous external research**: Gemini Deep Research for comprehensive analysis, Grok 4.3 for fast turnaround — both plan queries, follow leads, cross-validate sources, and synthesize findings.
@@ -191,15 +191,15 @@ From the executive summary of a sample report:
 >
 > **Key insights:**
 >
-> - Northwind's customer concentration is high. Cross-referencing case studies, press releases, and conference presentations, roughly 40% of referenced deployments involve just 3 carrier networks. Loss of any one would be material. *[Confidence: Inferred]*
-> - The company has no disclosed AI strategy, but 4 of their last 7 engineering hires have ML/optimization backgrounds. Combined with a patent filing for "autonomous route replanning under disruption," this suggests an unannounced product line. *[Confidence: Inferred]*
-> - Pricing has shifted from perpetual licenses to consumption-based billing (per-shipment), visible in public procurement portal RFP responses. *[Confidence: Reported]*
+> - Northwind's customer concentration is high. Cross-referencing case studies, press releases, and conference presentations, roughly 40% of referenced deployments involve just 3 carrier networks. Loss of any one would be material. *(Estimated)*
+> - The company has no disclosed AI strategy, but 4 of their last 7 engineering hires have ML/optimization backgrounds. Combined with a patent filing for "autonomous route replanning under disruption," this suggests an unannounced product line. *(Hypothesis)*
+> - Pricing has shifted from perpetual licenses to consumption-based billing (per-shipment), visible in public procurement portal RFP responses. *(Reported)*
 
 Reports include 23 structured sections, SWOT analysis, competitive landscape, discovery questions, and inline confidence levels on every non-obvious claim.
 
 ## Under the Hood
 
-Primr uses an 8-tier browser-first retrieval engine with sticky tier memory, circuit breakers, and cookie handoff. The v1.24.0 default recipe pairs Gemini 3.1 Flash-Lite ($0.25/$1.50 per 1M tokens) for bulk writing with Grok 4.3 ($1.25/$2.50, $0.20 cached input) for reasoning. Gemini Deep Research (~$2.50/task) handles premium-mode autonomous synthesis. The agentic architecture includes hypothesis tracking, subagents for each pipeline stage, governance hooks, and persistent research memory.
+Primr uses a 9-tier browser-first retrieval engine with sticky tier memory, circuit breakers, and cookie handoff. The v1.24.0 default recipe pairs Gemini 3.1 Flash-Lite ($0.25/$1.50 per 1M tokens) for bulk writing with Grok 4.3 ($1.25/$2.50, $0.20 cached input) for reasoning. Gemini Deep Research (~$2.50/task) handles premium-mode autonomous synthesis. The agentic architecture includes hypothesis tracking, subagents for each pipeline stage, governance hooks, and persistent research memory.
 
 For full architecture details, model pricing, and the retrieval tier breakdown, see [System Design](docs/ARCHITECTURE.md).
 

@@ -66,6 +66,13 @@ class PrimrMCPServer:
         self.allow_plaintext = allow_plaintext
         self.require_auth = require_auth
 
+        # Publish the transport so tool-call-time policy checks (cost-cap
+        # enforcement defaults on for HTTP — see mcp_server.cost_caps) know
+        # which surface they are serving, regardless of entry point.
+        import os as _os
+
+        _os.environ["PRIMR_MCP_TRANSPORT"] = transport
+
         # Initialize components
         self.job_store = SingleJobStore(journal_path=journal_path)
         # "working" is primr's own run/scratch root: report_path reuse

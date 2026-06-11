@@ -515,10 +515,9 @@ def _parse_max_duration(duration_str: str, default: int = 30) -> int:
 
 
 def _is_cost_cap_enforced() -> bool:
-    import os
+    from primr.mcp_server.cost_caps import is_cost_cap_enforced
 
-    value = os.getenv("PRIMR_ENFORCE_MCP_COST_CAPS", "").strip().lower()
-    return value in {"1", "true", "yes", "on"}
+    return is_cost_cap_enforced()
 
 
 def _build_research_estimate(arguments: dict[str, Any]) -> dict[str, Any]:

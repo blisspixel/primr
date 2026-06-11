@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -263,12 +262,9 @@ def _estimate_skill_pack_cost(
 
 
 def _is_cost_cap_enforced() -> bool:
-    return os.getenv("PRIMR_ENFORCE_MCP_COST_CAPS", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
+    from primr.mcp_server.cost_caps import is_cost_cap_enforced
+
+    return is_cost_cap_enforced()
 
 
 async def handle_skill_pack_tool(
