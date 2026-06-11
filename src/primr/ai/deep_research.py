@@ -31,6 +31,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
+from primr.ai.genai_factory import default_genai_http_options
+
 try:
     from google import genai as _google_genai
 
@@ -296,7 +298,9 @@ class DeepResearchClient:
         _require_genai_dependency()
         settings = get_settings()
         self._api_key = api_key or settings.api.gemini_key
-        self._client = genai.Client(api_key=self._api_key)
+        self._client = genai.Client(
+            api_key=self._api_key, http_options=default_genai_http_options()
+        )
         logger.debug("Deep Research client initialized")
 
     async def research(
@@ -1805,7 +1809,9 @@ class DeepResearchOrchestrator:
         _require_genai_dependency()
         settings = get_settings()
         self._api_key = api_key or settings.api.gemini_key
-        self._client = genai.Client(api_key=self._api_key)
+        self._client = genai.Client(
+            api_key=self._api_key, http_options=default_genai_http_options()
+        )
         self._prompt_builder = ConsultingPromptBuilder()  # Legacy, kept for compatibility
         self._store_manager = FileSearchStoreManager(api_key=api_key)
         self._api_call_count = 0
@@ -3617,7 +3623,9 @@ class FileSearchStoreManager:
         _require_genai_dependency()
         settings = get_settings()
         self._api_key = api_key or settings.api.gemini_key
-        self._client = genai.Client(api_key=self._api_key)
+        self._client = genai.Client(
+            api_key=self._api_key, http_options=default_genai_http_options()
+        )
         logger.debug("FileSearchStoreManager initialized")
 
     def create_store(self, display_name: str) -> str:

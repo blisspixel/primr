@@ -14,6 +14,8 @@ import time
 from abc import ABC, abstractmethod
 from urllib.parse import urlparse
 
+from primr.ai.genai_factory import default_genai_http_options
+
 from .config import (
     DEFAULT_TIMEOUT_DRISSION,
     DEFAULT_TIMEOUT_DRISSION_STEALTH,
@@ -1942,7 +1944,9 @@ def scrape_with_vision(
             browser.close()
 
         # Use Gemini to extract text from screenshot
-        client = genai.Client(api_key=settings.api.gemini_key)
+        client = genai.Client(
+            api_key=settings.api.gemini_key, http_options=default_genai_http_options()
+        )
 
         # Encode screenshot as base64
         screenshot_b64 = base64.b64encode(screenshot_bytes).decode("utf-8")

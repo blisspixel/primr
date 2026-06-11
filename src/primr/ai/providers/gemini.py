@@ -28,6 +28,7 @@ import os
 import time
 from typing import Any
 
+from primr.ai.genai_factory import default_genai_http_options
 from primr.ai.providers.base import (
     ChatResponse,
     Provider,
@@ -117,7 +118,9 @@ class GeminiProvider(Provider):
             raise ProviderUnavailableError(
                 f"{self._api_key_env} is not set. The Gemini provider needs it."
             )
-        self._client = _google_genai.Client(api_key=api_key)
+        self._client = _google_genai.Client(
+            api_key=api_key, http_options=default_genai_http_options()
+        )
         return self._client
 
     # -----------------------------------------------------------------

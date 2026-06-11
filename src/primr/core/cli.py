@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Protocol
 
+from primr.ai.genai_factory import default_genai_http_options
 from primr.config.config import LOGS_DIR, OUTPUT_DIR, WORKING_DIR
 from primr.config.models import PrimrModels
 from primr.core.cli_batch import (
@@ -2986,7 +2987,7 @@ def _run_preflight_checks(mode: str) -> tuple[bool, list[str]]:
         try:
             from google import genai
 
-            client = genai.Client(api_key=gemini_key)
+            client = genai.Client(api_key=gemini_key, http_options=default_genai_http_options())
             # Minimal test - just check we can connect
             _ = client.models.generate_content(
                 model=PrimrModels.FAST_MODEL,
@@ -3326,7 +3327,9 @@ def check_api_quota() -> None:
     console.info("Testing Gemini API availability...")
 
     try:
-        client = genai.Client(api_key=settings.api.gemini_key)
+        client = genai.Client(
+            api_key=settings.api.gemini_key, http_options=default_genai_http_options()
+        )
         response = client.models.generate_content(
             model=PrimrModels.FAST_MODEL, contents="Say 'OK' in one word."
         )

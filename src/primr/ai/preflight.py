@@ -31,6 +31,7 @@ import os
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from primr.ai.genai_factory import default_genai_http_options
 from primr.config.settings import get_settings
 from primr.utils.logging_config import get_logger
 
@@ -283,7 +284,7 @@ class PreflightValidator:
         if not gemini_key:
             return  # Already reported in API key check
 
-        client = genai.Client(api_key=gemini_key)
+        client = genai.Client(api_key=gemini_key, http_options=default_genai_http_options())
 
         # Gemini 3 Flash - required for section writing (full, scrape modes)
         if mode in ("full", "scrape"):

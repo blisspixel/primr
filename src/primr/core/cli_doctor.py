@@ -14,6 +14,7 @@ import logging
 import os
 import sys
 
+from primr.ai.genai_factory import default_genai_http_options
 from primr.config.config import LOGS_DIR, OUTPUT_DIR, WORKING_DIR
 from primr.config.models import PrimrModels
 from primr.utils.console import console
@@ -197,7 +198,7 @@ def _check_api_connectivity(all_passed: bool, warnings_count: int) -> tuple[bool
         try:
             from google import genai
 
-            client = genai.Client(api_key=gemini_key)
+            client = genai.Client(api_key=gemini_key, http_options=default_genai_http_options())
             response = client.models.generate_content(
                 model=PrimrModels.FAST_MODEL,
                 contents="Reply with exactly: hello",
@@ -235,7 +236,7 @@ def _check_gemini_resources(all_passed: bool, warnings_count: int) -> tuple[bool
     try:
         from google import genai
 
-        client = genai.Client(api_key=gemini_key)
+        client = genai.Client(api_key=gemini_key, http_options=default_genai_http_options())
         python_cmd = f'"{sys.executable}"'
 
         try:

@@ -13,6 +13,8 @@ import warnings
 
 from bs4 import BeautifulSoup, FeatureNotFound, NavigableString, XMLParsedAsHTMLWarning
 
+from primr.ai.genai_factory import default_genai_http_options
+
 logger = logging.getLogger(__name__)
 
 XML_DOCUMENT_TOKENS = (
@@ -530,7 +532,9 @@ Focus on:
 
 Return the extracted content in clean, readable format with proper structure."""
 
-        client = genai.Client(api_key=settings.api.gemini_key)
+        client = genai.Client(
+            api_key=settings.api.gemini_key, http_options=default_genai_http_options()
+        )
         try:
             response = client.models.generate_content(
                 model=settings.ai.flash_model,

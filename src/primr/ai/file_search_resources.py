@@ -16,6 +16,8 @@ import re
 import time
 from typing import Any
 
+from primr.ai.genai_factory import default_genai_http_options
+
 logger = logging.getLogger(__name__)
 
 
@@ -90,7 +92,7 @@ def cleanup_orphaned_resources(
     _require_genai_dependency()
     settings = get_settings()
     key = api_key or settings.api.gemini_key
-    client = genai.Client(api_key=key)
+    client = genai.Client(api_key=key, http_options=default_genai_http_options())
 
     if stale_age_seconds is None:
         try:

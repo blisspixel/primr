@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from primr.ai.genai_factory import default_genai_http_options
 from primr.utils.console import console
 
 logger = logging.getLogger(__name__)
@@ -61,7 +62,7 @@ def _validate_key_live(provider: str, value: str) -> tuple[bool, str]:
         try:
             from google import genai
 
-            client = genai.Client(api_key=value)
+            client = genai.Client(api_key=value, http_options=default_genai_http_options())
             list(client.models.list())
             return True, "verified"
         except ImportError:

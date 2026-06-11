@@ -7,6 +7,7 @@ from typing import Any
 
 from google import genai
 
+from primr.ai.genai_factory import default_genai_http_options
 from primr.config.config import GEMINI_API_KEY, MAX_RETRIES
 from primr.config.env import load_primr_env
 from primr.config.models import PrimrModels
@@ -18,7 +19,7 @@ load_primr_env()
 logger = get_logger("insights")
 
 # Configure Google AI client
-_client = genai.Client(api_key=GEMINI_API_KEY)
+_client = genai.Client(api_key=GEMINI_API_KEY, http_options=default_genai_http_options())
 
 
 def generate_ai_response(prompt, retries=MAX_RETRIES, min_length=200):

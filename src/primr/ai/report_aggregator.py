@@ -16,6 +16,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from primr.ai.genai_factory import default_genai_http_options
+
 try:
     from google import genai as _google_genai
 
@@ -110,7 +112,9 @@ class ReportAggregator:
         _require_genai_dependency()
         settings = get_settings()
         self._api_key = api_key or settings.api.gemini_key
-        self._client = genai.Client(api_key=self._api_key)
+        self._client = genai.Client(
+            api_key=self._api_key, http_options=default_genai_http_options()
+        )
         logger.debug("Report Aggregator initialized")
 
     async def aggregate(
