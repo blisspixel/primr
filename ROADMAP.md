@@ -285,22 +285,14 @@ Section writing is the most token-intensive stage (~40-50% of LLM spend) and the
 - Strategy generation could also be batched when running multi-platform strategies
 - Add batch-mode pricing fields to `ModelConfig` so cost estimates reflect the discount when `--batch-api` is used
 
-### 10. QA Iteration Loop
+### 10. QA Iteration Loop — DONE (initial)
 
 Use QA feedback to iteratively improve weak sections until reports hit 90+.
 
-- `primr refine "Company"` command to re-run weak sections
-- QA identifies specific sections needing work
-- Section-level regeneration without full pipeline re-run
-- Repeat until grade >= 90
-- Integrates with the diminishing-returns detection above: stop the loop when regeneration produces <5% QA improvement per iteration
-
-Structure the refinement loop around a four-phase consolidation protocol (Orient → Gather → Consolidate → Prune) to ensure the LLM surveys existing state before making changes:
-
-1. Orient: Read full report + QA summary + source appendix. Identify which sections scored lowest, which citations are weak, which confidence labels are missing.
-2. Gather: For weak sections, search for additional evidence. DDG queries targeted at specific gaps. Cross-reference existing scrape data for unused signal.
-3. Consolidate: Regenerate weak sections with enriched context. Merge new evidence into existing narrative rather than rewriting from scratch. Preserve existing citations and confidence labels that are still valid.
-4. Prune: Re-run deterministic QA. Normalize citations. Ensure Sources appendix is consistent with body citations. Validate budget/timeline figures in strategy sections.
+- **Shipped:** `primr refine "Company"` (`core/refine.py`) — locates the latest markdown Strategic Overview + run context (website, analysis workbook from `working/<Company>/<run>/`), then runs the Orient → Gather → Consolidate → Prune loop: deterministic weak-section identification (short / citation-free / unlabeled sections, ranked, max 3 per iteration, never the same section twice), targeted DDG evidence gathering with validated scraping, section regeneration via the failover-wrapped writer, deterministic cleanup, and re-scoring. Stop conditions in priority order: grade >= `--target-grade` (default 90), no weak sections left, diminishing returns (two consecutive iterations under 5% relative grade gain — reuses the #7 detector), max iterations (default 3). Output written through the #11 write guard (`*_improved` sibling, or `--in-place`).
+- **Scoring API:** `ReportAnalyzer.compute_quality_score()` factored out as the single source of truth — the QA scorecard and the refine loop grade reports identically.
+- All loop seams (score / gather / regenerate / prune) injectable; control flow pinned by deterministic tests with zero LLM/network calls.
+- Remaining: per-section grading (today the loop scores the whole report; section-level QA scores would sharpen weak-section selection), and budget/timeline validation for strategy docs in the Prune phase (currently report-focused).
 
 Principle: separate reading (Orient/Gather) from writing (Consolidate/Prune). The LLM has full context before it starts editing, which prevents hallucinated improvements that contradict existing content.
 
