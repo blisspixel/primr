@@ -295,6 +295,7 @@ class CLIConfig:
     eval_local_stage: str | None = None
     eval_working_root: str = "working"
     doctor_fix: bool = False
+    doctor_scraper_stats: bool = False
     init_non_interactive: bool = False
     init_yes: bool = False
     init_skip_browsers: bool = False
@@ -537,6 +538,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         eval_local_stage=getattr(parsed, "eval_local_stage", None),
         eval_working_root=getattr(parsed, "eval_working_root", "working"),
         doctor_fix=getattr(parsed, "fix", False),
+        doctor_scraper_stats=getattr(parsed, "scraper_stats", False),
         init_non_interactive=getattr(parsed, "non_interactive", False),
         init_yes=getattr(parsed, "yes", False),
         init_skip_browsers=getattr(parsed, "skip_browsers", False),
@@ -1036,6 +1038,14 @@ Accordion Method Test (for development):
         "--fix",
         action="store_true",
         help="With 'doctor', launch guided setup for missing keys and browser dependencies",
+    )
+    parser.add_argument(
+        "--scraper-stats",
+        action="store_true",
+        help=(
+            "With 'doctor', show per-tier scrape success rate, latency p95, and "
+            "content quality across recent runs"
+        ),
     )
     parser.add_argument(
         "--non-interactive",
@@ -1540,6 +1550,10 @@ def _handle_init(config: CLIConfig) -> int:
 
 def _handle_doctor(config: CLIConfig) -> int:
     """Handle doctor command."""
+    if config.doctor_scraper_stats:
+        from primr.core.cli_doctor import run_scraper_stats
+
+        return run_scraper_stats()
     return run_doctor(fix=config.doctor_fix)
 
 

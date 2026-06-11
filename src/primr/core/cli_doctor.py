@@ -325,6 +325,33 @@ def _show_file_locations() -> None:
     )
 
 
+def run_scraper_stats() -> int:
+    """`primr doctor --scraper-stats`: per-tier analytics across recent runs.
+
+    Aggregates the JSONL scrape traces (logs/scrape_traces/) into per-tier
+    success rate, latency p95, and content-quality signals so sticky-tier
+    policy and circuit-breaker thresholds can be tuned from data.
+    """
+    from primr.data.scraping.trace_stats import (
+        DEFAULT_TRACE_DIR,
+        aggregate_scraper_stats,
+        format_scraper_stats,
+    )
+
+    console.banner("Scraper Stats")
+    console.blank()
+
+    summary = aggregate_scraper_stats()
+    if summary is None:
+        console.info(f"No scrape traces found under {DEFAULT_TRACE_DIR.resolve()}")
+        console.info("Run a research job first — traces are written per run.")
+        return 0
+
+    for line in format_scraper_stats(summary).splitlines():
+        console.info(line)
+    return 0
+
+
 def run_doctor(*, fix: bool = False) -> int:
     """Run system diagnostics. Exit code 0 if all checks pass, 1 otherwise."""
     console.banner("Primr Doctor")
