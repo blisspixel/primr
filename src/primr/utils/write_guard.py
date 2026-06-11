@@ -61,9 +61,7 @@ class ArtifactWriteGuard:
         resolved = Path(path).resolve()
 
         if resolved.name in DENIED_NAMES:
-            raise WriteGuardError(
-                f"Agentic stage may not write pipeline state file: {resolved}"
-            )
+            raise WriteGuardError(f"Agentic stage may not write pipeline state file: {resolved}")
         if any(part in DENIED_DIR_NAMES for part in resolved.parts):
             raise WriteGuardError(
                 f"Agentic stage may not write into a pipeline-managed directory: {resolved}"
