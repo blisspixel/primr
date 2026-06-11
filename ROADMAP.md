@@ -246,11 +246,11 @@ Push the standard output from a strong research artifact to a genuinely strategi
 
 Cache hit rate is load-bearing on the sub-$1 default — Grok 4.3 cached input at $0.20/M is what makes 4.3-for-reasoning viable on the budget. Without visibility, regressions in the recipe go unnoticed. Cache-token plumbing already exists at the provider level; the missing piece is threading it through to historical records and the usage UI.
 
-- Bridge cached-token counts from providers into `tracker.record_usage()` and `UsageRecord` so `primr show-usage` displays cache hit rate per run
+- **Bridge cached-token counts — DONE.** `ChatResponse` now carries `cached_input_tokens` (xAI `cached_tokens`, OpenAI `prompt_tokens_details.cached_tokens`, Anthropic `cache_read_input_tokens`, Gemini `cached_content_token_count`); the grok session counters mirror it per model through a single `_mirror_session_usage` seam (all four call paths: grok_llm xAI, cross-provider dispatch, ContinuousReasoningSession, grok_browse_and_summarize); `UsageRecord`/`record_usage()` persist it and `primr show-usage` displays cache hit rate per run and lifetime. Actual-cost reporting (`_compute_session_llm_cost`) is now cache-aware — cached input is billed at the model's cached rate instead of overstating spend.
+- **`--budget $N` flag — DONE.** Per-run cost ceiling for standard research, activating the existing `CostGuardHook` accounting via `primr.utils.run_budget`. Pre-flight: refuses to start when the dry-run estimate exceeds the ceiling. Mid-run: a checkpoint before Phase 6 syncs actual session spend and skips strategy generation (the most expensive optional stage) once the ceiling is reached — report still ships. Budget is cleared in a `finally` so it can't leak across runs.
+- **`primr show-usage` enhancements — DONE.** Lifetime totals (already present) plus per-company history (top 10 by spend with run counts and last-run date), per-mode totals alongside averages, and the By Mode breakdown now lists *observed* modes (fast-mode runs previously never appeared in the fixed mode list).
 - Track real-usage cost variability across more companies and surface a continuous-reasoning regression signal in `primr show-usage`
 - `primr doctor --scraper-stats` to show per-tier success rate, latency p95, and content quality score across recent runs
-- `--budget $N` flag to enforce per-run cost ceiling (activates existing `CostGuardHook`)
-- `primr show-usage` enhancements: total lifetime spend, per-company history, cost-by-mode breakdown
 - Stored in run state JSON for post-hoc analysis; informs sticky tier policy and circuit breaker thresholds
 
 ### 6. Wire Circuit Breaker Into Production LLM Call Sites

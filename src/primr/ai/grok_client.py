@@ -35,14 +35,21 @@ logger = get_logger("grok_client")
 # ---------------------------------------------------------------------------
 _session_input_tokens: int = 0
 _session_output_tokens: int = 0
+_session_cached_input_tokens: int = 0
 _session_tokens_by_model: dict[str, dict[str, int]] = {}
 
 
 def get_grok_session_usage() -> dict[str, int]:
-    """Return cumulative token usage for the current session."""
+    """Return cumulative token usage for the current session.
+
+    ``cached_input_tokens`` is the subset of ``input_tokens`` served from the
+    provider's prompt cache — load-bearing on the sub-$1 default (Grok 4.3
+    cached input at $0.20/M), so it is threaded through to usage records.
+    """
     return {
         "input_tokens": _session_input_tokens,
         "output_tokens": _session_output_tokens,
+        "cached_input_tokens": _session_cached_input_tokens,
     }
 
 
@@ -50,17 +57,45 @@ def get_grok_session_usage_by_model() -> dict[str, dict[str, int]]:
     """Return per-model token usage for accurate cost calculation.
 
     Returns:
-        {"model-name": {"input_tokens": N, "output_tokens": N}, ...}
+        {"model-name": {"input_tokens": N, "output_tokens": N,
+        "cached_input_tokens": N}, ...}
     """
     return dict(_session_tokens_by_model)
 
 
 def reset_grok_session() -> None:
     """Reset session token counters (useful for testing)."""
-    global _session_input_tokens, _session_output_tokens, _session_tokens_by_model
+    global _session_input_tokens, _session_output_tokens
+    global _session_cached_input_tokens, _session_tokens_by_model
     _session_input_tokens = 0
     _session_output_tokens = 0
+    _session_cached_input_tokens = 0
     _session_tokens_by_model = {}
+
+
+def _mirror_session_usage(
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    cached_input_tokens: int = 0,
+) -> None:
+    """Mirror per-call usage into the module-level session counters.
+
+    Single accounting seam for all four call paths (grok_llm xAI,
+    grok_llm cross-provider, ContinuousReasoningSession,
+    grok_browse_and_summarize) so cost reporting stays uniform.
+    """
+    global _session_input_tokens, _session_output_tokens, _session_cached_input_tokens
+    _session_input_tokens += input_tokens
+    _session_output_tokens += output_tokens
+    _session_cached_input_tokens += cached_input_tokens
+    bucket = _session_tokens_by_model.setdefault(
+        model, {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens": 0}
+    )
+    bucket["input_tokens"] += input_tokens
+    bucket["output_tokens"] += output_tokens
+    # Older buckets predate the cached counter; setdefault keeps them safe.
+    bucket["cached_input_tokens"] = bucket.get("cached_input_tokens", 0) + cached_input_tokens
 
 
 # ---------------------------------------------------------------------------
@@ -243,8 +278,6 @@ def grok_llm(
         ConfigurationError: If XAI_API_KEY is not set.
         RuntimeError: If the API call fails after retries.
     """
-    global _session_input_tokens, _session_output_tokens, _session_tokens_by_model
-
     if model is None:
         model = _DEFAULT_MODEL
 
@@ -280,12 +313,12 @@ def grok_llm(
         )
         # Mirror tokens into the same session counters so cost reporting works
         # uniformly regardless of which provider serviced the call.
-        _session_input_tokens += cross_response.input_tokens
-        _session_output_tokens += cross_response.output_tokens
-        if model not in _session_tokens_by_model:
-            _session_tokens_by_model[model] = {"input_tokens": 0, "output_tokens": 0}
-        _session_tokens_by_model[model]["input_tokens"] += cross_response.input_tokens
-        _session_tokens_by_model[model]["output_tokens"] += cross_response.output_tokens
+        _mirror_session_usage(
+            model,
+            cross_response.input_tokens,
+            cross_response.output_tokens,
+            cached_input_tokens=cross_response.cached_input_tokens,
+        )
         return cross_response.text
 
     # Delegate the chat call (with retry/error handling) to the shared
@@ -311,15 +344,13 @@ def grok_llm(
 
     # Mirror per-call usage into the legacy module-level counters so existing
     # readers (get_grok_session_usage / get_grok_session_usage_by_model) keep
-    # returning consistent numbers. ContinuousReasoningSession still writes
-    # to these directly; Step 3 of the routing-layer migration collapses the
-    # duplication.
-    _session_input_tokens += response.input_tokens
-    _session_output_tokens += response.output_tokens
-    if model not in _session_tokens_by_model:
-        _session_tokens_by_model[model] = {"input_tokens": 0, "output_tokens": 0}
-    _session_tokens_by_model[model]["input_tokens"] += response.input_tokens
-    _session_tokens_by_model[model]["output_tokens"] += response.output_tokens
+    # returning consistent numbers.
+    _mirror_session_usage(
+        model,
+        response.input_tokens,
+        response.output_tokens,
+        cached_input_tokens=response.cached_input_tokens,
+    )
 
     return response.text
 
@@ -384,8 +415,6 @@ class ContinuousReasoningSession:
         retries: int = 4,
     ) -> str:
         """Append a user turn, call Grok, append the assistant reply, return it."""
-        global _session_input_tokens, _session_output_tokens, _session_tokens_by_model
-
         self.history.append({"role": "user", "content": prompt})
 
         # Delegate the chat call (with retry/error handling) to the shared
@@ -413,15 +442,12 @@ class ContinuousReasoningSession:
 
         # Mirror per-call usage into legacy module-level counters for callers
         # that still read get_grok_session_usage().
-        _session_input_tokens += response.input_tokens
-        _session_output_tokens += response.output_tokens
-        if self.model not in _session_tokens_by_model:
-            _session_tokens_by_model[self.model] = {
-                "input_tokens": 0,
-                "output_tokens": 0,
-            }
-        _session_tokens_by_model[self.model]["input_tokens"] += response.input_tokens
-        _session_tokens_by_model[self.model]["output_tokens"] += response.output_tokens
+        _mirror_session_usage(
+            self.model,
+            response.input_tokens,
+            response.output_tokens,
+            cached_input_tokens=response.cached_input_tokens,
+        )
 
         self.history.append({"role": "assistant", "content": response.text})
         self._turn_count += 1
@@ -540,14 +566,9 @@ def grok_browse_and_summarize(
     usage = data.get("usage") or {}
     inp = int(usage.get("input_tokens") or usage.get("prompt_tokens") or 0)
     out = int(usage.get("output_tokens") or usage.get("completion_tokens") or 0)
+    cached = int(usage.get("cached_tokens") or 0)
     if inp or out:
-        global _session_input_tokens, _session_output_tokens, _session_tokens_by_model
-        _session_input_tokens += inp
-        _session_output_tokens += out
-        if model not in _session_tokens_by_model:
-            _session_tokens_by_model[model] = {"input_tokens": 0, "output_tokens": 0}
-        _session_tokens_by_model[model]["input_tokens"] += inp
-        _session_tokens_by_model[model]["output_tokens"] += out
+        _mirror_session_usage(model, inp, out, cached_input_tokens=cached)
 
     text = text.strip()
     if not text:

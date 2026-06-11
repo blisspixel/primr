@@ -2526,6 +2526,35 @@ def _enrich_strategy_content(
     return strategy_content
 
 
+def _compute_session_llm_cost() -> float:
+    """Current actual LLM spend for this run, in USD.
+
+    Per-model Grok session cost (cache-aware: cached input tokens are billed
+    at the model's cached rate) plus the Gemini client's accumulated cost.
+    Used by the end-of-run summary and the ``--budget`` checkpoint, so both
+    report the same number.
+    """
+    from primr.ai.grok_client import get_grok_session_usage_by_model
+
+    usage_by_model = get_grok_session_usage_by_model()
+    grok_cost = 0.0
+    for model_name, tokens in usage_by_model.items():
+        cost_model = (
+            model_name if PrimrModels.get_model_config(model_name) else PrimrModels.GROK_MODEL
+        )
+        grok_cost += PrimrModels.calculate_cost(
+            cost_model,
+            tokens["input_tokens"],
+            tokens["output_tokens"],
+            cached_input_tokens=tokens.get("cached_input_tokens", 0),
+        )
+
+    from primr.ai.client import get_client
+
+    flash_cost = get_client().get_usage_summary().get("total_cost", 0.0)
+    return grok_cost + flash_cost
+
+
 def perform_fast_research(
     company_name: str | None,
     website: str | None,
@@ -2564,7 +2593,6 @@ def perform_fast_research(
     from primr.ai.grok_client import (
         ContinuousReasoningSession,
         get_grok_session_usage,
-        get_grok_session_usage_by_model,
         grok_llm,
         reset_grok_session,
     )
@@ -3882,6 +3910,31 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
         # =================================================================
         strategy_paths: dict[str, str] = {}
         strategy_trust_stats: list[tuple[str, list[tuple[str, str]]]] = []
+
+        # --budget checkpoint: strategy generation is the most expensive
+        # optional stage. When a run budget is active and actual LLM spend
+        # has already reached the ceiling, ship the report without strategy
+        # documents rather than blowing past the cap.
+        if has_strategies:
+            from primr.utils.run_budget import get_run_budget
+
+            _run_budget = get_run_budget()
+            if _run_budget is not None:
+                _spent_so_far = _compute_session_llm_cost()
+                _run_budget.sync_spend(_spent_so_far)
+                if _run_budget.exceeded():
+                    console.warn(
+                        f"Run budget ${_run_budget.max_cost:.2f} reached "
+                        f"(~${_spent_so_far:.2f} spent) — skipping strategy generation"
+                    )
+                    log_structured(
+                        "warning",
+                        "Run budget reached; strategy generation skipped",
+                        budget_usd=_run_budget.max_cost,
+                        spent_usd=round(_spent_so_far, 4),
+                    )
+                    has_strategies = False
+
         if has_strategies:
             console.phase_banner(
                 6, total_phases, "Strategy (Grok)", "Generating strategy documents", "3-8 min"
@@ -4378,30 +4431,9 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                     f"{label} DOCX held back by artifact gate; saved {resolved_strategy_path.name} instead"
                 )
 
-        # Cost summary from Grok session usage (per-model for accurate pricing)
+        # Cost summary from Grok session usage (per-model, cache-aware pricing)
         grok_usage = get_grok_session_usage()
-        usage_by_model = get_grok_session_usage_by_model()
-        grok_cost = 0.0
-        for model_name, tokens in usage_by_model.items():
-            model_config = PrimrModels.get_model_config(model_name)
-            if model_config:
-                grok_cost += PrimrModels.calculate_cost(
-                    model_name, tokens["input_tokens"], tokens["output_tokens"]
-                )
-            else:
-                # Unknown model — fall back to default Grok pricing
-                grok_cost += PrimrModels.calculate_cost(
-                    PrimrModels.GROK_MODEL, tokens["input_tokens"], tokens["output_tokens"]
-                )
-
-        # Flash cost from AI client
-        from primr.ai.client import get_client
-
-        client = get_client()
-        flash_usage = client.get_usage_summary()
-        flash_cost = flash_usage.get("total_cost", 0.0)
-
-        actual_cost = grok_cost + flash_cost
+        actual_cost = _compute_session_llm_cost()
 
         date_str = datetime.now().strftime("%m-%d-%Y")
         fallback_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
@@ -4473,6 +4505,7 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
             search_queries=len(external_queries) + gap_search_count + cv_search_count,
             duration_seconds=elapsed,
             pipeline_cost=actual_cost,
+            cached_input_tokens=grok_usage.get("cached_input_tokens", 0),
         )
         tracker.save()
 

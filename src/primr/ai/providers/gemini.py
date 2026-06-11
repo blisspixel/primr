@@ -209,9 +209,14 @@ class GeminiProvider(Provider):
                         "Gemini returned empty response (possible content filter or safety block)"
                     )
 
-                input_tokens, output_tokens = self._extract_usage(response)
+                input_tokens, output_tokens, cached_input_tokens = self._extract_usage(response)
                 if input_tokens or output_tokens:
-                    self._record_usage(model, input_tokens, output_tokens)
+                    self._record_usage(
+                        model,
+                        input_tokens,
+                        output_tokens,
+                        cached_input_tokens=cached_input_tokens,
+                    )
 
                 logger.info(
                     "gemini call complete (model=%s): %d input, %d output tokens",
@@ -223,6 +228,7 @@ class GeminiProvider(Provider):
                     text=text,
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,
+                    cached_input_tokens=cached_input_tokens,
                 )
 
             except Exception as e:
@@ -268,14 +274,16 @@ class GeminiProvider(Provider):
     # -----------------------------------------------------------------
 
     @staticmethod
-    def _extract_usage(response: Any) -> tuple[int, int]:
-        """Pull (input_tokens, output_tokens) from a Gemini response if present."""
+    def _extract_usage(response: Any) -> tuple[int, int, int]:
+        """Pull (input_tokens, output_tokens, cached_input_tokens) from a Gemini response."""
         if response is None:
-            return 0, 0
+            return 0, 0, 0
         meta = getattr(response, "usage_metadata", None)
         if meta is None:
-            return 0, 0
+            return 0, 0, 0
         input_tokens = getattr(meta, "prompt_token_count", 0) or 0
         # Gemini 3 includes thinking tokens in candidates_token_count
         output_tokens = getattr(meta, "candidates_token_count", 0) or 0
-        return int(input_tokens), int(output_tokens)
+        # Implicit/explicit context caching reports the cache-served subset here
+        cached_input_tokens = getattr(meta, "cached_content_token_count", 0) or 0
+        return int(input_tokens), int(output_tokens), int(cached_input_tokens)

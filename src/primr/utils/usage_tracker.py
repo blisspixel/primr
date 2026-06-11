@@ -47,6 +47,14 @@ class UsageRecord:
     search_cost: float
     total_cost: float
     deep_research_cost: float = 0.0  # Flat per-task DR cost
+    cached_input_tokens: int = 0  # Subset of input_tokens served from prompt cache
+
+    @property
+    def cache_hit_rate(self) -> float:
+        """Fraction of input tokens served from the provider prompt cache (0.0-1.0)."""
+        if self.input_tokens <= 0:
+            return 0.0
+        return min(1.0, self.cached_input_tokens / self.input_tokens)
 
     @classmethod
     def create(
@@ -59,6 +67,7 @@ class UsageRecord:
         duration_seconds: float = 0.0,
         pipeline_cost: float | None = None,
         deep_research_cost: float = 0.0,
+        cached_input_tokens: int = 0,
     ) -> "UsageRecord":
         """Create a usage record with costs.
 
@@ -68,10 +77,14 @@ class UsageRecord:
                 pricing. When None, falls back to conservative pricing
                 from tokens (backward compat).
             deep_research_cost: Flat per-task Deep Research cost ($2.50/task).
+            cached_input_tokens: Subset of input_tokens served from the
+                provider prompt cache. Cache hit rate is load-bearing on the
+                sub-$1 default recipe, so it is persisted per run.
         """
         from primr.config.models import SEARCH_COST_PER_QUERY
 
         search_cost = search_queries * SEARCH_COST_PER_QUERY
+        cached_input_tokens = max(0, min(cached_input_tokens, input_tokens))
 
         if pipeline_cost is not None:
             # Use pre-calculated accurate cost from AI client
@@ -88,6 +101,7 @@ class UsageRecord:
                 search_cost=search_cost,
                 total_cost=pipeline_cost + search_cost + deep_research_cost,
                 deep_research_cost=deep_research_cost,
+                cached_input_tokens=cached_input_tokens,
             )
 
         # Fallback: estimate cost from tokens using active Pro model pricing
@@ -122,6 +136,7 @@ class UsageRecord:
             search_cost=search_cost,
             total_cost=input_cost + output_cost + search_cost + deep_research_cost,
             deep_research_cost=deep_research_cost,
+            cached_input_tokens=cached_input_tokens,
         )
 
 
@@ -183,6 +198,7 @@ class UsageTracker:
         duration_seconds: float = 0.0,
         pipeline_cost: float | None = None,
         deep_research_cost: float = 0.0,
+        cached_input_tokens: int = 0,
     ) -> None:
         """
         Record API usage for the current session.
@@ -196,6 +212,7 @@ class UsageTracker:
             duration_seconds: Duration of the operation
             pipeline_cost: Pre-calculated accurate cost from AI client
             deep_research_cost: Flat per-task Deep Research cost
+            cached_input_tokens: Subset of input_tokens served from prompt cache
         """
         record = UsageRecord.create(
             mode=mode,
@@ -206,6 +223,7 @@ class UsageTracker:
             duration_seconds=duration_seconds,
             pipeline_cost=pipeline_cost,
             deep_research_cost=deep_research_cost,
+            cached_input_tokens=cached_input_tokens,
         )
 
         self.session.add(record)
@@ -370,6 +388,7 @@ class UsageTracker:
         total_cost = sum(r.get("total_cost", 0) for r in self.history)
         total_duration = sum(r.get("duration_seconds", 0) for r in self.history)
         total_dr_cost = sum(r.get("deep_research_cost", 0) for r in self.history)
+        total_cached = sum(r.get("cached_input_tokens", 0) for r in self.history)
 
         lines.extend(
             [
@@ -380,6 +399,11 @@ class UsageTracker:
                 f"  Total Cost:     ${total_cost:.2f}",
             ]
         )
+        if total_cached > 0 and total_input > 0:
+            lines.append(
+                f"  Cached Input:   {total_cached:,} "
+                f"({total_cached / total_input:.0%} cache hit rate)"
+            )
         if total_dr_cost > 0:
             lines.extend(
                 [
@@ -406,12 +430,13 @@ class UsageTracker:
                 ]
             )
 
-        # Per-mode breakdown with current estimates
-        modes = ["structured", "deep-research", "complete", "hybrid", "ai-strategy"]
-        lines.append("By Mode (actual averages):")
+        # Per-mode breakdown: observed modes first (so fast-mode runs and any
+        # future mode show up), known-but-unobserved modes are simply omitted.
+        observed_modes = sorted({r.get("mode", "?") for r in self.history})
+        lines.append("By Mode (totals and actual averages):")
         lines.append("-" * 40)
 
-        for mode in modes:
+        for mode in observed_modes:
             avg = self.get_average_by_mode(mode)
             if avg:
                 status = (
@@ -419,16 +444,43 @@ class UsageTracker:
                     if avg["sample_size"] >= 3
                     else f"need {3 - avg['sample_size']} more"
                 )
+                mode_total = sum(
+                    r.get("total_cost", 0) for r in self.history if r.get("mode") == mode
+                )
                 lines.extend(
                     [
                         f"  {mode}:",
                         f"    Runs: {avg['sample_size']} ({status})",
+                        f"    Total Cost:   ${mode_total:.2f}",
                         f"    Avg Cost:     ${avg['avg_cost']:.2f}",
                         f"    Avg Searches: {avg['avg_search_queries']}",
                         f"    Avg Time:     {avg['avg_duration_seconds'] / 60:.1f} min",
                         "",
                     ]
                 )
+
+        # Per-company history (top 10 by total spend)
+        company_totals: dict[str, dict] = {}
+        for r in self.history:
+            company = r.get("company", "Unknown")
+            bucket = company_totals.setdefault(company, {"runs": 0, "cost": 0.0, "last_run": ""})
+            bucket["runs"] += 1
+            bucket["cost"] += r.get("total_cost", 0)
+            bucket["last_run"] = max(bucket["last_run"], r.get("timestamp", ""))
+
+        lines.append("-" * 40)
+        lines.append("By Company (top 10 by spend):")
+        lines.append("")
+        top_companies = sorted(company_totals.items(), key=lambda kv: kv[1]["cost"], reverse=True)[
+            :10
+        ]
+        for company, stats in top_companies:
+            last_run = stats["last_run"][:10]
+            lines.append(
+                f"  {company[:24]:<24} | {stats['runs']} run(s) | "
+                f"${stats['cost']:.2f} | last {last_run}"
+            )
+        lines.append("")
 
         # Recent runs (last 5)
         lines.append("-" * 40)
@@ -443,9 +495,15 @@ class UsageTracker:
             cost = r.get("total_cost", 0)
             searches = r.get("search_queries", 0)
             duration = r.get("duration_seconds", 0) / 60
-            lines.append(
-                f"  {timestamp} | {company:<20} | {mode:<12} | ${cost:.2f} | {searches} srch | {duration:.0f}m"
+            line = (
+                f"  {timestamp} | {company:<20} | {mode:<12} | ${cost:.2f} "
+                f"| {searches} srch | {duration:.0f}m"
             )
+            cached = r.get("cached_input_tokens", 0)
+            run_input = r.get("input_tokens", 0)
+            if cached > 0 and run_input > 0:
+                line += f" | {cached / run_input:.0%} cached"
+            lines.append(line)
 
         lines.extend(["", "=" * 60])
 

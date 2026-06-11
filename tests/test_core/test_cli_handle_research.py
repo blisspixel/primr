@@ -169,3 +169,84 @@ class TestContextFiles:
         )
         result = _handle_research(_config(premium_mode=True, context_folder="/some/folder"))
         assert result == 1
+
+
+class TestBudgetGate:
+    """--budget pre-flight gate and run-budget activation."""
+
+    @pytest.fixture(autouse=True)
+    def _valid_inputs(self, monkeypatch):
+        monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda x: x)
+        monkeypatch.setattr("primr.utils.validators.validate_url", lambda x: x)
+        from primr.utils.run_budget import clear_run_budget
+
+        clear_run_budget()
+        yield
+        clear_run_budget()
+
+    def test_non_positive_budget_returns_1(self, passing_preflight, perform_research_ok):
+        assert _handle_research(_config(premium_mode=True, budget_usd=0.0)) == 1
+        perform_research_ok.assert_not_called()
+
+    def test_estimate_over_budget_refuses_to_start(
+        self, passing_preflight, perform_research_ok, monkeypatch
+    ):
+        from types import SimpleNamespace
+
+        monkeypatch.setattr(
+            "primr.utils.cost_estimator.estimate_cost",
+            MagicMock(return_value=SimpleNamespace(total_cost=5.00)),
+        )
+        assert _handle_research(_config(premium_mode=True, budget_usd=1.00)) == 1
+        perform_research_ok.assert_not_called()
+
+    def test_estimate_within_budget_runs_and_clears(
+        self, passing_preflight, perform_research_ok, monkeypatch
+    ):
+        from types import SimpleNamespace
+
+        from primr.utils.run_budget import get_run_budget
+
+        monkeypatch.setattr(
+            "primr.utils.cost_estimator.estimate_cost",
+            MagicMock(return_value=SimpleNamespace(total_cost=0.79)),
+        )
+
+        seen = {}
+
+        def record_active_budget(*args, **kwargs):
+            seen["budget"] = get_run_budget()
+            return "/fake/path/report.docx"
+
+        monkeypatch.setattr("primr.core.research_agent.perform_research", record_active_budget)
+
+        assert _handle_research(_config(premium_mode=True, budget_usd=2.00)) == 0
+        # Budget was active during the run...
+        assert seen["budget"] is not None
+        assert seen["budget"].max_cost == 2.00
+        # ...and cleared afterwards
+        assert get_run_budget() is None
+
+    def test_budget_cleared_even_when_research_raises(self, passing_preflight, monkeypatch):
+        from types import SimpleNamespace
+
+        from primr.utils.run_budget import get_run_budget
+
+        monkeypatch.setattr(
+            "primr.utils.cost_estimator.estimate_cost",
+            MagicMock(return_value=SimpleNamespace(total_cost=0.50)),
+        )
+        monkeypatch.setattr(
+            "primr.core.research_agent.perform_research",
+            MagicMock(side_effect=RuntimeError("boom")),
+        )
+
+        with pytest.raises(RuntimeError):
+            _handle_research(_config(premium_mode=True, budget_usd=2.00))
+        assert get_run_budget() is None
+
+    def test_no_budget_flag_means_no_active_budget(self, passing_preflight, perform_research_ok):
+        from primr.utils.run_budget import get_run_budget
+
+        assert _handle_research(_config(premium_mode=True)) == 0
+        assert get_run_budget() is None

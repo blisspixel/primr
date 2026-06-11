@@ -282,6 +282,7 @@ class AnthropicProvider(Provider):
                     text=text,
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,
+                    cached_input_tokens=cached_input_tokens,
                 )
 
             except Exception as e:
