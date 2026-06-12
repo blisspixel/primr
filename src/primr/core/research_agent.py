@@ -68,6 +68,7 @@ from primr.core.fast_mode_helpers import (
 from primr.core.fast_mode_helpers import (
     _parse_batch_sections as _parse_batch_sections,
 )
+from primr.core.fast_run_gaps import deepen_research
 from primr.core.fast_run_hiring import collect_hiring_block
 from primr.core.fast_run_sections import write_report_sections
 from primr.core.fast_run_strategy import run_strategy_phase
@@ -2937,176 +2938,29 @@ def perform_fast_research(
         external_sources_raw = build_external_sources_raw(external_raw_parts, hiring_block)
 
         # =================================================================
-        # Phase 2: Research Deepening (Grok gap analysis → targeted search)
+        # Phase 2: Research Deepening (extracted: core/fast_run_gaps.py)
         # =================================================================
-        console.phase_banner(
-            2,
-            total_phases,
-            "Research Deepening",
-            "Identifying gaps and searching for additional evidence",
-            "3-5 min",
+        _gaps = deepen_research(
+            company_name=company_name,
+            company_label=company_name or display_name,
+            website=website,
+            raw_corpus=raw_corpus,
+            external_sources_raw=external_sources_raw,
+            combined_insights=combined_insights,
+            summarized=summarized,
+            hiring_block=hiring_block,
+            source_urls=source_urls,
+            source_urls_seen=source_urls_seen,
+            external_text_parts=external_text_parts,
+            external_raw_parts=external_raw_parts,
+            grok_reasoning=grok_reasoning,
+            folder_path=folder_path,
+            insights_file=insights_file,
+            total_phases=total_phases,
         )
-
-        with console.timed_operation("Analyzing research gaps via Grok"):
-            gap_queries, gap_text = _fast_gap_analysis(
-                company_name or display_name,
-                website,
-                raw_corpus,
-                external_sources_raw,
-                source_urls,
-                model=grok_reasoning,
-            )
-
-        gap_new_sources = 0
-        gap_search_count = 0
-
-        if gap_queries:
-            console.ok(f"Gap analysis: {len(gap_queries)} questions identified")
-            max_gap_sources = 10
-
-            _gap_start = time.time()
-
-            def _gap_search_one(gq: str) -> list[dict]:
-                """Search for a single gap query (thread-safe HTTP call)."""
-                results = search_web(gq, company_name, website)
-                if not results:
-                    return []
-                return [
-                    r
-                    for r in results[:3]
-                    if (not website or website.lower() not in r.get("url", "").lower())
-                    and r.get("url", "") not in source_urls_seen
-                ]
-
-            # Phase 1: parallel searches (thread-safe HTTP calls)
-            gap_search_results: list[dict] = []
-            _gap_queries_done = 0
-            console.status(f"Searching for gap-filling sources (0/{len(gap_queries)} queries)")
-            with ThreadPoolExecutor(max_workers=3) as executor:
-                futures = [executor.submit(_gap_search_one, gq) for gq in gap_queries]
-                for future in as_completed(futures):
-                    try:
-                        gap_search_results.extend(future.result())
-                    except Exception as e:
-                        logger.warning("Gap search query failed: %s", e)
-                    _gap_queries_done += 1
-                    console.status(
-                        f"Searching for gap-filling sources ({_gap_queries_done}/{len(gap_queries)} queries, {len(gap_search_results)} results)"
-                    )
-
-            # Record how many gap searches we actually issued, so the usage
-            # telemetry total (search_queries) includes them — gap_search_count
-            # was previously summed into that total but never assigned.
-            gap_search_count = _gap_queries_done
-
-            # Phase 2: parallel validation with a hard attempt cap (same
-            # design as the main external-source pass: 4 workers, cap at
-            # 2x the target to bound runtime on noisy searches).
-            _gap_candidates: list[dict] = []
-            _gap_seen: set[str] = set()
-            for result in gap_search_results:
-                url = result.get("url")
-                if not url or url in source_urls_seen or url in _gap_seen:
-                    continue
-                _gap_seen.add(url)
-                _gap_candidates.append(result)
-
-            # Same 1.6x sizing as the main external pass — see comment there.
-            _gap_attempt_cap = max(10, int(max_gap_sources * 1.6))
-            _gap_candidates = _gap_candidates[:_gap_attempt_cap]
-            _gap_check_idx = 0
-
-            def _validate_gap_source(res: dict) -> dict[str, str]:
-                return scrape_external_sources_validated(
-                    [res],
-                    company_name=company_name,
-                    website=website,
-                    max_sources=1,
-                )
-
-            # Same deadline pattern as the main external-source validation
-            # above — a hung worker can't block shutdown forever.
-            _gap_deadline_s = 420.0  # 7 min total across all workers
-            _gap_pool = ThreadPoolExecutor(max_workers=4)
-            gap_futures = {_gap_pool.submit(_validate_gap_source, r): r for r in _gap_candidates}
-            try:
-                for fut in as_completed(gap_futures, timeout=_gap_deadline_s):
-                    _gap_check_idx += 1
-                    if gap_new_sources >= max_gap_sources:
-                        break
-                    console.status(
-                        f"Validating gap sources ({gap_new_sources} found, "
-                        f"checking {_gap_check_idx}/{len(_gap_candidates)})"
-                    )
-                    try:
-                        scraped = fut.result(timeout=0)
-                    except Exception as e:
-                        logger.debug("Gap validation worker failed: %s", e)
-                        continue
-                    for scraped_url, content in scraped.items():
-                        if gap_new_sources >= max_gap_sources:
-                            break
-                        if scraped_url not in source_urls_seen:
-                            source_urls.append(scraped_url)
-                            source_urls_seen.add(scraped_url)
-                            external_text_parts.append(
-                                f"[Source: {scraped_url}]\n{content[:12_000]}"
-                            )
-                            external_raw_parts.append(
-                                f"[Source: {scraped_url}]\n{content[:20_000]}"
-                            )
-                            gap_new_sources += 1
-            except TimeoutError:
-                console.warn(
-                    f"Gap-filling deadline ({int(_gap_deadline_s)}s) reached — "
-                    f"continuing with {gap_new_sources} new sources "
-                    f"({_gap_check_idx}/{len(_gap_candidates)} workers checked)"
-                )
-            finally:
-                from primr.utils.async_utils import detach_running_workers
-
-                _gap_pool.shutdown(wait=False, cancel_futures=True)
-                detach_running_workers(_gap_pool)
-
-            console.ok(f"Searching for gap-filling sources ({console._elapsed(_gap_start)})")
-
-            console.ok(f"Found {gap_new_sources} additional sources")
-
-            # Rebuild external_sources_raw with the new sources and refresh
-            # the insights file. The previous combined_insights is the
-            # rebuild fallback so a degenerate refresh never erases data.
-            external_sources_raw = build_external_sources_raw(external_raw_parts, hiring_block)
-            combined_insights = build_combined_insights(
-                summarized,
-                external_text_parts,
-                hiring_block,
-                fallback=combined_insights,
-            )
-            with open(insights_file, "w", encoding="utf-8") as f:
-                f.write(combined_insights)
-        else:
-            # Distinguish between "no gaps found" (good) and "gap analysis failed" (bad)
-            if gap_text and "failed" in gap_text.lower():
-                console.warn(f"Gap analysis failed — skipping research deepening ({gap_text})")
-            else:
-                console.info("Gap analysis found no research gaps — skipping")
-
-        # Save gap analysis output to working folder
-        gap_analysis_path = os.path.join(folder_path, "gap_analysis.md")
-        with open(gap_analysis_path, "w", encoding="utf-8") as f:
-            f.write(gap_text if gap_text else "(no gap analysis performed)")
-
-        total_external = len(source_urls)
-        _update_run_state(
-            folder_path,
-            gap_queries=len(gap_queries or []),
-            gap_new_sources=gap_new_sources,
-            external_sources_validated=total_external,
-        )
-        console.phase_complete(
-            "Research Deepening",
-            [("New sources", str(gap_new_sources)), ("Total external", str(total_external))],
-        )
+        external_sources_raw = _gaps.external_sources_raw
+        combined_insights = _gaps.combined_insights
+        gap_search_count = _gaps.gap_search_count
 
         validated_source_urls = list(source_urls)
         validated_source_count = len(validated_source_urls)

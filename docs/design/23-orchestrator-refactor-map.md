@@ -14,7 +14,7 @@ full suite green per slice, eval scores unchanged.
 | 1 | Data collection | `fetch_web_content` call → external validation pools | Highest complexity: parallel pools with deadlines, quality filtering. **Extract LAST** |
 | 2 | Hiring signals | `gather_hiring_signals` | **EXTRACTED** → `core/fast_run_hiring.collect_hiring_block()` |
 | 2B | Combined insights build | writes `insights.txt` | **EXTRACTED** → `core/insights_assembly.py` (pure assembly; both build sites call it, file write stays in orchestrator) |
-| 3 | Gap analysis + deepening | `_fast_gap_analysis` → gap pools | Mutates source_urls/external_* sets and REBUILDS external_sources_raw + insights.txt |
+| 3 | Gap analysis + deepening | `_fast_gap_analysis` → gap pools | **EXTRACTED** → `core/fast_run_gaps.deepen_research()` (frozen `GapDeepeningResult`); in-place pool mutation + rebuild-don't-mutate and the deadline/detach shutdown pattern preserved verbatim |
 | 4 | Analysis workbook | `_build_fast_analysis_prompt` | **EXTRACTED** → `core/fast_run_workbook.generate_analysis_workbook()` — returns `(workbook, reasoning_session)` so the lazily-constructed session still reaches stage 6 |
 | 5 | Section writing | `_group_sections_by_part` → per-part pools | **EXTRACTED** → `core/fast_run_sections.write_report_sections()` (frozen `SectionWritingResult`; `report_content=None` signals the all-failed early exit); exec-summary pop/write-last and frozen per-part snapshots moved verbatim |
 | 6 | Cross-validation + enrichment | `_fast_cross_validate` → weak-section loop | **EXTRACTED** → `core/fast_run_validation.cross_validate_and_enrich()` (frozen `CrossValidationResult`); serial splice loop, default-arg query binding, deadline pool, and in-place `source_urls`/`source_urls_seen` mutation all preserved verbatim; takes both `company_name` (raw, for search) and `company_label` (display) |
@@ -70,7 +70,7 @@ about to move.
   was unassigned in the original plan; got its own batch because it owns the
   two highest-risk tangles (closure capture feeding outer-scope mutations,
   serial regex splice loop), both pinned by tests
-- **Batch F (research deepening):** stage 3
+- **Batch F (research deepening) — DONE:** stage 3 (fast_run_gaps.py)
 - **Batch G (data collection, last):** stage 1
 
 After G: introduce `FastRunContext`, raise research_agent per-module
