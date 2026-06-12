@@ -264,7 +264,7 @@ from primr.config.config import (
     WORKING_DIR,
 )
 from primr.config.env import load_primr_env
-from primr.config.models import GrokTier, PrimrModels
+from primr.config.models import PrimrModels
 from primr.config.sections_config import SECTION_KEY_MAP
 
 
@@ -2602,101 +2602,38 @@ def perform_fast_research(
     """
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    from primr.ai.grok_client import (
-        ContinuousReasoningSession,
-        get_grok_session_usage,
-        reset_grok_session,
-    )
+    from primr.ai.grok_client import ContinuousReasoningSession
+    from primr.core.fast_run_setup import resolve_fast_run_setup
     from primr.pipeline.llm_failover import LLMRole, call_with_failover
 
-    reset_grok_session()
-
-    # Resolve Grok model pair for this tier
-    grok_reasoning, grok_writing = PrimrModels.get_grok_models(GrokTier(grok_tier))
-
-    # Cross-provider writing routing (v1.24.4 fix): for FAST/HYBRID the
-    # estimator already prices writing via pick_model_for_role(Role.WRITING),
-    # which prefers gemini-3.1-flash-lite when GEMINI_API_KEY is set. Until
-    # this fix, perform_fast_research kept using the Grok-tier writer
-    # (grok-4.20-non-reasoning), so a max_estimated_cost_usd cap approved
-    # against a ~$0.79 Gemini estimate could let through a real ~$4.27 Grok
-    # run. MAX is the explicit "Grok everywhere" opt-in and still uses the
-    # Grok-tier writer for both reasoning and writing.
-    from primr.ai.routing import Role, get_active_eval_recipe, pick_model_for_role
-
-    if grok_tier != "max":
-        try:
-            routed_writing = pick_model_for_role(Role.WRITING)
-        except Exception as e:
-            # Routing failure must not abort the run — fall back to the
-            # tier-default Grok writer. The cap divergence is logged so an
-            # operator can see why production didn't match the estimate.
-            logger.warning("Writing-role routing failed (%s); falling back to %s", e, grok_writing)
-        else:
-            if routed_writing and routed_writing != grok_writing:
-                logger.info(
-                    "Cross-provider routing: writing %s -> %s", grok_writing, routed_writing
-                )
-                grok_writing = routed_writing
-
-    # v1.24.0: when an eval recipe override is active, the recipe's writing
-    # model wins over the Grok-tier writer. This is what makes cross-provider
-    # eval cells actually use their declared writing model (e.g. Gemini 3.1
-    # Flash-Lite) instead of always falling through to grok_writing. The
-    # cross-provider dispatch in grok_llm handles non-Grok models correctly.
-    _active_recipe = get_active_eval_recipe()
-    if _active_recipe is not None and _active_recipe.writing:
-        grok_writing = _active_recipe.writing
-
-    # Print the resolved models so an eval cell can verify (before any LLM
-    # spend) that the recipe override actually flowed through. This is a
-    # cheap correctness check — if the run-log shows grok_writing=grok-4.20-NR
-    # when the recipe specified gemini-3.1-flash-lite, the override didn't
-    # work and the cell should be aborted before paying for the full run.
-    if _active_recipe is not None:
-        from primr.utils.console import console as _console
-
-        _console.info(
-            f"Active eval recipe: writing={grok_writing}, reasoning={grok_reasoning} "
-            f"(recipe declared writing={_active_recipe.writing}, "
-            f"reasoning={_active_recipe.reasoning})"
-        )
-
-    # Determine reasoning_effort for the FAST tier — grok-4.3 supports
-    # low/medium/high effort levels. FAST uses "low" to reduce cost/latency;
-    # HYBRID and MAX use the default (no explicit effort = model decides).
-    grok_reasoning_effort: str | None = "low" if grok_tier == "fast" else None
-
-    # Continuous reasoning is on by default after the n=3 pilot — see ROADMAP
-    # "Continuous Reasoning Session". When on, workbook generation (Phase 3)
-    # and cross-validation (Phase 5) share a single Grok session so the
-    # validator inherits the corpus + workbook reasoning instead of re-reading
-    # the report cold. Pass --no-continuous-reasoning, or set
-    # PRIMR_CONTINUOUS_REASONING=0/false to revert to the fresh-call topology.
-    env_flag = os.getenv("PRIMR_CONTINUOUS_REASONING", "").strip().lower()
-    if env_flag in ("0", "false", "no", "off"):
-        continuous_reasoning = False
-    elif env_flag in ("1", "true", "yes", "on"):
-        continuous_reasoning = True
+    # Stage 0 (extracted: core/fast_run_setup.py — roadmap #23 Batch A):
+    # session reset, model resolution + routing + eval-recipe override,
+    # continuous-reasoning flag, run identity, phase plan.
+    setup = resolve_fast_run_setup(
+        company_name=company_name,
+        website=website,
+        ai_strategy=ai_strategy,
+        strategy_types=strategy_types,
+        grok_tier=grok_tier,
+        continuous_reasoning=continuous_reasoning,
+        folder_path=folder_path,
+    )
+    grok_reasoning = setup.grok_reasoning
+    grok_writing = setup.grok_writing
+    grok_reasoning_effort = setup.grok_reasoning_effort
+    continuous_reasoning = setup.continuous_reasoning
+    display_name = setup.display_name
+    folder_path = setup.folder_path
 
     # Session is constructed lazily at the workbook stage so the workbook's
     # system prompt becomes a real `role: system` message instead of being
     # folded into the first user turn (which the v1 pilot showed measurably
     # degrades workbook quality).
     reasoning_session: ContinuousReasoningSession | None = None
-    if continuous_reasoning:
-        log_structured(
-            "info",
-            "Continuous reasoning enabled — session will be constructed at workbook stage",
-            model=grok_reasoning,
-        )
-
-    display_name = company_name or (urlparse(website or "").netloc if website else "")
-    folder_path = folder_path or create_working_folder(company_name, website)
 
     try:
-        has_strategies = ai_strategy or bool(strategy_types)
-        total_phases = 6 if has_strategies else 5
+        has_strategies = setup.has_strategies
+        total_phases = setup.total_phases
 
         # =================================================================
         # Phase 1: Data collection (Gemini Flash — cheap)
@@ -4443,128 +4380,27 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                 console.warn("Strategy generation skipped — no strategies generated")
 
         # =================================================================
-        # Summary
+        # Summary (extracted: core/fast_run_summary.py — roadmap #23 Batch A)
         # =================================================================
-        elapsed = time.time() - start_time
-        mins = int(elapsed // 60)
-        secs = int(elapsed % 60)
-        time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
+        from primr.core.fast_run_summary import finalize_fast_run
 
-        if docx_path:
-            console.success_box("Report ready", str(Path(docx_path).resolve()))
-        else:
-            console.warn(
-                "Report DOCX held back by artifact gate; review the saved MD/TXT artifacts"
-            )
-
-        for strat_key, strategy_path in strategy_paths.items():
-            # AI strategy keys: "ai" or "ai_azure" — show vendor suffix
-            if strat_key.startswith("ai"):
-                vendor_suffix = (
-                    f" ({strat_key.split('_', 1)[1].upper()})" if "_" in strat_key else ""
-                )
-                label = f"AI Strategy{vendor_suffix}"
-            else:
-                label = strat_key.replace("_", " ").title()
-            resolved_strategy_path = Path(strategy_path).resolve()
-            if str(resolved_strategy_path).lower().endswith(".docx"):
-                console.success_box(label, str(resolved_strategy_path))
-            else:
-                console.warn(
-                    f"{label} DOCX held back by artifact gate; saved {resolved_strategy_path.name} instead"
-                )
-
-        # Cost summary from Grok session usage (per-model, cache-aware pricing)
-        grok_usage = get_grok_session_usage()
-        actual_cost = _compute_session_llm_cost()
-
-        date_str = datetime.now().strftime("%m-%d-%Y")
-        fallback_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
-        fallback_md = (
-            fallback_dir / f"{company_name or display_name}_Strategic_Overview_{date_str}.md"
+        return finalize_fast_run(
+            start_time=start_time,
+            docx_path=docx_path,
+            strategy_paths=strategy_paths,
+            output_dir=output_dir,
+            company_name=company_name,
+            display_name=display_name,
+            folder_path=folder_path,
+            written_sections_count=len(written_sections),
+            total_words=total_words,
+            validated_source_count=validated_source_count,
+            pages_scraped=pages_scraped,
+            grok_tier=grok_tier,
+            report_trust_stats=report_trust_stats,
+            strategy_trust_stats=strategy_trust_stats,
+            search_query_count=len(external_queries) + gap_search_count + cv_search_count,
         )
-        primary_output_path = str(fallback_md) if fallback_md.exists() else docx_path
-
-        artifacts_passed = bool(docx_path) and all(
-            str(path).lower().endswith(".docx") for path in strategy_paths.values()
-        )
-        completion_label = (
-            "Fast mode complete" if artifacts_passed else "Fast mode complete with warnings"
-        )
-        console.ok(f"{completion_label} in {time_str}")
-
-        _update_run_state(
-            folder_path,
-            report_sections=len(written_sections),
-            report_words=total_words,
-            external_sources_validated=validated_source_count,
-            strategy_artifacts=len(strategy_paths),
-            artifact_gate_passed=artifacts_passed,
-            actual_cost_usd=round(actual_cost, 4),
-        )
-
-        if report_trust_stats:
-            console.trust_summary("Report Trust", report_trust_stats)
-        for trust_title, trust_stats in strategy_trust_stats:
-            console.trust_summary(trust_title + " Trust", trust_stats)
-
-        _tier_labels = {
-            "fast": "Grok 4.3 (low-effort)",
-            "hybrid": "Grok 4.3 hybrid",
-            "max": "Grok 4.3 max",
-        }
-        summary_items = [
-            ("Mode", "fast (" + _tier_labels.get(grok_tier, "Grok") + ")"),
-            ("Pages", str(pages_scraped)),
-            ("External", str(validated_source_count)),
-            ("Duration", time_str),
-            (
-                "Grok tokens",
-                f"{grok_usage['input_tokens']:,} in / {grok_usage['output_tokens']:,} out",
-            ),
-            ("Actual Cost", f"~${actual_cost:.2f}"),
-            ("Artifact Gate", "PASS" if artifacts_passed else "WARN"),
-        ]
-        if strategy_paths:
-            strat_labels = []
-            for k in strategy_paths:
-                if k.startswith("ai"):
-                    vendor_suffix = f" ({k.split('_', 1)[1].upper()})" if "_" in k else ""
-                    strat_labels.append(f"AI Strategy{vendor_suffix}")
-                else:
-                    strat_labels.append(k.replace("_", " ").title())
-            summary_items.append(("Strategies", ", ".join(strat_labels)))
-        console.summary(summary_items)
-
-        # Save usage to history
-        from primr.utils.usage_tracker import get_usage_tracker
-
-        tracker = get_usage_tracker()
-        tracker.record_usage(
-            mode="fast",
-            company=display_name,
-            input_tokens=grok_usage["input_tokens"],
-            output_tokens=grok_usage["output_tokens"],
-            search_queries=len(external_queries) + gap_search_count + cv_search_count,
-            duration_seconds=elapsed,
-            pipeline_cost=actual_cost,
-            cached_input_tokens=grok_usage.get("cached_input_tokens", 0),
-        )
-        tracker.save()
-
-        # Log job summary
-        job_summary = JobSummary.create(
-            company=display_name,
-            mode="fast",
-            duration_seconds=elapsed,
-            api_calls=0,
-            total_tokens=grok_usage["input_tokens"] + grok_usage["output_tokens"],
-            sections_generated=len(written_sections),
-            output_path=primary_output_path,
-        )
-        log_job_summary(job_summary)
-
-        return primary_output_path
 
     except Exception as e:
         console.error(f"Fast research failed: {e}")
