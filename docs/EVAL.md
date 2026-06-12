@@ -61,6 +61,24 @@ This is useful for evaluating local models against existing cloud-generated repo
 - Artifact drift: per-report `scaffolding_leaks` count and a per-profile `total_scaffolding_leaks` aggregate (leaked internal scaffolding that should never reach a deliverable). Surfaced in the scorecard's `## Artifact Drift` section (clean/DRIFT per profile) and a `scaffolding_leaks` CSV column. Target: 0 — non-zero is a regression, tracked every eval run rather than via ad-hoc offline scans.
 - Label calibration: traceability of `(Confirmed)`/`(Reported)` claims against the *fetched text* of their cited sources, measured by `primr calibrate` (a separate, bounded paid step — pennies per report) and persisted as `<report>.calibration.json` sidecars next to the staged reports. The offline eval reads the sidecars into per-report traceability, a pooled `## Label Calibration` scorecard section, and `confirmed_traceability` / `reported_traceability` CSV columns. Set `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` (a fraction, e.g. `0.8`) to arm the hard gate: profiles below it get `FAIL_CALIBRATION` in the decision table. Preview the judge-call count and cost first with `primr calibrate --calibrate-recent 10 --dry-run` (free).
 
+### Local judge for calibration ($0 judge calls)
+
+If you run a local OpenAI-compatible inference server (Ollama, LM Studio, llama.cpp server, vLLM — anything serving `GET /v1/models` and the chat API), calibration can judge locally instead of via the cloud fast tier:
+
+```
+primr calibrate "Company" --judge auto          # local when reachable, else cloud
+primr calibrate "Company" --judge local         # explicit; errors if no server
+primr calibrate "Company" --judge local --judge-model qwen2.5:14b   # pin a model
+primr calibrate "Company" --judge-compare       # judge with BOTH, report agreement
+```
+
+Design rules (these hold for any setup, not a particular machine):
+
+- **Cloud is the default judge.** Local is opt-in (`--judge local`) or preference-with-fallback (`--judge auto`). No local server means zero behavior change.
+- **Detection enumerates what you actually have** via the generic `/v1/models` endpoint and picks a judge-suitable model by family preference, falling back to whatever chat model is installed. Nothing is hardcoded; a single small model still works. Endpoint resolves via `LOCAL_LLM_BASE_URL` > `OLLAMA_BASE_URL` > `localhost:11434` — remote boxes, WSL, and containers are configuration, not code.
+- **Provenance is never ambiguous.** Every sidecar records `judge: {kind, model}` (plus a `cloud_fallbacks` count when a flaky local server forced per-call fallbacks), so a calibration number always says what judged it.
+- **Trust is measured, not assumed.** `--judge-compare` runs cloud and local over the same claims (cloud verdicts are the result of record and are billed exactly once) and reports the agreement rate. If your local model agrees ~90%+, future calibration runs can go local-first and recurring judge cost drops to zero.
+
 These dimensions are aligned to the README goal: producing deep strategic analysis that gets humans and AI up to speed quickly and safely, not just producing long reports.
 
 ## 3) Use a clear decision rule

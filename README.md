@@ -4,19 +4,19 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 
-**Point it at a company's website. It reads their DNS records, their job postings, and fifty pages of their site — then tells you what they're building, where they're constrained, and what nobody has written down.**
+**Point it at a company's website. It reads their DNS records, their job postings, and fifty pages of their site, then tells you what they're building, where they're constrained, and what nobody has written down.**
 
-Summaries of published articles are a commodity — any chat assistant's deep-research mode produces one. Primr is built for the layer underneath: primary-source signals that aren't in the articles. DNS records reveal the real tech stack. Job postings reveal what a company is actually building right now. The site corpus, external research, and that signal layer get triangulated into a long-form strategic analysis — competitive positioning, likely economics, operating constraints, consultant-grade hypotheses — with a confidence label on every non-obvious claim, so you always know what's confirmed, what's reported, and what's inference.
+Summaries of published articles are a commodity; any chat assistant's deep-research mode produces one. Primr is built for the layer underneath: primary-source signals that aren't in the articles. DNS records reveal the real tech stack. Job postings reveal what a company is actually building right now. The site corpus, external research, and that signal layer get triangulated into a long-form strategic analysis covering competitive positioning, likely economics, operating constraints, and consultant-grade hypotheses, with a confidence label on every non-obvious claim, so you always know what's confirmed, what's reported, and what's inference.
 
 ```
 primr "ExampleCo" https://example.co
 ```
 
-About 23-35 minutes later: a 23-section strategic analysis as Markdown and DOCX, with dense references consolidated at the end. **~$0.79 in API costs** when both `GEMINI_API_KEY` and `XAI_API_KEY` are set (Grok 4.3 for reasoning with cached input, Gemini 3.1 Flash-Lite for bulk writing — the v1.24.0 default after a cross-provider eval). XAI-only setups stay on the legacy Grok-NR writing path at ~$4.27/run.
+About 23-35 minutes later: a 23-section strategic analysis as Markdown and DOCX, with dense references consolidated at the end. **~$0.79 in API costs** when both `GEMINI_API_KEY` and `XAI_API_KEY` are set (Grok 4.3 for reasoning with cached input, Gemini 3.1 Flash-Lite for bulk writing; the v1.24.0 default after a cross-provider eval). XAI-only setups stay on the legacy Grok-NR writing path at ~$4.27/run.
 
 Primr is local-first and CLI-first; it also runs as an MCP server and a Claude Skill so agents can drive it ([details below](#use-primr-from-your-ai-tool)).
 
-> **Not a developer?** You (or whoever sets up your machine) need three things: Python, `pip install primr`, and API keys from one or two AI providers — `primr init` walks through all of it. Everything from [Agent Integration](#agent-integration-advanced) down is for developers and agent builders; you never need it to run research.
+> **Not a developer?** You (or whoever sets up your machine) need three things: Python, `pip install primr`, and API keys from one or two AI providers. `primr init` walks through all of it. Everything from [Agent Integration](#agent-integration-advanced) down is for developers and agent builders; you never need it to run research.
 
 ## Why This Exists
 
@@ -24,15 +24,15 @@ Company research is tedious. You visit the website, click around, search the com
 
 ## What Makes It Different
 
-- **DNS intelligence pre-flight**: Automatic domain reconnaissance detects cloud platforms, SaaS services, email security, and identity providers from DNS records — zero API keys, 2-3 seconds. Strategies are grounded in real tech stack data.
-- **Hiring-signal gathering**: After the main scrape, Primr discovers open job postings across eight ATS providers (Greenhouse, Lever, Ashby, SmartRecruiters, Workday, Workable, Recruitee, Jobvite) plus a corpus-driven Workday URL discovery path, an HTML careers-page fallback, and a DuckDuckGo web-search fallback that sweeps LinkedIn / Indeed / Glassdoor / job-board hosts when every other path comes up empty. The pipeline LLM-triages the most signal-rich postings and extracts tech-stack frequency, strategic initiatives, culture cues, and notable absences. Job posts are the most honest statement of what a company is actually building right now — they feed every downstream phase from gap analysis to final strategy and are the primary input to the skill pack subsystem. Skip with `PRIMR_SKIP_HIRING_SIGNALS=1`.
+- **DNS intelligence pre-flight**: Automatic domain reconnaissance detects cloud platforms, SaaS services, email security, and identity providers from DNS records. Zero API keys, 2-3 seconds. Strategies are grounded in real tech stack data.
+- **Hiring-signal gathering**: After the main scrape, Primr discovers open job postings across eight ATS providers (Greenhouse, Lever, Ashby, SmartRecruiters, Workday, Workable, Recruitee, Jobvite) plus a corpus-driven Workday URL discovery path, an HTML careers-page fallback, and a DuckDuckGo web-search fallback that sweeps LinkedIn / Indeed / Glassdoor / job-board hosts when every other path comes up empty. The pipeline LLM-triages the most signal-rich postings and extracts tech-stack frequency, strategic initiatives, culture cues, and notable absences. Job posts are the most honest statement of what a company is actually building right now; they feed every downstream phase from gap analysis to final strategy and are the primary input to the skill pack subsystem. Skip with `PRIMR_SKIP_HIRING_SIGNALS=1`.
 - **Adaptive scraping**: 9 retrieval methods from browser rendering to TLS fingerprinting to screenshot+vision extraction, with per-host optimization. Starts with full browser rendering (what works on 95%+ of modern sites) and falls back through increasingly specialized methods.
 - **Org-aware site selection**: Link discovery and prioritization now adapt for commercial companies, government sites, nonprofits, education, and healthcare organizations instead of assuming every site looks like a SaaS company.
 - **Fail-fast scrape quality gate**: Full/scrape modes now abort when site extraction is too thin, while still preserving short structured pages like contact, leadership, and org-chart references when they carry useful signal (override with `--skip-scrape-validation`).
-- **Autonomous external research**: Gemini Deep Research for comprehensive analysis, Grok 4.3 for fast turnaround — both plan queries, follow leads, cross-validate sources, and synthesize findings.
+- **Autonomous external research**: Gemini Deep Research for comprehensive analysis, Grok 4.3 for fast turnaround. Both plan queries, follow leads, cross-validate sources, and synthesize findings.
 - **Cost controls built in**: `--dry-run` estimates (including recovery table and stage classifications), `--budget $N` per-run cost ceiling (refuses to start over budget, skips optional stages once actual spend reaches it), usage tracking with per-run cache hit rates in `primr show-usage`, and governance hooks for budget limits.
 - **Agent-native interfaces**: CLI, MCP server, OpenClaw integration, and Claude Skills, all first-class.
-- **Skill pack generation**: `primr skills "<Company>" <url>` produces a QA-refined Agent Skills pack — up to 15 roles × M skills, grounded in DNS recon + actual job postings + strategic research. Internal pipeline: a two-call role planning step that emits an inspectable `role_plan.md` / `role_plan.json` (observed roles backed by posting citations + plausible roles inferred from research and industry classification, with provenance preserved end-to-end), archetype-grounded authoring with provenance-aware prompts, deterministic ASKILL-* validation, capped refinement loop, and pack-level coherence pass. Emits both an unpacked Claude/Cursor/VS Code tree AND a Microsoft 365 Copilot Cowork sideload `.zip` from the same byte-identical SKILL.md files. Full **operator roster curation**: `--plan-only` to inspect, `--from-plan` to author from a saved plan, `--roles-add` to augment the discovered roster, `--roles-skip` to prune from it (composes with `--from-plan`), `--roles-override` for full control.
+- **Skill pack generation**: `primr skills "<Company>" <url>` produces a QA-refined Agent Skills pack of up to 15 roles × M skills, grounded in DNS recon + actual job postings + strategic research. Internal pipeline: a two-call role planning step that emits an inspectable `role_plan.md` / `role_plan.json` (observed roles backed by posting citations + plausible roles inferred from research and industry classification, with provenance preserved end-to-end), archetype-grounded authoring with provenance-aware prompts, deterministic ASKILL-* validation, capped refinement loop, and pack-level coherence pass. Emits both an unpacked Claude/Cursor/VS Code tree AND a Microsoft 365 Copilot Cowork sideload `.zip` from the same byte-identical SKILL.md files. Full **operator roster curation**: `--plan-only` to inspect, `--from-plan` to author from a saved plan, `--roles-add` to augment the discovered roster, `--roles-skip` to prune from it (composes with `--from-plan`), `--roles-override` for full control.
 
 ## Artifact Model
 
@@ -45,14 +45,14 @@ What is already in place:
 - Typed generated-section normalization at the section-writing seam, including validation-line cleanup, embedded reference stripping, and citation extraction
 - Mixed-format parsing resilience so section batches can recover cleanly even if the model blends XML-style section envelopes with legacy `##` headings
 - Cleaner artifact validation for rendered DOCX outputs, including reduced false positives from literal `#` content inside tables
-- Configurable ship-time gates that withhold the polished DOCX (Markdown/TXT plus a sidecar diagnostic still ship) when a deliverable carries leaked internal scaffolding (`PRIMR_MAX_SCAFFOLDING_LEAKS`), dangling citations — inline `[cite: N]` with no matching Sources entry (`PRIMR_MAX_DANGLING_CITATIONS`), or structural defects — duplicate `##` headings and empty sections (`PRIMR_MAX_STRUCTURE_DEFECTS`). All default to zero tolerance and act as regression backstops behind the upstream cleanup/repair steps
+- Configurable ship-time gates that withhold the polished DOCX (Markdown/TXT plus a sidecar diagnostic still ship) when a deliverable carries leaked internal scaffolding (`PRIMR_MAX_SCAFFOLDING_LEAKS`), dangling citations (inline `[cite: N]` with no matching Sources entry, `PRIMR_MAX_DANGLING_CITATIONS`), or structural defects (duplicate `##` headings and empty sections, `PRIMR_MAX_STRUCTURE_DEFECTS`). All default to zero tolerance and act as regression backstops behind the upstream cleanup/repair steps
 - An artifact regression corpus (`tests/fixtures/artifacts/`) of long-form report/strategy fixtures that exercises the gates and renders the clean ones end-to-end to DOCX, so validator/renderer changes are tested against real-shaped output
 
-The writing and regeneration prompts now carry an explicit prohibition against the internal-scaffolding markers the ship-time gate strips, sourced from a single shared constant co-located with the scanner so the upstream instruction and the downstream gate stay in lockstep — the deterministic cleanup is meant to be a safety net, not load-bearing, and the `writer_output_clean` signal tracks whether it stays that way. Near-term work remaining focuses on continuing to move final rendering toward structured document data rather than free-form markdown recovery.
+The writing and regeneration prompts now carry an explicit prohibition against the internal-scaffolding markers the ship-time gate strips, sourced from a single shared constant co-located with the scanner so the upstream instruction and the downstream gate stay in lockstep. The deterministic cleanup is meant to be a safety net, not load-bearing, and the `writer_output_clean` signal tracks whether it stays that way. Near-term work remaining focuses on continuing to move final rendering toward structured document data rather than free-form markdown recovery.
 
 ## Modes
 
-> **Cost note (May 2026 / v1.24.0):** Default is now ~$0.79/run when both `GEMINI_API_KEY` and `XAI_API_KEY` are set (Grok 4.3 reasoning + Gemini 3.1 Flash-Lite writing). XAI-only setups stay on the legacy ~$4.27/run Grok-NR path. The cross-provider default was picked via a real eval on a mid-market public-signal company — 4.4x cheaper than the legacy default with trust gate PASS and faster runtime. See [docs/EVAL_V1_24_0.md](docs/EVAL_V1_24_0.md) for the decision audit.
+> **Cost note (May 2026 / v1.24.0):** Default is now ~$0.79/run when both `GEMINI_API_KEY` and `XAI_API_KEY` are set (Grok 4.3 reasoning + Gemini 3.1 Flash-Lite writing). XAI-only setups stay on the legacy ~$4.27/run Grok-NR path. The cross-provider default was picked via a real eval on a mid-market public-signal company: 4.4x cheaper than the legacy default with trust gate PASS and faster runtime. See [docs/EVAL_V1_24_0.md](docs/EVAL_V1_24_0.md) for the decision audit.
 
 | Mode | What it does | Time | Cost |
 |------|--------------|------|------|
@@ -70,7 +70,7 @@ The writing and regeneration prompts now carry an explicit prohibition against t
 | `--mode deep` | Gemini Deep Research on external sources only | 10-15 min | $2.50 |
 | `primr recon` | DNS intelligence only (no API keys needed) | 2-3 sec | $0.00 |
 
-The default `primr` command auto-detects: when `XAI_API_KEY` is set, it uses the Grok 4.3 hybrid pipeline (4.3 for reasoning-heavy stages, 4.20-non-reasoning for bulk writing) at ~$4.27/run. The standard pipeline includes research deepening, cross-validation, trust-polish, citation normalization, and constrained-evidence reasoning. Strategy types (`ai`, `customer_experience`, `modern_security_compliance`, `data_fabric_strategy`, `skills`) are YAML-defined and auto-discovered — run `primr --list-strategies` for details. DDG searches are free. Use `--dry-run` for accurate cost estimates.
+The default `primr` command auto-detects: when `XAI_API_KEY` is set, it uses the Grok 4.3 hybrid pipeline (4.3 for reasoning-heavy stages, 4.20-non-reasoning for bulk writing) at ~$4.27/run. The standard pipeline includes research deepening, cross-validation, trust-polish, citation normalization, and constrained-evidence reasoning. Strategy types (`ai`, `customer_experience`, `modern_security_compliance`, `data_fabric_strategy`, `skills`) are YAML-defined and auto-discovered; run `primr --list-strategies` for details. DDG searches are free. Use `--dry-run` for accurate cost estimates.
 
 For model evaluation and quality comparison, see [Evaluation Guide](docs/EVAL.md).
 
@@ -118,7 +118,7 @@ primr "Company" https://company.com --premium --lite           # Cheaper premium
 primr recon acme.com                                           # DNS intelligence lookup
 primr recon acme.com --json                                    # Structured JSON output
 
-# Skill pack — QA-refined Agent Skills for Claude + Microsoft 365 Copilot Cowork
+# Skill pack: QA-refined Agent Skills for Claude + Microsoft 365 Copilot Cowork
 primr skills "ExampleCo" https://example.co                              # 5 roles x 3 skills, ~$0.30
 primr skills "ExampleCo" https://example.co --roles 10 --skills-per-role 3   # holistic pack (1-15 roles)
 primr skills "ExampleCo" https://example.co --formats cowork             # only the .zip
@@ -240,30 +240,30 @@ primr ships with an `AGENTS.md` (auto-loaded by Kiro, Codex, Aider, Jules), a Cl
 /plugin install primr@blisspixel-primr
 ```
 
-That registers both the MCP server (`primr mcp`, exposed as `mcp__primr__*` tools) and the skill (cost gate, async lifecycle, mode selection — loaded on-demand based on its description).
+That registers both the MCP server (`primr mcp`, exposed as `mcp__primr__*` tools) and the skill (cost gate, async lifecycle, mode selection; loaded on-demand based on its description).
 
 **Skill-only install (no plugin):** paste this to Claude Code or any agent that can fetch and write files:
 
 > Fetch `https://raw.githubusercontent.com/blisspixel/primr/main/claude-code/skills/primr/SKILL.md` and save it to `~/.claude/skills/primr/SKILL.md`. Fetch the four files under `https://raw.githubusercontent.com/blisspixel/primr/main/claude-code/skills/primr/references/` and save them under `~/.claude/skills/primr/references/`. Then run `pip install primr && primr init`.
 
-**Other hosts (Cursor / Windsurf / Kiro / VS Code):** see [`clients/README.md`](clients/README.md) — copy-pasteable MCP config plus instructions for placing the skill or referencing `AGENTS.md` from the host's rules system.
+**Other hosts (Cursor / Windsurf / Kiro / VS Code):** see [`clients/README.md`](clients/README.md) for copy-pasteable MCP config plus instructions for placing the skill or referencing `AGENTS.md` from the host's rules system.
 
 ## Agent Integration (advanced)
 
-**MCP server** — Claude Code, Cursor, Windsurf, Claude Desktop, and any MCP-compatible client:
+**MCP server**, for Claude Code, Cursor, Windsurf, Claude Desktop, and any MCP-compatible client:
 
 ```bash
-primr mcp                      # stdio transport (default — what hosts launch)
+primr mcp                      # stdio transport (default; what hosts launch)
 primr mcp --http --port 8000   # HTTP with JWT auth
 primr-mcp --stdio              # legacy entry point, still supported
 ```
 
-**A2A Protocol** — Agent-to-Agent communication with any A2A-compatible agent:
+**A2A Protocol**, for Agent-to-Agent communication with any A2A-compatible agent:
 
 ```bash
 pip install primr[a2a]                     # install optional A2A support
 primr-a2a                                  # standalone A2A on 127.0.0.1:9000 (auth required)
-primr-a2a --host 127.0.0.1 --no-auth       # local dev only — refuses non-loopback hosts
+primr-a2a --host 127.0.0.1 --no-auth       # local dev only; refuses non-loopback hosts
 primr-mcp --http --a2a                     # co-hosted with MCP server (shares MCP auth)
 curl localhost:9000/.well-known/agent.json  # discover agent capabilities
 ```

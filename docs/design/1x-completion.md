@@ -43,7 +43,16 @@ calibration harness; traceability degradation reverts the iteration).
 - Run one calibration pass over recent current-format reports (measured by
   dry-run: ~164 judge calls ≈ $0.07–0.15) to establish the per-label
   baseline; then set `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` to the
-  measured floor and flip it to an armed-by-default HARD eval gate
+  measured floor and flip it to an armed-by-default HARD eval gate.
+  The judge can also run on a local OpenAI-compatible server for $0
+  (`--judge auto|local`, auto-detected via `/v1/models`, cloud default,
+  sidecars stamp `judge: {kind, model}`); `--judge-compare` measures
+  cloud-vs-local agreement on the same claims so a given local setup's
+  judging is trusted with receipts, not vibes. This is also the first
+  concrete slice of the 2.0 backend-freedom pillar pulled into 1.x: the
+  utility-tier local-routing plan (scrape summaries, link selection,
+  posting triage) follows the same pattern — detect, opt in, validate by
+  agreement, fail open to cloud — and is gated on these instruments.
 - Surface contradicted claims from `verification.json` in the report's
   trust summary (today: JSON + console only)
 - v2 calibration check: Estimated/Hypothesis claims must NOT be

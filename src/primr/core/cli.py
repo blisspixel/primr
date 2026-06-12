@@ -270,6 +270,9 @@ class CLIConfig:
     calibrate_recent: int | None = None
     calibrate_max_per_label: int = 10
     calibrate_dry_run: bool = False
+    calibrate_judge: str = "cloud"  # cloud | local | auto
+    calibrate_judge_model: str | None = None
+    calibrate_judge_compare: bool = False
     banner_mode: str = "auto"
     banner_explicit: bool = False
     # Agentic architecture options
@@ -504,6 +507,9 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         calibrate_recent=getattr(parsed, "calibrate_recent", None),
         calibrate_max_per_label=getattr(parsed, "max_per_label", 10),
         calibrate_dry_run=getattr(parsed, "dry_run", False),
+        calibrate_judge=getattr(parsed, "judge", "cloud"),
+        calibrate_judge_model=getattr(parsed, "judge_model", None),
+        calibrate_judge_compare=getattr(parsed, "judge_compare", False),
         banner_mode=banner_mode,
         banner_explicit=banner_explicit,
         resume_latest=getattr(parsed, "resume_latest", False),
@@ -1319,6 +1325,32 @@ Accordion Method Test (for development):
         metavar="N",
         help="With 'calibrate', max claims sampled per confidence label (default: 10)",
     )
+    parser.add_argument(
+        "--judge",
+        type=str,
+        choices=["cloud", "local", "auto"],
+        default="cloud",
+        help=(
+            "With 'calibrate', which LLM judges traceability: cloud (fast tier, default), "
+            "local (your OpenAI-compatible server, e.g. Ollama; errors if unavailable), "
+            "or auto (local when reachable, else cloud)"
+        ),
+    )
+    parser.add_argument(
+        "--judge-model",
+        type=str,
+        metavar="NAME",
+        help="With '--judge local/auto', pin a specific local model instead of auto-picking",
+    )
+    parser.add_argument(
+        "--judge-compare",
+        action="store_true",
+        help=(
+            "With 'calibrate', judge the same claims with BOTH cloud and local and report "
+            "agreement, measuring whether your local model can be trusted as the judge. "
+            "Sidecars are written from the cloud verdicts."
+        ),
+    )
     # QA review
     parser.add_argument(
         "--qa",
@@ -2044,7 +2076,9 @@ def _handle_calibrate(config: CLIConfig) -> int:
     from primr.qa.calibration_runner import (
         aggregate_per_label,
         aggregate_precision,
+        compare_judges,
         estimate_cost_usd,
+        resolve_judge,
         resolve_reports,
         run_calibration,
     )
@@ -2061,11 +2095,56 @@ def _handle_calibrate(config: CLIConfig) -> int:
     console.banner("Label Calibration")
     console.info(f"Reports: {len(reports)}")
 
-    outcomes = run_calibration(
-        reports,
-        max_per_label=config.calibrate_max_per_label,
-        dry_run=config.calibrate_dry_run,
-    )
+    if config.calibrate_judge_compare:
+        # Compare mode needs a working local judge alongside the cloud one.
+        try:
+            local_selection = resolve_judge("local", model=config.calibrate_judge_model)
+        except RuntimeError as e:
+            console.error(str(e))
+            return 1
+        console.info(f"Judges: cloud (fast-tier) vs local ({local_selection.model})")
+        if config.calibrate_dry_run:
+            outcomes = run_calibration(
+                reports, max_per_label=config.calibrate_max_per_label, dry_run=True
+            )
+            total_calls = sum(o.estimated_judge_calls for o in outcomes)
+            console.info(
+                f"Dry run: ~{total_calls} cloud judge calls (${estimate_cost_usd(total_calls):.2f})"
+                f" + ~{total_calls} local judge calls ($0.00)"
+            )
+            return 0
+        outcomes, agreement = compare_judges(
+            reports,
+            local_selection=local_selection,
+            max_per_label=config.calibrate_max_per_label,
+        )
+        if agreement.agreement is None:
+            console.warn("No claims were decidable by both judges — agreement not measurable")
+        else:
+            console.info(
+                f"Judge agreement: {agreement.agreement:.0%} "
+                f"({agreement.agreed}/{agreement.compared} decidable claims, "
+                f"local={agreement.local_model})"
+            )
+    else:
+        try:
+            judge_selection = resolve_judge(
+                config.calibrate_judge, model=config.calibrate_judge_model
+            )
+        except (RuntimeError, ValueError) as e:
+            console.error(str(e))
+            return 1
+        console.info(f"Judge: {judge_selection.kind} ({judge_selection.model})")
+        outcomes = run_calibration(
+            reports,
+            max_per_label=config.calibrate_max_per_label,
+            dry_run=config.calibrate_dry_run,
+            judge_selection=judge_selection,
+        )
+        if judge_selection.cloud_fallbacks:
+            console.warn(
+                f"Local judge fell back to cloud on {judge_selection.cloud_fallbacks} call(s)"
+            )
 
     failures = [o for o in outcomes if o.error]
     for outcome in failures:

@@ -182,9 +182,14 @@ constraints (#11), and runtime robustness (#24) are DONE. What remains is the
   reports (sidecar JSON, `--dry-run` cost preview), the eval scorecard reads
   sidecars into a `## Label Calibration` section + CSV columns, and the
   `FAIL_CALIBRATION` decision gate arms via
-  `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY`. Remaining: one cheap baseline
-  pass over recent reports (~$0.10), then set the threshold from measured
-  numbers — see `docs/design/1x-completion.md` workstream 1
+  `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY`. The judge also runs on any local
+  OpenAI-compatible server (Ollama/LM Studio/vLLM) for $0 — `--judge
+  auto|local`, auto-detected, cloud default, provenance stamped in sidecars,
+  `--judge-compare` measures cloud-vs-local agreement (the first production
+  slice of the 2.0 backend-freedom pattern: detect, opt in, validate by
+  agreement, fail open). Remaining: one cheap baseline pass over recent
+  reports (~$0.10), then set the threshold from measured numbers — see
+  `docs/design/1x-completion.md` workstream 1
 
 **Exit criteria:** a sparse-company run still feels substantive; a
 rich-company run is sharp and differentiated; the deliverable ships clean
