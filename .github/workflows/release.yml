@@ -101,7 +101,11 @@ jobs:
             --of JSON -o "sbom/primr-${TAG_VERSION}-sbom.cdx.json"
 
       - name: Generate SLSA build provenance attestation
-        uses: actions/attest-build-provenance@v2
+        # v4+ runs on the Node 24 runtime — GitHub forces Node 24 from
+        # 2026-06-16 and removes Node 20 from runners 2026-09-16; the v2
+        # internals are Node 20 and would break the next release after that.
+        # Inputs are unchanged across v2 -> v4 (v4 wraps actions/attest).
+        uses: actions/attest-build-provenance@v4
         with:
           # Attest the published artifacts, so consumers can cryptographically
           # verify these wheels/sdists were built by this workflow from this
