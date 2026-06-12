@@ -1,0 +1,234 @@
+"""Contract tests for perform_deep_research (roadmap #23 endgame).
+
+The premium-mode orchestrator: pre-flight validation before expensive API
+calls, orphaned-resource cleanup, the async DeepResearch orchestrator call,
+partial-result salvage on failure, artifact generation routing, the strategy
+loop, and usage/cost recording. Seams are patched; run-state IO is real
+against tmp folders so the persisted lifecycle is pinned as written to disk.
+"""
+
+from __future__ import annotations
+
+import json
+import time
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
+import pytest
+
+from primr.core import research_agent
+
+
+def _read_state(folder: Path) -> dict:
+    return json.loads((folder / "_run_state.json").read_text(encoding="utf-8"))
+
+
+def _result(**overrides):
+    defaults = {
+        "success": True,
+        "error": None,
+        "section_results": {"overview": "## Overview\nbody"},
+        "sections_written": 8,
+        "raw_content": "## Report\nfull markdown [cite: 1] and [cite: 2]",
+        "search_queries_count": 12,
+    }
+    defaults.update(overrides)
+    return SimpleNamespace(**defaults)
+
+
+@pytest.fixture
+def seams(monkeypatch, tmp_path):
+    run_folder = tmp_path / "working" / "acme"
+    run_folder.mkdir(parents=True)
+    out_dir = tmp_path / "output"
+
+    monkeypatch.setattr(
+        "primr.config.settings.get_settings",
+        lambda: SimpleNamespace(api=SimpleNamespace(gemini_key="fake-gemini-key")),
+    )
+    cleanup = MagicMock(return_value={"caches_deleted": 0, "stores_deleted": 0})
+    monkeypatch.setattr("primr.ai.deep_research.cleanup_orphaned_resources", cleanup)
+
+    research_result = _result()
+
+    async def fake_research(**kwargs):
+        captured["research_kwargs"] = kwargs
+        return research_result
+
+    orchestrator = SimpleNamespace(research=fake_research)
+    monkeypatch.setattr(research_agent, "get_orchestrator", lambda: orchestrator)
+
+    save_section = MagicMock()
+    monkeypatch.setattr(research_agent, "save_section_output", save_section)
+    docx = MagicMock(return_value=str(out_dir / "deep.docx"))
+    monkeypatch.setattr(research_agent, "_convert_deep_research_to_docx", docx)
+    final_report = MagicMock(return_value=str(out_dir / "assembled.docx"))
+    monkeypatch.setattr(research_agent, "generate_final_report", final_report)
+    strategy_gen = MagicMock(side_effect=lambda **k: str(out_dir / f"{k['platform']}.docx"))
+    monkeypatch.setattr(research_agent, "_generate_strategy_section", strategy_gen)
+
+    fake_client = MagicMock()
+    fake_client.get_usage_summary.return_value = {
+        "total_cost": 1.25,
+        "total_input_tokens": 1000,
+        "total_output_tokens": 500,
+    }
+    monkeypatch.setattr("primr.ai.client.get_client", lambda: fake_client)
+    monkeypatch.setattr(
+        "primr.utils.cost_estimator.estimate_cost",
+        lambda *a, **k: SimpleNamespace(total_cost=2.50),
+    )
+    tracker = MagicMock()
+    monkeypatch.setattr("primr.utils.usage_tracker.get_usage_tracker", lambda: tracker)
+    job_log = MagicMock()
+    monkeypatch.setattr(research_agent, "log_job_summary", job_log)
+
+    captured = {
+        "folder": run_folder,
+        "out_dir": out_dir,
+        "result": research_result,
+        "cleanup": cleanup,
+        "save_section": save_section,
+        "docx": docx,
+        "final_report": final_report,
+        "strategy_gen": strategy_gen,
+        "tracker": tracker,
+        "job_log": job_log,
+    }
+    return captured
+
+
+def _run(seams, **overrides):
+    defaults = {
+        "company_name": "AcmeCo",
+        "website": "https://acme.example",
+        "mode": "deep-research",
+        "start_time": time.time() - 90,
+        "folder_path": str(seams["folder"]),
+    }
+    defaults.update(overrides)
+    return research_agent.perform_deep_research(**defaults)
+
+
+class TestPreflight:
+    def test_no_company_or_website_fails_before_api_calls(self, seams):
+        assert _run(seams, company_name=None, website=None) is None
+        state = _read_state(seams["folder"])
+        assert state["status"] == "failed"
+        assert state["current_phase"] == "preflight"
+        assert "research_kwargs" not in seams  # orchestrator never invoked
+
+    def test_missing_context_file_fails_with_recorded_errors(self, seams, tmp_path):
+        assert _run(seams, context_files=[str(tmp_path / "ghost.pdf")]) is None
+        state = _read_state(seams["folder"])
+        failed = [e for e in state["events"] if e.get("status") == "failed"]
+        assert any("ghost.pdf" in str(e) for e in failed)
+
+    def test_empty_context_file_rejected(self, seams, tmp_path):
+        empty = tmp_path / "empty.pdf"
+        empty.touch()
+        assert _run(seams, context_files=[str(empty)]) is None
+
+    def test_missing_gemini_key_fails_preflight(self, seams, monkeypatch):
+        monkeypatch.setattr(
+            "primr.config.settings.get_settings",
+            lambda: SimpleNamespace(api=SimpleNamespace(gemini_key=None)),
+        )
+        assert _run(seams) is None
+        assert "research_kwargs" not in seams
+
+    def test_orphan_cleanup_failure_is_nonfatal(self, seams):
+        seams["cleanup"].side_effect = RuntimeError("cleanup exploded")
+        result = _run(seams)
+        assert result == str(seams["out_dir"] / "deep.docx")
+
+
+class TestFailurePath:
+    def test_failure_marks_state_and_returns_none(self, seams):
+        seams["result"].success = False
+        seams["result"].error = "quota exhausted"
+        seams["result"].section_results = {}
+        assert _run(seams) is None
+        state = _read_state(seams["folder"])
+        assert state["status"] == "failed"
+        assert state["current_phase"] == "deep_research"
+
+    def test_partial_sections_salvaged_on_failure(self, seams):
+        seams["result"].success = False
+        seams["result"].error = "died mid-run"
+        seams["result"].section_results = {"overview": "partial", "market": "partial"}
+        assert _run(seams) is None
+        assert seams["save_section"].call_count == 2
+
+    def test_orchestrator_exception_degrades_to_none(self, seams, monkeypatch):
+        async def boom(**kwargs):
+            raise RuntimeError("orchestrator exploded")
+
+        monkeypatch.setattr(
+            research_agent, "get_orchestrator", lambda: SimpleNamespace(research=boom)
+        )
+        assert _run(seams) is None
+        state = _read_state(seams["folder"])
+        assert state["status"] == "failed"
+        assert state["current_phase"] == "error"
+
+
+class TestSuccessPath:
+    def test_artifacts_and_completed_state(self, seams):
+        result = _run(seams)
+        assert result == str(seams["out_dir"] / "deep.docx")
+        # Sections persisted + raw markdown saved for reference
+        seams["save_section"].assert_called_once()
+        raw_md = seams["folder"] / "deep_research_output.md"
+        assert raw_md.read_text(encoding="utf-8").startswith("## Report")
+        state = _read_state(seams["folder"])
+        assert state["status"] == "completed"
+        assert state["duration_seconds"] >= 90
+
+    def test_docx_conversion_receives_output_routing(self, seams, tmp_path):
+        custom = tmp_path / "custom-out"
+        _run(seams, output_dir=str(custom), write_txt=False)
+        kwargs = seams["docx"].call_args.kwargs
+        assert kwargs["output_dir"] == custom
+        assert kwargs["write_txt"] is False
+
+    def test_no_raw_content_uses_structured_assembly(self, seams):
+        seams["result"].raw_content = ""
+        result = _run(seams)
+        assert result == str(seams["out_dir"] / "assembled.docx")
+        seams["docx"].assert_not_called()
+        seams["final_report"].assert_called_once()
+
+    def test_sections_written_fallback_to_results_len(self, seams):
+        seams["result"].sections_written = 0
+        seams["result"].section_results = {"a": "1", "b": "2", "c": "3"}
+        _run(seams)
+        job = seams["job_log"].call_args.args[0]
+        assert job.sections_generated == 3
+
+    def test_usage_recorded_with_search_queries(self, seams):
+        _run(seams)
+        kwargs = seams["tracker"].record_usage.call_args.kwargs
+        assert kwargs["search_queries"] == 12
+        assert kwargs["pipeline_cost"] == 1.25
+        assert kwargs["deep_research_cost"] > 0  # one DR task for deep-research mode
+        seams["tracker"].save.assert_called_once()
+
+
+class TestStrategyLoop:
+    def test_multi_vendor_ai_strategy_compound_keys(self, seams):
+        result = _run(seams, strategies=["ai"], platforms=("aws", "azure"))
+        assert result == str(seams["out_dir"] / "deep.docx")
+        assert seams["strategy_gen"].call_count == 2
+        vendors = [c.kwargs["platform"] for c in seams["strategy_gen"].call_args_list]
+        assert vendors == ["aws", "azure"]
+
+    def test_legacy_ai_strategy_flag_maps_to_ai(self, seams):
+        _run(seams, ai_strategy=True, platforms=("azure",))
+        assert seams["strategy_gen"].call_count == 1
+        assert seams["strategy_gen"].call_args.kwargs["strategy_name"] == "ai"
+
+    def test_no_strategy_skips_loop(self, seams):
+        _run(seams)
+        seams["strategy_gen"].assert_not_called()
