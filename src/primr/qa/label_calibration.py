@@ -295,11 +295,10 @@ def _default_fetch(url: str) -> str:
     return ""
 
 
-def _default_judge(claim_sentence: str, source_text: str) -> bool:
-    """LLM judge: does the source text substantively support the claim?"""
-    from primr.ai.llm import llm
-
-    prompt = (
+def build_judge_prompt(claim_sentence: str, source_text: str) -> str:
+    """The traceability-judge prompt, shared by the cloud and local judges
+    so a verdict never depends on which backend produced it."""
+    return (
         "You are auditing a research report's citation. Does the SOURCE TEXT "
         "substantively support the CLAIM? Supporting means the source contains "
         "the claim's substance (figures, named facts, events) — topical "
@@ -308,9 +307,38 @@ def _default_judge(claim_sentence: str, source_text: str) -> bool:
         f"SOURCE TEXT:\n{source_text[:4000]}\n\n"
         'Answer with exactly one word: "yes" or "no".'
     )
+
+
+def parse_judge_answer(raw: str) -> bool:
+    """Parse a yes/no judge answer defensively.
+
+    Local models vary: reasoning families wrap answers in <think> blocks,
+    others add punctuation or a trailing explanation. Strategy: strip think
+    blocks; if the answer *opens* with yes/no, that is the verdict (the
+    model answered directly, anything after is elaboration); otherwise take
+    the LAST yes/no token (reasoning-style answers conclude with the
+    verdict). Unparseable answers are ``False`` — an undecipherable
+    judgment must never count as support.
+    """
+    text = re.sub(r"<think>.*?</think>", " ", raw, flags=re.DOTALL | re.IGNORECASE).strip()
+    opening = re.match(r'^["\'`*\s]*(yes|no)\b', text, flags=re.IGNORECASE)
+    if opening:
+        return opening.group(1).lower() == "yes"
+    matches = re.findall(r"\b(yes|no)\b", text, flags=re.IGNORECASE)
+    if not matches:
+        return False
+    return matches[-1].lower() == "yes"
+
+
+def _default_judge(claim_sentence: str, source_text: str) -> bool:
+    """LLM judge: does the source text substantively support the claim?"""
+    from primr.ai.llm import llm
+
     try:
-        response = llm(prompt, model_type="fast", temperature=0.0)
-        return str(response).strip().lower().startswith("y")
+        response = llm(
+            build_judge_prompt(claim_sentence, source_text), model_type="fast", temperature=0.0
+        )
+        return parse_judge_answer(str(response))
     except Exception as e:
         logger.warning("Calibration judge failed: %s", e)
         return False

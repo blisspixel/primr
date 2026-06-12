@@ -167,6 +167,183 @@ class TestAggregation:
         assert aggregate_precision(totals, "Reported") is None
 
 
+class TestJudgeSelection:
+    def test_cloud_mode_uses_harness_default(self):
+        from primr.qa.calibration_runner import resolve_judge
+
+        selection = resolve_judge("cloud")
+        assert selection.kind == "cloud"
+        assert selection.judge_fn is None  # harness default judge
+
+    def test_local_mode_errors_when_no_server(self):
+        from primr.qa.calibration_runner import resolve_judge
+
+        with pytest.raises(RuntimeError, match="--judge auto"):
+            resolve_judge("local", list_models_fn=lambda base: [])
+
+    def test_auto_falls_back_to_cloud_silently(self):
+        from primr.qa.calibration_runner import resolve_judge
+
+        selection = resolve_judge("auto", list_models_fn=lambda base: [])
+        assert selection.kind == "cloud"
+
+    def test_auto_prefers_local_when_available(self):
+        from primr.qa.calibration_runner import resolve_judge
+
+        selection = resolve_judge(
+            "auto",
+            list_models_fn=lambda base: ["qwen2.5:14b"],
+            make_local_judge_fn=lambda model, **kw: lambda c, t: True,
+        )
+        assert selection.kind == "local"
+        assert selection.model == "qwen2.5:14b"
+        assert selection.judge_fn("claim", "source") is True
+
+    def test_pinned_model_overrides_auto_pick(self):
+        from primr.qa.calibration_runner import resolve_judge
+
+        selection = resolve_judge(
+            "local",
+            model="my-custom:13b",
+            list_models_fn=lambda base: ["qwen2.5:14b", "my-custom:13b"],
+            make_local_judge_fn=lambda model, **kw: lambda c, t: True,
+        )
+        assert selection.model == "my-custom:13b"
+
+    def test_unknown_mode_raises(self):
+        from primr.qa.calibration_runner import resolve_judge
+
+        with pytest.raises(ValueError, match="judge mode"):
+            resolve_judge("hybrid")
+
+
+class TestLocalJudge:
+    def test_local_judge_parses_completion(self):
+        from types import SimpleNamespace
+
+        from primr.qa.calibration_runner import make_local_judge
+
+        judge = make_local_judge("m:7b", complete_fn=lambda *a, **k: SimpleNamespace(text="yes"))
+        assert judge("claim", "source") is True
+
+    def test_local_judge_strips_think_blocks(self):
+        from types import SimpleNamespace
+
+        from primr.qa.calibration_runner import make_local_judge
+
+        judge = make_local_judge(
+            "r1:32b",
+            complete_fn=lambda *a, **k: SimpleNamespace(
+                text="<think>the claim says X, source says X</think>\nyes"
+            ),
+        )
+        assert judge("claim", "source") is True
+
+    def test_local_failure_falls_back_and_counts(self):
+        from primr.qa.calibration_runner import make_local_judge
+
+        def explode(*a, **k):
+            raise ConnectionError("server went away")
+
+        counter = [0]
+        judge = make_local_judge(
+            "m:7b",
+            complete_fn=explode,
+            on_fallback=lambda c, t: True,
+            fallback_counter=counter,
+        )
+        assert judge("claim", "source") is True  # fallback verdict, not False
+        assert counter == [1]
+
+
+class TestJudgeProvenance:
+    def test_sidecar_records_judge_metadata(self, tmp_path):
+        from primr.qa.calibration_runner import JudgeSelection
+
+        path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        selection = JudgeSelection(kind="local", model="qwen2.5:14b", judge_fn=lambda c, t: True)
+        run_calibration([path], fetch_fn=lambda u: "text", judge_selection=selection)
+        payload = json.loads(sidecar_path_for(path).read_text(encoding="utf-8"))
+        assert payload["judge"] == {"kind": "local", "model": "qwen2.5:14b"}
+
+    def test_default_judge_metadata_is_cloud(self, tmp_path):
+        path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        run_calibration([path], fetch_fn=lambda u: "text", judge_fn=lambda c, t: True)
+        payload = json.loads(sidecar_path_for(path).read_text(encoding="utf-8"))
+        assert payload["judge"] == {"kind": "cloud", "model": "fast-tier"}
+
+
+class TestJudgeComparison:
+    def test_agreement_counts_decidable_claims_only(self, tmp_path):
+        from primr.qa.calibration_runner import JudgeSelection, compare_judges
+
+        path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        # Cloud says yes to everything; local says no to everything.
+        local = JudgeSelection(kind="local", model="m:7b", judge_fn=lambda c, t: False)
+        outcomes, agreement = compare_judges(
+            [path],
+            local_selection=local,
+            fetch_fn=lambda u: "text",
+            cloud_judge_fn=lambda c, t: True,
+        )
+        # Two judgeable claims (Confirmed + Reported); both decided by both judges.
+        assert agreement.compared == 2
+        assert agreement.agreed == 0
+        assert agreement.agreement == 0.0
+        # Sidecars come from the cloud pass.
+        payload = json.loads(sidecar_path_for(path).read_text(encoding="utf-8"))
+        assert payload["judge"]["kind"] == "cloud"
+        assert payload["per_label"]["Confirmed"]["traceable"] == 1
+
+    def test_full_agreement(self, tmp_path):
+        from primr.qa.calibration_runner import JudgeSelection, compare_judges
+
+        path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        local = JudgeSelection(kind="local", model="m:7b", judge_fn=lambda c, t: True)
+        _, agreement = compare_judges(
+            [path],
+            local_selection=local,
+            fetch_fn=lambda u: "text",
+            cloud_judge_fn=lambda c, t: True,
+        )
+        assert agreement.agreement == 1.0
+
+    def test_cloud_judge_billed_once_per_pair(self, tmp_path):
+        from primr.qa.calibration_runner import JudgeSelection, compare_judges
+
+        path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        cloud_calls = []
+
+        def counting_cloud(claim, text):
+            cloud_calls.append(claim)
+            return True
+
+        local = JudgeSelection(kind="local", model="m:7b", judge_fn=lambda c, t: True)
+        compare_judges(
+            [path],
+            local_selection=local,
+            fetch_fn=lambda u: "text",
+            cloud_judge_fn=counting_cloud,
+        )
+        # Two judgeable claims -> exactly two unique (claim, source) pairs,
+        # despite the sidecar pass AND the comparison pass both consulting it.
+        assert len(cloud_calls) == 2
+
+    def test_unfetchable_claims_not_compared(self, tmp_path):
+        from primr.qa.calibration_runner import JudgeSelection, compare_judges
+
+        path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        local = JudgeSelection(kind="local", model="m:7b", judge_fn=lambda c, t: True)
+        _, agreement = compare_judges(
+            [path],
+            local_selection=local,
+            fetch_fn=lambda u: "",  # nothing fetchable -> nothing decidable
+            cloud_judge_fn=lambda c, t: True,
+        )
+        assert agreement.compared == 0
+        assert agreement.agreement is None
+
+
 class TestCLIWiring:
     def test_calibrate_positional_routes(self):
         from primr.core.cli import Command, parse_args
@@ -189,6 +366,29 @@ class TestCLIWiring:
         assert config.calibrate_recent == 10
         assert config.calibrate_max_per_label == 5
         assert config.calibrate_dry_run is True
+        assert config.calibrate_judge == "cloud"  # cloud is the default judge
+        assert config.calibrate_judge_compare is False
+
+    def test_judge_flags(self):
+        from primr.core.cli import parse_args
+
+        config = parse_args(
+            ["calibrate", "Acme", "--judge", "auto", "--judge-model", "qwen2.5:14b"]
+        )
+        assert config.calibrate_judge == "auto"
+        assert config.calibrate_judge_model == "qwen2.5:14b"
+
+    def test_judge_compare_flag(self):
+        from primr.core.cli import parse_args
+
+        config = parse_args(["calibrate", "Acme", "--judge-compare"])
+        assert config.calibrate_judge_compare is True
+
+    def test_invalid_judge_choice_rejected(self):
+        from primr.core.cli import parse_args
+
+        with pytest.raises(SystemExit):
+            parse_args(["calibrate", "Acme", "--judge", "hybrid"])
 
     def test_handler_errors_when_nothing_resolves(self, tmp_path, monkeypatch):
         from primr.core.cli import CLIConfig, Command, _handle_calibrate

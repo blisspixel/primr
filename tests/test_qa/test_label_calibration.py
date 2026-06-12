@@ -246,6 +246,38 @@ class TestCalibration:
         assert isinstance(encoded["claims"], list)
 
 
+class TestParseJudgeAnswer:
+    def _parse(self, raw):
+        from primr.qa.label_calibration import parse_judge_answer
+
+        return parse_judge_answer(raw)
+
+    def test_one_word_answers(self):
+        assert self._parse("yes") is True
+        assert self._parse("No") is False
+        assert self._parse("YES.") is True
+
+    def test_quoted_and_decorated_answers(self):
+        assert self._parse('"yes"') is True
+        assert self._parse("**No**") is False
+
+    def test_direct_answer_wins_over_trailing_mentions(self):
+        # The model answered first, then elaborated using the other word.
+        assert self._parse("Yes — though the source has no exact figure.") is True
+        assert self._parse("No, the claim says yes but the source does not.") is False
+
+    def test_reasoning_answer_concludes_with_verdict(self):
+        assert self._parse("The claim asserts X. The source covers X. So: yes") is True
+
+    def test_think_block_content_ignored(self):
+        raw = "<think>I'd say yes... wait, the figures differ</think>\nno"
+        assert self._parse(raw) is False
+
+    def test_unparseable_never_counts_as_support(self):
+        assert self._parse("") is False
+        assert self._parse("the source is interesting") is False
+
+
 class TestEndToEndFile:
     def test_calibrate_report_file(self, tmp_path):
         from primr.qa.label_calibration import calibrate_report_file
