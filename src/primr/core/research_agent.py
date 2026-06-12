@@ -72,6 +72,7 @@ from primr.core.fast_run_hiring import collect_hiring_block
 from primr.core.fast_run_sections import write_report_sections
 from primr.core.fast_run_strategy import run_strategy_phase
 from primr.core.fast_run_trust import polish_and_gate_fast_report
+from primr.core.fast_run_validation import cross_validate_and_enrich
 from primr.core.fast_run_workbook import generate_analysis_workbook
 from primr.core.insights_assembly import build_combined_insights, build_external_sources_raw
 from primr.core.report_cleanup import (
@@ -2606,7 +2607,6 @@ def perform_fast_research(
 
     from primr.ai.grok_client import ContinuousReasoningSession
     from primr.core.fast_run_setup import resolve_fast_run_setup
-    from primr.pipeline.llm_failover import LLMRole, call_with_failover
 
     # Stage 0 (extracted: core/fast_run_setup.py — roadmap #23 Batch A):
     # session reset, model resolution + routing + eval-recipe override,
@@ -3151,307 +3151,26 @@ def perform_fast_research(
         total_words = _sections_result.total_words
 
         # =================================================================
-        # Phase 5: Cross-Validation (review + targeted enrichment)
+        # Phase 5: Cross-Validation (extracted: core/fast_run_validation.py)
         # =================================================================
-        console.phase_banner(
-            5,
-            total_phases,
-            "Cross-Validation",
-            "Reviewing report for gaps and weak sections",
-            "2-4 min",
+        _cv = cross_validate_and_enrich(
+            company_name=company_name,
+            company_label=company_name or display_name,
+            website=website,
+            report_content=report_content,
+            source_urls=source_urls,
+            source_urls_seen=source_urls_seen,
+            analysis_workbook=analysis_workbook,
+            grok_reasoning=grok_reasoning,
+            grok_writing=grok_writing,
+            reasoning_session=reasoning_session,
+            recovery_executor=_recovery_executor,
+            folder_path=folder_path,
+            total_phases=total_phases,
         )
-
-        with console.timed_operation("Reviewing report quality via Grok"):
-            from primr.pipeline.integration import cross_validate_with_recovery
-
-            def _do_cross_validate():
-                return _fast_cross_validate(
-                    company_name or display_name,
-                    website,
-                    report_content,
-                    source_urls,
-                    model=grok_reasoning,
-                    reasoning_session=reasoning_session,
-                )
-
-            _cv_stage_result = cross_validate_with_recovery(
-                _recovery_executor, _do_cross_validate, folder_path
-            )
-            if _cv_stage_result.success:
-                cv_result = _cv_stage_result.output
-            else:
-                logger.info("Cross-validation skipped: %s", _cv_stage_result.skip_reason)
-                cv_result = {"weak_sections": [], "contradictions": [], "_failed": True}
-
-        cv_failed = cv_result.pop("_failed", False)
-        weak_sections = cv_result.get("weak_sections", [])
-        contradictions = cv_result.get("contradictions", [])
-        unresolved_contradictions = len(contradictions)
-        sections_enriched = 0
-        cv_search_count = 0
-
-        if cv_failed:
-            console.warn("Cross-validation failed — report was not quality-checked")
-        elif weak_sections:
-            console.ok(f"Review complete: {len(weak_sections)} section(s) flagged for enrichment")
-
-            # Build a lookup of report headings for case-insensitive matching
-            report_headings = re.findall(r"^## (.+)$", report_content, re.MULTILINE)
-            heading_lookup = {h.lower().strip(): h for h in report_headings}
-
-            # Per-section enrichment deadline. Without this, a single slow
-            # query (DDG hang, slow validator, deadlocked external scrape)
-            # blocked the whole cross-validation phase indefinitely — caught
-            # twice during the v1.24.0 eval where two cells deadlocked here
-            # for 12-24 hours. The inner scrape_external_sources_validated
-            # call has retry/backoff but no overarching wall-clock cap, so
-            # we add one at this level instead. Matches the pattern used at
-            # line 4403 (external-source validation pool deadline).
-            from concurrent.futures import ThreadPoolExecutor, as_completed
-            from concurrent.futures import TimeoutError as _FutTimeout
-
-            from primr.pipeline.diminishing_returns import (
-                DiminishingReturnsDetector,
-                assess_improvement,
-            )
-
-            _enrich_section_deadline_s = 300.0  # 5 min hard cap per section
-            _returns_detector = DiminishingReturnsDetector()
-
-            for ws in weak_sections:
-                raw_title = str(ws.get("title", "")).lstrip("#").strip()
-                raw_queries = ws.get("queries", [])
-                queries = [str(q) for q in raw_queries[:3]] if isinstance(raw_queries, list) else []
-
-                if not raw_title or not queries:
-                    continue
-
-                # Case-insensitive heading match
-                section_title = heading_lookup.get(raw_title.lower(), raw_title)
-
-                # Search for additional evidence — wrapped in a future so a
-                # hung sub-call can be abandoned without blocking the whole
-                # cross-validation phase. `_queries` is bound as a default arg
-                # to defeat the late-binding-in-closure trap (otherwise each
-                # iteration's submitted worker would capture the same `queries`
-                # name and see whatever it resolves to at call time).
-                def _enrich_section_work(
-                    _queries: list[str] = queries,
-                ) -> tuple[list[str], int, list[str], set[str]]:
-                    local_evidence: list[str] = []
-                    local_new_sources = 0
-                    local_urls: list[str] = []
-                    local_urls_seen: set[str] = set()
-                    for q in _queries:
-                        results = search_web(q, company_name, website)
-                        if not results:
-                            continue
-                        filtered = [
-                            r
-                            for r in results[:3]
-                            if (not website or website.lower() not in r.get("url", "").lower())
-                            and r.get("url", "") not in source_urls_seen
-                            and r.get("url", "") not in local_urls_seen
-                        ]
-                        scraped = scrape_external_sources_validated(
-                            filtered,
-                            company_name=company_name,
-                            website=website,
-                            max_sources=3,
-                        )
-                        for url, content in scraped.items():
-                            if url in source_urls_seen or url in local_urls_seen:
-                                continue
-                            local_urls.append(url)
-                            local_urls_seen.add(url)
-                            local_evidence.append(f"[Source: {url}]\n{content[:12_000]}")
-                            local_new_sources += 1
-                    return local_evidence, local_new_sources, local_urls, local_urls_seen
-
-                new_evidence_parts: list[str] = []
-                cv_new_sources = 0
-                _enrich_pool = ThreadPoolExecutor(max_workers=1)
-                cv_search_count += len(queries)  # count queries even if abandoned
-                with console.timed_operation(f"Enriching: {section_title}"):
-                    fut = _enrich_pool.submit(_enrich_section_work)
-                    try:
-                        # Single-future as_completed with deadline. Raises
-                        # TimeoutError if the worker hasn't finished in time.
-                        for completed in as_completed([fut], timeout=_enrich_section_deadline_s):
-                            (
-                                _evidence,
-                                _new_count,
-                                _urls,
-                                _seen,
-                            ) = completed.result()
-                            new_evidence_parts = _evidence
-                            cv_new_sources = _new_count
-                            # Merge per-section URL tracking back into outer scope
-                            for url in _urls:
-                                if url not in source_urls_seen:
-                                    source_urls.append(url)
-                                    source_urls_seen.add(url)
-                    except _FutTimeout:
-                        console.warn(
-                            f"Enrichment deadline ({int(_enrich_section_deadline_s)}s) "
-                            f"exceeded for '{section_title}' — abandoning this section "
-                            f"and continuing"
-                        )
-                        # Best-effort cancel of the stuck worker so it doesn't
-                        # keep eating resources while we move on.
-                        _enrich_pool.shutdown(wait=False, cancel_futures=True)
-                        continue
-                    except Exception as e:
-                        logger.warning(
-                            "Enrichment worker for %s failed: %s",
-                            section_title,
-                            e,
-                        )
-                        _enrich_pool.shutdown(wait=False, cancel_futures=True)
-                        continue
-                    finally:
-                        _enrich_pool.shutdown(wait=False)
-
-                if not new_evidence_parts:
-                    continue
-
-                new_evidence = "\n\n".join(new_evidence_parts)
-
-                # Find the original section content in the report
-                section_pattern = re.compile(
-                    rf"(## {re.escape(section_title)}\n.*?)(?=\n## |\Z)",
-                    re.DOTALL,
-                )
-                match = section_pattern.search(report_content)
-                if not match:
-                    log_structured(
-                        "warning",
-                        "Cross-validation: section not found in report",
-                        section=section_title,
-                    )
-                    continue
-
-                original_section = match.group(1)
-
-                # Re-generate the section with new evidence
-                with console.timed_operation(f"Rewriting: {section_title}"):
-                    regenerated = _fast_regenerate_section(
-                        company_name or display_name,
-                        website,
-                        section_title,
-                        original_section,
-                        analysis_workbook,
-                        new_evidence,
-                        source_urls,
-                        model=grok_writing,
-                    )
-
-                # Splice back into report (preserve \n\n separator between sections)
-                if regenerated and regenerated != original_section:
-                    if not regenerated.endswith("\n"):
-                        regenerated += "\n"
-                    report_content = (
-                        report_content[: match.start()]
-                        + regenerated
-                        + report_content[match.end() :]
-                    )
-                    sections_enriched += 1
-                    console.ok(f"Enriched: {section_title} ({cv_new_sources} new source(s))")
-
-                # Diminishing-returns check: stop the regeneration loop early
-                # when consecutive rewrites stop producing real improvement,
-                # rather than spending the full token budget on the tail.
-                _returns_detector.record(
-                    assess_improvement(section_title, original_section, regenerated or "")
-                )
-                if _returns_detector.should_stop():
-                    console.warn(_returns_detector.stop_reason())
-                    log_structured(
-                        "info",
-                        "Cross-validation regeneration stopped early",
-                        **{
-                            k: v
-                            for k, v in _returns_detector.summary().items()
-                            if k != "per_section"
-                        },
-                    )
-                    break
-
-            cv_result["diminishing_returns"] = _returns_detector.summary()
-        else:
-            console.ok("Review complete: no sections flagged for enrichment")
-
-        if contradictions:
-            for c in contradictions:
-                console.info(f"Contradiction noted: {c[:100]}")
-
-            # Resolve contradictions by asking Grok to standardize
-            try:
-                contradiction_list = "\n".join(f"- {c}" for c in contradictions)
-                resolve_prompt = f"""You are editing a strategic report about {company_name or display_name}.
-
-The cross-validation pass found these contradictions between sections:
-
-{contradiction_list}
-
-For EACH contradiction:
-1. Determine which value has the strongest source/evidence
-2. Standardize the report to use that value consistently
-3. Add a confidence label if the value is uncertain
-
-RULES:
-- Do NOT delete, summarize, or condense any sections, paragraphs, or content
-- Make ONLY surgical edits to the specific contradictory values/numbers
-- Do NOT rewrite prose — change only the conflicting data points
-- When evidence is ambiguous, use the most conservative estimate with a range
-- Add "(Estimated)" or "(Reported)" labels to standardized values
-- Preserve all ## headings, [cite: N] references, and structure
-- Output MUST contain at least 98% of the original word count
-
-Return the COMPLETE corrected report with all sections intact. No preamble.
-
---- REPORT ---
-{report_content}
---- END ---"""
-
-                resolved = call_with_failover(
-                    LLMRole.WRITING,
-                    resolve_prompt,
-                    preferred_model=grok_writing,
-                    max_tokens=65_000,
-                    temperature=0.2,
-                    system_prompt="You are a fact-checker standardizing contradictory data points across report sections.",
-                )
-                if resolved and resolved.strip():
-                    resolved_words = len(resolved.split())
-                    original_words = len(report_content.split())
-                    if _preserves_report_structure(report_content, resolved):
-                        report_content = resolved
-                        unresolved_contradictions = 0
-                        console.ok(f"Resolved {len(contradictions)} contradiction(s)")
-                    else:
-                        logger.warning(
-                            "Contradiction resolution changed structure too much (%d → %d words or headings changed), keeping original",
-                            original_words,
-                            resolved_words,
-                        )
-            except Exception as resolve_err:
-                logger.warning("Contradiction resolution failed: %s", resolve_err)
-
-        # Save cross-validation output to working folder
-        cv_output_path = os.path.join(folder_path, "cross_validation.json")
-        with open(cv_output_path, "w", encoding="utf-8") as f:
-            json.dump(cv_result, f, indent=2)
-
-        # Extract section count from report for metrics
-        report_section_count = len(re.findall(r"^## ", report_content, re.MULTILINE))
-        cv_stats = [
-            ("Sections reviewed", str(report_section_count)),
-            ("Enriched", str(sections_enriched)),
-        ]
-        if cv_failed:
-            cv_stats.append(("Status", "FAILED"))
-        console.phase_complete("Cross-Validation", cv_stats)
+        report_content = _cv.report_content
+        unresolved_contradictions = _cv.unresolved_contradictions
+        cv_search_count = _cv.cv_search_count
 
         # Trust polish + citation repair stage (extracted: core/fast_run_trust.py)
         _trust = polish_and_gate_fast_report(
