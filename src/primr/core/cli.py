@@ -933,6 +933,11 @@ def _create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="primr",
         description="Primr - AI-powered company research",
+        # No prefix abbreviation: argparse's default expands any unambiguous
+        # flag prefix (e.g. `--qa-` silently ran the QA summary), which makes
+        # typos execute real commands. Found by the Hypothesis CLI property
+        # test (invalid flags must exit non-zero).
+        allow_abbrev=False,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Research Modes:
