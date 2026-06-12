@@ -66,10 +66,13 @@ about to move.
 - **Batch C (contained closures) — DONE:** stage 9 (fast_run_strategy.py),
   stage 4 (fast_run_workbook.py), stage 2 (fast_run_hiring.py)
 - **Batch D (section context):** stage 5
-- **Batch E (research deepening):** stage 3
-- **Batch F (data collection, last):** stage 1
+- **Batch E (cross-validation):** stage 6 — was unassigned in the original
+  plan; gets its own batch because it owns the two highest-risk tangles
+  (closure capture feeding outer-scope mutations, serial regex splice loop)
+- **Batch F (research deepening):** stage 3
+- **Batch G (data collection, last):** stage 1
 
-After F: introduce `FastRunContext`, raise research_agent per-module
+After G: introduce `FastRunContext`, raise research_agent per-module
 coverage target to 80%, enable `C901` complexity budget repo-wide, then the
 same treatment for `deep_research._execute_consulting_research` (~270 lines,
 split dossier phase from section-writing phase).
