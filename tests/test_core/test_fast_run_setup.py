@@ -21,15 +21,15 @@ def _isolated(monkeypatch, tmp_path):
 
 
 def _resolve(**overrides) -> FastRunSetup:
-    defaults = dict(
-        company_name="AcmeCo",
-        website="https://acme.example",
-        ai_strategy=False,
-        strategy_types=None,
-        grok_tier="hybrid",
-        continuous_reasoning=True,
-        folder_path=None,
-    )
+    defaults = {
+        "company_name": "AcmeCo",
+        "website": "https://acme.example",
+        "ai_strategy": False,
+        "strategy_types": None,
+        "grok_tier": "hybrid",
+        "continuous_reasoning": True,
+        "folder_path": None,
+    }
     defaults.update(overrides)
     return resolve_fast_run_setup(**defaults)
 
