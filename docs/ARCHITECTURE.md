@@ -263,6 +263,21 @@ The `src/primr/core/` directory contains the research orchestration logic, decom
 | `deep_research_runner.py` | Deep Research execution with preflight validation |
 | `cli.py` | Command-line interface, argument parsing, utility commands |
 
+The fast-mode orchestrator (`perform_fast_research`) is being decomposed into
+per-stage modules (roadmap #23 — see
+[`design/23-orchestrator-refactor-map.md`](design/23-orchestrator-refactor-map.md)
+for the stage map and batch plan). Extracted so far:
+
+| Stage module | Pipeline stage |
+|--------------|----------------|
+| `fast_run_setup.py` | Model resolution, routing, run identity (frozen `FastRunSetup`) |
+| `fast_run_hiring.py` | Hiring-signals gathering + run-state recording |
+| `insights_assembly.py` | Combined-insights / external-sources string assembly (pure) |
+| `fast_run_workbook.py` | Analysis workbook; constructs the shared reasoning session |
+| `fast_run_trust.py` | Trust polish, citation repair, QA gate (frozen `FastTrustResult`) |
+| `fast_run_strategy.py` | Strategy generation: budget checkpoint, per-vendor + YAML (frozen `StrategyPhaseResult`) |
+| `fast_run_summary.py` | Final summary, artifact gating, usage recording |
+
 ### Prompt Architecture
 
 The `src/primr/prompts/` directory contains the externalized prompt system (v1.2.5+):
@@ -506,7 +521,7 @@ cross_val = session.send(cross_val_prompt, max_tokens=5_000, temperature=0.2)
 # can verify the report against the workbook's mandate, not just against URLs.
 ```
 
-**When the session is constructed.** The CLI flag (or env var) sets a boolean at the top of `perform_fast_research`, but the session itself is constructed lazily at the workbook stage. That lets the workbook's system prompt be passed as a real `role:system` message at session init — Grok rejects mid-conversation system messages, so this placement matters. An earlier implementation that folded the system prompt into the first user turn measurably degraded workbook quality during the pilot; the lazy construction is the fix.
+**When the session is constructed.** The CLI flag (or env var) is resolved during run setup (`fast_run_setup.resolve_fast_run_setup`), but the session itself is constructed lazily at the workbook stage (`fast_run_workbook.generate_analysis_workbook`, which returns it for cross-validation reuse). That lets the workbook's system prompt be passed as a real `role:system` message at session init — Grok rejects mid-conversation system messages, so this placement matters. An earlier implementation that folded the system prompt into the first user turn measurably degraded workbook quality during the pilot; the lazy construction is the fix.
 
 **What stays unchanged.** Section writing (Phase 4) is intentionally untouched and remains parallel + fresh-call per section via the existing `ThreadPoolExecutor(max_workers=4)` pattern. The topology change is targeted at sequential reasoning handoffs, not parallel sub-agents. Strategy generation (Phase 6) and gap analysis (Phase 2) also remain fresh-call.
 
@@ -693,6 +708,8 @@ src/primr/
 ├── core/                    # Research orchestration
 │   ├── research_orchestrator.py  # Mode coordination
 │   ├── research_agent.py    # Main entry point, backward-compatible re-exports
+│   ├── fast_run_*.py        # Extracted fast-mode pipeline stages (roadmap #23)
+│   ├── insights_assembly.py # Pure insights/external-sources string assembly
 │   ├── workspace.py         # Working folder management, file consolidation
 │   ├── structured_research.py # Website scraping pipeline, section generation
 │   ├── vendor_research.py   # Platform AI capabilities research
