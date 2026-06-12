@@ -27,10 +27,23 @@ the refine-loop anti-Goodhart guard (each iteration audited by the
 calibration harness; traceability degradation reverts the iteration).
 
 **Remaining within this workstream:**
-- Run one calibration pass over the standing eval corpus (~$0.25–0.50,
-  LLM judge) to establish the per-label baseline; wire the metric into the
-  model_eval scorecard; then promote "Confirmed-claim traceability >= X%"
-  to a HARD eval gate
+- ~~Wire the metric into the model_eval scorecard~~ — DONE: `primr calibrate
+  "Company"` / `--calibrate-recent N` (with `--dry-run` judge-call/cost
+  preview) audits shipped reports and persists `<report>.calibration.json`
+  sidecars; the offline eval reads sidecars into per-report
+  confirmed/reported traceability, a pooled `## Label Calibration`
+  scorecard section, CSV columns, and a `FAIL_CALIBRATION` decision row.
+  The hard gate is armed via `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY`
+  (fraction); it stays unset (report-only) until the baseline below exists.
+  The harness was also fixed for two artifact-format drifts a free corpus
+  dry-run caught before any paid pass: the `[cite: N] url` Sources-appendix
+  entry form, and standalone block-trailing labels ([paragraphs]
+  [What to validate] [(Label)]) now associate with their block's prose and
+  citations instead of sampling bare label lines.
+- Run one calibration pass over recent current-format reports (measured by
+  dry-run: ~164 judge calls ≈ $0.07–0.15) to establish the per-label
+  baseline; then set `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` to the
+  measured floor and flip it to an armed-by-default HARD eval gate
 - Surface contradicted claims from `verification.json` in the report's
   trust summary (today: JSON + console only)
 - v2 calibration check: Estimated/Hypothesis claims must NOT be

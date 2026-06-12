@@ -178,7 +178,13 @@ constraints (#11), and runtime robustness (#24) are DONE. What remains is the
 - **#9 batch API** — cost lever, needs one live batch validation
 - Label-calibration measurement + evidence-fetching `--verify` (from the
   v1.30 panel review) — converts the epistemic apparatus from style guide to
-  measured quantity
+  measured quantity. Tooling COMPLETE: `primr calibrate` audits shipped
+  reports (sidecar JSON, `--dry-run` cost preview), the eval scorecard reads
+  sidecars into a `## Label Calibration` section + CSV columns, and the
+  `FAIL_CALIBRATION` decision gate arms via
+  `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY`. Remaining: one cheap baseline
+  pass over recent reports (~$0.10), then set the threshold from measured
+  numbers — see `docs/design/1x-completion.md` workstream 1
 
 **Exit criteria:** a sparse-company run still feels substantive; a
 rich-company run is sharp and differentiated; the deliverable ships clean

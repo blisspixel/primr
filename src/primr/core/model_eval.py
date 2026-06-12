@@ -9,6 +9,7 @@ no API calls are required for analysis.
 from __future__ import annotations
 
 import csv
+import dataclasses
 import json
 import logging
 import re
@@ -250,6 +251,27 @@ class ReportMetrics:
     # (bare [workbook]/[cross-ref], bold "What to validate:" lines, informal
     # [cite: label]). Must stay 0 on shipped reports — see ROADMAP item #1.
     scaffolding_leaks: int = 0
+    # Label-calibration signal, read from the report's `primr calibrate`
+    # sidecar when present (the eval itself stays offline — calibration is a
+    # separate bounded paid step). Decidable = traceable + untraceable +
+    # no_source; unfetchable claims are excluded (harness couldn't decide).
+    calibrated: bool = False
+    confirmed_traceable: int = 0
+    confirmed_decidable: int = 0
+    reported_traceable: int = 0
+    reported_decidable: int = 0
+
+    def traceability(self, label: str) -> float | None:
+        """Per-report traceability precision for Confirmed/Reported."""
+        if label == "Confirmed":
+            traceable, decidable = self.confirmed_traceable, self.confirmed_decidable
+        elif label == "Reported":
+            traceable, decidable = self.reported_traceable, self.reported_decidable
+        else:
+            return None
+        if not decidable:
+            return None
+        return traceable / decidable
 
 
 @dataclass(frozen=True)
@@ -268,6 +290,10 @@ class ProfileSummary:
     estimated_cost_usd: float
     # Sum of scaffolding-leak counts across the profile's reports (drift gate).
     total_scaffolding_leaks: int = 0
+    # Label-calibration aggregate (pooled across calibrated reports).
+    calibrated_report_count: int = 0
+    confirmed_traceability: float | None = None
+    reported_traceability: float | None = None
 
 
 @dataclass(frozen=True)
@@ -366,6 +392,32 @@ def _company_similarity(a: str, b: str) -> float:
     return inter / union if union else 0.0
 
 
+def _load_calibration_counts(report_path: Path) -> dict[str, int] | None:
+    """Read traceability counts from a report's calibration sidecar, if any.
+
+    Written by ``primr calibrate`` (``qa.calibration_runner``). Returns None
+    when no sidecar exists or it is unreadable — calibration is optional and
+    its absence must never affect the offline eval.
+    """
+    from primr.qa.calibration_runner import sidecar_path_for
+
+    sidecar = sidecar_path_for(report_path)
+    if not sidecar.exists():
+        return None
+    try:
+        per_label = json.loads(sidecar.read_text(encoding="utf-8")).get("per_label", {})
+    except (OSError, json.JSONDecodeError, AttributeError):
+        return None
+    counts: dict[str, int] = {}
+    for label in ("Confirmed", "Reported"):
+        stats = per_label.get(label, {})
+        traceable = int(stats.get("traceable", 0))
+        decidable = traceable + int(stats.get("untraceable", 0)) + int(stats.get("no_source", 0))
+        counts[f"{label.lower()}_traceable"] = traceable
+        counts[f"{label.lower()}_decidable"] = decidable
+    return counts
+
+
 def _find_profile_reports(profile_dir: Path, profile: str) -> list[ReportMetrics]:
     if not profile_dir.exists():
         return []
@@ -396,6 +448,7 @@ def _find_profile_reports(profile_dir: Path, profile: str) -> list[ReportMetrics
         citation_density = analyzer.analyze_citation_density()
         hypothesis = analyzer.analyze_hypothesis_coverage()
         leakage = analyzer.analyze_scaffolding_leakage()
+        calibration = _load_calibration_counts(path)
 
         key_total = len(structure["key_sections_found"]) + len(structure["key_sections_missing"])
         key_found = len(structure["key_sections_found"])
@@ -493,6 +546,11 @@ def _find_profile_reports(profile_dir: Path, profile: str) -> list[ReportMetrics
                 trust_gate_passed=trust_gate_passed,
                 utility_per_dollar=0.0,  # set during profile summarization
                 scaffolding_leaks=int(leakage["total_leaked"]),
+                calibrated=calibration is not None,
+                confirmed_traceable=(calibration or {}).get("confirmed_traceable", 0),
+                confirmed_decidable=(calibration or {}).get("confirmed_decidable", 0),
+                reported_traceable=(calibration or {}).get("reported_traceable", 0),
+                reported_decidable=(calibration or {}).get("reported_decidable", 0),
             )
         )
 
@@ -553,26 +611,16 @@ def _summarize_profile(profile: str, metrics: list[ReportMetrics]) -> ProfileSum
     trust_pass_rate = round(sum(1 for m in metrics if m.trust_gate_passed) / count, 2)
 
     # backfill utility_per_dollar per-row with profile economics
+    # (dataclasses.replace keeps every other field — a hand-listed rebuild
+    # here silently dropped new fields once already)
     for i, m in enumerate(metrics):
-        metrics[i] = ReportMetrics(
-            company=m.company,
-            profile=m.profile,
-            report_path=m.report_path,
-            quality_score=m.quality_score,
-            word_count=m.word_count,
-            estimated_pages=m.estimated_pages,
-            citation_density=m.citation_density,
-            citations_total=m.citations_total,
-            key_sections_found=m.key_sections_found,
-            key_sections_total=m.key_sections_total,
-            confidence_labels=m.confidence_labels,
-            trust_score=m.trust_score,
-            decision_utility_score=m.decision_utility_score,
-            reuse_quality_score=m.reuse_quality_score,
-            trust_gate_passed=m.trust_gate_passed,
-            utility_per_dollar=round(m.decision_utility_score / max(0.01, est_cost), 2),
-            scaffolding_leaks=m.scaffolding_leaks,
+        metrics[i] = dataclasses.replace(
+            m, utility_per_dollar=round(m.decision_utility_score / max(0.01, est_cost), 2)
         )
+
+    calibrated = [m for m in metrics if m.calibrated]
+    confirmed_decidable = sum(m.confirmed_decidable for m in calibrated)
+    reported_decidable = sum(m.reported_decidable for m in calibrated)
 
     return ProfileSummary(
         profile=profile,
@@ -588,6 +636,17 @@ def _summarize_profile(profile: str, metrics: list[ReportMetrics]) -> ProfileSum
         trust_pass_rate=trust_pass_rate,
         estimated_cost_usd=est_cost,
         total_scaffolding_leaks=sum(m.scaffolding_leaks for m in metrics),
+        calibrated_report_count=len(calibrated),
+        confirmed_traceability=(
+            round(sum(m.confirmed_traceable for m in calibrated) / confirmed_decidable, 3)
+            if confirmed_decidable
+            else None
+        ),
+        reported_traceability=(
+            round(sum(m.reported_traceable for m in calibrated) / reported_decidable, 3)
+            if reported_decidable
+            else None
+        ),
     )
 
 
@@ -846,6 +905,18 @@ def _decision_table(
                 f"(trust_pass_rate={summary.trust_pass_rate:.2f}; requires 1.00)"
             )
             continue
+        gate = _calibration_gate_threshold()
+        if (
+            gate is not None
+            and summary.confirmed_traceability is not None
+            and summary.confirmed_traceability < gate
+        ):
+            rows.append(
+                f"{summary.profile}: FAIL_CALIBRATION "
+                f"(confirmed_traceability={summary.confirmed_traceability:.2f}; "
+                f"requires >= {gate:.2f})"
+            )
+            continue
         quality_ratio = summary.avg_quality / max(1e-9, base.avg_quality)
         utility_ratio = summary.avg_decision_utility / max(1e-9, base.avg_decision_utility)
         cost_ratio = summary.estimated_cost_usd / max(1e-9, base.estimated_cost_usd)
@@ -975,6 +1046,28 @@ def _write_scorecard_markdown(
         lines.append(f"| {s.profile} | {s.report_count} | {s.total_scaffolding_leaks} | {status} |")
 
     lines.append("")
+    lines.append("## Label Calibration")
+    lines.append("")
+    lines.append(
+        "Traceability of (Confirmed)/(Reported) claims against the fetched text "
+        "of their cited sources, pooled from `primr calibrate` sidecars. "
+        f"Gate threshold: {_calibration_gate_description()}."
+    )
+    lines.append("")
+    lines.append("| Profile | Calibrated Reports | Confirmed | Reported | Status |")
+    lines.append("|---|---:|---:|---:|---|")
+    gate = _calibration_gate_threshold()
+    for s in summaries:
+        confirmed = (
+            f"{s.confirmed_traceability:.0%}" if s.confirmed_traceability is not None else "-"
+        )
+        reported = f"{s.reported_traceability:.0%}" if s.reported_traceability is not None else "-"
+        lines.append(
+            f"| {s.profile} | {s.calibrated_report_count} | {confirmed} | {reported} "
+            f"| {_calibration_status(s, gate)} |"
+        )
+
+    lines.append("")
     lines.append("## Decision")
     lines.append("")
     for row in decisions:
@@ -990,6 +1083,54 @@ def _write_scorecard_markdown(
             lines.append(f"- {company} -> {profile}")
 
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _calibration_gate_threshold() -> float | None:
+    """The Confirmed-claim traceability hard-gate threshold, if armed.
+
+    ``PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY`` is a fraction in (0, 1]. Unset
+    (the default until a measured baseline exists) means report-only: the
+    scorecard shows the numbers but no profile fails on them. Once the
+    baseline lands, the default flips to the measured floor per the 1.x
+    design (docs/design/1x-completion.md, workstream 1).
+    """
+    import os
+
+    raw = os.environ.get("PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY", "").strip()
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError:
+        logger.warning("Ignoring malformed PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=%r", raw)
+        return None
+    if not 0.0 < value <= 1.0:
+        logger.warning(
+            "Ignoring out-of-range PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=%r (need 0-1]", raw
+        )
+        return None
+    return value
+
+
+def _calibration_gate_description() -> str:
+    gate = _calibration_gate_threshold()
+    if gate is None:
+        return "not armed (PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY unset; report-only until a baseline exists)"
+    return f"Confirmed >= {gate:.0%} (PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY)"
+
+
+def _calibration_status(summary: ProfileSummary, gate: float | None) -> str:
+    if summary.calibrated_report_count == 0:
+        return "no data"
+    if summary.confirmed_traceability is None:
+        return "no decidable Confirmed claims"
+    if gate is not None and summary.confirmed_traceability < gate:
+        return "BELOW GATE"
+    return "ok"
+
+
+def _round_or_blank(value: float | None) -> float | str:
+    return round(value, 3) if value is not None else ""
 
 
 def _write_scorecard_csv(path: Path, metrics: list[ReportMetrics]) -> None:
@@ -1015,6 +1156,9 @@ def _write_scorecard_csv(path: Path, metrics: list[ReportMetrics]) -> None:
                 "key_sections_total",
                 "confidence_labels",
                 "scaffolding_leaks",
+                "calibrated",
+                "confirmed_traceability",
+                "reported_traceability",
             ]
         )
         for m in metrics:
@@ -1037,6 +1181,9 @@ def _write_scorecard_csv(path: Path, metrics: list[ReportMetrics]) -> None:
                     m.key_sections_total,
                     m.confidence_labels,
                     m.scaffolding_leaks,
+                    m.calibrated,
+                    _round_or_blank(m.traceability("Confirmed")),
+                    _round_or_blank(m.traceability("Reported")),
                 ]
             )
 

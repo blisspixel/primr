@@ -42,8 +42,20 @@ _LABEL_RE = re.compile(
 )
 _CITE_RE = re.compile(r"\[cite:\s*(\d+(?:\s*,\s*\d+)*)\]")
 _SECTION_RE = re.compile(r"^## (.+)$", re.MULTILINE)
-# Sources appendix entry formats: "1. https://..." or "[1] https://..."
-_SOURCE_ENTRY_RE = re.compile(r"^\s*(?:\[(\d+)\]|(\d+)\.)\s+(https?://\S+)", re.MULTILINE)
+# Sources appendix entry formats: "[cite: 1] https://..." (the current
+# artifact contract), "1. https://...", or "[1] https://...".
+_SOURCE_ENTRY_RE = re.compile(
+    r"^\s*(?:\[cite:\s*(\d+)\]|\[(\d+)\]|(\d+)\.)\s+(https?://\S+)", re.MULTILINE
+)
+
+# A label alone on its line — the current writer renders block-scoped labels
+# this way: [claim paragraphs] [What to validate: ...] [(Reported)].
+_STANDALONE_LABEL_RE = re.compile(
+    r"^\s*\((Confirmed|Reported|Estimated|Hypothesis)\b[^)]*\)\s*$",
+)
+# The discovery-question line inside a labeled block — a question to ask, not
+# a claim, so it is excluded from the claim text the judge sees.
+_VALIDATE_LINE_RE = re.compile(r"^\s*\**\s*what to validate:", re.IGNORECASE)
 
 # Labels whose claims must trace to a cited source.
 TRACEABLE_LABELS = frozenset({"Confirmed", "Reported"})
@@ -51,6 +63,10 @@ TRACEABLE_LABELS = frozenset({"Confirmed", "Reported"})
 INFERENCE_LABELS = frozenset({"Estimated", "Hypothesis"})
 
 DEFAULT_MAX_PER_LABEL = 10
+# Bounds for the block a standalone label annotates: enough to carry the
+# claim's substance, small enough to keep the judge prompt focused.
+_BLOCK_MAX_PARAGRAPHS = 3
+_BLOCK_MAX_CHARS = 1500
 
 
 @dataclass(frozen=True)
@@ -141,10 +157,51 @@ def parse_sources_appendix(report_content: str) -> dict[int, str]:
     haystack = report_content[appendix_match.end() :] if appendix_match else report_content
     mapping: dict[int, str] = {}
     for m in _SOURCE_ENTRY_RE.finditer(haystack):
-        number = int(m.group(1) or m.group(2))
+        number = int(m.group(1) or m.group(2) or m.group(3))
         if number not in mapping:
-            mapping[number] = m.group(3).rstrip(".,;")
+            mapping[number] = m.group(4).rstrip(".,;")
     return mapping
+
+
+def _claim_block_above(lines: list[str], label_index: int) -> str:
+    """Collect the prose block a standalone label annotates.
+
+    Walks upward from the label line, gathering blank-line-separated
+    paragraphs in document order until a heading, another standalone label,
+    or the block bounds. ``What to validate:`` paragraphs are discovery
+    questions, not claims, and are excluded.
+    """
+    paragraphs: list[str] = []
+    current: list[str] = []
+
+    def _flush() -> None:
+        if not current:
+            return
+        paragraph = " ".join(reversed(current))
+        current.clear()
+        if not _VALIDATE_LINE_RE.match(paragraph):
+            paragraphs.append(paragraph)
+
+    i = label_index - 1
+    while i >= 0:
+        stripped = lines[i].strip()
+        if not stripped:
+            _flush()
+            if (
+                len(paragraphs) >= _BLOCK_MAX_PARAGRAPHS
+                or sum(len(p) for p in paragraphs) >= _BLOCK_MAX_CHARS
+            ):
+                break
+            i -= 1
+            continue
+        if stripped.startswith("#") or _STANDALONE_LABEL_RE.match(stripped):
+            break
+        current.append(stripped)
+        i -= 1
+    _flush()
+
+    paragraphs.reverse()  # back to document order
+    return "\n".join(paragraphs)
 
 
 def extract_labeled_claims(
@@ -153,10 +210,17 @@ def extract_labeled_claims(
 ) -> list[LabeledClaim]:
     """Deterministically sample labeled claims from a report.
 
-    A claim is the line carrying a canonical confidence label; its citations
-    are the ``[cite: N]`` markers on the same line, resolved against the
-    Sources appendix. Sampling keeps document order, capped per label so
-    calibration cost stays bounded.
+    Two claim shapes are recognized, matching the artifact contract:
+
+    - **Inline**: the label sits on the claim's own line; citations are the
+      ``[cite: N]`` markers on that line.
+    - **Standalone**: the label is alone on its line, trailing the block it
+      scopes ([paragraphs] [What to validate: ...] [label]); the claim is
+      the block's prose (validate-questions excluded) and citations are
+      collected from the whole block.
+
+    Citations resolve against the Sources appendix. Sampling keeps document
+    order, capped per label so calibration cost stays bounded.
     """
     sources = parse_sources_appendix(report_content)
 
@@ -174,30 +238,39 @@ def extract_labeled_claims(
                 break
         return current
 
+    line_matches = list(re.finditer(r"^(.*)$", report_content, re.MULTILINE))
+    lines = [m.group(1) for m in line_matches]
+
     claims: list[LabeledClaim] = []
     per_label_counts: dict[str, int] = {}
 
-    for line_match in re.finditer(r"^(.+)$", report_content, re.MULTILINE):
-        line = line_match.group(1)
+    for index, line in enumerate(lines):
         label_match = _LABEL_RE.search(line)
         if not label_match:
             continue
         label = label_match.group(1)
         if per_label_counts.get(label, 0) >= max_per_label:
             continue
-        section = _section_at(line_match.start())
+        section = _section_at(line_matches[index].start())
         if section.lower() in ("sources", "references", "citations"):
             continue
 
+        if _STANDALONE_LABEL_RE.match(line):
+            claim_text = _claim_block_above(lines, index)
+            if not claim_text:
+                continue  # bare label with no associable prose
+        else:
+            claim_text = line.strip()
+
         cite_numbers: list[int] = []
-        for cite_match in _CITE_RE.finditer(line):
+        for cite_match in _CITE_RE.finditer(claim_text):
             cite_numbers.extend(int(n.strip()) for n in cite_match.group(1).split(","))
         urls = tuple(sources[n] for n in cite_numbers if n in sources)
 
         claims.append(
             LabeledClaim(
                 label=label,
-                sentence=line.strip(),
+                sentence=claim_text,
                 section=section,
                 cite_numbers=tuple(cite_numbers),
                 source_urls=urls,
