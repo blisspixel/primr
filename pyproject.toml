@@ -155,6 +155,7 @@ select = [
     "UP",     # pyupgrade
     "B",      # flake8-bugbear
     "C4",     # flake8-comprehensions
+    "C90",    # mccabe complexity budget (roadmap #23 endgame)
     "SIM",    # flake8-simplify
     "RUF",    # ruff-specific rules
     "PIE",    # flake8-pie
@@ -186,6 +187,36 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["primr"]
+
+# Complexity budget (roadmap #23 endgame): no new function above cyclomatic
+# complexity 25 — the anti-monster invariant the perform_fast_research
+# refactor established. 25 (not 10) because verbatim pipeline/orchestration
+# code is inherently branchy: at 10 even the freshly extracted stage modules
+# violate (171 functions across 91 files), which is noise; at 25 the gate
+# catches exactly the monsters. The per-file-ignores below grandfather the
+# 19 existing functions over 25 (worst: fetch_web_content at 117, documented
+# as the intentionally-monolithic ONE scraping function). This list must only
+# SHRINK — when a grandfathered file's functions drop to <= 25, remove its
+# entry. Never add a file here for new code.
+[tool.ruff.lint.mccabe]
+max-complexity = 25
+
+[tool.ruff.lint.per-file-ignores]
+"src/primr/agentic/orchestrator.py" = ["C901"]
+"src/primr/ai/deep_research.py" = ["C901"]
+"src/primr/core/ai_strategy_runtime.py" = ["C901"]
+"src/primr/core/cli.py" = ["C901"]
+"src/primr/core/fast_run_strategy.py" = ["C901"]
+"src/primr/core/fast_run_validation.py" = ["C901"]
+"src/primr/core/recon_context.py" = ["C901"]
+"src/primr/core/research_agent.py" = ["C901"]
+"src/primr/core/strategy_artifacts.py" = ["C901"]
+"src/primr/data/scrape.py" = ["C901"]
+"src/primr/data/scraping/detection.py" = ["C901"]
+"src/primr/data/scraping/discovery.py" = ["C901"]
+"src/primr/data/scraping/orchestrator.py" = ["C901"]
+"src/primr/data/scraping/page_access.py" = ["C901"]
+"src/primr/skill_pack/cli.py" = ["C901"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
