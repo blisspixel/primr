@@ -11,7 +11,7 @@ full suite green per slice, eval scores unchanged.
 | # | Stage | Anchor | Notes |
 |---|-------|--------|-------|
 | 0 | Setup & model resolution | — | **EXTRACTED** → `core/fast_run_setup.resolve_fast_run_setup()` (frozen `FastRunSetup`) |
-| 1 | Data collection | `fetch_web_content` call → external validation pools | Highest complexity: parallel pools with deadlines, quality filtering. **Extract LAST** |
+| 1 | Data collection | `fetch_web_content` call → external validation pools | **EXTRACTED** → `core/fast_run_collection.collect_research_data()` (frozen `DataCollectionResult`); creates AND returns the recovery executor (consumed by stages 4/5/6/9) and the four live source pools later stages mutate; adaptive depth, attempt cap, deadline/detach pattern all verbatim |
 | 2 | Hiring signals | `gather_hiring_signals` | **EXTRACTED** → `core/fast_run_hiring.collect_hiring_block()` |
 | 2B | Combined insights build | writes `insights.txt` | **EXTRACTED** → `core/insights_assembly.py` (pure assembly; both build sites call it, file write stays in orchestrator) |
 | 3 | Gap analysis + deepening | `_fast_gap_analysis` → gap pools | **EXTRACTED** → `core/fast_run_gaps.deepen_research()` (frozen `GapDeepeningResult`); in-place pool mutation + rebuild-don't-mutate and the deadline/detach shutdown pattern preserved verbatim |
@@ -71,7 +71,9 @@ about to move.
   two highest-risk tangles (closure capture feeding outer-scope mutations,
   serial regex splice loop), both pinned by tests
 - **Batch F (research deepening) — DONE:** stage 3 (fast_run_gaps.py)
-- **Batch G (data collection, last):** stage 1
+- **Batch G (data collection, last) — DONE:** stage 1 (fast_run_collection.py).
+  ALL STAGES EXTRACTED — `perform_fast_research` is now a ~150-line
+  coordinator over ten tested stage modules.
 
 After G: introduce `FastRunContext`, raise research_agent per-module
 coverage target to 80%, enable `C901` complexity budget repo-wide, then the
