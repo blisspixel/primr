@@ -22,6 +22,7 @@ Conventions:
 | [1x-completion.md](1x-completion.md) | Finishing the excellent single-shot brief | 1.x |
 | [23-orchestrator-refactor-map.md](23-orchestrator-refactor-map.md) | Working map for the #23 orchestrator refactor (stages, tangles, batch order) | 1.x |
 | [2.0-backend-freedom.md](2.0-backend-freedom.md) | Capability routing + local/hybrid inference | 2.0 |
+| [provider-expansion.md](provider-expansion.md) | OpenAI/Anthropic recipes, Bedrock/Foundry gateways, $0 local profile (verified provider catalog, June 2026) | 1.x Phase A; 2.0 Phases B/C |
 | [2.0-research-memory.md](2.0-research-memory.md) | Cross-run memory, company tracking, delta mode | 2.0 |
 | [2.0-agent-control-plane.md](2.0-agent-control-plane.md) | Per-tool authz, approval tokens, audit log | 2.0 |
 | [3.0-research-frontier.md](3.0-research-frontier.md) | VLM extraction, knowledge compounding, artifact handoff | 3.0 |

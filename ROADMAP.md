@@ -657,6 +657,37 @@ Surfaced building a skill pack for a specialized, non-technical role at a large 
 - **Authoring quality patterns**: bake the patterns that distinguished a strong hand-built pack into `author_skill.yaml` — an intake/elicitation opening, a worked input→output example per skill, one shared single-source reference per role family (instead of per-skill duplication that drifts), an explicit scope guardrail, and a human-gated self-refinement section. Cross-refs #15.
 - **Cowork packaging refresh**: re-check the Cowork docs/packager against current platform docs, which now allow companion files (`references/`, ~20 files / 10 MB) and a higher custom-skill cap. Cross-refs #15.
 
+### 26. Provider Expansion: OpenAI/Anthropic First-Class, Bedrock/Foundry Gateways, $0 Local Profile
+
+There is no reason the pipeline must be Grok + Gemini; that pairing is the
+measured default, not a dependency. Research verified against provider docs
+on 2026-06-12; full catalog, integration traps, and phased delivery plan in
+[`docs/design/provider-expansion.md`](docs/design/provider-expansion.md).
+
+- **Phase A (1.x)**: refresh the model registry to the current generations
+  (OpenAI gpt-5.5 / gpt-5.4 family, Anthropic claude-fable-5 / opus-4-8 /
+  sonnet-4-6 / haiku-4-5) with capability flags the newest models require
+  (`supports_temperature` — Fable 5 and Opus 4.7+ reject sampling params;
+  tokenizer multiplier; native web-search tool routing for the browse stage
+  via OpenAI Responses `web_search` / Anthropic `web_search_20260209`).
+  Validate an openai-only and an anthropic-only recipe with one cheap live
+  run each, eval-gated, before advertising them.
+- **Phase B**: Bedrock (mantle endpoint, plain API-key auth) and Microsoft
+  Foundry (`/openai/v1`, stock openai SDK) as base-URL + key profiles over
+  the existing OpenAI-compatible provider — near-zero new code; doctor
+  reachability probes; honest docs on gateway gaps (no Anthropic
+  web_search through either gateway; batch lag on newest models).
+- **Phase C (with 2.0 backend freedom)**: `--inference local` profile.
+  Principles: support whatever the user has (selection from the server's
+  actual model list, never hardcoded), Mac/Linux/Windows via HTTP only, and
+  fit-check before use — model installed AND fits available memory (one-
+  token probe, step down to smaller candidates on out-of-memory) AND
+  effective context adequate (Ollama's `/v1` silently front-truncates;
+  refuse corpus stages on too-small windows). A genuinely free tier,
+  shipped with its measured quality delta (best 24 GB-class local models
+  score roughly half of frontier on long-form writing) stated next to the
+  $0 price.
+
 ---
 
 ## Engineering Standards & Toolchain
