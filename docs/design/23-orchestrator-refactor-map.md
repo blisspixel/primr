@@ -17,7 +17,7 @@ full suite green per slice, eval scores unchanged.
 | 3 | Gap analysis + deepening | `_fast_gap_analysis` → gap pools | Mutates source_urls/external_* sets and REBUILDS external_sources_raw + insights.txt |
 | 4 | Analysis workbook | `_build_fast_analysis_prompt` | **EXTRACTED** → `core/fast_run_workbook.generate_analysis_workbook()` — returns `(workbook, reasoning_session)` so the lazily-constructed session still reaches stage 6 |
 | 5 | Section writing | `_group_sections_by_part` → per-part pools | **EXTRACTED** → `core/fast_run_sections.write_report_sections()` (frozen `SectionWritingResult`; `report_content=None` signals the all-failed early exit); exec-summary pop/write-last and frozen per-part snapshots moved verbatim |
-| 6 | Cross-validation + enrichment | `_fast_cross_validate` → weak-section loop | Regex find+splice mutates report_content serially; per-section 300s deadline; diminishing-returns detector; reuses stage-4 session |
+| 6 | Cross-validation + enrichment | `_fast_cross_validate` → weak-section loop | **EXTRACTED** → `core/fast_run_validation.cross_validate_and_enrich()` (frozen `CrossValidationResult`); serial splice loop, default-arg query binding, deadline pool, and in-place `source_urls`/`source_urls_seen` mutation all preserved verbatim; takes both `company_name` (raw, for search) and `company_label` (display) |
 | 7 | Trust polish + citation repair | `_polish_fast_report_for_trust` chain | **EXTRACTED** → `core/fast_run_trust.polish_and_gate_fast_report()` (frozen `FastTrustResult`); the LLM polish/repair helpers stay in research_agent (lazy-imported) until their own extraction |
 | 8 | Artifact assembly | `_convert_deep_research_to_docx` | Thin (~25 lines). DECISION: kept inline — extracting a 25-line wrapper around an already-extracted function adds indirection without testability gain; fold into the eventual FastRunContext pass |
 | 9 | Strategy generation | budget checkpoint → vendor closures | **EXTRACTED** → `core/fast_run_strategy.run_strategy_phase()` (frozen `StrategyPhaseResult`); budget checkpoint, per-vendor closures + parallel dispatch, YAML loop all moved verbatim |
@@ -66,9 +66,10 @@ about to move.
 - **Batch C (contained closures) — DONE:** stage 9 (fast_run_strategy.py),
   stage 4 (fast_run_workbook.py), stage 2 (fast_run_hiring.py)
 - **Batch D (section context) — DONE:** stage 5 (fast_run_sections.py)
-- **Batch E (cross-validation):** stage 6 — was unassigned in the original
-  plan; gets its own batch because it owns the two highest-risk tangles
-  (closure capture feeding outer-scope mutations, serial regex splice loop)
+- **Batch E (cross-validation) — DONE:** stage 6 (fast_run_validation.py) —
+  was unassigned in the original plan; got its own batch because it owns the
+  two highest-risk tangles (closure capture feeding outer-scope mutations,
+  serial regex splice loop), both pinned by tests
 - **Batch F (research deepening):** stage 3
 - **Batch G (data collection, last):** stage 1
 
