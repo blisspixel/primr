@@ -1,4 +1,4 @@
-# Easy one-line installer for primr (Windows PowerShell)
+﻿# Easy one-line installer for primr (Windows PowerShell)
 # Usage (recommended):
 #   powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/blisspixel/primr/main/scripts/install.ps1 | iex"
 

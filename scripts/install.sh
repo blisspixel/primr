@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 # Easy one-line installer for primr (macOS / Linux)
 # Usage (recommended):
 #   curl -fsSL https://raw.githubusercontent.com/blisspixel/primr/main/scripts/install.sh | bash
