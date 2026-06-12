@@ -76,6 +76,8 @@ For model evaluation and quality comparison, see [Evaluation Guide](docs/EVAL.md
 
 ## Quick Start
 
+**primr works on Windows, macOS, and Linux.**
+
 ```bash
 pip install primr
 primr init                      # Guided keys + browser setup
@@ -83,9 +85,59 @@ primr doctor                    # Verify everything works
 primr "ExampleCo" https://example.co
 ```
 
-Requires Python 3.12+. On Windows, prefer `py -3.13` instead of bare `python` if your default interpreter is older. `primr init` walks through user-level API keys, browser dependencies, and verification. Local `.env` files and shell environment variables still work and can override user-level keys. Set `XAI_API_KEY` for the standard Grok pipeline (it covers analysis, writing, and utility-tier calls like scraping summaries and link selection). Set `GEMINI_API_KEY` only if you also want `--premium` mode or you do not have an xAI key. Web search uses DuckDuckGo (no key needed).
+`pip install primr` also pulls in `recon-tool` (used for the built-in `primr recon` DNS intelligence step).
 
-Working from a source checkout? See [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) for the dev setup.
+**Requirements:** Python 3.12 or newer. On Windows, prefer the `py` launcher (`py -3.13` or just `py`) if your default `python` is older.
+
+`primr init` guides you through API keys and browser setup the first time. Local `.env` files and environment variables are also supported.
+
+### Recommended way (virtual environment or pipx)
+
+This is the cleanest approach on every platform and avoids PATH headaches.
+
+```bash
+# 1. Create a virtual environment
+python -m venv .venv          # some systems: python3 -m venv .venv
+
+# 2. Activate it
+#   Windows (PowerShell):   .\.venv\Scripts\Activate.ps1
+#   macOS / Linux:          source .venv/bin/activate
+
+# 3. Install
+pip install primr
+
+# 4. First-time setup + verification
+primr init
+primr doctor
+```
+
+**Simpler alternative with pipx** (recommended for CLI tools):
+
+```bash
+pipx install primr
+primr init
+primr doctor
+```
+
+pipx handles isolation and PATH for you automatically.
+
+### Fast one-liner
+
+```bash
+pip install primr
+primr init
+primr doctor
+```
+
+**If `primr` (or `recon`) is not found after a bare `pip install` on Windows:**
+This usually means a system Python was used without admin rights. The commands are installed to `%APPDATA%\Python\Python312\Scripts` but that folder isn't on PATH. Use the venv/pipx method above instead, or run `primr`'s `setup_env.py` from a source checkout (it can fix the PATH for you).
+
+### Working from a source checkout?
+
+See [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md). It covers:
+- venv + uv setups
+- The Windows-friendly `setup_env.py` (handles Python detection, editable install, Playwright browsers, and user Scripts PATH)
+- Full development workflow
 
 ### Platform Support
 
@@ -244,7 +296,7 @@ That registers both the MCP server (`primr mcp`, exposed as `mcp__primr__*` tool
 
 **Skill-only install (no plugin):** paste this to Claude Code or any agent that can fetch and write files:
 
-> Fetch `https://raw.githubusercontent.com/blisspixel/primr/main/claude-code/skills/primr/SKILL.md` and save it to `~/.claude/skills/primr/SKILL.md`. Fetch the four files under `https://raw.githubusercontent.com/blisspixel/primr/main/claude-code/skills/primr/references/` and save them under `~/.claude/skills/primr/references/`. Then run `pip install primr && primr init`.
+> Fetch `https://raw.githubusercontent.com/blisspixel/primr/main/claude-code/skills/primr/SKILL.md` and save it to `~/.claude/skills/primr/SKILL.md`. Fetch the four files under `https://raw.githubusercontent.com/blisspixel/primr/main/claude-code/skills/primr/references/` and save them under `~/.claude/skills/primr/references/`. Then run `pip install primr && primr init` (use a venv if the `primr` command isn't on PATH afterward).
 
 **Other hosts (Cursor / Windsurf / Kiro / VS Code):** see [`clients/README.md`](clients/README.md) for copy-pasteable MCP config plus instructions for placing the skill or referencing `AGENTS.md` from the host's rules system.
 
