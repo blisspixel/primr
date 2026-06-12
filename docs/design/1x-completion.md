@@ -70,10 +70,13 @@ acceptance on a check the scorer can't see: a claim spot-check (from the
 calibration harness) on regenerated sections, or an LLM-judge delta. Reject
 the iteration when discipline rose but independent quality didn't.
 
-### 2. Refactor the orchestrators (#23) — IN PROGRESS
+### 2. Refactor the orchestrators (#23) — EXTRACTION COMPLETE
 
-Status: Batches A–C shipped (~1,250 lines extracted into seven stage modules,
-each with a hermetic test suite); Batches D–G remain. Working map:
+Status: all ten stages of `perform_fast_research` extracted (Batches A–G,
+~1,600 lines into eleven stage modules with ~110 hermetic tests); the
+orchestrator is a ~295-line coordinator. Remaining: `FastRunContext`, the
+per-module coverage target, the C901 budget, and the
+`_execute_consulting_research` split. Working map:
 [`23-orchestrator-refactor-map.md`](23-orchestrator-refactor-map.md).
 
 `perform_fast_research` (~1,900 lines) interleaves I/O, LLM calls, and state
