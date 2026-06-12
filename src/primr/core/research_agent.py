@@ -2604,7 +2604,6 @@ def perform_fast_research(
 
     from primr.ai.grok_client import (
         ContinuousReasoningSession,
-        get_grok_session_usage,
         reset_grok_session,
     )
     from primr.pipeline.llm_failover import LLMRole, call_with_failover
@@ -4443,128 +4442,27 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
                 console.warn("Strategy generation skipped — no strategies generated")
 
         # =================================================================
-        # Summary
+        # Summary (extracted: core/fast_run_summary.py — roadmap #23 Batch A)
         # =================================================================
-        elapsed = time.time() - start_time
-        mins = int(elapsed // 60)
-        secs = int(elapsed % 60)
-        time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
+        from primr.core.fast_run_summary import finalize_fast_run
 
-        if docx_path:
-            console.success_box("Report ready", str(Path(docx_path).resolve()))
-        else:
-            console.warn(
-                "Report DOCX held back by artifact gate; review the saved MD/TXT artifacts"
-            )
-
-        for strat_key, strategy_path in strategy_paths.items():
-            # AI strategy keys: "ai" or "ai_azure" — show vendor suffix
-            if strat_key.startswith("ai"):
-                vendor_suffix = (
-                    f" ({strat_key.split('_', 1)[1].upper()})" if "_" in strat_key else ""
-                )
-                label = f"AI Strategy{vendor_suffix}"
-            else:
-                label = strat_key.replace("_", " ").title()
-            resolved_strategy_path = Path(strategy_path).resolve()
-            if str(resolved_strategy_path).lower().endswith(".docx"):
-                console.success_box(label, str(resolved_strategy_path))
-            else:
-                console.warn(
-                    f"{label} DOCX held back by artifact gate; saved {resolved_strategy_path.name} instead"
-                )
-
-        # Cost summary from Grok session usage (per-model, cache-aware pricing)
-        grok_usage = get_grok_session_usage()
-        actual_cost = _compute_session_llm_cost()
-
-        date_str = datetime.now().strftime("%m-%d-%Y")
-        fallback_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
-        fallback_md = (
-            fallback_dir / f"{company_name or display_name}_Strategic_Overview_{date_str}.md"
+        return finalize_fast_run(
+            start_time=start_time,
+            docx_path=docx_path,
+            strategy_paths=strategy_paths,
+            output_dir=output_dir,
+            company_name=company_name,
+            display_name=display_name,
+            folder_path=folder_path,
+            written_sections_count=len(written_sections),
+            total_words=total_words,
+            validated_source_count=validated_source_count,
+            pages_scraped=pages_scraped,
+            grok_tier=grok_tier,
+            report_trust_stats=report_trust_stats,
+            strategy_trust_stats=strategy_trust_stats,
+            search_query_count=len(external_queries) + gap_search_count + cv_search_count,
         )
-        primary_output_path = str(fallback_md) if fallback_md.exists() else docx_path
-
-        artifacts_passed = bool(docx_path) and all(
-            str(path).lower().endswith(".docx") for path in strategy_paths.values()
-        )
-        completion_label = (
-            "Fast mode complete" if artifacts_passed else "Fast mode complete with warnings"
-        )
-        console.ok(f"{completion_label} in {time_str}")
-
-        _update_run_state(
-            folder_path,
-            report_sections=len(written_sections),
-            report_words=total_words,
-            external_sources_validated=validated_source_count,
-            strategy_artifacts=len(strategy_paths),
-            artifact_gate_passed=artifacts_passed,
-            actual_cost_usd=round(actual_cost, 4),
-        )
-
-        if report_trust_stats:
-            console.trust_summary("Report Trust", report_trust_stats)
-        for trust_title, trust_stats in strategy_trust_stats:
-            console.trust_summary(trust_title + " Trust", trust_stats)
-
-        _tier_labels = {
-            "fast": "Grok 4.3 (low-effort)",
-            "hybrid": "Grok 4.3 hybrid",
-            "max": "Grok 4.3 max",
-        }
-        summary_items = [
-            ("Mode", "fast (" + _tier_labels.get(grok_tier, "Grok") + ")"),
-            ("Pages", str(pages_scraped)),
-            ("External", str(validated_source_count)),
-            ("Duration", time_str),
-            (
-                "Grok tokens",
-                f"{grok_usage['input_tokens']:,} in / {grok_usage['output_tokens']:,} out",
-            ),
-            ("Actual Cost", f"~${actual_cost:.2f}"),
-            ("Artifact Gate", "PASS" if artifacts_passed else "WARN"),
-        ]
-        if strategy_paths:
-            strat_labels = []
-            for k in strategy_paths:
-                if k.startswith("ai"):
-                    vendor_suffix = f" ({k.split('_', 1)[1].upper()})" if "_" in k else ""
-                    strat_labels.append(f"AI Strategy{vendor_suffix}")
-                else:
-                    strat_labels.append(k.replace("_", " ").title())
-            summary_items.append(("Strategies", ", ".join(strat_labels)))
-        console.summary(summary_items)
-
-        # Save usage to history
-        from primr.utils.usage_tracker import get_usage_tracker
-
-        tracker = get_usage_tracker()
-        tracker.record_usage(
-            mode="fast",
-            company=display_name,
-            input_tokens=grok_usage["input_tokens"],
-            output_tokens=grok_usage["output_tokens"],
-            search_queries=len(external_queries) + gap_search_count + cv_search_count,
-            duration_seconds=elapsed,
-            pipeline_cost=actual_cost,
-            cached_input_tokens=grok_usage.get("cached_input_tokens", 0),
-        )
-        tracker.save()
-
-        # Log job summary
-        job_summary = JobSummary.create(
-            company=display_name,
-            mode="fast",
-            duration_seconds=elapsed,
-            api_calls=0,
-            total_tokens=grok_usage["input_tokens"] + grok_usage["output_tokens"],
-            sections_generated=len(written_sections),
-            output_path=primary_output_path,
-        )
-        log_job_summary(job_summary)
-
-        return primary_output_path
 
     except Exception as e:
         console.error(f"Fast research failed: {e}")
