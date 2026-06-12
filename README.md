@@ -4,9 +4,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 
-**Point it at a company's website. It reads their DNS records, their job postings, and fifty pages of their site, then tells you what they're building, where they're constrained, and what nobody has written down.**
+**Point it at a company's website. It reads their DNS records, their job postings, and fifty pages of their site, then drafts a strategic brief: what they appear to be building, where they look constrained, and which questions are worth asking.**
 
-Summaries of published articles are a commodity; any chat assistant's deep-research mode produces one. Primr is built for the layer underneath: primary-source signals that aren't in the articles. DNS records reveal the real tech stack. Job postings reveal what a company is actually building right now. The site corpus, external research, and that signal layer get triangulated into a long-form strategic analysis covering competitive positioning, likely economics, operating constraints, and consultant-grade hypotheses, with a confidence label on every non-obvious claim, so you always know what's confirmed, what's reported, and what's inference.
+Summaries of published articles are a commodity; any chat assistant's deep-research mode produces one. Primr is built for the layer underneath: primary-source signals that aren't in the articles. DNS records reveal the real tech stack. Job postings reveal what a company is actually building right now. The site corpus, external research, and that signal layer get triangulated into a long-form strategic analysis covering competitive positioning, likely economics, operating constraints, and working hypotheses, with confidence labels distinguishing what's confirmed, what's reported, and what's inference. The labels are model-applied and spot-audited for traceability (`primr calibrate`); treat them as editorial discipline, not ground truth.
 
 ```
 primr "ExampleCo" https://example.co
@@ -20,13 +20,13 @@ Primr is local-first and CLI-first; it also runs as an MCP server and a Claude S
 
 ## Why This Exists
 
-Company research is tedious. You visit the website, click around, search the company, read articles, synthesize it all, write it up. That process easily takes 1-2 hours per company and the output is usually unstructured notes. Primr replaces that entire workflow with a single command.
+Company research is tedious. You visit the website, click around, search the company, read articles, synthesize it all, write it up. That process easily takes 1-2 hours per company and the output is usually unstructured notes. Primr compresses most of that into a single command: you get a structured, sourced draft instead of a blank page. You should still read it critically; it's a head start, not a finished judgment.
 
 ## What Makes It Different
 
 - **DNS intelligence pre-flight**: Automatic domain reconnaissance detects cloud platforms, SaaS services, email security, and identity providers from DNS records. Zero API keys, 2-3 seconds. Strategies are grounded in real tech stack data.
 - **Hiring-signal gathering**: After the main scrape, Primr discovers open job postings across eight ATS providers (Greenhouse, Lever, Ashby, SmartRecruiters, Workday, Workable, Recruitee, Jobvite) plus a corpus-driven Workday URL discovery path, an HTML careers-page fallback, and a DuckDuckGo web-search fallback that sweeps LinkedIn / Indeed / Glassdoor / job-board hosts when every other path comes up empty. The pipeline LLM-triages the most signal-rich postings and extracts tech-stack frequency, strategic initiatives, culture cues, and notable absences. Job posts are the most honest statement of what a company is actually building right now; they feed every downstream phase from gap analysis to final strategy and are the primary input to the skill pack subsystem. Skip with `PRIMR_SKIP_HIRING_SIGNALS=1`.
-- **Adaptive scraping**: 9 retrieval methods from browser rendering to TLS fingerprinting to screenshot+vision extraction, with per-host optimization. Starts with full browser rendering (what works on 95%+ of modern sites) and falls back through increasingly specialized methods.
+- **Adaptive scraping**: 9 retrieval methods from browser rendering to TLS fingerprinting to screenshot+vision extraction, with per-host optimization. Starts with full browser rendering and falls back through increasingly specialized methods. Some heavily protected sites still win; access is evidence-validated, so a blocked site is reported as blocked rather than silently summarized from nothing.
 - **Org-aware site selection**: Link discovery and prioritization now adapt for commercial companies, government sites, nonprofits, education, and healthcare organizations instead of assuming every site looks like a SaaS company.
 - **Fail-fast scrape quality gate**: Full/scrape modes now abort when site extraction is too thin, while still preserving short structured pages like contact, leadership, and org-chart references when they carry useful signal (override with `--skip-scrape-validation`).
 - **Autonomous external research**: Gemini Deep Research for comprehensive analysis, Grok 4.3 for fast turnaround. Both plan queries, follow leads, cross-validate sources, and synthesize findings.
@@ -197,7 +197,7 @@ From the executive summary of a sample report:
 > - The company has no disclosed AI strategy, but 4 of their last 7 engineering hires have ML/optimization backgrounds. Combined with a patent filing for "autonomous route replanning under disruption," this suggests an unannounced product line. *(Hypothesis)*
 > - Pricing has shifted from perpetual licenses to consumption-based billing (per-shipment), visible in public procurement portal RFP responses. *(Reported)*
 
-Reports include 23 structured sections, SWOT analysis, competitive landscape, discovery questions, and inline confidence levels on every non-obvious claim.
+Reports include 23 structured sections, SWOT analysis, competitive landscape, discovery questions, and inline confidence labels on non-obvious claims. Depth tracks the available public signal: a company with filings, postings, and press coverage produces a sharper brief than one with a four-page website, and the report says so rather than padding.
 
 ## Under the Hood
 
