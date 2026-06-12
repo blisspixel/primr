@@ -12,15 +12,15 @@ full suite green per slice, eval scores unchanged.
 |---|-------|--------|-------|
 | 0 | Setup & model resolution | — | **EXTRACTED** → `core/fast_run_setup.resolve_fast_run_setup()` (frozen `FastRunSetup`) |
 | 1 | Data collection | `fetch_web_content` call → external validation pools | Highest complexity: parallel pools with deadlines, quality filtering. **Extract LAST** |
-| 2 | Hiring signals | `gather_hiring_signals` | Clean call + formatting; local error handling |
+| 2 | Hiring signals | `gather_hiring_signals` | **EXTRACTED** → `core/fast_run_hiring.collect_hiring_block()` |
 | 2B | Combined insights build | writes `insights.txt` | **EXTRACTED** → `core/insights_assembly.py` (pure assembly; both build sites call it, file write stays in orchestrator) |
 | 3 | Gap analysis + deepening | `_fast_gap_analysis` → gap pools | Mutates source_urls/external_* sets and REBUILDS external_sources_raw + insights.txt |
-| 4 | Analysis workbook | `_build_fast_analysis_prompt` | Lazy-constructs ContinuousReasoningSession (shared with stage 6!) |
+| 4 | Analysis workbook | `_build_fast_analysis_prompt` | **EXTRACTED** → `core/fast_run_workbook.generate_analysis_workbook()` — returns `(workbook, reasoning_session)` so the lazily-constructed session still reaches stage 6 |
 | 5 | Section writing | `_group_sections_by_part` → per-part pools | Exec summary popped + written last with ALL prior sections; default-arg closure binding; per-part frozen snapshots |
 | 6 | Cross-validation + enrichment | `_fast_cross_validate` → weak-section loop | Regex find+splice mutates report_content serially; per-section 300s deadline; diminishing-returns detector; reuses stage-4 session |
 | 7 | Trust polish + citation repair | `_polish_fast_report_for_trust` chain | **EXTRACTED** → `core/fast_run_trust.polish_and_gate_fast_report()` (frozen `FastTrustResult`); the LLM polish/repair helpers stay in research_agent (lazy-imported) until their own extraction |
 | 8 | Artifact assembly | `_convert_deep_research_to_docx` | Thin (~25 lines). DECISION: kept inline — extracting a 25-line wrapper around an already-extracted function adds indirection without testability gain; fold into the eventual FastRunContext pass |
-| 9 | Strategy generation | budget checkpoint → vendor closures | Self-contained; per-vendor parallel closures; YAML strategies serial |
+| 9 | Strategy generation | budget checkpoint → vendor closures | **EXTRACTED** → `core/fast_run_strategy.run_strategy_phase()` (frozen `StrategyPhaseResult`); budget checkpoint, per-vendor closures + parallel dispatch, YAML loop all moved verbatim |
 | 10 | Summary & usage | — | **EXTRACTED** → `core/fast_run_summary.finalize_fast_run()` |
 
 ## The thread (locals consumed across many stages → future run-context object)
@@ -63,7 +63,8 @@ about to move.
   (fast_run_setup.py); stage 8 deliberately kept inline (see table)
 - **Batch B (deterministic polish) — DONE:** stage 7 (fast_run_trust.py),
   stage 2B (insights_assembly.py)
-- **Batch C (contained closures):** stage 9, stage 4, stage 2
+- **Batch C (contained closures) — DONE:** stage 9 (fast_run_strategy.py),
+  stage 4 (fast_run_workbook.py), stage 2 (fast_run_hiring.py)
 - **Batch D (section context):** stage 5
 - **Batch E (research deepening):** stage 3
 - **Batch F (data collection, last):** stage 1
