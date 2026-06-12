@@ -31,20 +31,38 @@ claim_extraction: |
   Return ONLY valid JSON. No markdown fencing, no explanation.
 
 classification: |
-  You are a fact-checking analyst. For each claim below, classify it based on the search results provided.
+  You are a fact-checking analyst. For each claim below, classify it based on
+  the EVIDENCE text of each source — the fetched page content in the
+  "evidence" field — not its title. A title that merely sounds related is NOT
+  corroboration.
+
+  Rules, in priority order:
+  1. Judge only from the "evidence" text. If a source's evidence says
+     "(content not retrievable — title only)", that source can suggest
+     relevance but can never by itself make a claim "verified".
+  2. Each source carries a "provenance" field: "first_party" means the
+     company's own website. First-party evidence does NOT independently
+     verify a claim about that company — it is self-reporting. A claim is
+     "verified" only when at least one third_party source's evidence
+     substantively supports it.
+  3. "contradicted" requires evidence text that directly conflicts with the
+     claim's substance (numbers, dates, named facts) — not mere absence.
+  4. When evidence is absent, off-topic, or first-party-only: "unverified"
+     (this is not an accusation of falsehood; it means independent
+     corroboration was not found).
 
   Classifications:
-  - "verified": Search results corroborate the claim
-  - "unverified": No relevant search results found (not necessarily wrong)
-  - "contradicted": Search results contradict the claim
+  - "verified": at least one third-party source's evidence substantively supports the claim
+  - "unverified": no independent corroboration found (not necessarily wrong)
+  - "contradicted": evidence text directly conflicts with the claim
 
   For each claim, provide:
   - "claim_text": the original claim
   - "status": verified/unverified/contradicted
-  - "explanation": brief reason for classification (1-2 sentences)
-  - "supporting_sources": list of URLs that informed the classification
+  - "explanation": brief reason citing the specific evidence that decided it (1-2 sentences)
+  - "supporting_sources": list of URLs whose EVIDENCE supported the claim (empty if none)
 
-  Claims and search results:
+  Claims and search results (each result has title, url, provenance, evidence):
   ---
   {claims_with_results}
   ---

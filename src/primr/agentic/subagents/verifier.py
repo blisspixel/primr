@@ -81,6 +81,15 @@ class ClaimVerification:
     supporting_sources: list[str] = field(default_factory=list)
     explanation: str = ""
     search_query: str = ""
+    # Evidence the classifier actually saw: url -> {"provenance", "fetched"}.
+    # provenance is "first_party" (company's own domain/subdomains) or
+    # "third_party"; fetched marks whether page content was retrieved (vs
+    # title-only fallback when the fetch failed).
+    evidence_sources: list[dict[str, Any]] = field(default_factory=list)
+    # True when a "verified" verdict was downgraded because every supporting
+    # source was the company's own domain — self-corroboration is not
+    # independent verification.
+    first_party_downgrade: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary."""
@@ -92,6 +101,8 @@ class ClaimVerification:
             "supporting_sources": self.supporting_sources,
             "explanation": self.explanation,
             "search_query": self.search_query,
+            "evidence_sources": self.evidence_sources,
+            "first_party_downgrade": self.first_party_downgrade,
         }
 
 
@@ -157,6 +168,10 @@ class VerifierSubagent(Subagent[VerificationResult]):
     DEFAULT_MAX_CLAIMS = 20
     SEARCH_WORKERS = 3
     CLASSIFICATION_BATCH_SIZE = 5
+    # Evidence fetching: pages fetched per claim, and snippet size handed to
+    # the classifier. Plain HTTP GET (SSRF-guarded), zero token cost.
+    MAX_EVIDENCE_PER_CLAIM = 3
+    EVIDENCE_SNIPPET_CHARS = 1_500
 
     def __init__(
         self,
@@ -379,25 +394,114 @@ class VerifierSubagent(Subagent[VerificationResult]):
 
         return results
 
+    def _source_provenance(self, url: str) -> str:
+        """Tag a source URL as first_party (company's own site) or third_party."""
+        from primr.data.scraping.net import is_in_scope
+
+        company_url = self._context.company_url or ""
+        if not company_url or not url:
+            return "third_party"
+        try:
+            return "first_party" if is_in_scope(url, company_url) else "third_party"
+        except Exception:
+            return "third_party"
+
+    def _fetch_evidence(
+        self, search_results: dict[str, list[dict[str, str]]]
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Fetch page content for each claim's top hits (evidence, not titles).
+
+        For every hit (capped at MAX_EVIDENCE_PER_CLAIM per claim) this does a
+        plain SSRF-guarded HTTP GET and reader-mode extraction, producing a
+        snippet the classifier can actually judge against. Fetch failures fall
+        back to title-only for that hit — never fail the verification pass.
+        URLs are fetched once even when shared across claims.
+        """
+        from primr.data.fallback_sources import _http_get
+        from primr.data.scraping.content import extract_main_content
+
+        # Collect unique URLs across claims (dedupe fetches)
+        urls: list[str] = []
+        seen: set[str] = set()
+        for hits in search_results.values():
+            for hit in hits[: self.MAX_EVIDENCE_PER_CLAIM]:
+                url = hit.get("url", "")
+                if url and url not in seen:
+                    seen.add(url)
+                    urls.append(url)
+
+        snippets: dict[str, str] = {}
+
+        def _fetch_one(url: str) -> tuple[str, str]:
+            try:
+                status, body, _final = _http_get(url, timeout=12.0)
+                if status and 200 <= status < 300 and body:
+                    text = extract_main_content(body)
+                    return url, (text or "")[: self.EVIDENCE_SNIPPET_CHARS]
+            except Exception as e:
+                logger.debug("Evidence fetch failed for %s: %s", url, e)
+            return url, ""
+
+        with ThreadPoolExecutor(max_workers=self.SEARCH_WORKERS) as executor:
+            futures = [executor.submit(_fetch_one, url) for url in urls]
+            for future in as_completed(futures):
+                try:
+                    url, snippet = future.result(timeout=30)
+                    snippets[url] = snippet
+                except Exception:
+                    pass
+
+        # Re-shape per claim with provenance + snippet
+        evidence: dict[str, list[dict[str, Any]]] = {}
+        for claim_text, hits in search_results.items():
+            enriched: list[dict[str, Any]] = []
+            for hit in hits[: self.MAX_EVIDENCE_PER_CLAIM]:
+                url = hit.get("url", "")
+                snippet = snippets.get(url, "")
+                enriched.append(
+                    {
+                        "title": hit.get("title", ""),
+                        "url": url,
+                        "provenance": self._source_provenance(url),
+                        "fetched": bool(snippet),
+                        "snippet": snippet,
+                    }
+                )
+            evidence[claim_text] = enriched
+        return evidence
+
     async def _classify_results(
         self,
         claims: list[VerifiableClaim],
         search_results: dict[str, list[dict[str, str]]],
     ) -> list[ClaimVerification]:
-        """Classify claims based on search results using LLM."""
+        """Classify claims against fetched page evidence using LLM.
+
+        Evidence-based: the classifier sees fetched page snippets with
+        first-party/third-party provenance, not just search-result titles.
+        A deterministic post-guard downgrades "verified" verdicts whose only
+        support is the company's own domain — self-corroboration is not
+        independent verification.
+        """
         from primr.ai.llm import llm
 
         prompt_template = self._load_prompt("classification")
         all_verifications: list[ClaimVerification] = []
+        evidence_by_claim = self._fetch_evidence(search_results)
 
         # Process in batches
         for i in range(0, len(claims), self.CLASSIFICATION_BATCH_SIZE):
             batch = claims[i : i + self.CLASSIFICATION_BATCH_SIZE]
             batch_data = []
             for claim in batch:
-                hits = search_results.get(claim.claim_text, [])
                 hit_summaries = [
-                    {"title": h.get("title", ""), "url": h.get("url", "")} for h in hits[:5]
+                    {
+                        "title": e["title"],
+                        "url": e["url"],
+                        "provenance": e["provenance"],
+                        "evidence": e["snippet"] or "(content not retrievable — title only)",
+                    }
+                    for e in evidence_by_claim.get(claim.claim_text, [])
                 ]
                 batch_data.append(
                     {
@@ -423,16 +527,44 @@ class VerifierSubagent(Subagent[VerificationResult]):
                         status = cls.get("status", "unverified")
                         if status not in ("verified", "unverified", "contradicted"):
                             status = "unverified"
+                        supporting = cls.get("supporting_sources", [])
+                        if not isinstance(supporting, list):
+                            supporting = []
+                        explanation = cls.get("explanation", "")
+
+                        # Deterministic guard: a "verified" verdict whose
+                        # every supporting source is the company's own domain
+                        # is self-corroboration, not verification. Downgrade
+                        # regardless of what the LLM decided.
+                        first_party_downgrade = False
+                        if status == "verified" and supporting:
+                            if all(
+                                self._source_provenance(str(u)) == "first_party" for u in supporting
+                            ):
+                                status = "unverified"
+                                first_party_downgrade = True
+                                explanation = (
+                                    "Only first-party (company-domain) sources support "
+                                    "this claim — downgraded: self-corroboration is not "
+                                    "independent verification. " + explanation
+                                ).strip()
+
+                        claim_evidence = [
+                            {k: e[k] for k in ("url", "provenance", "fetched")}
+                            for e in evidence_by_claim.get(claim.claim_text, [])
+                        ]
                         all_verifications.append(
                             ClaimVerification(
                                 claim=claim,
                                 status=status,
-                                supporting_sources=cls.get("supporting_sources", []),
-                                explanation=cls.get("explanation", ""),
+                                supporting_sources=supporting,
+                                explanation=explanation,
                                 search_query=next(
-                                    (q for c, q in self._build_search_queries([claim])),
+                                    (q for _c, q in self._build_search_queries([claim])),
                                     "",
                                 ),
+                                evidence_sources=claim_evidence,
+                                first_party_downgrade=first_party_downgrade,
                             )
                         )
                     else:

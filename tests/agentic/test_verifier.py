@@ -28,6 +28,22 @@ from src.primr.agentic.subagents.verifier import (
 # =============================================================================
 
 
+@pytest.fixture(autouse=True)
+def _no_network_evidence_fetch(monkeypatch):
+    """Kill real HTTP in the evidence-fetch step for every test in this file.
+
+    The classifier now fetches page content for each search hit; unit tests
+    must never reach the network. Default stub: every URL fetches
+    successfully with generic third-party-looking content. Tests that need
+    specific evidence override via `primr.data.fallback_sources._http_get`.
+    """
+
+    def fake_http_get(url, timeout=15.0, headers=None, params=None):
+        return 200, b"<html><body><p>stub evidence content for tests</p></body></html>", url
+
+    monkeypatch.setattr("primr.data.fallback_sources._http_get", fake_http_get)
+
+
 def _write_report(content: str) -> Path:
     """Write content to a temp file and return its path."""
     tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115
@@ -1069,3 +1085,214 @@ class TestCLIIntegration:
 
         config = CLIConfig(command=Command.RESEARCH)
         assert config.verify is False
+
+
+# =============================================================================
+# Evidence-based classification (verify upgrade)
+# =============================================================================
+
+
+class TestEvidenceFetching:
+    def test_provenance_first_party_vs_third(self):
+        verifier, _ = _make_verifier()
+        assert verifier._source_provenance("https://testco.com/about") == "first_party"
+        assert verifier._source_provenance("https://investors.testco.com/q3") == "first_party"
+        assert verifier._source_provenance("https://news.example.com/a") == "third_party"
+        assert verifier._source_provenance("") == "third_party"
+
+    def test_fetch_evidence_enriches_hits(self):
+        verifier, _ = _make_verifier()
+        search_results = {
+            "claim A": [
+                {"title": "T1", "url": "https://news.example.com/a"},
+                {"title": "T2", "url": "https://testco.com/press"},
+            ]
+        }
+        evidence = verifier._fetch_evidence(search_results)
+        enriched = evidence["claim A"]
+        assert enriched[0]["provenance"] == "third_party"
+        assert enriched[1]["provenance"] == "first_party"
+        assert all(e["fetched"] for e in enriched)
+        assert "stub evidence content" in enriched[0]["snippet"]
+
+    def test_fetch_failure_falls_back_to_title_only(self, monkeypatch):
+        def failing_get(url, timeout=15.0, headers=None, params=None):
+            return None, None, None
+
+        monkeypatch.setattr("primr.data.fallback_sources._http_get", failing_get)
+        verifier, _ = _make_verifier()
+        evidence = verifier._fetch_evidence(
+            {"claim A": [{"title": "T1", "url": "https://news.example.com/a"}]}
+        )
+        hit = evidence["claim A"][0]
+        assert hit["fetched"] is False
+        assert hit["snippet"] == ""
+
+    def test_snippet_truncated(self, monkeypatch):
+        big = b"<html><body><p>" + b"word " * 5000 + b"</p></body></html>"
+
+        def big_get(url, timeout=15.0, headers=None, params=None):
+            return 200, big, url
+
+        monkeypatch.setattr("primr.data.fallback_sources._http_get", big_get)
+        verifier, _ = _make_verifier()
+        evidence = verifier._fetch_evidence(
+            {"c": [{"title": "T", "url": "https://news.example.com/a"}]}
+        )
+        assert len(evidence["c"][0]["snippet"]) <= verifier.EVIDENCE_SNIPPET_CHARS
+
+    def test_duplicate_urls_fetched_once(self, monkeypatch):
+        calls = []
+
+        def counting_get(url, timeout=15.0, headers=None, params=None):
+            calls.append(url)
+            return 200, b"<html><body>x</body></html>", url
+
+        monkeypatch.setattr("primr.data.fallback_sources._http_get", counting_get)
+        verifier, _ = _make_verifier()
+        shared = {"title": "T", "url": "https://news.example.com/a"}
+        verifier._fetch_evidence({"c1": [shared], "c2": [shared]})
+        assert calls.count("https://news.example.com/a") == 1
+
+
+class TestEvidenceClassification:
+    def _claims(self):
+        return [VerifiableClaim(claim_text="TestCo revenue was $50M", section="Exec", importance=5)]
+
+    def test_evidence_reaches_classifier_prompt(self):
+        verifier, _ = _make_verifier()
+        captured = {}
+
+        def mock_llm(prompt, **kwargs):
+            captured["prompt"] = prompt
+            return json.dumps(
+                [
+                    {
+                        "claim_text": "TestCo revenue was $50M",
+                        "status": "verified",
+                        "explanation": "evidence supports",
+                        "supporting_sources": ["https://news.example.com/a"],
+                    }
+                ]
+            )
+
+        with patch("primr.ai.llm.llm", side_effect=mock_llm):
+            results = asyncio.run(
+                verifier._classify_results(
+                    self._claims(),
+                    {
+                        "TestCo revenue was $50M": [
+                            {"title": "T1", "url": "https://news.example.com/a"}
+                        ]
+                    },
+                )
+            )
+        assert "stub evidence content" in captured["prompt"]
+        assert '"provenance": "third_party"' in captured["prompt"]
+        assert results[0].status == "verified"
+        assert results[0].evidence_sources[0]["provenance"] == "third_party"
+        assert results[0].first_party_downgrade is False
+
+    def test_first_party_only_support_downgraded(self):
+        verifier, _ = _make_verifier()
+
+        def mock_llm(prompt, **kwargs):
+            return json.dumps(
+                [
+                    {
+                        "claim_text": "TestCo revenue was $50M",
+                        "status": "verified",
+                        "explanation": "the company says so",
+                        "supporting_sources": [
+                            "https://testco.com/press",
+                            "https://investors.testco.com/q3",
+                        ],
+                    }
+                ]
+            )
+
+        with patch("primr.ai.llm.llm", side_effect=mock_llm):
+            results = asyncio.run(
+                verifier._classify_results(
+                    self._claims(),
+                    {
+                        "TestCo revenue was $50M": [
+                            {"title": "PR", "url": "https://testco.com/press"}
+                        ]
+                    },
+                )
+            )
+        assert results[0].status == "unverified"
+        assert results[0].first_party_downgrade is True
+        assert "self-corroboration" in results[0].explanation
+
+    def test_third_party_support_not_downgraded(self):
+        verifier, _ = _make_verifier()
+
+        def mock_llm(prompt, **kwargs):
+            return json.dumps(
+                [
+                    {
+                        "claim_text": "TestCo revenue was $50M",
+                        "status": "verified",
+                        "explanation": "independent coverage",
+                        "supporting_sources": [
+                            "https://testco.com/press",
+                            "https://news.example.com/a",
+                        ],
+                    }
+                ]
+            )
+
+        with patch("primr.ai.llm.llm", side_effect=mock_llm):
+            results = asyncio.run(
+                verifier._classify_results(
+                    self._claims(),
+                    {
+                        "TestCo revenue was $50M": [
+                            {"title": "T", "url": "https://news.example.com/a"}
+                        ]
+                    },
+                )
+            )
+        assert results[0].status == "verified"
+        assert results[0].first_party_downgrade is False
+
+    def test_unretrievable_evidence_marked_in_prompt(self, monkeypatch):
+        def failing_get(url, timeout=15.0, headers=None, params=None):
+            return None, None, None
+
+        monkeypatch.setattr("primr.data.fallback_sources._http_get", failing_get)
+        verifier, _ = _make_verifier()
+        captured = {}
+
+        def mock_llm(prompt, **kwargs):
+            captured["prompt"] = prompt
+            return json.dumps([])
+
+        with patch("primr.ai.llm.llm", side_effect=mock_llm):
+            asyncio.run(
+                verifier._classify_results(
+                    self._claims(),
+                    {
+                        "TestCo revenue was $50M": [
+                            {"title": "T", "url": "https://news.example.com/a"}
+                        ]
+                    },
+                )
+            )
+        assert "content not retrievable" in captured["prompt"]
+
+    def test_serialization_includes_evidence_fields(self):
+        claim = VerifiableClaim(claim_text="c", section="s", importance=3)
+        cv = ClaimVerification(
+            claim=claim,
+            status="unverified",
+            evidence_sources=[
+                {"url": "https://x.example", "provenance": "third_party", "fetched": True}
+            ],
+            first_party_downgrade=True,
+        )
+        d = cv.to_dict()
+        assert d["evidence_sources"][0]["provenance"] == "third_party"
+        assert d["first_party_downgrade"] is True
