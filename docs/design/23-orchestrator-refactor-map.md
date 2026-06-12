@@ -92,10 +92,18 @@ about to move.
   >25 functions are grandfathered via per-file-ignores; that list must only
   shrink. `perform_fast_research` no longer appears — the refactor took it
   from the #1 offender off the leaderboard entirely.
-- **Remaining:** raise research_agent per-module coverage toward 80% (it
-  still hosts the LLM-backed helpers and deep-research paths), then the same
-  split treatment for `deep_research._execute_consulting_research` (~270
-  lines, dossier phase vs section-writing phase).
+- **`_execute_consulting_research` split — ALREADY DONE** (predates this
+  map; verified 2026-06-12): `DeepResearchOrchestrator` is split into
+  `generate_report` → `_execute_with_retry` → `_execute_single` →
+  `_poll_for_completion`, each with dedicated suites
+  (`tests/test_ai/test_execute_with_retry.py`,
+  `test_deep_research_generate_report.py`). The ROADMAP bullet was stale.
+- **Remaining:** raise research_agent per-module coverage toward 80% — it
+  still hosts the LLM-backed helpers (`_polish_fast_report_for_trust`,
+  `_repair_fast_report_citation_integrity`, `_fast_cross_validate`,
+  `_fast_regenerate_section`, `_fast_gap_analysis`, `_write_section_with_retry`,
+  `_fast_coherence_pass`, `_assess_source_relevance`) and the deep-research
+  entry paths.
 
 ## Already-extracted helpers the stages delegate to
 
