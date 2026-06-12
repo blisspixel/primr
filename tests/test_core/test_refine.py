@@ -127,6 +127,7 @@ class TestRefineLoop:
             )
             return f"## {title}\n{body}\n"
 
+        kwargs.setdefault("acceptance_fn", lambda before, after, titles: True)
         result = refine_report(
             "AcmeCo",
             report_path,
@@ -250,3 +251,77 @@ class TestCLIWiring:
         from primr.core.cli import CLIConfig, Command, _handle_refine
 
         assert _handle_refine(CLIConfig(command=Command.REFINE)) == 1
+
+
+class TestIndependentAcceptance:
+    """Anti-Goodhart guard: iterations the calibration audit rejects are reverted."""
+
+    def test_rejected_iteration_reverted_and_loop_stops(self, report_file):
+        path = report_file(_strong_section("Alpha") + _weak_section("Weak A") + _sources_section())
+        original_content = path.read_text(encoding="utf-8")
+
+        helper = TestRefineLoop()
+        result, _ = helper._run(
+            path,
+            scores=[70.0, 95.0],
+            acceptance_fn=lambda before, after, titles: False,
+        )
+
+        assert result.stop_reason == "acceptance_rejected"
+        assert result.acceptance_rejected is True
+        assert result.sections_regenerated == []
+        assert result.output_path is None
+        # Original artifact untouched
+        assert path.read_text(encoding="utf-8") == original_content
+
+    def test_acceptance_receives_iteration_context(self, report_file):
+        path = report_file(_strong_section("Alpha") + _weak_section("Weak A") + _sources_section())
+        seen = {}
+
+        def spy_acceptance(before, after, titles):
+            seen["titles"] = list(titles)
+            seen["changed"] = before != after
+            return True
+
+        helper = TestRefineLoop()
+        result, _ = helper._run(path, scores=[70.0, 95.0], acceptance_fn=spy_acceptance)
+        assert seen["titles"] == ["Weak A"]
+        assert seen["changed"] is True
+        assert result.acceptance_rejected is False
+
+    def test_default_acceptance_passes_when_no_traceable_labels_added(self):
+        from primr.core.refine import _default_acceptance
+
+        before = "## S\nThin.\n"
+        after = "## S\nBetter prose, inference only. (Hypothesis)\n"
+        assert _default_acceptance(before, after, ["S"]) is True
+
+    def test_default_acceptance_rejects_traceability_drop(self, monkeypatch):
+        # Before: one traceable Confirmed claim. After: rewrite added an
+        # uncited (Confirmed) claim -> no_source drags precision down.
+        before = (
+            "## S\nRevenue is $50M. (Confirmed) [cite: 1]\n\n## Sources\n1. https://a.example\n"
+        )
+        after = (
+            "## S\nRevenue is $50M. (Confirmed) [cite: 1]\n"
+            "Margins doubled last year. (Confirmed)\n\n## Sources\n1. https://a.example\n"
+        )
+        import primr.qa.label_calibration as cal
+
+        monkeypatch.setattr(cal, "_default_fetch", lambda url: "source text")
+        monkeypatch.setattr(cal, "_default_judge", lambda c, t: True)
+        from primr.core.refine import _default_acceptance
+
+        assert _default_acceptance(before, after, ["S"]) is False
+
+    def test_default_acceptance_fail_open_on_harness_error(self, monkeypatch):
+        import primr.qa.label_calibration as cal
+
+        def boom(*a, **k):
+            raise RuntimeError("harness exploded")
+
+        monkeypatch.setattr(cal, "extract_labeled_claims", boom)
+        from primr.core.refine import _default_acceptance
+
+        before = "## S\nx (Confirmed) [cite: 1]\n\n## Sources\n1. https://a.example\n"
+        assert _default_acceptance(before, before, ["S"]) is True
