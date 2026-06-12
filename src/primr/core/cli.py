@@ -1332,7 +1332,7 @@ Accordion Method Test (for development):
         default="cloud",
         help=(
             "With 'calibrate', which LLM judges traceability: cloud (fast tier, default), "
-            "local (your OpenAI-compatible server, e.g. Ollama — errors if unavailable), "
+            "local (your OpenAI-compatible server, e.g. Ollama; errors if unavailable), "
             "or auto (local when reachable, else cloud)"
         ),
     )
@@ -1347,7 +1347,7 @@ Accordion Method Test (for development):
         action="store_true",
         help=(
             "With 'calibrate', judge the same claims with BOTH cloud and local and report "
-            "agreement — measures whether your local model can be trusted as the judge. "
+            "agreement, measuring whether your local model can be trusted as the judge. "
             "Sidecars are written from the cloud verdicts."
         ),
     )
