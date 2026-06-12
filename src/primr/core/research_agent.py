@@ -62,7 +62,6 @@ from primr.core.deep_research_runner import (
     DeepResearchMode,
 )
 from primr.core.fast_mode_helpers import (
-    _assemble_fast_report,
     _compute_fast_report_qa_metrics,
     _enforce_fast_section_quality_guards,
 )
@@ -70,6 +69,7 @@ from primr.core.fast_mode_helpers import (
     _parse_batch_sections as _parse_batch_sections,
 )
 from primr.core.fast_run_hiring import collect_hiring_block
+from primr.core.fast_run_sections import write_report_sections
 from primr.core.fast_run_strategy import run_strategy_phase
 from primr.core.fast_run_trust import polish_and_gate_fast_report
 from primr.core.fast_run_workbook import generate_analysis_workbook
@@ -141,14 +141,13 @@ from primr.core.section_planning import (
     _HIGH_DEPTH_SECTION_IDS as _HIGH_DEPTH_SECTION_IDS,
 )
 from primr.core.section_planning import (
-    _PART_LABELS,
-    _get_section_word_target,
-)
-from primr.core.section_planning import (
     _determine_section_reasoning_mode as _determine_section_reasoning_mode,
 )
 from primr.core.section_planning import (
     _get_section_max_tokens as _get_section_max_tokens,
+)
+from primr.core.section_planning import (
+    _get_section_word_target,
 )
 from primr.core.section_planning import (
     _group_sections_by_part as _group_sections_by_part,
@@ -3131,212 +3130,25 @@ def perform_fast_research(
         )
 
         # =================================================================
-        # Phase 4: Grok report writing (parallel within parts + coherence)
+        # Phase 4: Report writing (extracted: core/fast_run_sections.py)
         # =================================================================
-        console.phase_banner(
-            4,
-            total_phases,
-            "Report Writing (Grok)",
-            "Writing sections (parallel within parts)",
-            "3-5 min",
+        _sections_result = write_report_sections(
+            company_label=company_name or display_name,
+            website=website,
+            analysis_workbook=analysis_workbook,
+            raw_corpus=raw_corpus,
+            external_sources_raw=external_sources_raw,
+            source_urls=source_urls,
+            grok_writing=grok_writing,
+            recovery_executor=_recovery_executor,
+            folder_path=folder_path,
+            total_phases=total_phases,
         )
-
-        # Build a raw data subset for evidence (~100k chars — workbook already distills corpus)
-        raw_corpus_subset = raw_corpus[:100_000] if len(raw_corpus) > 100_000 else raw_corpus
-
-        report_system = (
-            "You are a senior strategic analyst writing a consulting dossier — internal prep "
-            "before a discovery conversation. Your reader is a partner walking into a meeting.\n\n"
-            "The bar is maximally useful strategic analysis: long-form, specific, strategically sharp, and written "
-            "to get a consultant maximally up to speed before talking with the company.\n\n"
-            "CORE DISCIPLINE:\n"
-            "- STRESS-TEST the company's narrative. Do NOT paraphrase their marketing. "
-            "When they claim 'only purpose-built' or '9x ROI', challenge it with evidence.\n"
-            "- Frame every major claim as a hypothesis with counter-evidence. "
-            "What would disprove it? What's the alternative explanation?\n"
-            "- For each section, surface 'what to validate in conversation' — specific "
-            "questions a consultant would ask to test the hypothesis.\n"
-            "- Be CONSERVATIVE on financial estimates. Use wide ranges, note low confidence. "
-            "Never state an inference as if it were confirmed.\n\n"
-            "EPISTEMIC RULES:\n"
-            "- Label claims: Confirmed (filings/official), Reported (credible 3rd party), "
-            "Estimated (inferred), Hypothesis (our speculation)\n"
-            "- CONFIDENCE RESET per section: don't inherit confidence from prior sections\n"
-            "- NARRATIVE CEILING: don't escalate stakes. 'Opportunity' stays 'opportunity', "
-            "not 'transformational opportunity'. Keep scope realistic.\n"
-            "- NUMERIC PRECISION: ranges for estimates ('$800M-$1.2B'), note source/date\n"
-            "- AVOID OVERREACH: don't claim inside knowledge of board decisions, precise "
-            "market share in opaque markets, or causal certainty\n"
-            "- REASON UNDER CONSTRAINT: if company-specific evidence is thin, still produce deep strategic analysis by combining "
-            "observed facts, industry structure, competitive analogs, likely buyer behavior, and explicit scenario logic\n\n"
-            "FORMATTING:\n"
-            "- Full paragraphs with evidence and strategic interpretation, not bullet dumps\n"
-            "- Tables for financials, competitors, timelines\n"
-            "- Keep citations compact, usually at paragraph ends, and avoid cluttering every sentence\n"
-            "- Use [cite: N] references in the body; keep the densest reference inventory in the final Sources appendix\n"
-            "- Sub-headings (###) within sections for readability\n"
-            "- Each insight lives in ONE section — cross-reference, don't repeat"
-        )
-
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-
-        section_batches = _group_sections_by_part()
-
-        # Use constrained-evidence reasoning for thin-signal sections instead of skipping them.
-        section_reasoning_modes: dict[str, str] = {}
-        constrained_sections: list[str] = []
-        for batch in section_batches:
-            for sec in batch:
-                mode = _determine_section_reasoning_mode(sec, analysis_workbook)
-                section_reasoning_modes[sec.id] = mode
-                if mode == "constrained_evidence":
-                    constrained_sections.append(sec.name)
-        if constrained_sections:
-            console.info(
-                "Using constrained-evidence strategic reasoning for "
-                f"{len(constrained_sections)} section(s): {', '.join(constrained_sections)}"
-            )
-
-        # Pop executive_summary — write it LAST so it can synthesize the full report
-        exec_summary_section = None
-        for batch in section_batches:
-            for sec in batch:
-                if sec.id == "executive_summary":
-                    exec_summary_section = sec
-                    batch.remove(sec)
-                    break
-            if exec_summary_section:
-                break
-        # Remove empty batches (if exec summary was the only section in its batch)
-        section_batches = [b for b in section_batches if b]
-
-        # Rebuild section names from the post-pop batches so indices align with
-        # global_offset used in _write_one.  Exec summary is written last, so it
-        # should NOT be in the ToC during batch writing — avoids off-by-one where
-        # [NOW] marker points to the wrong section name.
-        all_section_names = [s.name for batch in section_batches for s in batch]
-        written_sections: list[GeneratedSection] = []
-        effective_name = company_name or display_name
-
-        global_offset = 0
-        for part_num, part_sections in enumerate(section_batches):
-            part_label = _PART_LABELS.get(part_sections[0].part, f"Part {part_sections[0].part}")
-            console.info(
-                f"Part {part_num + 1}/{len(section_batches)} ({part_label}): "
-                f"{len(part_sections)} section(s) in parallel"
-            )
-
-            # Snapshot written_sections — threads in this part share the same frozen prior context
-            prior_sections = list(written_sections)
-
-            def _write_one(
-                idx_section: tuple[int, "SectionConfig"],
-                _offset: int = global_offset,
-                _prior: list["GeneratedSection"] = prior_sections,
-            ) -> tuple[int, dict[str, Any] | None]:
-                local_idx, sec = idx_section
-
-                def _do_write():
-                    result = _write_section_with_retry(
-                        sec,
-                        _offset + local_idx,
-                        all_section_names,
-                        _prior,
-                        effective_name,
-                        website,
-                        analysis_workbook,
-                        raw_corpus_subset,
-                        external_sources_raw,
-                        source_urls,
-                        report_system,
-                        section_reasoning_modes.get(sec.id, "standard"),
-                        model=grok_writing,
-                    )
-                    if result is None:
-                        raise RuntimeError(f"Section '{sec.name}' returned empty")
-                    return result
-
-                from primr.pipeline.integration import write_section_with_recovery
-
-                stage_result = write_section_with_recovery(
-                    _recovery_executor, _do_write, folder_path
-                )
-                if stage_result.success:
-                    return (local_idx, stage_result.output)
-                return (local_idx, None)
-
-            results: list[tuple[int, dict[str, Any] | None]] = []
-            if len(part_sections) == 1:
-                results.append(_write_one((0, part_sections[0])))
-            else:
-                with ThreadPoolExecutor(max_workers=min(len(part_sections), 4)) as executor:
-                    futures = {
-                        executor.submit(_write_one, (i, s)): i for i, s in enumerate(part_sections)
-                    }
-                    for future in as_completed(futures):
-                        results.append(future.result())
-
-            # Sort by local index to maintain canonical section order
-            results.sort(key=lambda x: x[0])
-            seen_titles: set[str] = {s.title.lower().strip() for s in written_sections}
-            for local_idx, parsed in results:
-                if parsed:
-                    title_key = parsed.title.lower().strip()
-                    if title_key in seen_titles:
-                        console.warn(f"  {parsed.title} — duplicate, skipping")
-                        continue
-                    seen_titles.add(title_key)
-                    written_sections.append(parsed)
-                    console.ok(f"  {parsed.title} ({parsed.words:,} words)")
-                else:
-                    sec_name = part_sections[local_idx].name
-                    console.warn(f"  {sec_name} — skipped (failed or empty)")
-
-            global_offset += len(part_sections)
-
-        # Write executive summary LAST — it now has full report context to synthesize
-        if exec_summary_section is not None:
-            console.info("Writing Executive Summary (with full report context)")
-            exec_parsed = _write_section_with_retry(
-                exec_summary_section,
-                0,  # section_index 0 — first section in final report
-                all_section_names,
-                written_sections,  # ALL completed sections → full synthesis context
-                effective_name,
-                website,
-                analysis_workbook,
-                raw_corpus_subset,
-                external_sources_raw,
-                source_urls,
-                report_system,
-                section_reasoning_modes.get(exec_summary_section.id, "standard"),
-                model=grok_writing,
-            )
-            if exec_parsed:
-                written_sections.insert(0, exec_parsed)
-                console.ok(f"  {exec_parsed.title} ({exec_parsed.words:,} words)")
-            else:
-                console.warn("  Executive Summary — skipped (failed or empty)")
-
-        if not written_sections:
-            console.error("All report sections failed — no sections written")
+        if _sections_result.report_content is None:
             return None
-
-        report_content = _assemble_fast_report(
-            company_name or display_name, website, written_sections
-        )
-
-        # Coherence pass: deduplicate and smooth transitions
-        with console.timed_operation("Running coherence pass"):
-            report_content = _fast_coherence_pass(
-                company_name or display_name, website, report_content, model=grok_writing
-            )
-
-        total_words = len(report_content.split())
-        console.phase_complete(
-            "Report Writing (Grok)",
-            [("Sections", str(len(written_sections))), ("Words", f"{total_words:,}")],
-        )
+        report_content = _sections_result.report_content
+        written_sections = _sections_result.written_sections
+        total_words = _sections_result.total_words
 
         # =================================================================
         # Phase 5: Cross-Validation (review + targeted enrichment)
