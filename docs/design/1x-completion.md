@@ -16,11 +16,27 @@ function the suite can only test around).
 
 ## Workstreams, in dependency order
 
-### 1. Measure the epistemics (do first — everything downstream judges against it)
+### 1. Measure the epistemics — SHIPPED (post-1.30.0: PRs #27, #28, refine acceptance guard)
 
-**Label calibration.** The Confirmed/Reported/Estimated/Hypothesis regime is
-the product's best idea and nothing measures whether a label is *correct* —
-the QA score counts occurrences (and says so honestly since v1.30.0). Build:
+All three pieces landed: evidence-based `--verify` (fetched snippets +
+first-party/third-party provenance + deterministic self-corroboration
+downgrade, PR #27); the label-calibration harness
+(`qa/label_calibration.py` — deterministic claim sampler, traceability
+audit with injectable fetch/judge seams, per-label precision, PR #28); and
+the refine-loop anti-Goodhart guard (each iteration audited by the
+calibration harness; traceability degradation reverts the iteration).
+
+**Remaining within this workstream:**
+- Run one calibration pass over the standing eval corpus (~$0.25–0.50,
+  LLM judge) to establish the per-label baseline; wire the metric into the
+  model_eval scorecard; then promote "Confirmed-claim traceability >= X%"
+  to a HARD eval gate
+- Surface contradicted claims from `verification.json` in the report's
+  trust summary (today: JSON + console only)
+- v2 calibration check: Estimated/Hypothesis claims must NOT be
+  verbatim-from-source (the mislabel in the other direction)
+
+Original build spec (kept for reference):
 
 - A claim sampler: extract N labeled claims per eval report with their
   citations (deterministic, reuses the citation parser)
