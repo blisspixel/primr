@@ -69,7 +69,10 @@ from primr.core.fast_mode_helpers import (
 from primr.core.fast_mode_helpers import (
     _parse_batch_sections as _parse_batch_sections,
 )
+from primr.core.fast_run_hiring import collect_hiring_block
+from primr.core.fast_run_strategy import run_strategy_phase
 from primr.core.fast_run_trust import polish_and_gate_fast_report
+from primr.core.fast_run_workbook import generate_analysis_workbook
 from primr.core.insights_assembly import build_combined_insights, build_external_sources_raw
 from primr.core.report_cleanup import (
     _INTERNAL_REFERENCE_TERMS as _INTERNAL_REFERENCE_TERMS,
@@ -151,13 +154,12 @@ from primr.core.section_planning import (
     _group_sections_by_part as _group_sections_by_part,
 )
 from primr.core.section_prompts import (
-    _build_fast_analysis_prompt,
+    _build_fast_batch_prompt as _build_fast_batch_prompt,
+)
+from primr.core.section_prompts import (
     _build_fast_section_prompt,
     _build_link_selection_prompt,
     _load_fast_feedback_guidance,
-)
-from primr.core.section_prompts import (
-    _build_fast_batch_prompt as _build_fast_batch_prompt,
 )
 from primr.core.strategy_artifacts import (
     _clean_strategy_output,
@@ -2917,55 +2919,12 @@ def perform_fast_research(
         # gap-filling rebuild so it survives every refresh of insights.txt
         # and external_sources_raw.
         # =================================================================
-        hiring_block = ""
-        try:
-            from primr.data.hiring_signals import gather_hiring_signals, render_for_prompt
-
-            console.info("Hiring Signals — scanning for open job postings")
-            hiring_signals = gather_hiring_signals(
-                company_name or display_name,
-                website,
-                corpus=scraped_data,
-                working_folder=folder_path,
-            )
-        except Exception as e:
-            logger.warning("Hiring signals stage failed: %s", e)
-            hiring_signals = None
-
-        if hiring_signals and not hiring_signals.is_empty():
-            console.ok(
-                f"Hiring Signals: {hiring_signals.postings_extracted} postings analysed via "
-                f"{hiring_signals.source} "
-                f"({len(hiring_signals.tech_stack)} tech items, "
-                f"{len(hiring_signals.strategic_initiatives)} initiatives)",
-                show_time=False,
-            )
-            _update_run_state(
-                folder_path,
-                hiring_signals={
-                    "source": hiring_signals.source,
-                    "postings_found": hiring_signals.postings_found,
-                    "postings_selected": hiring_signals.postings_selected,
-                    "postings_extracted": hiring_signals.postings_extracted,
-                    "company_slug": hiring_signals.company_slug,
-                },
-            )
-            hiring_block = "=== HIRING SIGNALS ===\n" + render_for_prompt(hiring_signals)
-        else:
-            if hiring_signals is None:
-                logger.info("Hiring signals: skipped (disabled or no slug candidates)")
-            else:
-                console.info(
-                    "Hiring Signals: no public postings found — continuing without hiring data"
-                )
-            _update_run_state(
-                folder_path,
-                hiring_signals={
-                    "source": hiring_signals.source if hiring_signals else "skipped",
-                    "postings_found": hiring_signals.postings_found if hiring_signals else 0,
-                    "postings_extracted": 0,
-                },
-            )
+        hiring_block = collect_hiring_block(
+            company_label=company_name or display_name,
+            website=website,
+            scraped_data=scraped_data,
+            folder_path=folder_path,
+        )
 
         # Combine Flash-summarized insights (for working folder)
         combined_insights = build_combined_insights(summarized, external_text_parts, hiring_block)
@@ -3154,84 +3113,22 @@ def perform_fast_research(
         validated_source_count = len(validated_source_urls)
 
         # =================================================================
-        # Phase 3: Grok analysis call (structured workbook)
+        # Phase 3: Grok analysis call (extracted: core/fast_run_workbook.py)
         # =================================================================
-        console.phase_banner(
-            3, total_phases, "Analysis (Grok)", "Building structured analysis workbook", "2-4 min"
+        analysis_workbook, reasoning_session = generate_analysis_workbook(
+            company_label=company_name or display_name,
+            website=website,
+            raw_corpus=raw_corpus,
+            external_sources_raw=external_sources_raw,
+            combined_insights=combined_insights,
+            grok_reasoning=grok_reasoning,
+            grok_reasoning_effort=grok_reasoning_effort,
+            continuous_reasoning=continuous_reasoning,
+            reasoning_session=reasoning_session,
+            recovery_executor=_recovery_executor,
+            folder_path=folder_path,
+            total_phases=total_phases,
         )
-
-        analysis_system = (
-            "You are a senior strategic analyst conducting pre-engagement research "
-            "for a consulting firm. Produce a structured analysis workbook — working "
-            "notes with evidence, confidence levels, and hypotheses. Not polished prose. "
-            "CRITICAL: Separate what the company CLAIMS from what external evidence "
-            "SUPPORTS. Stress-test their narrative. Be conservative on financial inferences."
-        )
-
-        analysis_prompt = _build_fast_analysis_prompt(
-            company_name or display_name,
-            website,
-            raw_corpus,
-            external_sources_raw,
-        )
-
-        try:
-            from primr.pipeline.integration import analysis_with_recovery
-
-            # In continuous mode, construct the session here with the workbook's
-            # system prompt as a real role:system message. The session then
-            # carries that role + the workbook reasoning forward into Phase 5
-            # cross-validation as a follow-up user turn.
-            if continuous_reasoning and reasoning_session is None:
-                reasoning_session = ContinuousReasoningSession(
-                    model=grok_reasoning,
-                    system_prompt=analysis_system,
-                    reasoning_effort=grok_reasoning_effort,
-                )
-
-            def _do_analysis():
-                if reasoning_session is not None:
-                    return reasoning_session.send(
-                        analysis_prompt,
-                        max_tokens=18_000,
-                        temperature=0.5,
-                    )
-                return call_with_failover(
-                    LLMRole.REASONING,
-                    analysis_prompt,
-                    preferred_model=grok_reasoning,
-                    max_tokens=18_000,
-                    temperature=0.5,
-                    system_prompt=analysis_system,
-                    reasoning_effort=grok_reasoning_effort,
-                )
-
-            with console.timed_operation("Generating analysis workbook via Grok"):
-                _analysis_result = analysis_with_recovery(
-                    _recovery_executor, _do_analysis, folder_path
-                )
-                if _analysis_result.success:
-                    analysis_workbook = _analysis_result.output
-                else:
-                    raise RuntimeError(
-                        _analysis_result.skip_reason or "Analysis recovery exhausted"
-                    )
-        except Exception as analysis_err:
-            console.warn(f"Analysis workbook generation failed: {analysis_err}")
-            console.info("Continuing with collected insights as fallback workbook")
-            log_structured("warning", "Fast mode analysis fallback used", error=str(analysis_err))
-            analysis_workbook = combined_insights
-
-        if not analysis_workbook or not analysis_workbook.strip():
-            console.warn("Analysis workbook empty — falling back to insights for report")
-            analysis_workbook = combined_insights
-
-        # Save workbook
-        workbook_path = os.path.join(folder_path, "analysis_workbook.md")
-        with open(workbook_path, "w", encoding="utf-8") as f:
-            f.write(analysis_workbook)
-
-        console.phase_complete("Analysis (Grok)")
 
         # =================================================================
         # Phase 4: Grok report writing (parallel within parts + coherence)
@@ -3784,500 +3681,30 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
             f.write(report_content)
 
         # =================================================================
-        # Phase 6: Strategy Generation via Grok (optional)
+        # Phase 6: Strategy Generation (extracted: core/fast_run_strategy.py)
         # =================================================================
-        strategy_paths: dict[str, str] = {}
-        strategy_trust_stats: list[tuple[str, list[tuple[str, str]]]] = []
-
-        # --budget checkpoint: strategy generation is the most expensive
-        # optional stage. When a run budget is active and actual LLM spend
-        # has already reached the ceiling, ship the report without strategy
-        # documents rather than blowing past the cap.
-        if has_strategies:
-            from primr.utils.run_budget import get_run_budget
-
-            _run_budget = get_run_budget()
-            if _run_budget is not None:
-                _spent_so_far = _compute_session_llm_cost()
-                _run_budget.sync_spend(_spent_so_far)
-                if _run_budget.exceeded():
-                    console.warn(
-                        f"Run budget ${_run_budget.max_cost:.2f} reached "
-                        f"(~${_spent_so_far:.2f} spent) — skipping strategy generation"
-                    )
-                    log_structured(
-                        "warning",
-                        "Run budget reached; strategy generation skipped",
-                        budget_usd=_run_budget.max_cost,
-                        spent_usd=round(_spent_so_far, 4),
-                    )
-                    has_strategies = False
-
-        if has_strategies:
-            console.phase_banner(
-                6, total_phases, "Strategy (Grok)", "Generating strategy documents", "3-8 min"
-            )
-
-            # --- AI Strategy (per vendor) ---
-            # When multiple platforms are active (common when recon detects
-            # both AWS and Azure), run the per-vendor strategies concurrently.
-            # The shared company context (report + insights + gap analysis +
-            # workbook) is identical across vendors; only the vendor-specific
-            # research docs differ. Running them in parallel roughly halves
-            # wall-clock time on multi-platform runs.
-            if ai_strategy and platforms:
-
-                def _run_ai_strategy_for_vendor(vendor: str):
-                    """Run the full per-platform AI strategy pipeline.
-
-                    Returns (strategy_path, trust_stats_tuple, path_key) on
-                    success, or None on failure. All console output is
-                    prefixed with the vendor label so concurrent runs remain
-                    distinguishable in the CLI.
-                    """
-                    strategy_prompt = _build_ai_strategy_prompt(
-                        company_name or display_name, vendor, discovery_notes_content
-                    )
-
-                    context_parts = [f"--- Company Report ---\n{report_content[:50_000]}"]
-
-                    # Enrich with working-folder artifacts (insights, gap analysis, workbook)
-                    for artifact_name, artifact_limit in [
-                        ("insights.txt", 20_000),
-                        ("gap_analysis.md", 15_000),
-                        ("analysis_workbook.md", 20_000),
-                    ]:
-                        artifact_path = os.path.join(folder_path, artifact_name)
-                        if os.path.exists(artifact_path):
-                            try:
-                                with open(artifact_path, encoding="utf-8") as fh:
-                                    artifact_content = fh.read()[:artifact_limit]
-                                    if artifact_content.strip():
-                                        context_parts.append(
-                                            f"--- {artifact_name} ---\n{artifact_content}"
-                                        )
-                            except Exception as e:
-                                logger.warning("Failed to read artifact %s: %s", artifact_name, e)
-
-                    vendor_doc_paths = (
-                        _get_or_generate_vendor_research(vendor)
-                        if vendor.lower() != "agnostic"
-                        else []
-                    )
-                    for vdp in vendor_doc_paths:
-                        if vdp and os.path.exists(vdp):
-                            try:
-                                with open(vdp, encoding="utf-8") as fh:
-                                    context_parts.append(
-                                        f"--- {os.path.basename(vdp)} ---\n{fh.read()[:30_000]}"
-                                    )
-                            except Exception as e:
-                                logger.warning("Failed to read vendor doc %s: %s", vdp, e)
-
-                    combined_strategy_prompt = (
-                        "Use the following context documents to inform your analysis:\n\n"
-                        + "\n\n".join(context_parts)
-                        + "\n\n---\n\n"
-                        + strategy_prompt
-                    )
-
-                    vendor_label = f" ({vendor.upper()})" if len(platforms) > 1 else ""
-                    try:
-                        from primr.pipeline.integration import strategy_with_recovery
-
-                        def _do_strategy(_prompt=combined_strategy_prompt):
-                            return call_with_failover(
-                                LLMRole.WRITING,
-                                _prompt,
-                                preferred_model=grok_writing,
-                                max_tokens=32_000,
-                            )
-
-                        with console.timed_operation(f"AI Strategy{vendor_label} via Grok"):
-                            _strat_result = strategy_with_recovery(
-                                _recovery_executor, _do_strategy, folder_path
-                            )
-                            if _strat_result.success:
-                                strategy_content = _strat_result.output
-                            else:
-                                raise RuntimeError(
-                                    _strat_result.skip_reason or "Strategy recovery exhausted"
-                                )
-                    except Exception as strat_err:
-                        console.warn(f"AI Strategy{vendor_label} failed: {strat_err} — skipping")
-                        log_structured(
-                            "warning",
-                            "Fast mode strategy failed",
-                            vendor=vendor,
-                            error=str(strat_err),
-                        )
-                        return  # abandon this vendor; others run independently
-
-                    if strategy_content and strategy_content.strip():
-                        strategy_content = re.sub(
-                            r"\n*_?Disclaimer:\s*Grok is not a financial advi[sc]er[^\n]*\n?",
-                            "\n",
-                            strategy_content,
-                            flags=re.IGNORECASE,
-                        ).strip()
-                        strategy_content = re.sub(
-                            r"\[Word count:\s*[\d,]+\]",
-                            "",
-                            strategy_content,
-                            flags=re.IGNORECASE,
-                        )
-
-                        # Enrich: cross-validate → evidence search → polish
-                        try:
-                            strategy_content = _enrich_strategy_content(
-                                strategy_content,
-                                company_name or display_name,
-                                vendor,
-                                "AI Strategy",
-                                list(validated_source_urls),
-                                set(validated_source_urls),
-                                analysis_workbook,
-                                website,
-                                grok_reasoning=grok_reasoning,
-                                grok_writing=grok_writing,
-                            )
-                        except Exception as enrich_err:
-                            log_structured(
-                                "warning",
-                                "Strategy enrichment failed, keeping original",
-                                vendor=vendor,
-                                error=str(enrich_err),
-                            )
-
-                        strategy_content, strategy_qa, rejected_strategy_sources = (
-                            _prepare_strategy_for_output(
-                                strategy_content,
-                                company_name or display_name,
-                                vendor,
-                                "AI Strategy",
-                                list(validated_source_urls),
-                                model=grok_writing,
-                            )
-                        )
-                        qa_gate = "PASS" if strategy_qa["qa_gate_passed"] else "WARN"
-                        console.info(
-                            f"Strategy QA: placeholders={strategy_qa['placeholder_refs']}, "
-                            f"sources={strategy_qa['source_urls']}/{strategy_qa['citation_defs']}, "
-                            f"missing={strategy_qa['missing_citations']}, "
-                            f"invalid={strategy_qa['invalid_source_urls'] + len(rejected_strategy_sources)}, "
-                            f"budget={'OK' if not strategy_qa['budget_inconsistent'] else 'WARN'}, gate={qa_gate}"
-                        )
-                        if strategy_qa["source_urls"] == 0:
-                            console.warn(
-                                "Strategy QA: no explicit source URLs detected in strategy output"
-                            )
-                        strategy_trust_stats.append(
-                            (
-                                f"AI Strategy ({vendor.upper()})"
-                                if len(platforms) > 1
-                                else "AI Strategy",
-                                [
-                                    ("Gate", qa_gate),
-                                    ("Sources", f"{strategy_qa['source_urls']} valid"),
-                                    (
-                                        "Citation Gaps",
-                                        str(strategy_qa["missing_citations"]),
-                                    ),
-                                    (
-                                        "Invalid Sources",
-                                        str(
-                                            strategy_qa["invalid_source_urls"]
-                                            + len(rejected_strategy_sources)
-                                        ),
-                                    ),
-                                    (
-                                        "Budget Check",
-                                        "WARN" if strategy_qa["budget_inconsistent"] else "OK",
-                                    ),
-                                ],
-                            )
-                        )
-
-                        strategy_path = _save_strategy_output(
-                            strategy_content,
-                            company_name or display_name,
-                            vendor,
-                            strategy_label="AI_Strategy",
-                            output_dir=output_dir,
-                            diagnostics_dir=diagnostics_dir,
-                            write_txt=write_txt,
-                        )
-                        if strategy_path:
-                            key = f"ai_{vendor}" if len(platforms) > 1 else "ai"
-                            strategy_paths[key] = strategy_path
-
-                # Dispatch per-platform strategy workers. One platform = run
-                # inline (no pool overhead). Multiple platforms = ThreadPool
-                # with one worker per platform, capped at 3 for rate-limit
-                # safety. grok_llm + network IO releases the GIL so threads
-                # genuinely overlap.
-                if len(platforms) == 1:
-                    _run_ai_strategy_for_vendor(platforms[0])
-                else:
-                    from concurrent.futures import ThreadPoolExecutor, as_completed
-
-                    with ThreadPoolExecutor(max_workers=min(len(platforms), 3)) as _strat_pool:
-                        _strat_futures = {
-                            _strat_pool.submit(_run_ai_strategy_for_vendor, v): v for v in platforms
-                        }
-                        for _sf in as_completed(_strat_futures):
-                            v = _strat_futures[_sf]
-                            try:
-                                _sf.result()
-                            except Exception as e:
-                                logger.warning(
-                                    "Parallel AI strategy worker for %s raised: %s",
-                                    v,
-                                    e,
-                                )
-
-            # --- YAML-defined strategies (customer_experience, security, data_fabric, etc.) ---
-            if strategy_types:
-                import yaml as _yaml
-
-                for stype in strategy_types:
-                    if stype == "ai":
-                        continue  # already handled above
-
-                    # Load strategy YAML config (name matches filename)
-                    yaml_path = (
-                        Path(__file__).parent.parent / "prompts" / "strategies" / f"{stype}.yaml"
-                    )
-
-                    if not yaml_path.exists():
-                        console.warn(f"Strategy YAML not found: {stype}.yaml — skipping")
-                        continue
-
-                    try:
-                        with open(yaml_path, encoding="utf-8") as f:
-                            strategy_config = _yaml.safe_load(f)
-                    except Exception as e:
-                        console.warn(f"Failed to load {stype}.yaml: {e} — skipping")
-                        continue
-
-                    meta = strategy_config.get("meta", {})
-                    display_name_strat = meta.get("name", stype.replace("_", " ").title())
-                    output_filename = meta.get("output_filename", f"{{company_name}}_{stype}")
-                    # Build label for filename from YAML meta
-                    file_label = output_filename.replace("{company_name}_", "").replace(
-                        "{company_name}", ""
-                    )
-                    if not file_label:
-                        file_label = stype.replace(" ", "_")
-
-                    strategy_prompt = _build_strategy_prompt_from_yaml(
-                        strategy_config, company_name or display_name, discovery_notes_content
-                    )
-
-                    # Build context with report + working-folder artifacts.
-                    # Recon + hiring signals are particularly important for the
-                    # `skills` strategy (and generally strengthen CX, security,
-                    # and data-fabric strategies as well).
-                    yaml_context_parts = [f"--- Company Report ---\n{report_content[:50_000]}"]
-                    for artifact_name, artifact_limit in [
-                        ("insights.txt", 20_000),
-                        ("gap_analysis.md", 15_000),
-                        ("analysis_workbook.md", 20_000),
-                        ("_recon_context.txt", 10_000),
-                        ("_hiring/hiring_signals.md", 15_000),
-                    ]:
-                        artifact_path = os.path.join(folder_path, artifact_name)
-                        if os.path.exists(artifact_path):
-                            try:
-                                with open(artifact_path, encoding="utf-8") as fh:
-                                    artifact_content = fh.read()[:artifact_limit]
-                                    if artifact_content.strip():
-                                        yaml_context_parts.append(
-                                            f"--- {artifact_name} ---\n{artifact_content}"
-                                        )
-                            except Exception as e:
-                                logger.warning("Failed to read artifact %s: %s", artifact_name, e)
-
-                    combined_prompt = (
-                        "Use the following context documents to inform your analysis:\n\n"
-                        + "\n\n".join(yaml_context_parts)
-                        + "\n\n---\n\n"
-                        + strategy_prompt
-                    )
-
-                    try:
-                        from primr.pipeline.integration import strategy_with_recovery
-
-                        def _do_yaml_strategy(_p=combined_prompt):
-                            return call_with_failover(
-                                LLMRole.WRITING,
-                                _p,
-                                preferred_model=grok_writing,
-                                max_tokens=32_000,
-                            )
-
-                        with console.timed_operation(f"{display_name_strat} via Grok"):
-                            _yaml_strat_result = strategy_with_recovery(
-                                _recovery_executor, _do_yaml_strategy, folder_path
-                            )
-                            if _yaml_strat_result.success:
-                                strategy_content = _yaml_strat_result.output
-                            else:
-                                raise RuntimeError(
-                                    _yaml_strat_result.skip_reason or "Strategy recovery exhausted"
-                                )
-                    except Exception as strat_err:
-                        console.warn(f"{display_name_strat} failed: {strat_err} — skipping")
-                        log_structured(
-                            "warning",
-                            "Fast mode strategy failed",
-                            strategy=stype,
-                            error=str(strat_err),
-                        )
-                        continue
-
-                    if strategy_content and strategy_content.strip():
-                        strategy_content = re.sub(
-                            r"\n*_?Disclaimer:\s*Grok is not a financial advi[sc]er[^\n]*\n?",
-                            "\n",
-                            strategy_content,
-                            flags=re.IGNORECASE,
-                        ).strip()
-                        strategy_content = re.sub(
-                            r"\[Word count:\s*[\d,]+\]",
-                            "",
-                            strategy_content,
-                            flags=re.IGNORECASE,
-                        )
-
-                        # Enrich: cross-validate → evidence search → polish
-                        # Use strategy display name (e.g. "Customer Experience") not "agnostic"
-                        try:
-                            strategy_content = _enrich_strategy_content(
-                                strategy_content,
-                                company_name or display_name,
-                                display_name_strat,
-                                display_name_strat,
-                                list(validated_source_urls),
-                                set(validated_source_urls),
-                                analysis_workbook,
-                                website,
-                                grok_reasoning=grok_reasoning,
-                                grok_writing=grok_writing,
-                            )
-                        except Exception as enrich_err:
-                            log_structured(
-                                "warning",
-                                "Strategy enrichment failed, keeping original",
-                                strategy=stype,
-                                error=str(enrich_err),
-                            )
-
-                        strategy_content, strategy_qa, rejected_strategy_sources = (
-                            _prepare_strategy_for_output(
-                                strategy_content,
-                                company_name or display_name,
-                                display_name_strat,
-                                display_name_strat,
-                                list(validated_source_urls),
-                                model=grok_writing,
-                            )
-                        )
-                        qa_gate = "PASS" if strategy_qa["qa_gate_passed"] else "WARN"
-                        console.info(
-                            f"Strategy QA: placeholders={strategy_qa['placeholder_refs']}, "
-                            f"sources={strategy_qa['source_urls']}/{strategy_qa['citation_defs']}, "
-                            f"missing={strategy_qa['missing_citations']}, "
-                            f"invalid={strategy_qa['invalid_source_urls'] + len(rejected_strategy_sources)}, "
-                            f"budget={'OK' if not strategy_qa['budget_inconsistent'] else 'WARN'}, gate={qa_gate}"
-                        )
-                        if strategy_qa["source_urls"] == 0:
-                            console.warn(
-                                "Strategy QA: no explicit source URLs detected in strategy output"
-                            )
-                        strategy_trust_stats.append(
-                            (
-                                display_name_strat,
-                                [
-                                    ("Gate", qa_gate),
-                                    ("Sources", f"{strategy_qa['source_urls']} valid"),
-                                    (
-                                        "Citation Gaps",
-                                        str(strategy_qa["missing_citations"]),
-                                    ),
-                                    (
-                                        "Invalid Sources",
-                                        str(
-                                            strategy_qa["invalid_source_urls"]
-                                            + len(rejected_strategy_sources)
-                                        ),
-                                    ),
-                                    (
-                                        "Budget Check",
-                                        "WARN" if strategy_qa["budget_inconsistent"] else "OK",
-                                    ),
-                                ],
-                            )
-                        )
-
-                        strategy_path = _save_strategy_output(
-                            strategy_content,
-                            company_name or display_name,
-                            "agnostic",
-                            strategy_label=file_label,
-                            output_dir=output_dir,
-                            diagnostics_dir=diagnostics_dir,
-                            write_txt=write_txt,
-                        )
-                        if strategy_path:
-                            strategy_paths[stype] = strategy_path
-
-                        # Skills Ideation strategy: also emit per-role SKILL.md
-                        # files in a sibling directory so the artifacts are
-                        # drop-in loadable by Claude Code / Copilot Studio /
-                        # any skill-aware agent host. Failure here never blocks
-                        # the strategy doc itself.
-                        #
-                        # DEPRECATION: This is the v1.23 inline path. The
-                        # v1.26+ canonical command is `primr skills <Company>
-                        # <url>` which adds QA refinement, pack-level
-                        # coherence, and a sideload-ready Microsoft 365
-                        # Cowork .zip alongside the Claude tree. The legacy
-                        # parser-based path stays here for backward compat
-                        # until removal in a later release.
-                        if stype == "skills" and strategy_path:
-                            try:
-                                from primr.output.skills_generator import write_skill_files
-
-                                roles_root = (
-                                    Path(strategy_path).with_suffix("").parent
-                                    / Path(strategy_path).stem
-                                )
-                                written = write_skill_files(strategy_content, roles_root)
-                                if written:
-                                    console.info(
-                                        f"Skills Ideation: emitted {len(written)} per-role "
-                                        f"SKILL.md files under {roles_root.name}/roles/"
-                                    )
-                                    console.info(
-                                        "Tip: `primr skills <Company> <url>` produces a "
-                                        "QA-refined skill pack with a Microsoft 365 Copilot "
-                                        "Cowork .zip alongside the Claude tree."
-                                    )
-                                else:
-                                    console.warn(
-                                        "Skills Ideation: no role blocks parsed from strategy "
-                                        "content — per-role SKILL.md files not emitted"
-                                    )
-                            except Exception as skill_err:
-                                logger.warning(
-                                    "Skills Ideation per-role emission failed: %s", skill_err
-                                )
-
-            if strategy_paths:
-                console.phase_complete("Strategy (Grok)")
-            else:
-                console.warn("Strategy generation skipped — no strategies generated")
+        _strategy_result = run_strategy_phase(
+            has_strategies=has_strategies,
+            ai_strategy=ai_strategy,
+            platforms=platforms,
+            strategy_types=strategy_types,
+            company_label=company_name or display_name,
+            website=website,
+            report_content=report_content,
+            analysis_workbook=analysis_workbook,
+            validated_source_urls=validated_source_urls,
+            discovery_notes_content=discovery_notes_content,
+            grok_reasoning=grok_reasoning,
+            grok_writing=grok_writing,
+            folder_path=folder_path,
+            output_dir=output_dir,
+            diagnostics_dir=diagnostics_dir,
+            write_txt=write_txt,
+            recovery_executor=_recovery_executor,
+            total_phases=total_phases,
+        )
+        strategy_paths = _strategy_result.strategy_paths
+        strategy_trust_stats = _strategy_result.strategy_trust_stats
 
         # =================================================================
         # Summary (extracted: core/fast_run_summary.py — roadmap #23 Batch A)
