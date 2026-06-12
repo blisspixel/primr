@@ -158,6 +158,171 @@ def test_eval_clean_report_has_no_drift(tmp_path: Path):
     assert "clean" in result.scorecard_md.read_text(encoding="utf-8")
 
 
+def _write_calibration_sidecar(report_path: Path, per_label: dict) -> None:
+    """Persist a `primr calibrate` sidecar next to a staged report."""
+    from primr.qa.calibration_runner import sidecar_path_for
+
+    sidecar_path_for(report_path).write_text(
+        json.dumps({"per_label": per_label, "claims": []}), encoding="utf-8"
+    )
+
+
+def _run_eval(tmp_path: Path, eval_id: str, profiles=("full",)):
+    return evaluate_outputs(
+        eval_id=eval_id,
+        eval_root=tmp_path / "evals",
+        profiles=profiles,
+        baseline="full",
+        quality_ratio_threshold=0.8,
+        cost_ratio_threshold=0.2,
+        manifest_path=None,
+    )
+
+
+def test_eval_reads_calibration_sidecar(tmp_path: Path):
+    full_dir = tmp_path / "evals" / "eval-calib-001" / "full"
+    report = full_dir / "ExampleCo_Strategic_Overview_02-25-2026.md"
+    _write_sample_report(report, "ExampleCo")
+    _write_calibration_sidecar(
+        report,
+        {
+            "Confirmed": {"traceable": 3, "untraceable": 1, "no_source": 1, "unfetchable": 2},
+            "Reported": {"traceable": 4, "untraceable": 0, "no_source": 0},
+        },
+    )
+
+    result = _run_eval(tmp_path, "eval-calib-001")
+
+    metric = result.metrics[0]
+    assert metric.calibrated is True
+    # unfetchable excluded from decidable: 3 / (3+1+1)
+    assert metric.traceability("Confirmed") == pytest.approx(0.6)
+    assert metric.traceability("Reported") == pytest.approx(1.0)
+    summary = result.profile_summaries[0]
+    assert summary.calibrated_report_count == 1
+    assert summary.confirmed_traceability == pytest.approx(0.6)
+    md = result.scorecard_md.read_text(encoding="utf-8")
+    assert "## Label Calibration" in md
+    assert "60%" in md
+    header = result.scorecard_csv.read_text(encoding="utf-8").splitlines()[0]
+    assert "confirmed_traceability" in header
+
+
+def test_eval_without_sidecar_reports_no_data(tmp_path: Path):
+    full_dir = tmp_path / "evals" / "eval-calib-002" / "full"
+    _write_sample_report(full_dir / "ExampleCo_Strategic_Overview_02-25-2026.md", "ExampleCo")
+
+    result = _run_eval(tmp_path, "eval-calib-002")
+
+    assert result.metrics[0].calibrated is False
+    assert result.metrics[0].traceability("Confirmed") is None
+    summary = result.profile_summaries[0]
+    assert summary.calibrated_report_count == 0
+    assert summary.confirmed_traceability is None
+    assert "no data" in result.scorecard_md.read_text(encoding="utf-8")
+
+
+def test_eval_corrupt_sidecar_ignored(tmp_path: Path):
+    full_dir = tmp_path / "evals" / "eval-calib-003" / "full"
+    report = full_dir / "ExampleCo_Strategic_Overview_02-25-2026.md"
+    _write_sample_report(report, "ExampleCo")
+    from primr.qa.calibration_runner import sidecar_path_for
+
+    sidecar_path_for(report).write_text("{not json", encoding="utf-8")
+
+    result = _run_eval(tmp_path, "eval-calib-003")
+    assert result.metrics[0].calibrated is False
+
+
+def _summary(profile: str, confirmed_traceability: float | None, **overrides):
+    from primr.core.model_eval import ProfileSummary
+
+    defaults = {
+        "profile": profile,
+        "report_count": 1,
+        "avg_quality": 80.0,
+        "avg_trust": 80.0,
+        "avg_decision_utility": 80.0,
+        "avg_reuse_quality": 80.0,
+        "avg_word_count": 10000.0,
+        "avg_pages": 20.0,
+        "avg_citation_density": 3.0,
+        "avg_utility_per_dollar": 100.0,
+        "trust_pass_rate": 1.0,
+        "estimated_cost_usd": 1.0,
+        "calibrated_report_count": 1,
+        "confirmed_traceability": confirmed_traceability,
+    }
+    defaults.update(overrides)
+    return ProfileSummary(**defaults)
+
+
+def test_calibration_gate_fails_profile_when_armed(tmp_path: Path, monkeypatch):
+    from primr.core.model_eval import _decision_table
+
+    monkeypatch.setenv("PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY", "0.8")
+    rows = _decision_table(
+        [_summary("full", 1.0), _summary("fast", 0.4)],
+        baseline="full",
+        quality_ratio_threshold=0.8,
+        cost_ratio_threshold=2.0,
+    )
+    decisions = "\n".join(rows)
+    assert "fast: FAIL_CALIBRATION" in decisions
+    assert "requires >= 0.80" in decisions
+
+    # And the scorecard surfaces the same breach as BELOW GATE.
+    eval_dir = tmp_path / "evals" / "eval-calib-004" / "full"
+    report = eval_dir / "ExampleCo_Strategic_Overview_02-25-2026.md"
+    _write_sample_report(report, "ExampleCo")
+    _write_calibration_sidecar(report, {"Confirmed": {"traceable": 2, "untraceable": 3}})
+    result = _run_eval(tmp_path, "eval-calib-004")
+    assert "BELOW GATE" in result.scorecard_md.read_text(encoding="utf-8")
+
+
+def test_calibration_gate_passes_profile_at_or_above_threshold(monkeypatch):
+    from primr.core.model_eval import _decision_table
+
+    monkeypatch.setenv("PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY", "0.8")
+    rows = _decision_table(
+        [_summary("full", 1.0), _summary("fast", 0.8)],
+        baseline="full",
+        quality_ratio_threshold=0.8,
+        cost_ratio_threshold=2.0,
+    )
+    assert "FAIL_CALIBRATION" not in "\n".join(rows)
+
+
+def test_calibration_gate_unarmed_is_report_only(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY", raising=False)
+    eval_dir = tmp_path / "evals" / "eval-calib-005"
+    for profile in ("full", "fast"):
+        report = eval_dir / profile / "ExampleCo_Strategic_Overview_02-25-2026.md"
+        _write_sample_report(report, "ExampleCo")
+        _write_calibration_sidecar(
+            report, {"Confirmed": {"traceable": 1, "untraceable": 9}, "Reported": {}}
+        )
+
+    result = _run_eval(tmp_path, "eval-calib-005", profiles=("full", "fast"))
+
+    decisions = "\n".join(result.decision_rows)
+    assert "FAIL_CALIBRATION" not in decisions
+    md = result.scorecard_md.read_text(encoding="utf-8")
+    assert "not armed" in md
+    assert "BELOW GATE" not in md
+
+
+def test_calibration_gate_malformed_env_ignored(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY", "ninety")
+    full_dir = tmp_path / "evals" / "eval-calib-006" / "full"
+    report = full_dir / "ExampleCo_Strategic_Overview_02-25-2026.md"
+    _write_sample_report(report, "ExampleCo")
+    _write_calibration_sidecar(report, {"Confirmed": {"traceable": 0, "untraceable": 5}})
+
+    result = _run_eval(tmp_path, "eval-calib-006")
+    assert "FAIL_CALIBRATION" not in "\n".join(result.decision_rows)
+
+
 def test_evaluate_outputs_detects_missing_pairs_from_manifest(tmp_path: Path):
     eval_root = tmp_path / "evals"
     eval_id = "eval-test-002"

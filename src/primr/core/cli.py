@@ -203,6 +203,7 @@ class Command(Enum):
     ROADMAP = "roadmap"
     IMPROVE = "improve"
     REFINE = "refine"
+    CALIBRATE = "calibrate"
 
 
 # =============================================================================
@@ -265,6 +266,10 @@ class CLIConfig:
     improve_agentic: bool = False
     refine_company: str | None = None
     refine_target_grade: float = 90.0
+    calibrate_target: str | None = None
+    calibrate_recent: int | None = None
+    calibrate_max_per_label: int = 10
+    calibrate_dry_run: bool = False
     banner_mode: str = "auto"
     banner_explicit: bool = False
     # Agentic architecture options
@@ -491,6 +496,14 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
             parsed.website if (parsed.company and str(parsed.company).lower() == "refine") else None
         ),
         refine_target_grade=getattr(parsed, "target_grade", 90.0),
+        calibrate_target=(
+            parsed.website
+            if (parsed.company and str(parsed.company).lower() == "calibrate")
+            else None
+        ),
+        calibrate_recent=getattr(parsed, "calibrate_recent", None),
+        calibrate_max_per_label=getattr(parsed, "max_per_label", 10),
+        calibrate_dry_run=getattr(parsed, "dry_run", False),
         banner_mode=banner_mode,
         banner_explicit=banner_explicit,
         resume_latest=getattr(parsed, "resume_latest", False),
@@ -922,6 +935,7 @@ def main(args: list[str] | None = None) -> int:
         Command.ROADMAP: _handle_roadmap,
         Command.IMPROVE: _handle_improve,
         Command.REFINE: _handle_refine,
+        Command.CALIBRATE: _handle_calibrate,
     }
 
     handler = handlers.get(config.command, _handle_research)
@@ -962,6 +976,8 @@ Examples:
   primr improve "output/Company_AI_Strategy_AZURE_03-06-2026.md" --improve-agentic
   primr refine "Acme Corp"                           # QA loop: regenerate weak sections until grade >= 90
   primr refine "Acme Corp" --target-grade 85 --in-place
+  primr calibrate "Acme Corp"                        # Audit confidence-label traceability (writes sidecar JSON)
+  primr calibrate --calibrate-recent 10 --dry-run    # Preview judge-call count/cost, no spend
   primr --banner                                     # Show startup banner only
 
 AI Strategy Retry (when main report succeeded but AI strategy failed):
@@ -1289,6 +1305,20 @@ Accordion Method Test (for development):
         default=90.0,
         help="With 'refine', the QA grade to iterate toward (default: 90)",
     )
+    # Label calibration (primr calibrate)
+    parser.add_argument(
+        "--calibrate-recent",
+        type=int,
+        metavar="N",
+        help="With 'calibrate', audit the N most recent reports (one per company)",
+    )
+    parser.add_argument(
+        "--max-per-label",
+        type=int,
+        default=10,
+        metavar="N",
+        help="With 'calibrate', max claims sampled per confidence label (default: 10)",
+    )
     # QA review
     parser.add_argument(
         "--qa",
@@ -1532,6 +1562,7 @@ _POSITIONAL_COMMANDS: dict[str, Command] = {
     "roadmap": Command.ROADMAP,
     "improve": Command.IMPROVE,
     "refine": Command.REFINE,
+    "calibrate": Command.CALIBRATE,
 }
 
 # (attr_name, command) — checked with getattr(args, attr, None) for truthiness
@@ -2006,6 +2037,69 @@ def _handle_refine(config: CLIConfig) -> int:
     else:
         console.ok("No sections needed regeneration — report left unchanged")
     return 0
+
+
+def _handle_calibrate(config: CLIConfig) -> int:
+    """Handle the label-calibration audit: primr calibrate "Company"."""
+    from primr.qa.calibration_runner import (
+        aggregate_per_label,
+        aggregate_precision,
+        estimate_cost_usd,
+        resolve_reports,
+        run_calibration,
+    )
+
+    try:
+        reports = resolve_reports(config.calibrate_target, recent=config.calibrate_recent)
+    except FileNotFoundError as e:
+        console.error(str(e))
+        console.info('Usage: primr calibrate "Company Name" [--dry-run] [--max-per-label 10]')
+        console.info("   or: primr calibrate path/to/report.md")
+        console.info("   or: primr calibrate --calibrate-recent 10")
+        return 1
+
+    console.banner("Label Calibration")
+    console.info(f"Reports: {len(reports)}")
+
+    outcomes = run_calibration(
+        reports,
+        max_per_label=config.calibrate_max_per_label,
+        dry_run=config.calibrate_dry_run,
+    )
+
+    failures = [o for o in outcomes if o.error]
+    for outcome in failures:
+        console.warn(f"{outcome.report_path.name}: {outcome.error}")
+
+    if config.calibrate_dry_run:
+        total_calls = sum(o.estimated_judge_calls for o in outcomes)
+        for outcome in outcomes:
+            console.info(
+                f"  {outcome.report_path.name}: {outcome.claims_sampled} claims, "
+                f"{outcome.judgeable_claims} judgeable, "
+                f"~{outcome.estimated_judge_calls} judge calls"
+            )
+        console.info(
+            f"Dry run: ~{total_calls} judge calls, estimated ${estimate_cost_usd(total_calls):.2f}"
+        )
+        return 0
+
+    totals = aggregate_per_label(outcomes)
+    for label in ("Confirmed", "Reported"):
+        stats = totals.get(label)
+        if not stats:
+            continue
+        precision = aggregate_precision(totals, label)
+        shown = f"{precision:.0%}" if precision is not None else "n/a (no decidable claims)"
+        console.info(
+            f"  {label}: traceability {shown} "
+            f"(traceable {stats['traceable']}, untraceable {stats['untraceable']}, "
+            f"no-source {stats['no_source']}, unfetchable {stats['unfetchable']})"
+        )
+    sidecars = [o for o in outcomes if o.sidecar_path]
+    if sidecars:
+        console.ok(f"Calibration sidecars written: {len(sidecars)}")
+    return 0 if not failures else 1
 
 
 def _handle_qa(config: CLIConfig) -> int:
