@@ -75,10 +75,27 @@ about to move.
   ALL STAGES EXTRACTED — `perform_fast_research` is now a ~150-line
   coordinator over ten tested stage modules.
 
-After G: introduce `FastRunContext`, raise research_agent per-module
-coverage target to 80%, enable `C901` complexity budget repo-wide, then the
-same treatment for `deep_research._execute_consulting_research` (~270 lines,
-split dossier phase from section-writing phase).
+## Endgame (after G)
+
+- **`FastRunContext` — DECISION: not now.** The post-extraction coordinator
+  (~295 lines) threads data between stages via explicit keyword arguments,
+  which IS the legible data-flow documentation; a frozen context object with
+  members that stages mutate in place would obscure exactly the contracts the
+  extraction made explicit (who mutates the pools, who owns the recovery
+  executor, who rebuilds vs reads). Revisit only when resume/checkpointing
+  work needs a serializable run state — that is the use case that would pay
+  for the indirection.
+- **`C901` complexity budget — DONE:** `max-complexity = 25` repo-wide
+  (`[tool.ruff.lint.mccabe]` in pyproject.toml). 25, not 10: at 10 even the
+  freshly extracted stage modules violate (171 functions / 91 files — noise);
+  at 25 the gate catches exactly the monsters. The 15 files with existing
+  >25 functions are grandfathered via per-file-ignores; that list must only
+  shrink. `perform_fast_research` no longer appears — the refactor took it
+  from the #1 offender off the leaderboard entirely.
+- **Remaining:** raise research_agent per-module coverage toward 80% (it
+  still hosts the LLM-backed helpers and deep-research paths), then the same
+  split treatment for `deep_research._execute_consulting_research` (~270
+  lines, dossier phase vs section-writing phase).
 
 ## Already-extracted helpers the stages delegate to
 
