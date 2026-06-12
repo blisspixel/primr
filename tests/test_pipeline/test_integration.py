@@ -202,11 +202,11 @@ class TestBackgroundAbortRecording:
         **Validates: Requirements 9.4**
         """
         from primr.core.research_agent import (
-            _build_resilience_event_listener,
             _ensure_resilience_keys,
             _load_run_state,
             _save_run_state,
         )
+        from primr.core.resilience_listeners import _build_resilience_event_listener
         from primr.pipeline.executor import RecoveryContext, RecoveryExecutor
         from primr.pipeline.recovery import build_default_recovery_table
         from primr.pipeline.stages import PipelineStage
@@ -254,11 +254,11 @@ class TestBackgroundAbortRecording:
         **Validates: Requirements 9.4**
         """
         from primr.core.research_agent import (
-            _build_resilience_event_listener,
             _ensure_resilience_keys,
             _load_run_state,
             _save_run_state,
         )
+        from primr.core.resilience_listeners import _build_resilience_event_listener
         from primr.pipeline.executor import RecoveryExecutor
         from primr.pipeline.recovery import build_default_recovery_table
         from primr.pipeline.stages import PipelineStage

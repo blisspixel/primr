@@ -168,10 +168,12 @@ constraints (#11), and runtime robustness (#24) are DONE. What remains is the
   blocked-site UX, premium-mode hiring signals)
 - **#23 orchestrator refactor** — `perform_fast_research` (~1,900 lines) split
   for unit-testability; the precondition for per-module coverage targets and
-  the complexity budget. IN PROGRESS: Batches A–C done (setup, finalization,
-  trust polish, insights assembly, strategy, workbook, hiring — each with a
-  stage-level test suite); Batches D–G remain (section writing,
-  cross-validation, gap analysis, data collection) per
+  the complexity budget. EXTRACTION COMPLETE: all ten stages of
+  `perform_fast_research` are out (Batches A–G), each as a module with a
+  hermetic test suite; the orchestrator is now a ~295-line coordinator.
+  Remaining within #23: `FastRunContext`, the research_agent per-module
+  coverage target, the C901 complexity budget, and the
+  `_execute_consulting_research` split — per
   [`docs/design/23-orchestrator-refactor-map.md`](docs/design/23-orchestrator-refactor-map.md)
 - **#9 batch API** — cost lever, needs one live batch validation
 - Label-calibration measurement + evidence-fetching `--verify` (from the
@@ -622,7 +624,7 @@ The Azure tiered deployment (team and organization) has its Bicep IaC, deploy sc
 
 After the v1.25.x refactor extracted `cli_batch.py`, `cli_doctor.py`, `cli_parser.py`, `section_planning.py`, `strategy_artifacts.py`, and similar helper modules out of the three monsters, line coverage now sits at: `cli.py` 82%, `deep_research.py` 72%, `research_agent.py` 30%. The remaining gap is concentrated in two functions that resist unit-mock testing because they interleave I/O, LLM calls, and state-machine transitions in a single body:
 
-- `research_agent.perform_fast_research` (~1900 lines) — extract pure helpers for the per-section orchestration loop, the strategy-artifact pipeline, and the cross-validation/repair cycle so each stage is callable in isolation with a mocked LLM and scrape boundary. IN PROGRESS — stage map + batch plan: [`docs/design/23-orchestrator-refactor-map.md`](docs/design/23-orchestrator-refactor-map.md). Batch A DONE (stage 0 setup → `fast_run_setup.py`, stage 10 finalization → `fast_run_summary.py`, 26 tests). Batch B DONE (stage 7 trust polish → `fast_run_trust.py`, stage 2B insights assembly → `insights_assembly.py`, 29 tests). Batch C DONE (stage 9 strategy → `fast_run_strategy.py`, stage 4 workbook → `fast_run_workbook.py`, stage 2 hiring → `fast_run_hiring.py`, 27 tests). Remaining: Batch D (section writing), E (cross-validation), F (gap analysis), G (data collection), then `FastRunContext` + per-module coverage target.
+- `research_agent.perform_fast_research` (~1900 lines) — extract pure helpers for the per-section orchestration loop, the strategy-artifact pipeline, and the cross-validation/repair cycle so each stage is callable in isolation with a mocked LLM and scrape boundary. EXTRACTION COMPLETE (Batches A–G) — stage map: [`docs/design/23-orchestrator-refactor-map.md`](docs/design/23-orchestrator-refactor-map.md). Stage 0 setup → `fast_run_setup.py`; stage 1 data collection → `fast_run_collection.py`; stage 2 hiring → `fast_run_hiring.py`; stage 2B insights assembly → `insights_assembly.py`; stage 3 gap deepening → `fast_run_gaps.py`; stage 4 workbook → `fast_run_workbook.py`; stage 5 section writing → `fast_run_sections.py`; stage 6 cross-validation → `fast_run_validation.py`; stage 7 trust polish → `fast_run_trust.py`; stage 9 strategy → `fast_run_strategy.py`; stage 10 finalization → `fast_run_summary.py` (stage 8 deliberately inline). ~110 stage-level tests on previously-untestable behavior; `perform_fast_research` is now a ~295-line coordinator. Remaining: `FastRunContext`, per-module coverage target (research_agent ≥ 80%), `C901` complexity budget.
 - `deep_research.DeepResearchOrchestrator._execute_consulting_research` (~270 lines) — split Phase 1 (dossier) and Phase 2 (section-by-section writing) into discrete async helpers that take pre-built prompts and return structured results, so failure modes (consecutive-failure stop, fallback to Stage 1 context) can be tested without standing up the full pipeline
 
 Target: all three monster files at 80%+ line coverage. This is a refactor for testability, not a new feature — the rule should be no behavior change, only seam introduction, and existing eval scores should remain identical.
