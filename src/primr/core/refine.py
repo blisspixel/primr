@@ -89,6 +89,9 @@ class RefineResult:
     iterations: int
     sections_regenerated: list[str] = field(default_factory=list)
     stop_reason: str = ""
+    # True when an iteration was reverted because the independent
+    # label-traceability audit found degradation (anti-Goodhart guard).
+    acceptance_rejected: bool = False
 
     @property
     def improved(self) -> bool:
@@ -260,6 +263,63 @@ def _default_prune(content: str) -> str:
     return _normalize_fast_citations(cleaned)
 
 
+def _default_acceptance(
+    before_content: str,
+    after_content: str,
+    regenerated_titles: list[str],
+) -> bool:
+    """Independent acceptance check: traceability must not degrade (anti-Goodhart).
+
+    The loop's objective function is the artifact-discipline score, which
+    counts exactly the tokens the regenerator can insert (citations,
+    confidence labels). This check audits the regenerated sections with the
+    label-calibration harness — an instrument the discipline score cannot
+    see: per-label traceability precision on the rewritten sections must not
+    drop below what those sections had before the rewrite. An iteration that
+    raised the grade by inserting unsupported labels/citations is rejected
+    and reverted.
+
+    Fail-open on harness errors (acceptance must never brick refine), but a
+    measured degradation is binding.
+    """
+    from primr.qa.label_calibration import (
+        TRACEABLE_LABELS,
+        calibrate_claims,
+        extract_labeled_claims,
+    )
+
+    titles = set(regenerated_titles)
+    try:
+        claims_before = [c for c in extract_labeled_claims(before_content) if c.section in titles]
+        claims_after = [c for c in extract_labeled_claims(after_content) if c.section in titles]
+        if not any(c.label in TRACEABLE_LABELS for c in claims_after):
+            # Nothing traceable-class was added — nothing for this audit to
+            # judge; the discipline score governs the rest.
+            return True
+
+        report_before = calibrate_claims(claims_before)
+        report_after = calibrate_claims(claims_after)
+        for label in TRACEABLE_LABELS:
+            precision_after = report_after.precision(label)
+            precision_before = report_before.precision(label)
+            if precision_after is None:
+                continue
+            baseline = precision_before if precision_before is not None else precision_after
+            if precision_after < baseline:
+                logger.warning(
+                    "Refine acceptance rejected: %s traceability dropped %.2f -> %.2f "
+                    "on regenerated sections",
+                    label,
+                    baseline,
+                    precision_after,
+                )
+                return False
+        return True
+    except Exception as e:
+        logger.warning("Refine acceptance check errored (fail-open): %s", e)
+        return True
+
+
 def refine_report(
     company_name: str,
     report_path: str | Path,
@@ -275,11 +335,14 @@ def refine_report(
     gather_fn: Callable[[str, str | None, WeakSection, str | None], str] | None = None,
     regenerate_fn: Callable[..., str] | None = None,
     prune_fn: Callable[[str], str] | None = None,
+    acceptance_fn: Callable[[str, str, list[str]], bool] | None = None,
 ) -> RefineResult:
     """Run the QA iteration loop on a report and write the refined artifact.
 
     Stop conditions, in priority order: grade >= ``target_grade``; no weak
-    sections left to work on; diminishing returns (two consecutive
+    sections left to work on; an iteration rejected by the independent
+    acceptance check (label-traceability must not degrade — anti-Goodhart;
+    the iteration is reverted); diminishing returns (two consecutive
     iterations each improving the grade by < 5% relative); or
     ``max_iterations``.
     """
@@ -290,6 +353,7 @@ def refine_report(
     gather = gather_fn or _default_gather
     regenerate = regenerate_fn or _default_regenerate
     prune = prune_fn or _default_prune
+    acceptance = acceptance_fn or _default_acceptance
 
     # --- Orient -----------------------------------------------------------
     initial_grade = score(content)
@@ -299,6 +363,7 @@ def refine_report(
     detector = DiminishingReturnsDetector(improvement_threshold=0.05, consecutive_limit=2)
     stop_reason = "max_iterations"
     iterations = 0
+    acceptance_rejected = False
 
     if grade >= target_grade:
         stop_reason = "target_reached"
@@ -314,6 +379,8 @@ def refine_report(
             break
 
         iterations += 1
+        iteration_start_content = content
+        iteration_titles: list[str] = []
         for section in weak_sections:
             # --- Gather ----------------------------------------------------
             evidence = gather(company_name, website, section, working_folder)
@@ -338,10 +405,22 @@ def refine_report(
                 if not regenerated.endswith("\n"):
                     regenerated += "\n"
                 content = content[: match.start()] + regenerated + content[match.end() :]
-                regenerated_titles.append(section.title)
+                iteration_titles.append(section.title)
 
         # --- Prune ----------------------------------------------------------
         content = prune(content)
+
+        # --- Independent acceptance (anti-Goodhart) --------------------------
+        # Judged by an instrument the discipline score can't see; a rejected
+        # iteration is fully reverted so unsupported labels/citations never
+        # ship just because they raised the grade.
+        if iteration_titles and not acceptance(iteration_start_content, content, iteration_titles):
+            content = iteration_start_content
+            stop_reason = "acceptance_rejected"
+            acceptance_rejected = True
+            break
+        regenerated_titles.extend(iteration_titles)
+
         new_grade = score(content)
         relative_gain = (new_grade - grade) / grade if grade > 0 else 1.0
         detector.record(
@@ -385,5 +464,6 @@ def refine_report(
         final_grade=grade,
         iterations=iterations,
         sections_regenerated=regenerated_titles,
+        acceptance_rejected=acceptance_rejected,
         stop_reason=stop_reason,
     )
