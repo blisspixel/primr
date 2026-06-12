@@ -39,23 +39,23 @@ def env(monkeypatch, tmp_path):
 
 
 def _call(env, **overrides):
-    defaults = dict(
-        start_time=time.time() - 65,
-        docx_path=str(env["tmp"] / "AcmeCo_Strategic_Overview.docx"),
-        strategy_paths={},
-        output_dir=str(env["tmp"]),
-        company_name="AcmeCo",
-        display_name="AcmeCo",
-        folder_path=str(env["tmp"]),
-        written_sections_count=23,
-        total_words=21000,
-        validated_source_count=14,
-        pages_scraped=48,
-        grok_tier="hybrid",
-        report_trust_stats=[],
-        strategy_trust_stats=[],
-        search_query_count=18,
-    )
+    defaults = {
+        "start_time": time.time() - 65,
+        "docx_path": str(env["tmp"] / "AcmeCo_Strategic_Overview.docx"),
+        "strategy_paths": {},
+        "output_dir": str(env["tmp"]),
+        "company_name": "AcmeCo",
+        "display_name": "AcmeCo",
+        "folder_path": str(env["tmp"]),
+        "written_sections_count": 23,
+        "total_words": 21000,
+        "validated_source_count": 14,
+        "pages_scraped": 48,
+        "grok_tier": "hybrid",
+        "report_trust_stats": [],
+        "strategy_trust_stats": [],
+        "search_query_count": 18,
+    }
     defaults.update(overrides)
     with patch("primr.core.fast_run_summary.log_job_summary") as job_log:
         env["job_log"] = job_log

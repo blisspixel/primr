@@ -13,12 +13,12 @@ full suite green per slice, eval scores unchanged.
 | 0 | Setup & model resolution | — | **EXTRACTED** → `core/fast_run_setup.resolve_fast_run_setup()` (frozen `FastRunSetup`) |
 | 1 | Data collection | `fetch_web_content` call → external validation pools | Highest complexity: parallel pools with deadlines, quality filtering. **Extract LAST** |
 | 2 | Hiring signals | `gather_hiring_signals` | Clean call + formatting; local error handling |
-| 2B | Combined insights build | writes `insights.txt` | String assembly; REGENERATED after gap phase |
+| 2B | Combined insights build | writes `insights.txt` | **EXTRACTED** → `core/insights_assembly.py` (pure assembly; both build sites call it, file write stays in orchestrator) |
 | 3 | Gap analysis + deepening | `_fast_gap_analysis` → gap pools | Mutates source_urls/external_* sets and REBUILDS external_sources_raw + insights.txt |
 | 4 | Analysis workbook | `_build_fast_analysis_prompt` | Lazy-constructs ContinuousReasoningSession (shared with stage 6!) |
 | 5 | Section writing | `_group_sections_by_part` → per-part pools | Exec summary popped + written last with ALL prior sections; default-arg closure binding; per-part frozen snapshots |
 | 6 | Cross-validation + enrichment | `_fast_cross_validate` → weak-section loop | Regex find+splice mutates report_content serially; per-section 300s deadline; diminishing-returns detector; reuses stage-4 session |
-| 7 | Trust polish + citation repair | `_polish_fast_report_for_trust` chain | Mostly orchestrates already-extracted helpers; writes `_shipping_repair.json` |
+| 7 | Trust polish + citation repair | `_polish_fast_report_for_trust` chain | **EXTRACTED** → `core/fast_run_trust.polish_and_gate_fast_report()` (frozen `FastTrustResult`); the LLM polish/repair helpers stay in research_agent (lazy-imported) until their own extraction |
 | 8 | Artifact assembly | `_convert_deep_research_to_docx` | Thin (~25 lines). DECISION: kept inline — extracting a 25-line wrapper around an already-extracted function adds indirection without testability gain; fold into the eventual FastRunContext pass |
 | 9 | Strategy generation | budget checkpoint → vendor closures | Self-contained; per-vendor parallel closures; YAML strategies serial |
 | 10 | Summary & usage | — | **EXTRACTED** → `core/fast_run_summary.finalize_fast_run()` |
@@ -61,7 +61,8 @@ about to move.
 
 - **Batch A (lowest risk) — DONE:** stage 10 (fast_run_summary.py), stage 0
   (fast_run_setup.py); stage 8 deliberately kept inline (see table)
-- **Batch B (deterministic polish):** stage 7, stage 2B
+- **Batch B (deterministic polish) — DONE:** stage 7 (fast_run_trust.py),
+  stage 2B (insights_assembly.py)
 - **Batch C (contained closures):** stage 9, stage 4, stage 2
 - **Batch D (section context):** stage 5
 - **Batch E (research deepening):** stage 3

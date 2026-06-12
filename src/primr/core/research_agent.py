@@ -69,6 +69,8 @@ from primr.core.fast_mode_helpers import (
 from primr.core.fast_mode_helpers import (
     _parse_batch_sections as _parse_batch_sections,
 )
+from primr.core.fast_run_trust import polish_and_gate_fast_report
+from primr.core.insights_assembly import build_combined_insights, build_external_sources_raw
 from primr.core.report_cleanup import (
     _INTERNAL_REFERENCE_TERMS as _INTERNAL_REFERENCE_TERMS,
 )
@@ -76,7 +78,6 @@ from primr.core.report_cleanup import (
     _clean_fast_report_output,
     _preserves_report_structure,
     _strip_internal_source_placeholders,
-    compute_repair_report,
 )
 from primr.core.report_cleanup import (
     _extract_markdown_headings as _extract_markdown_headings,
@@ -2967,35 +2968,15 @@ def perform_fast_research(
             )
 
         # Combine Flash-summarized insights (for working folder)
-        all_insights_parts = []
-        if summarized:
-            all_insights_parts.append(f"=== WEBSITE INSIGHTS ===\n{summarized}")
-        if external_text_parts:
-            all_insights_parts.append(
-                "=== EXTERNAL SOURCES ===\n" + "\n\n".join(external_text_parts)
-            )
-        if hiring_block:
-            all_insights_parts.append(hiring_block)
-        combined_insights = (
-            "\n\n".join(all_insights_parts) if all_insights_parts else "No research data collected."
-        )
+        combined_insights = build_combined_insights(summarized, external_text_parts, hiring_block)
 
         # Save insights to working folder
         insights_file = os.path.join(folder_path, "insights.txt")
         with open(insights_file, "w", encoding="utf-8") as f:
             f.write(combined_insights)
 
-        # Build raw external sources string for Grok. Hiring signals ride
-        # along so the gap-analysis, workbook, section-writing, and
-        # cross-validation prompts all see them as available evidence.
-        external_raw_base_parts = list(external_raw_parts)
-        if hiring_block:
-            external_raw_base_parts.append(hiring_block)
-        external_sources_raw = (
-            "\n\n".join(external_raw_base_parts)
-            if external_raw_base_parts
-            else "(no external sources)"
-        )
+        # Build raw external sources string for Grok (hiring signals ride along).
+        external_sources_raw = build_external_sources_raw(external_raw_parts, hiring_block)
 
         # =================================================================
         # Phase 2: Research Deepening (Grok gap analysis → targeted search)
@@ -3133,32 +3114,15 @@ def perform_fast_research(
 
             console.ok(f"Found {gap_new_sources} additional sources")
 
-            # Rebuild external_sources_raw with new sources. Keep the
-            # hiring-signals block alongside so downstream prompts still
-            # see it after the gap-filling refresh.
-            external_raw_rebuild = list(external_raw_parts)
-            if hiring_block:
-                external_raw_rebuild.append(hiring_block)
-            external_sources_raw = (
-                "\n\n".join(external_raw_rebuild)
-                if external_raw_rebuild
-                else "(no external sources)"
-            )
-
-            # Update insights file
-            all_insights_parts_updated = []
-            if summarized:
-                all_insights_parts_updated.append(f"=== WEBSITE INSIGHTS ===\n{summarized}")
-            if external_text_parts:
-                all_insights_parts_updated.append(
-                    "=== EXTERNAL SOURCES ===\n" + "\n\n".join(external_text_parts)
-                )
-            if hiring_block:
-                all_insights_parts_updated.append(hiring_block)
-            combined_insights = (
-                "\n\n".join(all_insights_parts_updated)
-                if all_insights_parts_updated
-                else combined_insights
+            # Rebuild external_sources_raw with the new sources and refresh
+            # the insights file. The previous combined_insights is the
+            # rebuild fallback so a degenerate refresh never erases data.
+            external_sources_raw = build_external_sources_raw(external_raw_parts, hiring_block)
+            combined_insights = build_combined_insights(
+                summarized,
+                external_text_parts,
+                hiring_block,
+                fallback=combined_insights,
             )
             with open(insights_file, "w", encoding="utf-8") as f:
                 f.write(combined_insights)
@@ -3780,83 +3744,19 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
             cv_stats.append(("Status", "FAILED"))
         console.phase_complete("Cross-Validation", cv_stats)
 
-        # Trust polish is a low-cost editorial pass to improve evidence discipline.
-        report_content = _polish_fast_report_for_trust(
-            company_name or display_name,
-            website,
-            report_content,
-            source_urls,
-            model=grok_writing,
-        )
-        pre_repair_content = report_content
-        report_content = _clean_fast_report_output(report_content)
-        report_content = _normalize_fast_citations(report_content, source_urls=source_urls)
-        report_content = _enforce_fast_section_quality_guards(report_content)
-        # Observability: measure how much the deterministic cleanup actually had
-        # to repair. The goal is to push consistency upstream so this trends to
-        # zero; surfacing it makes a writer that emits dirty markdown visible
-        # instead of silently patched. Never let diagnostics fail the run.
-        try:
-            repair_report = compute_repair_report(pre_repair_content, report_content)
-            if not repair_report["writer_output_clean"]:
-                console.info(
-                    "Shipping repair: "
-                    f"{repair_report['scaffolding_removed']} scaffolding marker(s) removed, "
-                    f"{repair_report['chars_removed']} chars stripped"
-                )
-            with open(
-                os.path.join(folder_path, "_shipping_repair.json"), "w", encoding="utf-8"
-            ) as _rf:
-                json.dump(repair_report, _rf, indent=2)
-        except Exception as _repair_err:
-            # Diagnostics must never break shipping.
-            logger.debug("Repair report skipped: %s", _repair_err)
-        qa_metrics = _compute_fast_report_qa_metrics(
-            report_content,
+        # Trust polish + citation repair stage (extracted: core/fast_run_trust.py)
+        _trust = polish_and_gate_fast_report(
+            company_label=company_name or display_name,
+            website=website,
+            report_content=report_content,
+            source_urls=source_urls,
+            grok_writing=grok_writing,
+            folder_path=folder_path,
             unresolved_contradictions=unresolved_contradictions,
         )
-        if qa_metrics["citations_used"] == 0 or qa_metrics["citations_defined"] == 0:
-            repaired_report = _repair_fast_report_citation_integrity(
-                company_name or display_name,
-                website,
-                report_content,
-                source_urls,
-                model=grok_writing,
-            )
-            if repaired_report != report_content:
-                report_content = repaired_report
-                qa_metrics = _compute_fast_report_qa_metrics(
-                    report_content,
-                    unresolved_contradictions=unresolved_contradictions,
-                )
-        qa_parts = [
-            f"labels={qa_metrics['confidence_labels']}",
-            f"cites={qa_metrics['citations_used']}/{qa_metrics['citations_defined']}",
-            f"validate={qa_metrics['sections_with_validate']}/{qa_metrics['section_count']}",
-        ]
-        if qa_metrics.get("duplicate_sections", 0) > 0:
-            qa_parts.append(f"dupes={qa_metrics['duplicate_sections']}")
-        if qa_metrics.get("thin_sections", 0) > 0:
-            qa_parts.append(f"thin={qa_metrics['thin_sections']}")
-        if qa_metrics.get("unresolved_contradictions", 0) > 0:
-            qa_parts.append(f"contradictions={qa_metrics['unresolved_contradictions']}")
-        qa_parts.append(f"gate={'PASS' if qa_metrics['qa_gate_passed'] else 'WARN'}")
-        console.info("Fast QA: " + ", ".join(qa_parts))
-        report_trust_stats = [
-            ("Report Gate", "PASS" if qa_metrics["qa_gate_passed"] else "WARN"),
-            (
-                "Citations",
-                f"{qa_metrics['citations_used']}/{qa_metrics['citations_defined']} defined",
-            ),
-            (
-                "Validate Lines",
-                f"{qa_metrics['sections_with_validate']}/{qa_metrics['section_count']} sections",
-            ),
-        ]
-        if qa_metrics.get("unresolved_contradictions", 0) > 0:
-            report_trust_stats.append(
-                ("Contradictions", str(qa_metrics["unresolved_contradictions"]))
-            )
+        report_content = _trust.report_content
+        qa_metrics = _trust.qa_metrics
+        report_trust_stats = list(_trust.report_trust_stats)
 
         # Save report via existing output pipeline
         # Note: unresolved contradictions are surfaced as QA warnings above
