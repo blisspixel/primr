@@ -68,7 +68,9 @@ def _http_get_json(url: str, timeout: float) -> dict:
     if parsed.scheme not in ("http", "https"):
         raise ValueError(f"Unsupported scheme for local inference probe: {parsed.scheme!r}")
     request = urllib.request.Request(url, headers={"Accept": "application/json"})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+    # B310: scheme is allow-listed to http/https immediately above, and the
+    # URL is operator configuration (see docstring), not untrusted input.
+    with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec B310
         return json.loads(response.read().decode("utf-8"))
 
 
