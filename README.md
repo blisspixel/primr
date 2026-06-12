@@ -76,6 +76,22 @@ For model evaluation and quality comparison, see [Evaluation Guide](docs/EVAL.md
 
 ## Quick Start
 
+**One-line install**
+
+**Windows (PowerShell):**
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/blisspixel/primr/main/scripts/install.ps1 | iex"
+```
+
+**macOS / Linux:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/blisspixel/primr/main/scripts/install.sh | bash
+```
+
+After the installer finishes, open a **new** terminal and run `primr init`.
+
+---
+
 **primr works on Windows, macOS, and Linux.**
 
 ```bash
