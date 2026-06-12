@@ -3150,7 +3150,6 @@ def perform_fast_research(
         written_sections = _sections_result.written_sections
         total_words = _sections_result.total_words
 
-
         # =================================================================
         # Phase 5: Cross-Validation (review + targeted enrichment)
         # =================================================================
