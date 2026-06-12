@@ -59,8 +59,8 @@ about to move.
 
 ## Extraction order (batched; each batch one PR)
 
-- **Batch A (lowest risk) — DONE:** stage 10 (ast_run_summary.py), stage 0
-  (ast_run_setup.py); stage 8 deliberately kept inline (see table)
+- **Batch A (lowest risk) — DONE:** stage 10 (fast_run_summary.py), stage 0
+  (fast_run_setup.py); stage 8 deliberately kept inline (see table)
 - **Batch B (deterministic polish):** stage 7, stage 2B
 - **Batch C (contained closures):** stage 9, stage 4, stage 2
 - **Batch D (section context):** stage 5
