@@ -109,6 +109,7 @@ from primr.core.cli_parser import (
 from primr.core.cli_parser import (
     _discover_strategies as _discover_strategies,
 )
+from primr.core.cli_plan import run_plan
 from primr.core.cli_recovery import (
     _build_recovered_basename as _build_recovered_basename,
 )
@@ -125,6 +126,7 @@ from primr.core.cli_recovery import (
 from primr.core.cli_recovery import (
     _show_latest_run_state_hint as _show_latest_run_state_hint,
 )
+from primr.core.cli_vendor import run_generate_vendor
 from primr.utils.banner import maybe_show_startup_banner
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
@@ -201,6 +203,7 @@ class Command(Enum):
     LIST_STRATEGIES = "list-strategies"
     SHOW_USAGE = "show-usage"
     DRY_RUN = "dry-run"
+    PLAN = "plan"
     GENERATE_VENDOR = "generate-vendor"
     BATCH = "batch"
     ENRICH = "enrich"
@@ -904,7 +907,8 @@ def main(args: list[str] | None = None) -> int:
         Command.LIST_STRATEGIES: _handle_list_strategies,
         Command.SHOW_USAGE: _handle_show_usage,
         Command.DRY_RUN: run_dry_run,
-        Command.GENERATE_VENDOR: _handle_generate_vendor,
+        Command.PLAN: run_plan,
+        Command.GENERATE_VENDOR: run_generate_vendor,
         Command.BATCH: _handle_batch,
         Command.ENRICH: _handle_enrich,
         Command.TEST_ACCORDION: _handle_test_accordion,
@@ -1161,6 +1165,9 @@ def _create_parser() -> argparse.ArgumentParser:
     # under its line ceiling.
     add_research_input_arguments(parser)
     parser.add_argument("--dry-run", action="store_true", help="Show cost estimate only")
+    parser.add_argument(
+        "--plan", action="store_true", help="Preview framing + hypothesis tree + outline, then exit"
+    )
     parser.add_argument("--show-usage", action="store_true", help="Display usage statistics")
     parser.add_argument("--open", action="store_true", help="Open report after generation")
     parser.add_argument("--output-dir", type=str, help="Custom output directory")
@@ -1535,6 +1542,7 @@ _FLAG_COMMANDS: list[tuple[str, Command]] = [
     ("clear_jobs", Command.CLEAR_JOBS),
     ("list_strategies", Command.LIST_STRATEGIES),
     ("dry_run", Command.DRY_RUN),
+    ("plan", Command.PLAN),
     ("generate_vendor_research", Command.GENERATE_VENDOR),
 ]
 
@@ -1653,28 +1661,6 @@ def _format_vendor_research_freshness() -> str:
         "refresh with --refresh-vendor-research"
     )
     return "\n".join(lines)
-
-
-def _handle_generate_vendor(config: CLIConfig) -> int:
-    """Handle generate-vendor command."""
-    from primr.core.vendor_research import generate_vendor_research_sync
-
-    console.banner("Vendor AI Research Generation")
-
-    if config.generate_vendor == "all":
-        vendors = ["azure", "aws", "gcp", "agnostic"]
-    else:
-        vendors = [config.generate_vendor] if config.generate_vendor else []
-
-    for vendor in vendors:
-        console.step(f"Generating {vendor.upper()} research")
-        result = generate_vendor_research_sync(vendor)
-        if result:
-            console.ok(f"Saved: {result}")
-        else:
-            console.error(f"Failed to generate {vendor} research")
-
-    return 0
 
 
 def _handle_enrich(config: CLIConfig) -> int:
