@@ -161,7 +161,11 @@ jobs:
       - name: Test
         env:
           GEMINI_API_KEY: fake-key-for-ci-tests
-        run: uv run --no-sync pytest tests/ --ignore=tests/manual --tb=short -q -k "not test_wait_times_out_when_no_change" -m "not integration"
+        # Timing-sensitive tests are excluded here: the cross-platform legs
+        # validate portability, not wall-clock performance, and tight timing
+        # bounds flake on slower/shared runners. They still run on the Linux
+        # matrix above.
+        run: uv run --no-sync pytest tests/ --ignore=tests/manual --tb=short -q -k "not test_wait_times_out_when_no_change" -m "not integration and not timing"
 
   a2a-tests:
     runs-on: ubuntu-latest

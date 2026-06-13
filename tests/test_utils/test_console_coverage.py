@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import time
 
+import pytest
+
 from primr.utils.console import (
     Console,
     Theme,
@@ -406,6 +408,7 @@ class TestContextManagers:
             pass
         assert "loading" in capsys.readouterr().out
 
+    @pytest.mark.timing
     def test_spinner_interactive_animates(self, capsys):
         c = Console(capabilities=_interactive_caps(unicode=True))
         with c.spinner("loading") as update:
@@ -427,6 +430,7 @@ class TestContextManagers:
         out = capsys.readouterr().out
         assert "op" in out
 
+    @pytest.mark.timing
     def test_timed_operation_interactive_with_spinner(self, capsys):
         c = Console(capabilities=_interactive_caps())
         with c.timed_operation("op", show_spinner=True):
@@ -440,6 +444,7 @@ class TestContextManagers:
             pass
         assert capsys.readouterr().out == ""
 
+    @pytest.mark.timing
     def test_heartbeat_non_interactive_emits(self, capsys):
         c = Console(capabilities=_noncursor_caps())
         c._last_output_time = time.time() - 100
