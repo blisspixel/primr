@@ -49,6 +49,7 @@ understanding.
 | Document | Description |
 |----------|-------------|
 | [ARCHITECTURE](ARCHITECTURE.md) | System design and the 9-tier scraping engine |
+| [ARTIFACTS](ARTIFACTS.md) | The research-vs-shipping artifact pipeline and ship-time gates |
 | [INTERNALS](INTERNALS.md) | Core algorithms and prompt strategy |
 | [STATE_MACHINES](STATE_MACHINES.md) | Tier escalation and job lifecycle |
 | [CONCURRENCY](CONCURRENCY.md) | Threading and concurrency model |
