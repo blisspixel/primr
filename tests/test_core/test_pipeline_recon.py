@@ -301,7 +301,8 @@ class TestDryRunRecon:
 
     def test_dry_run_shows_recon_step(self, capsys):
         """Verify --dry-run output includes recon pre-flight info."""
-        from primr.core.cli import CLIConfig, Command, _handle_dry_run
+        from primr.core.cli import CLIConfig, Command
+        from primr.core.cli_dryrun import run_dry_run
 
         config = CLIConfig(
             command=Command.DRY_RUN,
@@ -310,14 +311,15 @@ class TestDryRunRecon:
             skip_recon=False,
         )
 
-        _handle_dry_run(config)
+        run_dry_run(config)
         captured = capsys.readouterr()
         assert "RECON PRE-FLIGHT" in captured.out
         assert "$0.00" in captured.out
 
     def test_dry_run_shows_recon_skipped(self, capsys):
         """Verify --dry-run output shows recon skipped when --skip-recon."""
-        from primr.core.cli import CLIConfig, Command, _handle_dry_run
+        from primr.core.cli import CLIConfig, Command
+        from primr.core.cli_dryrun import run_dry_run
 
         config = CLIConfig(
             command=Command.DRY_RUN,
@@ -326,6 +328,6 @@ class TestDryRunRecon:
             skip_recon=True,
         )
 
-        _handle_dry_run(config)
+        run_dry_run(config)
         captured = capsys.readouterr()
         assert "skipped" in captured.out.lower() or "--skip-recon" in captured.out

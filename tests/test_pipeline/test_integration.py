@@ -76,7 +76,8 @@ class TestDryRunRecoveryTable:
         import io
         from contextlib import redirect_stdout
 
-        from primr.core.cli import CLIConfig, Command, _handle_dry_run
+        from primr.core.cli import CLIConfig, Command
+        from primr.core.cli_dryrun import run_dry_run
 
         mock_estimate.return_value = MagicMock(__str__=lambda x: "Cost: ~$0.20")
 
@@ -90,7 +91,7 @@ class TestDryRunRecoveryTable:
 
         captured = io.StringIO()
         with redirect_stdout(captured), patch.dict(os.environ, {"XAI_API_KEY": "test-key"}):
-            result = _handle_dry_run(config)
+            result = run_dry_run(config)
 
         output = captured.getvalue()
         assert result == 0
