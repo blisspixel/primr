@@ -28,7 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stays the *operate-primr* product guide (a disambiguation header now points
   dev-agents to `CLAUDE.md`); `CONTRIBUTING.md` references it. Follows the
   June-2026 `CLAUDE.md`/`AGENTS.md` split (Claude Code reads `CLAUDE.md`
-  natively; `AGENTS.md` is the cross-tool standard).
+  natively; `AGENTS.md` is the cross-tool standard). The contract also conforms
+  to the repo's own context-map schema, activating six previously-dormant
+  `test_context_map_*` property tests (they skipped while no `CLAUDE.md` was
+  committed): required sections, negative constraints, verification commands,
+  progressive disclosure, and the Quick Start token budget.
 - **`tests/test_architecture.py`** — deterministic architectural fitness
   suite: a rise-only per-file line ceiling (14 files >1,000 lines pinned and
   blocked from growing; new files cap at 1,000), a single-JSON-library gate

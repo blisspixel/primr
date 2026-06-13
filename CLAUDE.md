@@ -1,8 +1,8 @@
 # CLAUDE.md — the contract for building primr
 
 You are working **on the primr codebase**. This file is the development
-contract: read it before writing code. It is the canonical guide for any
-contributor (human or agent); Claude Code loads it natively, and
+contract and context map: read it before writing code. It is the canonical
+guide for any contributor (human or agent); Claude Code loads it natively, and
 [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) points other tools here.
 
 > **Not to be confused with [`AGENTS.md`](AGENTS.md)**, which is a *product*
@@ -16,10 +16,33 @@ AI-assisted code reliably regresses on exactly these axes (duplication,
 inconsistent patterns, stale APIs, silent insecurity) unless held to a
 contract.
 
-## Where things live
+## Quick Start
 
-`src/` layout, package per concern. Put code in the package that owns it; do
-not create a new junk-drawer module.
+primr turns a company URL into a sourced strategic brief. It is a CLI-first,
+local-first Python package (`src/` layout), an LLM API **client** + adaptive
+scraper + MCP/A2A agent — it trains and serves no models. To work on it:
+
+1. Set up the dev env (`uv sync --frozen --extra dev --extra api`, then
+   `uv run playwright install chromium`) — see
+   [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md).
+2. Put code in the package that owns it (see Architecture Pointers). Use the
+   existing **seam** rather than inventing a second way to do the same thing.
+3. Before opening a PR, run the Verification Commands and re-read the Negative
+   Constraints. New code ships with tests; the coverage ratchet only rises.
+
+Three rules in one breath: **one way to do each thing; no new giant files;
+verify current APIs (never trust training memory).** Everything below expands
+these.
+
+## Architecture Pointers
+
+`src/` layout, one package per concern. `config/` is close to a leaf (avoid
+new `core/ai/data` imports). Design docs live in
+[`docs/design/`](docs/design/README.md); the full standards are in
+[ROADMAP → Engineering Standards](ROADMAP.md#engineering-standards--toolchain).
+
+<details>
+<summary>Package map — where things live</summary>
 
 - `core/` — pipeline orchestration, CLI, research agent, strategy
 - `ai/` — LLM clients, providers, routing, deep research
@@ -28,20 +51,19 @@ not create a new junk-drawer module.
 - `qa/` — report analysis, calibration, scoring
 - `agentic/` — hypothesis tracking, hooks, subagents, orchestrator
 - `skill_pack/` — skill-pack planning/authoring/validation
-- `config/` — settings, env, model registry, validation (keep it close to a
-  **leaf**: avoid new imports from `core/`/`ai/`/`data/` — `eval_profiles` is
-  the one legacy exception, don't add more)
+- `config/` — settings, env, model registry, validation (keep near-leaf)
 - `utils/` — shared seams (below); not a dumping ground
-- `mcp_server/`, `a2a/`, `api/` — agent/HTTP surfaces
+- `mcp_server/`, `a2a/`, `api/` — agent / HTTP surfaces
 
-Design docs live in [`docs/design/`](docs/design/README.md); the standards this
-file enforces are in
-[ROADMAP → Engineering Standards](ROADMAP.md#engineering-standards--toolchain).
+</details>
 
 ## Use the one seam — don't invent a sixth way
 
-The fastest way to make a codebase rot is N ways to do one thing. Before
-reaching for a library or pattern, use the existing seam:
+The fastest way to rot a codebase is N ways to do one thing. Before reaching
+for a library or pattern, use the existing seam.
+
+<details>
+<summary>Seam table — use these, not the alternatives</summary>
 
 | Need | Use | Not |
 |------|-----|-----|
@@ -55,49 +77,53 @@ reaching for a library or pattern, use the existing seam:
 | Outbound HTTP | the scraping-tier clients / `data.http_client` | a *new* HTTP client |
 
 HTTP is deliberately multi-client (browser → curl_cffi → httpx → requests →
-urllib) for scrape-tier evasion — that set is **closed**. Adding a sixth client
-is a reviewed exception, not a default. If you genuinely need a new pattern,
-add the seam *and* migrate callers — don't leave two ways behind.
+urllib) for scrape-tier evasion — that set is **closed**. A sixth client is a
+reviewed exception, not a default. If you genuinely need a new pattern, add the
+seam *and* migrate callers — don't leave two ways behind.
 
-## Hard rules (these are gated or will fail review)
+</details>
 
-- **No new giant files.** A new file over ~800 lines needs a split plan first.
-  Existing large files (`research_agent.py`, `cli.py`, `deep_research.py`, …)
-  **may not grow** — `tests/test_architecture.py` enforces a rise-only
-  per-file line ceiling. If your change would push a file over its ceiling,
-  split it instead of bumping the ceiling.
-- **Verify current APIs — do not trust training memory.** You have no reliable
-  sense of "now." Before using a library version, API signature, or model ID:
-  check the installed version (`uv.lock` / `pyproject.toml`), the current docs,
-  and the registry in `config/models.py`. Stale/deprecated APIs and
-  hallucinated packages are a top AI-code failure mode — assume your recall is
-  six months stale and confirm.
-- **Security is not optional.** Every outbound URL goes through the SSRF guard
-  (`utils.security.is_safe_url`, validated post-redirect). All untrusted
-  scraped/external text entering a prompt is fenced
-  (`utils.content_sanitizer.fence_untrusted`). No secrets in code, logs, or
-  fixtures — secret redaction is sink-level, but don't rely on it as license.
-- **No real company data**, anywhere that ships — see
-  [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md). Use `Acme Corp` / `ExampleCo`
-  / `acme.example`.
-- **Authorship.** Do not add AI/Claude attribution to commits, PR bodies, or
-  code comments (no `Co-Authored-By`, no "generated by"). Commits read as a
-  human engineer's work.
+## Negative Constraints
 
-## CLI verb convention
+What NOT to do. These are gated or will fail review:
 
-New user-facing capabilities are **noun/verb subcommands**
-(`primr <command> [args] [--modifiers]`), matching `recon`/`keys`/`mcp`/
-`skills`/`update`. Flags are modifiers, not commands. Legacy flag-commands
-(`--qa`, `--eval`, …) keep back-compat aliases; don't add new ones.
+- **NEVER add a second way** to do something that already has a seam (above).
+- **NEVER let a monster file grow.** A new file over ~800 lines needs a split
+  plan; the large files (`research_agent.py`, `cli.py`, `deep_research.py`, …)
+  are pinned by `tests/test_architecture.py` and may not grow — split instead
+  of raising the ceiling.
+- **NEVER trust training memory for "now."** Verify the current library
+  version, API signature, and model ID (against `uv.lock` / `config/models.py`
+  / current docs) before using them. Stale/deprecated APIs and hallucinated
+  packages are a top AI-code failure mode — assume your recall is six months
+  stale and confirm.
+- **NEVER bypass the SSRF guard.** Every outbound URL goes through
+  `utils.security.is_safe_url` (validated post-redirect); untrusted scraped
+  text entering a prompt is fenced via `utils.content_sanitizer.fence_untrusted`.
+  No secrets in code, logs, or fixtures.
+- **NEVER launch a billable run without an estimate + explicit approval** —
+  primr runs cost real money and time; the cost gate is non-negotiable (this is
+  the operate-side contract in `AGENTS.md`, restated here as a design boundary).
+- **NEVER turn primr into a daemon / always-on watcher** — it is **single-job**
+  by design (URL in, artifact out). Loops and scheduling live on the consumer
+  side; do not add a background watcher to the core.
+- **NEVER put real company data** anywhere that ships (docs, fixtures, commit
+  messages) — use `Acme Corp` / `ExampleCo` / `acme.example`. See CONTRIBUTING.
+- **NEVER add AI/Claude attribution** to commits, PR bodies, or comments (no
+  `Co-Authored-By`, no "generated by"). Commits read as a human engineer's work.
 
-## Tests & quality gates
+## Verification Commands
 
-New code ships with tests. Pin load-bearing invariants with Hypothesis
-property tests. Branch coverage is a **rise-only ratchet** — don't lower it;
-don't add a new `ignore_errors` mypy module (the strict allowlist only grows).
+Run what CI runs before opening a PR, and use `primr doctor` to check system
+state.
 
-Before opening a PR, run what CI runs:
+```bash
+primr doctor                 # system health: keys, browsers, providers, paths
+uv run pytest tests/ -q      # the full suite
+```
+
+<details>
+<summary>Full pre-PR gate (matches CI)</summary>
 
 ```bash
 uv run ruff check src/primr/
@@ -109,7 +135,18 @@ uv run pytest tests/ -q
 ```
 
 Then ask the slop question: **did this add a second way to do something that
-already has a seam?** If yes, fix it before review.
+already has a seam?** If yes, fix it before review. Don't lower the coverage
+ratchet; don't add a new `ignore_errors` mypy module (the strict allowlist only
+grows). Pin load-bearing invariants with Hypothesis property tests.
+
+</details>
+
+## CLI verb convention
+
+New user-facing capabilities are **noun/verb subcommands**
+(`primr <command> [args] [--modifiers]`), matching `recon`/`keys`/`mcp`/
+`skills`/`update`. Flags are modifiers, not commands. Legacy flag-commands
+(`--qa`, `--eval`, …) keep back-compat aliases; don't add new ones.
 
 ## Git / PR
 
