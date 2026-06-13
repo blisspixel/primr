@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Machine-readable output
+
+- **`--json` for scripting and agents.** `primr <co> <url> --json` emits a
+  single JSON result summary (status, report/DOCX paths, word count) to stdout;
+  `primr <co> <url> --dry-run --json` emits the cost estimate as JSON
+  (estimate-first). `--json` implies quiet so progress chrome never interleaves
+  with the JSON. (`primr recon --json` already existed.)
+
 ### CLI robustness
 
 - **Actionable errors instead of raw tracebacks.** An unexpected failure that
