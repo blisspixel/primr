@@ -17,6 +17,8 @@ Usage:
     config = parse_args(["Acme Corp", "https://acme.example", "--mode", "deep"])
 """
 
+# PYTHON_ARGCOMPLETE_OK  (lets the global argcomplete script offer tab completion)
+
 import argparse
 import os
 import re
@@ -98,8 +100,10 @@ from primr.core.cli_init import (
     _validate_key_live as _validate_key_live,
 )
 from primr.core.cli_parser import (
+    CLI_EPILOG,
     _determine_command,
     add_research_input_arguments,
+    enable_shell_completion,
 )
 from primr.core.cli_parser import (
     _discover_strategies as _discover_strategies,
@@ -932,70 +936,7 @@ def _create_parser() -> argparse.ArgumentParser:
         # test (invalid flags must exit non-zero).
         allow_abbrev=False,
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Research Modes:
-  full     Scrape + deep research + AI strategy (~60-90 min, ~$6) [DEFAULT]
-  scrape   Scrape website + extract insights only (~5-10 min, ~$0.10)
-  deep     Autonomous AI web research, 8 sections (~10-15 min, ~$2.50)
-  parallel Both engines in parallel (legacy, ~25 min)
-
-Examples:
-  primr init                                         # Guided first-run setup
-  primr "Acme Corp" https://acme.example
-  primr "Acme Corp" acme.example --mode deep
-  primr "Acme Corp" acme.example --mode scrape       # Build Site Corpus + Extract Insights
-  primr keys set gemini                              # Store Gemini key in user config
-  primr keys set xai                                 # Store xAI/Grok key in user config
-  primr keys list                                    # Show configured provider keys
-  primr doctor                                       # System diagnostics
-  primr doctor --fix                                 # Diagnose, then launch guided fixes
-  primr update                                       # Upgrade primr to the latest release
-  primr update --check                               # Check for a newer version without installing
-  primr --qa "Acme Corp"                             # Show detailed QA analysis
-  primr --qa-recent 5                                # Show QA summary for recent reports
-  primr improve "output/Company_Strategic_Overview_03-06-2026.md"   # Improve one output
-  primr improve "output/Company_AI_Strategy_AZURE_03-06-2026.md" --improve-agentic
-  primr refine "Acme Corp"                           # QA loop: regenerate weak sections until grade >= 90
-  primr refine "Acme Corp" --target-grade 85 --in-place
-  primr calibrate "Acme Corp"                        # Audit confidence-label traceability (writes sidecar JSON)
-  primr calibrate --calibrate-recent 10 --dry-run    # Preview judge-call count/cost, no spend
-  primr --banner                                     # Show startup banner only
-
-AI Strategy Retry (when main report succeeded but AI strategy failed):
-  primr --ai-strategy-only "output/Company_Strategic_Overview_01-09-2026.md"
-  primr --ai-strategy-only "output/report.md" --platform aws
-  primr "Acme Corp" https://acme.example --resume-local
-  primr --resume-latest                               # Recover + finalize completed cloud jobs
-
-Versioned Eval (offline-first, no API spend by default):
-  primr --eval --eval-id eval-2026-02-r1
-  primr --eval --eval-id eval-2026-02-r1 --eval-profiles full lite fast
-  primr --eval --eval-id eval-2026-02-r1 --eval-company "Harver"
-  primr --eval --eval-id eval-2026-02-r1 --eval-llm-judge --eval-judge-max-cost 0.25
-  primr --eval --eval-id eval-2026-02-r1 --eval-run-missing --eval-manifest eval_companies.csv --eval-max-new-runs 2 --eval-max-estimated-cost 12
-
-Agentic Architecture (v1.7.0):
-  primr memory "Acme Corp"                           # View hypotheses for a company
-  primr --memory-list                                # List all companies with memory
-  primr orchestrate "Acme Corp" https://acme.com    # Run orchestrated research
-  primr --orchestrate --max-cost 5.0                 # With cost budget
-  primr roadmap                                      # Show roadmap overview
-  primr --roadmap-version v1.7.0                     # Show version details
-
-Domain Intelligence (Recon):
-  primr recon acme.com                               # DNS intelligence lookup
-  primr recon acme.com --json                        # Structured JSON output
-  primr recon acme.com --md                          # Markdown report
-  primr recon acme.com --services                    # M365 vs tech stack split
-  primr recon acme.com --full                        # Everything
-  primr recon batch domains.txt                      # Batch mode
-  primr recon batch domains.txt -c 10                # Batch with concurrency
-  primr recon doctor                                 # Connectivity check
-
-Accordion Method Test (for development):
-  primr --test-accordion "Oceanography 2026-2030"
-  primr --test-accordion "Topic" --accordion-pages 30
-""",
+        epilog=CLI_EPILOG,
     )
 
     from primr import __version__ as _primr_version
@@ -1546,6 +1487,8 @@ Accordion Method Test (for development):
         help="Root directory containing working run folders for stage-level eval inputs (default: working)",
     )
 
+    # Tab completion via argcomplete when installed (no-op otherwise).
+    enable_shell_completion(parser)
     return parser
 
 
