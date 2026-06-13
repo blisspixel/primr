@@ -114,3 +114,77 @@ class TestFallbacks:
         _call(seams)
         path = seams["tmp"] / "analysis_workbook.md"
         assert path.read_text(encoding="utf-8") == "fallback insights"
+
+
+class TestDay1HypothesisTree:
+    """Tradecraft Step 2b: a framed run forms + saves the Day-1 tree and prepends
+    it to the workbook prompt; an unframed run is unchanged."""
+
+    _TREE_JSON = (
+        '{"branches": [{"issue": "Posture", "hypotheses": '
+        '[{"claim": "TREE_CLAIM_TOKEN", "test_question": "azure or on-prem?"}]}]}'
+    )
+
+    def _role_aware(self, seams):
+        """Make call_with_failover return tree JSON for the WRITING (tree) call
+        and workbook text for the REASONING (workbook) call."""
+        from primr.pipeline.llm_failover import LLMRole
+
+        def side_effect(role, prompt, **kwargs):
+            if role == LLMRole.WRITING:
+                return self._TREE_JSON
+            return "workbook via failover"
+
+        seams["failover"].side_effect = side_effect
+        return seams
+
+    def test_tree_formed_saved_and_prepended_when_framed(self, seams):
+        from primr.core.research_framing import ResearchFraming
+
+        self._role_aware(seams)
+        framing = ResearchFraming(core_question="near-term cloud budget?")
+        _call(seams, framing=framing)
+
+        # Artifact written
+        md = (seams["tmp"] / "hypothesis_tree.md").read_text(encoding="utf-8")
+        assert "TREE_CLAIM_TOKEN" in md
+        assert (seams["tmp"] / "hypothesis_tree.json").exists()
+
+        # Tree prepended to the workbook (REASONING) prompt
+        from primr.pipeline.llm_failover import LLMRole
+
+        reasoning_prompts = [
+            c.args[1]
+            for c in seams["failover"].call_args_list
+            if len(c.args) >= 2 and c.args[0] == LLMRole.REASONING
+        ]
+        assert reasoning_prompts
+        assert "DAY-1 HYPOTHESIS TREE" in reasoning_prompts[0]
+        assert "TREE_CLAIM_TOKEN" in reasoning_prompts[0]
+
+    def test_no_tree_when_unframed(self, seams):
+        _call(seams)  # no framing
+        assert not (seams["tmp"] / "hypothesis_tree.md").exists()
+
+    def test_no_tree_when_framing_unspecified(self, seams):
+        from primr.core.research_framing import ResearchFraming
+
+        self._role_aware(seams)
+        _call(seams, framing=ResearchFraming())  # neutral -> not is_specified
+        assert not (seams["tmp"] / "hypothesis_tree.md").exists()
+
+    def test_failsoft_when_tree_llm_returns_garbage(self, seams):
+        from primr.core.research_framing import ResearchFraming
+        from primr.pipeline.llm_failover import LLMRole
+
+        def side_effect(role, prompt, **kwargs):
+            if role == LLMRole.WRITING:
+                return "sorry, no JSON here"
+            return "workbook via failover"
+
+        seams["failover"].side_effect = side_effect
+        # Must not raise; empty tree saved, nothing prepended.
+        workbook, _ = _call(seams, framing=ResearchFraming(core_question="x"))
+        assert workbook == "workbook via failover"
+        md = (seams["tmp"] / "hypothesis_tree.md").read_text(encoding="utf-8")
+        assert "No hypotheses formed" in md
