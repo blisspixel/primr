@@ -479,6 +479,122 @@ _METADATA_HOSTS = frozenset(
 )
 
 
+def _parse_ipv4_part(part: str) -> int | None:
+    """Parse one dotted-quad part with C/inet_aton radix rules; None if invalid.
+
+    ``0x..`` is hex, a leading ``0`` (with more digits) is octal, otherwise
+    decimal. Python's ``int(part, 0)`` is NOT used because it rejects C-style
+    leading-zero octal (``0177``), which inet_aton accepts and attackers use.
+    """
+    if part == "":
+        return None
+    if part[:2] in ("0x", "0X"):
+        digits = part[2:]
+        if not digits or any(c not in "0123456789abcdefABCDEF" for c in digits):
+            return None
+        return int(digits, 16)
+    if len(part) > 1 and part[0] == "0":
+        # C-style octal: every remaining digit must be 0-7.
+        if any(c not in "01234567" for c in part):
+            return None
+        return int(part, 8)
+    if not part.isdigit():
+        return None
+    return int(part, 10)
+
+
+def canonicalize_numeric_host(host: str) -> str | None:
+    """Return the canonical dotted IPv4 for a numeric-literal host, else ``None``.
+
+    SSRF filters that trust the OS resolver to decode obfuscated IPv4 forms are
+    platform-dependent: e.g. macOS ``getaddrinfo`` does not decode octal
+    dotted-quad (``0177.0.0.1`` resolves to the public ``177.0.0.1``, not
+    loopback), while Linux/Windows do. This canonicalizer decodes the forms
+    ``inet_aton`` accepts -- dotted octal/hex/decimal with 1 to 4 parts, plus a
+    bare 32-bit integer -- ourselves, so a loopback/private literal is detected
+    identically on every platform.
+
+    Returns ``None`` for anything that is not a pure numeric IPv4 literal (real
+    domain names, IPv6, malformed input), so callers apply extra scrutiny only
+    to numeric literals and leave normal hostnames to ordinary DNS resolution.
+    """
+    import ipaddress
+
+    h = host.strip()
+    # Numeric IPv4 literals use only hex/decimal digits, the hex prefix, and
+    # dots. Any other character (including ':') means "not a numeric IPv4".
+    if not h or any(c not in "0123456789abcdefABCDEFxX." for c in h):
+        return None
+
+    parts = h.split(".")
+    if not 1 <= len(parts) <= 4:
+        return None
+
+    values: list[int] = []
+    for part in parts:
+        value = _parse_ipv4_part(part)
+        if value is None:
+            return None
+        values.append(value)
+
+    # inet_aton semantics: every leading part is one byte; the final part
+    # absorbs all remaining low-order bytes.
+    leading, last = values[:-1], values[-1]
+    if any(v > 0xFF for v in leading):
+        return None
+    remaining_bytes = 4 - len(leading)
+    if last > (1 << (8 * remaining_bytes)) - 1:
+        return None
+
+    address = 0
+    for v in leading:
+        address = (address << 8) | v
+    address = (address << (8 * remaining_bytes)) | last
+
+    try:
+        return str(ipaddress.IPv4Address(address))
+    except (ipaddress.AddressValueError, ValueError):
+        return None
+
+
+def numeric_host_block_reason(host: str) -> str | None:
+    """If ``host`` is an obfuscated numeric IPv4 pointing at a non-public range,
+    return a block reason; otherwise ``None``.
+
+    This is the platform-independent SSRF backstop: it canonicalizes the host
+    (see :func:`canonicalize_numeric_host`) and blocks it when the canonical IP
+    is loopback/private/reserved/link-local/unspecified/multicast or a cloud
+    metadata endpoint -- regardless of how the OS resolver would decode it. A
+    numeric literal that resolves to a genuinely public address returns
+    ``None`` (allowed; normal resolution still applies).
+    """
+    import ipaddress
+
+    canonical = canonicalize_numeric_host(host)
+    if canonical is None:
+        return None
+    if canonical in _METADATA_HOSTS:
+        return "Cloud metadata endpoints are blocked"
+    try:
+        ip = ipaddress.ip_address(canonical)
+    except ValueError:
+        return None
+    if (
+        ip.is_loopback
+        or ip.is_link_local
+        or ip.is_private
+        or ip.is_unspecified
+        or ip.is_reserved
+        or ip.is_multicast
+    ):
+        return "Obfuscated numeric IP resolves to a private/reserved address"
+    for network_str in _PRIVATE_IP_RANGES:
+        network = ipaddress.ip_network(network_str)
+        if ip.version == network.version and ip in network:
+            return "Obfuscated numeric IP resolves to a private/reserved address"
+    return None
+
+
 def is_safe_url(url: str) -> tuple[bool, str | None]:
     """
     Check if a URL is safe to fetch (SSRF protection).
@@ -527,6 +643,13 @@ def is_safe_url(url: str) -> tuple[bool, str | None]:
     # Check metadata endpoints by hostname
     if hostname in _METADATA_HOSTS:
         return False, "Cloud metadata endpoints are blocked"
+
+    # Platform-independent obfuscated-numeric-IP backstop: block octal/hex/
+    # decimal/short IPv4 literals that point at non-public ranges, without
+    # depending on the OS resolver (which decodes these inconsistently).
+    numeric_block = numeric_host_block_reason(hostname)
+    if numeric_block:
+        return False, numeric_block
 
     # Resolve hostname to IP
     try:

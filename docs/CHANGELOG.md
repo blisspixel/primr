@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Platform-independent SSRF guard for obfuscated numeric IPs.** The SSRF guard
+  now canonicalizes octal / hex / decimal / short-form IPv4 literals itself
+  (e.g. `0177.0.0.1`, `0x7f.0.0.1`, `2130706433`, `127.1`) and blocks those
+  resolving to loopback/private/reserved/metadata, instead of trusting the OS
+  resolver (whose decoding varies - macOS does not decode octal dotted-quad).
+  Applied as an additive backstop in `is_safe_url` and the MCP `URLValidator`.
+
 ### Machine-readable output
 
 - **`--json` for scripting and agents.** `primr <co> <url> --json` emits a

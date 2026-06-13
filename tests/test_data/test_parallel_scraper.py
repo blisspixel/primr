@@ -367,14 +367,23 @@ class TestParallelScraper:
         assert "open_circuits" in stats
 
     def test_parallel_execution(self):
-        """Test that scraping actually happens in parallel."""
+        """Test that scraping actually happens in parallel.
+
+        Uses a per-task sleep large enough that the parallel-vs-sequential gap
+        dominates thread-pool/scheduling overhead, and asserts a bound expressed
+        *relative* to that sleep rather than a tight absolute number. The
+        previous ``< 0.25`` bound (only ~0.15s above the ~0.1s parallel time)
+        flaked on slower CI runners (e.g. macOS) where overhead pushed it to
+        ~0.27s.
+        """
+        sleep_per_task = 0.4
         execution_times = []
         lock = threading.Lock()
 
         def mock_scrape(url: str, silent: bool = False) -> tuple[str | None, str]:
             with lock:
                 execution_times.append(time.time())
-            time.sleep(0.1)  # Simulate work
+            time.sleep(sleep_per_task)  # Simulate work
             return "Content", "mock"
 
         scraper = ParallelScraper(max_workers=3, rate_limit_delay=0.01, scrape_function=mock_scrape)
@@ -390,9 +399,10 @@ class TestParallelScraper:
         scraper.scrape_urls(urls)
         total_time = time.time() - start
 
-        # If parallel, should take ~0.1s, not ~0.3s
-        # Allow some overhead
-        assert total_time < 0.25
+        # 3 tasks across 3 workers run concurrently, so total ~= one task
+        # (~0.4s), not the ~1.2s of sequential execution. A bound of 2x one
+        # task proves they overlapped while leaving generous room for overhead.
+        assert total_time < 2 * sleep_per_task
 
 
 # =============================================================================

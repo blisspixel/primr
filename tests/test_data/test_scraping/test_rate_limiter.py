@@ -23,51 +23,51 @@ class TestRateLimiter:
         limiter.release("example.com")
 
     def test_concurrency_limit(self):
-        """Concurrency limit should be enforced."""
+        """A 3rd acquire blocks until one of the 2 held slots is released.
+
+        Synchronized with a Barrier instead of sleeps so it is deterministic on
+        slow/contended CI runners (the previous sleep(0.05) raced: the 3rd
+        thread could start before both holders had acquired).
+        """
         config = RateLimitConfig(
             per_host_concurrency=2,
             per_host_requests_per_minute=1000,  # High rate to not interfere
         )
         limiter = RateLimiter(config)
 
-        acquired = []
+        both_acquired = threading.Barrier(3)  # 2 holders + main
+        release_holders = threading.Event()
         blocked = threading.Event()
 
         def acquire_and_hold():
             limiter.acquire("example.com")
-            acquired.append(True)
-            # Hold for a bit
-            time.sleep(0.2)
+            both_acquired.wait(timeout=5)  # signal acquired; rendezvous with main
+            release_holders.wait(timeout=5)  # hold the slot until told to release
             limiter.release("example.com")
 
+        holders = [threading.Thread(target=acquire_and_hold) for _ in range(2)]
+        for t in holders:
+            t.start()
+        # Both slots are provably held once the barrier trips - no sleep race.
+        both_acquired.wait(timeout=5)
+
         def try_acquire():
-            # This should block until one of the others releases
             start = time.time()
-            limiter.acquire("example.com")
-            elapsed = time.time() - start
-            if elapsed > 0.1:  # Blocked for at least 100ms
+            limiter.acquire("example.com")  # must block until a holder releases
+            if time.time() - start > 0.1:
                 blocked.set()
             limiter.release("example.com")
 
-        # Start 2 threads that acquire and hold
-        t1 = threading.Thread(target=acquire_and_hold)
-        t2 = threading.Thread(target=acquire_and_hold)
-        t1.start()
-        t2.start()
-
-        # Give them time to acquire
-        time.sleep(0.05)
-
-        # Third thread should block
         t3 = threading.Thread(target=try_acquire)
         t3.start()
+        time.sleep(0.2)  # t3 is blocked here: both slots are still held
+        release_holders.set()  # free the slots
 
-        t1.join()
-        t2.join()
-        t3.join()
+        for t in holders:
+            t.join(timeout=5)
+        t3.join(timeout=5)
 
-        # Third thread should have been blocked
-        assert blocked.is_set(), "Third acquire should have blocked"
+        assert blocked.is_set(), "Third acquire should have blocked until a slot freed"
 
     def test_backoff_increases_delay(self):
         """Backoff should increase delay."""
