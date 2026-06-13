@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Research framing (tradecraft Step 1)
+
+- **Operator framing now shapes the analysis, not just the strategy appendix.**
+  A new `ResearchFraming` (purpose, audience, the decision it informs, the core
+  question, plus discovery notes) is resolved once and threaded into the
+  analysis workbook and every section prompt. Previously `--discovery-notes`
+  reached only the final strategy stage. New flags: `--purpose`
+  (`general`/`sales_pursuit`/`diligence`/`competitive_intel`/`partnership`),
+  `--audience`, `--decision`, `--question`. Unframed runs are unchanged: framing
+  renders to an empty prompt block, so prompts stay byte-identical (and the
+  cached section-prompt prefix stays cacheable). See
+  `docs/design/research-tradecraft.md`.
+
 ### Install / update quality-of-life
 
 - **`primr update`** — self-upgrade to the latest PyPI release; detects pipx
