@@ -95,8 +95,15 @@ def write_report_sections(
     recovery_executor,
     folder_path: str,
     total_phases: int,
+    framing_block: str = "",
 ) -> SectionWritingResult:
-    """Write all report sections, assemble the report, run the coherence pass."""
+    """Write all report sections, assemble the report, run the coherence pass.
+
+    ``framing_block`` carries operator intent (``ResearchFraming``) into every
+    section-write prompt. It is run-shared, so it sits in the cached prompt
+    prefix and stays byte-identical across the parallel section writes. Empty
+    when no framing was supplied.
+    """
     # Lazy import: research_agent imports this module, so the LLM-backed
     # section writer and coherence pass (which stay there until their own
     # extraction) must be resolved at call time to avoid a circular import.
@@ -188,6 +195,7 @@ def write_report_sections(
                     report_system,
                     section_reasoning_modes.get(sec.id, "standard"),
                     model=grok_writing,
+                    framing_block=framing_block,
                 )
                 if result is None:
                     raise RuntimeError(f"Section '{sec.name}' returned empty")
@@ -248,6 +256,7 @@ def write_report_sections(
             report_system,
             section_reasoning_modes.get(exec_summary_section.id, "standard"),
             model=grok_writing,
+            framing_block=framing_block,
         )
         if exec_parsed:
             written_sections.insert(0, exec_parsed)

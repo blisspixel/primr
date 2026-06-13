@@ -73,14 +73,20 @@ def _build_fast_analysis_prompt(
     website: str | None,
     raw_corpus: str,
     external_sources: str,
+    framing_block: str = "",
 ) -> str:
-    """Build the Phase 2 analysis workbook prompt for Grok fast mode."""
+    """Build the Phase 2 analysis workbook prompt for Grok fast mode.
+
+    ``framing_block`` is the operator-intent block (``ResearchFraming``); when
+    empty the prompt is byte-identical to the pre-framing version.
+    """
     current_date = datetime.now().strftime("%B %d, %Y")
+    framing_segment = f"\n{framing_block}\n" if framing_block else ""
 
     return f"""**Company:** {company_name}
 **Website:** {website or "N/A"}
 **Date:** {current_date}
-
+{framing_segment}
 Below is raw data scraped from the company's website and external sources.
 Analyze it and produce a Structured Analysis Workbook.
 
@@ -191,6 +197,7 @@ def build_fast_batch_prompt_parts(
     previous_sections: list[GeneratedSection],
     batch_number: int,
     total_batches: int,
+    framing_block: str = "",
 ) -> tuple[str, str]:
     """Build the (cached_prefix, volatile_suffix) for one batch-write prompt.
 
@@ -214,10 +221,12 @@ def build_fast_batch_prompt_parts(
         else ""
     )
 
+    framing_segment = f"\n{framing_block}\n" if framing_block else ""
+
     cached_prefix = f"""**Company:** {company_name}
 **Website:** {website or "N/A"}
 **Date:** {current_date}
-
+{framing_segment}
 You are writing one batch of sections for a Strategic Company Overview.
 Write each section under its own ## heading. The batch to write and the
 completed-section context appear after these shared materials and instructions.
@@ -362,6 +371,7 @@ def _build_fast_batch_prompt(
     previous_sections: list[GeneratedSection],
     batch_number: int,
     total_batches: int,
+    framing_block: str = "",
 ) -> str:
     """Build the prompt for writing one batch of report sections.
 
@@ -380,6 +390,7 @@ def _build_fast_batch_prompt(
         previous_sections,
         batch_number,
         total_batches,
+        framing_block=framing_block,
     )
     return cached_prefix + volatile_suffix
 
@@ -396,6 +407,7 @@ def build_fast_section_prompt_parts(
     section_index: int,
     all_section_names: list[str],
     reasoning_mode: str = "standard",
+    framing_block: str = "",
 ) -> tuple[str, str]:
     """Build the (cached_prefix, volatile_suffix) for one section-write prompt.
 
@@ -424,10 +436,12 @@ def build_fast_section_prompt_parts(
         else ""
     )
 
+    framing_segment = f"\n{framing_block}\n" if framing_block else ""
+
     cached_prefix = f"""**Company:** {company_name}
 **Website:** {website or "N/A"}
 **Date:** {current_date}
-
+{framing_segment}
 You are writing ONE section of a Strategic Company Overview.
 Write this section under a single ## heading matching the section name exactly.
 The section to write, its position in the report, and the completed-section
@@ -592,6 +606,7 @@ def _build_fast_section_prompt(
     section_index: int,
     all_section_names: list[str],
     reasoning_mode: str = "standard",
+    framing_block: str = "",
 ) -> str:
     """Build prompt for writing a single report section.
 
@@ -611,5 +626,6 @@ def _build_fast_section_prompt(
         section_index,
         all_section_names,
         reasoning_mode,
+        framing_block=framing_block,
     )
     return cached_prefix + volatile_suffix

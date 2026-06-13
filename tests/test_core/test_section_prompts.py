@@ -440,7 +440,7 @@ class TestPromptCachePrefixSplit:
         # must not perturb it.
         assert prefixes[0] == prefixes[1] == prefixes[2]
         # Suffixes carry the per-section variation.
-        assert len({s for s in suffixes}) == 3
+        assert len(set(suffixes)) == 3
 
     def test_prefix_contains_shared_context_only(self, tmp_path, monkeypatch):
         from primr.core.section_prompts import build_fast_section_prompt_parts
@@ -520,3 +520,120 @@ class TestPromptCachePrefixSplit:
         assert suffix_one != suffix_two
         assert "Batch: 1 of 2" in suffix_one.replace("**", "")
         assert "Batch: 2 of 2" in suffix_two.replace("**", "")
+
+
+# ---------------------------------------------------------------------------
+# Research framing threading (tradecraft Step 1): the operator-intent block
+# must reach the workbook + section prompts, sit in the cacheable prefix only,
+# and leave the prompt byte-identical when no framing was supplied.
+# ---------------------------------------------------------------------------
+
+_FRAMING_TOKEN = "FRAMING_INTENT_TOKEN_XYZ"
+_FRAMING_BLOCK = (
+    "=== RESEARCH FRAMING (operator intent) ===\n"
+    f"Core question: {_FRAMING_TOKEN}\n"
+    "=== END RESEARCH FRAMING ==="
+)
+
+
+class TestFramingThreadsIntoPrompts:
+    def _shared_kwargs(self):
+        return {
+            "company_name": "Acme Corp",
+            "website": "https://acme.example",
+            "analysis_workbook": "## Workbook\nshared analysis content",
+            "raw_corpus_subset": "shared scraped corpus",
+            "external_sources": "shared external research",
+            "source_urls": ["https://a.example"],
+        }
+
+    def _missing_feedback(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "primr.core.section_prompts.FAST_FEEDBACK_RULES_PATH",
+            str(tmp_path / "missing.md"),
+        )
+
+    def test_analysis_prompt_includes_framing_when_supplied(self):
+        from primr.core.section_prompts import _build_fast_analysis_prompt
+
+        with_framing = _build_fast_analysis_prompt(
+            "Acme Corp", "https://acme.example", "corpus", "ext", framing_block=_FRAMING_BLOCK
+        )
+        assert _FRAMING_TOKEN in with_framing
+
+    def test_analysis_prompt_unchanged_when_framing_empty(self):
+        from primr.core.section_prompts import _build_fast_analysis_prompt
+
+        baseline = _build_fast_analysis_prompt("Acme Corp", "https://acme.example", "corpus", "ext")
+        empty = _build_fast_analysis_prompt(
+            "Acme Corp", "https://acme.example", "corpus", "ext", framing_block=""
+        )
+        assert baseline == empty
+        assert _FRAMING_TOKEN not in baseline
+
+    def test_section_framing_in_prefix_not_suffix(self, tmp_path, monkeypatch):
+        from primr.core.section_prompts import build_fast_section_prompt_parts
+
+        self._missing_feedback(tmp_path, monkeypatch)
+        prefix, suffix = build_fast_section_prompt_parts(
+            **self._shared_kwargs(),
+            section=_FakeSection(id="market", name="Market Landscape"),
+            written_sections=[],
+            section_index=0,
+            all_section_names=["Market Landscape"],
+            framing_block=_FRAMING_BLOCK,
+        )
+        # Framing is run-shared -> belongs in the cacheable prefix, never the suffix.
+        assert _FRAMING_TOKEN in prefix
+        assert _FRAMING_TOKEN not in suffix
+
+    def test_section_prefix_unchanged_when_framing_empty(self, tmp_path, monkeypatch):
+        from primr.core.section_prompts import build_fast_section_prompt_parts
+
+        self._missing_feedback(tmp_path, monkeypatch)
+        kwargs = dict(
+            **self._shared_kwargs(),
+            section=_FakeSection(id="market", name="Market Landscape"),
+            written_sections=[],
+            section_index=0,
+            all_section_names=["Market Landscape"],
+        )
+        baseline_prefix, _ = build_fast_section_prompt_parts(**kwargs)
+        empty_prefix, _ = build_fast_section_prompt_parts(**kwargs, framing_block="")
+        assert baseline_prefix == empty_prefix
+        assert _FRAMING_TOKEN not in baseline_prefix
+
+    def test_section_prefix_identical_across_sections_with_framing(self, tmp_path, monkeypatch):
+        from primr.core.section_prompts import build_fast_section_prompt_parts
+
+        self._missing_feedback(tmp_path, monkeypatch)
+        names = ["Market Landscape", "Technology Stack"]
+        prefixes = []
+        for idx, name in enumerate(names):
+            prefix, _ = build_fast_section_prompt_parts(
+                **self._shared_kwargs(),
+                section=_FakeSection(id=str(idx), name=name),
+                written_sections=[],
+                section_index=idx,
+                all_section_names=names,
+                framing_block=_FRAMING_BLOCK,
+            )
+            prefixes.append(prefix)
+        # Run-shared framing must not break the byte-identical cached prefix (#8).
+        assert prefixes[0] == prefixes[1]
+        assert _FRAMING_TOKEN in prefixes[0]
+
+    def test_batch_prefix_includes_framing(self, tmp_path, monkeypatch):
+        from primr.core.section_prompts import build_fast_batch_prompt_parts
+
+        self._missing_feedback(tmp_path, monkeypatch)
+        prefix, suffix = build_fast_batch_prompt_parts(
+            **self._shared_kwargs(),
+            sections=[_FakeSection(id="market", name="Market Landscape")],
+            previous_sections=[],
+            batch_number=0,
+            total_batches=1,
+            framing_block=_FRAMING_BLOCK,
+        )
+        assert _FRAMING_TOKEN in prefix
+        assert _FRAMING_TOKEN not in suffix
