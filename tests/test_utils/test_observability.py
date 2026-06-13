@@ -68,6 +68,7 @@ class TestOperationContext:
         assert ctx.operation_name == "test_op"
         assert ctx.metadata == {"key": "value"}
 
+    @pytest.mark.timing
     def test_duration_calculation(self):
         """Should calculate duration correctly."""
         ctx = OperationContext()
@@ -291,6 +292,7 @@ class TestOperationLoggingCompletenessProperty:
 
     @given(st.text(alphabet="abcdefghij", min_size=1, max_size=20))
     @settings(max_examples=100)
+    @pytest.mark.timing
     def test_context_tracks_duration(self, operation_name: str):
         """Every operation context should track duration."""
         with operation_context(operation_name) as ctx:
@@ -416,6 +418,7 @@ class TestCorrelationContext:
         ctx = CorrelationContext.create("test_op", company="Acme Corp", mode="deep")
         assert ctx.metadata == {"company": "Acme Corp", "mode": "deep"}
 
+    @pytest.mark.timing
     def test_duration_calculation(self):
         """Should calculate duration correctly."""
         ctx = CorrelationContext.create("test")

@@ -3,6 +3,8 @@
 import threading
 import time
 
+import pytest
+
 from primr.data.scraping.config import RateLimitConfig
 from primr.data.scraping.rate_limiter import NoOpRateLimiter, RateLimiter
 
@@ -97,6 +99,7 @@ class TestRateLimiter:
         limiter.reset_backoff("example.com")
         assert limiter.get_stats("example.com")["backoff_count"] == 0
 
+    @pytest.mark.timing
     def test_per_host_isolation(self):
         """Different hosts should have independent limits."""
         config = RateLimitConfig(per_host_concurrency=1)
@@ -166,6 +169,7 @@ class TestRateLimiter:
 class TestNoOpRateLimiter:
     """Tests for NoOpRateLimiter."""
 
+    @pytest.mark.timing
     def test_acquire_release_noop(self):
         """NoOp limiter should not block."""
         limiter = NoOpRateLimiter()

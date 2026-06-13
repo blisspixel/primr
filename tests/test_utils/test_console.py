@@ -83,6 +83,7 @@ class TestConsole:
         captured = capsys.readouterr()
         assert "Error message" in captured.out
 
+    @pytest.mark.timing
     def test_timing_in_ok(self, capsys):
         """ok() should show elapsed time after step()."""
         import time
@@ -363,6 +364,7 @@ class TestTimedOperation:
 class TestHeartbeat:
     """Tests for heartbeat context manager."""
 
+    @pytest.mark.timing
     def test_heartbeat_context(self, capsys):
         """heartbeat() should work as context manager."""
         import time
