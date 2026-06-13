@@ -29,6 +29,7 @@ from primr.utils.observability import log_structured
 
 if TYPE_CHECKING:
     from primr.ai.grok_client import ContinuousReasoningSession
+    from primr.core.research_framing import ResearchFraming
 
 logger = get_logger("core.fast_run_workbook")
 
@@ -39,6 +40,41 @@ ANALYSIS_SYSTEM_PROMPT = (
     "CRITICAL: Separate what the company CLAIMS from what external evidence "
     "SUPPORTS. Stress-test their narrative. Be conservative on financial inferences."
 )
+
+
+def _form_day1_hypothesis_tree(
+    company_label: str,
+    framing: ResearchFraming | None,
+    raw_corpus: str,
+    external_sources_raw: str,
+    folder_path: str,
+) -> str:
+    """Form + save the Day-1 hypothesis tree; return a prompt block (or "").
+
+    Only runs when the operator supplied framing (so default runs are unchanged
+    in cost and behavior). Uses the cheap utility-tier writer chain and fails
+    soft: any failure yields an empty tree and an empty block, never an abort.
+    The homepage/hiring signals are approximated from the corpus and external
+    sources available at this stage; truly pre-collection generation that steers
+    scraping is Step 4.
+    """
+    if framing is None or not framing.is_specified:
+        return ""
+
+    from primr.core.hypothesis_tree import generate_hypothesis_tree, save_hypothesis_tree
+
+    tree = generate_hypothesis_tree(
+        company=company_label,
+        core_question=framing.core_question,
+        homepage_text=raw_corpus[:8000],
+        hiring_summary=external_sources_raw[:8000],
+        llm=lambda prompt: call_with_failover(LLMRole.WRITING, prompt, temperature=0.4),
+    )
+    save_hypothesis_tree(tree, folder_path)
+    if tree.is_empty:
+        return ""
+    console.info("Day-1 hypothesis tree formed and saved (hypothesis_tree.md)")
+    return "=== DAY-1 HYPOTHESIS TREE (formed before this analysis) ===\n" + tree.to_markdown()
 
 
 def generate_analysis_workbook(
@@ -56,18 +92,27 @@ def generate_analysis_workbook(
     folder_path: str,
     total_phases: int,
     framing_block: str = "",
+    framing: ResearchFraming | None = None,
 ) -> tuple[str, ContinuousReasoningSession | None]:
     """Generate the analysis workbook; return (workbook, reasoning_session).
 
     ``framing_block`` carries operator intent (``ResearchFraming``) into the
-    workbook prompt so the analysis is oriented to the run's purpose, audience,
-    decision, and core question. Empty when no framing was supplied.
+    workbook prompt. ``framing`` is the object itself, used (when specified) to
+    form the Day-1 hypothesis tree before the workbook. Both are no-ops when no
+    framing was supplied.
     """
     console.phase_banner(
         3, total_phases, "Analysis (Grok)", "Building structured analysis workbook", "2-4 min"
     )
 
     analysis_system = ANALYSIS_SYSTEM_PROMPT
+
+    # Day-1 hypothesis tree (tradecraft Step 2): when the run is framed, form a
+    # MECE issue tree from the cheap signals, save it as an artifact, and prepend
+    # it so the workbook analysis is hypothesis-driven. Unframed -> no-op.
+    tree_block = _form_day1_hypothesis_tree(
+        company_label, framing, raw_corpus, external_sources_raw, folder_path
+    )
 
     analysis_prompt = _build_fast_analysis_prompt(
         company_label,
@@ -76,6 +121,8 @@ def generate_analysis_workbook(
         external_sources_raw,
         framing_block=framing_block,
     )
+    if tree_block:
+        analysis_prompt = f"{tree_block}\n\n{analysis_prompt}"
 
     try:
         from primr.pipeline.integration import analysis_with_recovery

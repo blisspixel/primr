@@ -48,6 +48,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   renders to an empty prompt block, so prompts stay byte-identical (and the
   cached section-prompt prefix stays cacheable). See
   `docs/design/research-tradecraft.md`.
+- **Day-1 hypothesis tree (Step 2).** When a run is framed, primr forms a MECE
+  issue tree of build-to-refute hypotheses from the cheap signal layer before
+  the analysis workbook, writes it as an inspectable `hypothesis_tree.{md,json}`
+  artifact, and prepends it so the workbook is hypothesis-driven. Unframed runs
+  are unchanged (no extra cost). Using the tree to steer collection is a later
+  step.
 
 ### Install / update quality-of-life
 

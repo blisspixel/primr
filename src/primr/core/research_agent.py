@@ -2609,7 +2609,6 @@ def perform_fast_research(
     from primr.ai.grok_client import ContinuousReasoningSession
     from primr.core.fast_run_setup import resolve_fast_run_setup
 
-    # Operator framing (Step 1): rendered once; empty string is a prompt no-op.
     framing_block = framing.to_prompt_block() if framing is not None else ""
 
     # Stage 0 (extracted: core/fast_run_setup.py — roadmap #23 Batch A):
@@ -2732,6 +2731,7 @@ def perform_fast_research(
             folder_path=folder_path,
             total_phases=total_phases,
             framing_block=framing_block,
+            framing=framing,
         )
 
         # =================================================================

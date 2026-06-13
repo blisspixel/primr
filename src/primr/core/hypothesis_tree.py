@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from primr.agentic.models import ConfidenceLevel, Hypothesis
 from primr.utils.logging_config import get_logger
@@ -325,6 +326,21 @@ def _extract_json_object(raw: str) -> dict[str, object] | None:
         except (json.JSONDecodeError, ValueError):
             return None
     return parsed if isinstance(parsed, dict) else None
+
+
+def save_hypothesis_tree(tree: HypothesisTree, folder_path: str | Path) -> None:
+    """Write the inspectable ``hypothesis_tree.{md,json}`` artifacts; never raises.
+
+    Mirrors the skill-pack ``role_plan`` artifacts so an operator (or agent) can
+    audit and prune the Day-1 tree. A write failure is logged, not raised, so an
+    artifact-write problem can't abort the run.
+    """
+    try:
+        base = Path(folder_path)
+        (base / "hypothesis_tree.md").write_text(tree.to_markdown(), encoding="utf-8")
+        (base / "hypothesis_tree.json").write_text(tree.to_json(), encoding="utf-8")
+    except OSError as e:
+        logger.warning("Could not write hypothesis tree artifact: %s", e)
 
 
 def _default_llm(prompt: str) -> str:
