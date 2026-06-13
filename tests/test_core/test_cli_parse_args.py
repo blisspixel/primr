@@ -201,3 +201,25 @@ class TestResearchFramingArgs:
     def test_context_still_parses(self):
         config = parse_args(["Acme", "https://acme.example", "--context", "a.md", "b.md"])
         assert config.context_files == ("a.md", "b.md")
+
+
+class TestJsonFlag:
+    def test_json_flag_maps_to_config(self):
+        config = parse_args(["Acme", "https://acme.example", "--json"])
+        assert config.json_output is True
+
+    def test_json_defaults_false(self):
+        config = parse_args(["Acme", "https://acme.example"])
+        assert config.json_output is False
+
+    def test_dry_run_json_emits_estimate(self, capsys):
+        import json
+
+        from primr.core.cli_dryrun import run_dry_run
+
+        config = parse_args(["Acme", "https://acme.example", "--dry-run", "--json", "--fast"])
+        rc = run_dry_run(config)
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)  # stdout must be pure JSON
+        assert "total_cost" in payload
+        assert payload["mode_label"].startswith("standard")

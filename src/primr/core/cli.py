@@ -78,6 +78,7 @@ from primr.core.cli_doctor import (
 from primr.core.cli_doctor import (
     run_doctor,
 )
+from primr.core.cli_dryrun import run_dry_run
 from primr.core.cli_errors import guard_dispatch
 from primr.core.cli_init import (
     _ensure_project_env_file as _ensure_project_env_file,
@@ -248,6 +249,7 @@ class CLIConfig:
     output_dir: str | None = None
     open_after: bool = False
     quiet: bool = False
+    json_output: bool = False  # --json: machine-readable stdout
     verbose: bool = False
     test_accordion_topic: str | None = None
     test_accordion_pages: int = 50
@@ -491,6 +493,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         output_dir=getattr(parsed, "output_dir", None),
         open_after=getattr(parsed, "open", False),
         quiet=parsed.quiet,
+        json_output=parsed.json,
         verbose=parsed.verbose,
         test_accordion_topic=getattr(parsed, "test_accordion", None),
         test_accordion_pages=getattr(parsed, "accordion_pages", 50),
@@ -863,8 +866,9 @@ def main(args: list[str] | None = None) -> int:
         console_level=console_level,
     )
 
-    # Configure console
-    if config.quiet:
+    # Configure console. --json implies quiet so progress chrome can't
+    # interleave with the JSON object on stdout.
+    if config.quiet or config.json_output:
         from primr.utils.console import Console, set_console
 
         set_console(Console(quiet=True))
@@ -899,7 +903,7 @@ def main(args: list[str] | None = None) -> int:
         Command.CLEAR_JOBS: _handle_clear_jobs,
         Command.LIST_STRATEGIES: _handle_list_strategies,
         Command.SHOW_USAGE: _handle_show_usage,
-        Command.DRY_RUN: _handle_dry_run,
+        Command.DRY_RUN: run_dry_run,
         Command.GENERATE_VENDOR: _handle_generate_vendor,
         Command.BATCH: _handle_batch,
         Command.ENRICH: _handle_enrich,
@@ -987,6 +991,11 @@ def _create_parser() -> argparse.ArgumentParser:
         help="Research mode: scrape (corpus + insights), deep, full (default, uses fast mode when XAI_API_KEY set), premium (Gemini + Deep Research)",
     )
     parser.add_argument("--quiet", "-q", action="store_true", help="Minimal output")
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit machine-readable JSON to stdout (research result, or estimate with --dry-run)",
+    )
     parser.add_argument("--verbose", "-v", action="store_true", help="Detailed output")
     parser.add_argument(
         "--fix",
@@ -1644,101 +1653,6 @@ def _format_vendor_research_freshness() -> str:
         "refresh with --refresh-vendor-research"
     )
     return "\n".join(lines)
-
-
-def _handle_dry_run(config: CLIConfig) -> int:
-    """Handle dry-run command."""
-    from primr.utils.cost_estimator import estimate_cost
-
-    # Resolve mode: same logic as _handle_research
-    if config.premium_mode and config.fast_mode:
-        console.error("Cannot use both --fast and --premium. Choose one.")
-        return 1
-
-    use_fast_mode = config.fast_mode
-    use_premium_mode = config.premium_mode
-
-    if (
-        not use_fast_mode
-        and not use_premium_mode
-        and config.mode in ("complete", "structured", "hybrid")
-    ):
-        if os.environ.get("XAI_API_KEY"):
-            use_fast_mode = True
-
-    # Validate compatibility
-    if use_fast_mode and config.mode not in ("complete", "structured", "hybrid"):
-        console.error(f"--fast only works with full mode, not --mode {config.mode}")
-        console.info('Usage: primr "Company" https://url --fast [--platform aws azure] --dry-run')
-        return 1
-    if use_premium_mode and config.mode not in ("complete", "structured", "hybrid"):
-        console.error(f"--premium only works with full mode, not --mode {config.mode}")
-        return 1
-
-    tier_labels = {"fast": "Grok 4.1", "hybrid": "Grok 4.3 hybrid", "max": "Grok 4.3 max"}
-    if use_premium_mode:
-        mode_label = "premium (Gemini + Deep Research)"
-    elif use_fast_mode:
-        mode_label = f"standard ({tier_labels.get(config.grok_tier, 'Grok')})"
-    else:
-        mode_label = config.mode
-    print("")
-    print("=" * 60)
-    print(f"COST ESTIMATE: {mode_label} mode")
-    if config.ai_strategy and not use_fast_mode:
-        strategy_label = (
-            "AI Strategy (Pro mode)" if config.lite_strategy else "AI Strategy analysis"
-        )
-        print(f"(includes {strategy_label})")
-    elif use_fast_mode and config.ai_strategy:
-        print("(includes AI Strategy via Grok)")
-    print("=" * 60)
-    print("")
-
-    estimate = estimate_cost(
-        config.mode,
-        config.ai_strategy,
-        num_vendors=len(config.cloud_vendors),
-        lite_strategy=config.lite_strategy,
-        fast_mode=use_fast_mode,
-        premium_mode=use_premium_mode,
-        grok_tier=config.grok_tier,
-    )
-    print(str(estimate))
-
-    # Recon pre-flight step (DNS intelligence — no API cost)
-    if not config.skip_recon:
-        print("")
-        print("RECON PRE-FLIGHT")
-        print("-" * 40)
-        print("  DNS intelligence lookup:  $0.00  (~2-3 seconds)")
-        print("  (no API keys required)")
-    else:
-        print("")
-        print("RECON PRE-FLIGHT: skipped (--skip-recon)")
-
-    # Recovery table summary (pipeline-resilience feature)
-    # Validates: Requirements 14.1, 14.2
-    print("")
-    print("RECOVERY TABLE")
-    print("-" * 40)
-    from primr.pipeline.recovery import build_default_recovery_table
-    from primr.pipeline.stages import STAGE_CLASSIFICATIONS
-
-    recovery_table = build_default_recovery_table()
-    for stage, hierarchy in recovery_table.hierarchies.items():
-        classification = STAGE_CLASSIFICATIONS[stage].value
-        actions = ", ".join(a.action_type.value for a in hierarchy.actions)
-        print(f"  {stage.value} ({classification}): {actions}")
-    print("")
-    print("Recovery Table JSON:")
-    print(recovery_table.to_json())
-
-    print("")
-    print("=" * 60)
-    print("")
-    print("To run research, remove --dry-run flag")
-    return 0
 
 
 def _handle_generate_vendor(config: CLIConfig) -> int:
@@ -3338,6 +3252,15 @@ def _handle_research(config: CLIConfig) -> int:
     # Open report if requested
     if config.open_after and result_path:
         open_file(result_path)
+
+    if config.json_output:
+        from primr.core.cli_output import emit_json, research_result_json
+
+        emit_json(
+            research_result_json(
+                result_path, company=company_name, website=website, mode=config.mode
+            )
+        )
 
     return 0 if result_path else 1
 
