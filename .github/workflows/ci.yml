@@ -126,6 +126,43 @@ jobs:
           uv run --no-sync pytest tests/property_tests/test_no_hardcoded_secrets_properties.py \
             --tb=short -q
 
+  cross-platform-test:
+    # primr advertises Windows + macOS + Linux support; the matrix above only
+    # exercises Linux. This job enforces the claim by running the portable test
+    # suite on Windows and macOS (Python 3.13, the primary interpreter).
+    # OS-independent gates (lint, mypy, security, coverage) deliberately stay on
+    # the Linux job — only correctness is re-checked here. No browser install:
+    # the suite mocks/skips the browser scraping tiers, so no Playwright download
+    # is needed (matching the Linux Test step).
+    name: cross-platform (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    env:
+      UV_PYTHON: "3.13"
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python 3.13
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev --extra api --extra a2a
+
+      - name: Test
+        env:
+          GEMINI_API_KEY: fake-key-for-ci-tests
+        run: uv run --no-sync pytest tests/ --ignore=tests/manual --tb=short -q -k "not test_wait_times_out_when_no_change" -m "not integration"
+
   a2a-tests:
     runs-on: ubuntu-latest
     name: A2A Integration Tests
@@ -157,7 +194,8 @@ jobs:
   # Cloud Run manifests, is a documented platform false-positive justified-ignored
   # in .trivyignore — see that file), so this blocks on any new HIGH/CRITICAL
   # fixable vuln or misconfig. Complements the pip-audit + bandit hard gates.
-  # Dependabot (weekly) handles the dependency bumps this gate will demand.
+  # Dependency bumps this gate demands are applied by hand (manual
+  # review-and-bump); Dependabot was declined for this repo (no bot commits).
   supply-chain-scan:
     runs-on: ubuntu-latest
     name: Supply-chain scan (Trivy)
