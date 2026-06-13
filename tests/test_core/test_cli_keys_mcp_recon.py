@@ -6,11 +6,10 @@ from unittest.mock import MagicMock
 
 from primr.core.cli import (
     _is_keys_command,
-    _is_mcp_command,
     _is_recon_command,
     _run_keys,
-    _run_mcp,
 )
+from primr.core.cli_dispatch import is_mcp_command, run_mcp
 
 # ---------------------------------------------------------------------------
 # Command predicates
@@ -31,10 +30,10 @@ class TestCommandPredicates:
         assert _is_keys_command([]) is False
 
     def test_mcp_command_accepts_mcp(self):
-        assert _is_mcp_command(["mcp"]) is True
+        assert is_mcp_command(["mcp"]) is True
 
     def test_mcp_command_rejects_other(self):
-        assert _is_mcp_command(["other"]) is False
+        assert is_mcp_command(["other"]) is False
 
     def test_recon_command_accepts_recon(self):
         assert _is_recon_command(["recon", "acme.com"]) is True
@@ -109,7 +108,7 @@ class TestRunKeys:
 
 
 # ---------------------------------------------------------------------------
-# _run_mcp
+# run_mcp
 # ---------------------------------------------------------------------------
 
 
@@ -120,7 +119,7 @@ class TestRunMcp:
         import primr.mcp_server.cli
 
         monkeypatch.setattr(primr.mcp_server.cli, "main", mcp_main)
-        result = _run_mcp(["mcp"])
+        result = run_mcp(["mcp"])
         assert result == 0
         # sys.argv should have been temporarily set to include --stdio
         mcp_main.assert_called_once()
@@ -130,7 +129,7 @@ class TestRunMcp:
         import primr.mcp_server.cli
 
         monkeypatch.setattr(primr.mcp_server.cli, "main", mcp_main)
-        result = _run_mcp(["mcp", "--http", "--port", "8000"])
+        result = run_mcp(["mcp", "--http", "--port", "8000"])
         assert result == 0
 
     def test_handles_sys_exit_with_code(self, monkeypatch):
@@ -140,7 +139,7 @@ class TestRunMcp:
         import primr.mcp_server.cli
 
         monkeypatch.setattr(primr.mcp_server.cli, "main", main_raises)
-        result = _run_mcp(["mcp"])
+        result = run_mcp(["mcp"])
         assert result == 42
 
     def test_handles_sys_exit_with_none(self, monkeypatch):
@@ -150,5 +149,5 @@ class TestRunMcp:
         import primr.mcp_server.cli
 
         monkeypatch.setattr(primr.mcp_server.cli, "main", main_raises)
-        result = _run_mcp(["mcp"])
+        result = run_mcp(["mcp"])
         assert result == 0

@@ -54,7 +54,8 @@ def _gather_skill_files() -> list[Path]:
 )
 def test_primr_examples_parse(md_file: Path) -> None:
     """Every executable ``primr ...`` example in the skill bundle parses cleanly."""
-    from primr.core.cli import _create_parser, _is_keys_command, _is_mcp_command, _is_recon_command
+    from primr.core.cli import _create_parser, _is_keys_command, _is_recon_command
+    from primr.core.cli_dispatch import is_mcp_command
 
     parser = _create_parser()
     text = md_file.read_text(encoding="utf-8")
@@ -78,7 +79,7 @@ def test_primr_examples_parse(md_file: Path) -> None:
 
         # Subcommand intercepts (recon / keys / mcp) bypass the main argparse,
         # so just confirm the intercept fires — don't try to parse them as research args.
-        if _is_recon_command(argv) or _is_keys_command(argv) or _is_mcp_command(argv):
+        if _is_recon_command(argv) or _is_keys_command(argv) or is_mcp_command(argv):
             continue
 
         # Some examples include flags that primr only validates at runtime
