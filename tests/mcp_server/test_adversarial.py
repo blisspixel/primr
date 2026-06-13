@@ -11,7 +11,6 @@ These tests validate that the MCP server properly defends against:
 """
 
 import json
-import sys
 import tempfile
 from pathlib import Path
 
@@ -148,18 +147,13 @@ class TestSSRFAttacks:
         result = validator.validate("http://2852039166/")
         assert not result.valid
 
-    @pytest.mark.skipif(
-        sys.platform == "darwin",
-        reason=(
-            "macOS getaddrinfo does not decode octal dotted-quad: 0177.0.0.1 resolves "
-            "to the public 177.0.0.1, not loopback, so this octal->loopback vector does "
-            "not exist on macOS (no SSRF bypass - the request reaches a genuinely public "
-            "IP). Platform-independent numeric-IP canonicalization in URLValidator is "
-            "tracked as a follow-up; this test asserts the Linux/Windows resolver path."
-        ),
-    )
     def test_octal_ip_encoding(self, validator):
-        """Octal IP encoding is blocked (where the resolver decodes it; see skipif)."""
+        """Octal IP encoding is blocked on every platform.
+
+        The guard canonicalizes numeric IPv4 literals itself
+        (numeric_host_block_reason), so this no longer depends on the OS
+        resolver decoding octal (macOS does not).
+        """
         # 127.0.0.1 = 0177.0.0.1 in octal
         result = validator.validate("http://0177.0.0.1/")
         assert not result.valid

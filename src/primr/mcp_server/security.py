@@ -27,6 +27,8 @@ def _utcnow() -> datetime:
 import contextlib
 from urllib.parse import urlparse
 
+from primr.utils.security import numeric_host_block_reason
+
 logger = logging.getLogger(__name__)
 
 
@@ -376,6 +378,19 @@ class URLValidator:
                 valid=False,
                 error_type="ssrf_blocked",
                 error_message="Cloud metadata endpoints are blocked",
+            )
+
+        # Platform-independent obfuscated-numeric-IP backstop: octal/hex/decimal/
+        # short IPv4 literals pointing at non-public ranges are blocked here,
+        # without depending on the OS resolver (which decodes them inconsistently
+        # across platforms).
+        numeric_block = numeric_host_block_reason(hostname)
+        if numeric_block:
+            self._log_rejection(client_id, url, None, "numeric_ip_obfuscation")
+            return URLValidationResult(
+                valid=False,
+                error_type="ssrf_blocked",
+                error_message=numeric_block,
             )
 
         # Resolve hostname to IP
