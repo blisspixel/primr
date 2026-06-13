@@ -76,6 +76,7 @@ from primr.core.cli_doctor import (
 from primr.core.cli_doctor import (
     run_doctor,
 )
+from primr.core.cli_errors import guard_dispatch
 from primr.core.cli_init import (
     _ensure_project_env_file as _ensure_project_env_file,
 )
@@ -915,17 +916,9 @@ def main(args: list[str] | None = None) -> int:
     }
 
     handler = handlers.get(config.command, _handle_research)
-    rc = handler(config)
-
-    # After a successful interactive research run, surface a one-line notice if a
-    # newer release exists (cached ~24h, opt-out via PRIMR_NO_UPDATE_CHECK, and
-    # never raises). Doctor already shows its own update line, so skip it here.
-    if rc == 0 and config.command == Command.RESEARCH and not config.quiet:
-        from primr.core.cli_update import notify_if_update_available
-
-        notify_if_update_available()
-
-    return rc
+    # guard_dispatch adds top-level interrupt/error handling (route to
+    # `primr doctor`, --verbose for the traceback) and the post-run update notice.
+    return guard_dispatch(handler, config)
 
 
 def _create_parser() -> argparse.ArgumentParser:

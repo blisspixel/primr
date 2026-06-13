@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### CLI robustness
+
+- **Actionable errors instead of raw tracebacks.** An unexpected failure that
+  reaches the top of the CLI now prints a short message that routes you to
+  `primr doctor`, offers `--verbose` for the full traceback, and links the issue
+  tracker, rather than dumping a stack trace. Ctrl-C exits cleanly (code 130,
+  "Cancelled") instead of a `KeyboardInterrupt` traceback.
+
 ### Research framing (tradecraft Step 1)
 
 - **Operator framing now shapes the analysis, not just the strategy appendix.**
