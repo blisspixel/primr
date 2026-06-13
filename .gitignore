@@ -300,9 +300,8 @@ coverage.xml
 dist/
 build/
 
-# Claude Code local config
+# Claude Code local config (CLAUDE.md is committed — it's the dev contract)
 /.claude
-/CLAUDE.md
 
 # Windows reserved name artifacts
 nul

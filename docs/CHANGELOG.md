@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Install / update quality-of-life
+
+- **`primr update`** — self-upgrade to the latest PyPI release; detects pipx
+  vs pip and runs the right command, reporting before/after version.
+  `primr update --check` checks without installing; `-y` skips the prompt.
+- **Passive update notice** — a one-line "update available" hint after a
+  successful research run and in `primr doctor`. Cached ~24h in the per-user
+  dir, fail-safe (never blocks a run), opt-out via `PRIMR_NO_UPDATE_CHECK`.
+  Uses `requests` (already a core dep) — bandit-clean, no new dependency.
+- **Idempotent installers** — `scripts/install.{ps1,sh}` now upgrade an
+  existing install on re-run, verify the result, and surface `primr update`.
+
+### Engineering: anti-slop development contract + fitness gates
+
+- **`CLAUDE.md`** committed at the repo root as the canonical development
+  contract (un-ignored from `.gitignore`): the single seams to use, the
+  no-new-giant-file rule, the verify-current-APIs rule, the CLI verb
+  convention, and the pre-PR slop check. Distinct from `AGENTS.md`, which
+  stays the *operate-primr* product guide (a disambiguation header now points
+  dev-agents to `CLAUDE.md`); `CONTRIBUTING.md` references it. Follows the
+  June-2026 `CLAUDE.md`/`AGENTS.md` split (Claude Code reads `CLAUDE.md`
+  natively; `AGENTS.md` is the cross-tool standard). The contract also conforms
+  to the repo's own context-map schema, activating six previously-dormant
+  `test_context_map_*` property tests (they skipped while no `CLAUDE.md` was
+  committed): required sections, negative constraints, verification commands,
+  progressive disclosure, and the Quick Start token budget.
+- **`tests/test_architecture.py`** — deterministic architectural fitness
+  suite: a rise-only per-file line ceiling (14 files >1,000 lines pinned and
+  blocked from growing; new files cap at 1,000), a single-JSON-library gate
+  (stdlib `json` only), and an agent-contract-exists check. Design doc:
+  `docs/design/engineering-excellence.md`.
+
+### Design docs
+
+- `docs/design/research-tradecraft.md` — plan to shift the pipeline from
+  collection-first to hypothesis-first (framing, Day-1 hypothesis tree, plan
+  checkpoint, argument-derived report structure).
+- `docs/design/engineering-excellence.md` — anti-slop enforcement plan.
+
 ## [1.29.2] - 2026-06-05
 
 ### Skill pack - hardening (post-1.29.1 code review)

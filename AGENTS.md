@@ -2,6 +2,8 @@
 
 This file is portable agent guidance in the [agents.md](https://agents.md) format. AI coding tools that auto-detect `AGENTS.md` (Kiro, OpenAI Codex, Jules, Aider, others) load it automatically. Tools that don't (Claude Code, Cursor, Windsurf) can reference or include it from their own rules / skill files.
 
+> **Operating primr vs. building primr.** This file is for agents that *operate* the primr CLI/MCP to do research. If you are an agent (or human) here to *change primr's source code*, read [`CLAUDE.md`](CLAUDE.md) — the development contract — not this file.
+
 If you are an AI agent reading this in a primr-aware project: this is how to use the primr CLI and MCP server well.
 
 Run a long, metered, autonomous research pipeline that turns a company URL into a structured strategic brief. primr is **not** another web-search tool — it combines DNS recon, multi-tier scraping, hiring-signal extraction, AI synthesis (Grok / Gemini Deep Research), and structured report generation. A typical run produces a ~21,500-word Strategic Overview plus optional strategy modules, lands in `output/<company>/`, and feeds the rest of the user's analytical workflow.
