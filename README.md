@@ -90,6 +90,16 @@ curl -fsSL https://raw.githubusercontent.com/blisspixel/primr/main/scripts/insta
 
 After the installer finishes, open a **new** terminal and run `primr init`.
 
+The installers are idempotent: re-run the same one-liner any time to upgrade to the latest release.
+
+**Updating:**
+```bash
+primr update            # self-update to the latest release (detects pipx vs pip)
+primr update --check    # check for a newer version without installing
+```
+
+`primr` also shows a one-line notice when a newer version is available (checked at most once a day, cached locally). Opt out with `PRIMR_NO_UPDATE_CHECK=1`.
+
 ---
 
 **primr works on Windows, macOS, and Linux.**

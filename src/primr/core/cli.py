@@ -757,6 +757,23 @@ def _run_skills(args: list[str] | None) -> int:
     return run_skills_cli(args)
 
 
+def _is_update_command(args: list[str] | None) -> bool:
+    """Check if the command line is a ``primr update ...`` invocation."""
+    argv = args if args is not None else sys.argv[1:]
+    return len(argv) >= 1 and argv[0] in {"update", "upgrade", "self-update"}
+
+
+def _run_update(args: list[str] | None) -> int:
+    """Delegate ``primr update`` to the self-upgrade handler."""
+    from primr.core.cli_update import run_update
+
+    argv = args if args is not None else sys.argv[1:]
+    rest = argv[1:]  # strip the "update" token
+    check_only = "--check" in rest or "--check-only" in rest
+    yes = "-y" in rest or "--yes" in rest
+    return run_update(check_only=check_only, yes=yes)
+
+
 def _run_recon(args: list[str] | None) -> int:
     """Delegate to the external recon-tool Typer CLI, returning an exit code.
 
@@ -814,6 +831,8 @@ def main(args: list[str] | None = None) -> int:
         return _run_mcp(args)
     if _is_skills_command(args):
         return _run_skills(args)
+    if _is_update_command(args):
+        return _run_update(args)
 
     from pathlib import Path
 
@@ -945,7 +964,17 @@ def main(args: list[str] | None = None) -> int:
     }
 
     handler = handlers.get(config.command, _handle_research)
-    return handler(config)
+    rc = handler(config)
+
+    # After a successful interactive research run, surface a one-line notice if a
+    # newer release exists (cached ~24h, opt-out via PRIMR_NO_UPDATE_CHECK, and
+    # never raises). Doctor already shows its own update line, so skip it here.
+    if rc == 0 and config.command == Command.RESEARCH and not config.quiet:
+        from primr.core.cli_update import notify_if_update_available
+
+        notify_if_update_available()
+
+    return rc
 
 
 def _create_parser() -> argparse.ArgumentParser:
@@ -976,6 +1005,8 @@ Examples:
   primr keys list                                    # Show configured provider keys
   primr doctor                                       # System diagnostics
   primr doctor --fix                                 # Diagnose, then launch guided fixes
+  primr update                                       # Upgrade primr to the latest release
+  primr update --check                               # Check for a newer version without installing
   primr --qa "Acme Corp"                             # Show detailed QA analysis
   primr --qa-recent 5                                # Show QA summary for recent reports
   primr improve "output/Company_Strategic_Overview_03-06-2026.md"   # Improve one output

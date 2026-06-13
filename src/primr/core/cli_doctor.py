@@ -391,6 +391,9 @@ def run_doctor(*, fix: bool = False) -> int:
     console.step("Gemini Resources")
     all_passed, warnings_count = _check_gemini_resources(all_passed, warnings_count)
 
+    console.step("Updates")
+    _check_for_update()
+
     console.blank()
     if all_passed and warnings_count == 0:
         console.success_box("All checks passed", "Primr is ready to use")
@@ -419,3 +422,24 @@ def run_doctor(*, fix: bool = False) -> int:
         )
 
     return 0 if all_passed else 1
+
+
+def _check_for_update() -> None:
+    """Report whether a newer primr release is available on PyPI.
+
+    Fail-safe: any network/parse error degrades to a quiet "could not check"
+    note rather than affecting the doctor exit code.
+    """
+    from primr import __version__
+    from primr.utils.version_check import check_for_update, update_check_disabled
+
+    if update_check_disabled():
+        console.muted("Update check disabled (PRIMR_NO_UPDATE_CHECK)")
+        return
+
+    latest = check_for_update(__version__, force=True)
+    if latest:
+        console.warn(f"Update available: v{__version__} -> v{latest}")
+        console.info("  Run: primr update")
+    else:
+        console.ok(f"primr is up to date (v{__version__})")

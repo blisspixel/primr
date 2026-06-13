@@ -92,6 +92,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 
 - Cost estimation, usage tracking, job recovery, crash/reboot recovery
 - System diagnostics (`primr doctor`)
+- One-command install/update: idempotent `scripts/install.{ps1,sh}` one-liners (pipx-based, upgrade on re-run), a `primr update` self-upgrade command (detects pipx vs pip), and a passive once-a-day "update available" notice (cached in the per-user dir, opt-out via `PRIMR_NO_UPDATE_CHECK`)
 - 9,000+ tests, full ruff compliance, mypy clean on an incremental strict ratchet (see [Engineering Standards & Toolchain](#engineering-standards--toolchain))
 - Serverless cloud deployment templates (AWS, Azure, GCP); Azure validated end-to-end (remaining hardening below)
 - Agentic architecture: hypothesis tracking, subagents, hooks, orchestrator
