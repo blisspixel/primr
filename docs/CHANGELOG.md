@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `primr doctor`, offers `--verbose` for the full traceback, and links the issue
   tracker, rather than dumping a stack trace. Ctrl-C exits cleanly (code 130,
   "Cancelled") instead of a `KeyboardInterrupt` traceback.
+- **Shell tab completion (opt-in).** If `argcomplete` is installed, `primr`
+  offers tab completion for its subcommands and flags; enable it with
+  `activate-global-python-argcomplete` (or `register-python-argcomplete primr`).
+  With `argcomplete` absent it is a no-op, so it adds no dependency.
 
 ### Research framing (tradecraft Step 1)
 
