@@ -95,6 +95,56 @@ def _get_strategy_help() -> str:
     return " ".join(parts)
 
 
+def add_research_input_arguments(parser: argparse.ArgumentParser) -> None:
+    """Register research-input and framing arguments on the parser.
+
+    Grouped here rather than inline in ``cli._create_parser`` so the framing
+    surface can grow without bloating ``cli.py`` (pinned by the file-size
+    ratchet). Covers operator-supplied context (discovery notes, context files,
+    strategy type) and the tradecraft framing facets (purpose, audience,
+    decision, core question) that resolve into a ``ResearchFraming``.
+    """
+    from primr.core.research_framing import ResearchPurpose
+
+    parser.add_argument(
+        "--discovery-notes",
+        type=str,
+        help="Path to discovery notes file (freeform meeting insights)",
+    )
+    parser.add_argument("--context", type=str, nargs="+", help="Context files for deep mode")
+    parser.add_argument("--context-folder", type=str, help="Use working folder as context")
+    parser.add_argument(
+        "--strategy-type",
+        type=str,
+        choices=_get_strategy_choices(),
+        default="ai",
+        help=_get_strategy_help(),
+    )
+    # Research framing (tradecraft Step 1): operator intent threaded into the
+    # analytical stages. See core/research_framing.py.
+    parser.add_argument(
+        "--purpose",
+        type=str,
+        choices=[p.value for p in ResearchPurpose],
+        help="What the research is for; orients the analysis (default: general).",
+    )
+    parser.add_argument(
+        "--audience",
+        type=str,
+        help="Who the brief is for (e.g. 'VP Sales, first meeting').",
+    )
+    parser.add_argument(
+        "--decision",
+        type=str,
+        help="The decision this research informs.",
+    )
+    parser.add_argument(
+        "--question",
+        type=str,
+        help="The single most important question the brief should answer.",
+    )
+
+
 def _determine_command(args: argparse.Namespace) -> Command:
     """Determine which command to run based on parsed args."""
     # Import here to avoid a circular dependency (cli imports from this module).

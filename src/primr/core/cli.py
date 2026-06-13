@@ -98,8 +98,7 @@ from primr.core.cli_init import (
 )
 from primr.core.cli_parser import (
     _determine_command,
-    _get_strategy_choices,
-    _get_strategy_help,
+    add_research_input_arguments,
 )
 from primr.core.cli_parser import (
     _discover_strategies as _discover_strategies,
@@ -254,6 +253,10 @@ class CLIConfig:
     ai_strategy_only_path: str | None = None
     discovery_notes_path: str | None = None
     strategy_type: str = "ai"  # Type of strategy to generate
+    framing_purpose: str | None = None  # Research framing (tradecraft Step 1)
+    framing_audience: str | None = None
+    framing_decision: str | None = None
+    framing_question: str | None = None
     resume_latest: bool = False
     resume_local: bool = False
     lite_strategy: bool = False  # Use Pro model instead of Deep Research for strategy
@@ -493,6 +496,10 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         ai_strategy_only_path=getattr(parsed, "ai_strategy_only", None),
         discovery_notes_path=getattr(parsed, "discovery_notes", None),
         strategy_type=getattr(parsed, "strategy_type", "ai"),
+        framing_purpose=getattr(parsed, "purpose", None),
+        framing_audience=getattr(parsed, "audience", None),
+        framing_decision=getattr(parsed, "decision", None),
+        framing_question=getattr(parsed, "question", None),
         improve_path=(
             getattr(parsed, "improve", None)
             or (
@@ -1206,15 +1213,12 @@ Accordion Method Test (for development):
             "(revert to the fresh-call topology used before the n=3 pilot)."
         ),
     )
-    parser.add_argument(
-        "--discovery-notes",
-        type=str,
-        help="Path to discovery notes file (freeform meeting insights)",
-    )
+    # Research inputs + framing (discovery notes, context, strategy type,
+    # purpose/audience/decision/question) — grouped in cli_parser to keep cli.py
+    # under its line ceiling.
+    add_research_input_arguments(parser)
     parser.add_argument("--dry-run", action="store_true", help="Show cost estimate only")
     parser.add_argument("--show-usage", action="store_true", help="Display usage statistics")
-    parser.add_argument("--context", type=str, nargs="+", help="Context files for deep mode")
-    parser.add_argument("--context-folder", type=str, help="Use working folder as context")
     parser.add_argument("--open", action="store_true", help="Open report after generation")
     parser.add_argument("--output-dir", type=str, help="Custom output directory")
     parser.add_argument("--list-recent", action="store_true", help="List recent outputs")
@@ -1348,15 +1352,6 @@ Accordion Method Test (for development):
         type=str,
         metavar="REPORT_PATH",
         help="Generate AI strategy using an existing report as context (retry failed AI strategy)",
-    )
-
-    # Strategy type selection
-    parser.add_argument(
-        "--strategy-type",
-        type=str,
-        choices=_get_strategy_choices(),
-        default="ai",
-        help=_get_strategy_help(),
     )
 
     # Agentic architecture commands
@@ -3384,6 +3379,10 @@ def _handle_research(config: CLIConfig) -> int:
             no_qa=config.no_qa,
             max_scrape_time=config.max_scrape_time,
             discovery_notes_path=config.discovery_notes_path,
+            framing_purpose=config.framing_purpose,
+            framing_audience=config.framing_audience,
+            framing_decision=config.framing_decision,
+            framing_question=config.framing_question,
             lite_strategy=config.lite_strategy,
             fast_mode=use_fast_mode,
             premium_mode=use_premium_mode,

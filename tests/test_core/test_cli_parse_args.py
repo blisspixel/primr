@@ -153,3 +153,51 @@ class TestBudgetFlag:
     def test_budget_defaults_to_none(self):
         config = parse_args(["Acme", "https://acme.example"])
         assert config.budget_usd is None
+
+
+class TestResearchFramingArgs:
+    """Tradecraft Step 1b: framing flags parse into CLIConfig, and the
+    research-input flags moved into cli_parser still work (regression)."""
+
+    def test_framing_flags_map_to_config(self):
+        config = parse_args(
+            [
+                "Acme",
+                "https://acme.example",
+                "--purpose",
+                "diligence",
+                "--audience",
+                "the IC",
+                "--decision",
+                "go / no-go",
+                "--question",
+                "durable moat?",
+            ]
+        )
+        assert config.framing_purpose == "diligence"
+        assert config.framing_audience == "the IC"
+        assert config.framing_decision == "go / no-go"
+        assert config.framing_question == "durable moat?"
+
+    def test_framing_flags_default_none(self):
+        config = parse_args(["Acme", "https://acme.example"])
+        assert config.framing_purpose is None
+        assert config.framing_audience is None
+        assert config.framing_decision is None
+        assert config.framing_question is None
+
+    def test_strategy_type_still_parses(self):
+        config = parse_args(["Acme", "https://acme.example", "--strategy-type", "ai"])
+        assert config.strategy_type == "ai"
+
+    def test_strategy_type_defaults_to_ai(self):
+        config = parse_args(["Acme", "https://acme.example"])
+        assert config.strategy_type == "ai"
+
+    def test_discovery_notes_still_parses(self):
+        config = parse_args(["Acme", "https://acme.example", "--discovery-notes", "notes.md"])
+        assert config.discovery_notes_path == "notes.md"
+
+    def test_context_still_parses(self):
+        config = parse_args(["Acme", "https://acme.example", "--context", "a.md", "b.md"])
+        assert config.context_files == ("a.md", "b.md")
