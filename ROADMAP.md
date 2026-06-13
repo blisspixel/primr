@@ -706,6 +706,7 @@ primr is a mature, shipping PyPI application (`py.typed`, ~6,500 tests, heavy na
 - SSRF protection on every outbound URL (`primr.utils.security`); content sanitization for prompt-injection defense.
 - Single source of version truth enforced by `tests/test_release_integrity.py` (pyproject ↔ `__version__` ↔ ROADMAP "Current State").
 - No-real-company-data rule across the repo (see `docs/CONTRIBUTING.md`).
+- **Anti-slop development contract** (`CLAUDE.md` at repo root, committed — distinct from `AGENTS.md`, which is the *operate-primr* product artifact): names the single seams (async via `run_sync`, console/logging/config/json/atomic-io, the closed HTTP-client set), the no-new-giant-file rule, the verify-current-APIs rule (the stale-API/hallucinated-package guard), the CLI verb convention, and the pre-PR slop check. `CLAUDE.md`/`AGENTS.md` follow the June-2026 split (Claude Code reads `CLAUDE.md` natively; `AGENTS.md` is the cross-tool operate-guide). Enforced, not aspirational: `tests/test_architecture.py` is a deterministic fitness suite carrying a **rise-only per-file line ceiling** (the 14 files >1,000 lines are pinned and may not grow; new files cap at 1,000 — the "no giant file" ratchet), a **single-JSON-library** gate (stdlib `json` only), and an agent-contract-exists check. Async-seam and config-as-leaf gates are deferred pending a small burndown; HTTP is deliberately *not* single-seam-gated (the 5-client multi-tier scraping stack is the design, not drift).
 
 ### In progress — Phase 1: infrastructure & cheap gates
 

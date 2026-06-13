@@ -87,10 +87,18 @@ uv run pre-commit install
 
 ### Code Style
 
+The canonical development contract — the single seams to use, the
+no-new-giant-file rule, the verify-current-APIs rule, the CLI verb convention,
+and the pre-PR slop check — lives in [`CLAUDE.md`](../CLAUDE.md) at the repo
+root. Claude Code loads it automatically; for other tools, read it directly.
+The essentials:
+
 - Follow PEP 8 guidelines
 - Use type hints for all function signatures
 - Write docstrings for public functions and classes
 - Keep functions focused and under 50 lines when possible
+- Use the existing seam (async/console/logging/config/json/http) rather than
+  introducing a second way to do the same thing
 
 ### No Real Company Data in the Repo
 

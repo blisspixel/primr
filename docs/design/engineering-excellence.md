@@ -1,6 +1,7 @@
 # Engineering Excellence: Enforcing the One Way (Anti-Slop)
 
-Status: PROPOSED — additive to the
+Status: ACTIVE — first enforcement shipped (CLAUDE.md contract, file-size
+ratchet, JSON single-library gate). Additive to the
 [Engineering Standards & Toolchain](../../ROADMAP.md#engineering-standards--toolchain)
 section. That section already owns the deep ratchets (mypy strict expansion,
 per-module coverage, parse-don't-validate, mutation testing, supply-chain
@@ -46,13 +47,23 @@ below is the last mile, not a turnaround.
 
 ## Net-new workstreams
 
-### 1. `CLAUDE.md` — the anti-slop contract  (free)
+### 1. `CLAUDE.md` — the anti-slop contract  (free) — SHIPPED
 
-A dev-facing spec (distinct from the user-facing `AGENTS.md`, which is about
-*running* primr) that every coding agent and human reads before contributing.
+A dev-facing spec that every coding agent and human reads before contributing.
 The 2026 standard (agents.md; spec-driven development) is that the spec is the
 *constraint the generator is held to*, not documentation written after.
-Contents:
+
+**Why `CLAUDE.md` and not `AGENTS.md` here (June 2026 standard).** The
+cross-tool open standard is `AGENTS.md` (read natively by Codex, Cursor,
+Copilot, Windsurf, Gemini CLI); Claude Code still does **not** read `AGENTS.md`
+natively — it reads `CLAUDE.md` (issue #6235 open with 5k+ reactions). The
+usual best practice is "`AGENTS.md` as source of truth + a thin `CLAUDE.md`
+that imports it via `@AGENTS.md`." **But primr's root `AGENTS.md` is already
+taken** — it is a deliberate, synced *product* artifact (the agents.md-format
+twin of the operate-primr skill, referenced by `clients/README.md`). So the
+dev contract lives in `CLAUDE.md` (Claude Code's native file, and the agent
+actually building primr), with a one-line disambiguation header added to
+`AGENTS.md` pointing dev-agents here. Contents:
 
 - **The single seams, named, with their allowed exceptions:** async via
   `utils.async_utils.run_sync` (not raw `asyncio.run`); outbound HTTP via the
@@ -70,40 +81,54 @@ Contents:
   "did this add a new way to do something that already has a seam?"
 
 Validation: free — it is documentation that the fitness functions (workstream
-2) then *enforce*, so it cannot rot into aspirational prose.
+2) then *enforce*, so it cannot rot into aspirational prose. SHIPPED as the
+committed root `CLAUDE.md` (un-ignored from `.gitignore`, which previously
+treated it as local-only); CONTRIBUTING points to it; a fitness test asserts
+both it and `AGENTS.md` exist.
 
-### 2. Architectural fitness functions  (free)
+### 2. Architectural fitness functions  (free) — PARTIALLY SHIPPED
 
-Turn the single seams from convention into a gate. Add `import-linter`
-contracts (or, if a new dep is unwanted, a deterministic AST test in
-`tests/`) that fail CI when:
+Turn the single seams from convention into deterministic AST/scan tests
+(`tests/test_architecture.py`) that fail CI on drift. Prefer the test approach
+over adding an `import-linter` dependency (standing new-dependency policy).
 
-- `asyncio.run(` / `get_event_loop(` appears outside `utils/async_utils.py`
-  (the `run_sync` seam) and a small allowlist.
-- `import httpx` / `import requests` / `import urllib` / `from curl_cffi`
-  appears outside the documented HTTP-seam allowlist.
-- a module imports across a forbidden layer boundary (e.g. `config/` importing
-  from `core/`).
+- **JSON single-library — SHIPPED.** No `orjson`/`ujson`/`simplejson` import
+  may appear in `src/` (stdlib `json` only). Zero current violations, so it is
+  a clean zero-allowlist gate.
+- **File-size ratchet — SHIPPED** (workstream 3, below).
+- **Async seam — DEFERRED (needs burndown).** Enforcing "no `asyncio.run` /
+  `get_event_loop` outside `utils/async_utils`" requires an allowlist of ~11
+  current sites; that is a burndown gate, not a clean one. Land it after the
+  remaining inline event-loop copies finish migrating to `run_sync` so the
+  allowlist is small and honest.
+- **HTTP seam — NOT GATED (by design).** The audit found raw HTTP clients in
+  ~31 files: that is the *intended* multi-tier scraping design (browser →
+  curl_cffi → httpx → requests → urllib), not drift. A single-seam HTTP gate
+  would fight the architecture, so HTTP stays a documented convention in
+  `CLAUDE.md` (the client set is closed; a *sixth* client is a reviewed
+  exception) rather than a hard gate.
+- **Layer-boundary (config-as-leaf) — DEFERRED.** `config/` is nearly a leaf
+  but `config/eval_profiles.py` imports `core.model_eval`. Gate it only after
+  that one edge is resolved or explicitly allowlisted; until then it is a
+  `CLAUDE.md` rule ("don't add new `core/ai/data` imports to `config/`").
 
-Start with the async and HTTP contracts (the two the audit flagged as having
-4–5 coexisting patterns), allowlisting today's legitimate sites so the gate
-locks the *current* set and blocks *new* drift. New-dependency note: prefer the
-AST-test approach over adding `import-linter` unless the contract set grows
-enough to justify the dep (per the standing new-dependency policy).
+Validation: free; the shipped contracts are pure static checks, no paid calls.
 
-Validation: free; the contracts are pure static checks with no paid calls.
-
-### 3. Monster-file split ratchet  (free to gate)
+### 3. Monster-file split ratchet  (free to gate) — SHIPPED (ratchet)
 
 The #23 refactor extracted `perform_fast_research`, but four files remain over
-2,000 lines: `core/research_agent.py` (~5,265), `core/cli.py` (~4,276),
-`ai/deep_research.py` (~3,892), `data/scraping/browsers.py` (~2,036), plus
-~11 over 1,000. These are grandfathered, not fixed.
+2,000 lines: `core/research_agent.py` (5,265), `core/cli.py` (4,276),
+`ai/deep_research.py` (3,892), `data/scraping/browsers.py` (2,036), plus ~10
+over 1,000. These are grandfathered, not fixed.
 
-- **Gate:** a rise-only line-count ratchet (sibling to the coverage ratchet) —
-  a per-file ceiling map; a file exceeding its ceiling fails CI. Ceilings only
-  ratchet *down*. This stops the monsters from growing while splits proceed.
-- **First split:** `research_agent.py` — it is also the coverage laggard
+- **Gate — SHIPPED:** a rise-only per-file line ceiling in
+  `tests/test_architecture.py` — the 14 files over 1,000 lines are pinned at
+  their current size and may not grow; any new file must stay under 1,000.
+  Ceilings only ratchet *down* (a staleness test forces a ceiling to be
+  lowered when a file shrinks). This stops the monsters from growing while
+  splits proceed.
+- **First split (remaining):** `research_agent.py` — it is also the coverage
+  laggard
   (~30%), so splitting it serves the per-module coverage target in the
   standards section simultaneously. Mechanical now that the orchestrator is a
   thin coordinator; extract by responsibility (collection glue, strategy glue,
