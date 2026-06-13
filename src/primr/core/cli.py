@@ -47,6 +47,14 @@ from primr.core.cli_batch import (
 from primr.core.cli_batch import (
     _read_batch_file as _read_batch_file,
 )
+from primr.core.cli_dispatch import (
+    is_mcp_command,
+    is_skills_command,
+    is_update_command,
+    run_mcp,
+    run_skills,
+    run_update_cli,
+)
 from primr.core.cli_doctor import (
     _check_api_connectivity as _check_api_connectivity,
 )
@@ -710,70 +718,6 @@ def _run_keys(args: list[str] | None) -> int:
     return 0
 
 
-def _is_mcp_command(args: list[str] | None) -> bool:
-    """Check if the command line is a ``primr mcp ...`` invocation."""
-    argv = args if args is not None else sys.argv[1:]
-    return len(argv) >= 1 and argv[0] == "mcp"
-
-
-def _run_mcp(args: list[str] | None) -> int:
-    """Delegate ``primr mcp ...`` to the MCP server entry point.
-
-    With no additional args, defaults to ``--stdio`` since that's the
-    canonical mode for AI-host integration (Claude Code, Cursor, etc.).
-    Pass-through args allow ``primr mcp --http --port 8000`` to still work.
-    """
-    from primr.mcp_server.cli import main as mcp_main
-
-    argv = args if args is not None else sys.argv[1:]
-    mcp_argv = argv[1:]  # strip the "mcp" token
-    if not mcp_argv:
-        mcp_argv = ["--stdio"]
-
-    saved_argv = sys.argv
-    try:
-        sys.argv = ["primr-mcp", *list(mcp_argv)]
-        mcp_main()
-        return 0
-    except SystemExit as exc:
-        return int(exc.code) if exc.code is not None else 0
-    finally:
-        sys.argv = saved_argv
-
-
-def _is_skills_command(args: list[str] | None) -> bool:
-    """Check if the command line is a ``primr skills ...`` invocation."""
-    argv = args if args is not None else sys.argv[1:]
-    return len(argv) >= 1 and argv[0] == "skills"
-
-
-def _run_skills(args: list[str] | None) -> int:
-    """Delegate to the skill_pack CLI handler."""
-    try:
-        from primr.skill_pack.cli import run_skills_cli
-    except ImportError as exc:
-        print(f"Error: skill_pack module unavailable: {exc}", file=sys.stderr)
-        return 1
-    return run_skills_cli(args)
-
-
-def _is_update_command(args: list[str] | None) -> bool:
-    """Check if the command line is a ``primr update ...`` invocation."""
-    argv = args if args is not None else sys.argv[1:]
-    return len(argv) >= 1 and argv[0] in {"update", "upgrade", "self-update"}
-
-
-def _run_update(args: list[str] | None) -> int:
-    """Delegate ``primr update`` to the self-upgrade handler."""
-    from primr.core.cli_update import run_update
-
-    argv = args if args is not None else sys.argv[1:]
-    rest = argv[1:]  # strip the "update" token
-    check_only = "--check" in rest or "--check-only" in rest
-    yes = "-y" in rest or "--yes" in rest
-    return run_update(check_only=check_only, yes=yes)
-
-
 def _run_recon(args: list[str] | None) -> int:
     """Delegate to the external recon-tool Typer CLI, returning an exit code.
 
@@ -827,12 +771,12 @@ def main(args: list[str] | None = None) -> int:
         return _run_recon(args)
     if _is_keys_command(args):
         return _run_keys(args)
-    if _is_mcp_command(args):
-        return _run_mcp(args)
-    if _is_skills_command(args):
-        return _run_skills(args)
-    if _is_update_command(args):
-        return _run_update(args)
+    if is_mcp_command(args):
+        return run_mcp(args)
+    if is_skills_command(args):
+        return run_skills(args)
+    if is_update_command(args):
+        return run_update_cli(args)
 
     from pathlib import Path
 

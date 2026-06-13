@@ -6,7 +6,7 @@ import subprocess
 
 import pytest
 
-from primr.core import cli, cli_update
+from primr.core import cli_dispatch, cli_update
 from primr.utils.version_check import InstallMethod
 
 # --- interception (primr update / upgrade / self-update) ---
@@ -14,13 +14,13 @@ from primr.utils.version_check import InstallMethod
 
 @pytest.mark.parametrize("token", ["update", "upgrade", "self-update"])
 def test_is_update_command(token):
-    assert cli._is_update_command([token]) is True
-    assert cli._is_update_command([token, "--check"]) is True
+    assert cli_dispatch.is_update_command([token]) is True
+    assert cli_dispatch.is_update_command([token, "--check"]) is True
 
 
 @pytest.mark.parametrize("argv", [["research"], ["doctor"], [], ["skills", "x"]])
 def test_is_not_update_command(argv):
-    assert cli._is_update_command(argv) is False
+    assert cli_dispatch.is_update_command(argv) is False
 
 
 def test_run_update_delegates_check_flag(monkeypatch):
@@ -32,7 +32,7 @@ def test_run_update_delegates_check_flag(monkeypatch):
         return 0
 
     monkeypatch.setattr(cli_update, "run_update", fake_run_update)
-    assert cli._run_update(["update", "--check"]) == 0
+    assert cli_dispatch.run_update_cli(["update", "--check"]) == 0
     assert seen == {"check_only": True, "yes": False}
 
 
@@ -43,7 +43,7 @@ def test_run_update_delegates_yes_flag(monkeypatch):
         "run_update",
         lambda *, check_only, yes: seen.update(check_only=check_only, yes=yes) or 0,
     )
-    cli._run_update(["update", "-y"])
+    cli_dispatch.run_update_cli(["update", "-y"])
     assert seen == {"check_only": False, "yes": True}
 
 

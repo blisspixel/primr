@@ -42,7 +42,7 @@ class TestMainDispatch:
 
     def test_mcp_subcommand_dispatches(self, monkeypatch):
         mcp_mock = MagicMock(return_value=0)
-        monkeypatch.setattr("primr.core.cli._run_mcp", mcp_mock)
+        monkeypatch.setattr("primr.core.cli.run_mcp", mcp_mock)
         result = main(["mcp"])
         assert result == 0
         mcp_mock.assert_called_once()
