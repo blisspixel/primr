@@ -55,8 +55,14 @@ def generate_analysis_workbook(
     recovery_executor,
     folder_path: str,
     total_phases: int,
+    framing_block: str = "",
 ) -> tuple[str, ContinuousReasoningSession | None]:
-    """Generate the analysis workbook; return (workbook, reasoning_session)."""
+    """Generate the analysis workbook; return (workbook, reasoning_session).
+
+    ``framing_block`` carries operator intent (``ResearchFraming``) into the
+    workbook prompt so the analysis is oriented to the run's purpose, audience,
+    decision, and core question. Empty when no framing was supplied.
+    """
     console.phase_banner(
         3, total_phases, "Analysis (Grok)", "Building structured analysis workbook", "2-4 min"
     )
@@ -68,6 +74,7 @@ def generate_analysis_workbook(
         website,
         raw_corpus,
         external_sources_raw,
+        framing_block=framing_block,
     )
 
     try:

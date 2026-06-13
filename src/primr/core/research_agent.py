@@ -246,6 +246,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 if TYPE_CHECKING:
+    from primr.core.research_framing import ResearchFraming
     from primr.output.final_artifact import GeneratedSection
     from primr.prompts.loader import SectionConfig
 
@@ -1105,6 +1106,7 @@ def _write_section_with_retry(
     report_system: str,
     reasoning_mode: str = "standard",
     model: str | None = None,
+    framing_block: str = "",
 ) -> "GeneratedSection | None":
     """Write a single section with one retry if output is thin.
 
@@ -1131,6 +1133,7 @@ def _write_section_with_retry(
         section_index,
         all_section_names,
         reasoning_mode,
+        framing_block=framing_block,
     )
 
     writing_model = model or _default_writing_model()
@@ -2578,6 +2581,7 @@ def perform_fast_research(
     max_scrape_time: int | None = None,
     discovery_notes_content: str | None = None,
     *,
+    framing: "ResearchFraming | None" = None,
     folder_path: str | None = None,
     resume_local: bool = False,
     grok_tier: str = "hybrid",
@@ -2604,6 +2608,9 @@ def perform_fast_research(
 
     from primr.ai.grok_client import ContinuousReasoningSession
     from primr.core.fast_run_setup import resolve_fast_run_setup
+
+    # Operator framing (Step 1): rendered once; empty string is a prompt no-op.
+    framing_block = framing.to_prompt_block() if framing is not None else ""
 
     # Stage 0 (extracted: core/fast_run_setup.py — roadmap #23 Batch A):
     # session reset, model resolution + routing + eval-recipe override,
@@ -2724,6 +2731,7 @@ def perform_fast_research(
             recovery_executor=_recovery_executor,
             folder_path=folder_path,
             total_phases=total_phases,
+            framing_block=framing_block,
         )
 
         # =================================================================
@@ -2740,6 +2748,7 @@ def perform_fast_research(
             recovery_executor=_recovery_executor,
             folder_path=folder_path,
             total_phases=total_phases,
+            framing_block=framing_block,
         )
         if _sections_result.report_content is None:
             return None
@@ -3033,6 +3042,10 @@ def perform_research(
     no_qa: bool = False,
     max_scrape_time: int | None = None,
     discovery_notes_path: str | None = None,
+    framing_purpose: str | None = None,
+    framing_audience: str | None = None,
+    framing_decision: str | None = None,
+    framing_question: str | None = None,
     lite_strategy: bool = False,
     fast_mode: bool = False,
     premium_mode: bool = False,
@@ -3099,36 +3112,22 @@ def perform_research(
         )
         _append_run_event(folder_path, "initializing", "started", "Run initialized")
 
-    # Load discovery notes if provided
-    discovery_notes_content: str | None = None
-    if discovery_notes_path:
-        try:
-            with open(discovery_notes_path, encoding="utf-8") as f:
-                discovery_notes_content = f.read().strip()
-            if discovery_notes_content:
-                logger.info(f"Loaded discovery notes from {discovery_notes_path}")
-            else:
-                logger.warning(f"Discovery notes file is empty: {discovery_notes_path}")
-                discovery_notes_content = None
-        except FileNotFoundError:
-            logger.error(f"Discovery notes file not found: {discovery_notes_path}")
-            console.error(f"Discovery notes file not found: {discovery_notes_path}")
-            _update_run_state(folder_path, status="failed", current_phase="initializing")
-            _append_run_event(
-                folder_path,
-                "initializing",
-                "failed",
-                f"Discovery notes not found: {discovery_notes_path}",
-            )
-            return None
-        except Exception as e:
-            logger.error(f"Failed to load discovery notes: {e}")
-            console.error(f"Failed to load discovery notes: {e}")
-            _update_run_state(folder_path, status="failed", current_phase="initializing")
-            _append_run_event(
-                folder_path, "initializing", "failed", f"Failed loading discovery notes: {e}"
-            )
-            return None
+    # Resolve operator framing (Step 1): helper owns the discovery-notes read.
+    from primr.core.research_framing import resolve_run_framing
+
+    framing, discovery_notes_content, framing_error = resolve_run_framing(
+        discovery_notes_path=discovery_notes_path,
+        purpose=framing_purpose,
+        audience=framing_audience,
+        decision=framing_decision,
+        core_question=framing_question,
+    )
+    if framing_error:
+        logger.error(framing_error)
+        console.error(framing_error)
+        _update_run_state(folder_path, status="failed", current_phase="initializing")
+        _append_run_event(folder_path, "initializing", "failed", framing_error)
+        return None
 
     # =========================================================================
     # Recon pre-flight: DNS intelligence on target domain
@@ -3262,6 +3261,7 @@ def perform_research(
                 strategy_types=strategies,
                 max_scrape_time=max_scrape_time,
                 discovery_notes_content=discovery_notes_content,
+                framing=framing,
                 folder_path=folder_path,
                 resume_local=resume_local,
                 grok_tier=grok_tier,
