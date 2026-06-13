@@ -54,6 +54,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   artifact, and prepends it so the workbook is hypothesis-driven. Unframed runs
   are unchanged (no extra cost). Using the tree to steer collection is a later
   step.
+- **`--plan` checkpoint (Step 3).** `primr <co> <url> --plan` previews the
+  framing, the Day-1 hypothesis tree (from free DNS recon + the cheap signal
+  layer), and the proposed report outline, writes `plan.md` +
+  `hypothesis_tree.{md,json}` to the working folder, and exits before any
+  expensive collection or writing - a pre-run alignment step (no spend beyond a
+  cheap Day-1 pass).
 
 ### Install / update quality-of-life
 

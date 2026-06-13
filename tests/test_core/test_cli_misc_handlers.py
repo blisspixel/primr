@@ -14,9 +14,9 @@ from primr.core.cli import (
     _handle_analyze_report,
     _handle_batch,
     _handle_enrich,
-    _handle_generate_vendor,
     _handle_test_accordion,
 )
+from primr.core.cli_vendor import run_generate_vendor
 
 
 def _config(**overrides):
@@ -35,14 +35,14 @@ class TestHandleGenerateVendor:
         gen_mock = MagicMock()
         monkeypatch.setattr("primr.core.vendor_research.generate_vendor_research_sync", gen_mock)
         # No vendor specified -> loops over empty list -> returns 0
-        result = _handle_generate_vendor(_config(generate_vendor=None))
+        result = run_generate_vendor(_config(generate_vendor=None))
         assert result == 0
         gen_mock.assert_not_called()
 
     def test_all_generates_four_vendors(self, monkeypatch):
         gen_mock = MagicMock(return_value="/path.json")
         monkeypatch.setattr("primr.core.vendor_research.generate_vendor_research_sync", gen_mock)
-        result = _handle_generate_vendor(_config(generate_vendor="all"))
+        result = run_generate_vendor(_config(generate_vendor="all"))
         assert result == 0
         # all == azure, aws, gcp, agnostic
         assert gen_mock.call_count == 4
@@ -50,7 +50,7 @@ class TestHandleGenerateVendor:
     def test_single_vendor(self, monkeypatch):
         gen_mock = MagicMock(return_value="/path.json")
         monkeypatch.setattr("primr.core.vendor_research.generate_vendor_research_sync", gen_mock)
-        result = _handle_generate_vendor(_config(generate_vendor="azure"))
+        result = run_generate_vendor(_config(generate_vendor="azure"))
         assert result == 0
         gen_mock.assert_called_once_with("azure")
 
@@ -58,7 +58,7 @@ class TestHandleGenerateVendor:
         # The function logs the error but doesn't escalate exit code
         gen_mock = MagicMock(return_value=None)
         monkeypatch.setattr("primr.core.vendor_research.generate_vendor_research_sync", gen_mock)
-        result = _handle_generate_vendor(_config(generate_vendor="azure"))
+        result = run_generate_vendor(_config(generate_vendor="azure"))
         assert result == 0
 
 
