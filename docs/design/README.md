@@ -19,6 +19,7 @@ Conventions:
 
 | Doc | Workstream | Version band |
 |-----|------------|--------------|
+| [research-tradecraft.md](research-tradecraft.md) | Collection-first → hypothesis-first: framing, Day-1 hypothesis tree, plan checkpoint, argument-derived structure (deepens #4) | 1.x → 2.0 |
 | [1x-completion.md](1x-completion.md) | Finishing the excellent single-shot brief | 1.x |
 | [23-orchestrator-refactor-map.md](23-orchestrator-refactor-map.md) | Working map for the #23 orchestrator refactor (stages, tangles, batch order) | 1.x |
 | [2.0-backend-freedom.md](2.0-backend-freedom.md) | Capability routing + local/hybrid inference | 2.0 |
