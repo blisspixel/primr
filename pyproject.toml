@@ -229,6 +229,7 @@ asyncio_mode = "strict"
 xfail_strict = true
 markers = [
     "integration: tests that make real API calls (require valid API keys)",
+    "timing: wall-clock-sensitive tests (excluded from the cross-platform CI legs, which validate portability, not performance; they still run on the Linux matrix)",
     "slow: tests that take a long time to run",
     "smoke: marks CLI smoke tests for quick validation",
     "resilience: marks API resilience and retry behavior tests",

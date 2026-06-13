@@ -200,6 +200,7 @@ class TestRetryOnFailure:
         with pytest.raises(TypeError):
             raises_type_error()
 
+    @pytest.mark.timing
     def test_exponential_backoff(self):
         """Should use exponential backoff between retries."""
         import time

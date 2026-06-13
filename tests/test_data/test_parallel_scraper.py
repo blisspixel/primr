@@ -8,6 +8,8 @@ import threading
 import time
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from primr.data.parallel_scraper import (
     CircuitBreaker,
     ParallelScraper,
@@ -73,6 +75,7 @@ class TestRateLimiter:
         stats = limiter.get_stats()
         assert stats["example.com"]["failure_rate"] == 0.5
 
+    @pytest.mark.timing
     def test_wait_for_domain_first_request(self):
         """Test that first request doesn't wait."""
         limiter = RateLimiter(min_delay=1.0)
@@ -85,6 +88,7 @@ class TestRateLimiter:
         # First request should be immediate
         assert elapsed < 0.1
 
+    @pytest.mark.timing
     def test_wait_for_domain_rate_limited(self):
         """Test that subsequent requests are rate limited."""
         limiter = RateLimiter(min_delay=0.2)
@@ -99,6 +103,7 @@ class TestRateLimiter:
         # Should wait approximately min_delay
         assert elapsed >= 0.15  # Allow some tolerance
 
+    @pytest.mark.timing
     def test_different_domains_not_limited(self):
         """Test that different domains are not rate limited together."""
         limiter = RateLimiter(min_delay=1.0)
