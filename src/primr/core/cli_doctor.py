@@ -123,6 +123,7 @@ def _check_providers(warnings_count: int) -> int:
     if not available:
         console.error("No LLM providers configured")
         console.info("  Set XAI_API_KEY for the standard pipeline, or GEMINI_API_KEY for --premium")
+        console.info("  Other options: primr keys set anthropic | openai")
         return warnings_count + 1
 
     for entry in KNOWN_PROVIDERS:

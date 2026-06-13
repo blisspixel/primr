@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Provider setup
+
+- **`primr keys set` now covers every wired provider.** The OpenAI and Anthropic
+  providers were wired in `ai.providers` (and `primr doctor` lists them), but
+  `primr keys set anthropic` / `openai` failed with "Unknown key" because the
+  key-alias map had drifted. Added `anthropic`/`claude` and `openai`/`gpt`
+  aliases (so the keys also show in `primr keys list`), plus a test pinning that
+  the keys surface never drifts from the provider registry again.
+
 ### Security
 
 - **Platform-independent SSRF guard for obfuscated numeric IPs.** The SSRF guard

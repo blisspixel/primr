@@ -12,11 +12,18 @@ from dotenv import dotenv_values, find_dotenv
 
 logger = logging.getLogger(__name__)
 
+# Provider aliases mirror the wired providers in `ai.providers` (the registry is
+# the source of truth for which providers exist; this map is the CLI convenience
+# for `primr keys set <alias>`). Keep them in sync when a provider is added.
 KEY_ALIASES: dict[str, str] = {
     "xai": "XAI_API_KEY",
     "grok": "XAI_API_KEY",
     "gemini": "GEMINI_API_KEY",
     "google": "GEMINI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "claude": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "gpt": "OPENAI_API_KEY",
     "search": "SEARCH_API_KEY",
     "google-search": "SEARCH_API_KEY",
     "search-engine": "SEARCH_ENGINE_ID",
@@ -26,6 +33,8 @@ KEY_ALIASES: dict[str, str] = {
 KEY_HELP: dict[str, str] = {
     "XAI_API_KEY": "Grok standard pipeline",
     "GEMINI_API_KEY": "Gemini, premium mode, and scrape summaries",
+    "ANTHROPIC_API_KEY": "Anthropic Claude provider (reasoning/writing/pro; needs `pip install anthropic`)",
+    "OPENAI_API_KEY": "OpenAI GPT provider (utility/reasoning/writing; needs `pip install openai`)",
     "SEARCH_API_KEY": "Google Custom Search, only with SEARCH_PROVIDER=google",
     "SEARCH_ENGINE_ID": "Google Custom Search engine ID",
 }
