@@ -108,35 +108,52 @@ class TestCheckApiKeys:
 
 
 class TestCheckProviders:
+    @staticmethod
+    def _entry(name="grok", env="XAI_API_KEY", default=None):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(
+            name=name,
+            description=f"{name} provider",
+            roles=["reasoning"],
+            api_key_env=env,
+            api_key_default=default,
+        )
+
     def test_no_providers_increments_warning(self):
-        with (
-            patch("primr.ai.providers.get_available_providers", return_value=[]),
-            patch("primr.ai.providers.KNOWN_PROVIDERS", []),
-        ):
+        with patch("primr.ai.providers.KNOWN_PROVIDERS", []):
             assert _check_providers(0) == 1
 
-    def test_with_providers_no_warning_added(self):
-        prov = MagicMock(name="grok", description="Grok (xAI)", roles=["reasoning"])
-        prov.name = "grok"
+    def test_usable_provider_adds_no_warning(self, monkeypatch):
+        # Key set AND SDK importable -> counts as usable, no warning added.
+        monkeypatch.setenv("XAI_API_KEY", "xai-test-key")
+        usable = MagicMock()
+        usable.is_available.return_value = True
         with (
-            patch("primr.ai.providers.get_available_providers", return_value=[prov]),
-            patch(
-                "primr.ai.providers.KNOWN_PROVIDERS",
-                [
-                    MagicMock(
-                        name="grok",
-                        description="Grok (xAI)",
-                        roles=["reasoning"],
-                        api_key_env="XAI_API_KEY",
-                    )
-                ],
-            ),
+            patch("primr.ai.providers.KNOWN_PROVIDERS", [self._entry()]),
+            patch("primr.ai.providers.build_provider", return_value=usable),
         ):
-            # Force the inner MagicMock to compare equal by setting .name
-            from primr.ai import providers
-
-            providers.KNOWN_PROVIDERS[0].name = "grok"
             assert _check_providers(2) == 2
+
+    def test_key_set_but_sdk_missing_warns(self, monkeypatch):
+        # The exact trap: key configured but the provider can't be built/used.
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        unusable = MagicMock()
+        unusable.is_available.return_value = False
+        entry = self._entry(name="anthropic", env="ANTHROPIC_API_KEY")
+        with (
+            patch("primr.ai.providers.KNOWN_PROVIDERS", [entry]),
+            patch("primr.ai.providers.build_provider", return_value=unusable),
+        ):
+            # One warning for the unusable provider, plus one for zero usable.
+            assert _check_providers(0) == 2
+
+    def test_unset_provider_is_informational_not_a_warning(self, monkeypatch):
+        # No key -> informational line, but still zero usable -> single error bump.
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        with patch("primr.ai.providers.KNOWN_PROVIDERS", [self._entry()]):
+            assert _check_providers(0) == 1
 
 
 # ---------------------------------------------------------------------------

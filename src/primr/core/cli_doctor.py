@@ -115,23 +115,47 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
 
 
 def _check_providers(warnings_count: int) -> int:
-    """Report which LLM providers are configured and what each unlocks."""
-    from primr.ai.providers import KNOWN_PROVIDERS, get_available_providers
+    """Report which LLM providers are configured AND usable (key + SDK).
 
-    available = {p.name for p in get_available_providers()}
+    A key being set is not enough - the provider's SDK must also be importable
+    (e.g. Anthropic needs ``pip install anthropic``). ``is_available()`` checks
+    both and makes no network call, so this stays cheap.
+    """
+    from primr.ai.providers import KNOWN_PROVIDERS, build_provider
 
-    if not available:
-        console.error("No LLM providers configured")
-        console.info("  Set XAI_API_KEY for the standard pipeline, or GEMINI_API_KEY for --premium")
-        console.info("  Other options: primr keys set anthropic | openai")
-        return warnings_count + 1
+    # SDK names differ from provider names for the OpenAI-compatible providers,
+    # so only spell out the install hint where the package is non-obvious.
+    sdk_hint = {"anthropic": "pip install anthropic"}
 
+    usable_count = 0
     for entry in KNOWN_PROVIDERS:
-        if entry.name in available:
-            roles = ", ".join(entry.roles) if entry.roles else "any"
-            console.ok(f"{entry.description} [{roles}]")
-        else:
+        key_set = bool(os.getenv(entry.api_key_env)) or entry.api_key_default is not None
+        if not key_set:
             console.info(f"  {entry.description}: not configured ({entry.api_key_env} unset)")
+            continue
+        try:
+            usable = build_provider(entry).is_available()
+        except Exception:
+            usable = False
+        roles = ", ".join(entry.roles) if entry.roles else "any"
+        if usable:
+            console.ok(f"{entry.description} [{roles}]")
+            usable_count += 1
+        else:
+            console.warn(
+                f"{entry.description}: {entry.api_key_env} set but the provider isn't usable"
+            )
+            hint = sdk_hint.get(entry.name)
+            if hint:
+                console.info(f"  Its SDK is missing - run: {hint}")
+            warnings_count += 1
+
+    if usable_count == 0:
+        console.error("No usable LLM providers")
+        console.info(
+            "  Set a provider key (primr keys set gemini|xai|openai|anthropic) + install its SDK"
+        )
+        return warnings_count + 1
 
     return warnings_count
 
