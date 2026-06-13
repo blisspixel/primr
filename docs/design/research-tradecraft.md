@@ -1,6 +1,11 @@
 # Research Tradecraft: From Collection-First to Hypothesis-First
 
-Status: PROPOSED — methodology shift for the 1.x→2.0 quality line.
+Status: IN PROGRESS — methodology shift for the 1.x→2.0 quality line.
+**Steps 1-3 (framing, Day-1 hypothesis tree, `--plan` checkpoint) are SHIPPED**
+(see the per-step status notes below); Steps 4-7 remain. Steps 4-7 are where the
+methodology starts changing *output quality* and so need the eval/live
+validation noted per step (a real run with `GEMINI_API_KEY` + `XAI_API_KEY`),
+not just deterministic seam tests.
 ROADMAP anchors: subsumes and deepens Active Queue #4 (consultant-grade
 writing); reuses the calibration/verify instruments from
 [`1x-completion.md`](1x-completion.md) workstream 1; depends on the #23
@@ -90,7 +95,14 @@ argument.**
 Each step is independently shippable and makes the next reviewable. Mapped to
 the user's frame: *approach · prep · plan · align · refine · design.*
 
-### 1. Framing as a first-class input  (prep)
+### 1. Framing as a first-class input  (prep)  — SHIPPED
+
+> **Status: SHIPPED** (`core/research_framing.py`). `ResearchFraming`
+> (purpose/audience/decision/core-question + discovery notes) resolves once via
+> `resolve_run_framing` and threads into the analysis workbook and section
+> prompts; operator flags `--purpose/--audience/--decision/--question`. Unframed
+> runs are byte-identical (empty prompt block). Step 1a = the seam + threading;
+> Step 1b = the CLI surface.
 
 Promote "what is this research *for*" to a typed object threaded through every
 phase — purpose (sales pursuit / diligence / competitive intel / partnership),
@@ -103,7 +115,15 @@ and `--context` fold into it; `--strategy-type` becomes one facet.
   seam tests; a framing object changes which prompts fire, assertable without
   LLM calls).
 
-### 2. Day-1 hypothesis tree from cheap signals  (prep → plan)
+### 2. Day-1 hypothesis tree from cheap signals  (prep → plan)  — SHIPPED
+
+> **Status: SHIPPED** (`core/hypothesis_tree.py`). MECE issue tree of
+> build-to-refute `DiagnosticHypothesis` nodes (supporting/counter slots +
+> diagnostic test question, confidence reusing the `agentic` `ConfidenceLevel`),
+> with `hypothesis_tree.{md,json}` artifacts. Wired into the workbook stage
+> (Step 2b): when a run is framed, the tree is formed from the cheap signals,
+> saved, and prepended so the workbook is hypothesis-driven. Fail-soft;
+> gated on `framing.is_specified` so unframed runs are unchanged.
 
 Generate a MECE issue tree *before* expensive collection, from recon + homepage
 + hiring signals (the cheap layer Primr already gathers in Phase 0/early
@@ -115,7 +135,14 @@ confidence — i.e., it is *built to be refuted*.
   skill-pack `role_plan`. **Validation: free** to build (mocked recon/homepage
   inputs); quality judged later by the eval harness.
 
-### 3. Plan-preview + alignment checkpoint  (align)
+### 3. Plan-preview + alignment checkpoint  (align)  — SHIPPED
+
+> **Status: SHIPPED** (`core/cli_plan.py`). `primr <co> <url> --plan` previews
+> the framing + Day-1 hypothesis tree (from free recon + the cheap signal layer)
+> + the proposed report outline, writes `plan.md` + `hypothesis_tree.{md,json}`,
+> and exits before any expensive collection or writing. Fail-soft; no spend
+> beyond the cheap tree pass. The agent-facing approval-token variant folds into
+> the 2.0 control-plane work and is not yet built.
 
 `primr <co> <url> --plan` (and a plan-preview gate on full runs, opt-in)
 surfaces the framing + hypothesis tree + proposed argument outline, lets the
