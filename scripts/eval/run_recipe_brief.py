@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import time
+from pathlib import Path
 
 from primr.ai.routing import EvalRecipeOverride
 from primr.core.model_eval import get_eval_profile
@@ -59,6 +60,13 @@ def main() -> int:
             f"writing={recipe.writing} utility={recipe.utility}"
         )
 
+    # Per-recipe output dir so parallel/sequential recipe runs of the SAME
+    # company don't overwrite each other's brief (the default output path is
+    # keyed on company+date only).
+    out_dir = Path("output/eval/briefs") / args.recipe
+    out_dir.mkdir(parents=True, exist_ok=True)
+    console.info(f"Output dir: {out_dir}")
+
     t0 = time.monotonic()
     with EvalRecipeOverride(recipe):
         result = perform_research(
@@ -68,6 +76,7 @@ def main() -> int:
             ai_strategy=False,  # brief only - keep cost predictable, no Deep Research
             skip_confirm=True,  # cost pre-approved by the operator
             fast_mode=False,  # recipe override drives model choice, not fast routing
+            output_dir=str(out_dir),
         )
     elapsed = time.monotonic() - t0
 
