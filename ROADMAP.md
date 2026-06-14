@@ -84,8 +84,8 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 
 ### Quality & Trust
 
-- Deterministic QA checks: hypothesis coverage, confidence labels, section length, citation density, report-type-aware structure, and appendix/source integrity
-- `QAGateHook` with `ReportAnalyzer`-backed scoring (6 checks, penalty system)
+- Deterministic QA checks: hypothesis coverage, confidence labels, section length, citation density, report-type-aware structure, and appendix/source integrity. **These are soft *signals*, not quality truth** — most are regex/count proxies for editorial discipline, not measures of whether the analysis is good (per [`agentic-balance.md`](docs/design/agentic-balance.md), a regex can't judge quality). Only appendix/source integrity (does `[cite: N]` resolve) is a legitimate structural gate; the rest must never block shipping.
+- `QAGateHook` with `ReportAnalyzer`-backed scoring (6 checks, penalty system) — an *artifact-discipline* proxy, not a factual-quality score (a self-report dressed as a metric; agentic-balance Principle 4). Use it as a dashboard signal; real quality is the job of the eval/calibration instruments below, not this score.
 - Claim verification via `--verify` flag (~$0.01, 3-5 min) — extracts claims, challenges them with DDG searches, produces trust score
 - Versioned model evaluation harness: `primr eval` with scorecard generation (Markdown + CSV), versioned eval IDs, acceptance gates, and optional LLM-judge overlays
 - Eval profile slot registry — one slot per (provider × model × role-recipe), so new models register a slot, run the corpus once, and score against existing baselines without re-doing prior work
@@ -312,6 +312,8 @@ The active queue is ordered top-down by priority. Each item is concrete enough t
 
 > Cross-cutting engineering-standards and toolchain work is tracked separately in [Engineering Standards & Toolchain](#engineering-standards--toolchain) rather than as a numbered queue item, since it spans the whole repo and runs in parallel with feature work. Phase 1 (uv lockfile, CI Python matrix, security gates, coverage ratchet, pre-commit) is the current active engineering initiative.
 
+> **No brittle junk (applies to every item below).** primr's recurring self-inflicted wound is building a quality moat out of regex: deterministic gates that judge *content* (scaffolding-leak scanners, the QA penalty score, skill-pack heuristics) — they false-block good output, rot as prompts evolve, and become a maintenance treadmill. **The rule, per [`docs/design/agentic-balance.md`](docs/design/agentic-balance.md):** quality is enforced *upstream* (the writer/author prompt) and *measured* by eval/calibration — never by a new ship-time content gate. Deterministic checks are allowed ONLY for irreversible acts (spend, egress, disk) and prose-invariant structural validity (the DOCX renders, `[cite: N]` resolves, no duplicate `##`). Existing content scanners are shrinking backstops that trend toward signals, not blocks, and do not grow. If any item below tempts you to "add a check," that is the trap — fix the prompt and add the eval metric instead. Litmus: *would the check need a new case when the model rephrases?* If yes, don't build it.
+
 ### 1. Artifact Drift — Remaining Work
 
 The cleanup cuts shipped in v1.24.2 fixed the dominant leak vectors at the canonicalization seam: bold-wrapped `**What to validate:**` lines now dedup into the single canonical trailing line via `_normalize_generated_section_payload`, and `[cross-ref ...]` plus bare/space-separated `[workbook]` markers are stripped in `_clean_fast_report_output`. An offline scan over 16 recent reports confirmed the leak was widespread (240 workbook + 87 cross-ref + 65 bold-validate instances), and the `ReportAnalyzer.analyze_scaffolding_leakage()` check makes regressions visible. **The three remaining items are now SHIPPED:**
@@ -320,7 +322,7 @@ The cleanup cuts shipped in v1.24.2 fixed the dominant leak vectors at the canon
 - **Configurable shipping gate — DONE.** The leak scan is now factored into the pure `qa.report_analyzer.scan_scaffolding_leakage()` (single source of truth) and wired into the ship-time gate `output.artifact_validation._validate_output_markdown`. Leaks above a configurable threshold (`PRIMR_MAX_SCAFFOLDING_LEAKS`, default 0 = zero tolerance, malformed/negative falls back to 0) fail the markdown gate, which withholds the polished DOCX (MD/TXT + sidecar validation report still written) — no longer just a warning. Because canonicalization runs upstream, a healthy run sits at 0 leaks and never trips; the gate only fires on a regression.
 - **Eval-harness wiring — DONE.** `model_eval` computes a `scaffolding_leaks` per-report metric and a `total_scaffolding_leaks` per-profile aggregate, surfaced in a new scorecard `## Artifact Drift` section (clean/DRIFT status per profile) and a `scaffolding_leaks` CSV column — so the regression is tracked every eval run instead of via ad-hoc offline scans.
 
-Decision principle: final shipping artifacts must read as deliverables, not as internal scaffolding.
+Decision principle: final shipping artifacts must read as deliverables, not as internal scaffolding — but the mechanism is **upstream prompting + an eval metric (`writer_output_clean`), not a growing scanner.** The scaffolding-leak scan is a shrinking backstop: it must not gain new marker cases (that is the regex treadmill — see the standing rule above and [`agentic-balance.md`](docs/design/agentic-balance.md)). A healthy run is 0 leaks because the writer doesn't emit them, not because the scanner caught them. Next move here is to *demote* the ship-time block to a warning once the eval confirms the upstream fix holds, not to extend it.
 
 ### 2. Artifact Pipeline Hardening
 
@@ -333,7 +335,7 @@ Planned:
 - Build a regression corpus from real shipped and failed artifacts so renderer/validator changes are tested against actual long-form outputs. **DONE (seed + harness):** `tests/fixtures/artifacts/` holds long-form report/strategy fixtures (placeholder companies) with a `manifest.json` of expected gate outcomes; the data-driven harness `tests/test_output/test_artifact_corpus.py` runs each through `_validate_output_markdown` (asserting pass/fail + issue categories) and renders the clean ones end-to-end through `markdown_to_docx` + `_validate_output_docx`. A completeness test fails if a fixture is dropped in without a manifest entry. Sanitized real shipped/failed artifacts can be added later by dropping a file + a manifest row — no test code changes. This unblocks the section-structure gate above.
 - Continue moving final rendering toward structured document data rather than free-form markdown recovery wherever practical
 
-Decision principle: permissive about formatting in the research pipeline, strict about formatting and structure in the final document pipeline.
+Decision principle: permissive about formatting in the research pipeline; in the final document pipeline, strict **only** on prose-invariant *structure* and *irreversible acts* (does the DOCX render, does `[cite: N]` resolve, no duplicate `##`) — never on content *quality*. Content quality is a prompt-and-eval problem, not a gate ([`agentic-balance.md`](docs/design/agentic-balance.md)). The shipped gates here are at their ceiling: citation-resolution and the duplicate-heading/empty-section checks are the *only* structural gates worth having; do not add a "required-section presence" gate or any quality gate (the roadmap already, correctly, left presence a signal). No new ship-time content gate without an eval metric that supersedes it.
 
 ### 3. Verified Page Access — First-Party Recovery Expansion
 
@@ -405,7 +407,9 @@ Section writing is the most token-intensive stage (~40-50% of LLM spend) and the
 
 ### 10. QA Iteration Loop — DONE (initial)
 
-Use QA feedback to iteratively improve weak sections until reports hit 90+.
+Use QA feedback to iteratively improve weak sections.
+
+> **Brittleness warning (see [`agentic-balance.md`](docs/design/agentic-balance.md)).** "Until reports hit 90+" optimizes prose to satisfy `compute_quality_score()` — a regex/count *discipline* proxy. Looping to maximize a proxy is Goodhart by construction: the loop learns to please the scanner, not the reader. The anti-Goodhart guard added in v1.31 (each iteration audited by the calibration harness — an instrument the objective can't see — and reverted when label traceability degrades) is the real gate; the discipline score is only a cheap pre-filter for *which* sections to look at. Do not harden this loop by adding more deterministic scoring; sharpen it by moving its acceptance test toward the eval/calibration ground truth. The "per-section grading" remaining item below must be a calibration/eval signal, not a richer regex score.
 
 - **Shipped:** `primr refine "Company"` (`core/refine.py`) — locates the latest markdown Strategic Overview + run context (website, analysis workbook from `working/<Company>/<run>/`), then runs the Orient → Gather → Consolidate → Prune loop: deterministic weak-section identification (short / citation-free / unlabeled sections, ranked, max 3 per iteration, never the same section twice), targeted DDG evidence gathering with validated scraping, section regeneration via the failover-wrapped writer, deterministic cleanup, and re-scoring. Stop conditions in priority order: grade >= `--target-grade` (default 90), no weak sections left, diminishing returns (two consecutive iterations under 5% relative grade gain — reuses the #7 detector), max iterations (default 3). Output written through the #11 write guard (`*_improved` sibling, or `--in-place`).
 - **Scoring API:** `ReportAnalyzer.compute_quality_score()` factored out as the single source of truth — the QA scorecard and the refine loop grade reports identically.
@@ -487,6 +491,17 @@ over padding — all enforced via prompt + validator SOFT checks). A four-tier
 refinement pass then landed (see Changelog, Unreleased), closing most of the
 gap against Anthropic's [skill-creator workflow](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md)
 and [best-practices guide](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices):
+
+> **Watch the validators here — same trap.** The ASKILL-* heuristics
+> (`DESC-PUSHY`, `NAME-PRODUCT`, `SEC-INJECT`, …) are regex policing
+> LLM-generated skill markdown, and the changelog already records the treadmill
+> (false-positives patched release after release). Per the standing rule
+> ([`agentic-balance.md`](docs/design/agentic-balance.md)): the right tier-2/4
+> work is the *eval* (trigger-discovery + behavioral with/without grading) —
+> those measure quality. The content-shape validators are shrinking backstops
+> capped at structural/safety checks (valid YAML, path-traversal, injection in
+> emitted frontmatter); they must not grow new prose-quality cases. Prefer
+> fixing the authoring prompt over adding a validator.
 
 - **Quality baseline (Tier 1) — SHIPPED:** holistic rosters (plausible
   reserve + universal-function coverage so a posting-heavy company still gets

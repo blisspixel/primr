@@ -210,6 +210,23 @@ model rephrases?** If yes, it is content-policing in a structure costume — pus
 the fix upstream and measure it with eval; do not grow the regex. Direct
 corollary of Principle 4: substance is *measured*, not matched.
 
+### The standing rule (cite this when reviewing roadmap/PR scope)
+
+> **No new ship-time rule that judges content.** Quality, strength, completeness,
+> relevance, label-correctness, "reads like a deliverable" — these are
+> model-judgment, enforced *upstream* (the writer/author prompt) and *measured* by
+> eval/calibration. A new deterministic gate is allowed ONLY for an irreversible
+> act (spend, egress, disk) or prose-invariant structural validity (the DOCX
+> renders, `[cite: N]` resolves, no duplicate `##`). Every existing content
+> scanner (scaffolding-leak, the QA penalty score, the skill-pack heuristics) is a
+> *shrinking backstop* that trends toward a signal, never a block, and never
+> grows. If a check would need a new case when the model rephrases, it has already
+> failed — delete it, fix the prompt, trust the eval.
+
+This is the trap primr keeps walking back into: shipping a quality moat made of
+regex. Refuse it at review time. A PR that adds a content gate must instead add
+(or point to) the eval metric that supersedes it.
+
 ## The coupling the sources don't name: agentic collection needs a budget
 
 This is the one design consequence specific to primr. A blind 50-page scrape is
