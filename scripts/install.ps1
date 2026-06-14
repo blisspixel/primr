@@ -39,23 +39,44 @@ if (-not (Get-Command pipx -ErrorAction SilentlyContinue)) {
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path","User") + ";" + [System.Environment]::GetEnvironmentVariable("Path","Machine")
 }
 
-# --- Install fresh, or upgrade an existing install (idempotent) ---
-$alreadyInstalled = $false
-try {
-    $pipxList = & pipx list 2>$null | Out-String
-    if ($pipxList -match "(?im)^\s*package\s+$Package\b" -or $pipxList -match "(?i)\b$Package\b") {
-        $alreadyInstalled = $true
+# --- Dev mode: if run from inside a primr checkout, install EDITABLE from source
+# so `primr` tracks the working tree instead of a frozen PyPI release. That trap
+# (a released install shadowing local edits) is exactly what makes new commands
+# like `keys set openai` look "missing". The remote one-liner has no $PSScriptRoot,
+# so this branch only fires for a local `.\scripts\install.ps1` run.
+$repoRoot = $null
+if ($PSScriptRoot) {
+    $candidate = (Resolve-Path (Join-Path $PSScriptRoot "..") -ErrorAction SilentlyContinue)
+    $pyproject = if ($candidate) { Join-Path $candidate "pyproject.toml" } else { $null }
+    if ($pyproject -and (Test-Path $pyproject) -and (Select-String -Path $pyproject -Pattern 'name\s*=\s*"primr"' -Quiet)) {
+        $repoRoot = $candidate
     }
-} catch {
-    $alreadyInstalled = $false
 }
 
-if ($alreadyInstalled) {
-    Write-Host "==> $Package is already installed. Upgrading to the latest release..." -ForegroundColor Green
-    pipx upgrade $Package
+if ($repoRoot) {
+    Write-Host "==> Detected a primr checkout at $repoRoot" -ForegroundColor Green
+    Write-Host "==> Installing EDITABLE from source (dev mode) so 'primr' tracks your working tree." -ForegroundColor Green
+    Write-Host "    For day-to-day dev, 'uv run primr' from the repo is the lightest path." -ForegroundColor DarkGray
+    pipx install --force --editable "$repoRoot"
 } else {
-    Write-Host "==> Installing $Package with pipx..." -ForegroundColor Green
-    pipx install $Package
+    # --- Install fresh, or upgrade an existing install (idempotent) ---
+    $alreadyInstalled = $false
+    try {
+        $pipxList = & pipx list 2>$null | Out-String
+        if ($pipxList -match "(?im)^\s*package\s+$Package\b" -or $pipxList -match "(?i)\b$Package\b") {
+            $alreadyInstalled = $true
+        }
+    } catch {
+        $alreadyInstalled = $false
+    }
+
+    if ($alreadyInstalled) {
+        Write-Host "==> $Package is already installed. Upgrading to the latest release..." -ForegroundColor Green
+        pipx upgrade $Package
+    } else {
+        Write-Host "==> Installing $Package with pipx..." -ForegroundColor Green
+        pipx install $Package
+    }
 }
 
 # --- Verify ---

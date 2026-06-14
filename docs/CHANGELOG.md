@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Provider setup
+
+- **`primr keys set` now covers every wired provider.** The OpenAI and Anthropic
+  providers were wired in `ai.providers` (and `primr doctor` lists them), but
+  `primr keys set anthropic` / `openai` failed with "Unknown key" because the
+  key-alias map had drifted. Added `anthropic`/`claude` and `openai`/`gpt`
+  aliases (so the keys also show in `primr keys list`), plus a test pinning that
+  the keys surface never drifts from the provider registry again.
+
 ### Security
 
 - **Platform-independent SSRF guard for obfuscated numeric IPs.** The SSRF guard
@@ -92,12 +101,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   blocked from growing; new files cap at 1,000), a single-JSON-library gate
   (stdlib `json` only), and an agent-contract-exists check. Design doc:
   `docs/design/engineering-excellence.md`.
+- **Two monster files split to hold the line ceiling (no behavior change).**
+  The June-13 registry audit pushed `config/models.py` past its ceiling, so the
+  ~760-line `ModelRegistry` data block (the part you edit when a provider ships
+  or retires a model) moved to a new `config/model_registry.py` and is
+  re-exported from `config/models.py` — every `from primr.config.models import
+  ModelRegistry/ModelConfig/ModelType/GrokTier` keeps working, and adding model
+  entries no longer trips the ratchet. The `keys` subcommand handler
+  (`_create_keys_parser` + `_run_keys`, ~130 lines) moved out of `core/cli.py`
+  into `core/cli_keys.py` (`create_keys_parser` / `run_keys`), matching the
+  existing `cli_doctor`/`cli_batch` extraction pattern (Active Queue #23).
 
 ### Design docs
 
 - `docs/design/research-tradecraft.md` — plan to shift the pipeline from
   collection-first to hypothesis-first (framing, Day-1 hypothesis tree, plan
   checkpoint, argument-derived report structure).
+- `docs/design/agentic-balance.md` — the standing rule-vs-judgment decision aid
+  (primr targets NVIDIA "Level 2": deterministic control flow, model judgment at
+  fixed decision points). Now spells out the failure mode in both directions —
+  brittle *content* rules (regex gating quality) are a documented FAIL driver,
+  grounded in June-2026 sources (Microsoft red-team taxonomy, the eval-layering
+  guides) — and the litmus test for which side of the line a change sits on. The
+  ROADMAP header now routes every "add a rule or go agentic" decision through
+  this doc and asks contributors to keep it current.
 - `docs/design/engineering-excellence.md` — anti-slop enforcement plan.
 
 ## [1.29.2] - 2026-06-05

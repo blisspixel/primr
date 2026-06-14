@@ -115,22 +115,47 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
 
 
 def _check_providers(warnings_count: int) -> int:
-    """Report which LLM providers are configured and what each unlocks."""
-    from primr.ai.providers import KNOWN_PROVIDERS, get_available_providers
+    """Report which LLM providers are configured AND usable (key + SDK).
 
-    available = {p.name for p in get_available_providers()}
+    A key being set is not enough - the provider's SDK must also be importable
+    (e.g. Anthropic needs ``pip install anthropic``). ``is_available()`` checks
+    both and makes no network call, so this stays cheap.
+    """
+    from primr.ai.providers import KNOWN_PROVIDERS, build_provider
 
-    if not available:
-        console.error("No LLM providers configured")
-        console.info("  Set XAI_API_KEY for the standard pipeline, or GEMINI_API_KEY for --premium")
-        return warnings_count + 1
+    # SDK names differ from provider names for the OpenAI-compatible providers,
+    # so only spell out the install hint where the package is non-obvious.
+    sdk_hint = {"anthropic": "pip install anthropic"}
 
+    usable_count = 0
     for entry in KNOWN_PROVIDERS:
-        if entry.name in available:
-            roles = ", ".join(entry.roles) if entry.roles else "any"
-            console.ok(f"{entry.description} [{roles}]")
-        else:
+        key_set = bool(os.getenv(entry.api_key_env)) or entry.api_key_default is not None
+        if not key_set:
             console.info(f"  {entry.description}: not configured ({entry.api_key_env} unset)")
+            continue
+        try:
+            usable = build_provider(entry).is_available()
+        except Exception:
+            usable = False
+        roles = ", ".join(entry.roles) if entry.roles else "any"
+        if usable:
+            console.ok(f"{entry.description} [{roles}]")
+            usable_count += 1
+        else:
+            console.warn(
+                f"{entry.description}: {entry.api_key_env} set but the provider isn't usable"
+            )
+            hint = sdk_hint.get(entry.name)
+            if hint:
+                console.info(f"  Its SDK is missing - run: {hint}")
+            warnings_count += 1
+
+    if usable_count == 0:
+        console.error("No usable LLM providers")
+        console.info(
+            "  Set a provider key (primr keys set gemini|xai|openai|anthropic) + install its SDK"
+        )
+        return warnings_count + 1
 
     return warnings_count
 
@@ -368,6 +393,7 @@ def run_doctor(*, fix: bool = False) -> int:
     else:
         console.error(f"Python {py_version.major}.{py_version.minor} (need 3.10+)")
         all_passed = False
+    _show_install_source()
 
     console.step("API Configuration")
     all_passed, warnings_count = _check_api_keys(all_passed, warnings_count)
@@ -422,6 +448,41 @@ def run_doctor(*, fix: bool = False) -> int:
         )
 
     return 0 if all_passed else 1
+
+
+def _show_install_source() -> None:
+    """Show which primr is actually running, and from where.
+
+    This is the single most useful line for the "why doesn't my command exist"
+    confusion: a stale released install (pipx/pip) shadows a newer working tree.
+    An editable/dev install resolves the package *inside* the source tree rather
+    than site-packages, so we can tell the two apart and flag a mismatch with
+    the repo the user is sitting in.
+    """
+    import primr as _pkg
+    from primr import __version__
+
+    pkg_dir = os.path.dirname(_pkg.__file__)
+    editable = "site-packages" not in pkg_dir.replace("\\", "/")
+    kind = "editable/dev" if editable else "installed release"
+    console.ok(f"primr {__version__} ({kind})")
+    console.muted(f"  running from {pkg_dir}")
+    console.muted(f"  python {sys.version.split()[0]} @ {sys.executable}")
+
+    from primr.config.env import keystore_sandbox_warning
+
+    sandbox = keystore_sandbox_warning()
+    if sandbox:
+        console.warn(f"  {sandbox}")
+    if not editable:
+        # A released install in a directory that also looks like a primr checkout
+        # is the classic "my edits aren't taking" trap.
+        cwd = os.getcwd()
+        if os.path.exists(os.path.join(cwd, "src", "primr", "__init__.py")):
+            console.warn(
+                "  You are inside a primr checkout but running an installed release, "
+                "not this source. Editable dev install: pip install -e .  (or use uv run primr)"
+            )
 
 
 def _check_for_update() -> None:

@@ -506,8 +506,18 @@ class TestCostEstimatorEdgeCases:
 class TestDoctorDiagnostics:
     """Task 13.4 — Verify _check_providers function behavior."""
 
+    @staticmethod
+    def _patch_usable(monkeypatch, usable: bool = True):
+        """Force build_provider().is_available() so the SDK-import detail (which
+        varies by CI image) doesn't make these assertions flaky."""
+        from unittest.mock import MagicMock, patch
+
+        provider = MagicMock()
+        provider.is_available.return_value = usable
+        return patch("primr.ai.providers.build_provider", return_value=provider)
+
     def test_check_providers_lists_all_five(self, monkeypatch, capsys) -> None:
-        """_check_providers lists all five providers."""
+        """With every key set and every SDK present, all providers are usable."""
         from primr.core.cli import _check_providers
 
         # Set all keys so all providers show as configured
@@ -517,7 +527,8 @@ class TestDoctorDiagnostics:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
         monkeypatch.setenv("OLLAMA_API_KEY", "test")
 
-        warnings = _check_providers(0)
+        with self._patch_usable(monkeypatch):
+            warnings = _check_providers(0)
         assert warnings == 0
 
     def test_check_providers_shows_not_configured(self, monkeypatch, capsys) -> None:
@@ -532,8 +543,24 @@ class TestDoctorDiagnostics:
         monkeypatch.delenv("OLLAMA_API_KEY", raising=False)
 
         # Should not crash and should return 0 warnings (unconfigured is info, not warning)
-        warnings = _check_providers(0)
+        with self._patch_usable(monkeypatch):
+            warnings = _check_providers(0)
         assert warnings == 0
+
+    def test_check_providers_warns_when_key_set_but_sdk_missing(self, monkeypatch) -> None:
+        """A configured key whose SDK can't be imported is a warning, not silence."""
+        from primr.core.cli import _check_providers
+
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("OLLAMA_API_KEY", raising=False)
+
+        with self._patch_usable(monkeypatch, usable=False):
+            warnings = _check_providers(0)
+        # At least one warning surfaces (unusable provider and/or zero-usable error).
+        assert warnings >= 1
 
     def test_check_providers_no_crash_when_none_configured(self, monkeypatch) -> None:
         """_check_providers doesn't crash when no providers are configured."""

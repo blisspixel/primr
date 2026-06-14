@@ -70,6 +70,23 @@ def _is_retryable_status(status_code: int) -> bool:
     return status_code in (429, 500, 502, 503, 504)
 
 
+# Model families that reject sampling parameters (temperature/top_p/top_k) with
+# a 400. As of June 2026 this is Opus 4.7+, and the Fable/Mythos 5 line. Matched
+# by substring so dated or aliased IDs (claude-opus-4-8, claude-fable-5, ...)
+# are all covered. Keep in sync with config/models.py when new tiers land.
+_SAMPLING_PARAM_REJECTORS: tuple[str, ...] = (
+    "opus-4-7",
+    "opus-4-8",
+    "fable-5",
+    "mythos-5",
+)
+
+
+def _rejects_sampling_params(model: str) -> bool:
+    """Return True when ``model`` 400s on temperature/top_p/top_k."""
+    return any(marker in model for marker in _SAMPLING_PARAM_REJECTORS)
+
+
 # ---------------------------------------------------------------------------
 # Provider class
 # ---------------------------------------------------------------------------
@@ -220,8 +237,15 @@ class AnthropicProvider(Provider):
             "model": model,
             "max_tokens": max_tokens,
             "messages": anthropic_messages,
-            "temperature": temperature,
         }
+
+        # Sampling parameters (temperature/top_p/top_k) were removed on the
+        # newest Claude tiers (Opus 4.7+, Fable/Mythos 5) and now return a 400 -
+        # behaviour is steered by prompting and the effort parameter instead.
+        # Older tiers (Sonnet 4.6, Haiku 4.5, Opus 4.6 and earlier) still accept
+        # temperature, so only send it where it's valid.
+        if not _rejects_sampling_params(model):
+            sdk_kwargs["temperature"] = temperature
 
         if system_text is not None:
             sdk_kwargs["system"] = system_text

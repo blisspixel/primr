@@ -12,11 +12,18 @@ from dotenv import dotenv_values, find_dotenv
 
 logger = logging.getLogger(__name__)
 
+# Provider aliases mirror the wired providers in `ai.providers` (the registry is
+# the source of truth for which providers exist; this map is the CLI convenience
+# for `primr keys set <alias>`). Keep them in sync when a provider is added.
 KEY_ALIASES: dict[str, str] = {
     "xai": "XAI_API_KEY",
     "grok": "XAI_API_KEY",
     "gemini": "GEMINI_API_KEY",
     "google": "GEMINI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "claude": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "gpt": "OPENAI_API_KEY",
     "search": "SEARCH_API_KEY",
     "google-search": "SEARCH_API_KEY",
     "search-engine": "SEARCH_ENGINE_ID",
@@ -26,6 +33,8 @@ KEY_ALIASES: dict[str, str] = {
 KEY_HELP: dict[str, str] = {
     "XAI_API_KEY": "Grok standard pipeline",
     "GEMINI_API_KEY": "Gemini, premium mode, and scrape summaries",
+    "ANTHROPIC_API_KEY": "Anthropic Claude provider (reasoning/writing/pro; needs `pip install anthropic`)",
+    "OPENAI_API_KEY": "OpenAI GPT provider (utility/reasoning/writing; needs `pip install openai`)",
     "SEARCH_API_KEY": "Google Custom Search, only with SEARCH_PROVIDER=google",
     "SEARCH_ENGINE_ID": "Google Custom Search engine ID",
 }
@@ -57,6 +66,38 @@ def get_user_config_dir() -> Path:
 def get_user_env_path() -> Path:
     """Return the per-user Primr environment file path."""
     return get_user_config_dir() / ".env"
+
+
+def keystore_sandbox_warning() -> str | None:
+    """Warn if the key store is redirected by Microsoft Store Python.
+
+    Store-distributed Python virtualizes writes under ``%APPDATA%`` into a
+    per-package ``LocalCache`` sandbox at the *filesystem* layer: the process
+    reports a normal ``...\\AppData\\Roaming\\primr\\.env`` path, but the bytes
+    physically land in ``...\\Packages\\PythonSoftwareFoundation...\\LocalCache``.
+    Keys saved by such an install are invisible to a normal (python.org) primr,
+    which silently looks like "keys won't save". Detect the divergence between
+    the reported path and its real path and return an actionable message, else
+    ``None``. No path construction escapes this - only a non-AppData location
+    (``PRIMR_CONFIG_DIR``) or a non-Store Python does.
+    """
+    if sys.platform != "win32":
+        return None
+    try:
+        reported = str(get_user_env_path())
+        real = os.path.realpath(reported)
+    except OSError:
+        return None
+    norm = real.replace("\\", "/")
+    redirected = "/Packages/" in norm and "/LocalCache/" in norm
+    if redirected and os.path.normcase(real) != os.path.normcase(reported):
+        return (
+            f"Key store is sandboxed by Microsoft Store Python at {real} - keys "
+            "saved here are NOT shared with a non-Store primr install. Fix: use a "
+            "python.org Python, or set PRIMR_CONFIG_DIR to a path outside AppData "
+            "(e.g. %USERPROFILE%\\.primr)."
+        )
+    return None
 
 
 def get_local_env_path() -> Path | None:

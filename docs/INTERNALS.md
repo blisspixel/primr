@@ -335,7 +335,7 @@ The Accordion Method produces 30+ page reports by separating research from writi
 
 ```
 Phase 1: Deep Research (Lead Researcher)
-  - Agent: deep-research-pro-preview-12-2025
+  - Agent: deep-research-preview-04-2026
   - Role: Gather facts, data, citations
   - Output: ~12 page research dossier
 
@@ -360,7 +360,7 @@ The Gemini docs mention `previous_interaction_id` for follow-up questions. Howev
 
 | Component | Model | Rationale |
 |-----------|-------|-----------|
-| Research Dossier | `deep-research-pro-preview-12-2025` | Autonomous web research |
+| Research Dossier | `deep-research-preview-04-2026` | Autonomous web research |
 | Section Writing | `gemini-3-flash-preview` | Fast, intelligent, cost-effective |
 | Stage 1 Analysis | `gemini-3-flash-preview` | Quick section analysis |
 

@@ -40,6 +40,11 @@ classifiers = [
 # caps on a library cause resolution conflicts for downstream consumers.
 dependencies = [
     "google-genai>=1.55.0",
+    # The default pipeline routes reasoning through xAI/Grok, which - like
+    # OpenAI and Ollama - speaks the OpenAI chat-completions protocol via the
+    # `openai` SDK (see ai/providers/openai_compatible.py). It is therefore a
+    # core runtime requirement, not an optional add-on.
+    "openai>=1.0.0",
     "requests>=2.31.0",
     "beautifulsoup4>=4.12.0",
     "fpdf>=1.7.2",
@@ -87,7 +92,16 @@ api = [
     "uvicorn>=0.20.0",
 ]
 fast = [
+    # Back-compat alias: `openai` is now a core dependency (the default Grok
+    # pipeline needs it), so `primr[fast]` resolves to an already-satisfied set.
+    # Kept so existing `pip install primr[fast]` invocations don't error.
     "openai>=1.0.0",
+]
+anthropic = [
+    # Optional: enables the Anthropic Claude provider (reasoning/writing/pro).
+    # `primr doctor` flags a set ANTHROPIC_API_KEY whose SDK is missing and can
+    # install this for you.
+    "anthropic>=0.40.0",
 ]
 a2a = [
     # Pinned to 0.3.x: a2a-sdk 1.0 made breaking API changes (TaskStore.list,

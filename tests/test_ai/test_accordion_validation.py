@@ -220,7 +220,7 @@ class TestPreflightValidator:
         """PreflightValidator has correct model constants."""
         from primr.ai.preflight import PreflightValidator
 
-        assert PreflightValidator.DEEP_RESEARCH_AGENT == "deep-research-pro-preview-12-2025"
+        assert PreflightValidator.DEEP_RESEARCH_AGENT == "deep-research-preview-04-2026"
         assert PreflightValidator.SECTION_MODEL == "gemini-3-flash-preview"
 
     def test_estimates_by_mode(self):
@@ -422,7 +422,7 @@ class TestAPIConnectivity:
                 )
                 interaction = client.interactions.create(
                     input="Test",
-                    agent="deep-research-pro-preview-12-2025",
+                    agent="deep-research-preview-04-2026",
                     background=True,
                 )
 

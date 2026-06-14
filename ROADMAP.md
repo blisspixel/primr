@@ -8,6 +8,19 @@ The design is intentionally opinionated and local-first. This roadmap is a singl
 
 For completed work, see the [Changelog](#changelog) at the bottom of this file, or check [GitHub releases](https://github.com/blisspixel/primr/releases) for the latest.
 
+> **Before you add a rule or make something agentic, read
+> [`docs/design/agentic-balance.md`](docs/design/agentic-balance.md) — and keep it
+> current.** That doc is the standing decision aid for the choice that recurs all
+> over this queue: hardcode the path (a *rule*) or let the model decide
+> (*judgment*). Getting it wrong is our repeated own-goal. Brittle rules that try
+> to gate *content* are a documented failure driver — they false-block good
+> output and rot as prompts evolve — and over-agentifying the plumbing makes runs
+> unpredictable and unbounded. Rule of thumb: **determinism on structure and
+> irreversible acts (spend, egress, disk); judgment on content; measured eval
+> (never a regex) for quality.** When a change teaches you something new about
+> where that line sits, update the doc in the same PR so the next change inherits
+> the lesson.
+
 ---
 
 ## What's Working Today

@@ -35,7 +35,7 @@ class TestMainDispatch:
 
     def test_keys_subcommand_dispatches(self, monkeypatch):
         keys_mock = MagicMock(return_value=0)
-        monkeypatch.setattr("primr.core.cli._run_keys", keys_mock)
+        monkeypatch.setattr("primr.core.cli.run_keys", keys_mock)
         result = main(["keys", "list"])
         assert result == 0
         keys_mock.assert_called_once()

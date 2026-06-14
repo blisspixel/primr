@@ -222,7 +222,10 @@ traceability; extend it to the second axis.
 
 - **Not a DAG/agent framework.** The tree is a *plan artifact*, not a runtime
   graph engine; the pipeline stays a linear sequence of injectable stages.
-  (Reaffirms the standing "Why Not a Research DAG" non-goal.)
+  (Reaffirms the standing "Why Not a Research DAG" non-goal.) The rule-vs-judgment
+  reasoning behind this — Steps 4-7 add model judgment at fixed decision points
+  (Level 2), not free control flow (Level 3) — is in
+  [agentic-balance.md](agentic-balance.md).
 - **Not a chat agent or always-on watcher.** Framing and `--plan` are a single
   pre-run checkpoint, not a conversation. Loops/scheduling stay consumer-side.
 - **Not a new output surface.** This sharpens the *existing* report/strategy

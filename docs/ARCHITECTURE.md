@@ -138,7 +138,7 @@ Autonomous research using Gemini's Deep Research Agent with built-in Google Sear
 
 Three-phase "Accordion Method" architecture for comprehensive 30+ page reports. This approach treats Deep Research as a Lead Researcher (gathering facts) and Gemini 3 Pro as the Writer (crafting sections with context continuity).
 
-**Critical API Limitation (December 2025):** Google's Deep Research Agent (`deep-research-pro-preview-12-2025`) produces ~8-12 pages maximum per API call, regardless of prompt instructions. Tested with explicit "30 page" requests, the API consistently returns ~4,000-5,000 words. This is a fundamental output token limit, not a prompt engineering issue. The Accordion Method works around this by using Deep Research for fact-gathering and Gemini 3 Pro for section-by-section writing.
+**Critical API Limitation (December 2025):** Google's Deep Research Agent (`deep-research-preview-04-2026`) produces ~8-12 pages maximum per API call, regardless of prompt instructions. Tested with explicit "30 page" requests, the API consistently returns ~4,000-5,000 words. This is a fundamental output token limit, not a prompt engineering issue. The Accordion Method works around this by using Deep Research for fact-gathering and Gemini 3 Pro for section-by-section writing.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -160,7 +160,7 @@ Phase 1: Data Collection (10-20 min)
 Phase 2: Research Dossier (10-15 min)
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    Deep Research Agent                               │
-│                (deep-research-pro-preview-12-2025)                  │
+│                (deep-research-preview-04-2026)                      │
 │  ┌─────────────────────────────────────────────────────────────┐   │
 │  │  Role: Lead Researcher (NOT Writer)                          │   │
 │  │  Input: "Compile a research dossier, NOT the final report"   │   │
@@ -215,7 +215,7 @@ The Accordion Method solves this by:
 3. **Expanding** (writing): Write each section with full context
 
 **Model Usage:**
-- `deep-research-pro-preview-12-2025`: Autonomous web research (Phase 2)
+- `deep-research-preview-04-2026`: Autonomous web research (Phase 2)
 - `gemini-3-pro-preview`: Section writing with `previous_interaction_id` (Phase 3)
 
 **Rate Limit Strategy:**
@@ -618,7 +618,7 @@ Company Name + URL
 ┌─────────────────────────────────────────────────────────────────┐
 │  Phase 2: Research Dossier (ONE Deep Research call)             │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │  deep-research-pro-preview-12-2025                       │   │
+│  │  deep-research-preview-04-2026                           │   │
 │  │  Role: Lead Researcher (gather facts, NOT write report)  │   │
 │  │  Output: Raw facts, data tables, citations               │   │
 │  │  Returns: interaction_id for follow-up calls             │   │

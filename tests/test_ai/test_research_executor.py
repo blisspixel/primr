@@ -118,7 +118,7 @@ class TestResearchNodeExecutor:
         """Test executor initialization."""
         assert executor._file_search_store == "test-store"
         assert executor._max_concurrent == 3
-        assert executor.AGENT_ID == "deep-research-pro-preview-12-2025"
+        assert executor.AGENT_ID == "deep-research-preview-04-2026"
 
     def test_initialization_without_store(self) -> None:
         """Test executor initialization without file search store."""
