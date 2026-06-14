@@ -69,6 +69,20 @@ def _is_retryable_error(error: Exception) -> bool:
     return any(marker in error_text for marker in retryable_markers)
 
 
+def _is_temperature_unsupported(error: Exception) -> bool:
+    """Return True for the OpenAI 400 raised when a model rejects a custom
+    temperature (reasoning tiers like gpt-5.5 / o-series only allow the default)."""
+    text = str(error).lower()
+    if "temperature" not in text:
+        return False
+    return (
+        "unsupported value" in text
+        or "does not support" in text
+        or "only the default" in text
+        or "only supports" in text
+    )
+
+
 def _extract_retry_after_seconds(error: Exception) -> float | None:
     """Best-effort extraction of server-directed retry delay (Retry-After header)."""
     response = getattr(error, "response", None)
@@ -239,13 +253,19 @@ class OpenAICompatibleProvider(Provider):
             sdk_kwargs["max_tokens"] = max_tokens
 
         last_error: Exception | None = None
+        # OpenAI reasoning tiers (gpt-5.5, o-series, ...) reject a non-default
+        # temperature with a 400. We can't reliably enumerate which models do, so
+        # we send temperature optimistically and drop it on that specific error.
+        omit_temperature = False
         for attempt in range(1 + retries):
             try:
+                call_kwargs: dict[str, Any] = dict(sdk_kwargs)
+                if not omit_temperature:
+                    call_kwargs["temperature"] = temperature
                 response = client.chat.completions.create(
                     model=model,
                     messages=messages,  # type: ignore[arg-type]
-                    temperature=temperature,
-                    **sdk_kwargs,
+                    **call_kwargs,
                 )
 
                 if not response.choices:
@@ -291,6 +311,17 @@ class OpenAICompatibleProvider(Provider):
 
             except Exception as e:
                 last_error = e
+
+                # Reasoning models reject a custom temperature - drop it once and
+                # retry the same call rather than failing outright.
+                if not omit_temperature and _is_temperature_unsupported(e):
+                    omit_temperature = True
+                    logger.info(
+                        "%s rejected temperature for model %s; retrying without it",
+                        self.name,
+                        model,
+                    )
+                    continue
 
                 if _is_billing_exhausted(e):
                     from primr.ai.providers.base import QuotaExhaustedError

@@ -18,7 +18,41 @@ from primr.ai.providers.openai_compatible import (
     _compute_backoff_delay,
     _extract_retry_after_seconds,
     _is_retryable_error,
+    _is_temperature_unsupported,
 )
+
+
+def test_is_temperature_unsupported_detects_reasoning_400():
+    # The shape OpenAI returns for gpt-5.5 / o-series when a custom temperature
+    # is sent.
+    assert _is_temperature_unsupported(
+        Exception("Error code: 400 - Unsupported value: 'temperature' does not support 0.4")
+    )
+    assert _is_temperature_unsupported(Exception("'temperature' only supports the default (1)"))
+
+
+def test_is_temperature_unsupported_false_for_other_errors():
+    assert not _is_temperature_unsupported(Exception("429 rate limit"))
+    assert not _is_temperature_unsupported(Exception("temperature is fine here"))
+
+
+def test_chat_retries_without_temperature_on_reasoning_400():
+    # First call raises the temperature 400; the provider should drop temperature
+    # and succeed on the retry.
+    prov = _make(name="openai")
+    prov._client = MagicMock()
+    good = MagicMock()
+    good.choices = [SimpleNamespace(message=SimpleNamespace(content="OK"))]
+    good.usage = SimpleNamespace(prompt_tokens=5, completion_tokens=2, cached_tokens=0)
+    prov._client.chat.completions.create.side_effect = [
+        Exception("Error code: 400 - Unsupported value: 'temperature' does not support 0.4"),
+        good,
+    ]
+    resp = prov.chat([{"role": "user", "content": "hi"}], model="gpt-5.5", temperature=0.4)
+    assert resp.text == "OK"
+    calls = prov._client.chat.completions.create.call_args_list
+    assert "temperature" in calls[0].kwargs  # first attempt sent it
+    assert "temperature" not in calls[1].kwargs  # retry dropped it
 
 
 def _make(name="testprov", **kw):
