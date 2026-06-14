@@ -140,11 +140,20 @@ class TestCleanFastReportOutput:
         assert "vendor-research" not in result
 
     def test_strips_internal_roi_and_analysis_phrases(self):
+        # The leaked Title-Case workbook labels are stripped...
         result = _clean_fast_report_output(
             "Per Internal ROI Model and Internal Analysis, growth..."
         )
         assert "Internal ROI Model" not in result
         assert "Internal Analysis" not in result
+
+    def test_preserves_lowercase_prose(self):
+        # ...but legitimate lowercase prose is NOT silently deleted (case-sensitive
+        # so real content like "internal analysis" survives intact).
+        text = "Based on our internal analysis and the analysis workbook process here."
+        result = _clean_fast_report_output(text)
+        assert "internal analysis" in result
+        assert "analysis workbook" in result
 
     def test_strips_word_count_meta(self):
         result = _clean_fast_report_output("Text [Word count: 1,028] here.")

@@ -110,9 +110,14 @@ def _clean_fast_report_output(report_content: str) -> str:
     report_content = re.sub(
         r"vendor-research-[\w.-]+\.txt", "", report_content, flags=re.IGNORECASE
     )
-    report_content = re.sub(r"\bInternal ROI Model\b", "", report_content, flags=re.IGNORECASE)
-    report_content = re.sub(r"\bInternal Analysis\b", "", report_content, flags=re.IGNORECASE)
-    report_content = re.sub(r"\bAnalysis Workbook\b", "", report_content, flags=re.IGNORECASE)
+    # Leaked Title-Case workbook labels: matched CASE-SENSITIVELY so legitimate
+    # lowercase prose ("based on our internal analysis", "the analysis workbook
+    # process") is preserved rather than silently deleted. Stripping real content
+    # is the brittle trap in its worst form - silent corruption (agentic-balance:
+    # do not mangle content; only the exact leaked Title-Case label is removed).
+    report_content = re.sub(r"\bInternal ROI Model\b", "", report_content)
+    report_content = re.sub(r"\bInternal Analysis\b", "", report_content)
+    report_content = re.sub(r"\bAnalysis Workbook\b", "", report_content)
 
     report_content = re.sub(r"\[Word count:\s*[\d,]+\]", "", report_content, flags=re.IGNORECASE)
 
