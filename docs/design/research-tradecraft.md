@@ -23,7 +23,10 @@ work to close the gap. The thesis in one line:
 
 > **Elite teams plan the argument before they gather the evidence, and treat
 > falsification and calibrated uncertainty as the core craft. Primr today
-> gathers the evidence, then assembles a fixed template. We should invert it.**
+> gathers the evidence first and reasons thinly. We invert the *collection and
+> analysis* — hypothesis-first, plan before gather — while keeping the
+> deliverable's *structure* a deliberately curated, consistent scaffold (that
+> part is a feature, not the thing to invert; see Step 5).**
 
 ## How the best teams work (the spine)
 
@@ -181,19 +184,30 @@ pruned (logged, never silently). Gap analysis shifts from "we lack data X" to
   live run to confirm the scrape budget lands on higher-signal pages
   (≈ standard run cost, pre-registered).
 
-### 5. Argument-derived report structure  (design)
+### 5. Argument-derived report structure  (design) — DESCOPED (structure stays a rule)
 
-Replace the always-23 skeleton with an outline *derived from* the framing +
-tree, rendered Pyramid-Principle style: governing thesis → MECE supporting
-lines → evidence, each section ending in an explicit "so what." Sparse
-companies get a tighter, honest tree; rich companies get a deeper one. This
-**is** ROADMAP #4, deepened from "tune the prompts" to "let the argument decide
-the sections."
+> **Decision (reversed): keep the section structure fixed.** The original plan
+> here was to replace the always-23 skeleton with a per-run, argument-derived
+> outline. We are **not** doing that. A strategic brief's *shape* is a known,
+> stable thing: consistency is a feature of a deliverable, and per-run structural
+> variability trades reliability for "rolling the dice." The curated
+> `config/company_overview.yaml` scaffold is the right home for structure —
+> researched, planned, and iterated **offline**, version-controlled — not
+> re-derived each run. By the agentic-balance Principle-1 test the fixed scaffold
+> does not demonstrably fall short, so it stays a *rule*
+> ([agentic-balance.md](agentic-balance.md), the report-structure carve-out).
 
-- The riskiest, highest-value step. **Validation: eval-judged** — pre-register
-  acceptance criteria, 2–3 corpus passes (~$4–5 each at the standard recipe),
-  judged by the step-1 calibration/verify instruments so "better" is measured,
-  not vibes.
+What this step becomes instead: the agentic judgment that #4 needs lives in the
+**content within** the fixed structure, not in choosing sections. Pyramid-style
+discipline (each section laddering to an explicit "so what"), constrained-evidence
+reasoning, and depth/insight per section are *prompt* work, fed by the framing +
+hypothesis tree from Steps 1–4. Structure improvements happen by **editing the
+YAML offline**, judged like any deliverable change — not by an agentic section
+picker.
+
+- **Validation: eval-judged** for the content/prompt depth (the part that is
+  agentic), on the standing corpus when a paid run is green-lit — not for the
+  structure, which is a curated artifact.
 
 ### 6. Adversarial refine: ACH + pre-mortem  (refine)
 
@@ -224,8 +238,10 @@ traceability; extend it to the second axis.
    it; refuted branches are pruned and logged.
 3. `--plan` surfaces framing + tree + outline for human or agent approval
    before budget is committed.
-4. The report's section structure is *derived from the argument*, not a fixed
-   template; every section ladders to a "so what."
+4. The report's section structure stays a *curated rule* (the `company_overview.yaml`
+   scaffold, iterated offline); the *content within* each section is sharpened so
+   every section ladders to an explicit "so what." (Revised from the original
+   "derive structure per run" — see Step 5.)
 5. An adversarial pass refutes the governing thesis before shipping.
 6. Confidence is two-axis and separates likelihood from analytic confidence,
    with measured calibration on both.
