@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Artifact shipping — de-brittle (content gates become signals)
+
+- **Scaffolding-leak detection is now a non-blocking warning, not a ship gate.**
+  A leaked internal marker (`[workbook]`, bold `**What to validate:**`, informal
+  `[cite: label]`) no longer withholds the polished DOCX; it is surfaced (logged)
+  and eval-tracked (`## Artifact Drift`) while the deliverable ships. A regex
+  cannot be a quality moat — content quality is enforced upstream (the writer
+  prompt) and measured by eval, per the standing rule in
+  `docs/design/agentic-balance.md`. Blocking is reserved for what a rule can
+  legitimately judge: structural/referential validity (citation resolution,
+  duplicate/empty sections) and unambiguous internal-token leaks (raw
+  `[Source:]`/`[Workbook:]`). `_validate_output_markdown` gains a `warnings`
+  field; the regression corpus asserts the scaffolding fixture ships with a
+  warning instead of being blocked.
+
 ### Provider setup
 
 - **`primr keys set` now covers every wired provider.** The OpenAI and Anthropic

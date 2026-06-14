@@ -60,6 +60,13 @@ def test_corpus_artifact_gate(entry: dict) -> None:
 
     if entry["expect_pass"]:
         assert result["issues"] == [], f"{entry['file']} should ship clean"
+        # A passing fixture may still surface non-blocking content warnings
+        # (e.g. scaffolding leakage, demoted from a gate per agentic-balance).
+        for prefix in entry.get("warning_prefixes", []):
+            assert any(w.startswith(prefix) for w in result["warnings"]), (
+                f"{entry['file']}: expected a warning starting with {prefix!r}; "
+                f"got {result['warnings']}"
+            )
     else:
         for prefix in entry["issue_prefixes"]:
             assert any(issue.startswith(prefix) for issue in result["issues"]), (

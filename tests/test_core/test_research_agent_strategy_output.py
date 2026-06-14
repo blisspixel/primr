@@ -22,15 +22,15 @@ def fake_output_dir(tmp_path, monkeypatch):
 
 
 def _clean_validation():
-    return {"passed": True, "issues": [], "errors": []}
+    return {"passed": True, "issues": [], "warnings": [], "errors": []}
 
 
 def _failing_markdown_validation():
-    return {"passed": False, "issues": ["raw_source_tag: leak"], "errors": []}
+    return {"passed": False, "issues": ["raw_source_tag: leak"], "warnings": [], "errors": []}
 
 
 def _failing_docx_validation():
-    return {"passed": False, "issues": ["markdown_artifact:bold"], "errors": []}
+    return {"passed": False, "issues": ["markdown_artifact:bold"], "warnings": [], "errors": []}
 
 
 @pytest.fixture
@@ -180,6 +180,7 @@ class TestDocxValidationGate:
         patches["validate_docx"].return_value = {
             "passed": True,
             "issues": [],
+            "warnings": [],
             "errors": ["non-fatal warning"],
         }
         result = _save_strategy_output(

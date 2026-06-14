@@ -223,25 +223,33 @@ class TestScanScaffoldingLeakageIssues:
 
 
 class TestValidateOutputMarkdownScaffolding:
-    def test_leak_blocks_by_default(self, monkeypatch):
+    def test_leak_is_nonblocking_warning(self, monkeypatch):
+        # A scaffolding leak is a content signal, not a ship blocker
+        # (agentic-balance: gate structure/acts, not content). It surfaces as a
+        # warning and the artifact still passes.
         monkeypatch.delenv(_SCAFFOLDING_LEAK_THRESHOLD_ENV, raising=False)
-        result = _validate_output_markdown("intro\n**What to validate:** the ARR claim")
-        assert result["passed"] is False
-        assert any(i.startswith("scaffolding_leak:") for i in result["issues"])
-
-    def test_env_threshold_relaxes_gate(self, monkeypatch):
-        monkeypatch.setenv(_SCAFFOLDING_LEAK_THRESHOLD_ENV, "1")
-        # Exactly one leak, threshold 1 -> ships.
         result = _validate_output_markdown("intro\n**What to validate:** the ARR claim")
         assert result["passed"] is True
         assert result["issues"] == []
+        assert any(w.startswith("scaffolding_leak:") for w in result["warnings"])
+
+    def test_env_threshold_suppresses_warning(self, monkeypatch):
+        monkeypatch.setenv(_SCAFFOLDING_LEAK_THRESHOLD_ENV, "1")
+        # Exactly one leak, threshold 1 -> not even a warning.
+        result = _validate_output_markdown("intro\n**What to validate:** the ARR claim")
+        assert result["passed"] is True
+        assert result["issues"] == []
+        assert result["warnings"] == []
 
     def test_explicit_threshold_arg_overrides_env(self, monkeypatch):
         monkeypatch.setenv(_SCAFFOLDING_LEAK_THRESHOLD_ENV, "9")
         result = _validate_output_markdown(
             "intro\n**What to validate:** x", scaffolding_threshold=0
         )
-        assert result["passed"] is False
+        # threshold=0 surfaces the leak as a warning; it is non-blocking, so the
+        # artifact still passes (content findings never withhold the deliverable).
+        assert result["passed"] is True
+        assert any(w.startswith("scaffolding_leak:") for w in result["warnings"])
 
     def test_clean_still_passes(self, monkeypatch):
         monkeypatch.delenv(_SCAFFOLDING_LEAK_THRESHOLD_ENV, raising=False)

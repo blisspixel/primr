@@ -31,10 +31,11 @@
     },
     {
       "file": "scaffolding_leak.md",
-      "expect_pass": false,
-      "issue_prefixes": ["scaffolding_leak:"],
+      "expect_pass": true,
+      "issue_prefixes": [],
+      "warning_prefixes": ["scaffolding_leak:"],
       "render_docx": false,
-      "notes": "Bare [workbook] marker, bold '**What to validate:**' line, and informal [cite: bbb] -> scaffolding-leak gate fires."
+      "notes": "Bare [workbook] marker, bold '**What to validate:**' line, and informal [cite: bbb]. Scaffolding leakage is now a NON-blocking warning (demoted per agentic-balance: content gates do not withhold the deliverable); it ships and is surfaced + eval-tracked rather than blocked. Not render_docx since the markers would fail the clean-DOCX assertion."
     },
     {
       "file": "forbidden_marker.md",
