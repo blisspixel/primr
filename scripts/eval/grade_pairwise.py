@@ -129,13 +129,30 @@ def main() -> int:
     ap.add_argument("--baseline", required=True)
     ap.add_argument("--candidate", required=True)
     ap.add_argument("--label", default="candidate")
+    ap.add_argument(
+        "--judges",
+        default=None,
+        help="Override the panel: comma-separated provider:model (e.g. "
+        "'ollama:qwen3:8b' for a FREE local judge while developing). Default is "
+        "the cross-family cloud panel.",
+    )
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
     load_primr_env()
 
+    panel = JUDGES
+    if args.judges:
+        panel = []
+        for item in args.judges.split(","):
+            item = item.strip()
+            if not item:
+                continue
+            name, _, model = item.partition(":")  # model keeps any ':' in an ollama tag
+            panel.append((name, model))
+
     base_secs = _sections(Path(args.baseline).read_text(encoding="utf-8"))
     cand_secs = _sections(Path(args.candidate).read_text(encoding="utf-8"))
-    judges = [(n, m, _provider(n)) for n, m in JUDGES]
+    judges = [(n, m, _provider(n)) for n, m in panel]
     judges = [(n, m, p) for n, m, p in judges if p is not None]
     console.info(f"Judges: {', '.join(f'{n}:{m}' for n, m, _ in judges)}")
 
