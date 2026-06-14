@@ -168,8 +168,10 @@ def _scan_scaffolding_leakage_issues(markdown_content: str, threshold: int) -> l
     return issues
 
 
-# Detection patterns are partial-match (no closing-bracket requirement) so the
-# scanner catches truncated tokens the writer accidentally leaves behind.
+# Bracketed/filename internal tokens. These are matched case-insensitively
+# because the delimiters ([], the .txt suffix) never occur in legitimate prose,
+# so IGNORECASE cannot false-block real content. Detection is partial-match (no
+# closing-bracket requirement) so the scanner catches truncated tokens too.
 _FORBIDDEN_OUTPUT_PATTERNS: tuple[tuple[str, str], ...] = (
     ("raw_source_tag", r"\[Source:\s*(?:https?://)?[^\]\s]+"),
     ("section_cross_ref", r"\[\s*(?:see|cross-?ref|xref)\s+##\s+[^\]]+\]"),
@@ -181,8 +183,6 @@ _FORBIDDEN_OUTPUT_PATTERNS: tuple[tuple[str, str], ...] = (
     ("external_sources_ref", r"\[External Sources\]"),
     ("citation_inventory", r"\[citation inventory[^\]]*\]"),
     ("vendor_research_file", r"vendor-research-[\w.-]+\.txt"),
-    ("internal_roi_model", r"\bInternal ROI Model\b"),
-    ("internal_analysis", r"\bInternal Analysis\b"),
 )
 
 # Cleaner patterns require the full closing-bracket form so substitution
@@ -198,15 +198,22 @@ _FORBIDDEN_OUTPUT_CLEANERS: tuple[tuple[str, str], ...] = (
     ("external_sources_ref", r"\[External Sources\]"),
     ("citation_inventory", r"\[citation inventory[^\]]*\]"),
     ("vendor_research_file", r"vendor-research-[\w.-]+\.txt"),
+)
+
+# Internal workbook labels that leak as Title-Case headers/labels. Matched
+# CASE-SENSITIVELY (unlike the bracketed tokens above) so legitimate lowercase
+# prose never false-blocks shipping: a report may say "based on our internal
+# analysis" or "in the analysis context of X" - that is real content, not a
+# leak, and gating it is exactly the brittle trap (agentic-balance.md). Only the
+# exact Title-Case label form (the way the analysis workbook emits it) is caught.
+_FORBIDDEN_LEAKED_LABELS: tuple[tuple[str, str], ...] = (
     ("internal_roi_model", r"\bInternal ROI Model\b"),
     ("internal_analysis", r"\bInternal Analysis\b"),
+    ("analysis_context", r"\bAnalysis Context\b"),
 )
 
 # Bare internal terms (no bracket form) that must never leak.
-_FORBIDDEN_INTERNAL_TERMS: tuple[str, ...] = (
-    "analysis context",
-    "vendor-research",
-)
+_FORBIDDEN_INTERNAL_TERMS: tuple[str, ...] = ("vendor-research",)
 
 
 class _ArtifactValidation(TypedDict):
@@ -234,6 +241,10 @@ def _auto_strip_forbidden_patterns(text: str) -> str:
     for _label, pattern in _FORBIDDEN_OUTPUT_CLEANERS:
         text = re.sub(pattern, "", text, flags=re.IGNORECASE)
 
+    # Leaked Title-Case labels: case-sensitive so lowercase prose is preserved.
+    for _label, pattern in _FORBIDDEN_LEAKED_LABELS:
+        text = re.sub(pattern, "", text)
+
     lower = text.lower()
     for term in _FORBIDDEN_INTERNAL_TERMS:
         if term in lower:
@@ -250,6 +261,13 @@ def _scan_forbidden_output_patterns(text: str) -> list[str]:
     issues: list[str] = []
     for label, pattern in _FORBIDDEN_OUTPUT_PATTERNS:
         match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            issues.append(f"{label}: {match.group(0)[:120]}")
+
+    # Leaked Title-Case labels: case-sensitive so legitimate lowercase prose
+    # ("our internal analysis") never false-blocks shipping.
+    for label, pattern in _FORBIDDEN_LEAKED_LABELS:
+        match = re.search(pattern, text)
         if match:
             issues.append(f"{label}: {match.group(0)[:120]}")
 

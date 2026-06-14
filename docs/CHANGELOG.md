@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Artifact shipping — de-brittle (content gates become signals)
 
+- **Leaked-label scan no longer false-blocks legitimate lowercase prose.** The
+  forbidden-output scan ran case-insensitively, so a report saying "based on our
+  internal analysis" or "in the analysis context of X" was blocked from shipping
+  because it matched the internal workbook labels `Internal Analysis` /
+  `Analysis Context` / `Internal ROI Model`. Those labels now match
+  **case-sensitively** (a new `_FORBIDDEN_LEAKED_LABELS` set), so only the exact
+  Title-Case leaked form is caught and ordinary lowercase content ships
+  untouched. The bracketed/filename tokens (`[Source:]`, `vendor-research-*.txt`,
+  ...) stay case-insensitive — their delimiters never occur in prose, so they
+  can't false-block. (agentic-balance: don't gate real content.)
 - **Scaffolding-leak detection is now a non-blocking warning, not a ship gate.**
   A leaked internal marker (`[workbook]`, bold `**What to validate:**`, informal
   `[cite: label]`) no longer withholds the polished DOCX; it is surfaced (logged)

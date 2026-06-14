@@ -70,13 +70,23 @@ class TestScanForbiddenOutputPatterns:
         issues = _scan_forbidden_output_patterns("Per [Analysis Workbook entry]")
         assert any(i.startswith("analysis_workbook_ref:") for i in issues)
 
-    def test_internal_roi_detected(self):
+    def test_internal_roi_label_detected(self):
+        # The leaked Title-Case workbook label is caught.
         issues = _scan_forbidden_output_patterns("From Internal ROI Model assumption")
         assert any(i.startswith("internal_roi_model:") for i in issues)
 
-    def test_internal_term_detected(self):
-        issues = _scan_forbidden_output_patterns("see analysis context for details")
-        assert any(i.startswith("internal_term:") for i in issues)
+    def test_analysis_context_label_detected(self):
+        issues = _scan_forbidden_output_patterns("See Analysis Context for details")
+        assert any(i.startswith("analysis_context:") for i in issues)
+
+    def test_lowercase_prose_is_not_false_blocked(self):
+        # Legitimate lowercase prose must NOT trip the leaked-label scan
+        # (agentic-balance: don't gate real content). Case-sensitive by design.
+        issues = _scan_forbidden_output_patterns(
+            "Based on our internal analysis and the analysis context, the internal "
+            "ROI model suggests upside."
+        )
+        assert issues == []
 
     def test_vendor_research_file_detected(self):
         issues = _scan_forbidden_output_patterns("from vendor-research-acme.txt note")
@@ -125,9 +135,17 @@ class TestAutoStripForbiddenPatterns:
         result = _auto_strip_forbidden_patterns("From [Workbook: section 3] context")
         assert "Workbook" not in result
 
-    def test_strips_internal_term(self):
-        result = _auto_strip_forbidden_patterns("See analysis context for detail")
-        assert "analysis context" not in result.lower()
+    def test_strips_leaked_titlecase_label(self):
+        # The Title-Case leaked label is stripped...
+        result = _auto_strip_forbidden_patterns("See Analysis Context for detail")
+        assert "Analysis Context" not in result
+
+    def test_preserves_lowercase_prose(self):
+        # ...but legitimate lowercase prose is left intact (no mangling).
+        text = "Based on our internal analysis in the analysis context here."
+        result = _auto_strip_forbidden_patterns(text)
+        assert "internal analysis" in result
+        assert "analysis context" in result
 
     def test_collapses_double_spaces(self):
         result = _auto_strip_forbidden_patterns("a  b   c")
