@@ -37,14 +37,24 @@ from primr.utils.console import console
 # key configured are skipped automatically at run time.
 # ---------------------------------------------------------------------------
 MATRIX: list[tuple[str, str, str]] = [
+    # Each provider's CURRENT flagship (June 2026), plus one cheaper value tier so
+    # the bake-off shows quality AND quality-per-dollar. Verified against live docs.
+    # xAI: Grok 4.3 is both flagship and cheap (no separate top tier).
     ("Grok 4.3", "xai", "grok-4.3"),
-    ("GPT-5.4 nano", "openai", "gpt-5.4-nano"),
+    # OpenAI: GPT-5.5 flagship + GPT-5.4 mini value tier.
+    ("GPT-5.5", "openai", "gpt-5.5"),
     ("GPT-5.4 mini", "openai", "gpt-5.4-mini"),
-    ("Claude Haiku 4.5", "anthropic", "claude-haiku-4-5"),
+    # Anthropic: Opus 4.8 flagship + Sonnet 4.6 balanced. (Fable 5 is newer still
+    # but premium-priced at $10/$50 - add it with --include-fable.)
+    ("Claude Opus 4.8", "anthropic", "claude-opus-4-8"),
     ("Claude Sonnet 4.6", "anthropic", "claude-sonnet-4-6"),
-    ("Gemini 3.1 Flash-Lite", "gemini", "gemini-3.1-flash-lite"),
+    # Google: 3.5 Flash is the newest GA Gemini; 3.1 Pro is the reasoning tier
+    # (3.5 Pro has not shipped yet as of June 13, 2026).
     ("Gemini 3.5 Flash", "gemini", "gemini-3.5-flash"),
+    ("Gemini 3.1 Pro", "gemini", "gemini-3.1-pro-preview"),
 ]
+# Anthropic's newest model - premium-priced, opt in with --include-fable.
+FABLE = ("Claude Fable 5", "anthropic", "claude-fable-5")
 # Free local baseline (Ollama). Opt in by passing --local-model <tag>; the tag is
 # machine-specific so it is never hardcoded here.
 LOCAL_PROVIDER = "ollama"
@@ -172,8 +182,12 @@ def _cost(model: str, in_tok: int, out_tok: int) -> float:
         return 0.0
 
 
-def _resolve_matrix(local_model: str | None) -> list[tuple[str, str, str, Provider]]:
+def _resolve_matrix(
+    local_model: str | None, include_fable: bool = False
+) -> list[tuple[str, str, str, Provider]]:
     matrix = list(MATRIX)
+    if include_fable:
+        matrix.append(FABLE)
     if local_model:
         matrix.append((f"{local_model} (local)", LOCAL_PROVIDER, local_model))
     resolved = []
@@ -228,7 +242,7 @@ def run(args: argparse.Namespace) -> int:
     judge_prov = _provider_for(judge_name)
 
     console.step("Bake-off matrix")
-    matrix = _resolve_matrix(local_model=args.local_model)
+    matrix = _resolve_matrix(local_model=args.local_model, include_fable=args.include_fable)
     if not matrix:
         console.error("No providers configured. Run: primr keys set xai|openai|anthropic")
         return 1
@@ -349,6 +363,11 @@ def main() -> int:
         "--local-model",
         default=None,
         help="Ollama model tag to add as a free local baseline (e.g. 'qwen3:8b'). Off by default.",
+    )
+    ap.add_argument(
+        "--include-fable",
+        action="store_true",
+        help="Add Claude Fable 5 (newest, premium $10/$50) to the matrix.",
     )
     ap.add_argument("--out", default="output/eval/provider_bakeoff.json", help="Results JSON path")
     return run(ap.parse_args())
