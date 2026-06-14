@@ -42,6 +42,8 @@ MATRIX: list[tuple[str, str, str]] = [
     ("GPT-5.4 mini", "openai", "gpt-5.4-mini"),
     ("Claude Haiku 4.5", "anthropic", "claude-haiku-4-5"),
     ("Claude Sonnet 4.6", "anthropic", "claude-sonnet-4-6"),
+    ("Gemini 3.1 Flash-Lite", "gemini", "gemini-3.1-flash-lite"),
+    ("Gemini 3.5 Flash", "gemini", "gemini-3.5-flash"),
 ]
 # Free local baseline (Ollama). Opt in by passing --local-model <tag>; the tag is
 # machine-specific so it is never hardcoded here.
