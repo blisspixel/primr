@@ -1,8 +1,40 @@
 """Tests for Primr environment loading and key helpers."""
 
 import os
+from pathlib import Path
 
+from primr.config import env as env_mod
 from primr.config.env import load_primr_env, normalize_key_name
+
+
+def test_keystore_sandbox_warning_detects_store_python(monkeypatch):
+    # Store Python reports a normal Roaming path but realpath resolves into the
+    # per-package LocalCache sandbox - that divergence is the signal.
+    monkeypatch.setattr(env_mod.sys, "platform", "win32")
+    reported = r"C:\Users\X\AppData\Roaming\primr\.env"
+    real = (
+        r"C:\Users\X\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_abc"
+        r"\LocalCache\Roaming\primr\.env"
+    )
+    monkeypatch.setattr(env_mod, "get_user_env_path", lambda: Path(reported))
+    monkeypatch.setattr(env_mod.os.path, "realpath", lambda _p: real)
+    warning = env_mod.keystore_sandbox_warning()
+    assert warning is not None
+    assert "sandboxed" in warning
+    assert "PRIMR_CONFIG_DIR" in warning
+
+
+def test_keystore_sandbox_warning_quiet_for_normal_path(monkeypatch):
+    monkeypatch.setattr(env_mod.sys, "platform", "win32")
+    reported = r"C:\Users\X\AppData\Roaming\primr\.env"
+    monkeypatch.setattr(env_mod, "get_user_env_path", lambda: Path(reported))
+    monkeypatch.setattr(env_mod.os.path, "realpath", lambda _p: reported)
+    assert env_mod.keystore_sandbox_warning() is None
+
+
+def test_keystore_sandbox_warning_none_on_posix(monkeypatch):
+    monkeypatch.setattr(env_mod.sys, "platform", "linux")
+    assert env_mod.keystore_sandbox_warning() is None
 
 
 def test_normalize_key_name_accepts_provider_aliases():

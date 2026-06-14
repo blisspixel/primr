@@ -68,6 +68,38 @@ def get_user_env_path() -> Path:
     return get_user_config_dir() / ".env"
 
 
+def keystore_sandbox_warning() -> str | None:
+    """Warn if the key store is redirected by Microsoft Store Python.
+
+    Store-distributed Python virtualizes writes under ``%APPDATA%`` into a
+    per-package ``LocalCache`` sandbox at the *filesystem* layer: the process
+    reports a normal ``...\\AppData\\Roaming\\primr\\.env`` path, but the bytes
+    physically land in ``...\\Packages\\PythonSoftwareFoundation...\\LocalCache``.
+    Keys saved by such an install are invisible to a normal (python.org) primr,
+    which silently looks like "keys won't save". Detect the divergence between
+    the reported path and its real path and return an actionable message, else
+    ``None``. No path construction escapes this - only a non-AppData location
+    (``PRIMR_CONFIG_DIR``) or a non-Store Python does.
+    """
+    if sys.platform != "win32":
+        return None
+    try:
+        reported = str(get_user_env_path())
+        real = os.path.realpath(reported)
+    except OSError:
+        return None
+    norm = real.replace("\\", "/")
+    redirected = "/Packages/" in norm and "/LocalCache/" in norm
+    if redirected and os.path.normcase(real) != os.path.normcase(reported):
+        return (
+            f"Key store is sandboxed by Microsoft Store Python at {real} - keys "
+            "saved here are NOT shared with a non-Store primr install. Fix: use a "
+            "python.org Python, or set PRIMR_CONFIG_DIR to a path outside AppData "
+            "(e.g. %USERPROFILE%\\.primr)."
+        )
+    return None
+
+
 def get_local_env_path() -> Path | None:
     """Return the nearest local .env found from the current working directory."""
     found = find_dotenv(usecwd=True)

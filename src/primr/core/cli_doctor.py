@@ -468,6 +468,12 @@ def _show_install_source() -> None:
     console.ok(f"primr {__version__} ({kind})")
     console.muted(f"  running from {pkg_dir}")
     console.muted(f"  python {sys.version.split()[0]} @ {sys.executable}")
+
+    from primr.config.env import keystore_sandbox_warning
+
+    sandbox = keystore_sandbox_warning()
+    if sandbox:
+        console.warn(f"  {sandbox}")
     if not editable:
         # A released install in a directory that also looks like a primr checkout
         # is the classic "my edits aren't taking" trap.

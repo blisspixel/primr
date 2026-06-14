@@ -678,12 +678,17 @@ def _run_keys(args: list[str] | None) -> int:
         return 0
 
     if parsed.action == "list":
+        from primr.config.env import keystore_sandbox_warning
+
         load_primr_env()
         console.banner("Primr Keys")
         console.info(f"User config: {get_user_env_path()}")
         local_path = get_local_env_path()
         if local_path:
             console.info(f"Local override: {local_path}")
+        sandbox = keystore_sandbox_warning()
+        if sandbox:
+            console.warn(sandbox)
         console.blank()
         for env_name, purpose in KEY_HELP.items():
             active, _source, shadowed = describe_key_source(env_name)
