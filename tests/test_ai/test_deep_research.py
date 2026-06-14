@@ -111,7 +111,7 @@ class TestDeepResearchClient:
     @patch.object(DeepResearchClient, "__init__", lambda self, api_key=None: None)
     def test_agent_id(self):
         """Verify agent ID constant."""
-        assert DeepResearchClient.AGENT_ID == "deep-research-pro-preview-12-2025"
+        assert DeepResearchClient.AGENT_ID == "deep-research-preview-04-2026"
 
     def test_build_prompt_default(self):
         """Build prompt without format returns query."""
@@ -233,7 +233,7 @@ class TestExtractContent:
     async def test_poll_for_completion_extracts_citations_and_search_count(self):
         """Polling completion should populate citations and search query count."""
         client = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
-        client.AGENT_ID = "deep-research-pro-preview-12-2025"
+        client.AGENT_ID = "deep-research-preview-04-2026"
         client.TIMEOUT_SECONDS = 10
 
         output = Mock()
@@ -377,7 +377,7 @@ class TestFileSearch:
         """Upload with empty list raises AIError (fail fast)."""
         client = DeepResearchClient.__new__(DeepResearchClient)
         client._client = Mock()
-        client.AGENT_ID = "deep-research-pro-preview-12-2025"
+        client.AGENT_ID = "deep-research-preview-04-2026"
 
         with pytest.raises(AIError, match="No valid context files"):
             client._upload_context_files([])
@@ -386,7 +386,7 @@ class TestFileSearch:
         """Upload with nonexistent files raises AIError (fail fast)."""
         client = DeepResearchClient.__new__(DeepResearchClient)
         client._client = Mock()
-        client.AGENT_ID = "deep-research-pro-preview-12-2025"
+        client.AGENT_ID = "deep-research-preview-04-2026"
 
         with pytest.raises(AIError, match="Context files not found"):
             client._upload_context_files(
@@ -417,7 +417,7 @@ class TestFileSearch:
         mock_exists.return_value = True
 
         client = DeepResearchClient.__new__(DeepResearchClient)
-        client.AGENT_ID = "deep-research-pro-preview-12-2025"
+        client.AGENT_ID = "deep-research-preview-04-2026"
         mock_client = Mock()
         mock_client.file_search_stores.create.side_effect = Exception("API Error")
         client._client = mock_client
@@ -497,7 +497,7 @@ class TestResearchWithContextFiles:
         client = DeepResearchClient.__new__(DeepResearchClient)
         client._api_key = "test-key"
         client._client = Mock()
-        client.AGENT_ID = "deep-research-pro-preview-12-2025"
+        client.AGENT_ID = "deep-research-preview-04-2026"
 
         with pytest.raises(AIError, match="Context file not found"):
             await client.research("Research Acme Corp", context_files=["/path/to/internal_doc.pdf"])
@@ -508,7 +508,7 @@ class TestResearchWithContextFiles:
         client = DeepResearchClient.__new__(DeepResearchClient)
         client._api_key = "test-key"
         client._client = Mock()
-        client.AGENT_ID = "deep-research-pro-preview-12-2025"
+        client.AGENT_ID = "deep-research-preview-04-2026"
 
         with pytest.raises(AIError, match="Context file not found"):
             await client.research("Research Acme Corp", context_files=["/nonexistent/file.pdf"])
