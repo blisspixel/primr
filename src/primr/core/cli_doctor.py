@@ -393,6 +393,7 @@ def run_doctor(*, fix: bool = False) -> int:
     else:
         console.error(f"Python {py_version.major}.{py_version.minor} (need 3.10+)")
         all_passed = False
+    _show_install_source()
 
     console.step("API Configuration")
     all_passed, warnings_count = _check_api_keys(all_passed, warnings_count)
@@ -447,6 +448,35 @@ def run_doctor(*, fix: bool = False) -> int:
         )
 
     return 0 if all_passed else 1
+
+
+def _show_install_source() -> None:
+    """Show which primr is actually running, and from where.
+
+    This is the single most useful line for the "why doesn't my command exist"
+    confusion: a stale released install (pipx/pip) shadows a newer working tree.
+    An editable/dev install resolves the package *inside* the source tree rather
+    than site-packages, so we can tell the two apart and flag a mismatch with
+    the repo the user is sitting in.
+    """
+    import primr as _pkg
+    from primr import __version__
+
+    pkg_dir = os.path.dirname(_pkg.__file__)
+    editable = "site-packages" not in pkg_dir.replace("\\", "/")
+    kind = "editable/dev" if editable else "installed release"
+    console.ok(f"primr {__version__} ({kind})")
+    console.muted(f"  running from {pkg_dir}")
+    console.muted(f"  python {sys.version.split()[0]} @ {sys.executable}")
+    if not editable:
+        # A released install in a directory that also looks like a primr checkout
+        # is the classic "my edits aren't taking" trap.
+        cwd = os.getcwd()
+        if os.path.exists(os.path.join(cwd, "src", "primr", "__init__.py")):
+            console.warn(
+                "  You are inside a primr checkout but running an installed release, "
+                "not this source. Editable dev install: pip install -e .  (or use uv run primr)"
+            )
 
 
 def _check_for_update() -> None:

@@ -35,8 +35,26 @@ if ! command -v pipx >/dev/null 2>&1; then
     export PATH="$HOME/.local/bin:$PATH"
 fi
 
-# --- Install fresh, or upgrade an existing install (idempotent) ---
-if pipx list 2>/dev/null | grep -qi "package $PACKAGE\|[[:space:]]$PACKAGE[[:space:]]"; then
+# --- Dev mode: if run from inside a primr checkout, install EDITABLE from source
+# so `primr` tracks the working tree instead of a frozen PyPI release. That trap
+# (a released install shadowing local edits) is what makes new commands like
+# `keys set openai` look "missing". Piping the remote one-liner to bash has no
+# stable BASH_SOURCE path, so this only fires for a local ./scripts/install.sh run.
+REPO_ROOT=""
+SCRIPT_SRC="${BASH_SOURCE[0]:-}"
+if [ -n "$SCRIPT_SRC" ] && [ -f "$SCRIPT_SRC" ]; then
+    CANDIDATE="$(cd "$(dirname "$SCRIPT_SRC")/.." && pwd)"
+    if [ -f "$CANDIDATE/pyproject.toml" ] && grep -q 'name *= *"primr"' "$CANDIDATE/pyproject.toml"; then
+        REPO_ROOT="$CANDIDATE"
+    fi
+fi
+
+if [ -n "$REPO_ROOT" ]; then
+    echo "==> Detected a primr checkout at $REPO_ROOT"
+    echo "==> Installing EDITABLE from source (dev mode) so 'primr' tracks your working tree."
+    echo "    For day-to-day dev, 'uv run primr' from the repo is the lightest path."
+    pipx install --force --editable "$REPO_ROOT"
+elif pipx list 2>/dev/null | grep -qi "package $PACKAGE\|[[:space:]]$PACKAGE[[:space:]]"; then
     echo "==> $PACKAGE is already installed. Upgrading to the latest release..."
     pipx upgrade "$PACKAGE"
 else
