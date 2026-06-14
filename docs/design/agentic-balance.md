@@ -154,6 +154,48 @@ adversarial pass (Step 6) and each claim carries a likelihood/confidence grade,
 not when the pipeline reaches its last stage. Build completion checks that read
 the artifact's *substance*, not its *form*.
 
+## The failure mode in both directions — and which one to fear here
+
+The 2026 production consensus is blunt: **most agents fail not because the model
+is weak but because the harness is brittle** — hardcoded branching that tries to
+anticipate every path, and regex/format rules that "break the moment someone
+adjusts the formatting." But the symmetric trap is just as real: handing
+*validation* to a model is also brittle — LLM-judge verdicts swing on seed,
+option order, and instruction placement by margins comparable to the gains they
+claim to measure. Neither extreme is safe. The resolution the field landed on,
+and the one this doc encodes:
+
+> **Determinism on *structure and irreversible acts*; judgment on *content*;
+> layered eval (not a regex) for *quality*.** Microsoft's June-2026 red-team
+> taxonomy puts it the same way: deterministic *structure* (provenance, tiered
+> approval) should govern processes, "not replaced by brittle output rules";
+> the eval guides recommend layering deterministic format checks, heuristic
+> scoring, LLM-as-judge, and human calibration rather than leaning on any one.
+
+The concrete anti-pattern to refuse in primr: a deterministic rule that tries to
+answer "is this *analysis* good?" A regex cannot answer that — it can only check
+shape — so the moment quality is what you care about, a rule is the wrong tool
+and will make things worse (it false-blocks good briefs and silently rots as
+prompts evolve). The line:
+
+- **Legitimate rules** (keep — cheap, unambiguous, corpus-validated): format and
+  structure checks (duplicate headings, empty sections, dangling `[cite: N]`,
+  scaffolding markers) plus the act-guards above. primr already draws this line
+  correctly: it gates only the *unambiguous* structural defects and deliberately
+  leaves required-section *presence* a QA *signal*, not a ship blocker — "too
+  false-positive-prone to block shipping on."
+- **Brittle rules to refuse** (these are the FAIL driver): any deterministic gate
+  on *content quality, argument strength, or what-to-collect*. Those are exactly
+  the Level-2 judgment points (Steps 4–7). They are enforced by the
+  eval/calibration instruments (measured against ground truth), never by a
+  hand-written rule.
+
+Litmus test before adding any gate: **would this rule have to change every time a
+section is reworded?** If yes, it is a content rule wearing a structure costume —
+make it a signal or an eval, not a gate. This is the direct corollary of
+Principle 4 (completion judged by substance, not a flag): substance is measured,
+not regexed.
+
 ## The coupling the sources don't name: agentic collection needs a budget
 
 This is the one design consequence specific to primr. A blind 50-page scrape is
@@ -199,6 +241,8 @@ Then make sure "done" is judged by the artifact's substance, not a flag
 - Anthropic, [Effective Harnesses for Long-Running Agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) — self-declared completion is unreliable; verify against ground truth.
 - NVIDIA, [Agentic Autonomy Levels and Security](https://developer.nvidia.com/blog/agentic-autonomy-levels-and-security/) — risk lives in the tools/actions; Levels 0–3 taxonomy.
 - HuggingFace, [smolagents: Introduction to Agents](https://huggingface.co/docs/smolagents/en/conceptual_guides/intro_agents) — agency as a spectrum; regularize toward not-agentic when a fixed path fits.
+- Microsoft Security, [Updating the Taxonomy of Failure Modes in Agentic AI Systems](https://www.microsoft.com/en-us/security/blog/2026/06/04/updating-taxonomy-failure-modes-agentic-ai-systems-year-red-teaming-taught-us/) (Jun 2026) — a year of red-teaming: brittle harnesses fail; deterministic *structure* governs processes, not brittle *output* rules.
+- Adaline, [The Complete Guide to LLM & AI Agent Evaluation in 2026](https://www.adaline.ai/blog/complete-guide-llm-ai-agent-evaluation-2026) — layer deterministic format checks, heuristic scoring, LLM-as-judge, and human calibration; don't rely on regex gates for quality.
 
 > Have a deeper local research artifact (e.g. an `AGENTIC_BALANCE.md` deep-research
 > output) you want folded in as the canonical source set? Point to it and this
