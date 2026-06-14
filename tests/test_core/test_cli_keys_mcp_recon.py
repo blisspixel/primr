@@ -7,9 +7,9 @@ from unittest.mock import MagicMock
 from primr.core.cli import (
     _is_keys_command,
     _is_recon_command,
-    _run_keys,
 )
 from primr.core.cli_dispatch import is_mcp_command, run_mcp
+from primr.core.cli_keys import run_keys
 
 # ---------------------------------------------------------------------------
 # Command predicates
@@ -51,12 +51,12 @@ class TestRunKeys:
     def test_path_action_returns_zero(self, monkeypatch):
         monkeypatch.setattr("primr.config.env.get_user_env_path", lambda: "/user/.env")
         monkeypatch.setattr("primr.config.env.get_local_env_path", lambda: None)
-        assert _run_keys(["keys", "path"]) == 0
+        assert run_keys(["keys", "path"]) == 0
 
     def test_path_with_local_override(self, monkeypatch):
         monkeypatch.setattr("primr.config.env.get_user_env_path", lambda: "/user/.env")
         monkeypatch.setattr("primr.config.env.get_local_env_path", lambda: "/project/.env")
-        assert _run_keys(["keys", "path"]) == 0
+        assert run_keys(["keys", "path"]) == 0
 
     def test_list_action_returns_zero(self, monkeypatch):
         monkeypatch.setattr("primr.config.env.get_user_env_path", lambda: "/user/.env")
@@ -67,7 +67,7 @@ class TestRunKeys:
             "primr.config.env.KEY_HELP",
             {"GEMINI_API_KEY": "Premium pipeline"},
         )
-        assert _run_keys(["keys", "list"]) == 0
+        assert run_keys(["keys", "list"]) == 0
 
     def test_set_with_explicit_value(self, monkeypatch):
         monkeypatch.setattr("primr.config.env.normalize_key_name", lambda p: f"{p.upper()}_API_KEY")
@@ -76,18 +76,18 @@ class TestRunKeys:
             lambda p, v: (f"{p.upper()}_API_KEY", "/path/.env"),
         )
         monkeypatch.setattr("primr.config.env.mask_secret", lambda x: "***")
-        result = _run_keys(["keys", "set", "gemini", "AI" + "x" * 30])
+        result = run_keys(["keys", "set", "gemini", "AI" + "x" * 30])
         assert result == 0
 
     def test_set_with_empty_value_returns_1(self, monkeypatch):
         monkeypatch.setattr("primr.config.env.normalize_key_name", lambda p: f"{p.upper()}_API_KEY")
-        result = _run_keys(["keys", "set", "gemini", ""])
+        result = run_keys(["keys", "set", "gemini", ""])
         assert result == 1
 
     def test_set_non_interactive_no_value_returns_1(self, monkeypatch):
         monkeypatch.setattr("primr.config.env.normalize_key_name", lambda p: f"{p.upper()}_API_KEY")
         monkeypatch.setattr("sys.stdin.isatty", lambda: False)
-        result = _run_keys(["keys", "set", "gemini"])
+        result = run_keys(["keys", "set", "gemini"])
         assert result == 1
 
     def test_unset_removes_key(self, monkeypatch):
@@ -95,7 +95,7 @@ class TestRunKeys:
             "primr.config.env.unset_user_key",
             lambda p: (f"{p.upper()}_API_KEY", "/path/.env", True),
         )
-        result = _run_keys(["keys", "unset", "gemini"])
+        result = run_keys(["keys", "unset", "gemini"])
         assert result == 0
 
     def test_unset_when_not_present(self, monkeypatch):
@@ -103,7 +103,7 @@ class TestRunKeys:
             "primr.config.env.unset_user_key",
             lambda p: (f"{p.upper()}_API_KEY", "/path/.env", False),
         )
-        result = _run_keys(["keys", "unset", "gemini"])
+        result = run_keys(["keys", "unset", "gemini"])
         assert result == 0
 
 
