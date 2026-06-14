@@ -1,10 +1,10 @@
-"""Unit tests for _fast_gap_analysis branches in primr.core.research_agent."""
+"""Unit tests for _fast_gap_analysis branches in primr.core.fast_run_gaps."""
 
 from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from primr.core.research_agent import _fast_gap_analysis
+from primr.core.fast_run_gaps import _fast_gap_analysis
 
 
 class TestFastGapAnalysis:

@@ -18,7 +18,7 @@ from primr.core.fast_run_gaps import GapDeepeningResult, deepen_research
 def seams(monkeypatch, tmp_path):
     captured: dict = {}
     gap_analysis = MagicMock(return_value=(["what is their revenue?"], "## Gaps\nrevenue unknown"))
-    monkeypatch.setattr("primr.core.research_agent._fast_gap_analysis", gap_analysis)
+    monkeypatch.setattr("primr.core.fast_run_gaps._fast_gap_analysis", gap_analysis)
 
     search = MagicMock(return_value=[{"url": "https://evidence.example/revenue"}])
     monkeypatch.setattr("primr.core.fast_run_gaps.search_web", search)

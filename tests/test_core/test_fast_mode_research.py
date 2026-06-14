@@ -13,7 +13,6 @@ from primr.core.research_agent import (
     _compute_fast_report_qa_metrics,
     _determine_section_reasoning_mode,
     _fast_cross_validate,
-    _fast_gap_analysis,
     _fast_regenerate_section,
     _normalize_fast_citations,
     _normalize_generated_section_payload,
@@ -21,6 +20,7 @@ from primr.core.research_agent import (
     _parse_single_section,
     _parse_structured_section_envelopes,
 )
+from primr.core.fast_run_gaps import _fast_gap_analysis
 from primr.prompts.loader import SectionConfig
 
 

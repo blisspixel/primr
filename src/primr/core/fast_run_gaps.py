@@ -34,6 +34,7 @@ from primr.data.scrape import scrape_external_sources_validated
 from primr.data.search_utils import search_web
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
+from primr.utils.observability import log_structured
 
 logger = get_logger("core.fast_run_gaps")
 
@@ -74,11 +75,6 @@ def deepen_research(
     analysis is steered to generate queries that *test under-evidenced branches*
     rather than fill generic data gaps (tradecraft Step 4). Empty -> unchanged.
     """
-    # Lazy import: research_agent imports this module, so the LLM-backed gap
-    # analysis (which stays there until its own extraction) must be resolved
-    # at call time to avoid a circular import.
-    from primr.core.research_agent import _fast_gap_analysis
-
     # --budget checkpoint: research deepening issues additional gap searches and
     # external-source scrapes (real spend). When a run budget is active and
     # actual LLM spend has already reached the ceiling, skip deepening and ship
@@ -285,3 +281,134 @@ def deepen_research(
         gap_new_sources=gap_new_sources,
         gap_search_count=gap_search_count,
     )
+
+
+def _fast_gap_analysis(
+    company_name: str,
+    website: str | None,
+    raw_corpus: str,
+    external_sources: str,
+    source_urls: list[str],
+    model: str | None = None,
+    hypothesis_block: str = "",
+) -> tuple[list[str], str]:
+    """
+    Phase 2 helper: Grok identifies research gaps and returns targeted search queries.
+
+    When ``hypothesis_block`` is supplied (a framed run's Day-1 tree), the task is
+    reframed from "what data is missing" to "which working hypotheses are
+    under-evidenced, and what search would confirm or refute each" (tradecraft
+    Step 4). The output contract (GAP/QUERY/PRIORITY) is unchanged either way, and
+    the unframed prompt is byte-identical to the prior behavior.
+
+    Returns:
+        (list of search queries, gap analysis text for logging)
+    """
+
+    # Build corpus summary — first 500 chars of each page
+    corpus_lines = raw_corpus.split("\n\n")
+    corpus_summary_parts: list[str] = []
+    for block in corpus_lines:
+        if block.startswith("[Page:"):
+            corpus_summary_parts.append(block[:500])
+    corpus_summary = (
+        "\n\n".join(corpus_summary_parts[:80]) if corpus_summary_parts else raw_corpus[:30_000]
+    )
+
+    # Build external source summary — first 500 chars each
+    ext_lines = external_sources.split("\n\n")
+    ext_summary_parts: list[str] = []
+    for block in ext_lines:
+        if block.startswith("[Source:"):
+            ext_summary_parts.append(block[:500])
+    ext_summary = "\n\n".join(ext_summary_parts) if ext_summary_parts else external_sources[:5_000]
+
+    if hypothesis_block:
+        # Hypothesis-steered (tradecraft Step 4): queries test branches, not data gaps.
+        prompt = f"""You've reviewed primary sources for {company_name}. As a strategic analyst,
+find where the WORKING HYPOTHESES below are under-evidenced, and for each, the web
+search that would best CONFIRM OR REFUTE it. Prefer diagnostic evidence (which
+discriminates between competing explanations) over generic background; a branch with
+no supporting or counter evidence in the sources is the top priority to test.
+
+WORKING HYPOTHESES (test these, do not just describe the company):
+{hypothesis_block}
+
+SOURCES REVIEWED:
+{corpus_summary}
+
+EXTERNAL SOURCES:
+{ext_summary}
+
+KNOWN SOURCE URLS (do NOT repeat these):
+{chr(10).join(source_urls[:30])}
+
+Return exactly 8 items in this format (one per block, no extra text):
+GAP: [which hypothesis or sub-claim is under-evidenced]
+QUERY: [web search query that would confirm or refute it]
+PRIORITY: CRITICAL | IMPORTANT
+
+Prioritize third-party validation sources: analyst reports, industry publications,
+financial filings, customer case studies, employee reviews, regulatory documents.
+"""
+    else:
+        prompt = f"""You've reviewed primary sources for {company_name}. As a strategic analyst, identify
+what's MISSING — gaps that would weaken a consulting brief.
+
+SOURCES REVIEWED:
+{corpus_summary}
+
+EXTERNAL SOURCES:
+{ext_summary}
+
+KNOWN SOURCE URLS (do NOT repeat these):
+{chr(10).join(source_urls[:30])}
+
+Return exactly 8 items in this format (one per block, no extra text):
+GAP: [what's missing]
+QUERY: [web search query to fill it]
+PRIORITY: CRITICAL | IMPORTANT
+
+Prioritize third-party validation sources: analyst reports, industry publications,
+financial filings, customer case studies, employee reviews, regulatory documents.
+Also cover: financials, competitive positioning, leadership changes, customer evidence,
+technology direction, recent news, risk factors.
+"""
+
+    system_prompt = (
+        "You are a research gap analyst for a consulting firm. "
+        "Identify what's missing from preliminary research and suggest "
+        "targeted web searches to fill those gaps. Be specific and actionable."
+    )
+
+    # Gap analysis is a REASONING-class call: a quota event here would
+    # silently abort gap-driven external search. Route through the
+    # circuit breaker so we fall through ANALYSIS_FALLBACK_CHAIN.
+    from primr.pipeline.llm_failover import LLMRole, call_with_failover
+
+    try:
+        response = call_with_failover(
+            LLMRole.REASONING,
+            prompt,
+            preferred_model=model,
+            max_tokens=5_000,
+            temperature=0.4,
+            system_prompt=system_prompt,
+        )
+    except Exception as e:
+        log_structured("warning", "Gap analysis failed", error=str(e))
+        return [], f"Gap analysis failed: {e}"
+
+    if not response or not response.strip():
+        return [], "Gap analysis returned empty response"
+
+    # Parse queries from response
+    queries: list[str] = []
+    for line in response.strip().splitlines():
+        line = line.strip()
+        if line.upper().startswith("QUERY:"):
+            query = line[6:].strip().strip("\"'[]")
+            if query:
+                queries.append(query)
+
+    return queries[:8], response
