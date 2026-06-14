@@ -69,6 +69,18 @@ class TestModelResolution:
         setup = _resolve()
         assert setup.grok_writing == "recipe-writer-model"
 
+    def test_eval_recipe_reasoning_wins(self, monkeypatch):
+        # Regression: the recipe's reasoning model must override the Grok-tier
+        # default too. Previously only writing was wired, so a cross-provider
+        # slot declaring reasoning="claude-opus-4-8" silently ran Grok reasoning
+        # and the eval cell was invalid (paid for, wrong model).
+        recipe = MagicMock()
+        recipe.writing = "recipe-writer-model"
+        recipe.reasoning = "recipe-reasoner-model"
+        monkeypatch.setattr("primr.ai.routing.get_active_eval_recipe", lambda: recipe)
+        setup = _resolve()
+        assert setup.grok_reasoning == "recipe-reasoner-model"
+
     def test_fast_tier_uses_low_reasoning_effort(self):
         assert _resolve(grok_tier="fast").grok_reasoning_effort == "low"
         assert _resolve(grok_tier="hybrid").grok_reasoning_effort is None

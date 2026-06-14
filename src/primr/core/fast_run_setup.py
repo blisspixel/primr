@@ -91,6 +91,12 @@ def resolve_fast_run_setup(
     _active_recipe = get_active_eval_recipe()
     if _active_recipe is not None and _active_recipe.writing:
         grok_writing = _active_recipe.writing
+    # The recipe's reasoning model must win too, not just writing - otherwise a
+    # cross-provider slot that declares e.g. reasoning="claude-opus-4-8" or
+    # "o4-mini" silently runs Grok reasoning and the eval cell is invalid. The
+    # grok_llm cross-provider dispatch routes the non-Grok model correctly.
+    if _active_recipe is not None and _active_recipe.reasoning:
+        grok_reasoning = _active_recipe.reasoning
 
     # Print the resolved models so an eval cell can verify (before any LLM
     # spend) that the recipe override actually flowed through. This is a
