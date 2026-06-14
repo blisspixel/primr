@@ -155,9 +155,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Design docs
 
-- `docs/design/research-tradecraft.md` — plan to shift the pipeline from
-  collection-first to hypothesis-first (framing, Day-1 hypothesis tree, plan
-  checkpoint, argument-derived report structure).
+- **Decision: report section structure stays a curated rule (tradecraft Step 5
+  descoped).** A strategic brief's *shape* is a known, stable thing — consistency
+  is a feature of a deliverable, and per-run structural variability trades
+  reliability for "rolling the dice." The `company_overview.yaml` scaffold is
+  researched/iterated *offline*, not re-derived per run; by Principle 1 it does
+  not demonstrably fall short, so it stays a rule. The agentic judgment for #4
+  lives in the *content within* sections (depth, insight, Pyramid "so what",
+  constrained-evidence reasoning), not in choosing sections. Recorded in
+  `agentic-balance.md` (structure carve-out), `research-tradecraft.md` (Step 5),
+  and ROADMAP #4.
+- `docs/design/research-tradecraft.md` — plan to shift the pipeline's
+  *collection and analysis* from collection-first to hypothesis-first (framing,
+  Day-1 hypothesis tree, plan checkpoint), keeping the deliverable structure a
+  curated scaffold.
 - `docs/design/agentic-balance.md` — the standing rule-vs-judgment decision aid
   (primr targets NVIDIA "Level 2": deterministic control flow, model judgment at
   fixed decision points). Now spells out the failure mode in both directions —

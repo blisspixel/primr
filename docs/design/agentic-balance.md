@@ -112,10 +112,24 @@ path *demonstrably falls short too often*, not that judgment feels more modern.
 ### 2. Go agentic only where the path genuinely can't be hardcoded.
 
 The legitimate Level-2 decision points in primr are about *content*, never
-*control flow*: what to collect (4), how to structure the argument (5), whether
-the thesis holds (6), how strong each claim is (7). If you can write the
-decision as an `if/else` that stays correct across companies, it is a rule —
-keep it one.
+*control flow*: what to collect (4), how the analysis reasons within the
+report (the argument/insight per section), whether the thesis holds (6), how
+strong each claim is (7). If you can write the decision as an `if/else` that
+stays correct across companies, it is a rule — keep it one.
+
+**Carve-out — the report's section *structure* is a rule, on purpose.** Which
+sections a strategic brief contains (the 23-section scaffold in
+`config/company_overview.yaml`) is **not** a per-run agentic decision, even
+though "structure the argument" sounds like judgment. A great deliverable's
+shape is a *known, stable thing*: you research and iterate it **offline** in the
+curated YAML, version-controlled, improved deliberately — you do not re-derive it
+each run. Consistency is a feature here, not a limitation; rolling per-run
+structural dice trades reliability for variability nobody wants in a strategic
+report. By Principle 1's own test the fixed scaffold does not demonstrably fall
+short, so it stays a rule. The model's judgment goes into the *content within*
+each section (depth, insight, strategy, industry understanding), not into picking
+the sections. (This overrides the earlier "argument-derived structure" framing of
+tradecraft Step 5 — see [research-tradecraft.md](research-tradecraft.md).)
 
 ### 3. Gate the irreversible actions, not the reasoning (the keep-list).
 
