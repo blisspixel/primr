@@ -433,8 +433,15 @@ class TestFastModeAIStrategy:
         assert with_strategy.deep_research_cost == 0.0
         assert multi_vendor.deep_research_cost == 0.0
 
-    def test_fast_mode_strategy_note_mentions_grok(self):
-        """Fast mode AI Strategy note should mention Grok."""
+    def test_fast_mode_strategy_note_mentions_grok(self, monkeypatch):
+        """Fast mode AI Strategy note should mention Grok.
+
+        The note names the reasoning provider, which the router resolves from
+        configured keys. Pin XAI_API_KEY so reasoning routes to Grok
+        deterministically - otherwise this depended on env leaking in from an
+        earlier test and failed when run in isolation.
+        """
+        monkeypatch.setenv("XAI_API_KEY", "fake-test-key")
         estimate = estimate_cost(
             "complete",
             fast_mode=True,

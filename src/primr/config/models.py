@@ -5,9 +5,23 @@ Centralized Model Configuration for Primr
 THIS IS THE SINGLE SOURCE OF TRUTH FOR ALL AI MODELS.
 UPDATE HERE TO CHANGE MODELS GLOBALLY.
 
-Last audited: May 30, 2026 (refresh of the May 8 "Model Landscape Audit").
-Pricing checked against provider docs the same day. Re-audit before each major
-eval — see ROADMAP "Model Adaptability".
+Last audited: June 13, 2026 (refresh of the May 30 audit), checked against
+current provider docs (developers.openai.com, ai.google.dev, docs.x.ai) and the
+Anthropic model catalog. Re-audit before each major eval — see ROADMAP "Model
+Adaptability".
+
+KEY CHANGES (June 13, 2026 audit):
+- OpenAI context/output corrected: gpt-5.4 is ~1M ctx (not 200K) and now carries
+  the >272K long-context surcharge; gpt-5.4-mini/-nano are 400K ctx; all gpt-5.x
+  max-output is 128k (gpt-5.4-nano's 16k cap was wrong). Prices unchanged.
+- Gemini: gemini-2.5-pro is 1M ctx (the 2M figure belongs to the unreleased 3.5
+  Pro); the whole Gemini 2.5 family is now deprecated (~Oct 16, 2026 shutdown);
+  Deep Research slug refreshed to deep-research-preview-04-2026; cached-input
+  rates filled in for the 3.x/2.5 entries.
+- Anthropic: claude-haiku-3-5 retired Feb 19, 2026 (404) — marked deprecated.
+  Opus 4.7+/Fable-5 reject temperature (handled in ai/providers/anthropic.py).
+- xAI Grok 4.3 reasoning is NOT always-on — reasoning_effort has four levels
+  (none/low/medium/high, default low); published output cap is unverified.
 
 AVAILABLE MODELS (May 2026):
 -----------------------------
@@ -206,6 +220,7 @@ class ModelRegistry:
         supports_thinking=True,
         supports_tools=True,
         supports_multimodal=True,
+        cost_per_1m_input_tokens_cached=0.025,  # Confirmed June 2026 (docs)
     )
 
     # =========================================================================
@@ -284,7 +299,10 @@ class ModelRegistry:
     # GEMINI 2.5 PRO - Stable production workhorse
     # USE FOR: Stable production apps where predictability > newest features
     # $1.25 input / $10.00 output per 1M tokens
-    # Context: 2M tokens, Output: 8k tokens
+    # Context: 1M tokens, Output: 8k tokens
+    # June 2026 audit: context is 1M (1,048,576), NOT 2M — the 2M figure belongs
+    # to the unreleased Gemini 3.5 Pro. Now DEPRECATED (earliest shutdown
+    # Oct 16, 2026) → migrate to gemini-3.1-pro-preview.
     # =========================================================================
     GEMINI_2_5_PRO = ModelConfig(
         name="gemini-2.5-pro",
@@ -292,11 +310,13 @@ class ModelRegistry:
         provider="google",
         cost_per_1m_input_tokens=1.25,
         cost_per_1m_output_tokens=10.00,
-        max_input_tokens=2_000_000,  # 2M tokens
+        max_input_tokens=1_048_576,  # 1M tokens (was wrongly 2M)
         max_output_tokens=8_192,  # 8k tokens
         supports_thinking=True,
         supports_tools=True,
         supports_multimodal=True,
+        cost_per_1m_input_tokens_cached=0.125,  # Confirmed June 2026 (docs)
+        deprecated=True,  # Earliest shutdown 2026-10-16 → gemini-3.1-pro-preview
     )
 
     # =========================================================================
@@ -317,6 +337,8 @@ class ModelRegistry:
         supports_thinking=True,
         supports_tools=True,
         supports_multimodal=True,
+        cost_per_1m_input_tokens_cached=0.03,  # Confirmed June 2026 (docs)
+        deprecated=True,  # June 2026 audit: shutdown ~2026-10-16 → gemini-3.5-flash
     )
 
     # =========================================================================
@@ -338,6 +360,8 @@ class ModelRegistry:
         supports_thinking=True,
         supports_tools=True,
         supports_multimodal=True,
+        cost_per_1m_input_tokens_cached=0.01,  # Confirmed June 2026 (docs)
+        deprecated=True,  # June 2026 audit: shutdown ~2026-10-16 → gemini-3.1-flash-lite
     )
 
     # =========================================================================
@@ -400,15 +424,16 @@ class ModelRegistry:
     )
 
     # =========================================================================
-    # GROK 4.3 - xAI flagship (released 2026-04-30), always-on reasoning
+    # GROK 4.3 - xAI flagship (released 2026-04-30)
     # USE FOR: All reasoning stages; replaces 4.20 in HYBRID and MAX tiers.
     # $1.25 input / $2.50 output / $0.20 cached input per 1M tokens — flat rate.
-    # Context: 1M tokens, Output: 131k tokens.
-    # No non-reasoning variant — reasoning cannot be disabled.
-    # Reasoning intensity is a runtime parameter (3 levels) — see GrokTier mapping.
-    # Multimodal input (text + image), text output.
-    # NOTE: xAI publishes no >200K input tier — 4.3 launched as flat-rate.
-    # The high-tier placeholder fields from v1.22.0 were removed in May 2026 audit.
+    # Context: 1M tokens. Output cap: not published by xAI (131k below is a
+    # conservative carry-over from the 4.1 line, unconfirmed for 4.3).
+    # June 2026 audit: reasoning_effort has FOUR levels (none/low/medium/high,
+    # default low) and `none` disables reasoning — so it is NOT "always-on".
+    # The GrokTier mapping selects effort at the caller; supports_thinking stays
+    # True because reasoning is available, not because it's forced.
+    # NOTE: xAI publishes no >200K input tier — 4.3 is flat-rate.
     # =========================================================================
     GROK_4_3 = ModelConfig(
         name="grok-4.3",
@@ -417,8 +442,8 @@ class ModelRegistry:
         cost_per_1m_input_tokens=1.25,
         cost_per_1m_output_tokens=2.50,
         max_input_tokens=1_000_000,
-        max_output_tokens=131_072,
-        supports_thinking=True,  # Always-on, cannot be disabled
+        max_output_tokens=131_072,  # Unconfirmed — xAI does not publish a cap
+        supports_thinking=True,  # Reasoning available (effort: none/low/medium/high)
         supports_tools=True,
         supports_multimodal=True,  # Image input supported
         cost_per_1m_input_tokens_cached=0.20,
@@ -519,7 +544,7 @@ class ModelRegistry:
         cost_per_1m_input_tokens=5.00,
         cost_per_1m_output_tokens=30.00,
         max_input_tokens=1_000_000,
-        max_output_tokens=100_000,
+        max_output_tokens=128_000,  # June 2026 audit: docs list 128k (was 100k)
         supports_thinking=True,
         supports_tools=True,
         supports_multimodal=True,
@@ -542,14 +567,17 @@ class ModelRegistry:
         provider="openai",
         cost_per_1m_input_tokens=2.50,
         cost_per_1m_output_tokens=15.00,
-        max_input_tokens=200_000,
-        max_output_tokens=100_000,
+        max_input_tokens=1_000_000,  # June 2026 audit: ~1.05M, not 200K
+        max_output_tokens=128_000,  # June 2026 audit: 128k (was 100k)
         supports_thinking=True,
         supports_tools=True,
         supports_multimodal=True,
         cost_per_1m_input_tokens_cached=0.25,
-        # Note: gpt-5.4 context cap is 200K; long-context surcharge above 272K
-        # would never trigger for this model. Tier fields omitted.
+        # June 2026 audit: context is ~1M (not 200K), so the gpt-5.x long-context
+        # surcharge (2x input / 1.5x output above 272K input) CAN trigger here.
+        cost_per_1m_input_tokens_high=5.00,  # 2x base above 272K input
+        cost_per_1m_output_tokens_high=22.50,  # 1.5x base above 272K input
+        tier_threshold_tokens=272_000,
     )
 
     # =========================================================================
@@ -566,12 +594,12 @@ class ModelRegistry:
         provider="openai",
         cost_per_1m_input_tokens=0.75,
         cost_per_1m_output_tokens=4.50,
-        max_input_tokens=200_000,
-        max_output_tokens=100_000,
+        max_input_tokens=400_000,  # June 2026 audit: 400K (was 200K)
+        max_output_tokens=128_000,  # June 2026 audit: 128k (was 100k)
         supports_thinking=True,
         supports_tools=True,
         supports_multimodal=True,
-        cost_per_1m_input_tokens_cached=0.075,  # Inferred from 90% cache rule
+        cost_per_1m_input_tokens_cached=0.075,  # Confirmed June 2026 (docs)
     )
 
     # =========================================================================
@@ -586,12 +614,12 @@ class ModelRegistry:
         provider="openai",
         cost_per_1m_input_tokens=0.20,
         cost_per_1m_output_tokens=1.25,
-        max_input_tokens=200_000,
-        max_output_tokens=16_384,
+        max_input_tokens=400_000,  # June 2026 audit: 400K (was 200K)
+        max_output_tokens=128_000,  # June 2026 audit: 128k (was a wrong 16k cap)
         supports_thinking=False,
         supports_tools=True,
         supports_multimodal=True,
-        cost_per_1m_input_tokens_cached=0.02,  # Inferred from 90% cache rule
+        cost_per_1m_input_tokens_cached=0.02,  # Confirmed June 2026 (docs)
     )
 
     # =========================================================================
@@ -679,12 +707,11 @@ class ModelRegistry:
     )
 
     # =========================================================================
-    # ANTHROPIC CLAUDE HAIKU 3.5 - Cheaper utility tier alternative
-    # $0.80 input / $4.00 output per 1M tokens, cached input $0.08
-    # Batch API: $0.40 / $2.00 (50% off, currently unmodeled)
-    # Context: 200k tokens, Output: 8k tokens (Claude 3 era)
-    # ADDED: May 2026 audit — useful as a cheap alternative to Haiku 4.5
-    # for utility-tier roles where Haiku 4.5's full capability isn't needed.
+    # ANTHROPIC CLAUDE HAIKU 3.5 - RETIRED Feb 19, 2026
+    # June 2026 audit: claude-3-5-haiku was retired on 2026-02-19 and now 404s.
+    # The canonical slug was always the dated claude-3-5-haiku-20241022; the
+    # bare "claude-haiku-3-5" alias is gone too. Kept registered + deprecated
+    # for historical eval comparison only — DO NOT route to it. Use Haiku 4.5.
     # =========================================================================
     ANTHROPIC_HAIKU_3_5 = ModelConfig(
         name="claude-haiku-3-5",
@@ -698,6 +725,7 @@ class ModelRegistry:
         supports_tools=True,
         supports_multimodal=True,
         cost_per_1m_input_tokens_cached=0.08,
+        deprecated=True,  # Retired 2026-02-19 (404) → claude-haiku-4-5
     )
 
     # =========================================================================
@@ -880,9 +908,11 @@ class ModelRegistry:
     # =========================================================================
     # DEEP RESEARCH AGENT - Autonomous research producing 12+ page reports
     # This is a SEPARATE API (Interactions API), not generate_content
-    # Uses Gemini 3 Pro under the hood
+    # June 2026 audit: slug refreshed deep-research-pro-preview-12-2025 ->
+    # deep-research-preview-04-2026 (the 12-2025 preview is superseded). A
+    # heavier deep-research-max-preview-04-2026 variant also exists.
     # =========================================================================
-    DEEP_RESEARCH_AGENT = "deep-research-pro-preview-12-2025"
+    DEEP_RESEARCH_AGENT = "deep-research-preview-04-2026"
 
 
 @dataclass
