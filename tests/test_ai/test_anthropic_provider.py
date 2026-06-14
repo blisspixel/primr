@@ -317,7 +317,6 @@ class TestChat:
             call_kwargs = provider._client.messages.create.call_args[1]
             assert "temperature" not in call_kwargs, f"{model} must not receive temperature"
 
-
     def test_reset_usage(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
         provider = self._make_provider_with_mock_client()
