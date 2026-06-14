@@ -169,6 +169,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   *collection and analysis* from collection-first to hypothesis-first (framing,
   Day-1 hypothesis tree, plan checkpoint), keeping the deliverable structure a
   curated scaffold.
+- `docs/design/eval-plan.md` — pre-registered, cheapest-first plan for the
+  pending paid evals (label-calibration baseline ~$0.10, framed-vs-unframed
+  ~$1.58/co, content-depth ~$4-5/co) with exact commands, instruments, and
+  go/no-go acceptance criteria, so a paid run yields a decision, not a vibe.
 - `docs/design/agentic-balance.md` — the standing rule-vs-judgment decision aid
   (primr targets NVIDIA "Level 2": deterministic control flow, model judgment at
   fixed decision points). Now spells out the failure mode in both directions —
