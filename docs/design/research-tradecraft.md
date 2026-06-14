@@ -157,6 +157,16 @@ approves a plan token before the run commits budget) — folds cleanly into the
 
 ### 4. Hypothesis-steered collection  (approach)
 
+> **Status: IN PROGRESS.** First slice landed: *budget-aware deepening* — the
+> Phase-2 deepening stage now honors an active `--budget` and skips its optional
+> searches/scrapes when spend has reached the ceiling (mirrors the Phase-6
+> strategy checkpoint), recording the skip in `gap_analysis.md`. This is the
+> budget gate [agentic-balance.md](agentic-balance.md) names as the prerequisite
+> for going agentic on collection (gate the act, not the reasoning). Remaining:
+> thread the Day-1 tree into gap-query generation so queries *test branches*,
+> and the dynamic-depth loop that paces against the budget via
+> `RunBudget.would_exceed`.
+
 Derive the Phase-1 scrape targets and Phase-2 search queries from the tree:
 each retrieval *tests a branch*; branches that come up empty or refuted are
 pruned (logged, never silently). Gap analysis shifts from "we lack data X" to

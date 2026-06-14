@@ -178,3 +178,50 @@ class TestDegradationPaths:
         # Stage still completes: artifact + run state written
         assert (seams["tmp"] / "gap_analysis.md").exists()
         assert seams["run_state"]["gap_new_sources"] == 0
+
+
+class TestBudgetCheckpoint:
+    """Research deepening is an optional spend stage: when an active --budget is
+    already exhausted, skip it (gate the irreversible act, never the reasoning)."""
+
+    def test_skipped_when_budget_already_exceeded(self, seams, monkeypatch):
+        from primr.utils.run_budget import clear_run_budget, set_run_budget
+
+        monkeypatch.setattr("primr.core.research_agent._compute_session_llm_cost", lambda: 100.0)
+        set_run_budget(1.0)  # ceiling $1, already spent $100 -> exceeded
+        try:
+            result = _call(seams)
+        finally:
+            clear_run_budget()
+
+        # No spend: neither the gap-analysis LLM call nor any search ran.
+        seams["gap_analysis"].assert_not_called()
+        seams["search"].assert_not_called()
+        assert result.gap_new_sources == 0
+        assert result.gap_search_count == 0
+        # Sources collected so far pass through unchanged.
+        assert result.external_sources_raw == "[Source: https://acme.example/about]\nexisting"
+        assert result.combined_insights == "=== WEBSITE INSIGHTS ===\nexisting insights"
+        # Skip is recorded, not silent.
+        artifact = (seams["tmp"] / "gap_analysis.md").read_text(encoding="utf-8")
+        assert "budget" in artifact.lower()
+        assert seams["run_state"]["gap_new_sources"] == 0
+
+    def test_proceeds_when_budget_has_headroom(self, seams, monkeypatch):
+        from primr.utils.run_budget import clear_run_budget, set_run_budget
+
+        monkeypatch.setattr("primr.core.research_agent._compute_session_llm_cost", lambda: 0.10)
+        set_run_budget(100.0)  # plenty of headroom -> normal deepening
+        try:
+            result = _call(seams)
+        finally:
+            clear_run_budget()
+
+        seams["gap_analysis"].assert_called_once()
+        assert result.gap_new_sources == 1
+
+    def test_no_budget_active_is_unchanged(self, seams):
+        # No set_run_budget() -> get_run_budget() is None -> happy path.
+        result = _call(seams)
+        assert result.gap_new_sources == 1
+        seams["gap_analysis"].assert_called_once()

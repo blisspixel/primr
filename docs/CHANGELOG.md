@@ -69,6 +69,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `hypothesis_tree.{md,json}` to the working folder, and exits before any
   expensive collection or writing - a pre-run alignment step (no spend beyond a
   cheap Day-1 pass).
+- **Budget-aware research deepening (tradecraft Step 4, first slice).** Research
+  deepening (gap analysis + extra searches/scrapes) is an optional spend stage,
+  so it now honors an active `--budget`: when actual LLM spend has already
+  reached the ceiling, deepening is skipped and the report ships with the sources
+  already collected, recorded in `gap_analysis.md` rather than silently dropped.
+  Mirrors the Phase-6 strategy checkpoint - the irreversible act (spend) is
+  gated, never the reasoning. This is the budget gate `agentic-balance.md` calls
+  the prerequisite for the hypothesis-steered collection still to come.
 
 ### Install / update quality-of-life
 

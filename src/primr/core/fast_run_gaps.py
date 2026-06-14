@@ -73,6 +73,40 @@ def deepen_research(
     # at call time to avoid a circular import.
     from primr.core.research_agent import _fast_gap_analysis
 
+    # --budget checkpoint: research deepening issues additional gap searches and
+    # external-source scrapes (real spend). When a run budget is active and
+    # actual LLM spend has already reached the ceiling, skip deepening and ship
+    # with the sources already collected rather than spending past the cap.
+    # Mirrors the Phase-6 strategy checkpoint: the irreversible act (spend) is
+    # gated, never the reasoning.
+    from primr.utils.run_budget import get_run_budget
+
+    _run_budget = get_run_budget()
+    if _run_budget is not None:
+        from primr.core.research_agent import _compute_session_llm_cost
+
+        _spent_so_far = _compute_session_llm_cost()
+        _run_budget.sync_spend(_spent_so_far)
+        if _run_budget.exceeded():
+            console.warn(
+                f"Run budget ${_run_budget.max_cost:.2f} reached "
+                f"(~${_spent_so_far:.2f} spent) — skipping research deepening"
+            )
+            with open(os.path.join(folder_path, "gap_analysis.md"), "w", encoding="utf-8") as f:
+                f.write("(research deepening skipped: run budget reached)")
+            _update_run_state(
+                folder_path,
+                gap_queries=0,
+                gap_new_sources=0,
+                external_sources_validated=len(source_urls),
+            )
+            return GapDeepeningResult(
+                external_sources_raw=external_sources_raw,
+                combined_insights=combined_insights,
+                gap_new_sources=0,
+                gap_search_count=0,
+            )
+
     console.phase_banner(
         2,
         total_phases,
