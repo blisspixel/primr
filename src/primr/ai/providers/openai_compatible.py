@@ -152,9 +152,20 @@ class OpenAICompatibleProvider(Provider):
     # -----------------------------------------------------------------
 
     def is_available(self) -> bool:
-        if self._api_key_default is not None:
-            return True
-        return bool(os.getenv(self._api_key_env))
+        # A usable provider needs both a credential and the transport SDK.
+        # The credential may come from the env var or a baked-in default (local
+        # runtimes like Ollama). The transport is always the ``openai`` SDK, so
+        # an unimportable ``openai`` means this provider can't actually run -
+        # mirror Anthropic/Gemini, which also gate on their SDK here so that
+        # `primr doctor` reports usability honestly rather than at call time.
+        has_credential = self._api_key_default is not None or bool(os.getenv(self._api_key_env))
+        if not has_credential:
+            return False
+        try:
+            import openai  # noqa: F401
+        except ImportError:
+            return False
+        return True
 
     def _get_client(self) -> Any:
         if self._client is not None:

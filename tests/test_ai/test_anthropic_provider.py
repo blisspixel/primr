@@ -290,6 +290,34 @@ class TestChat:
         assert usage["input_tokens"] == 200
         assert usage["output_tokens"] == 100
 
+    def test_temperature_sent_for_models_that_accept_it(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        provider = self._make_provider_with_mock_client()
+        provider._client.messages.create.return_value = self._make_response()
+
+        provider.chat(
+            [{"role": "user", "content": "Hi"}],
+            model="claude-sonnet-4-6",
+            temperature=0.3,
+        )
+
+        call_kwargs = provider._client.messages.create.call_args[1]
+        assert call_kwargs["temperature"] == 0.3
+
+    def test_temperature_omitted_for_opus_4_8(self, monkeypatch):
+        # Opus 4.7+ and Fable/Mythos 5 reject temperature with a 400 - sending it
+        # would make these models unusable. It must be left out entirely.
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        provider = self._make_provider_with_mock_client()
+        provider._client.messages.create.return_value = self._make_response()
+
+        for model in ("claude-opus-4-8", "claude-opus-4-7", "claude-fable-5"):
+            provider._client.messages.create.reset_mock()
+            provider.chat([{"role": "user", "content": "Hi"}], model=model)
+            call_kwargs = provider._client.messages.create.call_args[1]
+            assert "temperature" not in call_kwargs, f"{model} must not receive temperature"
+
+
     def test_reset_usage(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
         provider = self._make_provider_with_mock_client()
@@ -415,3 +443,19 @@ class TestChat:
 
         call_kwargs = provider._client.messages.create.call_args[1]
         assert call_kwargs["thinking"] == {"budget_tokens": 5000}
+
+
+class TestRejectsSamplingParams:
+    """The substring gate that decides whether to send temperature."""
+
+    def test_rejector_models(self):
+        from primr.ai.providers.anthropic import _rejects_sampling_params
+
+        for model in ("claude-opus-4-8", "claude-opus-4-7", "claude-fable-5", "claude-mythos-5"):
+            assert _rejects_sampling_params(model) is True
+
+    def test_accepting_models(self):
+        from primr.ai.providers.anthropic import _rejects_sampling_params
+
+        for model in ("claude-sonnet-4-6", "claude-haiku-4-5", "claude-opus-4-6"):
+            assert _rejects_sampling_params(model) is False
