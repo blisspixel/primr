@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from primr.config.config import OUTPUT_DIR
+from primr.config.models import PrimrModels
 from primr.core.run_state_io import _update_run_state
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
@@ -120,18 +121,41 @@ def finalize_fast_run(
     for trust_title, trust_stats in strategy_trust_stats:
         console.trust_summary(trust_title + " Trust", trust_stats)
 
+    # Per-model token + cost breakdown. The old single "Grok tokens" line
+    # mislabeled cross-provider calls (a recipe's Opus/Sonnet/Gemini usage) as
+    # "Grok", which made a run's cost impossible to audit. Show each model that
+    # actually ran, its tokens, and its priced cost, so the total is verifiable.
+    from primr.ai.grok_client import get_grok_session_usage_by_model
+
+    by_model = get_grok_session_usage_by_model()
+    model_rows: list[tuple[str, str]] = []
+    for mname, t in sorted(by_model.items(), key=lambda kv: -kv[1]["input_tokens"]):
+        try:
+            mcost = PrimrModels.calculate_cost(
+                mname,
+                t["input_tokens"],
+                t["output_tokens"],
+                cached_input_tokens=t.get("cached_input_tokens", 0),
+            )
+        except KeyError:
+            mcost = 0.0
+        model_rows.append(
+            (mname, f"{t['input_tokens']:,} in / {t['output_tokens']:,} out  ~${mcost:.2f}")
+        )
+
     summary_items: list[tuple[str, Any]] = [
         ("Mode", "fast (" + _TIER_LABELS.get(grok_tier, "Grok") + ")"),
         ("Pages", str(pages_scraped)),
         ("External", str(validated_source_count)),
         ("Duration", time_str),
-        (
-            "Grok tokens",
-            f"{grok_usage['input_tokens']:,} in / {grok_usage['output_tokens']:,} out",
-        ),
-        ("Actual Cost", f"~${actual_cost:.2f}"),
-        ("Artifact Gate", "PASS" if artifacts_passed else "WARN"),
     ]
+    summary_items.extend(model_rows or [("LLM tokens", "0 in / 0 out")])
+    summary_items.extend(
+        [
+            ("Actual Cost", f"~${actual_cost:.2f}"),
+            ("Artifact Gate", "PASS" if artifacts_passed else "WARN"),
+        ]
+    )
     if strategy_paths:
         strat_labels = [_strategy_display_label(k) for k in strategy_paths]
         summary_items.append(("Strategies", ", ".join(strat_labels)))
