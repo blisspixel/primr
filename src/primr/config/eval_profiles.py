@@ -203,6 +203,51 @@ _GEMINI_35_PRO_TIER_EVAL = (
 
 
 # =============================================================================
+# Premium (Anthropic) candidates - the "is it worth the extra cash" tier
+# =============================================================================
+# Added once Anthropic keys were available. These probe the quality ceiling of
+# the two upgrade levers separately: premium *reasoning* (cheap to upgrade,
+# ~100K tokens) vs premium *writing* (expensive, ~1.7M tokens). The benchmark
+# research (June 2026) flagged Opus 4.8's abstention behaviour as the strongest
+# fit for sourced briefs, so these test whether that shows up in a real artifact.
+
+_PREMIUM_CANDIDATES = (
+    EvalProfileSlot(
+        name="premium-opus-reason",
+        recipe=ProfileRecipe(
+            reasoning="claude-opus-4-8",
+            writing="gemini-3.1-flash-lite",
+            utility="gemini-3-flash-preview",
+        ),
+        estimated_cost_usd=1.25,
+        description=(
+            "Premium REASONING, cheap writing. Opus 4.8 ($5/$25) for the "
+            "analytical stages (gap analysis, workbook, cross-validation - only "
+            "~100K tokens so the premium is cheap) + Gemini 3.1 Flash-Lite "
+            "writing. Tests whether frontier reasoning + abstention improves the "
+            "brief's analysis for ~+$0.50 over the Grok 4.3 standard."
+        ),
+    ),
+    EvalProfileSlot(
+        name="premium-sonnet-write",
+        recipe=ProfileRecipe(
+            reasoning="grok-4.3",
+            writing="claude-sonnet-4-6",
+            utility="gemini-3-flash-preview",
+        ),
+        estimated_cost_usd=2.50,
+        description=(
+            "Premium WRITING. Grok 4.3 reasoning + Sonnet 4.6 ($3/$15) for the "
+            "section-writing fan-out. The writing stage is the token-heavy one "
+            "(~1.7M input), so this is the expensive lever - prompt caching of "
+            "the shared context is what keeps it near $2-3. Tests whether better "
+            "prose + instruction-following is worth the premium."
+        ),
+    ),
+)
+
+
+# =============================================================================
 # Local / hybrid candidates (zero or low cost, RTX 4090 ceiling tests)
 # =============================================================================
 #
@@ -297,6 +342,7 @@ def _register_v1_24_0_matrix() -> None:
         *_V1_24_0_CLOUD_CANDIDATES,
         _V1_24_0_CEILING_CANDIDATE,
         *_GEMINI_35_PRO_TIER_EVAL,
+        *_PREMIUM_CANDIDATES,
         *_V1_24_0_LOCAL_CANDIDATES,
         _V1_24_0_CURRENT_BASELINE,
     )
