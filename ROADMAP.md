@@ -352,6 +352,8 @@ Decision principle: a page counts as scraped only when Primr has evidence that t
 
 Push the standard output from a strong research artifact to a genuinely strategist-grade analysis for pre-discovery preparation.
 
+> **Now pursued via the research-tradecraft workstream** ([`docs/design/research-tradecraft.md`](docs/design/research-tradecraft.md)), which reframes #4 from "tune the prompts" to "let the argument decide the report." **Shipped:** framing as a first-class input (Step 1), the Day-1 hypothesis tree (Step 2), the `--plan` checkpoint (Step 3), and hypothesis-steered, budget-aware deepening (Step 4) — with the rule-vs-judgment guardrails in [`agentic-balance.md`](docs/design/agentic-balance.md). **Remaining (the heart of #4):** Step 5 argument-derived report structure (replace the always-23 skeleton with a Pyramid-Principle outline derived from the framing + tree), Step 6 adversarial ACH/pre-mortem refine, and Step 7 two-axis evidence grading — each eval-gated, validated on the standing corpus rather than by unit tests.
+
 - Section prompts tuned around management choices, operating constraints, likely economics, scenario paths, and validation questions
 - Fewer brittle section suppressions, more constrained-evidence reasoning when direct company data is thin
 - Dense references concentrated in final appendices so the body reads like analysis, not a source dump
