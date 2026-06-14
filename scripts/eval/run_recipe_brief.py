@@ -28,11 +28,27 @@ def main() -> int:
     ap.add_argument("--company", required=True)
     ap.add_argument("--url", required=True)
     ap.add_argument("--recipe", required=True, help="eval-profile slot name, or 'standard'")
+    ap.add_argument(
+        "--recipe-models",
+        default=None,
+        help="Ad-hoc 'reasoning,writing,utility' model IDs - builds a recipe at "
+        "runtime so machine-specific tags (e.g. a local Ollama model) stay out of "
+        "the repo. Overrides --recipe when given.",
+    )
     ap.add_argument("--mode", default="complete")
     args = ap.parse_args()
 
     recipe = None
-    if args.recipe not in ("standard", "default"):
+    if args.recipe_models:
+        from primr.core.model_eval import ProfileRecipe
+
+        parts = [p.strip() for p in args.recipe_models.split(",")]
+        if len(parts) != 3:
+            console.error("--recipe-models needs exactly 'reasoning,writing,utility'")
+            return 1
+        recipe = ProfileRecipe(reasoning=parts[0], writing=parts[1], utility=parts[2])
+        console.info(f"Ad-hoc recipe: reasoning={parts[0]} writing={parts[1]} utility={parts[2]}")
+    elif args.recipe not in ("standard", "default"):
         slot = get_eval_profile(args.recipe)
         if slot is None:
             console.error(f"Unknown recipe '{args.recipe}'")
