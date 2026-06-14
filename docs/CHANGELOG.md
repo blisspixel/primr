@@ -69,14 +69,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `hypothesis_tree.{md,json}` to the working folder, and exits before any
   expensive collection or writing - a pre-run alignment step (no spend beyond a
   cheap Day-1 pass).
-- **Budget-aware research deepening (tradecraft Step 4, first slice).** Research
+- **Budget-aware research deepening (tradecraft Step 4).** Research
   deepening (gap analysis + extra searches/scrapes) is an optional spend stage,
   so it now honors an active `--budget`: when actual LLM spend has already
   reached the ceiling, deepening is skipped and the report ships with the sources
   already collected, recorded in `gap_analysis.md` rather than silently dropped.
   Mirrors the Phase-6 strategy checkpoint - the irreversible act (spend) is
   gated, never the reasoning. This is the budget gate `agentic-balance.md` calls
-  the prerequisite for the hypothesis-steered collection still to come.
+  the prerequisite for going agentic on collection.
+- **Hypothesis-steered gap analysis (tradecraft Step 4).** On a framed run the
+  Day-1 hypothesis tree is now built once before the deepening stage and threaded
+  into gap analysis, so the extra searches *test under-evidenced branches*
+  ("which working hypothesis is unproven, and what evidence would confirm or
+  refute it") instead of filling generic data gaps. The same tree is reused by
+  the analysis workbook instead of being rebuilt. This is a prompt-level change
+  (judgment, upstream) with the GAP/QUERY/PRIORITY output contract unchanged;
+  unframed runs keep a byte-identical gap prompt and form no tree.
 
 ### Install / update quality-of-life
 

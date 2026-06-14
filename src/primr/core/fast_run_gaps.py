@@ -66,8 +66,14 @@ def deepen_research(
     folder_path: str,
     insights_file: str,
     total_phases: int,
+    hypothesis_block: str = "",
 ) -> GapDeepeningResult:
-    """Identify research gaps, search + validate new sources, rebuild insights."""
+    """Identify research gaps, search + validate new sources, rebuild insights.
+
+    When ``hypothesis_block`` is supplied (a framed run's Day-1 tree), gap
+    analysis is steered to generate queries that *test under-evidenced branches*
+    rather than fill generic data gaps (tradecraft Step 4). Empty -> unchanged.
+    """
     # Lazy import: research_agent imports this module, so the LLM-backed gap
     # analysis (which stays there until its own extraction) must be resolved
     # at call time to avoid a circular import.
@@ -123,6 +129,7 @@ def deepen_research(
             external_sources_raw,
             source_urls,
             model=grok_reasoning,
+            hypothesis_block=hypothesis_block,
         )
 
     gap_new_sources = 0

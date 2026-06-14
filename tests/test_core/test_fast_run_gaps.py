@@ -225,3 +225,19 @@ class TestBudgetCheckpoint:
         result = _call(seams)
         assert result.gap_new_sources == 1
         seams["gap_analysis"].assert_called_once()
+
+
+class TestHypothesisSteering:
+    """Tradecraft Step 4: the Day-1 tree block is threaded into gap analysis so
+    queries test branches; absent a tree, the default empty block is passed."""
+
+    def test_hypothesis_block_threaded_to_gap_analysis(self, seams):
+        _call(seams, hypothesis_block="=== DAY-1 HYPOTHESIS TREE ===\nH1: azure vs on-prem")
+        assert (
+            seams["gap_analysis"].call_args.kwargs["hypothesis_block"]
+            == "=== DAY-1 HYPOTHESIS TREE ===\nH1: azure vs on-prem"
+        )
+
+    def test_default_passes_empty_block(self, seams):
+        _call(seams)
+        assert seams["gap_analysis"].call_args.kwargs["hypothesis_block"] == ""

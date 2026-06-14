@@ -74,7 +74,7 @@ from primr.core.fast_run_sections import write_report_sections
 from primr.core.fast_run_strategy import run_strategy_phase
 from primr.core.fast_run_trust import polish_and_gate_fast_report
 from primr.core.fast_run_validation import cross_validate_and_enrich
-from primr.core.fast_run_workbook import generate_analysis_workbook
+from primr.core.fast_run_workbook import build_day1_hypothesis_tree, generate_analysis_workbook
 from primr.core.insights_assembly import build_combined_insights, build_external_sources_raw
 from primr.core.report_cleanup import (
     _INTERNAL_REFERENCE_TERMS as _INTERNAL_REFERENCE_TERMS,
@@ -1689,9 +1689,16 @@ def _fast_gap_analysis(
     external_sources: str,
     source_urls: list[str],
     model: str | None = None,
+    hypothesis_block: str = "",
 ) -> tuple[list[str], str]:
     """
     Phase 2 helper: Grok identifies research gaps and returns targeted search queries.
+
+    When ``hypothesis_block`` is supplied (a framed run's Day-1 tree), the task is
+    reframed from "what data is missing" to "which working hypotheses are
+    under-evidenced, and what search would confirm or refute each" (tradecraft
+    Step 4). The output contract (GAP/QUERY/PRIORITY) is unchanged either way, and
+    the unframed prompt is byte-identical to the prior behavior.
 
     Returns:
         (list of search queries, gap analysis text for logging)
@@ -1715,7 +1722,36 @@ def _fast_gap_analysis(
             ext_summary_parts.append(block[:500])
     ext_summary = "\n\n".join(ext_summary_parts) if ext_summary_parts else external_sources[:5_000]
 
-    prompt = f"""You've reviewed primary sources for {company_name}. As a strategic analyst, identify
+    if hypothesis_block:
+        # Hypothesis-steered (tradecraft Step 4): queries test branches, not data gaps.
+        prompt = f"""You've reviewed primary sources for {company_name}. As a strategic analyst,
+find where the WORKING HYPOTHESES below are under-evidenced, and for each, the web
+search that would best CONFIRM OR REFUTE it. Prefer diagnostic evidence (which
+discriminates between competing explanations) over generic background; a branch with
+no supporting or counter evidence in the sources is the top priority to test.
+
+WORKING HYPOTHESES (test these, do not just describe the company):
+{hypothesis_block}
+
+SOURCES REVIEWED:
+{corpus_summary}
+
+EXTERNAL SOURCES:
+{ext_summary}
+
+KNOWN SOURCE URLS (do NOT repeat these):
+{chr(10).join(source_urls[:30])}
+
+Return exactly 8 items in this format (one per block, no extra text):
+GAP: [which hypothesis or sub-claim is under-evidenced]
+QUERY: [web search query that would confirm or refute it]
+PRIORITY: CRITICAL | IMPORTANT
+
+Prioritize third-party validation sources: analyst reports, industry publications,
+financial filings, customer case studies, employee reviews, regulatory documents.
+"""
+    else:
+        prompt = f"""You've reviewed primary sources for {company_name}. As a strategic analyst, identify
 what's MISSING — gaps that would weaken a consulting brief.
 
 SOURCES REVIEWED:
@@ -2686,6 +2722,14 @@ def perform_fast_research(
         # Build raw external sources string for Grok (hiring signals ride along).
         external_sources_raw = build_external_sources_raw(external_raw_parts, hiring_block)
 
+        # Day-1 hypothesis tree (tradecraft Step 4): build it once here, before the
+        # deepening stage, so gap queries can test under-evidenced branches and the
+        # workbook reuses the same tree. No-op (empty block) when the run is
+        # unframed, so default runs are byte-identical.
+        day1_block, _day1_tree = build_day1_hypothesis_tree(
+            company_name or display_name, framing, raw_corpus, external_sources_raw, folder_path
+        )
+
         # =================================================================
         # Phase 2: Research Deepening (extracted: core/fast_run_gaps.py)
         # =================================================================
@@ -2706,6 +2750,7 @@ def perform_fast_research(
             folder_path=folder_path,
             insights_file=insights_file,
             total_phases=total_phases,
+            hypothesis_block=day1_block,
         )
         external_sources_raw = _gaps.external_sources_raw
         combined_insights = _gaps.combined_insights
@@ -2732,6 +2777,7 @@ def perform_fast_research(
             total_phases=total_phases,
             framing_block=framing_block,
             framing=framing,
+            prebuilt_day1_block=day1_block,
         )
 
         # =================================================================
