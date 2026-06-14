@@ -200,16 +200,43 @@ def _resolve_matrix(
     return resolved
 
 
-def _estimate(matrix, judge_model: str) -> float:
-    gens = len(matrix) * len(TASKS)
+def _resolve_judges(spec: str) -> list[tuple[str, str, Provider]]:
+    """Parse a comma-separated 'provider:model,provider:model' judge spec.
+
+    Two cheap judges from different providers cross-check single-judge house
+    style (a Claude judge nudges Claude scores up; a Gemini judge balances it).
+    Unconfigured judge providers are dropped with a note.
+    """
+    judges: list[tuple[str, str, Provider]] = []
+    for item in spec.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        name, _, model = item.partition(":")
+        prov = _provider_for(name)
+        if prov is None:
+            console.muted(f"  skip judge {item}: provider '{name}' not configured")
+            continue
+        judges.append((name, model, prov))
+    return judges
+
+
+def _estimate(matrix, judges: list, samples: int) -> float:
     total = 0.0
     for _label, _name, model, _prov in matrix:
-        total += len(TASKS) * _cost(model, EST_INPUT_TOKENS, EST_OUTPUT_TOKENS)
-    judge_total = gens * _cost(judge_model, JUDGE_INPUT_TOKENS, JUDGE_OUTPUT_TOKENS)
+        total += len(TASKS) * samples * _cost(model, EST_INPUT_TOKENS, EST_OUTPUT_TOKENS)
+    gens = len(matrix) * len(TASKS) * samples
+    judge_total = 0.0
+    for _jn, jmodel, _jp in judges:
+        judge_total += gens * _cost(jmodel, JUDGE_INPUT_TOKENS, JUDGE_OUTPUT_TOKENS)
     return total + judge_total
 
 
-def _judge(prov: Provider, model: str, task: dict, candidate: str) -> tuple[float | None, str]:
+def _judge(
+    prov: Provider, model: str, task: dict, candidate: str
+) -> tuple[float | None, str, float]:
+    """Return (score, reason, judge_cost). judge_cost is the eval tax, separate
+    from the model's own generation cost."""
     rubric = (
         "Score the CANDIDATE answer to the TASK from 1-10 on accuracy, relevance, "
         "structure, and concision combined. Reply with ONLY compact JSON: "
@@ -225,34 +252,37 @@ def _judge(prov: Provider, model: str, task: dict, candidate: str) -> tuple[floa
     try:
         resp = prov.chat(messages, model=model, max_tokens=200, temperature=0.0)
     except Exception as e:
-        return None, f"judge error: {e}"
+        return None, f"judge error: {e}", 0.0
+    cost = _cost(model, resp.input_tokens, resp.output_tokens)
     raw = resp.text.strip()
     start, end = raw.find("{"), raw.rfind("}")
     if start >= 0 and end > start:
         try:
             data = json.loads(raw[start : end + 1])
-            return float(data.get("score")), str(data.get("reason", ""))[:80]
+            return float(data.get("score")), str(data.get("reason", ""))[:80], cost
         except (json.JSONDecodeError, TypeError, ValueError):
             pass
-    return None, f"unparseable: {raw[:40]}"
+    return None, f"unparseable: {raw[:40]}", cost
 
 
 def run(args: argparse.Namespace) -> int:
-    judge_name, _, judge_model = args.judge.partition(":")
-    judge_prov = _provider_for(judge_name)
-
     console.step("Bake-off matrix")
     matrix = _resolve_matrix(local_model=args.local_model, include_fable=args.include_fable)
     if not matrix:
         console.error("No providers configured. Run: primr keys set xai|openai|anthropic")
         return 1
-    if judge_prov is None:
-        console.error(f"Judge provider '{judge_name}' not configured (needed to score).")
+    judges = _resolve_judges(args.judge)
+    if not judges:
+        console.error(f"No usable judge from '{args.judge}' (needed to score).")
         return 1
 
-    projected = _estimate(matrix, judge_model)
-    console.info(f"  {len(matrix)} models x {len(TASKS)} tasks = {len(matrix) * len(TASKS)} runs")
-    console.info(f"  Judge: {args.judge}")
+    samples = max(1, args.samples)
+    projected = _estimate(matrix, judges, samples)
+    gens = len(matrix) * len(TASKS) * samples
+    console.info(
+        f"  {len(matrix)} models x {len(TASKS)} tasks x {samples} samples = {gens} generations"
+    )
+    console.info(f"  Judges ({len(judges)}): {', '.join(f'{n}:{m}' for n, m, _ in judges)}")
     console.warn(f"  Estimated spend: ${projected:.2f} (local arm is free)")
 
     if projected > args.max_cost:
@@ -266,44 +296,57 @@ def run(args: argparse.Namespace) -> int:
 
     results: list[RunResult] = []
     aggs: dict[str, ModelAgg] = {}
+    judge_overhead = 0.0
     for label, _name, model, prov in matrix:
         aggs[label] = ModelAgg(label=label)
+        agg = aggs[label]
         for task in TASKS:
-            r = RunResult(label=label, task_id=task["id"], tier=task["tier"])
-            messages = [
-                {"role": "system", "content": task["system"]},
-                {"role": "user", "content": task["prompt"]},
-            ]
-            t0 = time.monotonic()
-            try:
-                resp = prov.chat(messages, model=model, max_tokens=700, temperature=0.4)
-                r.latency_s = time.monotonic() - t0
-                r.text = resp.text
-                r.input_tokens = resp.input_tokens
-                r.output_tokens = resp.output_tokens
-                r.cost = _cost(model, resp.input_tokens, resp.output_tokens)
-            except Exception as e:
-                r.latency_s = time.monotonic() - t0
-                r.error = str(e)[:120]
-                aggs[label].errors += 1
-                console.muted(f"  {label}/{task['id']}: error {r.error}")
+            for sample_i in range(samples):
+                r = RunResult(label=label, task_id=task["id"], tier=task["tier"])
+                messages = [
+                    {"role": "system", "content": task["system"]},
+                    {"role": "user", "content": task["prompt"]},
+                ]
+                t0 = time.monotonic()
+                try:
+                    resp = prov.chat(messages, model=model, max_tokens=700, temperature=0.4)
+                    r.latency_s = time.monotonic() - t0
+                    r.text = resp.text
+                    r.input_tokens = resp.input_tokens
+                    r.output_tokens = resp.output_tokens
+                    r.cost = _cost(model, resp.input_tokens, resp.output_tokens)
+                except Exception as e:
+                    r.latency_s = time.monotonic() - t0
+                    r.error = str(e)[:120]
+                    agg.errors += 1
+                    console.muted(f"  {label}/{task['id']}#{sample_i}: error {r.error}")
+                    results.append(r)
+                    continue
+
+                # Score with every judge; the cell score is the mean across judges.
+                jscores: list[float] = []
+                jreasons: list[str] = []
+                for jn, jmodel, jprov in judges:
+                    score, reason, jcost = _judge(jprov, jmodel, task, r.text)
+                    judge_overhead += jcost
+                    if score is not None:
+                        jscores.append(score)
+                        jreasons.append(f"{jn}:{score:g}")
+                r.score = sum(jscores) / len(jscores) if jscores else None
+                r.judge_reason = " ".join(jreasons)
+                agg.n += 1
+                agg.total_cost += r.cost
+                agg.total_latency += r.latency_s
+                if r.score is not None:
+                    agg.scores.append(r.score)
+                console.ok(
+                    f"  {label:<24} {task['id']:<22} #{sample_i} "
+                    f"score={r.score if r.score is not None else '?':<5} "
+                    f"${r.cost:.4f}  {r.latency_s:.1f}s"
+                )
                 results.append(r)
-                continue
 
-            r.score, r.judge_reason = _judge(judge_prov, judge_model, task, r.text)
-            agg = aggs[label]
-            agg.n += 1
-            agg.total_cost += r.cost
-            agg.total_latency += r.latency_s
-            if r.score is not None:
-                agg.scores.append(r.score)
-            console.ok(
-                f"  {label:<22} {task['id']:<22} "
-                f"score={r.score if r.score is not None else '?':<4} "
-                f"${r.cost:.4f}  {r.latency_s:.1f}s"
-            )
-            results.append(r)
-
+    console.muted(f"  judge overhead (eval tax, not model cost): ${judge_overhead:.4f}")
     _report(aggs, results, args.out)
     return 0
 
@@ -357,7 +400,15 @@ def main() -> int:
         "--max-cost", type=float, default=3.0, help="Abort if projected spend exceeds this"
     )
     ap.add_argument(
-        "--judge", default="anthropic:claude-haiku-4-5", help="provider:model used to score"
+        "--samples",
+        type=int,
+        default=2,
+        help="Generations per (model, task) - more samples = lower variance. Default 2.",
+    )
+    ap.add_argument(
+        "--judge",
+        default="anthropic:claude-haiku-4-5,gemini:gemini-3.1-flash-lite",
+        help="Comma-separated provider:model judges; scores are averaged across them.",
     )
     ap.add_argument(
         "--local-model",
