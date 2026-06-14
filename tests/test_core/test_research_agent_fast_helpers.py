@@ -1,10 +1,10 @@
-"""Unit tests for _fast_gap_analysis branches in primr.core.research_agent."""
+"""Unit tests for _fast_gap_analysis branches in primr.core.fast_run_gaps."""
 
 from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from primr.core.research_agent import _fast_gap_analysis
+from primr.core.fast_run_gaps import _fast_gap_analysis
 
 
 class TestFastGapAnalysis:
@@ -104,3 +104,37 @@ QUERY: 'single quoted'"""
         )
         queries, _ = _fast_gap_analysis("Acme", "https://acme.example", corpus, "", [])
         assert queries == []
+
+
+class TestFastGapAnalysisHypothesisSteering:
+    """Tradecraft Step 4: with a Day-1 tree, gap queries test branches; the
+    output contract is unchanged and the unframed prompt stays as before."""
+
+    _RESPONSE = "GAP: H1 under-evidenced\nQUERY: Acme cloud spend evidence\nPRIORITY: CRITICAL"
+
+    def test_steered_prompt_when_hypothesis_block_present(self, monkeypatch):
+        mock = MagicMock(return_value=self._RESPONSE)
+        monkeypatch.setattr("primr.pipeline.llm_failover.call_with_failover", mock)
+        tree = "=== DAY-1 HYPOTHESIS TREE ===\n- H1: TREE_TOKEN azure vs on-prem"
+        queries, _ = _fast_gap_analysis(
+            "Acme",
+            "https://acme.example",
+            "[Page: home]\nbody",
+            "[Source: n]\nb",
+            [],
+            hypothesis_block=tree,
+        )
+        prompt = mock.call_args.args[1]
+        assert "WORKING HYPOTHESES" in prompt
+        assert "TREE_TOKEN" in prompt
+        assert "CONFIRM OR REFUTE" in prompt
+        # Output contract (GAP/QUERY/PRIORITY parse) is unchanged.
+        assert "Acme cloud spend evidence" in queries
+
+    def test_unframed_prompt_unchanged(self, monkeypatch):
+        mock = MagicMock(return_value=self._RESPONSE)
+        monkeypatch.setattr("primr.pipeline.llm_failover.call_with_failover", mock)
+        _fast_gap_analysis("Acme", None, "raw", "ext", [])  # no hypothesis_block
+        prompt = mock.call_args.args[1]
+        assert "WORKING HYPOTHESES" not in prompt
+        assert "what's MISSING" in prompt  # original framing preserved

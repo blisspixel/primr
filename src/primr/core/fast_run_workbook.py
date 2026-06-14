@@ -29,6 +29,7 @@ from primr.utils.observability import log_structured
 
 if TYPE_CHECKING:
     from primr.ai.grok_client import ContinuousReasoningSession
+    from primr.core.hypothesis_tree import HypothesisTree
     from primr.core.research_framing import ResearchFraming
 
 logger = get_logger("core.fast_run_workbook")
@@ -42,39 +43,42 @@ ANALYSIS_SYSTEM_PROMPT = (
 )
 
 
-def _form_day1_hypothesis_tree(
+def build_day1_hypothesis_tree(
     company_label: str,
     framing: ResearchFraming | None,
     raw_corpus: str,
     external_sources_raw: str,
     folder_path: str,
-) -> str:
-    """Form + save the Day-1 hypothesis tree; return a prompt block (or "").
+) -> tuple[str, HypothesisTree | None]:
+    """Form + save the Day-1 hypothesis tree; return ``(prompt_block, tree)``.
 
     Only runs when the operator supplied framing (so default runs are unchanged
-    in cost and behavior). Uses the cheap utility-tier writer chain and fails
-    soft: any failure yields an empty tree and an empty block, never an abort.
-    The homepage/hiring signals are approximated from the corpus and external
-    sources available at this stage; truly pre-collection generation that steers
-    scraping is Step 4.
+    in cost and behavior). Built once before the deepening stage (tradecraft
+    Step 4) so gap queries can test branches, then reused by the workbook.
+    Fails soft: any failure yields ``("", None)``, never an abort.
     """
     if framing is None or not framing.is_specified:
-        return ""
+        return "", None
 
     from primr.core.hypothesis_tree import generate_hypothesis_tree, save_hypothesis_tree
 
-    tree = generate_hypothesis_tree(
-        company=company_label,
-        core_question=framing.core_question,
-        homepage_text=raw_corpus[:8000],
-        hiring_summary=external_sources_raw[:8000],
-        llm=lambda prompt: call_with_failover(LLMRole.WRITING, prompt, temperature=0.4),
-    )
-    save_hypothesis_tree(tree, folder_path)
+    try:
+        tree = generate_hypothesis_tree(
+            company=company_label,
+            core_question=framing.core_question,
+            homepage_text=raw_corpus[:8000],
+            hiring_summary=external_sources_raw[:8000],
+            llm=lambda prompt: call_with_failover(LLMRole.WRITING, prompt, temperature=0.4),
+        )
+        save_hypothesis_tree(tree, folder_path)
+    except Exception as e:  # fail soft - the tree is an enhancement, never load-bearing
+        logger.warning("Day-1 hypothesis tree generation failed: %s", e)
+        return "", None
     if tree.is_empty:
-        return ""
+        return "", None
     console.info("Day-1 hypothesis tree formed and saved (hypothesis_tree.md)")
-    return "=== DAY-1 HYPOTHESIS TREE (formed before this analysis) ===\n" + tree.to_markdown()
+    block = "=== DAY-1 HYPOTHESIS TREE (formed before this analysis) ===\n" + tree.to_markdown()
+    return block, tree
 
 
 def generate_analysis_workbook(
@@ -93,6 +97,7 @@ def generate_analysis_workbook(
     total_phases: int,
     framing_block: str = "",
     framing: ResearchFraming | None = None,
+    prebuilt_day1_block: str | None = None,
 ) -> tuple[str, ContinuousReasoningSession | None]:
     """Generate the analysis workbook; return (workbook, reasoning_session).
 
@@ -107,12 +112,17 @@ def generate_analysis_workbook(
 
     analysis_system = ANALYSIS_SYSTEM_PROMPT
 
-    # Day-1 hypothesis tree (tradecraft Step 2): when the run is framed, form a
-    # MECE issue tree from the cheap signals, save it as an artifact, and prepend
-    # it so the workbook analysis is hypothesis-driven. Unframed -> no-op.
-    tree_block = _form_day1_hypothesis_tree(
-        company_label, framing, raw_corpus, external_sources_raw, folder_path
-    )
+    # Day-1 hypothesis tree (tradecraft Step 2/4): when the run is framed, a MECE
+    # issue tree is formed from the cheap signals and prepended so the workbook
+    # analysis is hypothesis-driven. The orchestrator builds it once before the
+    # deepening stage (so gap queries test branches) and passes it here for reuse;
+    # if not provided (other callers/tests), build it now. Unframed -> no-op.
+    if prebuilt_day1_block is not None:
+        tree_block = prebuilt_day1_block
+    else:
+        tree_block, _ = build_day1_hypothesis_tree(
+            company_label, framing, raw_corpus, external_sources_raw, folder_path
+        )
 
     analysis_prompt = _build_fast_analysis_prompt(
         company_label,

@@ -188,3 +188,81 @@ class TestDay1HypothesisTree:
         assert workbook == "workbook via failover"
         md = (seams["tmp"] / "hypothesis_tree.md").read_text(encoding="utf-8")
         assert "No hypotheses formed" in md
+
+
+class TestPrebuiltTreeReuse:
+    """Tradecraft Step 4: the orchestrator builds the tree once before deepening
+    and passes the block here for reuse, so the workbook does NOT rebuild it."""
+
+    def test_prebuilt_block_used_without_rebuild(self, seams):
+        from primr.pipeline.llm_failover import LLMRole
+
+        _call(seams, prebuilt_day1_block="=== DAY-1 HYPOTHESIS TREE ===\nPREBUILT_TOKEN")
+
+        # No WRITING (tree-build) call happened — the block was reused.
+        writing_calls = [
+            c for c in seams["failover"].call_args_list if c.args and c.args[0] == LLMRole.WRITING
+        ]
+        assert not writing_calls
+        # Not re-saved at this stage (the orchestrator already saved it).
+        assert not (seams["tmp"] / "hypothesis_tree.md").exists()
+        # Prepended to the reasoning prompt.
+        reasoning_prompts = [
+            c.args[1]
+            for c in seams["failover"].call_args_list
+            if len(c.args) >= 2 and c.args[0] == LLMRole.REASONING
+        ]
+        assert any("PREBUILT_TOKEN" in p for p in reasoning_prompts)
+
+    def test_empty_prebuilt_block_prepends_nothing(self, seams):
+        from primr.pipeline.llm_failover import LLMRole
+
+        _call(seams, prebuilt_day1_block="")
+        reasoning_prompts = [
+            c.args[1]
+            for c in seams["failover"].call_args_list
+            if len(c.args) >= 2 and c.args[0] == LLMRole.REASONING
+        ]
+        assert reasoning_prompts
+        assert "DAY-1 HYPOTHESIS TREE" not in reasoning_prompts[0]
+
+
+class TestBuildDay1HypothesisTree:
+    """The hoisted builder: returns (block, tree), fails soft, no-op when unframed."""
+
+    _TREE_JSON = (
+        '{"branches": [{"issue": "Posture", "hypotheses": '
+        '[{"claim": "BUILD_TOKEN", "test_question": "azure or on-prem?"}]}]}'
+    )
+
+    def test_unframed_returns_empty(self, seams):
+        from primr.core.fast_run_workbook import build_day1_hypothesis_tree
+
+        block, tree = build_day1_hypothesis_tree("Acme", None, "corpus", "ext", str(seams["tmp"]))
+        assert block == ""
+        assert tree is None
+
+    def test_framed_returns_block_and_tree(self, seams):
+        from primr.core.fast_run_workbook import build_day1_hypothesis_tree
+        from primr.core.research_framing import ResearchFraming
+
+        seams["failover"].return_value = self._TREE_JSON
+        block, tree = build_day1_hypothesis_tree(
+            "Acme", ResearchFraming(core_question="q?"), "c", "e", str(seams["tmp"])
+        )
+        assert "DAY-1 HYPOTHESIS TREE" in block
+        assert "BUILD_TOKEN" in block
+        assert tree is not None
+        assert not tree.is_empty
+        assert (seams["tmp"] / "hypothesis_tree.md").exists()
+
+    def test_failsoft_on_exception(self, seams):
+        from primr.core.fast_run_workbook import build_day1_hypothesis_tree
+        from primr.core.research_framing import ResearchFraming
+
+        seams["failover"].side_effect = RuntimeError("boom")
+        block, tree = build_day1_hypothesis_tree(
+            "Acme", ResearchFraming(core_question="q?"), "c", "e", str(seams["tmp"])
+        )
+        assert block == ""
+        assert tree is None

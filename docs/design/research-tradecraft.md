@@ -157,6 +157,20 @@ approves a plan token before the run commits budget) — folds cleanly into the
 
 ### 4. Hypothesis-steered collection  (approach)
 
+> **Status: IN PROGRESS.** Landed: (1) *budget-aware deepening* — the Phase-2
+> deepening stage now honors an active `--budget` and skips its optional
+> searches/scrapes when spend has reached the ceiling (mirrors the Phase-6
+> strategy checkpoint), recording the skip in `gap_analysis.md`; the budget gate
+> [agentic-balance.md](agentic-balance.md) names as the prerequisite for going
+> agentic on collection (gate the act, not the reasoning). (2) *hypothesis-steered
+> gap analysis* — on a framed run the Day-1 tree is built once before deepening
+> and threaded into gap analysis, so the extra searches *test under-evidenced
+> branches* rather than fill generic data gaps (a prompt change, judgment
+> upstream; output contract and unframed prompt unchanged); the workbook reuses
+> the same tree. Remaining: steer the Phase-1 *scrape* targets from the tree,
+> prune+log refuted/empty branches, and the dynamic-depth loop that paces against
+> the budget via `RunBudget.would_exceed`.
+
 Derive the Phase-1 scrape targets and Phase-2 search queries from the tree:
 each retrieval *tests a branch*; branches that come up empty or refuted are
 pruned (logged, never silently). Gap analysis shifts from "we lack data X" to

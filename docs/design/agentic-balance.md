@@ -172,29 +172,43 @@ and the one this doc encodes:
 > the eval guides recommend layering deterministic format checks, heuristic
 > scoring, LLM-as-judge, and human calibration rather than leaning on any one.
 
-The concrete anti-pattern to refuse in primr: a deterministic rule that tries to
-answer "is this *analysis* good?" A regex cannot answer that — it can only check
-shape — so the moment quality is what you care about, a rule is the wrong tool
-and will make things worse (it false-blocks good briefs and silently rots as
-prompts evolve). The line:
+The concrete anti-pattern to refuse in primr: reaching for a regex or a hand-rule
+the moment LLM-generated *content* is involved. A regex can only check shape, so
+the instant you actually care about quality, argument strength, or relevance, a
+rule is the wrong tool — it false-blocks good output and silently rots as prompts
+evolve. **The default for anything touching model output is judgment, measured by
+eval. A deterministic check is the exception**, and it earns its place only by
+being genuinely stable. Do not present a rule and judgment as equal options and
+"draw the line" between them — the burden is on the rule.
 
-- **Legitimate rules** (keep — cheap, unambiguous, corpus-validated): format and
-  structure checks (duplicate headings, empty sections, dangling `[cite: N]`,
-  scaffolding markers) plus the act-guards above. primr already draws this line
-  correctly: it gates only the *unambiguous* structural defects and deliberately
-  leaves required-section *presence* a QA *signal*, not a ship blocker — "too
-  false-positive-prone to block shipping on."
-- **Brittle rules to refuse** (these are the FAIL driver): any deterministic gate
-  on *content quality, argument strength, or what-to-collect*. Those are exactly
-  the Level-2 judgment points (Steps 4–7). They are enforced by the
-  eval/calibration instruments (measured against ground truth), never by a
-  hand-written rule.
+Two failure smells worth naming, because primr has shipped both:
 
-Litmus test before adding any gate: **would this rule have to change every time a
-section is reworded?** If yes, it is a content rule wearing a structure costume —
-make it a signal or an eval, not a gate. This is the direct corollary of
-Principle 4 (completion judged by substance, not a flag): substance is measured,
-not regexed.
+- **The regex treadmill.** Scanning free-form prose for an open-ended marker
+  vocabulary is brittle *by construction*. The scaffolding-leak scanner is the
+  case study, not a model to copy: it kept missing new variants (colon-only, then
+  space-separated, then bare `[workbook]`), each patched in after the fact — which
+  is the failure, not the fix. The durable answer is *upstream* (prompt the writer
+  not to emit the markers) plus an *eval metric* that measures leakage
+  (`writer_output_clean`); any ship-time scan is a shrinking backstop that should
+  trend toward zero work, never the mechanism. If a check needs a new case every
+  time the model rephrases, it has already failed.
+- **Quality-as-regex.** A deterministic gate on "is this analysis good / strong /
+  complete / on-topic" cannot exist — that is the Level-2 judgment work (Steps
+  4–7), enforced by the calibration/verify instruments against ground truth, never
+  a hand-written rule.
+
+What legitimately stays a rule is narrow: the irreversible-act guards (spend,
+egress, disk — Principle 3) and **referential/structural validity that does not
+change when prose is reworded** — does the DOCX render, is a `[cite: N]` token
+(a marker the pipeline itself defines) resolvable to a `## Sources` entry, are
+there duplicate top-level headings. primr's own instinct here was right:
+required-section *presence* was deliberately left a QA *signal*, not a ship
+blocker, "too false-positive-prone to block on."
+
+Litmus test before adding any check: **would it need a new case every time the
+model rephrases?** If yes, it is content-policing in a structure costume — push
+the fix upstream and measure it with eval; do not grow the regex. Direct
+corollary of Principle 4: substance is *measured*, not matched.
 
 ## The coupling the sources don't name: agentic collection needs a budget
 

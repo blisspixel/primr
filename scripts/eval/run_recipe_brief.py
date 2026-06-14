@@ -10,6 +10,24 @@ normal OUTPUT_DIR (gitignored).
 --recipe is an eval-profile slot name (see config/eval_profiles.py), or
 "standard" / "default" to run with no override (the routed default recipe). The
 recipe's reasoning/writing/utility models are installed via EvalRecipeOverride.
+
+Tradecraft Step 4 A/B (framed vs unframed, same recipe + company):
+
+    # 1. framed arm (operator intent steers framing + hypothesis tree + gap queries)
+    py -3.12 scripts/eval/run_recipe_brief.py --company "ExampleCo" --url https://example.co \
+        --recipe standard --tag standard-framed \
+        --purpose diligence --question "Is the near-term cloud spend Azure or on-prem?"
+    # 2. unframed arm (today's default path)
+    py -3.12 scripts/eval/run_recipe_brief.py --company "ExampleCo" --url https://example.co \
+        --recipe standard --tag standard-unframed
+    # 3. grade pairwise (free local judges while developing)
+    py -3.12 scripts/eval/grade_pairwise.py --label framing \
+        --baseline output/eval/briefs/standard-unframed/<brief>.md \
+        --candidate output/eval/briefs/standard-framed/<brief>.md \
+        --judges "ollama:qwen3:8b"
+
+Both briefs cost a normal run each; grading is free. This is the measurement the
+agentic-balance doctrine requires before adding more agentic collection depth.
 """
 
 from __future__ import annotations
@@ -37,6 +55,19 @@ def main() -> int:
         "the repo. Overrides --recipe when given.",
     )
     ap.add_argument("--mode", default="complete")
+    ap.add_argument(
+        "--tag",
+        default=None,
+        help="Output-dir key under output/eval/briefs/ (defaults to --recipe). Use "
+        "distinct tags for the framed vs unframed arm so they don't overwrite.",
+    )
+    # Tradecraft framing (Step 4): supplying any of these makes the run 'framed',
+    # which threads operator intent into the workbook, forms the Day-1 hypothesis
+    # tree, and steers gap queries. Omit all four for the unframed (default) arm.
+    ap.add_argument("--purpose", default=None)
+    ap.add_argument("--audience", default=None)
+    ap.add_argument("--decision", default=None)
+    ap.add_argument("--question", default=None)
     args = ap.parse_args()
 
     recipe = None
@@ -60,12 +91,15 @@ def main() -> int:
             f"writing={recipe.writing} utility={recipe.utility}"
         )
 
-    # Per-recipe output dir so parallel/sequential recipe runs of the SAME
-    # company don't overwrite each other's brief (the default output path is
-    # keyed on company+date only).
-    out_dir = Path("output/eval/briefs") / args.recipe
+    # Per-tag output dir so parallel/sequential runs of the SAME company (e.g. the
+    # framed vs unframed arm) don't overwrite each other's brief (the default
+    # output path is keyed on company+date only).
+    out_dir = Path("output/eval/briefs") / (args.tag or args.recipe)
     out_dir.mkdir(parents=True, exist_ok=True)
     console.info(f"Output dir: {out_dir}")
+
+    framed = any((args.purpose, args.audience, args.decision, args.question))
+    console.info(f"Framing: {'ON' if framed else 'off (unframed/default arm)'}")
 
     t0 = time.monotonic()
     with EvalRecipeOverride(recipe):
@@ -77,6 +111,10 @@ def main() -> int:
             skip_confirm=True,  # cost pre-approved by the operator
             fast_mode=False,  # recipe override drives model choice, not fast routing
             output_dir=str(out_dir),
+            framing_purpose=args.purpose,
+            framing_audience=args.audience,
+            framing_decision=args.decision,
+            framing_question=args.question,
         )
     elapsed = time.monotonic() - t0
 

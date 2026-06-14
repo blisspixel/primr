@@ -74,7 +74,7 @@ from primr.core.fast_run_sections import write_report_sections
 from primr.core.fast_run_strategy import run_strategy_phase
 from primr.core.fast_run_trust import polish_and_gate_fast_report
 from primr.core.fast_run_validation import cross_validate_and_enrich
-from primr.core.fast_run_workbook import generate_analysis_workbook
+from primr.core.fast_run_workbook import build_day1_hypothesis_tree, generate_analysis_workbook
 from primr.core.insights_assembly import build_combined_insights, build_external_sources_raw
 from primr.core.report_cleanup import (
     _INTERNAL_REFERENCE_TERMS as _INTERNAL_REFERENCE_TERMS,
@@ -1682,101 +1682,6 @@ No prose, no explanation."""
         return external_data  # on any error, keep all sources
 
 
-def _fast_gap_analysis(
-    company_name: str,
-    website: str | None,
-    raw_corpus: str,
-    external_sources: str,
-    source_urls: list[str],
-    model: str | None = None,
-) -> tuple[list[str], str]:
-    """
-    Phase 2 helper: Grok identifies research gaps and returns targeted search queries.
-
-    Returns:
-        (list of search queries, gap analysis text for logging)
-    """
-
-    # Build corpus summary — first 500 chars of each page
-    corpus_lines = raw_corpus.split("\n\n")
-    corpus_summary_parts: list[str] = []
-    for block in corpus_lines:
-        if block.startswith("[Page:"):
-            corpus_summary_parts.append(block[:500])
-    corpus_summary = (
-        "\n\n".join(corpus_summary_parts[:80]) if corpus_summary_parts else raw_corpus[:30_000]
-    )
-
-    # Build external source summary — first 500 chars each
-    ext_lines = external_sources.split("\n\n")
-    ext_summary_parts: list[str] = []
-    for block in ext_lines:
-        if block.startswith("[Source:"):
-            ext_summary_parts.append(block[:500])
-    ext_summary = "\n\n".join(ext_summary_parts) if ext_summary_parts else external_sources[:5_000]
-
-    prompt = f"""You've reviewed primary sources for {company_name}. As a strategic analyst, identify
-what's MISSING — gaps that would weaken a consulting brief.
-
-SOURCES REVIEWED:
-{corpus_summary}
-
-EXTERNAL SOURCES:
-{ext_summary}
-
-KNOWN SOURCE URLS (do NOT repeat these):
-{chr(10).join(source_urls[:30])}
-
-Return exactly 8 items in this format (one per block, no extra text):
-GAP: [what's missing]
-QUERY: [web search query to fill it]
-PRIORITY: CRITICAL | IMPORTANT
-
-Prioritize third-party validation sources: analyst reports, industry publications,
-financial filings, customer case studies, employee reviews, regulatory documents.
-Also cover: financials, competitive positioning, leadership changes, customer evidence,
-technology direction, recent news, risk factors.
-"""
-
-    system_prompt = (
-        "You are a research gap analyst for a consulting firm. "
-        "Identify what's missing from preliminary research and suggest "
-        "targeted web searches to fill those gaps. Be specific and actionable."
-    )
-
-    # Gap analysis is a REASONING-class call: a quota event here would
-    # silently abort gap-driven external search. Route through the
-    # circuit breaker so we fall through ANALYSIS_FALLBACK_CHAIN.
-    from primr.pipeline.llm_failover import LLMRole, call_with_failover
-
-    try:
-        response = call_with_failover(
-            LLMRole.REASONING,
-            prompt,
-            preferred_model=model,
-            max_tokens=5_000,
-            temperature=0.4,
-            system_prompt=system_prompt,
-        )
-    except Exception as e:
-        log_structured("warning", "Gap analysis failed", error=str(e))
-        return [], f"Gap analysis failed: {e}"
-
-    if not response or not response.strip():
-        return [], "Gap analysis returned empty response"
-
-    # Parse queries from response
-    queries: list[str] = []
-    for line in response.strip().splitlines():
-        line = line.strip()
-        if line.upper().startswith("QUERY:"):
-            query = line[6:].strip().strip("\"'[]")
-            if query:
-                queries.append(query)
-
-    return queries[:8], response
-
-
 def _fast_cross_validate(
     company_name: str,
     website: str | None,
@@ -2686,6 +2591,14 @@ def perform_fast_research(
         # Build raw external sources string for Grok (hiring signals ride along).
         external_sources_raw = build_external_sources_raw(external_raw_parts, hiring_block)
 
+        # Day-1 hypothesis tree (tradecraft Step 4): build it once here, before the
+        # deepening stage, so gap queries can test under-evidenced branches and the
+        # workbook reuses the same tree. No-op (empty block) when the run is
+        # unframed, so default runs are byte-identical.
+        day1_block, _day1_tree = build_day1_hypothesis_tree(
+            company_name or display_name, framing, raw_corpus, external_sources_raw, folder_path
+        )
+
         # =================================================================
         # Phase 2: Research Deepening (extracted: core/fast_run_gaps.py)
         # =================================================================
@@ -2706,6 +2619,7 @@ def perform_fast_research(
             folder_path=folder_path,
             insights_file=insights_file,
             total_phases=total_phases,
+            hypothesis_block=day1_block,
         )
         external_sources_raw = _gaps.external_sources_raw
         combined_insights = _gaps.combined_insights
@@ -2732,6 +2646,7 @@ def perform_fast_research(
             total_phases=total_phases,
             framing_block=framing_block,
             framing=framing,
+            prebuilt_day1_block=day1_block,
         )
 
         # =================================================================
