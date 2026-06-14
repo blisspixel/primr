@@ -210,10 +210,19 @@ _FORBIDDEN_INTERNAL_TERMS: tuple[str, ...] = (
 
 
 class _ArtifactValidation(TypedDict):
-    """Result of an artifact validation pass."""
+    """Result of an artifact validation pass.
+
+    ``issues`` are *blocking* — structural/referential validity and unambiguous
+    internal-token leaks that withhold the polished DOCX. ``warnings`` are
+    *non-blocking* content signals (the scaffolding-leak scan) that are surfaced
+    and eval-tracked but never withhold the deliverable: a regex cannot be the
+    quality moat (see docs/design/agentic-balance.md), so content-shape findings
+    are reported, not gated.
+    """
 
     passed: bool
     issues: list[str]
+    warnings: list[str]
     errors: list[str]
 
 
@@ -271,8 +280,13 @@ def _validate_output_markdown(
     - a configurable section-structure gate (duplicate ``##`` headings, empty
       sections) — default 0, override via ``PRIMR_MAX_STRUCTURE_DEFECTS``.
 
-    A non-empty issue list withholds the polished DOCX (MD/TXT + a sidecar
-    validation report are still written).
+    Blocking issues (withhold the polished DOCX; MD/TXT + sidecar still written):
+    the zero-tolerance forbidden-token scan, citation-integrity, and
+    section-structure. The scaffolding-leak scan is a NON-blocking *warning*: a
+    regex can't be the quality moat (see docs/design/agentic-balance.md), so a
+    leaked marker is surfaced and eval-tracked (`## Artifact Drift`) but does not
+    withhold the deliverable. Quality is enforced upstream (the writer prompt) and
+    measured by eval, not gated here.
     """
     if scaffolding_threshold is None:
         scaffolding_threshold = _scaffolding_leak_threshold()
@@ -281,17 +295,23 @@ def _validate_output_markdown(
     if structure_threshold is None:
         structure_threshold = _structure_defect_threshold()
     try:
+        # Blocking: unambiguous internal-token leaks + prose-invariant structure.
         issues = _scan_forbidden_output_patterns(markdown_content)
-        issues.extend(_scan_scaffolding_leakage_issues(markdown_content, scaffolding_threshold))
         issues.extend(_scan_citation_integrity_issues(markdown_content, citation_threshold))
         issues.extend(_scan_section_structure_issues(markdown_content, structure_threshold))
-        return {"passed": len(issues) == 0, "issues": issues, "errors": []}
+        # Non-blocking content signal: surfaced + eval-tracked, never withholds.
+        warnings = _scan_scaffolding_leakage_issues(markdown_content, scaffolding_threshold)
+        if warnings:
+            logger.warning(
+                "Scaffolding-leak warning (non-blocking; shipped): %s", "; ".join(warnings)
+            )
+        return {"passed": len(issues) == 0, "issues": issues, "warnings": warnings, "errors": []}
     except Exception as exc:
         # Fail closed: an exception inside the scanner means we could not
         # confirm the artifact is clean. Downstream code writes a sidecar
         # validation report and blocks DOCX shipping when this returns False.
         logger.warning("Markdown artifact validation failed: %s", exc)
-        return {"passed": False, "issues": [], "errors": [str(exc)]}
+        return {"passed": False, "issues": [], "warnings": [], "errors": [str(exc)]}
 
 
 def _extract_docx_text(document: Any) -> str:
@@ -323,11 +343,11 @@ def _validate_output_docx(docx_path: Path) -> _ArtifactValidation:
             for artifact in artifacts[:10]
         ]
         issues.extend(_scan_forbidden_output_patterns(_extract_docx_text(document)))
-        return {"passed": len(issues) == 0, "issues": issues, "errors": []}
+        return {"passed": len(issues) == 0, "issues": issues, "warnings": [], "errors": []}
     except Exception as exc:
         # Fail closed — see _validate_output_markdown for the rationale.
         logger.warning("DOCX artifact validation failed: %s", exc)
-        return {"passed": False, "issues": [], "errors": [str(exc)]}
+        return {"passed": False, "issues": [], "warnings": [], "errors": [str(exc)]}
 
 
 def _write_output_validation_report(
