@@ -176,8 +176,16 @@ artifact pipeline contract (#1–2), cost/observability surface (#5, #7, #8,
 constraints (#11), and runtime robustness (#24) are DONE. What remains is the
 *quality* half, which by design needs paid evals and live sites to validate:
 
-- **#4 consultant-grade strategic writing** — the flagship remaining item;
-  prompt work validated by eval, not unit tests
+- **#4 consultant-grade strategic writing** — reframed by a June-2026 eval pass
+  ([`docs/design/eval-plan.md`](docs/design/eval-plan.md)): a direct read of a
+  brief shows the **prose is already consultant-grade**, and two evidence-plumbing
+  levers (hypothesis-steered collection #4-tradecraft-Step-4, context curation)
+  both **evaluated as washes**. The one *measured* quality gap is **epistemic
+  grounding** — `(Confirmed)/(Reported)` labels trace to their sources only ~0–8%
+  of the time. So the validated next quality work is the **label-honesty pass**
+  (verify each claim against its source, downgrade ungrounded labels — like
+  `--verify`), not more prose-prompt or collection tuning; it is also the cheapest
+  to iterate (calibration re-scores existing reports for ~$0)
 - **#3 remainder** — page-access recovery extensions (host-level learning,
   blocked-site UX, premium-mode hiring signals)
 - **#23 orchestrator refactor** — `perform_fast_research` (~1,900 lines) split
@@ -277,14 +285,19 @@ Each step unblocks the ones after it; items within a step are independent.
    gate + evidence-fetching `--verify`. Everything quality-shaped downstream
    (#4 prompt work, refine-loop acceptance, 3.0 compounding) needs a trusted
    measurement of claim quality first — otherwise improvements are vibes.
+   **Done + measured (June 2026):** the calibration run found grounding
+   systemically deficient (Confirmed ~8% / Reported ~0% traceability), which
+   *redefines* #4 below — the lever is grounding (label-honesty), not prose.
 2. **Refactor the orchestrators** (#23) (1.x): splitting
    `perform_fast_research` unlocks unit coverage on the pipeline core, the
    complexity budget, and makes every later pipeline change (batch API,
    overlap, routing) reviewable. Do this *before* features that touch the
    monster, not after.
-3. **Consultant-grade writing** (#4) (1.x): one focused prompt-and-eval cycle
-   on the standing corpus, judged by the now-trustworthy instruments from
-   step 1.
+3. **Consultant-grade writing** (#4) (1.x): now scoped by step 1's measurement to
+   the **label-honesty pass** (grounding), since the prose already grades well and
+   the evidence-plumbing levers washed — verify claims against sources + downgrade
+   ungrounded labels, iterated cheaply against calibration. (Prose-prompt and
+   collection tuning are parked as low-expected-value per the eval.)
 4. **Cost levers** (#9 batch API, #19 pipeline overlap) (1.x): mechanical
    after step 2; each validated with one cheap live run.
 5. **Control plane** (T8 + #21) (2.0): per-tool authz → approval tokens →
@@ -354,7 +367,7 @@ Decision principle: a page counts as scraped only when Primr has evidence that t
 
 Push the standard output from a strong research artifact to a genuinely strategist-grade analysis for pre-discovery preparation.
 
-> **Now pursued via the research-tradecraft workstream** ([`docs/design/research-tradecraft.md`](docs/design/research-tradecraft.md)). **Shipped:** framing as a first-class input (Step 1), the Day-1 hypothesis tree (Step 2), the `--plan` checkpoint (Step 3), and hypothesis-steered, budget-aware deepening (Step 4) — with the rule-vs-judgment guardrails in [`agentic-balance.md`](docs/design/agentic-balance.md). The shape of this work is **better content into a consistent structure**, not per-run structure. **Report section structure stays a curated rule** (the `company_overview.yaml` scaffold), iterated *offline* — consistency is a feature of a strategic deliverable, and the fixed scaffold does not demonstrably fall short (Principle 1). Step 5's original "argument-derived structure" is therefore **DESCOPED**: the agentic judgment lives in the *content within* each section (depth, insight, Pyramid-style "so what", constrained-evidence reasoning) — prompt work fed by Steps 1–4 — not in choosing sections. **Remaining (the heart of #4):** that content-depth prompt work (eval-gated), Step 6 adversarial ACH/pre-mortem refine, and Step 7 two-axis evidence grading.
+> **Now pursued via the research-tradecraft workstream** ([`docs/design/research-tradecraft.md`](docs/design/research-tradecraft.md)). **Shipped:** framing as a first-class input (Step 1), the Day-1 hypothesis tree (Step 2), the `--plan` checkpoint (Step 3), and hypothesis-steered, budget-aware deepening (Step 4) — with the rule-vs-judgment guardrails in [`agentic-balance.md`](docs/design/agentic-balance.md). The shape of this work is **better content into a consistent structure**, not per-run structure. **Report section structure stays a curated rule** (the `company_overview.yaml` scaffold), iterated *offline* — consistency is a feature of a strategic deliverable, and the fixed scaffold does not demonstrably fall short (Principle 1). Step 5's original "argument-derived structure" is therefore **DESCOPED**: the agentic judgment lives in the *content within* each section (depth, insight, Pyramid-style "so what", constrained-evidence reasoning) — prompt work fed by Steps 1–4 — not in choosing sections. **Remaining (the heart of #4):** that content-depth prompt work (eval-gated), Step 6 adversarial ACH/pre-mortem refine, and Step 7 two-axis evidence grading. **Eval-measured (June 2026, [`eval-plan.md`](docs/design/eval-plan.md)):** the prose already grades consultant-grade and two evidence-plumbing levers (Step 4 collection-steering, context curation) washed, so the highest-value, evidence-backed remaining work is **epistemic grounding** (the label-honesty pass under Step 7) — labels trace to sources only ~0–8% today — not more prose-prompt tuning.
 
 - Section prompts tuned around management choices, operating constraints, likely economics, scenario paths, and validation questions
 - Fewer brittle section suppressions, more constrained-evidence reasoning when direct company data is thin
