@@ -173,6 +173,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pending paid evals (label-calibration baseline ~$0.10, framed-vs-unframed
   ~$1.58/co, content-depth ~$4-5/co) with exact commands, instruments, and
   go/no-go acceptance criteria, so a paid run yields a decision, not a vibe.
+- **Eval result — tradecraft Step 4 (framed-vs-unframed) = NO-GO for default
+  (~$0.69 spent, n=1).** First paid A/B confirmed the hypothesis-steering *fires*
+  correctly but produced *no quality lift* (blind pairwise wash, slightly
+  favoring unframed) at neutral cost — steered collection trades breadth for depth
+  and fights the broad fixed structure. Step 4 stays opt-in; not promoted; no
+  further collection-steering built on it. The label-calibration baseline also
+  ran (~$0.00) and flagged low label-traceability worth re-measuring at scale.
+  Next candidate lever recorded: *context curation* at the analysis/writing stage
+  (the ~1.9M-token prompts are the real bottleneck), not more collection-steering.
 - `docs/design/agentic-balance.md` — the standing rule-vs-judgment decision aid
   (primr targets NVIDIA "Level 2": deterministic control flow, model judgment at
   fixed decision points). Now spells out the failure mode in both directions —

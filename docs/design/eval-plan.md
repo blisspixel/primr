@@ -55,6 +55,15 @@ regressions, not noise. This is a measurement-and-threshold step, not pass/fail.
 
 ## Eval 2 — framed vs unframed (tradecraft Step 4, ~$1.58/company)
 
+> **RESULT (n=1, ~$0.69 spent): NO-GO for default-promotion.** First A/B (one
+> mid-market financial-services company, standard recipe ~$0.35/arm) — steering
+> fired correctly but the blind pairwise grade was a **wash, slightly favoring
+> unframed**; neutral cost; both gates PASS. Did **not** clear the acceptance
+> criterion below. Root cause: steered collection trades *breadth for depth* and
+> fights the broad fixed report structure. **Decision:** keep Step 4 opt-in, do
+> not promote, do not build more collection-steering on it. Directional (n=1).
+> Full write-up in [research-tradecraft.md](research-tradecraft.md) Step 4.
+
 **Hypothesis:** when a run is framed (`--purpose/--question`), the Day-1
 hypothesis tree steers collection toward testing branches, producing a brief that
 a blind panel prefers — without a trust-gate or cost regression.
@@ -109,6 +118,41 @@ criteria as Eval 2 (quality by section majority, no trust regression, no cost
 regression). Structure stays the curated `company_overview.yaml` scaffold — see
 [research-tradecraft.md](research-tradecraft.md) Step 5 and the structure
 carve-out in [agentic-balance.md](agentic-balance.md).
+
+---
+
+## Eval 4 — context curation at analysis/writing (candidate; ~$1.58/company)
+
+**Why this is the more promising lever than more collection-steering.** A dry-run
+shows the standard pipeline pushes **~1.9M input tokens** into the analysis +
+section-writing stages (raw corpus + external sources, dumped whole). That is
+squarely in "lost-in-the-middle" / context-rot territory: past a point, more
+tokens *hurt* reasoning and cost quadratically. Eval 2 showed steering *what we
+collect* is a wash; this tests a different axis — *what reaches the model at the
+analysis/writing step*.
+
+**Hypothesis:** curating the context that reaches the analysis + writing stages
+(relevance-rank the corpus, drop low-signal pages, route per-section evidence
+instead of dumping everything) produces an equal-or-better brief at materially
+lower token cost — and possibly *better* quality by reducing context rot.
+
+**Method (A/B, same harness):** baseline = current raw-context pipeline;
+candidate = curated-context pipeline, same recipe + company set. Grade with
+`grade_pairwise.py` (free local judges) + the Eval 1 calibration instrument.
+
+**Pre-registered acceptance:**
+1. **Quality:** candidate is **at least a wash** (section-majority not worse than
+   baseline) — for context curation, "no worse + cheaper" is already a win; a
+   quality *gain* is upside.
+2. **Cost:** candidate input tokens materially lower (target ≥20% reduction) at
+   no trust-gate regression.
+3. **No trust regression.**
+
+**Doctrine note:** curation is *context assembly*, not a content gate. It can be a
+deterministic relevance rank (cheap, stable — a legitimate rule) or model-judged
+selection; either way it's measured by this eval, never a regex that judges
+quality. Build the curator behind a flag so the raw path stays the default until
+this clears (no speculative default change).
 
 ---
 
