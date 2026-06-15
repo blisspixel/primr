@@ -32,6 +32,25 @@ opt-in and default-safe today). Run #1 any time — it's nearly free and arms a 
 
 ## Eval 1 — label-calibration baseline (~$0.10)
 
+> **RESULT (3 reports, ~$0.02): SYSTEMIC grounding gap — this is the real quality
+> lever.** Across three briefs (one mid-market, two large content-dense, with
+> 25+ "Reported" claims between them): **Confirmed 8% traceability** (1/10 traced)
+> and **Reported 0%** (0/25 traced). `unfetchable=0`, so sources *were* fetched
+> and the claims still didn't trace — the labels over-claim their grounding. Not a
+> thin-company fluke; the rich briefs confirmed it.
+>
+> **The full data-backed map (with Evals 2 & 4):** prose/analytical depth is
+> *already strong* (a direct read of a brief confirmed consultant-grade tensions,
+> evidence, discovery questions); evidence *plumbing* (collection-steering Eval 2,
+> context-curation Eval 4) is a *wash, wash*; the one *measured* deficiency is
+> **epistemic grounding** — the brief reads authoritative but its `(Confirmed)/
+> (Reported)` labels don't trace to their cited sources. Cheapest to iterate of
+> any lever: calibration scores it on *existing* reports for ~$0, so a
+> label-honesty change is validated without expensive prose A/Bs. Doctrine-clean
+> fix: judge whether each cited source supports the claim (model judgment + ground
+> truth, like the shipped `--verify`) and *downgrade* labels that don't trace —
+> judgment decides, the downgrade is mechanical; not a regex.
+
 **Hypothesis:** the confidence labels primr emits are traceable to fetched source
 text often enough to be trustworthy; we can set `FAIL_CALIBRATION`'s threshold
 from measured numbers instead of a guess.
