@@ -154,13 +154,22 @@ companies large enough that the corpus exceeds the 100k budget — otherwise it'
 no-op). Grade with `grade_pairwise.py` (free local judges) + the Eval 1
 calibration instrument.
 
-**Pre-registered acceptance:**
-1. **Quality:** candidate is **at least a wash** (section-majority not worse than
-   baseline) — for context curation, "no worse + cheaper" is already a win; a
-   quality *gain* is upside.
-2. **Cost:** candidate input tokens materially lower (target ≥20% reduction) at
-   no trust-gate regression.
-3. **No trust regression.**
+**Pre-registered acceptance (for the BUILT shared-rank version — quality test).**
+The shipped curation keeps the *same* 100k budget (most-relevant 100k vs first
+100k), so it does **not** reduce tokens; its value is purely *which* evidence the
+writer sees. Judge it on quality at no regression:
+1. **Quality:** candidate **wins or ties** by section majority (a clear win →
+   promote toward default; a wash → keep opt-in, no harm; a loss → the rank hurts,
+   revert/rethink).
+2. **No trust regression.**
+3. **No cost regression** (same budget → cost should be ~flat; a jump means the
+   rank changed cacheable content unexpectedly).
+
+> The **≥20% token-reduction** goal belongs to the *separate, not-yet-built*
+> per-section routing version (each section gets a smaller, section-specific
+> subset), which breaks the shared cached prefix and carries the breadth/depth
+> risk Eval 2 surfaced. Scope + pre-register that as its own eval if/when the
+> shared-rank version proves worthwhile here.
 
 **Doctrine note:** curation is *context assembly*, not a content gate. It can be a
 deterministic relevance rank (cheap, stable — a legitimate rule) or model-judged
