@@ -17,6 +17,7 @@ all-sections-failed error path (signalled by ``report_content=None``).
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, cast
 
@@ -117,8 +118,21 @@ def write_report_sections(
         "3-5 min",
     )
 
-    # Build a raw data subset for evidence (~100k chars — workbook already distills corpus)
-    raw_corpus_subset = raw_corpus[:100_000] if len(raw_corpus) > 100_000 else raw_corpus
+    # Build a raw data subset for evidence (~100k chars; workbook already distills
+    # corpus). Default: leading slice (scrape order). With
+    # PRIMR_SECTION_EVIDENCE_CURATION=1, spend the budget on the corpus pages most
+    # relevant to the workbook instead of whatever was scraped first — context
+    # assembly, shared across sections (preserves the cached prefix), eval-gated
+    # (docs/design/eval-plan.md Eval 4). Default off => byte-identical to before.
+    _CORPUS_BUDGET = 100_000
+    if len(raw_corpus) <= _CORPUS_BUDGET:
+        raw_corpus_subset = raw_corpus
+    elif os.environ.get("PRIMR_SECTION_EVIDENCE_CURATION") == "1":
+        from primr.core.context_curation import rank_corpus_by_relevance
+
+        raw_corpus_subset = rank_corpus_by_relevance(raw_corpus, analysis_workbook, _CORPUS_BUDGET)
+    else:
+        raw_corpus_subset = raw_corpus[:_CORPUS_BUDGET]
 
     report_system = REPORT_SYSTEM_PROMPT
 

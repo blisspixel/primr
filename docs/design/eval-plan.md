@@ -136,9 +136,23 @@ analysis/writing step*.
 instead of dumping everything) produces an equal-or-better brief at materially
 lower token cost — and possibly *better* quality by reducing context rot.
 
-**Method (A/B, same harness):** baseline = current raw-context pipeline;
-candidate = curated-context pipeline, same recipe + company set. Grade with
-`grade_pairwise.py` (free local judges) + the Eval 1 calibration instrument.
+**Magnitude (measured, honest):** the ~1.9M is **~23 section calls of ~60k
+*cached* tokens each** (the cached-prefix split, roadmap #8), not one bloated
+window. Cost is already softened by caching; the lever is mainly *quality* (less
+rot in each 60k call) with cost upside if the prefix shrinks. So this is a **real
+but modest** lever — flag- and eval-gated for exactly that reason.
+
+**Status: BUILT (flag-gated, default off).** `core/context_curation.py`
+`rank_corpus_by_relevance()` replaces the section writer's blind first-100k-chars
+corpus truncation with the most-relevant 100k (ranked by term-overlap with the
+analysis workbook), shared across sections so the cached prefix is preserved.
+Activate with `PRIMR_SECTION_EVIDENCE_CURATION=1`; default off is byte-identical.
+
+**Method (A/B, same harness):** baseline = current pipeline (env unset);
+candidate = `PRIMR_SECTION_EVIDENCE_CURATION=1`, same recipe + company set (use
+companies large enough that the corpus exceeds the 100k budget — otherwise it's a
+no-op). Grade with `grade_pairwise.py` (free local judges) + the Eval 1
+calibration instrument.
 
 **Pre-registered acceptance:**
 1. **Quality:** candidate is **at least a wash** (section-majority not worse than
