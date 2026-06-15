@@ -22,6 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **eval-gated** (`docs/design/eval-plan.md` Eval 4): default off is
   byte-identical, so this ships as an opt-in to be validated by an A/B before any
   default change.
+  - **Evaluated (n=1, ~$1.4): WASH — stays default-off.** A/B on a large
+    content-dense company (corpus ~360k chars, so curation dropped ~72%): blind
+    pairwise grade tied on every section. Relevance-ranking the corpus subset
+    doesn't change brief quality even when it fires hard. Combined with the Step 4
+    result, this shows quality isn't bottlenecked by *which evidence reaches the
+    writer* — it rides on the workbook + writer prompts. The feature stays merged
+    but off (no harm; a seam for a future per-section-routing version). Next real
+    quality lever: the analysis/section prompts (content depth, #4), not plumbing.
 
 ### Artifact shipping — de-brittle (content gates become signals)
 

@@ -123,6 +123,21 @@ carve-out in [agentic-balance.md](agentic-balance.md).
 
 ## Eval 4 — context curation at analysis/writing (candidate; ~$1.58/company)
 
+> **RESULT (n=1, ~$1.4 spent): WASH — keep off/opt-in, do not promote.** A/B on a
+> large content-dense company whose corpus was **~360k chars** (curation dropped
+> ~72%, choosing the most-relevant 100k vs the first 100k). Blind pairwise grade:
+> **every section tied** (section-majority 0/5/0; the strongest cross-family judge
+> tied on all five), both gates PASS. So relevance-ranking the corpus subset does
+> not change brief quality even when it fires hard.
+>
+> **Inference (with Eval 2): the bottleneck is not the evidence plumbing.** Two
+> levers tested — steered *collection* (Eval 2) and curated *context* (this one) —
+> both wash. Brief quality rides on the analysis **workbook** + external sources +
+> the **writer prompts**, not on which raw pages reach the writer. The next real
+> quality lever is the analysis/section **prompts** (content depth — Eval 3),
+> not collection or context-assembly plumbing. The curation feature stays merged
+> but default-off (no harm; available if a future routing version wants the seam).
+
 **Why this is the more promising lever than more collection-steering.** A dry-run
 shows the standard pipeline pushes **~1.9M input tokens** into the analysis +
 section-writing stages (raw corpus + external sources, dumped whole). That is
