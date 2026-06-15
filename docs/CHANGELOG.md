@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Context engineering (flag-gated, eval-pending)
+
+- **Relevance-ranked section evidence (`PRIMR_SECTION_EVIDENCE_CURATION=1`).** The
+  section writer's evidence subset was a blind first-100k-chars truncation of the
+  scraped corpus, shared across sections. New `core/context_curation.py`
+  `rank_corpus_by_relevance()` instead keeps the *most-relevant* 100k — corpus
+  `[Page:]` blocks ranked by term-overlap with the analysis workbook (which
+  already distilled the run's themes) — so the budget is spent on signal, not
+  scrape order. Shared across sections (preserves the cached prompt prefix from
+  the #8 split); deterministic and dependency-free; conservative fallbacks (no
+  page markers / empty reference / corpus within budget → prior behavior). It is
+  context *assembly* (a relevance rank), not a content gate, and its effect is
+  **eval-gated** (`docs/design/eval-plan.md` Eval 4): default off is
+  byte-identical, so this ships as an opt-in to be validated by an A/B before any
+  default change.
+
 ### Artifact shipping — de-brittle (content gates become signals)
 
 - **Leaked-label scan no longer false-blocks legitimate lowercase prose.** The
