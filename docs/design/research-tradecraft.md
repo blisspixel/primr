@@ -170,9 +170,27 @@ approves a plan token before the run commits budget) — folds cleanly into the
 > and threaded into gap analysis, so the extra searches *test under-evidenced
 > branches* rather than fill generic data gaps (a prompt change, judgment
 > upstream; output contract and unframed prompt unchanged); the workbook reuses
-> the same tree. Remaining: steer the Phase-1 *scrape* targets from the tree,
-> prune+log refuted/empty branches, and the dynamic-depth loop that paces against
-> the budget via `RunBudget.would_exceed`.
+> the same tree.
+>
+> **Measured (first paid A/B, n=1): no quality lift — do NOT promote to default.**
+> A framed-vs-unframed run on one mid-market financial-services company (standard
+> recipe, ~$0.35/arm) confirmed the steering *fires* correctly (tree built; gap
+> queries were sharply hypothesis-targeted vs the unframed arm's broad coverage)
+> but the blind pairwise grade was a **wash, slightly favoring unframed** (the
+> strongest cross-family judge preferred unframed; section-majority 1 candidate /
+> 3 tie / 1 baseline), at neutral cost, both gates PASS. **Why:** steered
+> collection *trades breadth for depth* — it sharpened the thesis-heavy section
+> (Strategic Tensions) but thinned the breadth-heavy one (SWOT), and the broad
+> fixed report structure wants breadth everywhere. This is the same
+> consistency-vs-variability tension behind keeping the structure a rule (Step 5).
+> **Decision:** keep Step 4 strictly **opt-in** (it correctly serves a run with a
+> specific decision question), do not promote to default, and do **not** build the
+> remaining collection-steering (Phase-1 scrape targeting, dynamic-depth loop) on
+> the assumption it lifts the standard broad brief — it doesn't, on this evidence.
+> n=1, directional; a richer company could shift it, but the breadth/depth tension
+> is structural. The more promising untested lever is *context curation at the
+> analysis/writing stage*, not more collection-steering — see
+> [eval-plan.md](eval-plan.md).
 
 Derive the Phase-1 scrape targets and Phase-2 search queries from the tree:
 each retrieval *tests a branch*; branches that come up empty or refuted are
