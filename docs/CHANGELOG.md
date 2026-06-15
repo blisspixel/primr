@@ -206,6 +206,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ran (~$0.00) and flagged low label-traceability worth re-measuring at scale.
   Next candidate lever recorded: *context curation* at the analysis/writing stage
   (the ~1.9M-token prompts are the real bottleneck), not more collection-steering.
+- **Eval finding — epistemic grounding is the one real quality lever (~$2.17
+  total spend across all evals).** Label-calibration at scale (3 reports, incl.
+  large content-dense briefs with 25+ "Reported" claims): Confirmed 8% / Reported
+  0% source-traceability (`unfetchable=0` — sources fetched, claims didn't trace).
+  Combined with the two wash results (collection-steering, context-curation) and a
+  direct read confirming the prose is already consultant-grade, the data-backed
+  map is: prose strong, evidence-plumbing exhausted, **grounding systemically
+  deficient**. The next quality work is a label-honesty pass (verify each claim
+  against its source, downgrade ungrounded labels — like `--verify`), validated
+  for ~$0 via calibration on existing reports. Recorded in `eval-plan.md` Eval 1.
 - `docs/design/agentic-balance.md` — the standing rule-vs-judgment decision aid
   (primr targets NVIDIA "Level 2": deterministic control flow, model judgment at
   fixed decision points). Now spells out the failure mode in both directions —
