@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.32.0] - 2026-06-14
+
 ### Context engineering (flag-gated, eval-pending)
 
 - **Relevance-ranked section evidence (`PRIMR_SECTION_EVIDENCE_CURATION=1`).** The
