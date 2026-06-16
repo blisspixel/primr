@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.32.1] - 2026-06-16
+
+### Security
+
+- **Dependency security floors raised for three June 16 2026 advisories.** Trivy
+  and pip-audit flagged HIGH-severity vulnerabilities in dependencies that touch
+  the MCP/A2A/API server surface; floors are now pinned so no install path can
+  resolve to a vulnerable version:
+  - `starlette` `>=1.3.1` (was `>=0.27.0`) — CVE-2026-54282/54283: form-parsing
+    limits silently ignored, enabling denial of service.
+  - `python-multipart` `>=0.0.31` (newly pinned) — CVE-2026-53538/53539/53540:
+    quadratic-time querystring parsing causes CPU denial of service.
+  - `cryptography` `>=48.0.1` (newly pinned) — GHSA-537c-gmf6-5ccf: vulnerable
+    OpenSSL bundled in the affected wheels.
+- Lockfile resolves to `starlette` 1.3.1, `python-multipart` 0.0.32, and
+  `cryptography` 49.0.0. No source changes; full suite green.
+
 ## [1.32.0] - 2026-06-14
 
 ### Context engineering (flag-gated, eval-pending)

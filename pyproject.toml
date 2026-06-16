@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "primr"
-version = "1.32.0"
+version = "1.32.1"
 description = "Turn any company or organization URL into a strategic intelligence brief. Adaptive scraping + AI-powered research and synthesis."
 readme = "README.md"
 license = {text = "MIT"}
@@ -68,9 +68,17 @@ dependencies = [
     "mcp>=1.0.0",
     "defusedxml",
     "typer>=0.9.0",
-    "starlette>=0.27.0",
+    # Security floor (DoS, CVE-2026-54282/54283): form-parsing limits silently
+    # ignored on application/x-www-form-urlencoded. Floor raised above 1.2.x.
+    "starlette>=1.3.1",
     "uvicorn>=0.20.0",
     "recon-tool>=1.3.1",
+    # Security floors for otherwise-transitive deps, pinned so the resolver can
+    # never select a known-vulnerable version on any install path:
+    #   cryptography      GHSA-537c-gmf6-5ccf  vulnerable OpenSSL in wheels
+    #   python-multipart  CVE-2026-53538/53539/53540  quadratic-time DoS
+    "cryptography>=48.0.1",
+    "python-multipart>=0.0.31",
 ]
 
 [project.optional-dependencies]
