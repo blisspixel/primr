@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use Primr in your research or work, please cite it as below."
+title: Primr
+abstract: >-
+  Turn any company or organization URL into a sourced strategic intelligence
+  brief. Primr is a CLI-first, local-first LLM-API client, adaptive scraper, and
+  MCP/A2A agent that triangulates DNS recon, hiring signals, the site corpus, and
+  external research into a long-form strategic analysis with confidence labels.
+type: software
+authors:
+  - family-names: Seal
+    given-names: Nick
+repository-code: "https://github.com/blisspixel/primr"
+url: "https://github.com/blisspixel/primr"
+license: MIT
+# NOTE: `version` is pinned to the single source of version truth by
+# tests/test_release_integrity.py — bump it together with pyproject.toml,
+# primr.__version__, and the ROADMAP "Current State" line.
+version: 1.32.1
+date-released: "2026-06-16"
+keywords:
+  - company-research
+  - strategic-analysis
+  - competitive-intelligence
+  - large-language-models
+  - web-scraping
+  - mcp-server
+  - autonomous-research

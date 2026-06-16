@@ -154,8 +154,8 @@ New user-facing capabilities are **noun/verb subcommands**
 
 Branch off `main`; keep PRs focused; update `docs/CHANGELOG.md` under
 `[Unreleased]` for user-facing changes; keep the single version source of truth
-consistent (`pyproject` ↔ `__init__.__version__` ↔ ROADMAP "Current State",
-pinned by `tests/test_release_integrity.py`).
+consistent (`pyproject` ↔ `__init__.__version__` ↔ ROADMAP "Current State" ↔
+`CITATION.cff`, pinned by `tests/test_release_integrity.py`).
 
 `main` is the only long-lived branch. Feature branches are short-lived and
 deleted on merge (the repo auto-deletes merged PR branches); don't leave stale

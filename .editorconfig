@@ -1,0 +1,24 @@
+# EditorConfig — consistent indentation, charset, and line endings across editors.
+# https://editorconfig.org
+# Complements the pre-commit whitespace/EOF hooks and `ruff format`; it does not
+# replace them (CI stays the hard gate). Values here mirror the ruff config.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.py]
+indent_size = 4
+max_line_length = 100
+
+[*.{yml,yaml,json,toml,cff}]
+indent_size = 2
+
+[*.md]
+# Markdown uses two trailing spaces for hard line breaks — don't strip them here.
+trim_trailing_whitespace = false
