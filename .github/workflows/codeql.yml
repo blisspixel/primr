@@ -1,0 +1,45 @@
+name: CodeQL
+
+# Semantic SAST (dataflow / taint analysis) for Python, complementing the
+# pattern-based bandit gate and the Trivy / pip-audit supply-chain gates.
+# Findings surface as code-scanning alerts in the Security tab; the analysis
+# job itself succeeds even when alerts are raised, so this adds signal without
+# blocking PRs (warn-then-hard, the same pattern Trivy followed).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "24 5 * * 1" # weekly, Monday 05:24 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (python)
+    runs-on: ubuntu-latest
+    permissions:
+      # Upload SARIF results to the code-scanning / Security tab.
+      security-events: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+          # Python is interpreted — no build step needed.
+          build-mode: none
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:python"
