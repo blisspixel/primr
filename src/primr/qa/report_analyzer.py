@@ -234,8 +234,12 @@ class ReportAnalyzer:
         # Find defined citations in bibliography section only (not the whole report)
         defined_citations = set()
         if has_citations_section:
+            # Allow trailing words in the heading (e.g. "## Sources Consulted")
+            # so the bibliography is still located — matching has_citations_section
+            # above and scan_citation_integrity. Anchoring with \s*$ here zeroed
+            # the citation grade component whenever the heading carried a suffix.
             bib_match = re.search(
-                r"^##\s+(?:Citations|References|Sources)\s*$", self.content, re.MULTILINE
+                r"^##\s+(?:Citations|References|Sources)\b.*$", self.content, re.MULTILINE
             )
             if bib_match:
                 bibliography_text = self.content[bib_match.start() :]

@@ -220,6 +220,7 @@ class TestChat:
         """Create a mock Anthropic response."""
         response = MagicMock()
         content_block = MagicMock()
+        content_block.type = "text"
         content_block.text = text
         response.content = [content_block]
         response.usage = MagicMock()
@@ -442,6 +443,32 @@ class TestChat:
 
         call_kwargs = provider._client.messages.create.call_args[1]
         assert call_kwargs["thinking"] == {"budget_tokens": 5000}
+
+    def test_leading_thinking_block_does_not_crash(self, monkeypatch):
+        """With thinking enabled the first content block is a thinking block
+        (no .text). Extraction must skip it and read the text block, not crash
+        on content[0].text.
+        """
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        provider = self._make_provider_with_mock_client()
+
+        thinking_block = MagicMock()
+        thinking_block.type = "thinking"
+        del thinking_block.text  # a real thinking block has no .text attribute
+        text_block = MagicMock()
+        text_block.type = "text"
+        text_block.text = "the answer"
+        response = self._make_response()
+        response.content = [thinking_block, text_block]
+        provider._client.messages.create.return_value = response
+
+        result = provider.chat(
+            [{"role": "user", "content": "Hi"}],
+            model="claude-opus-4-8",
+            thinking={"budget_tokens": 5000},
+        )
+
+        assert result.text == "the answer"
 
 
 class TestRejectsSamplingParams:

@@ -127,7 +127,10 @@ SENSITIVE_PATTERNS = [
     (re.compile(r'(authorization\s*[=:]\s*)["\']?([^\s"\']+)["\']?', re.I), r"\1[REDACTED]"),
     # API key patterns
     (re.compile(r"\b(AIza[a-zA-Z0-9_-]{35})\b"), "[GOOGLE_API_KEY]"),
-    (re.compile(r"\b(sk-[a-zA-Z0-9]{48})\b"), "[OPENAI_API_KEY]"),
+    # Covers both the classic 48-char form (sk-<48 alnum>) and the modern
+    # prefixed/variable-length forms (sk-proj-, sk-svcacct-, sk-admin-, ...),
+    # which contain hyphens/underscores and would slip past a fixed [a-zA-Z0-9]{48}.
+    (re.compile(r"\b(sk-[A-Za-z0-9_-]{20,})"), "[OPENAI_API_KEY]"),
     (re.compile(r"\b(ghp_[a-zA-Z0-9]{36})\b"), "[GITHUB_TOKEN]"),
     # Additional patterns for common API keys
     (re.compile(r"\b(gho_[a-zA-Z0-9]{36})\b"), "[GITHUB_OAUTH_TOKEN]"),
@@ -521,6 +524,12 @@ def canonicalize_numeric_host(host: str) -> str | None:
     import ipaddress
 
     h = host.strip()
+    # Drop a single trailing FQDN-root dot so "127.0.0.1." is still decoded as a
+    # numeric literal (otherwise it splits into a trailing empty part and the
+    # platform-independent backstop silently no-ops, falling back to the OS
+    # resolver this canonicalizer exists to avoid).
+    if h.endswith("."):
+        h = h[:-1]
     # Numeric IPv4 literals use only hex/decimal digits, the hex prefix, and
     # dots. Any other character (including ':') means "not a numeric IPv4".
     if not h or any(c not in "0123456789abcdefABCDEFxX." for c in h):
@@ -651,11 +660,17 @@ def is_safe_url(url: str) -> tuple[bool, str | None]:
     if numeric_block:
         return False, numeric_block
 
+    # parsed.port is a lazy property that raises ValueError on an out-of-range
+    # port (e.g. ":99999"). Treat that as an invalid URL rather than letting it
+    # crash the security check (this runs post-redirect on untrusted URLs).
+    try:
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    except ValueError:
+        return False, "Invalid port"
+
     # Resolve hostname to IP
     try:
-        ip_addresses = socket.getaddrinfo(
-            hostname, parsed.port or (443 if parsed.scheme == "https" else 80)
-        )
+        ip_addresses = socket.getaddrinfo(hostname, port)
         resolved_ips: set[str] = set()
         for _family, _type, _proto, _canonname, sockaddr in ip_addresses:
             resolved_ips.add(str(sockaddr[0]))

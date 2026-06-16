@@ -25,6 +25,7 @@ from primr.pipeline.llm_failover import LLMRole, call_with_failover
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
 from primr.utils.observability import log_structured
+from primr.utils.run_budget import skip_stage_if_over_budget
 
 logger = get_logger("core.fast_run_strategy")
 
@@ -75,29 +76,12 @@ def run_strategy_phase(
     strategy_paths: dict[str, str] = {}
     strategy_trust_stats: list[tuple[str, list[tuple[str, str]]]] = []
 
-    # --budget checkpoint: strategy generation is the most expensive
-    # optional stage. When a run budget is active and actual LLM spend
-    # has already reached the ceiling, ship the report without strategy
-    # documents rather than blowing past the cap.
-    if has_strategies:
-        from primr.utils.run_budget import get_run_budget
-
-        _run_budget = get_run_budget()
-        if _run_budget is not None:
-            _spent_so_far = _compute_session_llm_cost()
-            _run_budget.sync_spend(_spent_so_far)
-            if _run_budget.exceeded():
-                console.warn(
-                    f"Run budget ${_run_budget.max_cost:.2f} reached "
-                    f"(~${_spent_so_far:.2f} spent) — skipping strategy generation"
-                )
-                log_structured(
-                    "warning",
-                    "Run budget reached; strategy generation skipped",
-                    budget_usd=_run_budget.max_cost,
-                    spent_usd=round(_spent_so_far, 4),
-                )
-                has_strategies = False
+    # --budget checkpoint: skip strategy generation (the most expensive optional
+    # stage) when actual spend has already reached the --budget ceiling.
+    if has_strategies and skip_stage_if_over_budget(
+        _compute_session_llm_cost(), "strategy generation"
+    ):
+        has_strategies = False
 
     if not has_strategies:
         return StrategyPhaseResult(strategy_paths, strategy_trust_stats)

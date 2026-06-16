@@ -56,7 +56,10 @@ class TestRunBudget:
     def test_would_exceed(self):
         budget = RunBudget(1.0)
         budget.sync_spend(0.6)
-        assert not budget.would_exceed(0.4)
+        # Landing exactly on the ceiling counts as exceeded, consistent with
+        # exceeded() (remaining <= 0): 0.6 + 0.4 == 1.0 -> would_exceed.
+        assert budget.would_exceed(0.4)
+        assert not budget.would_exceed(0.39)
         assert budget.would_exceed(0.41)
         # Negative estimates are clamped, never "un-exceed"
         assert not budget.would_exceed(-5.0)

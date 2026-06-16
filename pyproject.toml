@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "primr"
-version = "1.32.1"
+version = "1.32.2"
 description = "Turn any company or organization URL into a strategic intelligence brief. Adaptive scraping + AI-powered research and synthesis."
 readme = "README.md"
 license = {text = "MIT"}
@@ -126,7 +126,8 @@ azure = [
     "azure-cosmos>=4.5.0",
     "azure-storage-blob>=12.19.0",
     "azure-servicebus>=7.11.0",
-    "azure-identity>=1.15.0",
+    # Security floor (GHSA-m5vv-6r4h-3vj9, elevation of privilege): patched in 1.16.1.
+    "azure-identity>=1.16.1",
     "azure-keyvault-secrets>=4.7.0",
     "opencensus-ext-azure>=1.1.0",
 ]

@@ -2244,7 +2244,7 @@ wheels = [
 
 [[package]]
 name = "primr"
-version = "1.32.1"
+version = "1.32.2"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -2327,7 +2327,7 @@ requires-dist = [
     { name = "a2a-sdk", extras = ["http-server"], marker = "extra == 'a2a'", specifier = ">=0.3.20,<0.4.0" },
     { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.40.0" },
     { name = "azure-cosmos", marker = "extra == 'azure'", specifier = ">=4.5.0" },
-    { name = "azure-identity", marker = "extra == 'azure'", specifier = ">=1.15.0" },
+    { name = "azure-identity", marker = "extra == 'azure'", specifier = ">=1.16.1" },
     { name = "azure-keyvault-secrets", marker = "extra == 'azure'", specifier = ">=4.7.0" },
     { name = "azure-servicebus", marker = "extra == 'azure'", specifier = ">=7.11.0" },
     { name = "azure-storage-blob", marker = "extra == 'azure'", specifier = ">=12.19.0" },

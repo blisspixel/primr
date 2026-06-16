@@ -54,8 +54,12 @@ class RunBudget:
         return self.remaining <= 0.0
 
     def would_exceed(self, estimated_next_cost_usd: float) -> bool:
-        """True when spending ``estimated_next_cost_usd`` more would pass the ceiling."""
-        return self.spent + max(0.0, estimated_next_cost_usd) > self.max_cost
+        """True when spending ``estimated_next_cost_usd`` more would reach or pass the ceiling.
+
+        Uses ``>=`` to stay consistent with ``exceeded()`` (``remaining <= 0``):
+        landing exactly on the ceiling counts as exceeded for both.
+        """
+        return self.spent + max(0.0, estimated_next_cost_usd) >= self.max_cost
 
 
 _active_budget: RunBudget | None = None
@@ -83,3 +87,34 @@ def clear_run_budget() -> None:
     global _active_budget
     with _budget_lock:
         _active_budget = None
+
+
+def skip_stage_if_over_budget(spent_usd: float, stage_label: str) -> bool:
+    """Sync absolute spend into the active budget and report whether to skip.
+
+    Shared checkpoint for the optional, expensive stages (AI strategy) across
+    both the fast and standard/premium pipelines. Returns True (and emits the
+    warn + structured log) when a budget is active and the ceiling is reached,
+    so the caller can skip the stage rather than overrun ``--budget``.
+    """
+    budget = get_run_budget()
+    if budget is None:
+        return False
+    budget.sync_spend(spent_usd)
+    if not budget.exceeded():
+        return False
+
+    from primr.utils.console import console
+    from primr.utils.observability import log_structured
+
+    console.warn(
+        f"Run budget ${budget.max_cost:.2f} reached "
+        f"(~${spent_usd:.2f} spent) — skipping {stage_label}"
+    )
+    log_structured(
+        "warning",
+        f"Run budget reached; {stage_label} skipped",
+        budget_usd=budget.max_cost,
+        spent_usd=round(spent_usd, 4),
+    )
+    return True

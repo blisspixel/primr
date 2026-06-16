@@ -20,6 +20,7 @@ class ErrorType(Enum):
     NETWORK_ERROR = "network_error"
     CHALLENGE = "challenge"
     SUCCESS_SIGNAL_FAILED = "success_signal_failed"
+    EMPTY_CONTENT = "empty_content"
 
 
 class BlockType(Enum):

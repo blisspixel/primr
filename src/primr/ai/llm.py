@@ -171,6 +171,17 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
             temperature=temperature,
         )
         log_chat_interaction(prompt, cross_response.text)
+        # Mirror usage into the session counters so cross-provider utility
+        # calls are counted by the run cost summary and the budget gate —
+        # parity with grok_llm's cross-provider branch.
+        from primr.ai.grok_client import _mirror_session_usage
+
+        _mirror_session_usage(
+            model_name,
+            cross_response.input_tokens,
+            cross_response.output_tokens,
+            cached_input_tokens=cross_response.cached_input_tokens,
+        )
         return cross_response.text
 
     log_chat_interaction(prompt, f"Model: {model_name}")
