@@ -30,9 +30,24 @@ def _read_roadmap_current_state_version() -> str:
     return match.group("version")
 
 
+def _read_citation_version() -> str:
+    citation_path = REPO_ROOT / "CITATION.cff"
+    match = re.search(
+        r"^version:\s*(?P<version>\d+\.\d+\.\d+)\s*$",
+        citation_path.read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    assert match is not None, "CITATION.cff must declare a 'version: X.Y.Z' field"
+    return match.group("version")
+
+
 def test_package_version_matches_pyproject() -> None:
     assert primr.__version__ == _read_pyproject_version()
 
 
 def test_roadmap_current_state_matches_package_version() -> None:
     assert _read_roadmap_current_state_version() == primr.__version__
+
+
+def test_citation_version_matches_package_version() -> None:
+    assert _read_citation_version() == primr.__version__
