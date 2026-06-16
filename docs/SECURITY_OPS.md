@@ -394,9 +394,9 @@ python scripts/security_scan.py
 pip install bandit
 bandit -r src/primr -ll
 
-# Check dependencies for vulnerabilities
-pip install safety
-safety check -r requirements.txt
+# Check dependencies for vulnerabilities (matches the CI gate)
+pip install pip-audit
+pip-audit
 ```
 
 ### 2. Unit Security Tests
@@ -619,7 +619,7 @@ pytest tests/ -k "security or auth" -v
 python scripts/security_scan.py
 
 # Dependency vulnerability scan
-safety check -r requirements.txt
+pip-audit
 ```
 
 ### Key Rotation Schedule

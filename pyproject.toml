@@ -34,8 +34,9 @@ classifiers = [
     "Topic :: Text Processing :: Markup :: Markdown",
 ]
 
-# Lower bounds reflect the minimum versions primr is tested against (kept in
-# sync with requirements.txt). No upper caps except where a dependency has
+# Lower bounds reflect the minimum versions primr is tested against. This array
+# (together with uv.lock) is the single source of dependency truth — there is
+# deliberately no requirements.txt. No upper caps except where a dependency has
 # made known-breaking changes (see [project.optional-dependencies].a2a) — hard
 # caps on a library cause resolution conflicts for downstream consumers.
 dependencies = [
