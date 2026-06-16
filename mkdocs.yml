@@ -1,0 +1,102 @@
+site_name: Primr
+site_description: Turn any company or organization URL into a sourced strategic intelligence brief.
+site_url: https://blisspixel.github.io/primr/
+repo_url: https://github.com/blisspixel/primr
+repo_name: blisspixel/primr
+edit_uri: edit/main/docs/
+copyright: Copyright &copy; 2025-2026 Nick Seal — MIT License
+
+docs_dir: docs
+
+theme:
+  name: material
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - tables
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - toc:
+      permalink: true
+
+# Curated nav follows the Diataxis split already used in docs/README.md.
+# Root-level docs (ROADMAP, CLAUDE, AGENTS) are deliberately linked out to
+# GitHub rather than pulled into docs_dir.
+nav:
+  - Home: README.md
+  - Getting started:
+      - API keys: API_KEYS.md
+      - Configuration: CONFIG.md
+      - Azure quickstart: AZURE_QUICKSTART.md
+  - How-to guides:
+      - Batch processing: BATCH.md
+      - Crash recovery: RECOVERY.md
+      - Improve a report: IMPROVE.md
+      - Skill packs: SKILL_PACK.md
+      - Evaluation: EVAL.md
+      - Model onboarding: MODEL_ONBOARDING.md
+      - OpenClaw: OPENCLAW.md
+      - Copilot Cowork: COPILOT_COWORK_GUIDE.md
+      - Copilot Studio: COPILOT_STUDIO_GUIDE.md
+      - Foundry agent: FOUNDRY_AGENT_GUIDE.md
+      - Cloud deployment: CLOUD_DEPLOYMENT.md
+      - Security operations: SECURITY_OPS.md
+  - Reference:
+      - MCP & A2A API: API.md
+      - Strategy portfolio: STRATEGY_PORTFOLIO.md
+      - Changelog: CHANGELOG.md
+      - Migration notes: MIGRATION.md
+  - Explanation:
+      - Architecture: ARCHITECTURE.md
+      - Artifact pipeline: ARTIFACTS.md
+      - Internals: INTERNALS.md
+      - State machines: STATE_MACHINES.md
+      - Concurrency: CONCURRENCY.md
+      - Security policy: SECURITY.md
+  - Design notes:
+      - Overview: design/README.md
+      - Agentic balance: design/agentic-balance.md
+      - Engineering excellence: design/engineering-excellence.md
+      - Research tradecraft: design/research-tradecraft.md
+      - Eval plan: design/eval-plan.md
+      - Provider expansion: design/provider-expansion.md
+      - Orchestrator refactor map: design/23-orchestrator-refactor-map.md
+      - "2.0: backend freedom": design/2.0-backend-freedom.md
+      - "2.0: research memory": design/2.0-research-memory.md
+      - "3.0: research frontier": design/3.0-research-frontier.md
+  - Contributing: CONTRIBUTING.md

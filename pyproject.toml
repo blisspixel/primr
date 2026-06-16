@@ -130,6 +130,14 @@ azure = [
     "azure-keyvault-secrets>=4.7.0",
     "opencensus-ext-azure>=1.1.0",
 ]
+docs = [
+    # Documentation site (mkdocs-material on GitHub Pages). Intentionally
+    # lightweight — it renders the existing docs/*.md prose and does NOT import
+    # the primr package, so the docs build stays fast and free of the native
+    # runtime stack (playwright/pymupdf/curl_cffi).
+    "mkdocs-material>=9.5.0",
+    "pymdown-extensions>=10.0",
+]
 
 [project.scripts]
 primr = "primr.core.cli:main"

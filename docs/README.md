@@ -1,9 +1,11 @@
 # Primr Documentation
 
 The full documentation map. For an overview, install, and quickstart, start
-with the [root README](../README.md). For the development contract (how to
-change primr's source), see [CLAUDE.md](../CLAUDE.md); to operate the primr
-CLI/MCP from an agent, see [AGENTS.md](../AGENTS.md).
+with the [root README](https://github.com/blisspixel/primr/blob/main/README.md).
+For the development contract (how to change primr's source), see
+[CLAUDE.md](https://github.com/blisspixel/primr/blob/main/CLAUDE.md); to operate
+the primr CLI/MCP from an agent, see
+[AGENTS.md](https://github.com/blisspixel/primr/blob/main/AGENTS.md).
 
 Guides are grouped by what you are trying to do, following the
 [Diataxis](https://diataxis.fr/) split: learning, doing, looking up, and
@@ -42,7 +44,7 @@ understanding.
 | [STRATEGY_PORTFOLIO](STRATEGY_PORTFOLIO.md) | Strategy document types and selection |
 | [CHANGELOG](CHANGELOG.md) | Version history |
 | [MIGRATION](MIGRATION.md) | Error-hierarchy migration notes |
-| [ROADMAP](../ROADMAP.md) | Ordered development queue and version plan |
+| [ROADMAP](https://github.com/blisspixel/primr/blob/main/ROADMAP.md) | Ordered development queue and version plan |
 
 ## Explanation (understanding why)
 
@@ -61,4 +63,4 @@ understanding.
 | Document | Description |
 |----------|-------------|
 | [CONTRIBUTING](CONTRIBUTING.md) | Dev environment setup and the contribution workflow |
-| [CLAUDE.md](../CLAUDE.md) | The development contract: seams, constraints, verification gates |
+| [CLAUDE.md](https://github.com/blisspixel/primr/blob/main/CLAUDE.md) | The development contract: seams, constraints, verification gates |
