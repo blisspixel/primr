@@ -779,6 +779,8 @@ The current active engineering initiative. Each item is verified locally, then l
 
 ### Repository polish & external credibility (planned)
 
+**Stated intent: elevate primr into a reference-grade repository** — not merely one that works, but one held up as an *example* of how a serious Python project is engineered. This is an explicit, prioritized goal of the maintainer, recorded here so it stays a tracked objective and not an afterthought: the bar is "a repo an examiner would point to as exemplary." The work below is what stands between the current (already strong) state and that bar.
+
 A deliberate finish pass to close the gap between *already rigorous* and *reference-grade* — the small standard files and the **external, measurable** signals a top-tier public repo carries. Scoped tight on purpose: the load-bearing engineering (src layout, `py.typed`, typed ratchets, supply-chain gates, SLSA/SBOM, property/stateful/fault-injection tests) is already adopted above. This is the finish work, not a rebuild — sequence cheap wins first, the docs site last.
 
 - **Retire `requirements.txt` as a second dependency source.** Phase-1's reconciliation lifted lower bounds into `[project.dependencies]`, which now also carries the security floors (`starlette>=1.3.1`, `python-multipart>=0.0.31`, `cryptography>=48.0.1`). The file is now a stale duplicate — the June-2026 advisory bump proved it (it never received the floors). `pyproject.toml` + `uv.lock` are the single source: either delete it, or generate it from the lock in CI (`uv export`) so it cannot drift. Audit references first (`setup_env.py`, Dockerfiles, install docs), then pin the choice with a `test_architecture` guard. *Closes the one live "two ways" violation remaining in the tree.*
