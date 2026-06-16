@@ -30,12 +30,14 @@ MOVED_PYTHON_FILES = [
 # Files that ARE allowed in root
 ALLOWED_ROOT_FILES = [
     "primr_cli.py",  # CLI entry point
-    "pyproject.toml",  # Package config
-    "requirements.txt",  # Dependencies
+    "pyproject.toml",  # Package config + single source of dependency truth
     ".env",  # Environment config
     "README.md",  # Documentation
     "ROADMAP.md",  # Roadmap
     ".gitignore",  # Git config
+    ".editorconfig",  # Cross-editor formatting
+    "CITATION.cff",  # Citation metadata
+    "CODE_OF_CONDUCT.md",  # Community health
     "pytest.ini",  # Test config
     "mypy.ini",  # Type checking config
 ]
