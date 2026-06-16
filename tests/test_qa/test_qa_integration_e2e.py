@@ -8,6 +8,8 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+
 from src.primr.qa.command import QACommand
 from src.primr.qa.integration import QAIntegration
 from src.primr.qa.models import QAOptions
@@ -288,6 +290,7 @@ The company is well-positioned for continued success in the evolving analytics m
                 assert analysis.logic_check is not None, "Should have logic check"
                 assert analysis.completeness_check is not None, "Should have completeness check"
 
+    @pytest.mark.timing
     def test_qa_workflow_performance_and_reliability(self):
         """
         Test QA workflow performance and reliability under various conditions.
@@ -349,7 +352,12 @@ The company is well-positioned for continued success in the evolving analytics m
             small_duration = next(r["duration"] for r in results if r["company"] == "Small Report")
             large_duration = next(r["duration"] for r in results if r["company"] == "Large Report")
 
-            # In fallback mode, processing should be relatively fast regardless of size
-            assert large_duration < small_duration * 10, (
-                "Large reports shouldn't be dramatically slower in fallback mode"
+            # In fallback mode, processing should be relatively fast regardless of size.
+            # Guard against a near-zero small baseline making the ratio meaningless on
+            # coarse-grained timers (the small report can clock in at well under a
+            # millisecond): allow 10x the small baseline OR a 0.5s absolute floor,
+            # whichever is larger.
+            assert large_duration < max(small_duration * 10, 0.5), (
+                "Large reports shouldn't be dramatically slower in fallback mode "
+                f"(small={small_duration:.4f}s, large={large_duration:.4f}s)"
             )
