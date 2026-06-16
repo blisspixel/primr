@@ -234,7 +234,10 @@ def resume_pending_jobs() -> int:
             "Network/API issue detected during resume. Re-run `primr --resume-latest` "
             "when connectivity is stable."
         )
-        return 1
+        # Only signal failure when nothing was finalized — a transient check
+        # error on one job must not mask other jobs that completed successfully.
+        if finalized == 0:
+            return 1
     if failed > 0 and finalized == 0:
         return 1
     return 0

@@ -127,10 +127,10 @@ def test_render_table_basic():
     assert len(table.rows) == 3  # header + 2 data rows (separator skipped)
 
 
-def test_render_table_multicolumn_keeps_all_rows():
+def test_render_table_multicolumn_separator_is_skipped():
     doc = Document()
-    # The separator regex does not match multi-column separators (inner pipes),
-    # so all four lines are rendered as rows.
+    # A multi-column separator (inner pipes) must be matched and skipped, not
+    # rendered as a data row: header + two data rows = 3 rows.
     lines = [
         "| Name | Value |",
         "|------|-------|",
@@ -139,7 +139,9 @@ def test_render_table_multicolumn_keeps_all_rows():
     ]
     render_table(doc, lines)
     assert len(doc.tables) == 1
-    assert len(doc.tables[0].rows) == 4
+    assert len(doc.tables[0].rows) == 3
+    cell_texts = [c.text for row in doc.tables[0].rows for c in row.cells]
+    assert not any("---" in t for t in cell_texts)
 
 
 def test_render_table_only_separator_returns_empty():

@@ -264,10 +264,15 @@ class AnthropicProvider(Provider):
             try:
                 response = client.messages.create(**sdk_kwargs)
 
-                # Extract response text
-                text = ""
-                if response.content:
-                    text = response.content[0].text
+                # Concatenate text blocks only. With `thinking` enabled the
+                # first content block is a thinking/redacted_thinking block (no
+                # `.text`), and tool_use blocks can also lead — taking
+                # content[0].text blindly raises AttributeError.
+                text = "".join(
+                    block.text
+                    for block in (response.content or [])
+                    if getattr(block, "type", None) == "text"
+                )
 
                 # Extract usage
                 input_tokens = 0

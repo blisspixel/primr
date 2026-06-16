@@ -37,9 +37,25 @@ def is_daily_quota_exhausted(error: Exception | str) -> bool:
 
 
 def is_invalid_api_key_error(error: Exception | str) -> bool:
-    """Return True when an error indicates invalid API authentication."""
+    """Return True when an error indicates invalid API authentication.
+
+    Matches auth-specific phrases only. The previous ``"invalid" + ("api"|"key")``
+    rule was too loose: a 400 ``"Invalid argument"`` or ``"invalid request to the
+    api"`` would be misclassified as a bad key and abort the run as non-retryable.
+    """
     text = str(error).lower()
-    return "invalid" in text and ("api" in text or "key" in text or "authentication" in text)
+    return (
+        "invalid api key" in text
+        or "invalid api_key" in text
+        or "invalid x-api-key" in text
+        or "incorrect api key" in text
+        or "api key not valid" in text
+        or "api_key_invalid" in text
+        or "invalid authentication" in text
+        or "authentication_error" in text
+        or "unauthorized" in text
+        or "401" in text
+    )
 
 
 def is_timeout_error(error: Exception) -> bool:

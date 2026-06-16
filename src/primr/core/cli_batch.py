@@ -20,14 +20,27 @@ from primr.utils.console import console
 logger = logging.getLogger(__name__)
 
 
-# Cells beginning with one of these characters become formulas in Excel/Sheets
-# unless prefixed with a single-quote. See OWASP "CSV Injection".
-_DANGEROUS_LEAD_CHARS: tuple[str, ...] = ("=", "+", "-", "@", "\t", "\r")
+# Cells whose first non-whitespace character is one of these become formulas in
+# Excel/Sheets unless prefixed with a single-quote. See OWASP "CSV Injection".
+_FORMULA_LEAD_CHARS: tuple[str, ...] = ("=", "+", "-", "@")
+# A leading whitespace control char (tab/CR/newline) is itself a danger, even
+# when no formula char follows.
+_DANGEROUS_LEAD_CHARS: tuple[str, ...] = (*_FORMULA_LEAD_CHARS, "\t", "\r", "\n")
 
 
 def _csv_safe(value: Any) -> Any:
-    """Prefix dangerous strings with a single quote to neutralize CSV injection."""
-    if isinstance(value, str) and value and value[0] in _DANGEROUS_LEAD_CHARS:
+    """Prefix dangerous strings with a single quote to neutralize CSV injection.
+
+    Neutralizes both a directly-dangerous first character AND a payload like
+    ``" =cmd"`` whose first *non-whitespace* character is a formula char (the
+    sheet trims leading whitespace before evaluating, so ``value[0]`` alone
+    would miss it).
+    """
+    if (
+        isinstance(value, str)
+        and value
+        and (value[0] in _DANGEROUS_LEAD_CHARS or value.lstrip()[:1] in _FORMULA_LEAD_CHARS)
+    ):
         return "'" + value
     return value
 

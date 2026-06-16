@@ -621,24 +621,24 @@ class ScrapeOrchestrator:
                 )
                 host_state.record_tier_attempt(tier.name, success=False)
 
-                # Track consecutive failures
-                if last_error_type == ErrorType.NETWORK_ERROR:
+                # Track consecutive failures (last_error_type is a string key).
+                if last_error_type == ErrorType.NETWORK_ERROR.value:
                     consecutive_failures += 1
                 else:
                     consecutive_failures = 1
-                    last_error_type = ErrorType.NETWORK_ERROR
+                    last_error_type = ErrorType.NETWORK_ERROR.value
 
                 self._random_delay()
                 continue
 
             # Check if request succeeded at network level
             if not tier_result.success:
-                # Track consecutive failures
-                if tier_result.error_type == last_error_type:
+                _ek = getattr(tier_result.error_type, "value", tier_result.error_type)
+                if _ek == last_error_type:
                     consecutive_failures += 1
                 else:
                     consecutive_failures = 1
-                    last_error_type = tier_result.error_type
+                    last_error_type = _ek
 
                 # If the server explicitly rate-limited us, record it so
                 # future requests against this host skip straight to public

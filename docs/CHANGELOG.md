@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.32.2] - 2026-06-16
+
+### Fixed
+
+A bug-hunt round across the security, scraping, AI, output, QA, and core layers
+(CodeQL and OpenSSF Scorecard were clean of code findings; these came from a
+manual audit). All fixes ship with regression tests.
+
+- **SSRF validator crashed on an out-of-range port.** `is_safe_url` let the
+  lazy `urllib` `parsed.port` `ValueError` (e.g. `:99999`) propagate instead of
+  returning `(False, reason)` — on the untrusted post-redirect path. Now guarded.
+- **Modern OpenAI keys were not redacted in logs.** The secret-masking pattern
+  only matched the classic 48-char form; `sk-proj-`/`sk-svcacct-`/`sk-admin-`
+  keys slipped through. Broadened to cover the prefixed/variable-length forms.
+- **Numeric-IP SSRF backstop bypassed by a trailing dot.** `127.0.0.1.` skipped
+  the platform-independent decoder and fell back to the OS resolver. Fixed.
+- **Cross-provider utility LLM calls were dropped from cost accounting.**
+  `llm()`'s OpenAI/Anthropic/Ollama dispatch returned without mirroring usage,
+  so those tokens never reached the run cost summary or the budget gate.
+- **`--budget` checkpoint consolidated** into a shared `skip_stage_if_over_budget`
+  helper (fast mode now uses it; `would_exceed`/`exceeded` boundary aligned to
+  `>=`). Wiring the same runtime gate into the standard/premium AI-strategy stage
+  is deferred to the tracked `research_agent.py` split (it is at its pinned line
+  ceiling); a `--premium --budget N` run stays bounded by the pre-flight estimate
+  gate until then.
+- **Anthropic response parsing crashed on a leading non-text block.** With
+  `thinking` enabled, `content[0].text` hit a thinking block. Now concatenates
+  text blocks only.
+- **DOCX tables rendered a spurious `---` row.** The separator regex omitted the
+  inner `|`, so multi-column separators were rendered as data.
+- **Citation grade was zeroed for `## Sources Consulted`-style headings.** The
+  bibliography matcher required an exact heading; loosened to allow trailing words.
+- **Vision tier referenced a non-existent `ErrorType.EMPTY_CONTENT`,** turning an
+  insufficient-content result into a swallowed `AttributeError`. Enum member added.
+- **Scraping smart-stop under-counted consecutive failures** because
+  `last_error_type` mixed `ErrorType` enums and strings; normalized to one key.
+- **`is_invalid_api_key_error` over-matched** ("Invalid argument" → treated as a
+  bad key and aborted the run). Tightened to auth-specific phrases.
+- **`--budget` boundary inconsistency:** `would_exceed` used `>` while
+  `exceeded` used `>=`; aligned to `>=`.
+- **Resume reported failure despite finalized jobs:** a transient check error on
+  one job no longer masks others that completed.
+- **CSV-injection sanitizer missed leading-whitespace/newline payloads**
+  (` =cmd`); now checks the first non-whitespace character.
+- **Dependency security floor:** `azure-identity>=1.16.1` (GHSA-m5vv-6r4h-3vj9,
+  elevation of privilege) — flagged by Scorecard's OSV scan against the floor.
+
 ## [1.32.1] - 2026-06-16
 
 ### Security

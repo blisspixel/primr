@@ -114,8 +114,10 @@ def render_table(doc: Document, table_lines: list[str]) -> None:
         return
     rows = []
     for line in table_lines:
-        # Skip separator lines (|---|---|)
-        if re.match(r"^\s*\|[\s\-:]+\|\s*$", line):
+        # Skip separator lines (|---|---|). The character class must include
+        # `|` so multi-column separators (which carry internal pipes between
+        # columns) are matched and not rendered as a spurious data row.
+        if re.match(r"^\s*\|[\s\-:|]+\|\s*$", line):
             continue
         cells = [cell.strip() for cell in line.split("|")]
         if cells and not cells[0]:
