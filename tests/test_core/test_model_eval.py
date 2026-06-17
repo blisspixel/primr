@@ -603,6 +603,10 @@ def test_local_eval_model_list_default_and_lookup():
     assert len(models) >= 10
     assert "qwen3:30b" in models
     assert "qwen2.5:14b" in models
+    report_race = get_local_eval_model_list("4090-report-race")
+    assert report_race[0] == "qwen3:32b"
+    assert "qwen3.6:35b-a3b" in report_race
+    assert len(report_race) < len(models)
 
 
 def test_get_eval_judge_candidate_profiles_preserves_eval_order(tmp_path: Path):

@@ -301,6 +301,10 @@ existing OpenAI-compatible provider.
    any paid fallback is a separate operator choice. Re-run the local eval when
    new local model generations or desktop-class AI hardware materially change
    the capability envelope, and let passing stages move up the default route.
+6. For a single RTX 4090 or comparable 24 GB GPU, run the focused
+   `4090-report-race` stage eval before the broader `4090-top10` sweep. The
+   first question is pragmatic: does the user's local box already clear the
+   local-vs-sub-dollar bar for a production-adjacent stage?
 
 ### Sequencing vs the Version Plan
 

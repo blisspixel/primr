@@ -51,6 +51,8 @@ Expected to fail the <$1 hard gate. Used as the upper bound for utility-per-doll
 Local cells trivially win utility-per-dollar (cost = 0 means infinity). The binding question is absolute quality — can free match cloud?
 
 > **Scheduling note (May 2026):** the local + hybrid cells are **deferred** from the v1.24.0 deciding eval. The RTX 4090 isn't available during the v1.24.0 window. The cloud cells (groups 1A + 1B) plus the current-default baseline (1D) are sufficient to pick a v1.24.0 default. The local cells remain registered in `eval_profiles.py` and run as `eval-2026-05-r2` when the GPU is free; that incremental run uses the same registered slots and only needs to score the new pairs (this is exactly what the dynamic profile-slot registration was built for). If the local matrix later produces a recipe that beats the v1.24.0 cloud winner, default flips in a v1.24.x patch.
+>
+> **4090 follow-up (June 2026):** a 4090-class local box is now a concrete validation target. Before running the full local matrix, use `4090-report-race` for a focused pass against the current sub-dollar cloud default, starting with `--eval-local-stage website-summary` and then promoting additional stages only when trust, decision-utility, runtime, and provenance clear the same gates.
 
 ### 1D. Current default (regression baseline)
 

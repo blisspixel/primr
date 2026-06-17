@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clarified that local inference is a moving first-class path: today's local
   quality label is tied to measured hardware/model profiles, and future
   desk-side AI capacity should be re-evaluated for $0 API default promotion.
+- Added a focused `4090-report-race` local eval shortlist and documented the
+  RTX 4090 path as a concrete `$0 API vs sub-dollar API` validation track.
 
 ## [1.32.6] - 2026-06-17
 

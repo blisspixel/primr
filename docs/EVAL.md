@@ -45,11 +45,16 @@ primr --eval --eval-id eval-2026-03-local-sweep --eval-llm-judge --eval-judge-pr
 
 # Local sweep from a maintained named shortlist
 primr --eval --eval-id eval-2026-03-local-sweep --eval-llm-judge --eval-judge-provider local --eval-judge-model-list 4090-top10 --eval-judge-base-url http://localhost:11434/v1
+
+# Focused RTX 4090 sweep before paying for another sub-dollar API comparison
+primr --eval --eval-id eval-2026-06-4090-vs-subdollar --eval-local-stage website-summary --eval-judge-provider local --eval-judge-model-list 4090-report-race --eval-judge-base-url http://localhost:11434/v1
 ```
 
 Local judge runs now evaluate every staged non-baseline profile against the chosen baseline, not just the first available profile. They write one JSON artifact per model plus `local_judge_summary.json` / `local_judge_summary.md` with candidate-profile coverage, winner consensus, and per-profile breakdowns for side-by-side comparison.
 
 This is useful for evaluating local models against existing cloud-generated reports before routing any production pipeline stages to local inference. It is still a judge-based acceptance layer, not proof that a local model is ready to replace report-writing or deep-research stages directly.
+
+For a 24 GB RTX 4090 or comparable local box, start with `4090-report-race` before the broader `4090-top10` sweep. It keeps the first local run cheap in wall-clock time and answers the product question directly: is the local box already good enough for this stage, or is the ~$1 API route still buying meaningful quality? Promote local stages only when the eval artifacts show quality within the accepted band and the run sidecars make provenance unambiguous.
 
 ## 2) Track the same metrics for every profile
 

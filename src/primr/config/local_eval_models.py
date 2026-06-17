@@ -24,6 +24,16 @@ LOCAL_EVAL_MODEL_LISTS: dict[str, tuple[str, ...]] = {
         "nemotron-3-nano:30b",
         "qwen2.5:14b",
     ),
+    # Focused first-pass report candidates for a single RTX 4090. This list is
+    # small enough to run before deciding whether a sub-dollar API report is
+    # worth paying for on the same company corpus.
+    "4090-report-race": (
+        "qwen3:32b",
+        "qwen3.6:35b-a3b",
+        "gemma3:27b",
+        "qwen3-coder:30b",
+        "qwen2.5:14b",
+    ),
     "installed-starter": (
         "qwen3:30b",
         "qwen3-coder:30b",

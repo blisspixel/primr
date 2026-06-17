@@ -926,7 +926,7 @@ Run the full Primr pipeline on local hardware with zero API costs. Initial targe
 
 What's already built (v1.23.0+):
 - Ollama provider via `OpenAICompatibleProvider`, with registered models at zero marginal cost
-- Local eval judge capability and named local model lists (`4090-top10`, `installed-starter`) for eval sweeps
+- Local eval judge capability and named local model lists (`4090-report-race`, `4090-top10`, `installed-starter`) for eval sweeps
 - Multi-model judge sweeps comparing every staged non-baseline profile
 - Eval artifacts with backend metadata, coverage, and consensus tracking
 
@@ -959,6 +959,7 @@ What gets built:
 
 Validation approach:
 - Run the eval harness on the standard company corpus: cloud baseline vs hybrid vs local
+- On a 4090-class workstation, run the focused `4090-report-race` stage eval first: local website-summary candidates vs the current sub-dollar cloud baseline, then broaden only if the first pass is close enough to justify more GPU time
 - Compare quality, runtime, and trust gate pass rates
 - Start with hybrid (local for cheap stages, cloud for hard stages) before attempting full local
 - Publish the eval results so the tradeoffs are explicit and data-driven
