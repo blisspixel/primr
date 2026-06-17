@@ -126,7 +126,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 - Product over middleware — integrations should act as a disciplined control plane for Primr's long-running research jobs, not turn Primr into a generic orchestration framework.
 - Artifact-first delivery — the main unit of value is a report, strategy, or evaluation artifact, not a stream of chat-sized tool responses.
 - The pipeline is the product — Primr's value is the 9-tier scraping engine, the org-aware link selection, the research deepening, the cross-validation, the deterministic QA gate, the eval harness, the crash recovery, and the cost estimation. None of these are model calls. The model is a commodity; the orchestration pipeline is the moat.
-- Credentials are transport, not product identity. API keys, official agent-account auth, enterprise gateways, and local models are all ways to run the same pipeline. Do not bake a provider, billing model, or subscription workaround into the core loop. Direct APIs stay the reproducible default; host-account runners are explicit opt-ins through official Codex/Claude Code style surfaces; local/gateway profiles are validated recipes, not second-class forks.
+- Credentials are transport, not product identity. API keys, official agent-account auth, enterprise gateways, and local models are all ways to run the same pipeline. Do not bake a provider, billing model, or subscription workaround into the core loop. The default routing goal is the lowest incremental spend that clears the measured quality bar: already-paid official host runners or local/gateway capacity when configured and explicitly approved, then the best validated sub-dollar direct API recipe, with premium paths opt-in and justified by measured lift. Direct APIs remain the reproducible baseline and fallback; host-account runners are official Codex/Claude Code style surfaces only; local/gateway profiles are validated recipes, not second-class forks.
 
 Primr is intentionally not designed as a generic web scraper, a SaaS collaboration platform, a presentation builder, or a generic agent middleware layer.
 
@@ -229,8 +229,9 @@ The step-change that earns the major bump is three pillars landing together:
 
 - **Backend freedom** — the capability-requirement routing layer (#18) plus
   validated API-keyed cloud, subscription-backed agent runner, gateway, and
-  local/hybrid inference profiles, so a run is cost-tunable from sub-$1 cloud
-  down to $0 local *without changing the pipeline*. Design doc:
+  local/hybrid inference profiles, so a run is cost-tunable from already-paid
+  host plan usage or $0 local through sub-$1 cloud, up to premium only when
+  measured lift justifies it, *without changing the pipeline*. Design doc:
   [`docs/design/2.0-backend-freedom.md`](docs/design/2.0-backend-freedom.md).
 - **Memory** — research that compounds across runs (cross-run claim store +
   persistent company tracking + Strategy Delta Mode) instead of starting cold
@@ -723,7 +724,8 @@ on 2026-06-12 and refreshed for official Codex/Claude Code account auth on
   tokenizer multiplier; native web-search tool routing for the browse stage
   via OpenAI Responses `web_search` / Anthropic `web_search_20260209`).
   Validate an openai-only and an anthropic-only recipe with one cheap live
-  run each, eval-gated, before advertising them.
+  run each, eval-gated, before advertising them. Each recipe must state whether
+  it can be the sub-dollar fallback default or only a premium option.
 - **Phase B**: subscription-backed agent runners for users already paying for
   Codex or Claude Code. This is not "use a ChatGPT/Claude plan as an API key."
   It means Primr emits bounded stage packets to official local/automation
@@ -734,7 +736,9 @@ on 2026-06-12 and refreshed for official Codex/Claude Code account auth on
   or the official Agent SDK surface where available. No unofficial proxies,
   browser-session scraping, or credential reuse. Billing is reported as host
   plan usage/limits rather than Primr API dollars, and any transition to API
-  credits remains explicitly user-approved in the host.
+  credits remains explicitly user-approved in the host. Once a runner is
+  configured and has passed eval, it should be eligible for default routing on
+  compatible stages because its incremental API cost is zero.
 - **Phase C**: Bedrock (mantle endpoint, plain API-key auth) and Microsoft
   Foundry (`/openai/v1`, stock openai SDK) as base-URL + key profiles over
   the existing OpenAI-compatible provider — near-zero new code; doctor

@@ -31,12 +31,16 @@ will route over.
    memory error, step down to the next-smaller candidate). Learned live:
    a 27B model that "exists" but needs 19.5 GiB when 11 GiB is free
    produces per-call failures, not a clean error.
-6. **A free or already-paid tier must exist.** Even if measurably worse. DDG
-   search is already free, scraping is already local; with local inference
-   the whole run is $0 plus electricity, which changes what "run it on the
+6. **Default to least incremental spend that passes quality.** A free or
+   already-paid tier must exist, even if measurably worse and labeled that way.
+   DDG search is already free, scraping is already local; with local inference
+   the whole run is $0 API plus electricity, which changes what "run it on the
    whole portfolio" costs. For users already paying for an agent subscription,
    an official host-account runner should let compatible LLM stages draw from
-   plan allocation rather than separate API credits.
+   plan allocation rather than separate API credits. If no validated zero-
+   incremental route is configured, the default should be the best validated
+   sub-dollar direct API recipe. Premium recipes are opt-in and must document
+   the marginal quality or coverage they buy.
 
 ## Current state (what already exists in the codebase)
 
@@ -208,7 +212,9 @@ consume an already-paid subscription when official auth supports it.
    the free default everywhere.
 4. **Recipe validation**: one cheap live run per recipe (openai-only key,
    anthropic-only key), eval-scored with the step-1 instruments, before
-   the README/dry-run advertise them. Estimator entries for both.
+   the README/dry-run advertise them. Estimator entries for both. Each recipe
+   exits validation with a default class: sub-dollar default candidate,
+   specialty fallback, or premium-only.
 
 ### Phase B: account-backed host runners (Codex + Claude Code)
 
@@ -233,7 +239,10 @@ consume an already-paid subscription when official auth supports it.
    must remain explicit in the host, never hidden by primr.
 5. Validation: one cheap or plan-backed recipe eval per runner on the standing
    corpus. It must pass the same label calibration and trust checks as direct
-   provider recipes before README promotion.
+   provider recipes before README promotion. Once promoted and explicitly
+   enabled, compatible host-runner stages should beat paid API stages in default
+   routing because their incremental API cost is zero; wall-clock and plan-limit
+   behavior still appears in the estimate.
 
 ### Phase C: gateway support (Bedrock + Foundry)
 
@@ -264,7 +273,9 @@ existing OpenAI-compatible provider.
 4. Role mapping defaults from the June-2026 research (MoE-first), but
    ALWAYS selected from what is actually installed; nothing hardcoded.
 5. Eval the local recipe with the step-1 instruments and publish the
-   honest quality delta next to the $0 price tag.
+   honest quality delta next to the $0 API price tag. Local mode is allowed to
+   be slower or weaker, but it must never silently upgrade itself to paid cloud;
+   any paid fallback is a separate operator choice.
 
 ### Sequencing vs the Version Plan
 

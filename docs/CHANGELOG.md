@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Clarified the backend-freedom cost policy: default routing should prefer
+  validated zero-incremental host or local capacity when configured, otherwise
+  the best sub-dollar API recipe, with premium routes kept explicit and justified
+  by measured lift.
+
 ## [1.32.6] - 2026-06-17
 
 ### Added
