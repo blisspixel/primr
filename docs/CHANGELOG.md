@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.32.3] - 2026-06-17
+
 ### Changed
 
 - Cleaned up README, ROADMAP, and artifact-guide drift around standard-run
@@ -24,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   OpenAI-only and Anthropic-only key setups, price the utility bucket through
   `Role.UTILITY`, and label routed estimates without stale Grok/Gemini premium
   wording.
+- Full-run preflight now allows XAI-only standard execution, while OpenAI-only
+  and Anthropic-only full-report runs fail fast with an explicit backend-freedom
+  roadmap message instead of implying that execution path is already complete.
 
 ## [1.32.2] - 2026-06-16
 
