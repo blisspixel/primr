@@ -5,6 +5,7 @@ Validates: FR-4.3, OR-1.1, OR-1.2
 """
 
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -21,30 +22,33 @@ ADAPTER_PATH = (
     / "scripts"
     / "research-status.ts"
 )
+TSX_COMMAND = ("npx", "--yes", "tsx")
+ADAPTER_TIMEOUT_SECONDS = int(os.getenv("PRIMR_TS_ADAPTER_TIMEOUT_SECONDS", "90"))
 
 
-def check_npx_available() -> bool:
-    """Check if npx is actually available and working."""
+def check_tsx_available() -> bool:
+    """Check if npx can resolve tsx before adapter tests run."""
     if not shutil.which("npx"):
         return False
     try:
         result = subprocess.run(
-            ["npx", "--version"],
+            [*TSX_COMMAND, "--version"],
             capture_output=True,
             text=True,
-            timeout=10,
+            timeout=ADAPTER_TIMEOUT_SECONDS,
         )
         return result.returncode == 0
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         return False
 
 
-# Check if npx is available
-NPX_AVAILABLE = check_npx_available()
+# Check if the TypeScript runner is available
+TSX_AVAILABLE = check_tsx_available()
 
 # Skip all tests if npx is not available
 pytestmark = pytest.mark.skipif(
-    not NPX_AVAILABLE, reason="npx not available - TypeScript adapter tests require Node.js/npx"
+    not TSX_AVAILABLE,
+    reason="tsx not available through npx - TypeScript adapter tests require Node.js/npx",
 )
 
 
@@ -53,12 +57,12 @@ def run_adapter(input_json: str) -> tuple[str, str, int]:
 
     Returns (stdout, stderr, return_code).
     """
-    # Use npx tsx to run TypeScript directly
+    # Use npx tsx to run TypeScript directly.
     result = subprocess.run(
-        ["npx", "tsx", str(ADAPTER_PATH), input_json],
+        [*TSX_COMMAND, str(ADAPTER_PATH), input_json],
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=ADAPTER_TIMEOUT_SECONDS,
     )
     return result.stdout, result.stderr, result.returncode
 
