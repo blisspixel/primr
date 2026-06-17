@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.32.6] - 2026-06-17
+
 ### Added
 
 - Added a pure capability routing layer for stage-level backend selection:
@@ -14,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   policy checks, ordered route plans, and explicit rejection reasons. The first
   slice is side-effect-free and covered by fake backends so backend-freedom work
   can progress without live LLM spend.
+
+### Fixed
+
+- Hardened the OpenClaw TypeScript adapter tests so CI resolves `tsx` through
+  `npx --yes` before adapter assertions and uses a CI-realistic timeout for the
+  TypeScript runner.
 
 ## [1.32.5] - 2026-06-17
 

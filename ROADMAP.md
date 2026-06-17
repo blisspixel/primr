@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.32.5
+Current State: v1.32.6
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -173,7 +173,7 @@ a schedule. Detailed breakdowns live in [`docs/design/`](docs/design/README.md)
 
 The job is "URL in, consultant-grade artifact out," done well.
 
-**Status (as of v1.32.5):** most of the 1.x engineering backlog is closed -
+**Status (as of v1.32.6):** most of the 1.x engineering backlog is closed -
 artifact pipeline contract (#1–2), cost/observability surface (#5, #7, #8,
 #12, #13), production failover (#6), QA iteration loop (#10), agentic write
 constraints (#11), runtime robustness (#24), and the `perform_fast_research`
@@ -1208,6 +1208,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.32.6 | Jun 2026 | **Capability routing foundation.** Added the pure stage-level backend router for the backend-freedom workstream: `StageRequirements`, backend capability rows, cloud/agent/hybrid/local profiles, billing-mode guards, ordered route plans, and explicit rejection reasons. It is side-effect-free, fake-backend tested, and not yet wired into full-report execution. Also hardened the OpenClaw TypeScript adapter tests so macOS CI warms `npx --yes tsx` before adapter assertions instead of timing out on first cold start. |
 | 1.32.5 | Jun 2026 | **Host-agent runner seam and account-backed roadmap alignment.** Added a bounded host-agent stage-packet contract with explicit billing policy, evidence fencing, normalized runner metadata, and fake-runner tests. README, ROADMAP, API-key docs, backend-freedom docs, provider-expansion docs, and the agentic-balance doctrine now draw the same boundary: direct provider API keys are the supported full-run path today; official Codex/Claude Code style host runners are planned opt-ins; no unofficial subscription proxies or browser-session scraping. MCP doctor now recognizes XAI, Gemini/Google, OpenAI, and Anthropic direct provider keys. |
 | 1.32.4 | Jun 2026 | **Outbound URL validation hardening.** Released the pending security sweep for hosted image fetches, Google grounding redirects, and path containment, then closed additional SSRF seams across HTTP HEAD, AI preflight website checks, and Wayback replay fetches. Invalid URL ports now fail validation cleanly, post-redirect checks are covered by regression tests, MCP SSRF logs redact userinfo/query/fragment, and local plus remote gates passed with 84.98% branch coverage. |
 | 1.32.3 | Jun 2026 | **Provider setup and preflight validation cleanup.** README, ROADMAP, and artifact docs now reflect current standard-run estimates, provider opt-in setup, and coverage wording. `primr init`, `doctor`, and config validation now accept any configured cloud LLM provider key at setup time, while the full-report preflight honestly allows XAI-only execution and fails fast for OpenAI-only or Anthropic-only full runs until the remaining backend-freedom work lands. Dry-run estimates now use the provider-routed standard estimate for OpenAI-only and Anthropic-only setups, price the utility bucket through `Role.UTILITY`, and avoid stale Grok/Gemini premium wording. |
