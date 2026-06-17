@@ -68,6 +68,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 - Five providers wired: xAI (Grok), Google (Gemini), OpenAI, Anthropic, Ollama (local)
 - Provider abstraction at `src/primr/ai/providers/` — `Provider` ABC, `OpenAICompatibleProvider` (xAI/OpenAI/Ollama/vLLM), `GeminiProvider`, `AnthropicProvider`
 - `pick_model_for_role` chooses the best model from configured providers; `primr doctor` shows what each key unlocks
+- Pure capability router foundation shipped in `src/primr/ai/capability_routing.py`: `StageRequirements`, backend capability rows, cloud/agent/hybrid/local profiles, billing-mode guards, ordered route plans, and explicit rejection reasons. It is not yet wired into full-report execution.
 - Provider-aware fallback chain: WRITING/UTILITY prefer GEMINI > OPENAI > ANTHROPIC > XAI; REASONING prefers XAI (cached) > GEMINI > OPENAI > ANTHROPIC
 - Cross-provider dispatch in `grok_llm` and `llm()` so writing-tier calls reach the right provider when the resolved model is non-Grok
 - Quota-aware `ModelCircuitBreaker.execute_with_fallback()` with midnight-UTC reset (callable; production call-site integration still pending — see queue below)
@@ -596,13 +597,14 @@ Reduce manual work when new model variants drop by automating the eval-and-compa
 
 ### 18. Capability-Requirement Routing Layer
 
-Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The still-planned half: each pipeline stage declares capability requirements and the router solves for the cheapest match.
+Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The first stage-requirements slice is now in place as a pure router; the remaining work is production wiring, health integration, and per-stage eval-backed tuning.
 
-- Each stage declares: minimum reasoning depth, required capabilities (web search, structured output, long context), acceptable providers
-- Router selects the cheapest model that meets requirements from available providers
-- Integrates with the circuit breaker — unhealthy models are skipped automatically
+- **Shipped foundation:** `StageRequirements`, `BackendCapabilities`, `RoutingPolicy`, and `route_stage()` return ordered cloud/gateway/host-agent/local candidates with explicit rejection reasons and no live provider calls
+- Each production stage still needs to declare its requirements: minimum reasoning depth, trust sensitivity, required capabilities (web search, structured output, long context), and acceptable backend families
+- Router selection must be wired into execution and cost estimation stage by stage, keeping today's role defaults as fallback until eval data promotes a requirement profile
+- Integrates with the circuit breaker - unhealthy models are skipped automatically
 - Integrates with effort-level routing for hybrid inference
-- Long-context surcharge modeling: populate `ModelConfig.tier_threshold_tokens` for OpenAI gpt-5.x family (>272K input: 2× input, 1.5× output) so cost estimates aren't silently wrong on long-input runs
+- Long-context surcharge modeling: populate `ModelConfig.tier_threshold_tokens` for OpenAI gpt-5.x family (>272K input: 2x input, 1.5x output) so cost estimates aren't silently wrong on long-input runs
 - Move `grok_browse_and_summarize` and Gemini quota UI into providers (two pieces of provider-specific behavior still living outside the abstraction)
 
 The requirements themselves come from observed eval cost/quality data per role, not a priori guessing.

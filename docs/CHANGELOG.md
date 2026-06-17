@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added a pure capability routing layer for stage-level backend selection:
+  `StageRequirements`, backend capability rows, inference profiles, billing
+  policy checks, ordered route plans, and explicit rejection reasons. The first
+  slice is side-effect-free and covered by fake backends so backend-freedom work
+  can progress without live LLM spend.
+
 ## [1.32.5] - 2026-06-17
 
 ### Added

@@ -52,6 +52,11 @@ will route over.
   model pick. Missing: the memory fit-check from principle 5.
 - Eval + calibration instruments (Version Plan step 1) to judge any new
   recipe honestly.
+- `ai/capability_routing.py` now provides the first backend-freedom router
+  slice: pure `StageRequirements` matching over supplied backend capability
+  rows, profile-specific cloud/agent/hybrid/local ranking, host-runner opt-in
+  checks, and API-credit handoff guards. It is planning infrastructure only
+  until production stages are wired to it.
 - The typed host-account runner contract now exists in
   `ai/host_agent_runner.py`: bounded `HostAgentStagePacket`, billing policy,
   normalized result/provenance, and a prompt renderer that fences evidence with

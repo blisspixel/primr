@@ -305,7 +305,7 @@ OLLAMA_BASE_URL=      # Optional local OpenAI-compatible endpoint for local eval
 ```
 
 Web search uses DuckDuckGo by default, no key needed.
-Provider-aware routing is opt-in by configured key: the measured default is Grok + Gemini, while OpenAI and Anthropic are wired in the provider layer and dry-run estimator for users who already have those accounts. Full no-xAI report execution still has runtime preflight and continuous-reasoning work tracked in the roadmap. Ollama and other OpenAI-compatible local endpoints are wired for local utility and eval paths while the full $0 local report profile remains tracked there too.
+Provider-aware routing is opt-in by configured key: the measured default is Grok + Gemini, while OpenAI and Anthropic are wired in the provider layer and dry-run estimator for users who already have those accounts. A pure capability router now exists for stage-level cloud, gateway, host-agent, and local candidate planning, but full-report execution still uses the role router until the backend-freedom wiring is validated. Full no-xAI report execution still has runtime preflight and continuous-reasoning work tracked in the roadmap. Ollama and other OpenAI-compatible local endpoints are wired for local utility and eval paths while the full $0 local report profile remains tracked there too.
 
 Credential modes are deliberately separate:
 
