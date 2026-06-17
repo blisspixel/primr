@@ -1334,10 +1334,7 @@ def _create_parser() -> argparse.ArgumentParser:
         "--eval-judge-model-list",
         type=str,
         default=None,
-        help=(
-            "Named local judge model list "
-            "(for example: 4090-report-race, 4090-top10, or installed-starter)"
-        ),
+        help="Named local judge model list (for example: 4090-top10 or installed-starter)",
     )
     parser.add_argument(
         "--eval-judge-base-url",
