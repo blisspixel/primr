@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded the account-capacity roadmap language beyond Codex and Claude Code to
   include Kiro CLI, Copilot Cowork, Claude/Cowork-style hosts, and comparable
   official agent surfaces as candidates for bounded stage runners.
+- Clarified that local inference is a moving first-class path: today's local
+  quality label is tied to measured hardware/model profiles, and future
+  desk-side AI capacity should be re-evaluated for $0 API default promotion.
 
 ## [1.32.6] - 2026-06-17
 

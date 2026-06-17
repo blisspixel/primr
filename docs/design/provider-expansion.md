@@ -189,7 +189,10 @@ automation support it.
   repetition/slop growth past a few thousand words. primr's
   section-by-section writing + refine loop is the right shape to partially
   compensate, and the free tier ships labeled as "free, slower, weaker
-  writing" per principle 6.
+  writing" for this measured hardware/model generation. That label is not a
+  permanent product judgment: as desk-side AI appliances and workstation-class
+  local models improve, local profiles should be re-evaluated and promoted
+  stage by stage when they meet the same quality bar as paid routes.
 - Integration footguns to handle in code:
   - Ollama's `/v1` endpoint cannot set context per request and **silently
     front-truncates** beyond the loaded context. The local profile must
@@ -205,7 +208,8 @@ automation support it.
     `OLLAMA_FLASH_ATTENTION=1` in docs.
 - Throughput envelope (Q4, 20k-word report): ~2-3 min decode on a 4090
   with a 30B-A3B MoE; ~5-6 min on an M4 Max; 20-40 min CPU-only MoE.
-  Viable everywhere; the free tier is real.
+  Viable everywhere; the free tier is real, and its quality should be treated
+  as a moving benchmark rather than a fixed ceiling.
 
 ## Delivery plan (phased, each phase independently shippable)
 
@@ -294,7 +298,9 @@ existing OpenAI-compatible provider.
 5. Eval the local recipe with the step-1 instruments and publish the
    honest quality delta next to the $0 API price tag. Local mode is allowed to
    be slower or weaker, but it must never silently upgrade itself to paid cloud;
-   any paid fallback is a separate operator choice.
+   any paid fallback is a separate operator choice. Re-run the local eval when
+   new local model generations or desktop-class AI hardware materially change
+   the capability envelope, and let passing stages move up the default route.
 
 ### Sequencing vs the Version Plan
 

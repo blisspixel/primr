@@ -126,7 +126,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 - Product over middleware — integrations should act as a disciplined control plane for Primr's long-running research jobs, not turn Primr into a generic orchestration framework.
 - Artifact-first delivery — the main unit of value is a report, strategy, or evaluation artifact, not a stream of chat-sized tool responses.
 - The pipeline is the product — Primr's value is the 9-tier scraping engine, the org-aware link selection, the research deepening, the cross-validation, the deterministic QA gate, the eval harness, the crash recovery, and the cost estimation. None of these are model calls. The model is a commodity; the orchestration pipeline is the moat.
-- Credentials are transport, not product identity. API keys, official agent-account auth, enterprise gateways, and local models are all ways to run the same pipeline. Do not bake a provider, billing model, or subscription workaround into the core loop. The default routing goal is the lowest incremental spend that clears the measured quality bar: already-paid official host runners or local/gateway capacity when configured and explicitly approved, then the best validated sub-dollar direct API recipe, with premium paths opt-in and justified by measured lift. Direct APIs remain the reproducible baseline and fallback; host-account runners use official Codex, Claude Code, Kiro CLI, Copilot Cowork, Claude/Cowork-style, or comparable sanctioned surfaces only; local/gateway profiles are validated recipes, not second-class forks.
+- Credentials are transport, not product identity. API keys, official agent-account auth, enterprise gateways, and local models are all ways to run the same pipeline. Do not bake a provider, billing model, or subscription workaround into the core loop. The default routing goal is the lowest incremental spend that clears the measured quality bar: already-paid official host runners or local/gateway capacity when configured and explicitly approved, then the best validated sub-dollar direct API recipe, with premium paths opt-in and justified by measured lift. Direct APIs remain the reproducible baseline and fallback; host-account runners use official Codex, Claude Code, Kiro CLI, Copilot Cowork, Claude/Cowork-style, or comparable sanctioned surfaces only; local/gateway profiles are validated recipes, not second-class forks. As local AI hardware improves, the same eval gate should let $0 API local stages graduate from utility support to hybrid default, and eventually to full-run default where they honestly match the quality bar.
 
 Primr is intentionally not designed as a generic web scraper, a SaaS collaboration platform, a presentation builder, or a generic agent middleware layer.
 
@@ -233,7 +233,9 @@ The step-change that earns the major bump is three pillars landing together:
   host plan usage (Codex, Claude Code, Kiro CLI, Copilot/Claude Cowork-style
   hosts where official automation exists) or $0 local through sub-$1 cloud, up
   to premium only when measured lift justifies it, *without changing the
-  pipeline*. Design doc:
+  pipeline*. Local is not a permanent low-quality tier; it is a measured path
+  that should automatically move up the default order as desktop-class models
+  and hardware pass stage-level evals. Design doc:
   [`docs/design/2.0-backend-freedom.md`](docs/design/2.0-backend-freedom.md).
 - **Memory** — research that compounds across runs (cross-run claim store +
   persistent company tracking + Strategy Delta Mode) instead of starting cold
@@ -756,8 +758,10 @@ on 2026-06-12 and refreshed for official Codex/Claude Code account auth on
   effective context adequate (Ollama's `/v1` silently front-truncates;
   refuse corpus stages on too-small windows). A genuinely free tier,
   shipped with its measured quality delta (best 24 GB-class local models
-  score roughly half of frontier on long-form writing) stated next to the
-  $0 price.
+  scored well below frontier in the June-2026 baseline, but local hardware is a
+  moving target) stated next to the $0 API price. Re-run the eval whenever
+  desk-side AI capacity materially improves; promotion is data-driven, not
+  permanently capped by today's local models.
 
 ---
 
@@ -918,7 +922,7 @@ Scrape Tier Evolution:
 
 ### Local Inference Mode (Full Pipeline)
 
-Run the full Primr pipeline on local hardware with zero API costs. Primary target: RTX 4090 (24GB VRAM) with Ollama. Goal: a working `--inference local` mode that produces useful research output — not cloud-quality, but good enough for batch screening, internal research, and cost-sensitive workloads.
+Run the full Primr pipeline on local hardware with zero API costs. Initial target: RTX 4090 (24GB VRAM) with Ollama or any OpenAI-compatible local server that passes fit checks. Goal: a working `--inference local` mode that produces useful research output now, while keeping the architecture ready for desk-side AI appliances and workstation-class local models to become genuinely high-quality defaults later. Local starts stage-by-stage; it is promoted by eval, not by optimism or by a permanent "weaker tier" assumption.
 
 What's already built (v1.23.0+):
 - Ollama provider via `OpenAICompatibleProvider`, with registered models at zero marginal cost
@@ -929,7 +933,7 @@ What's already built (v1.23.0+):
 Three execution profiles:
 - `--inference cloud`: current behavior, all AI stages use cloud providers (default)
 - `--inference hybrid`: local for high-volume/low-complexity stages, cloud for deep research and trust-critical synthesis — the sweet spot for most users with a GPU
-- `--inference local`: all compatible stages on local inference, $0 API cost, longer runtime
+- `--inference local`: all compatible stages on local inference, $0 API cost, runtime and quality measured per hardware profile
 
 Stage routing hypothesis (validated by eval, not assumed):
 
@@ -958,13 +962,13 @@ Validation approach:
 - Compare quality, runtime, and trust gate pass rates
 - Start with hybrid (local for cheap stages, cloud for hard stages) before attempting full local
 - Publish the eval results so the tradeoffs are explicit and data-driven
-- If local quality is unacceptable for certain stages, that's a valid outcome — hybrid mode still saves significant cost
+- If local quality is unacceptable for certain stages, that's a valid outcome for that hardware/model snapshot. Re-test as local models and desk-side AI hardware improve; hybrid mode still saves significant cost in the meantime.
 
 Promotion criteria:
 - Trust gate passes: citation coverage, section completeness, confidence-label quality
 - Decision-utility within acceptable band of cloud baseline for replaced stages
 - No silent fallback: if local can't meet requirements, fail clearly or require explicit hybrid
-- Runtime documented: local runs will be slower — the tradeoff is cost, not speed
+- Runtime documented: local runs may be slower or faster depending on hardware, but the tradeoff is reported rather than assumed
 
 ### Cross-Run Research Memory
 
