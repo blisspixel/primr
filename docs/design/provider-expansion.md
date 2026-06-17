@@ -1,6 +1,6 @@
-# Provider Expansion: OpenAI, Anthropic, Account-Backed Agents, Gateways, and Local
+# Provider Expansion: OpenAI, Anthropic, Account-Capacity Agents, Gateways, and Local
 
-Status: PLANNED (provider research verified June 12, 2026; account-backed
+Status: PLANNED (provider research verified June 12, 2026; account-capacity
 agent runner research refreshed June 17, 2026)
 ROADMAP anchor: Active Queue #26. Companion to
 [`2.0-backend-freedom.md`](2.0-backend-freedom.md) (routing architecture);
@@ -17,21 +17,27 @@ will route over.
    Bedrock/Foundry gateway, or just a gaming GPU and Ollama. Each of those
    should produce a report once its recipe is validated. Absence of any of
    them is silent, never an error.
-3. **Mac/Linux/Windows equally.** Local inference integrates over HTTP to
+3. **Account capacity is a first-class capacity source.** Codex, Claude Code,
+   Kiro CLI, Copilot Cowork, Claude/Cowork-style hosts, and comparable agent
+   products should be evaluated as ways to spend capacity the user already has.
+   They become Primr runners only through official automation, connector, CLI,
+   hook, or agent-skill surfaces that can accept bounded stage packets and
+   return structured outputs. They are never treated as hidden API keys.
+4. **Mac/Linux/Windows equally.** Local inference integrates over HTTP to
    OpenAI-compatible servers only; no platform-specific code. (vLLM has no
    Windows support; that is the server operator's concern, not primr's,
    because primr only speaks the protocol.)
-4. **Latest models only.** June 2026 model generations below; never
+5. **Latest models only.** June 2026 model generations below; never
    register a superseded model as a default. Re-verify IDs at
    implementation time against provider docs (the registry refresh is
    cheap; shipping stale defaults is not).
-5. **Test the fit before the run.** Before any local model is used:
+6. **Test the fit before the run.** Before any local model is used:
    verify the server is reachable, the model is actually installed, AND it
    fits currently-available memory (a one-token probe call; on a
    memory error, step down to the next-smaller candidate). Learned live:
    a 27B model that "exists" but needs 19.5 GiB when 11 GiB is free
    produces per-call failures, not a clean error.
-6. **Default to least incremental spend that passes quality.** A free or
+7. **Default to least incremental spend that passes quality.** A free or
    already-paid tier must exist, even if measurably worse and labeled that way.
    DDG search is already free, scraping is already local; with local inference
    the whole run is $0 API plus electricity, which changes what "run it on the
@@ -107,10 +113,11 @@ Full citations live in the research transcripts; key integration facts:
 - No deep-research API product; the agentic loop equivalent is DIY or the
   Managed Agents beta.
 
-### Subscription-backed agent runners (Codex / Claude Code)
+### Account-capacity agent runners (Codex / Claude Code / Kiro / Cowork)
 
 These are not provider SDKs. They are host-agent execution surfaces that can
-consume an already-paid subscription when official auth supports it.
+consume already-paid or already-allocated capacity when official auth and
+automation support it.
 
 - OpenAI Codex supports ChatGPT sign-in for subscription access and API-key
   sign-in for usage-based access. Codex CLI and IDE support both; Codex cloud
@@ -124,6 +131,12 @@ consume an already-paid subscription when official auth supports it.
   Claude Code's `/usage` view distinguishes API token costs from subscription
   plan usage, and Pro/Max transitions to API credit usage require explicit user
   consent.
+- Kiro CLI and Cowork-style products are tracked as candidate host surfaces, not
+  provider APIs. Kiro-style hooks/agent configuration can host Primr control
+  flows if they expose a stable CLI or connector seam. Copilot Cowork,
+  Claude/Cowork-style connector surfaces, and similar workplace agents can be
+  Primr runners only where they provide an official task, connector, action, or
+  skill interface that can be invoked with a bounded packet and audited result.
 - Integration shape for primr: emit a bounded stage packet, call the host runner
   through its official CLI/SDK/automation surface, parse structured output, and
   validate with the same structural checks and semantic evals as direct API
@@ -216,7 +229,7 @@ consume an already-paid subscription when official auth supports it.
    exits validation with a default class: sub-dollar default candidate,
    specialty fallback, or premium-only.
 
-### Phase B: account-backed host runners (Codex + Claude Code)
+### Phase B: account-capacity host runners (Codex, Claude Code, Kiro, Cowork)
 
 1. **Foundation seam - STARTED:** `HostAgentRunner` accepts a typed stage
    packet (`role`, prompt, evidence bundle, output schema, budget/plan policy)
@@ -233,11 +246,17 @@ consume an already-paid subscription when official auth supports it.
    precedence, especially that `ANTHROPIC_API_KEY` can take precedence over
    subscription auth. Surface `/status` and `/usage` guidance rather than
    guessing billing state.
-4. Budget model: API dollars are unknown for subscription-backed stages, so the
+4. Kiro and Cowork pilots: add capability probes before runners. A surface is
+   eligible only if it can be invoked through official automation, returns or
+   stores schema-constrained output, exposes enough provenance to stamp the
+   sidecar, and can be bounded by wall-clock plus task-count policy. If any of
+   those are missing, it remains an operating host for Primr, not an internal
+   stage runner.
+5. Budget model: API dollars are unknown for account-capacity stages, so the
    preflight estimate must show "host plan usage" with bounded stage count,
    wall-clock cap, and optional token/task ceilings. Any handoff to API credits
    must remain explicit in the host, never hidden by primr.
-5. Validation: one cheap or plan-backed recipe eval per runner on the standing
+6. Validation: one cheap or plan-backed recipe eval per runner on the standing
    corpus. It must pass the same label calibration and trust checks as direct
    provider recipes before README promotion. Once promoted and explicitly
    enabled, compatible host-runner stages should beat paid API stages in default

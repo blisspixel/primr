@@ -126,7 +126,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 - Product over middleware — integrations should act as a disciplined control plane for Primr's long-running research jobs, not turn Primr into a generic orchestration framework.
 - Artifact-first delivery — the main unit of value is a report, strategy, or evaluation artifact, not a stream of chat-sized tool responses.
 - The pipeline is the product — Primr's value is the 9-tier scraping engine, the org-aware link selection, the research deepening, the cross-validation, the deterministic QA gate, the eval harness, the crash recovery, and the cost estimation. None of these are model calls. The model is a commodity; the orchestration pipeline is the moat.
-- Credentials are transport, not product identity. API keys, official agent-account auth, enterprise gateways, and local models are all ways to run the same pipeline. Do not bake a provider, billing model, or subscription workaround into the core loop. The default routing goal is the lowest incremental spend that clears the measured quality bar: already-paid official host runners or local/gateway capacity when configured and explicitly approved, then the best validated sub-dollar direct API recipe, with premium paths opt-in and justified by measured lift. Direct APIs remain the reproducible baseline and fallback; host-account runners are official Codex/Claude Code style surfaces only; local/gateway profiles are validated recipes, not second-class forks.
+- Credentials are transport, not product identity. API keys, official agent-account auth, enterprise gateways, and local models are all ways to run the same pipeline. Do not bake a provider, billing model, or subscription workaround into the core loop. The default routing goal is the lowest incremental spend that clears the measured quality bar: already-paid official host runners or local/gateway capacity when configured and explicitly approved, then the best validated sub-dollar direct API recipe, with premium paths opt-in and justified by measured lift. Direct APIs remain the reproducible baseline and fallback; host-account runners use official Codex, Claude Code, Kiro CLI, Copilot Cowork, Claude/Cowork-style, or comparable sanctioned surfaces only; local/gateway profiles are validated recipes, not second-class forks.
 
 Primr is intentionally not designed as a generic web scraper, a SaaS collaboration platform, a presentation builder, or a generic agent middleware layer.
 
@@ -228,10 +228,12 @@ pipeline, not just its perimeter. Design doc:
 The step-change that earns the major bump is three pillars landing together:
 
 - **Backend freedom** — the capability-requirement routing layer (#18) plus
-  validated API-keyed cloud, subscription-backed agent runner, gateway, and
+  validated API-keyed cloud, account-capacity agent runner, gateway, and
   local/hybrid inference profiles, so a run is cost-tunable from already-paid
-  host plan usage or $0 local through sub-$1 cloud, up to premium only when
-  measured lift justifies it, *without changing the pipeline*. Design doc:
+  host plan usage (Codex, Claude Code, Kiro CLI, Copilot/Claude Cowork-style
+  hosts where official automation exists) or $0 local through sub-$1 cloud, up
+  to premium only when measured lift justifies it, *without changing the
+  pipeline*. Design doc:
   [`docs/design/2.0-backend-freedom.md`](docs/design/2.0-backend-freedom.md).
 - **Memory** — research that compounds across runs (cross-run claim store +
   persistent company tracking + Strategy Delta Mode) instead of starting cold
@@ -310,10 +312,9 @@ Each step unblocks the ones after it; items within a step are independent.
    steps 1–4; can proceed in parallel.
 6. **Backend freedom** (#18 + provider expansion) (2.0):
    capability-requirement routing first (pure refactor of existing routing),
-   then first-class OpenAI/Anthropic API recipes, official Codex/Claude Code
-   style subscription-backed agent runners, gateway recipes, hybrid-mode eval,
-   and full-local eval. Depends on step 1's instruments to judge each backend's
-   quality honestly.
+   then first-class OpenAI/Anthropic API recipes, official account-capacity
+   runners, gateway recipes, hybrid-mode eval, and full-local eval. Depends on
+   step 1's instruments to judge each backend's quality honestly.
 7. **Memory layer 1 → 2 → 3** (2.0): persistent company tracking (filesystem,
    no new deps) → claim store + priming (SQLite + embeddings) → Strategy
    Delta Mode. Layer 3 also depends on the per-user cache (#12, shipped) and
@@ -709,7 +710,7 @@ Surfaced building a skill pack for a specialized, non-technical role at a large 
 - **Authoring quality patterns**: bake the patterns that distinguished a strong hand-built pack into `author_skill.yaml` — an intake/elicitation opening, a worked input→output example per skill, one shared single-source reference per role family (instead of per-skill duplication that drifts), an explicit scope guardrail, and a human-gated self-refinement section. Cross-refs #15.
 - **Cowork packaging refresh**: re-check the Cowork docs/packager against current platform docs, which now allow companion files (`references/`, ~20 files / 10 MB) and a higher custom-skill cap. Cross-refs #15.
 
-### 26. Provider Expansion: API Keys, Account-Backed Agents, Gateways, $0 Local Profile
+### 26. Provider Expansion: API Keys, Account-Capacity Agents, Gateways, $0 Local Profile
 
 There is no reason the pipeline must be Grok + Gemini; that pairing is the
 measured default, not a dependency. Research verified against provider docs
@@ -726,19 +727,22 @@ on 2026-06-12 and refreshed for official Codex/Claude Code account auth on
   Validate an openai-only and an anthropic-only recipe with one cheap live
   run each, eval-gated, before advertising them. Each recipe must state whether
   it can be the sub-dollar fallback default or only a premium option.
-- **Phase B**: subscription-backed agent runners for users already paying for
-  Codex or Claude Code. This is not "use a ChatGPT/Claude plan as an API key."
-  It means Primr emits bounded stage packets to official local/automation
-  surfaces, receives structured outputs, and keeps the harness in charge of
-  order, spend approval, egress, disk writes, and eval. Codex support should use
-  ChatGPT-authenticated Codex CLI/access-token flows where available; Claude
-  support should use Claude Code subscription OAuth / `CLAUDE_CODE_OAUTH_TOKEN`
-  or the official Agent SDK surface where available. No unofficial proxies,
-  browser-session scraping, or credential reuse. Billing is reported as host
-  plan usage/limits rather than Primr API dollars, and any transition to API
-  credits remains explicitly user-approved in the host. Once a runner is
-  configured and has passed eval, it should be eligible for default routing on
-  compatible stages because its incremental API cost is zero.
+- **Phase B**: account-capacity runners for users already paying for Codex,
+  Claude Code, Kiro CLI, Copilot Cowork, Claude/Cowork-style hosts, or similar
+  agent products. This is not "use a ChatGPT/Claude plan as an API key." It
+  means Primr emits bounded stage packets to official local/automation,
+  connector, or agent-skill surfaces, receives structured outputs, and keeps
+  the harness in charge of order, spend approval, egress, disk writes, and eval.
+  Codex support should use ChatGPT-authenticated Codex CLI/access-token flows
+  where available; Claude support should use Claude Code subscription OAuth /
+  `CLAUDE_CODE_OAUTH_TOKEN` or the official Agent SDK surface where available;
+  Kiro/Cowork support requires an official automation or connector seam before
+  any runner is promoted. No unofficial proxies, browser-session scraping, or
+  credential reuse. Billing is reported as host plan usage/limits rather than
+  Primr API dollars, and any transition to API credits remains explicitly
+  user-approved in the host. Once a runner is configured and has passed eval, it
+  should be eligible for default routing on compatible stages because its
+  incremental API cost is zero.
 - **Phase C**: Bedrock (mantle endpoint, plain API-key auth) and Microsoft
   Foundry (`/openai/v1`, stock openai SDK) as base-URL + key profiles over
   the existing OpenAI-compatible provider — near-zero new code; doctor

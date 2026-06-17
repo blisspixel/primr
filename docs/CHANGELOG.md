@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validated zero-incremental host or local capacity when configured, otherwise
   the best sub-dollar API recipe, with premium routes kept explicit and justified
   by measured lift.
+- Expanded the account-capacity roadmap language beyond Codex and Claude Code to
+  include Kiro CLI, Copilot Cowork, Claude/Cowork-style hosts, and comparable
+  official agent surfaces as candidates for bounded stage runners.
 
 ## [1.32.6] - 2026-06-17
 
