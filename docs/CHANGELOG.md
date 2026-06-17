@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.32.4] - 2026-06-17
+
 ### Security
 
 - Provider-hosted image URLs returned by remote image-generation APIs are now
@@ -17,6 +19,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Skill output path containment now uses path-aware ancestry checks instead of
   string-prefix checks, closing sibling-prefix escape cases in both the skill-pack
   Claude tree writer and the legacy skills-ideation writer.
+- Outbound `HEAD` requests, AI preflight website checks, and Wayback CDX/replay
+  fetches now run the shared SSRF guard before network access and validate the
+  final URL after redirects.
+- Invalid or out-of-range URL ports are now rejected as validation errors instead
+  of raising through lazy `urllib` parsing, and MCP SSRF rejection logs redact
+  URL credentials, query strings, and fragments.
+
+### Fixed
+
+- Website preflight still reports ordinary DNS failures as reachability warnings
+  instead of turning them into unsafe-URL blocks.
 
 ## [1.32.3] - 2026-06-17
 
