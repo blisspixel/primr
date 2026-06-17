@@ -6,7 +6,7 @@ This file is portable agent guidance in the [agents.md](https://agents.md) forma
 
 If you are an AI agent reading this in a primr-aware project: this is how to use the primr CLI and MCP server well.
 
-Run a long, metered, autonomous research pipeline that turns a company URL into a structured strategic brief. primr is **not** another web-search tool — it combines DNS recon, multi-tier scraping, hiring-signal extraction, AI synthesis (Grok / Gemini Deep Research), and structured report generation. A typical run produces a ~21,500-word Strategic Overview plus optional strategy modules, lands in `output/<company>/`, and feeds the rest of the user's analytical workflow.
+Run a long, metered, autonomous research pipeline that turns a company URL into a structured strategic brief. primr is **not** another web-search tool. It combines DNS recon, multi-tier scraping, hiring-signal extraction, provider-backed AI synthesis, and structured report generation. A typical run produces a ~21,500-word Strategic Overview plus optional strategy modules, lands in `output/<company>/`, and feeds the rest of the user's analytical workflow.
 
 ## When this is the right tool
 
@@ -36,7 +36,7 @@ primr doctor
 
 If `primr` is not on `PATH`:
 
-> "primr isn't installed. It's a Python CLI from github.com/blisspixel/primr — `pip install primr` (Python 3.11+). After install, run `primr init` to set the API keys (Grok and/or Gemini). Want me to walk through it?"
+> "primr isn't installed. It's a Python CLI from github.com/blisspixel/primr. Use `pip install primr` on Python 3.12+. After install, run `primr init` to set provider keys. Grok + Gemini is the measured default, but OpenAI, Anthropic, and local OpenAI-compatible paths are also supported or tracked in the roadmap. Want me to walk through it?"
 
 Wait for explicit approval before running `pip install`. If `primr doctor` reports missing keys, do not attempt to set them yourself — surface the gap and let the user run `primr init` or `primr keys set <provider>`.
 

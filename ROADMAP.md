@@ -125,6 +125,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 - Product over middleware — integrations should act as a disciplined control plane for Primr's long-running research jobs, not turn Primr into a generic orchestration framework.
 - Artifact-first delivery — the main unit of value is a report, strategy, or evaluation artifact, not a stream of chat-sized tool responses.
 - The pipeline is the product — Primr's value is the 9-tier scraping engine, the org-aware link selection, the research deepening, the cross-validation, the deterministic QA gate, the eval harness, the crash recovery, and the cost estimation. None of these are model calls. The model is a commodity; the orchestration pipeline is the moat.
+- Credentials are transport, not product identity. API keys, official agent-account auth, enterprise gateways, and local models are all ways to run the same pipeline. Do not bake a provider, billing model, or subscription workaround into the core loop. Direct APIs stay the reproducible default; host-account runners are explicit opt-ins through official Codex/Claude Code style surfaces; local/gateway profiles are validated recipes, not second-class forks.
 
 Primr is intentionally not designed as a generic web scraper, a SaaS collaboration platform, a presentation builder, or a generic agent middleware layer.
 
@@ -226,8 +227,9 @@ pipeline, not just its perimeter. Design doc:
 The step-change that earns the major bump is three pillars landing together:
 
 - **Backend freedom** — the capability-requirement routing layer (#18) plus
-  validated local / hybrid inference, so a run is cost-tunable from sub-$1
-  cloud down to $0 local *without changing the pipeline*. Design doc:
+  validated API-keyed cloud, subscription-backed agent runner, gateway, and
+  local/hybrid inference profiles, so a run is cost-tunable from sub-$1 cloud
+  down to $0 local *without changing the pipeline*. Design doc:
   [`docs/design/2.0-backend-freedom.md`](docs/design/2.0-backend-freedom.md).
 - **Memory** — research that compounds across runs (cross-run claim store +
   persistent company tracking + Strategy Delta Mode) instead of starting cold
@@ -304,10 +306,12 @@ Each step unblocks the ones after it; items within a step are independent.
 5. **Control plane** (T8 + #21) (2.0): per-tool authz → approval tokens →
    audit log, in that order (each builds on the previous). Independent of
    steps 1–4; can proceed in parallel.
-6. **Backend freedom** (#18 + local inference) (2.0): capability-requirement
-   routing first (pure refactor of existing routing), then hybrid-mode
-   eval, then full-local eval. Depends on step 1's instruments to judge
-   local-quality acceptability honestly.
+6. **Backend freedom** (#18 + provider expansion) (2.0):
+   capability-requirement routing first (pure refactor of existing routing),
+   then first-class OpenAI/Anthropic API recipes, official Codex/Claude Code
+   style subscription-backed agent runners, gateway recipes, hybrid-mode eval,
+   and full-local eval. Depends on step 1's instruments to judge each backend's
+   quality honestly.
 7. **Memory layer 1 → 2 → 3** (2.0): persistent company tracking (filesystem,
    no new deps) → claim store + priming (SQLite + embeddings) → Strategy
    Delta Mode. Layer 3 also depends on the per-user cache (#12, shipped) and
@@ -702,11 +706,12 @@ Surfaced building a skill pack for a specialized, non-technical role at a large 
 - **Authoring quality patterns**: bake the patterns that distinguished a strong hand-built pack into `author_skill.yaml` — an intake/elicitation opening, a worked input→output example per skill, one shared single-source reference per role family (instead of per-skill duplication that drifts), an explicit scope guardrail, and a human-gated self-refinement section. Cross-refs #15.
 - **Cowork packaging refresh**: re-check the Cowork docs/packager against current platform docs, which now allow companion files (`references/`, ~20 files / 10 MB) and a higher custom-skill cap. Cross-refs #15.
 
-### 26. Provider Expansion: OpenAI/Anthropic First-Class, Bedrock/Foundry Gateways, $0 Local Profile
+### 26. Provider Expansion: API Keys, Account-Backed Agents, Gateways, $0 Local Profile
 
 There is no reason the pipeline must be Grok + Gemini; that pairing is the
 measured default, not a dependency. Research verified against provider docs
-on 2026-06-12; full catalog, integration traps, and phased delivery plan in
+on 2026-06-12 and refreshed for official Codex/Claude Code account auth on
+2026-06-17; full catalog, integration traps, and phased delivery plan in
 [`docs/design/provider-expansion.md`](docs/design/provider-expansion.md).
 
 - **Phase A (1.x)**: refresh the model registry to the current generations
@@ -717,12 +722,23 @@ on 2026-06-12; full catalog, integration traps, and phased delivery plan in
   via OpenAI Responses `web_search` / Anthropic `web_search_20260209`).
   Validate an openai-only and an anthropic-only recipe with one cheap live
   run each, eval-gated, before advertising them.
-- **Phase B**: Bedrock (mantle endpoint, plain API-key auth) and Microsoft
+- **Phase B**: subscription-backed agent runners for users already paying for
+  Codex or Claude Code. This is not "use a ChatGPT/Claude plan as an API key."
+  It means Primr emits bounded stage packets to official local/automation
+  surfaces, receives structured outputs, and keeps the harness in charge of
+  order, spend approval, egress, disk writes, and eval. Codex support should use
+  ChatGPT-authenticated Codex CLI/access-token flows where available; Claude
+  support should use Claude Code subscription OAuth / `CLAUDE_CODE_OAUTH_TOKEN`
+  or the official Agent SDK surface where available. No unofficial proxies,
+  browser-session scraping, or credential reuse. Billing is reported as host
+  plan usage/limits rather than Primr API dollars, and any transition to API
+  credits remains explicitly user-approved in the host.
+- **Phase C**: Bedrock (mantle endpoint, plain API-key auth) and Microsoft
   Foundry (`/openai/v1`, stock openai SDK) as base-URL + key profiles over
   the existing OpenAI-compatible provider — near-zero new code; doctor
   reachability probes; honest docs on gateway gaps (no Anthropic
   web_search through either gateway; batch lag on newest models).
-- **Phase C (with 2.0 backend freedom)**: `--inference local` profile.
+- **Phase D (with 2.0 backend freedom)**: `--inference local` profile.
   Principles: support whatever the user has (selection from the server's
   actual model list, never hardcoded), Mac/Linux/Windows via HTTP only, and
   fit-check before use — model installed AND fits available memory (one-

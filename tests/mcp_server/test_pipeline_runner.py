@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from primr.mcp_server.pipeline_runner import (
+    DIRECT_PROVIDER_KEY_ENV_VARS,
     PipelineRunner,
     get_doctor_status,
 )
@@ -65,18 +66,19 @@ class TestDoctorStatus:
 
     def test_api_keys_check(self, monkeypatch):
         """API keys check works."""
-        # Without API key
-        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        for env_var in DIRECT_PROVIDER_KEY_ENV_VARS:
+            monkeypatch.delenv(env_var, raising=False)
 
         result = get_doctor_status()
         assert result["api_keys_configured"] is False
-        assert any("API key" in w for w in result["warnings"])
+        assert any("direct LLM provider key" in w for w in result["warnings"])
 
-        # With API key
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
-        result = get_doctor_status()
-        assert result["api_keys_configured"] is True
+        for env_var in DIRECT_PROVIDER_KEY_ENV_VARS:
+            for key_name in DIRECT_PROVIDER_KEY_ENV_VARS:
+                monkeypatch.delenv(key_name, raising=False)
+            monkeypatch.setenv(env_var, "test-key")
+            result = get_doctor_status()
+            assert result["api_keys_configured"] is True
 
 
 class TestHeartbeatIntegration:

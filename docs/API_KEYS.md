@@ -1,6 +1,10 @@
 # API Key Setup Guide
 
-This guide covers obtaining, configuring, and securing the API keys used by Primr.
+This guide covers obtaining, configuring, and securing the API keys used by
+Primr. Agent-host credentials such as Codex access tokens or Claude Code
+subscription OAuth are intentionally separate: they can operate Primr through a
+host today, and are planned as subscription-backed stage runners, but they are
+not interchangeable with provider API keys for direct Primr model calls.
 
 ## Recommended Credentials
 
@@ -22,6 +26,30 @@ Grok + Gemini is the measured default, but it is not the only supported provider
 | `SEARCH_ENGINE_ID` | Custom Search Engine config (only if `SEARCH_PROVIDER=google`) | [Programmable Search Engine](https://programmablesearchengine.google.com/) |
 
 Primr uses DuckDuckGo for web search by default, so no search API key is needed unless you opt into `SEARCH_PROVIDER=google`.
+
+## Subscription-Backed Agent Hosts
+
+Some users already pay for Codex, Claude Code Pro/Max, or enterprise agent
+seats. The intended Primr model is:
+
+- Use provider API keys for the supported direct full-report path today.
+- Use Codex/Claude Code/Cursor/VS Code MCP integrations to operate Primr from
+  those tools today.
+- Use planned host-agent runner mode for compatible LLM stages once it is
+  implemented and eval-validated.
+
+Do not paste ChatGPT or Claude web-session credentials into Primr. Do not route
+through unofficial subscription proxies. When host runners land, they should use
+official surfaces only:
+
+| Host | Official credential shape | Notes |
+|------|---------------------------|-------|
+| Codex | ChatGPT sign-in for local use, or `CODEX_ACCESS_TOKEN` for trusted Enterprise/local automation | API-key sign-in is still usage-based OpenAI API billing |
+| Claude Code | `/login` subscription OAuth, or `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token` | `ANTHROPIC_API_KEY` can take precedence over subscription auth |
+
+This keeps billing honest: API-keyed stages show estimated dollars, local stages
+show $0 API plus runtime, and host-agent stages should show plan usage/limits
+instead of pretending the subscription is a metered API key.
 
 ### Search Provider Configuration
 

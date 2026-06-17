@@ -51,6 +51,15 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "InsightEngine": ("primr.ai.insight_engine", "InsightEngine"),
     "summarize_scraped_content": ("primr.ai.summarize", "summarize_scraped_content"),
     "QualityGrader": ("primr.ai.quality_grader", "QualityGrader"),
+    # Host-agent runner seam
+    "HostAgentBillingMode": ("primr.ai.host_agent_runner", "HostAgentBillingMode"),
+    "HostAgentKind": ("primr.ai.host_agent_runner", "HostAgentKind"),
+    "HostAgentPolicy": ("primr.ai.host_agent_runner", "HostAgentPolicy"),
+    "HostAgentResult": ("primr.ai.host_agent_runner", "HostAgentResult"),
+    "HostAgentRunner": ("primr.ai.host_agent_runner", "HostAgentRunner"),
+    "HostAgentStagePacket": ("primr.ai.host_agent_runner", "HostAgentStagePacket"),
+    "HostAgentUnavailableError": ("primr.ai.host_agent_runner", "HostAgentUnavailableError"),
+    "render_host_agent_prompt": ("primr.ai.host_agent_runner", "render_host_agent_prompt"),
     # Insights
     "InsightAnalyzer": ("primr.ai.insights", "InsightAnalyzer"),
     "InsightReport": ("primr.ai.insights", "InsightReport"),

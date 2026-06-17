@@ -15,9 +15,9 @@ primr "ExampleCo" https://example.co
 
 About 31-47 minutes later for the base report, or 37-59 minutes with the default AI strategy add-on: a 23-section strategic analysis as Markdown, TXT, DOCX, and best-effort PDF when a local converter is available, with dense references consolidated at the end. **~$0.76-$0.79 in API costs before AI strategy** when both `GEMINI_API_KEY` and `XAI_API_KEY` are set (Grok 4.3 for reasoning with cached input, Gemini 3.1 Flash-Lite for bulk writing; the v1.24.0 default after a cross-provider eval). The default command includes AI strategy, so dry-run usually reports about **~$0.89-$1.01** with Gemini+XAI depending on platform count. XAI-only setups stay on the legacy Grok-NR writing/utility path at ~$4.36/run before AI strategy, or about ~$5.76 with the default two-platform strategy estimate.
 
-Primr is local-first and CLI-first; it also runs as an MCP server and a Claude Skill so agents can drive it ([details below](#use-primr-from-your-ai-tool)).
+Primr is local-first and CLI-first; it also runs as an MCP server and a Claude Skill so agents can drive it ([details below](#use-primr-from-your-ai-tool)). The long-term backend story is intentionally plural: direct provider API keys for reproducible runs, local/gateway models for teams that control their own inference, and subscription-backed agent hosts such as Codex or Claude Code where official account auth makes that possible.
 
-> **Not a developer?** You (or whoever sets up your machine) need three things: Python, `pip install primr`, and API keys from one or two AI providers. `primr init` walks through all of it. Everything from [Agent Integration](#agent-integration-advanced) down is for developers and agent builders; you never need it to run research.
+> **Not a developer?** For today's full local pipeline you need three things: Python, `pip install primr`, and API keys from one or two AI providers. `primr init` walks through all of it. If you already live in Codex, Claude Code, Cursor, VS Code, or another MCP host, Primr can also be operated from that tool. Roadmap work tracks account-backed stage runners so paid agent subscriptions can cover compatible LLM work instead of separate API credits where the host officially supports it.
 
 ## Why This Exists
 
@@ -33,6 +33,7 @@ Company research is tedious. You visit the website, click around, search the com
 - **Autonomous external research**: Gemini Deep Research for comprehensive analysis, Grok 4.3 for fast turnaround. Both plan queries, follow leads, cross-validate sources, and synthesize findings.
 - **Cost controls built in**: `--dry-run` estimates (including recovery table and stage classifications), `--budget $N` per-run cost ceiling (refuses to start over budget, skips optional stages once actual spend reaches it), usage tracking with per-run cache hit rates in `primr show-usage`, and governance hooks for budget limits.
 - **Agent-native interfaces**: CLI, MCP server, OpenClaw integration, and Claude Skills, all first-class.
+- **Credential optionality by design**: API-keyed cloud runs are the supported direct path today; local OpenAI-compatible endpoints already power $0 eval/utility slices; the roadmap extends the same pipeline to host-account runners so Codex or Claude Code subscribers can opt into plan-backed execution without pretending those subscriptions are ordinary API keys.
 - **Skill pack generation**: `primr skills "<Company>" <url>` produces a QA-refined Agent Skills pack of up to 15 roles × M skills, grounded in DNS recon + actual job postings + strategic research. Internal pipeline: a two-call role planning step that emits an inspectable `role_plan.md` / `role_plan.json` (observed roles backed by posting citations + plausible roles inferred from research and industry classification, with provenance preserved end-to-end), archetype-grounded authoring with provenance-aware prompts, deterministic ASKILL-* validation, capped refinement loop, and pack-level coherence pass. Emits both an unpacked Claude/Cursor/VS Code tree AND a Microsoft 365 Copilot Cowork sideload `.zip` from the same byte-identical SKILL.md files. Full **operator roster curation**: `--plan-only` to inspect, `--from-plan` to author from a saved plan, `--roles-add` to augment the discovered roster, `--roles-skip` to prune from it (composes with `--from-plan`), `--roles-override` for full control.
 
 ## Artifact Model
@@ -306,11 +307,20 @@ OLLAMA_BASE_URL=      # Optional local OpenAI-compatible endpoint for local eval
 Web search uses DuckDuckGo by default, no key needed.
 Provider-aware routing is opt-in by configured key: the measured default is Grok + Gemini, while OpenAI and Anthropic are wired in the provider layer and dry-run estimator for users who already have those accounts. Full no-xAI report execution still has runtime preflight and continuous-reasoning work tracked in the roadmap. Ollama and other OpenAI-compatible local endpoints are wired for local utility and eval paths while the full $0 local report profile remains tracked there too.
 
+Credential modes are deliberately separate:
+
+- **Direct API mode**: Primr owns the LLM calls and bills through configured provider keys. This is the supported full-report path today.
+- **Agent-hosted mode**: Codex, Claude Code, Cursor, VS Code, and other MCP hosts can operate Primr through its tools and skill guidance. The host account pays for the surrounding agent work, but the current full internal report pipeline still uses Primr provider keys.
+- **Subscription-backed runner mode**: planned under backend freedom. Primr will hand bounded stage packets to official account-backed runners where supported, such as Codex CLI authenticated with ChatGPT or Claude Code authenticated with Claude subscription OAuth. This is not API-key reuse, browser scraping, or an unofficial proxy.
+- **Local/gateway mode**: planned for full runs, already partly used for eval/utility paths. Primr talks to OpenAI-compatible local servers or enterprise gateways and validates quality before advertising a recipe.
+
 [Full config reference](docs/CONFIG.md) | [API key setup](docs/API_KEYS.md)
 
 ## Use primr from your AI tool
 
-primr ships with an `AGENTS.md` (auto-loaded by Kiro, Codex, Aider, Jules), a Claude Code plugin under [`claude-code/`](claude-code/), and per-host MCP snippets under [`clients/`](clients/) for Cursor, Windsurf, VS Code + Copilot, and Claude Desktop.
+primr ships with an `AGENTS.md` (auto-loaded by Kiro, Codex, Aider, Jules), a Claude Code plugin under [`claude-code/`](claude-code/), and per-host MCP snippets under [`clients/`](clients/) for Cursor, Windsurf, VS Code + Copilot, and Claude Desktop. These integrations let your agent host run Primr with the same cost gate and async lifecycle rules. Direct model execution inside Primr still follows the credential mode above.
+
+Codex and Claude Code both now have official subscription-aware auth surfaces: Codex CLI supports ChatGPT sign-in or API-key sign-in, and Claude Code can use subscription OAuth credentials by default. Primr's roadmap treats those as host-agent runners, not provider API keys.
 
 **Claude Code (one-command install):**
 

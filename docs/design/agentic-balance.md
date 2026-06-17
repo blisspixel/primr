@@ -241,6 +241,38 @@ This is the trap primr keeps walking back into: shipping a quality moat made of
 regex. Refuse it at review time. A PR that adds a content gate must instead add
 (or point to) the eval metric that supersedes it.
 
+## Credential and billing boundary
+
+The same rule-vs-judgment line applies to provider choice. primr's product is the
+research harness, not a particular model account. API keys, local models,
+enterprise gateways, and host-agent subscriptions are credential transports for
+the same bounded pipeline.
+
+The allowed pattern:
+
+- **Direct provider APIs** for reproducible, programmatic runs where primr owns
+  the model calls and can estimate token spend before launch.
+- **Host-account runners** for users who already pay for Codex, Claude Code, or
+  a similar agent host. primr may hand a bounded content task to the official
+  local/automation surface, receive structured output, and keep the pipeline
+  sequence, egress, disk writes, and eval checks under primr's harness.
+- **Local and gateway profiles** where the operator supplies an
+  OpenAI-compatible server or enterprise endpoint, with the same capability
+  routing and eval validation.
+
+The disallowed pattern is treating a consumer subscription as an ordinary hidden
+API key. Do not scrape browser sessions, reverse-engineer private endpoints, or
+proxy through unofficial tools just to avoid API pricing. If Codex or Claude Code
+exposes an official authenticated local or automation surface, primr can use it
+as a runner. If it does not, the path stays API key, gateway, or local.
+
+For agentic balance, a host-account runner is just another Level-2 decision
+point. The model may decide the content inside a stage; primr still decides which
+stage runs, what evidence packet it receives, what budget or plan-limit policy
+applies, what URLs may be fetched, where files may be written, and whether the
+result clears semantic eval. This is how subscription-backed execution fits
+without turning primr into a Level-3 agent or weakening the cost gate.
+
 ## The coupling the sources don't name: agentic collection needs a budget
 
 This is the one design consequence specific to primr. A blind 50-page scrape is
@@ -288,6 +320,8 @@ Then make sure "done" is judged by the artifact's substance, not a flag
 - HuggingFace, [smolagents: Introduction to Agents](https://huggingface.co/docs/smolagents/en/conceptual_guides/intro_agents) — agency as a spectrum; regularize toward not-agentic when a fixed path fits.
 - Microsoft Security, [Updating the Taxonomy of Failure Modes in Agentic AI Systems](https://www.microsoft.com/en-us/security/blog/2026/06/04/updating-taxonomy-failure-modes-agentic-ai-systems-year-red-teaming-taught-us/) (Jun 2026) — a year of red-teaming: brittle harnesses fail; deterministic *structure* governs processes, not brittle *output* rules.
 - Adaline, [The Complete Guide to LLM & AI Agent Evaluation in 2026](https://www.adaline.ai/blog/complete-guide-llm-ai-agent-evaluation-2026) — layer deterministic format checks, heuristic scoring, LLM-as-judge, and human calibration; don't rely on regex gates for quality.
+- OpenAI, [Codex authentication](https://developers.openai.com/codex/auth) and [Codex access tokens](https://developers.openai.com/codex/enterprise/access-tokens) - ChatGPT sign-in, API-key sign-in, and workspace access tokens are distinct credential modes.
+- Anthropic, [Claude Code authentication](https://code.claude.com/docs/en/iam), [Claude Code costs](https://code.claude.com/docs/en/costs), and [using Claude Code with Pro or Max](https://support.claude.com/en/articles/11145838-use-claude-code-with-your-pro-or-max-plan) - subscription OAuth and API-key billing are distinct modes, with explicit user control before API credit usage.
 
 > Have a deeper local research artifact (e.g. an `AGENTIC_BALANCE.md` deep-research
 > output) you want folded in as the canonical source set? Point to it and this

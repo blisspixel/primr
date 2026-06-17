@@ -16,6 +16,22 @@ This document describes all configuration options available in Primr.
 
 Run `primr init` for guided first-run setup. Set keys directly with `primr keys set gemini`, `primr keys set xai`, `primr keys set openai`, `primr keys set anthropic`, or `primr keys set ollama`; shell env vars and local `.env` values are also supported. Run `primr keys path` to see the user-level config file. The measured default remains XAI + Gemini, but a single usable cloud provider key is enough for provider diagnostics.
 
+### Agent Host Credentials
+
+These are not provider API keys and do not currently replace the direct provider
+keys required for full internal report generation. They are recorded here so the
+planned subscription-backed runner mode has a clear boundary: official host
+auth only, no unofficial proxies or browser-session reuse.
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `CODEX_ACCESS_TOKEN` | Optional Codex Enterprise/local automation token for trusted Codex CLI workflows; direct OpenAI API calls still use `OPENAI_API_KEY` | No |
+| `CLAUDE_CODE_OAUTH_TOKEN` | Optional Claude Code OAuth token from `claude setup-token` for subscription-backed Claude Code scripts; direct Anthropic API calls still use `ANTHROPIC_API_KEY` | No |
+
+When `--inference agent` lands, these credentials will identify host runners,
+not generic model providers. Dry-run output must show plan-backed stages
+separately from API-dollar stages.
+
 ### Optional Search Keys
 
 | Variable | Description | Required |

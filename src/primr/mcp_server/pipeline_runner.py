@@ -24,6 +24,14 @@ logger = logging.getLogger(__name__)
 # Heartbeat interval in seconds
 HEARTBEAT_INTERVAL = 30
 
+DIRECT_PROVIDER_KEY_ENV_VARS = (
+    "XAI_API_KEY",
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+)
+
 
 class PipelineRunner:
     """
@@ -579,10 +587,13 @@ def get_doctor_status() -> dict:
 
     warnings = []
 
-    # Check API keys
-    api_keys_configured = bool(os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY"))
+    # Check direct provider API keys. Agent-host credentials are tracked separately.
+    api_keys_configured = any(os.environ.get(name) for name in DIRECT_PROVIDER_KEY_ENV_VARS)
     if not api_keys_configured:
-        warnings.append("No API key configured (GOOGLE_API_KEY or GEMINI_API_KEY)")
+        warnings.append(
+            "No direct LLM provider key configured "
+            "(XAI_API_KEY, GEMINI_API_KEY or GOOGLE_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY)"
+        )
 
     # Check output directory
     if not os.path.exists(OUTPUT_DIR):
