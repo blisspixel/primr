@@ -385,7 +385,7 @@ class TestProviderAwareModelSelection:
                 expected_model = m
                 break
 
-        breaker = ModelCircuitBreaker(failure_threshold=3, recovery_timeout=0.01)
+        breaker = ModelCircuitBreaker(failure_threshold=3, recovery_timeout=3600.0)
 
         # Trip unhealthy models
         for i, m in enumerate(chain_models):
