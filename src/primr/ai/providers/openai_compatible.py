@@ -3,8 +3,8 @@ OpenAI-compatible provider.
 
 A single class that talks to anything exposing a chat-completions endpoint
 shaped like ``POST /v1/chat/completions`` with the OpenAI message schema.
-This covers xAI/Grok, OpenAI itself, Ollama (with ``OPENAI_API_KEY=ollama``
-or any non-empty placeholder), vLLM, llama.cpp's server, and similar
+This covers xAI/Grok, OpenAI itself, Ollama (with ``OLLAMA_API_KEY=ollama``
+or the built-in placeholder), vLLM, llama.cpp's server, and similar
 runtimes.
 
 Each instance is a *parameterized* provider — registering xAI vs OpenAI vs

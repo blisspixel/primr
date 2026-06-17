@@ -13,7 +13,7 @@ Summaries of published articles are a commodity; any chat assistant's deep-resea
 primr "ExampleCo" https://example.co
 ```
 
-About 23-35 minutes later: a 23-section strategic analysis as Markdown and DOCX, with dense references consolidated at the end. **~$0.79 in API costs** when both `GEMINI_API_KEY` and `XAI_API_KEY` are set (Grok 4.3 for reasoning with cached input, Gemini 3.1 Flash-Lite for bulk writing; the v1.24.0 default after a cross-provider eval). XAI-only setups stay on the legacy Grok-NR writing path at ~$4.27/run.
+About 31-47 minutes later for the base report, or 37-59 minutes with the default AI strategy add-on: a 23-section strategic analysis as Markdown, TXT, DOCX, and best-effort PDF when a local converter is available, with dense references consolidated at the end. **~$0.76-$0.79 in API costs before AI strategy** when both `GEMINI_API_KEY` and `XAI_API_KEY` are set (Grok 4.3 for reasoning with cached input, Gemini 3.1 Flash-Lite for bulk writing; the v1.24.0 default after a cross-provider eval). The default command includes AI strategy, so dry-run usually reports about **~$0.89-$1.01** with Gemini+XAI depending on platform count. XAI-only setups stay on the legacy Grok-NR writing/utility path at ~$4.36/run before AI strategy, or about ~$5.76 with the default two-platform strategy estimate.
 
 Primr is local-first and CLI-first; it also runs as an MCP server and a Claude Skill so agents can drive it ([details below](#use-primr-from-your-ai-tool)).
 
@@ -39,22 +39,24 @@ Company research is tedious. You visit the website, click around, search the com
 
 Primr treats **research artifacts** and **shipping artifacts** as different classes of output. Intermediate research steps such as scrape summaries, gap-analysis notes, source inventories, contradiction findings, and section briefs optimize for consistency, provenance, and parseability. Their formatting matters far less than whether they are complete and structured enough to feed later stages reliably.
 
-Final reports and strategy documents are different. Those artifacts must ship cleanly as Markdown, TXT, DOCX, and eventually PDF, so Primr treats them as a stricter output contract with deterministic cleanup, citation normalization, validation gates, and renderer hardening.
+Final reports and strategy documents are different. Those artifacts must ship cleanly as Markdown, TXT, DOCX, and best-effort PDF when a local converter is available, so Primr treats them as a stricter output contract with deterministic cleanup, citation normalization, validation gates, and renderer hardening.
 
-In practice that means final-document canonicalization, typed section normalization, configurable ship-time gates (for scaffolding leaks, dangling citations, and structural defects), and a regression corpus of real-shaped artifacts. The full breakdown is in [Artifact Pipeline](docs/ARTIFACTS.md).
+In practice that means final-document canonicalization, typed section normalization, ship-time structural gates for dangling citations and section defects, non-blocking scaffolding-leak visibility, and a regression corpus of real-shaped artifacts. The full breakdown is in [Artifact Pipeline](docs/ARTIFACTS.md).
 
 ## Modes
 
-> **Cost note (May 2026 / v1.24.0):** Default is now ~$0.79/run when both `GEMINI_API_KEY` and `XAI_API_KEY` are set (Grok 4.3 reasoning + Gemini 3.1 Flash-Lite writing). XAI-only setups stay on the legacy ~$4.27/run Grok-NR path. The cross-provider default was picked via a real eval on a mid-market public-signal company: 4.4x cheaper than the legacy default with trust gate PASS and faster runtime. See [docs/EVAL_V1_24_0.md](docs/EVAL_V1_24_0.md) for the decision audit.
+> **Cost note (current dry-run):** The base Strategic Overview is now ~$0.76-$0.79/run when both `GEMINI_API_KEY` and `XAI_API_KEY` are set (Grok 4.3 reasoning + Gemini 3.1 Flash-Lite writing). The default command also includes AI strategy, which current dry-runs estimate at about ~$0.89 with one strategy platform or ~$1.01 with the two-platform Azure+private fallback. XAI-only setups stay on the legacy ~$4.36/run Grok-NR writing/utility path before strategy, or about ~$5.76 with the default two-platform strategy estimate. The cross-provider default was picked via a real eval on a mid-market public-signal company: 4.4x cheaper than the legacy default with trust gate PASS and faster runtime. See [docs/EVAL_V1_24_0.md](docs/EVAL_V1_24_0.md) for the decision audit. Use `--dry-run` for the current estimate before any billable run.
 
 | Mode | What it does | Time | Cost |
 |------|--------------|------|------|
-| `primr skills` | QA-refined skill pack (Claude tree + Cowork .zip) from existing research | 30-90s | ~$0.20 |
-| Default (Gemini + XAI) | Grok 4.3 reasoning + Gemini 3.1 Flash-Lite writing + AI Strategy | ~23-35 min | **~$0.79** |
-| Default (XAI only) | Grok 4.3 hybrid + Grok 4.20-NR writing (legacy fallback) | ~35-50 min | ~$4.27 |
-| `--platform ms` | Microsoft Azure + NVIDIA private cloud strategy | ~30-50 min | ~$0.85 |
-| Default + multi-platform | Add `--platform aws azure` | ~30-50 min | ~$0.85 |
-| Default + strategy type | Add `--strategy-type customer_experience` | ~23-35 min | ~$0.79 |
+| `primr skills` | QA-refined skill pack (Claude tree + Cowork .zip) from existing research | ~3 min | ~$0.30 |
+| Default command (Gemini + XAI) | Grok 4.3 reasoning + Gemini 3.1 Flash-Lite writing + auto AI Strategy | ~34-59 min | **~$0.89-$1.01** |
+| Base report only (`--no-ai-strategy`) | Strategic Overview without AI Strategy | ~31-47 min | ~$0.76-$0.79 |
+| Default command (XAI only) | Grok 4.3 hybrid + Grok 4.20-NR writing/utility (legacy fallback) + auto AI Strategy | ~37-59 min | ~$5.76 |
+| XAI-only base report (`--no-ai-strategy`) | Legacy Grok-NR writing/utility path without AI Strategy | ~31-47 min | ~$4.36 |
+| `--platform ms` | Microsoft Azure + NVIDIA private cloud strategy | ~37-59 min | ~$1.01 |
+| Default + multi-platform | Add `--platform aws azure` | ~37-59 min | ~$1.01 |
+| Default + strategy type | Add `--strategy-type customer_experience` | varies | run `--dry-run` |
 | `--grok-tier max` | Grok 4.3 everywhere (deeper reasoning across writing too) | ~35-50 min | ~$3.75 |
 | `--premium` | Gemini + Deep Research + AI Strategy | 50-75 min | ~$5 |
 | `--premium --platform ms` | Premium + Microsoft/NVIDIA | 75-120 min | $6-9 |
@@ -63,7 +65,7 @@ In practice that means final-document canonicalization, typed section normalizat
 | `--mode deep` | Gemini Deep Research on external sources only | 10-15 min | $2.50 |
 | `primr recon` | DNS intelligence only (no API keys needed) | 2-3 sec | $0.00 |
 
-The default `primr` command auto-detects: when `XAI_API_KEY` is set, it uses the Grok 4.3 hybrid pipeline (4.3 for reasoning-heavy stages, 4.20-non-reasoning for bulk writing) at ~$4.27/run. The standard pipeline includes research deepening, cross-validation, trust-polish, citation normalization, and constrained-evidence reasoning. Strategy types (`ai`, `customer_experience`, `modern_security_compliance`, `data_fabric_strategy`, `skills`) are YAML-defined and auto-discovered; run `primr --list-strategies` for details. DDG searches are free. Use `--dry-run` for accurate cost estimates.
+The default `primr` command auto-detects: when `XAI_API_KEY` is set, it uses Grok 4.3 for reasoning-heavy stages; when `GEMINI_API_KEY` is also set, bulk writing routes to Gemini 3.1 Flash-Lite for the sub-dollar base report. With XAI only, writing falls back to Grok 4.20-NR. The standard pipeline includes research deepening, cross-validation, trust-polish, citation normalization, constrained-evidence reasoning, and AI strategy unless disabled with `--no-ai-strategy`. Strategy types (`ai`, `customer_experience`, `modern_security_compliance`, `data_fabric_strategy`, `skills`) are YAML-defined and auto-discovered; run `primr --list-strategies` for details. DDG searches are free. Use `--dry-run` for accurate cost estimates.
 
 For model evaluation and quality comparison, see [Evaluation Guide](docs/EVAL.md).
 
@@ -253,7 +255,7 @@ Grok 4.3 hybrid · recon auto-detected Azure
 ✓ Complete in 38m
   output/ExampleCo_Strategic_Overview_04-10-2026.docx
 
-PASS | 23 chapters | 48 citations | ~$0.79
+PASS | 23 chapters | 48 citations | ~$0.89
 ```
 
 ### What the output looks like
@@ -285,6 +287,8 @@ primr init
 # Writes to the per-user Primr config file
 primr keys set gemini           # https://aistudio.google.com/apikey
 primr keys set xai              # https://console.x.ai/
+primr keys set openai           # optional GPT/o-series provider
+primr keys set anthropic        # optional Claude provider
 primr keys list
 primr keys path
 
@@ -292,11 +296,15 @@ primr keys path
 primr doctor --fix
 
 # Local .env files and shell env vars are also supported:
-XAI_API_KEY=          # Grok standard pipeline (analysis + writing + utility tier)
-GEMINI_API_KEY=       # Required only for --premium mode (and for utility tier when no XAI_API_KEY)
+XAI_API_KEY=          # Grok standard reasoning + strategy
+GEMINI_API_KEY=       # Gemini writing/utility, premium mode, cheapest default writer with XAI
+OPENAI_API_KEY=       # Optional OpenAI fallback for utility, writing, reasoning
+ANTHROPIC_API_KEY=    # Optional Anthropic fallback for writing/reasoning
+OLLAMA_BASE_URL=      # Optional local OpenAI-compatible endpoint for local eval/utility paths
 ```
 
 Web search uses DuckDuckGo by default, no key needed.
+Provider-aware routing is opt-in by configured key: the measured default is Grok + Gemini, while OpenAI and Anthropic are wired in the provider layer and dry-run estimator for users who already have those accounts. Full no-xAI report execution still has runtime preflight and continuous-reasoning work tracked in the roadmap. Ollama and other OpenAI-compatible local endpoints are wired for local utility and eval paths while the full $0 local report profile remains tracked there too.
 
 [Full config reference](docs/CONFIG.md) | [API key setup](docs/API_KEYS.md)
 
@@ -388,7 +396,7 @@ ruff check .                                 # Lint
 mypy src/primr --ignore-missing-imports     # Type check
 ```
 
-9,000+ tests including property-based testing (Hypothesis), full ruff and mypy compliance, ~82% branch coverage (enforced as a CI ratchet), and OpenTelemetry tracing. CI runs lint, type check, security gates, and tests on every push.
+9,000+ tests including property-based testing (Hypothesis), full ruff and mypy compliance, 80%+ branch coverage enforced as a CI ratchet, and OpenTelemetry tracing. CI runs lint, type check, security gates, and tests on every push.
 
 ## Learn More
 

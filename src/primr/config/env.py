@@ -24,6 +24,8 @@ KEY_ALIASES: dict[str, str] = {
     "claude": "ANTHROPIC_API_KEY",
     "openai": "OPENAI_API_KEY",
     "gpt": "OPENAI_API_KEY",
+    "ollama": "OLLAMA_API_KEY",
+    "local": "OLLAMA_API_KEY",
     "search": "SEARCH_API_KEY",
     "google-search": "SEARCH_API_KEY",
     "search-engine": "SEARCH_ENGINE_ID",
@@ -31,10 +33,11 @@ KEY_ALIASES: dict[str, str] = {
 }
 
 KEY_HELP: dict[str, str] = {
-    "XAI_API_KEY": "Grok standard pipeline",
-    "GEMINI_API_KEY": "Gemini, premium mode, and scrape summaries",
+    "XAI_API_KEY": "Grok standard reasoning and strategy pipeline",
+    "GEMINI_API_KEY": "Gemini writing, utility, premium mode, and scrape summaries",
     "ANTHROPIC_API_KEY": "Anthropic Claude provider (reasoning/writing/pro; needs `pip install anthropic`)",
     "OPENAI_API_KEY": "OpenAI GPT provider (utility/reasoning/writing; needs `pip install openai`)",
+    "OLLAMA_API_KEY": "Optional key for Ollama or another local OpenAI-compatible endpoint",
     "SEARCH_API_KEY": "Google Custom Search, only with SEARCH_PROVIDER=google",
     "SEARCH_ENGINE_ID": "Google Custom Search engine ID",
 }

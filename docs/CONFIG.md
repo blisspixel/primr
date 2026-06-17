@@ -8,10 +8,13 @@ This document describes all configuration options available in Primr.
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `GEMINI_API_KEY` | Google Gemini key for premium mode, scrape summaries, and Gemini-backed stages | Yes |
-| `XAI_API_KEY` | xAI key for the default Grok standard pipeline | Recommended |
+| `XAI_API_KEY` | xAI Grok key for standard reasoning, strategy, and the XAI-only writing fallback | Recommended |
+| `GEMINI_API_KEY` | Google Gemini key for low-cost writing/utility, premium mode, and Gemini-backed stages | Recommended for the cheapest measured default |
+| `OPENAI_API_KEY` | Optional OpenAI GPT/o-series provider for utility, reasoning, writing, and premium research roles | No |
+| `ANTHROPIC_API_KEY` | Optional Anthropic Claude provider for reasoning, writing, and pro roles | No |
+| `OLLAMA_API_KEY` | Optional key for Ollama or another local OpenAI-compatible endpoint; Ollama defaults to `ollama` when unset | No |
 
-Run `primr init` for guided first-run setup. Set keys directly with `primr keys set gemini` and `primr keys set xai`, or provide them as shell env vars / local `.env` values. Run `primr keys path` to see the user-level config file.
+Run `primr init` for guided first-run setup. Set keys directly with `primr keys set gemini`, `primr keys set xai`, `primr keys set openai`, `primr keys set anthropic`, or `primr keys set ollama`; shell env vars and local `.env` values are also supported. Run `primr keys path` to see the user-level config file. The measured default remains XAI + Gemini, but a single usable cloud provider key is enough for provider diagnostics.
 
 ### Optional Search Keys
 
@@ -29,9 +32,9 @@ Run `primr init` for guided first-run setup. Set keys directly with `primr keys 
 | `VERBOSE` | Enable verbose output | `false` |
 | `DEBUG` | Enable debug mode | `false` |
 
-Note: The default models can be overridden via environment variables. Primr is designed to work with the latest Gemini models. Current defaults:
-- `gemini-3-flash-preview` - Best balance of speed and cost
-- `gemini-3.1-pro-preview` - Maximum reasoning capability (tiered pricing)
+Note: Legacy Gemini model override variables are still supported for Gemini-backed stages. Provider-aware routing otherwise uses the model registry and configured provider keys. Current Gemini defaults:
+- `gemini-3-flash-preview` - Best balance of speed and cost for legacy Gemini paths
+- `gemini-3.1-pro-preview` - Maximum Gemini reasoning capability (tiered pricing)
 
 Gemini 3.1 Pro Preview is the default Pro model. It has tiered pricing: $2/$12 per 1M tokens for prompts ≤200k, $4/$18 for >200k. Most Primr calls stay well under 200k tokens. Cost estimates (`--dry-run`) use conservative high-tier pricing; actual costs are typically lower.
 
@@ -65,17 +68,19 @@ Notes on continuous reasoning:
 ### Artifact Shipping Gates
 
 Final reports and strategy documents pass through deterministic ship-time gates
-(`primr.output.artifact_validation`). When a gate trips it withholds the polished
-DOCX while still writing the Markdown/TXT and a sidecar `*_validation.txt`
-report — so you always get the content, just not a deliverable that looks broken.
-Both default to zero tolerance; a malformed or negative value falls back to `0`
-so a gate can never be silently disabled by a bad env value.
+(`primr.output.artifact_validation`). When a blocking gate trips it withholds the
+polished DOCX while still writing the Markdown/TXT and a sidecar
+`*_validation.txt` report, so you always get the content, just not a deliverable
+that looks broken. Blocking gates default to zero tolerance; a malformed or
+negative value falls back to `0` so a gate can never be silently disabled by a
+bad env value. Scaffolding-leak detection is non-blocking visibility and an eval
+metric, not a shipping gate.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `PRIMR_MAX_SCAFFOLDING_LEAKS` | Max tolerated internal-scaffolding markers in a shipped report — bare `[workbook]` / `[cross-ref ...]` references, bold-wrapped `**What to validate:**` lines, and informal `[cite: label]` markers. These are normally stripped upstream at the canonicalization seam; the gate is the regression backstop. | `0` |
-| `PRIMR_MAX_DANGLING_CITATIONS` | Max tolerated dangling inline citations — `[cite: N]` references with no matching entry in the `## Sources` appendix. The deterministic backstop behind the upstream LLM citation repair, which keeps the original (possibly still-dangling) report when it cannot reach zero. | `0` |
-| `PRIMR_MAX_STRUCTURE_DEFECTS` | Max tolerated structural defects — duplicate top-level `##` headings (a merge/regeneration artifact) and empty sections (a `##` heading with no body before the next heading). Required-section *presence* is intentionally not gated here — it is report-type-dependent and stays a QA-scoring signal. | `0` |
+| `PRIMR_MAX_SCAFFOLDING_LEAKS` | Max tolerated internal-scaffolding markers before logging a non-blocking warning. This covers bare `[workbook]`, `[cross-ref ...]`, bold `**What to validate:**` lines, and informal `[cite: label]` markers. It never withholds the polished DOCX. | `0` |
+| `PRIMR_MAX_DANGLING_CITATIONS` | Max tolerated dangling inline citations, `[cite: N]` references with no matching entry in the `## Sources` appendix. The deterministic backstop behind the upstream LLM citation repair, which keeps the original report when it cannot reach zero. | `0` |
+| `PRIMR_MAX_STRUCTURE_DEFECTS` | Max tolerated structural defects: duplicate top-level `##` headings and empty sections. Required-section presence is intentionally not gated here because it is report-type-dependent and stays a QA-scoring signal. | `0` |
 
 Notes on the popup budget:
 - The budget is a single shared counter — opt in once with `PRIMR_MAX_HEADED_POPUPS=N` and that N is the total allowance across all trigger points in the run.

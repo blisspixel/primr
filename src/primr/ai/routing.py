@@ -257,8 +257,9 @@ def pick_model_for_role(role: Role | str) -> str:
         # viable mid-cost writer for Anthropic-only users.
         if os.getenv("ANTHROPIC_API_KEY"):
             return _Registry.ANTHROPIC_HAIKU.name
-        # XAI-only legacy path: Grok 4.20-NR. ~$4.27/run on the standard
-        # corpus. Kept for users who don't want the Gemini dependency.
+        # XAI-only legacy path: Grok 4.20-NR. Current base dry-run is
+        # ~$4.36 once utility work routes through XAI too. Kept for users who
+        # don't want the Gemini dependency.
         if os.getenv("XAI_API_KEY"):
             return PrimrModels.GROK_MODEL_WRITING
         return PrimrModels.PRO_MODEL

@@ -17,6 +17,31 @@ if TYPE_CHECKING:
     from primr.core.cli import CLIConfig
 
 
+def _has_provider_routed_standard_key() -> bool:
+    """Return True when dry-run should price the provider-routed standard path."""
+    return any(
+        os.environ.get(key)
+        for key in (
+            "XAI_API_KEY",
+            "OPENAI_API_KEY",
+            "ANTHROPIC_API_KEY",
+        )
+    )
+
+
+def _standard_mode_label(grok_tier: str) -> str:
+    tier_labels = {"fast": "Grok 4.1", "hybrid": "Grok 4.3 hybrid", "max": "Grok 4.3 max"}
+    if os.environ.get("XAI_API_KEY"):
+        return f"standard ({tier_labels.get(grok_tier, 'Grok')})"
+    if os.environ.get("GEMINI_API_KEY"):
+        return "standard (Gemini routed)"
+    if os.environ.get("OPENAI_API_KEY"):
+        return "standard (OpenAI routed)"
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return "standard (Anthropic routed)"
+    return "standard (provider-routed)"
+
+
 def run_dry_run(config: CLIConfig) -> int:
     """Show the cost estimate for a run without executing it."""
     from primr.utils.cost_estimator import estimate_cost
@@ -34,7 +59,7 @@ def run_dry_run(config: CLIConfig) -> int:
         and not use_premium_mode
         and config.mode in ("complete", "structured", "hybrid")
     ):
-        if os.environ.get("XAI_API_KEY"):
+        if _has_provider_routed_standard_key():
             use_fast_mode = True
 
     # Validate compatibility.
@@ -46,11 +71,10 @@ def run_dry_run(config: CLIConfig) -> int:
         console.error(f"--premium only works with full mode, not --mode {config.mode}")
         return 1
 
-    tier_labels = {"fast": "Grok 4.1", "hybrid": "Grok 4.3 hybrid", "max": "Grok 4.3 max"}
     if use_premium_mode:
         mode_label = "premium (Gemini + Deep Research)"
     elif use_fast_mode:
-        mode_label = f"standard ({tier_labels.get(config.grok_tier, 'Grok')})"
+        mode_label = _standard_mode_label(config.grok_tier)
     else:
         mode_label = config.mode
 

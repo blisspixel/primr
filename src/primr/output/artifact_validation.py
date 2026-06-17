@@ -18,20 +18,20 @@ from typing import Any, TypedDict
 
 logger = logging.getLogger(__name__)
 
-# Configurable ceiling for leaked internal-scaffolding markers in a shipped
-# report (bare [workbook] / [cross-ref ...] refs, bold-wrapped "What to
-# validate:" lines, informal [cite: label] markers). Default 0 = zero
-# tolerance: any leak that survived the upstream canonicalization seam blocks
-# the polished DOCX (MD/TXT + a sidecar validation report are still written).
-# Operators can relax it via PRIMR_MAX_SCAFFOLDING_LEAKS for a noisy corpus.
+# Configurable warning ceiling for leaked internal-scaffolding markers in a
+# shipped report (bare [workbook] / [cross-ref ...] refs, bold-wrapped "What to
+# validate:" lines, informal [cite: label] markers). Default 0 = zero tolerance
+# for warning visibility only. A leak that survived the upstream canonicalization
+# seam is logged and eval-tracked, but it no longer blocks the polished DOCX.
 _SCAFFOLDING_LEAK_THRESHOLD_ENV = "PRIMR_MAX_SCAFFOLDING_LEAKS"
 
 
 def _scaffolding_leak_threshold() -> int:
     """Resolve the max tolerated scaffolding-leak count from the environment.
 
-    Defaults to 0 (zero tolerance). A malformed or negative value falls back to
-    0 so the gate can never be silently disabled by a bad env value.
+    Defaults to 0 (zero warning tolerance). A malformed or negative value falls
+    back to 0 so the visibility signal can never be silently disabled by a bad
+    env value.
     """
     raw = os.environ.get(_SCAFFOLDING_LEAK_THRESHOLD_ENV)
     if raw is None:
@@ -289,9 +289,9 @@ def _validate_output_markdown(
     """Validate that a markdown artifact is ship-ready. All checks fail-closed:
 
     - zero-tolerance forbidden-marker scan (raw [Source:], [Workbook:], etc.);
-    - a configurable scaffolding-leak gate (bare [workbook]/[cross-ref], bold
-      "What to validate:" lines, informal [cite: label]) — default 0, override
-      via ``PRIMR_MAX_SCAFFOLDING_LEAKS``;
+    - a configurable scaffolding-leak warning (bare [workbook]/[cross-ref],
+      bold "What to validate:" lines, informal [cite: label]) - default 0,
+      override via ``PRIMR_MAX_SCAFFOLDING_LEAKS``;
     - a configurable citation-integrity gate (inline [cite: N] with no matching
       Sources-appendix entry) — default 0, override via
       ``PRIMR_MAX_DANGLING_CITATIONS``;

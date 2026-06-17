@@ -384,9 +384,11 @@ class TestRunDeepResearch:
 
         mock_client.research = fake_research
 
-        with patch.object(ResearchOrchestrator, "deep_research_client", new=mock_client):
-            with pytest.raises(ResearchError, match="quota exhausted"):
-                await orch._run_deep_research("Acme Corp", None, cfg, None)
+        with (
+            patch.object(ResearchOrchestrator, "deep_research_client", new=mock_client),
+            pytest.raises(ResearchError, match="quota exhausted"),
+        ):
+            await orch._run_deep_research("Acme Corp", None, cfg, None)
 
     @pytest.mark.asyncio
     async def test_progress_callback_invoked(self):

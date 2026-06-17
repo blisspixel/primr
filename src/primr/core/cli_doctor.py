@@ -26,18 +26,54 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
     """Check API key configuration and actually test connectivity."""
     import requests
 
+    configured_model_keys = 0
+
     gemini_key = os.environ.get("GEMINI_API_KEY", "")
     if gemini_key and len(gemini_key) >= 10:
+        configured_model_keys += 1
         if gemini_key.startswith("AI"):
             console.ok("GEMINI_API_KEY configured (valid format)")
         else:
             console.ok("GEMINI_API_KEY configured")
             console.warn("  Key format unusual (expected to start with 'AI')")
             warnings_count += 1
+    elif gemini_key:
+        console.error("GEMINI_API_KEY set but appears too short")
+        all_passed = False
     else:
-        console.error("GEMINI_API_KEY not set or invalid")
-        console.info("  Run: primr keys set gemini")
-        console.info("  Get your key at: https://aistudio.google.com/apikey")
+        console.info("GEMINI_API_KEY not set (Gemini writing/premium disabled)")
+
+    xai_key = os.environ.get("XAI_API_KEY", "")
+    if xai_key and len(xai_key) >= 10:
+        configured_model_keys += 1
+        console.ok("XAI_API_KEY configured (enables Grok standard mode)")
+    elif xai_key:
+        console.error("XAI_API_KEY set but appears too short")
+        all_passed = False
+    else:
+        console.info("XAI_API_KEY not set (Grok standard mode disabled)")
+        console.info("  Run: primr keys set xai")
+        console.info("  Get your key at: https://console.x.ai/")
+
+    openai_key = os.environ.get("OPENAI_API_KEY", "")
+    if openai_key and len(openai_key) >= 10:
+        configured_model_keys += 1
+        console.ok("OPENAI_API_KEY configured (OpenAI fallback enabled)")
+    elif openai_key:
+        console.error("OPENAI_API_KEY set but appears too short")
+        all_passed = False
+
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if anthropic_key and len(anthropic_key) >= 10:
+        configured_model_keys += 1
+        console.ok("ANTHROPIC_API_KEY configured (Anthropic fallback enabled)")
+    elif anthropic_key:
+        console.error("ANTHROPIC_API_KEY set but appears too short")
+        all_passed = False
+
+    if configured_model_keys == 0:
+        console.error("No cloud LLM provider key configured")
+        console.info("  Run one of: primr keys set gemini | xai | openai | anthropic")
         all_passed = False
 
     search_provider = os.environ.get("SEARCH_PROVIDER", "auto").lower().strip()
@@ -102,14 +138,6 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
         except Exception as e:
             console.error(f"DuckDuckGo search check failed: {e}")
             all_passed = False
-
-    xai_key = os.environ.get("XAI_API_KEY", "")
-    if xai_key and len(xai_key) >= 10:
-        console.ok("XAI_API_KEY configured (enables Grok standard mode)")
-    else:
-        console.info("XAI_API_KEY not set (recommended for Grok standard mode)")
-        console.info("  Run: primr keys set xai")
-        console.info("  Get your key at: https://console.x.ai/")
 
     return all_passed, warnings_count
 

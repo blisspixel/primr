@@ -28,7 +28,7 @@ def create_keys_parser() -> argparse.ArgumentParser:
     set_parser.add_argument(
         "provider",
         choices=key_choices,
-        help="Key to set. Common choices: gemini, xai",
+        help="Key to set. Common choices: xai, gemini, openai, anthropic, ollama",
     )
     set_parser.add_argument(
         "provided_value",

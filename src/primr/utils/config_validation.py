@@ -103,44 +103,47 @@ class APIKeysConfig:
 
     gemini_api_key: str | None = field(default_factory=lambda: os.getenv("GEMINI_API_KEY"))
     xai_api_key: str | None = field(default_factory=lambda: os.getenv("XAI_API_KEY"))
+    openai_api_key: str | None = field(default_factory=lambda: os.getenv("OPENAI_API_KEY"))
+    anthropic_api_key: str | None = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY"))
     search_api_key: str | None = field(default_factory=lambda: os.getenv("SEARCH_API_KEY"))
     search_engine_id: str | None = field(default_factory=lambda: os.getenv("SEARCH_ENGINE_ID"))
+
+    def _model_provider_keys(self) -> dict[str, str | None]:
+        return {
+            "GEMINI_API_KEY": self.gemini_api_key,
+            "XAI_API_KEY": self.xai_api_key,
+            "OPENAI_API_KEY": self.openai_api_key,
+            "ANTHROPIC_API_KEY": self.anthropic_api_key,
+        }
 
     def validate(self) -> list[ConfigError]:
         """Validate API keys are present."""
         errors = []
+        model_provider_keys = self._model_provider_keys()
 
-        if not self.gemini_api_key and not self.xai_api_key:
+        if not any(model_provider_keys.values()):
             errors.append(
                 ConfigError(
-                    field="GEMINI_API_KEY/XAI_API_KEY",
+                    field="MODEL_PROVIDER_API_KEY",
                     message="No model provider key set",
                     suggestion=(
                         "Run 'primr init' for guided setup (paste keys, no .env editing), "
-                        "or 'primr keys set gemini' / 'primr keys set xai' to add one directly"
+                        "or 'primr keys set gemini', 'primr keys set xai', "
+                        "'primr keys set openai', or 'primr keys set anthropic'"
                     ),
                 )
             )
 
-        if self.gemini_api_key and len(self.gemini_api_key) < 10:
-            errors.append(
-                ConfigError(
-                    field="GEMINI_API_KEY",
-                    message="API key appears too short",
-                    value=f"{self.gemini_api_key[:4]}...",
-                    suggestion="Check that the full API key is provided",
+        for field_name, value in model_provider_keys.items():
+            if value and len(value) < 10:
+                errors.append(
+                    ConfigError(
+                        field=field_name,
+                        message="API key appears too short",
+                        value=f"{value[:4]}...",
+                        suggestion="Check that the full API key is provided",
+                    )
                 )
-            )
-
-        if self.xai_api_key and len(self.xai_api_key) < 10:
-            errors.append(
-                ConfigError(
-                    field="XAI_API_KEY",
-                    message="API key appears too short",
-                    value=f"{self.xai_api_key[:4]}...",
-                    suggestion="Check that the full API key is provided",
-                )
-            )
 
         return errors
 
@@ -548,6 +551,8 @@ class PrimrConfig:
             "api_keys_configured": {
                 "gemini": bool(self.api_keys.gemini_api_key),
                 "xai": bool(self.api_keys.xai_api_key),
+                "openai": bool(self.api_keys.openai_api_key),
+                "anthropic": bool(self.api_keys.anthropic_api_key),
                 "search": bool(self.api_keys.search_api_key),
                 "search_engine": bool(self.api_keys.search_engine_id),
             },

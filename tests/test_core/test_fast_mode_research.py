@@ -7,6 +7,7 @@ that enhance fast mode report quality.
 
 import json
 
+from primr.core.fast_run_gaps import _fast_gap_analysis
 from primr.core.research_agent import (
     _build_fast_section_prompt,
     _clean_fast_report_output,
@@ -20,7 +21,6 @@ from primr.core.research_agent import (
     _parse_single_section,
     _parse_structured_section_envelopes,
 )
-from primr.core.fast_run_gaps import _fast_gap_analysis
 from primr.prompts.loader import SectionConfig
 
 

@@ -1,22 +1,27 @@
 # API Key Setup Guide
 
-This guide covers obtaining, configuring, and securing the API keys required for Primr.
+This guide covers obtaining, configuring, and securing the API keys used by Primr.
 
-## Required Credentials
+## Recommended Credentials
 
 | Credential | Purpose | Console |
 |------------|---------|---------|
-| `GEMINI_API_KEY` | Gemini-backed scrape summaries, premium mode, and resource cleanup checks | [Google AI Studio](https://aistudio.google.com/apikey) |
+| `XAI_API_KEY` | Grok standard reasoning, strategy, and XAI-only writing fallback | [xAI Console](https://console.x.ai/) |
+| `GEMINI_API_KEY` | Low-cost writing/utility with XAI, premium mode, and Gemini-backed stages | [Google AI Studio](https://aistudio.google.com/apikey) |
 
-> **That's it!** Primr uses DuckDuckGo for web search by default — no search API key needed.
+Grok + Gemini is the measured default, but it is not the only supported provider mix. A single usable cloud LLM provider key is enough for provider diagnostics.
 
 ## Optional Credentials
 
 | Credential | Purpose | Console |
 |------------|---------|---------|
-| `XAI_API_KEY` | Recommended for the default Grok standard pipeline | [xAI Console](https://console.x.ai/) |
+| `OPENAI_API_KEY` | Optional OpenAI GPT/o-series fallback for utility, writing, reasoning, and premium research roles | [OpenAI Platform](https://platform.openai.com/api-keys) |
+| `ANTHROPIC_API_KEY` | Optional Claude fallback for writing, reasoning, and pro roles | [Anthropic Console](https://console.anthropic.com/settings/keys) |
+| `OLLAMA_API_KEY` | Optional local/OpenAI-compatible endpoint key; Ollama uses `ollama` by default | Local runtime |
 | `SEARCH_API_KEY` | Google Custom Search API (only if `SEARCH_PROVIDER=google`) | [Google Cloud Console](https://console.cloud.google.com/apis/credentials) |
 | `SEARCH_ENGINE_ID` | Custom Search Engine config (only if `SEARCH_PROVIDER=google`) | [Programmable Search Engine](https://programmablesearchengine.google.com/) |
+
+Primr uses DuckDuckGo for web search by default, so no search API key is needed unless you opt into `SEARCH_PROVIDER=google`.
 
 ### Search Provider Configuration
 
@@ -46,6 +51,8 @@ For scripting or direct key management, use Primr's user-level key store:
 ```bash
 primr keys set gemini
 primr keys set xai
+primr keys set openai
+primr keys set anthropic
 primr keys list
 primr keys path
 ```
@@ -56,7 +63,16 @@ primr keys path
 2. The nearest local `.env`
 3. The per-user Primr config file shown by `primr keys path`
 
-### 2. Gemini API Key
+### 2. xAI API Key
+
+1. Go to [xAI Console](https://console.x.ai/)
+2. Create or select a project
+3. Create an API key
+4. Run `primr keys set xai`
+
+`XAI_API_KEY` enables Grok standard reasoning and strategy stages. With `GEMINI_API_KEY`, Primr uses Gemini for low-cost bulk writing.
+
+### 3. Gemini API Key
 
 1. Go to [Google AI Studio](https://aistudio.google.com/apikey)
 2. Sign in with your Google account
@@ -66,16 +82,30 @@ primr keys path
 
 **Pricing**: Free tier includes 60 requests/minute. See [pricing](https://ai.google.dev/pricing).
 
-### 3. xAI API Key
+### 4. OpenAI API Key
 
-1. Go to [xAI Console](https://console.x.ai/)
+1. Go to [OpenAI Platform API keys](https://platform.openai.com/api-keys)
 2. Create or select a project
 3. Create an API key
-4. Run `primr keys set xai`
+4. Run `primr keys set openai`
 
-`XAI_API_KEY` enables the Grok standard pipeline. Without it, Primr falls back to Gemini-backed modes where available.
+### 5. Anthropic API Key
 
-### 4. Google Custom Search API Key
+1. Go to [Anthropic Console API keys](https://console.anthropic.com/settings/keys)
+2. Create or select a workspace
+3. Create an API key
+4. Run `primr keys set anthropic`
+
+### 6. Local/OpenAI-Compatible Endpoint
+
+Ollama does not need a real API key, but local and self-hosted endpoints can require one:
+
+```bash
+OLLAMA_BASE_URL=http://localhost:11434/v1
+primr keys set ollama
+```
+
+### 7. Google Custom Search API Key
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a new project (recommended: separate project for Primr)
@@ -87,7 +117,7 @@ primr keys path
 
 **Pricing**: 100 free queries/day, then $5/1000 queries.
 
-### 5. Search Engine ID
+### 8. Search Engine ID
 
 1. Go to [Programmable Search Engine](https://programmablesearchengine.google.com/)
 2. Click "Add" to create a new search engine
@@ -104,6 +134,8 @@ This is a configuration ID, not a secret - but still don't share publicly.
 ```bash
 primr keys set gemini
 primr keys set xai
+primr keys set openai
+primr keys set anthropic
 primr keys path
 ```
 
@@ -179,8 +211,9 @@ primr doctor --fix
 | Error | Cause | Fix |
 |-------|-------|-----|
 | "API key expired" | Key revoked or project deleted | Create new key in Cloud Console |
-| "XAI_API_KEY not set" | Grok standard pipeline not configured | Run `primr keys set xai` |
-| "GEMINI_API_KEY not set" | Gemini-backed stages not configured | Run `primr keys set gemini` |
+| "No cloud LLM provider key configured" | No Gemini, xAI, OpenAI, or Anthropic key is configured | Run one of `primr keys set gemini`, `primr keys set xai`, `primr keys set openai`, or `primr keys set anthropic` |
+| "XAI_API_KEY not set" | Grok standard mode is disabled | Run `primr keys set xai` if you want the measured default reasoner |
+| "GEMINI_API_KEY not set" | Gemini writing/premium stages are disabled | Run `primr keys set gemini` if you want the cheapest measured writer or premium mode |
 | "Quota exceeded" | Hit rate/daily limit | Wait for reset, or use `--mode deep` (uses Gemini search) |
 | "Invalid API key" | Typo, extra whitespace, or wrong key | Re-copy from console, check for spaces |
 | "API not enabled" | Custom Search API not enabled | Enable in Cloud Console → APIs & Services |
@@ -188,18 +221,18 @@ primr doctor --fix
 
 ## Key Rotation
 
-### Google API Keys
+### API Keys
 
-Google API keys don't expire automatically, but rotate them:
+Provider API keys do not all expire automatically, but rotate them:
 - Every 90 days for production
 - Immediately if potentially exposed
 - When team members leave
 
 **Rotation process:**
-1. Create new key in Cloud Console
+1. Create a new key in the provider console
 2. Update `.env` or secrets manager
 3. Verify with `primr doctor`
-4. Delete old key in Cloud Console
+4. Delete the old key in the provider console
 
 ### MCP Server Keys (if using HTTP mode)
 
@@ -219,14 +252,14 @@ new_key = rotate_api_key(old_key, grace_hours=24)
 
 **Act immediately:**
 
-1. **Revoke the key** in Google Cloud Console (don't just rotate)
+1. **Revoke the key** in the provider console (don't just rotate)
 2. **Check usage logs** for unauthorized activity:
-   - Cloud Console → APIs & Services → Metrics
+   - Provider usage dashboard or Cloud Console metrics
 3. **Create new key** with restrictions
 4. **Audit access** - who had the key, how was it exposed?
 5. **Review billing** for unexpected charges
 
-If you see unauthorized usage, contact Google Cloud support.
+If you see unauthorized usage, contact the provider's support team.
 
 ## Cost Control
 

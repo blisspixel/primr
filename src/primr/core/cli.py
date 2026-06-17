@@ -111,6 +111,7 @@ from primr.core.cli_parser import (
     _discover_strategies as _discover_strategies,
 )
 from primr.core.cli_plan import run_plan
+from primr.core.cli_preflight import _run_preflight_checks
 from primr.core.cli_recovery import (
     _build_recovered_basename as _build_recovered_basename,
 )
@@ -1014,7 +1015,7 @@ def _create_parser() -> argparse.ArgumentParser:
         choices=["fast", "hybrid", "max"],
         default="hybrid",
         dest="grok_tier",
-        help="Grok model tier: fast (4.3 low-effort + 4.20-nr, ~$4.27), hybrid (4.3 + 4.20-nr, default), max (4.3 everywhere, ~$3.75)",
+        help="Grok model tier: fast (4.3 low-effort + 4.20-nr, ~$4.36 base), hybrid (4.3 + 4.20-nr, default), max (4.3 everywhere, ~$3.75)",
     )
     parser.add_argument(
         "--continuous-reasoning",
@@ -2803,109 +2804,6 @@ def _handle_eval(config: CLIConfig) -> int:
     return 0
 
 
-def _run_preflight_checks(mode: str) -> tuple[bool, list[str]]:
-    """
-    Run preflight checks before starting research pipeline.
-
-    Validates critical dependencies upfront to fail fast rather than
-    failing 30 minutes into a long pipeline.
-
-    Returns:
-        (success, errors) - True if all checks pass, list of error messages if not
-    """
-    errors = []
-
-    # 1. Check GEMINI_API_KEY (required for all modes)
-    gemini_key = os.environ.get("GEMINI_API_KEY", "")
-    if not gemini_key or len(gemini_key) < 10:
-        errors.append(
-            "GEMINI_API_KEY not configured. Run 'primr keys set gemini' "
-            "or get a key at https://aistudio.google.com/apikey"
-        )
-
-    # 2. Check Playwright browsers (required for scrape and full modes)
-    if mode in ("scrape-only", "complete", "hybrid", "structured"):
-        try:
-            from playwright.sync_api import sync_playwright
-
-            pw = sync_playwright().start()
-            try:
-                # Try to launch browser - this will fail if browsers aren't installed
-                browser = pw.chromium.launch(headless=True)
-                browser.close()
-            finally:
-                pw.stop()
-        except Exception as e:
-            error_msg = str(e)
-            if "Executable doesn't exist" in error_msg or "playwright install" in error_msg.lower():
-                errors.append("Playwright browsers not installed. Run: playwright install chromium")
-            else:
-                errors.append(f"Playwright check failed: {error_msg}")
-
-    # 3. Quick API connectivity check (validates key is valid)
-    if gemini_key and len(gemini_key) >= 10:
-        try:
-            from google import genai
-
-            client = genai.Client(api_key=gemini_key, http_options=default_genai_http_options())
-            # Minimal test - just check we can connect
-            _ = client.models.generate_content(
-                model=PrimrModels.FAST_MODEL,
-                contents="Reply with: ok",
-            )
-        except Exception as e:
-            error_str = str(e).lower()
-            if "quota" in error_str or "rate" in error_str:
-                errors.append("Gemini API quota exceeded - wait and retry later")
-            elif "invalid" in error_str or "api key" in error_str:
-                errors.append("Gemini API key is invalid - check your .env file")
-            else:
-                errors.append(f"Gemini API connection failed: {e}")
-
-    # 4. Check search provider (Google requires API keys; DDG needs nothing)
-    search_provider = os.environ.get("SEARCH_PROVIDER", "auto").lower().strip()
-    if search_provider == "google":
-        search_key = os.environ.get("SEARCH_API_KEY", "")
-        search_engine_id = os.environ.get("SEARCH_ENGINE_ID", "")
-
-        if not search_key or len(search_key) < 10:
-            errors.append(
-                "SEARCH_API_KEY not configured. Get your key at: https://console.cloud.google.com/apis/credentials"
-            )
-        elif not search_engine_id or len(search_engine_id) < 10:
-            errors.append(
-                "SEARCH_ENGINE_ID not configured or invalid. Get it at: https://programmablesearchengine.google.com/controlpanel/all"
-            )
-        else:
-            # Actually test the Search API with a simple query
-            try:
-                import requests
-
-                test_url = "https://www.googleapis.com/customsearch/v1"
-                params: dict[str, str | int] = {
-                    "q": "test",
-                    "key": search_key,
-                    "cx": search_engine_id,
-                    "num": 1,
-                }
-                search_response = requests.get(test_url, params=params, timeout=10)
-                if search_response.status_code == 400:
-                    error_detail = (
-                        search_response.json().get("error", {}).get("message", "Bad Request")
-                    )
-                    errors.append(f"Google Search API config invalid: {error_detail}")
-                elif search_response.status_code == 403:
-                    errors.append("Google Search API key invalid or quota exceeded")
-                elif search_response.status_code != 200:
-                    errors.append(f"Google Search API error: HTTP {search_response.status_code}")
-            except requests.exceptions.Timeout:
-                errors.append("Google Search API timeout - check your internet connection")
-            except Exception as e:
-                errors.append(f"Google Search API check failed: {e}")
-
-    return (len(errors) == 0, errors)
-
-
 def _handle_research(config: CLIConfig) -> int:
     """Handle research command."""
     from primr.core.research_agent import perform_research
@@ -2938,7 +2836,11 @@ def _handle_research(config: CLIConfig) -> int:
 
     # Run preflight checks before starting the pipeline
     console.step("Preflight checks")
-    preflight_ok, preflight_errors = _run_preflight_checks(config.mode)
+    preflight_ok, preflight_errors = _run_preflight_checks(
+        config.mode,
+        premium_mode=config.premium_mode,
+        fast_mode=config.fast_mode,
+    )
     if not preflight_ok:
         for error in preflight_errors:
             console.error(error)

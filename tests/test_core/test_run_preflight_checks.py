@@ -9,6 +9,14 @@ import pytest
 from primr.core.cli import _run_preflight_checks
 
 
+def _mock_playwright_ready():
+    pw = MagicMock()
+    pw.chromium.launch.return_value = MagicMock()
+    sync = MagicMock()
+    sync.start.return_value = pw
+    return sync
+
+
 class TestPreflightApiKey:
     def test_missing_gemini_key_returns_error(self, monkeypatch):
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
@@ -20,6 +28,32 @@ class TestPreflightApiKey:
         monkeypatch.setenv("GEMINI_API_KEY", "short")
         ok, errors = _run_preflight_checks("deep-research")
         assert ok is False
+
+    def test_full_mode_accepts_xai_only_without_gemini(self, monkeypatch):
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.setenv("XAI_API_KEY", "xai-real-looking-key-1234567890")
+        with patch("playwright.sync_api.sync_playwright", return_value=_mock_playwright_ready()):
+            ok, errors = _run_preflight_checks("complete")
+        assert ok is True
+        assert errors == []
+
+    def test_full_mode_rejects_openai_only_until_runtime_gap_closes(self, monkeypatch):
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-real-looking-key-1234567890")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        with patch("playwright.sync_api.sync_playwright", return_value=_mock_playwright_ready()):
+            ok, errors = _run_preflight_checks("complete")
+        assert ok is False
+        assert any("Full report execution currently requires" in e for e in errors)
+
+    def test_premium_mode_requires_gemini_even_with_xai(self, monkeypatch):
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.setenv("XAI_API_KEY", "xai-real-looking-key-1234567890")
+        with patch("playwright.sync_api.sync_playwright", return_value=_mock_playwright_ready()):
+            ok, errors = _run_preflight_checks("complete", premium_mode=True)
+        assert ok is False
+        assert any("GEMINI_API_KEY" in e for e in errors)
 
 
 class TestPreflightPlaywrightSkip:

@@ -1058,9 +1058,13 @@ Using Hypothesis for:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `GEMINI_API_KEY` | Yes | Google Gemini API key |
-| `SEARCH_API_KEY` | Yes | Google Custom Search API key |
-| `SEARCH_ENGINE_ID` | Yes | Google Custom Search Engine ID |
+| `XAI_API_KEY` | Recommended | Grok standard reasoning and strategy pipeline |
+| `GEMINI_API_KEY` | Recommended | Gemini writing, utility, premium mode, and scrape summaries |
+| `OPENAI_API_KEY` | Optional | OpenAI provider for routed eval/fallback paths |
+| `ANTHROPIC_API_KEY` | Optional | Anthropic provider for routed eval/fallback paths |
+| `OLLAMA_BASE_URL` | Optional | Local OpenAI-compatible endpoint for local eval/utility paths |
+| `SEARCH_API_KEY` | Optional | Google Custom Search API key, only with `SEARCH_PROVIDER=google` |
+| `SEARCH_ENGINE_ID` | Optional | Google Custom Search Engine ID, only with `SEARCH_PROVIDER=google` |
 | `AI_RESEARCH_MODEL` | No | Override research model |
 | `AI_REPORT_MODEL` | No | Override report model |
 | `VERBOSE` | No | Enable verbose output |

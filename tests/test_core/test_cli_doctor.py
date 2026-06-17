@@ -51,14 +51,34 @@ class TestCheckApiKeys:
         assert all_passed is True
         assert warnings >= 1
 
-    def test_fails_without_gemini_key(self, monkeypatch):
+    def test_fails_without_any_cloud_provider_key(self, monkeypatch):
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setenv("SEARCH_PROVIDER", "duckduckgo")
 
         with patch("ddgs.DDGS") as ddgs_mock:
             ddgs_mock.return_value.text.return_value = [{"title": "x"}]
             all_passed, _ = _check_api_keys(True, 0)
         assert all_passed is False
+
+    @pytest.mark.parametrize(
+        "env_name",
+        ["XAI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"],
+    )
+    def test_passes_with_non_gemini_cloud_provider_key(self, monkeypatch, env_name):
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.setenv(env_name, "provider-key-" + "x" * 20)
+        monkeypatch.setenv("SEARCH_PROVIDER", "duckduckgo")
+
+        with patch("ddgs.DDGS") as ddgs_mock:
+            ddgs_mock.return_value.text.return_value = [{"title": "x"}]
+            all_passed, _ = _check_api_keys(True, 0)
+        assert all_passed is True
 
     def test_google_search_provider_requires_keys(self, monkeypatch):
         monkeypatch.setenv("GEMINI_API_KEY", "AI" + "x" * 30)
@@ -405,6 +425,8 @@ class TestCheckApiKeysEdgeCases:
     def test_xai_key_configured(self, monkeypatch):
         monkeypatch.setenv("GEMINI_API_KEY", "AI" + "x" * 30)
         monkeypatch.setenv("XAI_API_KEY", "y" * 30)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setenv("SEARCH_PROVIDER", "duckduckgo")
         with patch("ddgs.DDGS") as ddgs_mock:
             ddgs_mock.return_value.text.return_value = [{"title": "x"}]

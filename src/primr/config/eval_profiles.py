@@ -7,7 +7,7 @@ call here. The eval harness picks them up automatically via
 list_eval_profile_names().
 
 The hard goal: the *winner* of this matrix becomes the new default `primr`
-recipe, replacing the current ~$4.27 Grok 4.3 hybrid. The binding constraint
+recipe, replacing the current ~$4.36 Grok 4.3 hybrid. The binding constraint
 is total run cost < $1.00 with quality at or above the current 4.3 baseline.
 
 See docs/EVAL_V1_24_0.md for decision criteria, eval corpus, and process.
@@ -317,9 +317,9 @@ _V1_24_0_CURRENT_BASELINE = EvalProfileSlot(
         writing="grok-4.20-non-reasoning",
         utility="grok-4.20-non-reasoning",
     ),
-    estimated_cost_usd=4.27,
+    estimated_cost_usd=4.36,
     description=(
-        "Reference baseline: the current ~$4.27 default that v1.24.0 is "
+        "Reference baseline: the current ~$4.36 default that v1.24.0 is "
         "trying to replace. Grok-only hybrid. Used to establish the quality "
         "bar that sub-$1 candidates must meet or exceed."
     ),

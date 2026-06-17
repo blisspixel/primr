@@ -3,9 +3,17 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
 import primr
+from primr.core.cli_keys import create_keys_parser
+from primr.core.cli_parser import CLI_EPILOG
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _read_roadmap_text() -> str:
+    return (REPO_ROOT / "ROADMAP.md").read_text(encoding="utf-8")
 
 
 def _read_pyproject_version() -> str:
@@ -20,10 +28,9 @@ def _read_pyproject_version() -> str:
 
 
 def _read_roadmap_current_state_version() -> str:
-    roadmap_path = REPO_ROOT / "ROADMAP.md"
     match = re.search(
         r"^Current State:\s+v(?P<version>\d+\.\d+\.\d+)\b",
-        roadmap_path.read_text(encoding="utf-8"),
+        _read_roadmap_text(),
         re.MULTILINE,
     )
     assert match is not None, "ROADMAP.md must declare a 'Current State: vX.Y.Z' line"
@@ -49,5 +56,31 @@ def test_roadmap_current_state_matches_package_version() -> None:
     assert _read_roadmap_current_state_version() == primr.__version__
 
 
+def test_roadmap_changelog_contains_current_state_version() -> None:
+    version = _read_roadmap_current_state_version()
+    pattern = rf"^\|\s*{re.escape(version)}\s*\|"
+
+    assert re.search(pattern, _read_roadmap_text(), re.MULTILINE), (
+        "ROADMAP.md changelog table must include the Current State version"
+    )
+
+
 def test_citation_version_matches_package_version() -> None:
     assert _read_citation_version() == primr.__version__
+
+
+def test_cli_epilog_uses_current_default_cost_band() -> None:
+    assert "~$0.89-$1.01" in CLI_EPILOG
+    assert "~$6" not in CLI_EPILOG
+    assert "60-90 min" not in CLI_EPILOG
+
+
+def test_keys_set_help_mentions_all_common_llm_providers(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        create_keys_parser().parse_args(["set", "--help"])
+
+    assert exc_info.value.code == 0
+    help_text = " ".join(capsys.readouterr().out.split())
+    assert "Common choices: xai, gemini, openai, anthropic, ollama" in help_text

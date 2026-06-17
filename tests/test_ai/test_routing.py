@@ -56,7 +56,7 @@ class TestPickModelForRole:
 
     - UTILITY: GEMINI_API_KEY wins -> gemini-3-flash-preview; else XAI -> grok-4.20-NR
     - WRITING: GEMINI_API_KEY wins -> gemini-3.1-flash-lite (v1.24.0 winner);
-      else XAI -> grok-4.20-NR (legacy fallback at $4.27/run); else Pro model
+      else XAI -> grok-4.20-NR (legacy fallback); else Pro model
     - REASONING / PRO: XAI -> grok-4.3; else Pro model
     """
 
@@ -84,7 +84,7 @@ class TestPickModelForRole:
             assert pick_model_for_role(Role.WRITING) == ModelRegistry.GEMINI_3_1_FLASH_LITE.name
 
     def test_writing_falls_back_to_grok_when_only_xai_key_set(self) -> None:
-        """Legacy XAI-only path: stays on grok-4.20-NR (the ~$4.27/run default)."""
+        """Legacy XAI-only path: stays on grok-4.20-NR."""
         env = _scrubbed_env(XAI_API_KEY="test-xai")
         with patch.dict("os.environ", env, clear=True):
             assert pick_model_for_role(Role.WRITING) == PrimrModels.GROK_MODEL_WRITING

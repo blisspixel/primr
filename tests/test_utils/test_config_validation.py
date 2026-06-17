@@ -49,8 +49,8 @@ def reset_config_fixture():
 class TestAPIKeysConfig:
     """Tests for APIKeysConfig validation."""
 
-    def test_validates_missing_gemini_key(self):
-        """Should report error for missing Gemini API key."""
+    def test_validates_missing_model_provider_key(self):
+        """Should report error when no cloud model provider key is configured."""
         with patch.dict(os.environ, {}, clear=True):
             config = APIKeysConfig(
                 gemini_api_key=None, search_api_key="test", search_engine_id="test"
@@ -58,7 +58,7 @@ class TestAPIKeysConfig:
             errors = config.validate()
 
             assert len(errors) == 1
-            assert "GEMINI_API_KEY" in errors[0].field
+            assert "MODEL_PROVIDER_API_KEY" in errors[0].field
 
     def test_validates_short_api_key(self):
         """Should report error for suspiciously short API key."""
@@ -92,6 +92,21 @@ class TestAPIKeysConfig:
             search_api_key="search_key",
             search_engine_id="engine_id",
         )
+        errors = config.validate()
+
+        assert len(errors) == 0
+
+    @pytest.mark.parametrize("field_name", ["openai_api_key", "anthropic_api_key"])
+    def test_non_gemini_provider_key_no_errors(self, field_name):
+        """OpenAI-only and Anthropic-only setups satisfy provider-key validation."""
+        kwargs = {
+            "gemini_api_key": None,
+            "xai_api_key": None,
+            "search_api_key": "search_key",
+            "search_engine_id": "engine_id",
+            field_name: "provider_key_long_enough",
+        }
+        config = APIKeysConfig(**kwargs)
         errors = config.validate()
 
         assert len(errors) == 0
@@ -298,7 +313,12 @@ class TestPrimrConfig:
     def test_validate_aggregates_all_errors(self):
         """Should aggregate errors from all sections."""
         config = PrimrConfig(
-            api_keys=APIKeysConfig(gemini_api_key=None, xai_api_key=None),
+            api_keys=APIKeysConfig(
+                gemini_api_key=None,
+                xai_api_key=None,
+                openai_api_key=None,
+                anthropic_api_key=None,
+            ),
             timeouts=TimeoutsConfig(connect_timeout=-1),
             retry=RetryConfig(max_retries=-1),
         )
@@ -374,7 +394,16 @@ class TestModuleFunctions:
         reset_config()
 
         # Mock environment to have no API key
-        with patch.dict(os.environ, {"GEMINI_API_KEY": "", "XAI_API_KEY": ""}, clear=False):
+        with patch.dict(
+            os.environ,
+            {
+                "GEMINI_API_KEY": "",
+                "XAI_API_KEY": "",
+                "OPENAI_API_KEY": "",
+                "ANTHROPIC_API_KEY": "",
+            },
+            clear=False,
+        ):
             reset_config()
             with pytest.raises(ValueError, match="validation failed"):
                 require_valid_config(include_api_keys=True)

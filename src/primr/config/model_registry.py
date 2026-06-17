@@ -15,8 +15,8 @@ from enum import Enum
 class GrokTier(str, Enum):
     """Grok model tier — controls quality/cost tradeoff in fast mode."""
 
-    FAST = "fast"  # 4.3 (reasoning_effort=low) + 4.20-nr (~$4.27)
-    HYBRID = "hybrid"  # 4.3 + 4.20-nr (~$4.27, same models, default effort) — DEFAULT
+    FAST = "fast"  # 4.3 (reasoning_effort=low) + 4.20-nr (~$4.36 base)
+    HYBRID = "hybrid"  # 4.3 + 4.20-nr (~$4.36 base, same models, default effort) - DEFAULT
     MAX = "max"  # 4.3 everywhere (~$3.75)
 
 

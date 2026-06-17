@@ -191,7 +191,9 @@ class PreflightValidator:
     ) -> None:
         """Check required API keys are configured."""
 
-        # GEMINI_API_KEY - required for all modes
+        # This legacy validator backs the Gemini Deep Research helper, so its
+        # model checks are Gemini-specific even though the main CLI can run the
+        # XAI standard path without Gemini.
         gemini_key = self._settings.api.gemini_key
         if not gemini_key:
             errors.append("GEMINI_API_KEY not configured in .env")
@@ -278,11 +280,18 @@ class PreflightValidator:
         progress: Callable,
     ) -> None:
         """Check model connectivity."""
-        from google import genai
-
         gemini_key = self._settings.api.gemini_key
         if not gemini_key:
             return  # Already reported in API key check
+
+        try:
+            from google import genai
+        except ImportError:
+            errors.append(
+                "google-genai package not installed. Install with: pip install google-genai"
+            )
+            checks["gemini_sdk"] = {"passed": False, "status": "missing"}
+            return
 
         client = genai.Client(api_key=gemini_key, http_options=default_genai_http_options())
 

@@ -48,19 +48,19 @@ def test_normalize_key_name_accepts_provider_aliases():
     assert normalize_key_name("claude") == "ANTHROPIC_API_KEY"
     assert normalize_key_name("openai") == "OPENAI_API_KEY"
     assert normalize_key_name("gpt") == "OPENAI_API_KEY"
+    assert normalize_key_name("ollama") == "OLLAMA_API_KEY"
+    assert normalize_key_name("local") == "OLLAMA_API_KEY"
+    assert normalize_key_name("OLLAMA_API_KEY") == "OLLAMA_API_KEY"
 
 
 def test_keys_surface_covers_every_wired_provider():
-    """No drift: every LLM provider in the registry that needs a real key must be
-    settable via `primr keys set` (KEY_ALIASES) and shown by `keys list`
-    (KEY_HELP). Providers with a default key (e.g. Ollama) are exempt."""
+    """No drift: every LLM provider in the registry must be settable via
+    `primr keys set` (KEY_ALIASES) and shown by `keys list` (KEY_HELP)."""
     from primr.ai.providers import KNOWN_PROVIDERS
     from primr.config.env import KEY_ALIASES, KEY_HELP
 
     settable = set(KEY_ALIASES.values())
     for provider in KNOWN_PROVIDERS:
-        if provider.api_key_default is not None:
-            continue  # local/default-key providers don't need `keys set`
         assert provider.api_key_env in settable, (
             f"{provider.name}: {provider.api_key_env} is a wired provider but not "
             f"settable via `primr keys set` (missing from KEY_ALIASES)"

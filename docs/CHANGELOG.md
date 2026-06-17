@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Cleaned up README, ROADMAP, and artifact-guide drift around standard-run
+  estimates, Gemini/XAI key roles, skill-pack cost, best-effort PDF output,
+  roadmap changelog freshness, provider opt-in setup, and current
+  coverage/test-count wording.
+
+### Fixed
+
+- `primr doctor` and the config validator no longer treat Gemini as the only
+  acceptable cloud LLM provider key. OpenAI-only and Anthropic-only setups now
+  pass the provider-key layer and are left to the provider registry for SDK
+  usability checks.
+- Dry-run estimates now auto-select the provider-routed standard estimate for
+  OpenAI-only and Anthropic-only key setups, price the utility bucket through
+  `Role.UTILITY`, and label routed estimates without stale Grok/Gemini premium
+  wording.
+
 ## [1.32.2] - 2026-06-16
 
 ### Fixed

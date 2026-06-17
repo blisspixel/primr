@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from primr.core.cli_init import (
+    MODEL_PROVIDER_ENV_NAMES,
     _ensure_project_env_file,
     _install_playwright_browsers,
     _key_looks_configured,
@@ -80,9 +81,9 @@ class TestShouldOfferInteractiveKeySetup:
             patch("sys.stdin.isatty", return_value=True),
             patch("sys.stdout.isatty", return_value=True),
         ):
-            assert (
-                _should_offer_interactive_key_setup(self._result("GEMINI_API_KEY", "XAI_API_KEY"))
-                is True
+            assert _should_offer_interactive_key_setup(self._result("MODEL_PROVIDER_API_KEY"))
+            assert _should_offer_interactive_key_setup(
+                self._result("GEMINI_API_KEY", "XAI_API_KEY")
             )
 
     def test_returns_false_when_other_error_field(self):
@@ -142,7 +143,10 @@ class TestValidateKeyLive:
         fake_module = MagicMock()
         fake_module.Client.return_value = client
         with (
-            patch.dict("sys.modules", {"google": MagicMock(genai=fake_module)}),
+            patch.dict(
+                "sys.modules",
+                {"google": MagicMock(genai=fake_module), "google.genai": fake_module},
+            ),
             patch("google.genai", fake_module, create=True),
         ):
             ok, msg = _validate_key_live("gemini", "real-key-1234567890")
@@ -153,7 +157,10 @@ class TestValidateKeyLive:
         fake_module = MagicMock()
         fake_module.Client.side_effect = RuntimeError("invalid api key 401")
         with (
-            patch.dict("sys.modules", {"google": MagicMock(genai=fake_module)}),
+            patch.dict(
+                "sys.modules",
+                {"google": MagicMock(genai=fake_module), "google.genai": fake_module},
+            ),
             patch("google.genai", fake_module, create=True),
         ):
             ok, msg = _validate_key_live("gemini", "bogus-1234567890")
@@ -227,6 +234,9 @@ class TestEnsureProjectEnvFile:
         assert path == str(tmp_path / ".env")
         content = (tmp_path / ".env").read_text(encoding="utf-8")
         assert "Primr project-specific overrides" in content
+        assert "OPENAI_API_KEY=" in content
+        assert "ANTHROPIC_API_KEY=" in content
+        assert "OLLAMA_BASE_URL=" in content
 
     def test_creates_when_pyproject_present(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -253,6 +263,8 @@ class TestRunInitFlow:
         from primr.core import cli_init
 
         monkeypatch.chdir(tmp_path)
+        for env_name in MODEL_PROVIDER_ENV_NAMES:
+            monkeypatch.delenv(env_name, raising=False)
         monkeypatch.setenv("GEMINI_API_KEY", "real-looking-key-1234567890")
         monkeypatch.setenv("XAI_API_KEY", "another-real-key-1234567890")
         # Force Python version check to pass regardless of local interpreter.
@@ -299,8 +311,8 @@ class TestRunInitFlow:
         from primr.core import cli_init
 
         monkeypatch.chdir(tmp_path)
-        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        for env_name in MODEL_PROVIDER_ENV_NAMES:
+            monkeypatch.delenv(env_name, raising=False)
         monkeypatch.setattr("primr.config.env.get_user_env_path", lambda: str(tmp_path / "u.env"))
         monkeypatch.setattr("primr.config.env.load_primr_env", lambda: None)
         monkeypatch.setattr(cli_init, "_playwright_browsers_ready", lambda: True)
@@ -312,6 +324,26 @@ class TestRunInitFlow:
             run_doctor_after=False,
         )
         assert result == 1
+
+    @pytest.mark.parametrize("env_name", ["XAI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"])
+    def test_non_interactive_single_provider_key_is_ready(self, env_name, tmp_path, monkeypatch):
+        from primr.core import cli_init
+
+        monkeypatch.chdir(tmp_path)
+        for provider_env in MODEL_PROVIDER_ENV_NAMES:
+            monkeypatch.delenv(provider_env, raising=False)
+        monkeypatch.setenv(env_name, "real-looking-key-1234567890")
+        monkeypatch.setattr("primr.config.env.get_user_env_path", lambda: str(tmp_path / "u.env"))
+        monkeypatch.setattr("primr.config.env.load_primr_env", lambda: None)
+        monkeypatch.setattr(cli_init, "_playwright_browsers_ready", lambda: True)
+
+        result = cli_init._run_init_flow(
+            non_interactive=True,
+            assume_yes=False,
+            skip_browsers=False,
+            run_doctor_after=False,
+        )
+        assert result == 0
 
     def test_skip_browsers_flag_respected(self, tmp_path, monkeypatch):
         self._setup_fake_env(monkeypatch, tmp_path)
@@ -363,8 +395,8 @@ class TestRunInitFlow:
         from primr.core import cli_init
 
         monkeypatch.chdir(tmp_path)
-        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        for env_name in MODEL_PROVIDER_ENV_NAMES:
+            monkeypatch.delenv(env_name, raising=False)
         monkeypatch.setattr("primr.config.env.get_user_env_path", lambda: str(tmp_path / "u.env"))
         monkeypatch.setattr("primr.config.env.load_primr_env", lambda: None)
         monkeypatch.setattr("primr.config.env.mask_secret", lambda v: "***")
@@ -398,8 +430,8 @@ class TestRunInitFlow:
         from primr.core import cli_init
 
         monkeypatch.chdir(tmp_path)
-        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        for env_name in MODEL_PROVIDER_ENV_NAMES:
+            monkeypatch.delenv(env_name, raising=False)
         monkeypatch.setattr("primr.config.env.get_user_env_path", lambda: str(tmp_path / "u.env"))
         monkeypatch.setattr("primr.config.env.load_primr_env", lambda: None)
         monkeypatch.setattr("primr.config.env.mask_secret", lambda v: "***")
@@ -423,15 +455,15 @@ class TestRunInitFlow:
             skip_browsers=True,
             run_doctor_after=False,
         )
-        # Two providers failed validation -> not ready -> returns 1
+        # No provider key validated, so setup is not ready.
         assert result == 1
 
     def test_interactive_empty_key_skips_provider(self, tmp_path, monkeypatch):
         from primr.core import cli_init
 
         monkeypatch.chdir(tmp_path)
-        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        for env_name in MODEL_PROVIDER_ENV_NAMES:
+            monkeypatch.delenv(env_name, raising=False)
         monkeypatch.setattr("primr.config.env.get_user_env_path", lambda: str(tmp_path / "u.env"))
         monkeypatch.setattr("primr.config.env.load_primr_env", lambda: None)
         monkeypatch.setattr(cli_init, "_playwright_browsers_ready", lambda: True)
@@ -453,7 +485,7 @@ class TestRunInitFlow:
             skip_browsers=True,
             run_doctor_after=False,
         )
-        # Both providers skipped -> not ready -> returns 1
+        # All provider prompts were skipped, so setup is not ready.
         assert result == 1
 
     def test_browser_install_failure_returns_nonzero(self, tmp_path, monkeypatch):

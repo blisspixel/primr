@@ -137,7 +137,7 @@ class TestAggregate:
         assert summary.thin_pages == 1
         assert summary.avg_text_length == 2050
         assert summary.content_valid_rate == 0.5
-        assert 100 < THIN_CONTENT_CHARS
+        assert THIN_CONTENT_CHARS > 100
 
     def test_unreadable_file_skipped(self, tmp_path):
         (tmp_path / "garbage.jsonl").write_text("not json at all\n", encoding="utf-8")

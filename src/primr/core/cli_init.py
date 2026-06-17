@@ -21,6 +21,13 @@ from primr.utils.console import console
 
 logger = logging.getLogger(__name__)
 
+MODEL_PROVIDER_ENV_NAMES = (
+    "GEMINI_API_KEY",
+    "XAI_API_KEY",
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+)
+
 
 def _prompt_yes_no(prompt: str, *, default: bool) -> bool:
     """Prompt for a yes/no answer in interactive setup flows."""
@@ -40,7 +47,11 @@ def _should_offer_interactive_key_setup(validation_result: Any) -> bool:
         return False
     if not validation_result.errors:
         return False
-    key_error_fields = {"GEMINI_API_KEY/XAI_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY"}
+    key_error_fields = {
+        "MODEL_PROVIDER_API_KEY",
+        "GEMINI_API_KEY/XAI_API_KEY",
+        *MODEL_PROVIDER_ENV_NAMES,
+    }
     return all(getattr(err, "field", "") in key_error_fields for err in validation_result.errors)
 
 
@@ -150,6 +161,10 @@ def _ensure_project_env_file() -> tuple[bool, str | None]:
                 "",
                 "# GEMINI_API_KEY=",
                 "# XAI_API_KEY=",
+                "# OPENAI_API_KEY=",
+                "# ANTHROPIC_API_KEY=",
+                "# OLLAMA_BASE_URL=http://localhost:11434",
+                "# OLLAMA_API_KEY=ollama",
                 "# SEARCH_PROVIDER=auto",
                 "",
             ]
@@ -202,20 +217,36 @@ def _run_init_flow(
 
     key_steps = [
         (
+            "xai",
+            "XAI_API_KEY",
+            "Grok 4.3 standard reasoning (~$4.36 XAI-only base; sub-$1 base with Gemini writing)",
+            "https://console.x.ai/",
+            "$25 free credits for new accounts",
+            True,
+        ),
+        (
             "gemini",
             "GEMINI_API_KEY",
-            "Premium mode (Gemini Deep Research, ~$5/run) + scrape summaries",
+            "Cheapest measured writer with XAI, premium mode, and scrape summaries",
             "https://aistudio.google.com/apikey",
             "free tier available",
             True,
         ),
         (
-            "xai",
-            "XAI_API_KEY",
-            "Default Grok 4.3 hybrid pipeline (~$0.60/run, recommended)",
-            "https://console.x.ai/",
-            "$25 free credits for new accounts",
-            True,
+            "openai",
+            "OPENAI_API_KEY",
+            "Optional GPT/o-series provider for routed estimates, evals, and fallback experiments",
+            "https://platform.openai.com/api-keys",
+            "pay as you go",
+            False,
+        ),
+        (
+            "anthropic",
+            "ANTHROPIC_API_KEY",
+            "Optional Claude provider for routed estimates, evals, and fallback experiments",
+            "https://console.anthropic.com/settings/keys",
+            "pay as you go",
+            False,
         ),
     ]
 
@@ -239,17 +270,18 @@ def _run_init_flow(
             console.info(f"  Get one: {url}  ({hint})")
 
             if not interactive:
-                all_ready = False
                 console.info(f"  Run: primr keys set {provider}")
                 continue
 
-            if not (
-                assume_yes or _prompt_yes_no(f"Paste your {env_name} now?", default=default_yes)
-            ):
-                all_ready = False
+            if assume_yes and not default_yes:
                 continue
 
-        saved = False
+            wants_to_paste = assume_yes if default_yes else False
+            if not wants_to_paste:
+                wants_to_paste = _prompt_yes_no(f"Paste your {env_name} now?", default=default_yes)
+            if not wants_to_paste:
+                continue
+
         for attempt in range(3):
             value = getpass.getpass(f"  {env_name} (input hidden): ").strip()
             if not value:
@@ -260,14 +292,15 @@ def _run_init_flow(
             if ok:
                 set_user_key(provider, value)
                 os.environ[env_name] = value
-                console.ok(f"{env_name} saved ({mask_secret(value)}) — {message}")
-                saved = True
+                console.ok(f"{env_name} saved ({mask_secret(value)}) - {message}")
                 break
             console.error(f"  {message}")
             if attempt < 2:
                 console.info("  Try again, or press Enter to skip.")
-        if not saved and not already_set:
-            all_ready = False
+    if not any(_key_looks_configured(env_name) for env_name in MODEL_PROVIDER_ENV_NAMES):
+        all_ready = False
+        console.warn("No model provider key configured")
+        console.info("  Run one of: primr keys set xai | gemini | openai | anthropic")
 
     console.step("Browser dependencies")
     if skip_browsers:

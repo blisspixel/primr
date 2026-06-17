@@ -182,6 +182,22 @@ async def test_check_models_no_key_returns_early(validator):
 
 
 @pytest.mark.asyncio
+async def test_check_models_missing_google_sdk_reports_error(validator):
+    def fake_import(name, *args, **kwargs):
+        if name == "google":
+            raise ImportError("no google SDK")
+        return real_import(name, *args, **kwargs)
+
+    real_import = __import__
+    errors, warnings, checks = [], [], {}
+    with patch("builtins.__import__", side_effect=fake_import):
+        await validator._check_models("full", errors, warnings, checks, _noop)
+
+    assert any("google-genai package not installed" in e for e in errors)
+    assert checks["gemini_sdk"]["passed"] is False
+
+
+@pytest.mark.asyncio
 async def test_check_models_flash_success_deep_research_success(validator):
     fake_client = MagicMock()
     fake_client.models.generate_content.return_value = SimpleNamespace(text="OK")

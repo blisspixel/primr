@@ -67,6 +67,30 @@ class TestDryRunFlags:
         result = run_dry_run(_config(mode="complete"))
         assert result == 0
 
+    @pytest.mark.parametrize(
+        ("env_name", "expected_label"),
+        [
+            ("OPENAI_API_KEY", "standard (OpenAI routed)"),
+            ("ANTHROPIC_API_KEY", "standard (Anthropic routed)"),
+        ],
+    )
+    def test_auto_standard_estimate_when_opt_in_provider_key_set(
+        self, monkeypatch, capsys, env_name, expected_label
+    ):
+        import json
+
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.setenv(env_name, "provider-key-" + "x" * 20)
+
+        result = run_dry_run(_config(mode="complete", json_output=True))
+
+        assert result == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["mode_label"] == expected_label
+
     def test_skip_recon_branch_taken(self, mocks):
         result = run_dry_run(_config(mode="scrape", skip_recon=True))
         assert result == 0

@@ -634,6 +634,39 @@ class TestGrokTier:
         # the v1.24.0 stage-1 eval landed at $0.79.
         assert est.total_cost < 2.00
 
+    def test_standard_estimate_routes_openai_only(self, monkeypatch):
+        """OpenAI-only standard estimates should not price Gemini premium stages."""
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.setenv("OPENAI_API_KEY", "fake-test-key")
+
+        est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="hybrid")
+
+        notes = " ".join(est.notes)
+        assert est.mode == "standard (OpenAI routed)"
+        assert est.deep_research_cost == 0.0
+        assert "o4-mini reasoning" in notes
+        assert "gpt-5.4-nano writing" in notes
+        assert "gpt-5.4-nano utility" in notes
+        assert "Gemini 3.1 Pro" not in notes
+
+    def test_standard_estimate_routes_anthropic_only(self, monkeypatch):
+        """Anthropic-only standard estimates should price Claude for every routed role."""
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-test-key")
+
+        est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="hybrid")
+
+        notes = " ".join(est.notes)
+        assert est.mode == "standard (Anthropic routed)"
+        assert est.deep_research_cost == 0.0
+        assert "claude-sonnet-4-6 reasoning" in notes
+        assert "claude-haiku-4-5 writing" in notes
+        assert "claude-haiku-4-5 utility" in notes
+
     def test_max_tier_cost_range(self):
         """Max tier (Grok 4.3 everywhere) should be in the $2.00-$5.00 band."""
         est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="max")

@@ -102,6 +102,20 @@ GEMINI_3_FLASH_OUTPUT_PRICE = PrimrModels.get_price(PrimrModels.FLASH_MODEL)[1] 
 GOOGLE_SEARCH_PRICE_PER_1000 = SEARCH_COST_PER_QUERY * 1000  # 35.00
 
 
+def _provider_label_for_model(model_name: str) -> str:
+    """Return a short display label for the model's provider."""
+    config = PrimrModels.get_model_config(model_name)
+    if config is None:
+        return "LLM"
+    return {
+        "xai": "Grok",
+        "google": "Gemini",
+        "openai": "OpenAI",
+        "anthropic": "Anthropic",
+        "ollama": "Ollama",
+    }.get(config.provider, config.provider.title())
+
+
 # Estimated token usage by mode (based on actual runs, split by model)
 # Flash is used for scraping/filtering, Pro for writing/analysis
 # deep_research_tasks: number of Deep Research API calls (flat per-task cost)
@@ -456,27 +470,30 @@ def _estimate_fast_mode_cost(
     tier_reasoning_model, tier_writing_model = PrimrModels.get_grok_models(GrokTier(grok_tier))
     if grok_tier == "max":
         reasoning_model, writing_model = tier_reasoning_model, tier_writing_model
+        utility_model = tier_writing_model
     else:
         from primr.ai.routing import Role, pick_model_for_role
 
+        utility_model = pick_model_for_role(Role.UTILITY)
         reasoning_model = pick_model_for_role(Role.REASONING)
         writing_model = pick_model_for_role(Role.WRITING)
 
     # Costs — price each bucket using the resolved model
-    flash_cost = PrimrModels.calculate_flash_cost(flash_in, flash_out)
+    utility_cost = PrimrModels.calculate_cost(utility_model, flash_in, flash_out)
     reasoning_cost = PrimrModels.calculate_cost(
         reasoning_model, grok_reasoning_in, grok_reasoning_out
     )
     writing_cost = PrimrModels.calculate_cost(writing_model, grok_writing_in, grok_writing_out)
     search_cost = 0.0 if search_free else PrimrModels.calculate_search_cost(search_queries)
 
-    total_cost = flash_cost + reasoning_cost + writing_cost + search_cost
+    total_cost = utility_cost + reasoning_cost + writing_cost + search_cost
 
     # Split for display
-    flash_input_cost = (flash_in / 1_000_000) * GEMINI_3_FLASH_INPUT_PRICE
-    flash_output_cost = (flash_out / 1_000_000) * GEMINI_3_FLASH_OUTPUT_PRICE
+    u_inp_price, u_out_price = PrimrModels.get_price(utility_model)
     r_inp_price, r_out_price = PrimrModels.get_price(reasoning_model)
     w_inp_price, w_out_price = PrimrModels.get_price(writing_model)
+    utility_input_cost = (flash_in / 1_000_000) * u_inp_price
+    utility_output_cost = (flash_out / 1_000_000) * u_out_price
     grok_input_cost = (grok_reasoning_in / 1_000_000) * r_inp_price + (
         grok_writing_in / 1_000_000
     ) * w_inp_price
@@ -484,15 +501,15 @@ def _estimate_fast_mode_cost(
         grok_writing_out / 1_000_000
     ) * w_out_price
 
-    total_input_cost = flash_input_cost + grok_input_cost
-    total_output_cost = flash_output_cost + grok_output_cost
+    total_input_cost = utility_input_cost + grok_input_cost
+    total_output_cost = utility_output_cost + grok_output_cost
 
     grok_in_total = grok_reasoning_in + grok_writing_in
     grok_out_total = grok_reasoning_out + grok_writing_out
 
     # Strategy stages flow through the reasoning stack, so attribute their
     # duration suffix to whichever provider is doing the reasoning.
-    strategy_provider = "Grok" if "grok" in reasoning_model.lower() else "Gemini"
+    strategy_provider = _provider_label_for_model(reasoning_model)
 
     duration = f"{duration_min}-{duration_max} min"
     if include_ai_strategy:
@@ -504,9 +521,18 @@ def _estimate_fast_mode_cost(
         "max": "Grok 4.3 max",
     }
     tier_label = tier_labels.get(grok_tier, "Grok")
-    tier_desc = f"{reasoning_model} reasoning + {writing_model} writing"
+    mode_provider = _provider_label_for_model(reasoning_model)
+    estimate_mode = (
+        f"standard ({tier_label})"
+        if mode_provider == "Grok" or grok_tier == "max"
+        else f"standard ({mode_provider} routed)"
+    )
+    tier_desc = f"{reasoning_model} reasoning + {writing_model} writing + {utility_model} utility"
     if grok_tier == "fast":
-        tier_desc = f"{reasoning_model} (reasoning_effort=low) + {writing_model} writing"
+        tier_desc = (
+            f"{reasoning_model} (reasoning_effort=low) + {writing_model} writing "
+            f"+ {utility_model} utility"
+        )
     elif grok_tier == "max":
         tier_desc = f"{reasoning_model} for all stages (max tier)"
     notes = [f"Standard mode: {tier_desc}"]
@@ -522,7 +548,7 @@ def _estimate_fast_mode_cost(
     total_output_tokens = flash_out + grok_out_total
 
     return CostEstimate(
-        mode=f"standard ({tier_label})",
+        mode=estimate_mode,
         estimated_input_tokens=total_input_tokens,
         estimated_output_tokens=total_output_tokens,
         estimated_search_queries=search_queries,
