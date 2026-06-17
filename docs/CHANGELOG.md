@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.32.5] - 2026-06-17
+
+### Added
+
+- Added a transport-free host-agent runner seam for official account-backed
+  stage execution: bounded stage packets, explicit billing policy, evidence
+  fencing, normalized runner metadata, and fake-runner tests.
+- Documented how Codex and Claude Code account-backed execution fits Primr's
+  agentic-balance contract: official host runners only, explicit billing
+  boundaries, no browser-session scraping, and no unofficial subscription
+  proxies.
+
+### Fixed
+
+- MCP doctor now recognizes XAI, Gemini/Google, OpenAI, and Anthropic direct
+  provider keys instead of reporting only Gemini-style credentials as
+  configured.
+
 ## [1.32.4] - 2026-06-17
 
 ### Security
