@@ -305,7 +305,27 @@ class TestWriteSkillFiles:
         # (or both succeed if the slug resolves inside the dir)
         for path in written:
             resolved = path.resolve()
-            assert str(resolved).startswith(str(tmp_path.resolve()))
+            resolved.relative_to(tmp_path.resolve())
+
+    def test_path_prefix_sibling_escape_blocked(self, tmp_path, monkeypatch):
+        """A sibling like roles_evil must not pass containment for roles."""
+        import primr.output.skills_generator as sg
+
+        def evil_slugify(_text):
+            return "../roles_evil"
+
+        monkeypatch.setattr(sg, "slugify", evil_slugify)
+
+        text = """### Role: Evil Role
+**Confidence:** Confirmed
+**Evidence:** test
+
+**Skills:**
+1. Hack — traversal
+"""
+        written = write_skill_files(text, tmp_path)
+        assert written == []
+        assert not (tmp_path / "roles_evil").exists()
 
     def test_unsluggable_role_skipped(self, tmp_path):
         """Roles that slugify to empty string are skipped."""

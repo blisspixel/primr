@@ -125,6 +125,43 @@ def test_unsafe_folder_slug_is_dropped_from_both_artifacts(tmp_path: Path):
     assert any("draft-dbt-models/SKILL.md" in n for n in names)  # good skill survived
 
 
+def test_claude_tree_path_containment_rejects_sibling_prefix_escape(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Defense-in-depth: containment is path-aware, not string-prefix based."""
+    import primr.skill_pack.packager as packager
+
+    good = _make_pack().roles[0].skills[0]
+    evil = Skill(
+        name="../roles_evil",
+        display_name="Evil",
+        description="Use when the user asks to do X, Y, or Z.",
+        body=good.body,
+    )
+    role = Role(
+        name="data-engineer",
+        display_name="Data Engineer",
+        confidence="Inferred",
+        evidence=RoleEvidence(archetype="data-engineer"),
+        skills=[evil],
+    )
+    pack = SkillPack(
+        company_name="Acme Corp",
+        company_url=None,
+        generated_at="2026-01-01T00:00:00+00:00",
+        roles=[role],
+        validation=ValidationReport(),
+    )
+
+    monkeypatch.setattr(packager, "_is_safe_slug", lambda _slug: True)
+    artifacts = package_skill_pack(pack, SkillPackConfig(formats=SkillPackFormat.CLAUDE), tmp_path)
+
+    assert artifacts.claude_tree_root is not None
+    assert not (Path(artifacts.claude_tree_root).parent / "roles_evil").exists()
+    assert artifacts.skill_md_paths == []
+
+
 def test_package_emits_claude_tree_and_cowork_zip(tmp_path: Path):
     pack = _make_pack()
     config = SkillPackConfig(formats=SkillPackFormat.BOTH)

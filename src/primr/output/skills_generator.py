@@ -256,16 +256,25 @@ def write_skill_files(
         try:
             resolved = role_dir.resolve()
             expected_parent = roles_dir.resolve()
-            if not str(resolved).startswith(str(expected_parent)):
+            resolved.relative_to(expected_parent)
+        except ValueError:
+            logger.warning(
+                "Path traversal detected for role %r (resolved outside %s), skipping",
+                role["name"],
+                roles_dir,
+            )
+            continue
+        except OSError:
+            logger.warning("Could not resolve path for role %r, skipping", role["name"])
+            continue
+        else:
+            if resolved == expected_parent:
                 logger.warning(
-                    "Path traversal detected for role %r (resolved to %s), skipping",
+                    "Path traversal detected for role %r (resolved to roles root %s), skipping",
                     role["name"],
                     resolved,
                 )
                 continue
-        except (OSError, ValueError):
-            logger.warning("Could not resolve path for role %r, skipping", role["name"])
-            continue
 
         role_dir.mkdir(parents=True, exist_ok=True)
 

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Provider-hosted image URLs returned by remote image-generation APIs are now
+  SSRF-checked before fetching and checked again after redirects; oversized image
+  responses are rejected before resize.
+- Google grounding redirect fallback decoding no longer accepts unsafe decoded
+  internal/metadata URLs, and the block log avoids printing the decoded URL.
+- Skill output path containment now uses path-aware ancestry checks instead of
+  string-prefix checks, closing sibling-prefix escape cases in both the skill-pack
+  Claude tree writer and the legacy skills-ideation writer.
+
 ## [1.32.3] - 2026-06-17
 
 ### Changed

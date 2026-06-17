@@ -27,6 +27,8 @@ from primr.skill_pack import icons
 
 logger = logging.getLogger(__name__)
 
+MAX_PROVIDER_IMAGE_BYTES = 5 * 1024 * 1024
+
 
 # ---------------------------------------------------------------------------
 # Provider abstraction
@@ -124,10 +126,7 @@ class GrokImageProvider(ImageGenerationProvider):
             url_value = first.get("url")
             if not url_value:
                 raise RuntimeError(f"Grok Imagine response missing url/base64: {first!r}")
-            with httpx.Client(timeout=120.0) as client:
-                img_resp = client.get(url_value)
-                img_resp.raise_for_status()
-                png_bytes = img_resp.content
+            png_bytes = _fetch_provider_image_url(url_value)
 
         return _resize_to(png_bytes, request.width, request.height)
 
@@ -327,6 +326,33 @@ def _resize_to(png_bytes: bytes, width: int, height: int) -> bytes:
     except Exception as exc:
         logger.warning("Image resize failed (returning unscaled): %s", exc)
         return png_bytes
+
+
+def _fetch_provider_image_url(url_value: str, timeout: float = 120.0) -> bytes:
+    """Fetch provider-hosted image bytes with SSRF redirect validation."""
+    import httpx
+
+    from primr.utils.security import is_safe_url, validate_final_url_after_redirect
+
+    is_safe, reason = is_safe_url(url_value)
+    if not is_safe:
+        raise RuntimeError(f"Image provider returned unsafe URL: {reason}")
+
+    with httpx.Client(timeout=timeout, follow_redirects=True) as client:
+        response = client.get(url_value)
+        response.raise_for_status()
+        final_url = str(response.url)
+
+    final_safe, redirect_reason = validate_final_url_after_redirect(final_url)
+    if not final_safe:
+        raise RuntimeError(f"Image provider URL redirected to unsafe location: {redirect_reason}")
+
+    content = response.content
+    if len(content) > MAX_PROVIDER_IMAGE_BYTES:
+        raise RuntimeError(
+            f"Image provider response exceeded {MAX_PROVIDER_IMAGE_BYTES} byte limit"
+        )
+    return content
 
 
 # ---------------------------------------------------------------------------

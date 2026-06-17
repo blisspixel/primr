@@ -391,6 +391,14 @@ def _is_safe_slug(slug: str) -> bool:
     return bool(_SAFE_SLUG_RE.match(slug))
 
 
+def _is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
 def _flatten_skills(pack: SkillPack) -> list[tuple[Role, Skill]]:
     return [(role, skill) for role in pack.roles for skill in role.skills]
 
@@ -492,7 +500,7 @@ def package_skill_pack(
             skill_dir = roles_root / slug
             # Defense-in-depth path-traversal check.
             resolved = skill_dir.resolve()
-            if not str(resolved).startswith(str(roles_root.resolve())):
+            if not _is_relative_to(resolved, roles_root.resolve()):
                 logger.warning("Path traversal blocked for slug=%r", slug)
                 continue
             skill_dir.mkdir(parents=True, exist_ok=True)
@@ -511,7 +519,7 @@ def package_skill_pack(
             for bf in _valid_bundled_files(skill):
                 bf_path = skill_dir / bf.relpath
                 bf_resolved = bf_path.resolve()
-                if not str(bf_resolved).startswith(str(skill_dir.resolve())):
+                if not _is_relative_to(bf_resolved, skill_dir.resolve()):
                     logger.warning("Path traversal blocked for bundled file %r", bf.relpath)
                     continue
                 bf_path.parent.mkdir(parents=True, exist_ok=True)

@@ -83,7 +83,18 @@ class TestExtractDomainFromRedirect:
         target = "https://example.com/article"
         encoded = base64.urlsafe_b64encode(target.encode()).decode().rstrip("=")
         redirect = f"https://vertexaisearch.cloud.google.com/grounding-api-redirect/{encoded}"
-        assert _extract_domain_from_redirect(redirect) == target
+        with patch("primr.utils.security.is_safe_url", return_value=(True, None)):
+            assert _extract_domain_from_redirect(redirect) == target
+
+    def test_blocks_unsafe_decoded_payload(self):
+        target = "http://169.254.169.254/latest/meta-data"
+        encoded = base64.urlsafe_b64encode(target.encode()).decode().rstrip("=")
+        redirect = f"https://vertexaisearch.cloud.google.com/grounding-api-redirect/{encoded}"
+        with patch(
+            "primr.utils.security.is_safe_url",
+            return_value=(False, "Cloud metadata endpoints are blocked"),
+        ):
+            assert _extract_domain_from_redirect(redirect) == redirect
 
     def test_returns_original_when_no_match(self):
         url = "https://other.example/nothing"

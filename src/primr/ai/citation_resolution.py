@@ -96,7 +96,16 @@ def _extract_domain_from_redirect(redirect_url: str) -> str:
                 decoded = base64.urlsafe_b64decode(encoded).decode("utf-8", errors="ignore")
                 url_match = re.search(r'https?://[^\s<>"\']+', decoded)
                 if url_match:
-                    return url_match.group(0)
+                    decoded_url = url_match.group(0)
+                    from primr.utils.security import is_safe_url
+
+                    is_safe, unsafe_reason = is_safe_url(decoded_url)
+                    if is_safe:
+                        return decoded_url
+                    logger.warning(
+                        "Blocked unsafe decoded citation redirect fallback: %s",
+                        unsafe_reason,
+                    )
             except (ValueError, UnicodeDecodeError) as e:
                 logger.debug("Failed to decode redirect URL base64: %s", e)
     except (re.error, ValueError, UnicodeDecodeError) as e:
