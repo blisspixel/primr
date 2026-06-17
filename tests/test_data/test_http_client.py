@@ -249,6 +249,18 @@ class TestHTTPClient:
 
             assert response is None
 
+    @patch("requests.Session.head")
+    def test_head_blocks_private_redirect(self, mock_head):
+        """Test HEAD redirect target is checked before returning response."""
+        mock_response = Mock()
+        mock_response.url = "http://127.0.0.1/internal"
+        mock_head.return_value = mock_response
+
+        with HTTPClient() as client:
+            response = client.head("https://example.com", allow_redirects=True)
+
+            assert response is None
+
 
 # =============================================================================
 # STATISTICS TESTS

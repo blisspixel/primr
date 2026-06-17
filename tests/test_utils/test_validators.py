@@ -63,6 +63,11 @@ class TestValidateUrl:
         with pytest.raises(InputValidationError, match="not allowed"):
             validate_url("ftp://example.com")
 
+    def test_rejects_invalid_port(self):
+        """Should reject out-of-range ports during validation."""
+        with pytest.raises(InputValidationError, match="port"):
+            validate_url("https://example.com:99999/path")
+
     def test_custom_allowed_schemes(self):
         """Should accept custom allowed schemes."""
         result = validate_url("ftp://example.com", allowed_schemes=("ftp",))

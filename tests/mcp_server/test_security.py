@@ -18,6 +18,7 @@ from primr.mcp_server.security import (
     PathValidator,
     RateLimiter,
     URLValidator,
+    _redact_url_for_log,
 )
 
 
@@ -199,6 +200,31 @@ class TestURLValidator:
 
         assert not result.valid
         assert result.error_type == "invalid_url"
+
+    def test_invalid_port_returns_validation_error_without_dns(self, validator):
+        """URL with invalid port is rejected instead of raising ValueError."""
+        with patch("primr.mcp_server.security.socket.getaddrinfo") as getaddrinfo:
+            result = validator.validate("http://example.com:99999/path")
+
+        assert not result.valid
+        assert result.error_type == "invalid_url"
+        assert "port" in (result.error_message or "").lower()
+        getaddrinfo.assert_not_called()
+
+    def test_rejected_url_log_redaction_removes_userinfo_query_and_fragment(self):
+        """Security logs keep host/path context without preserving URL secrets."""
+        redacted = _redact_url_for_log(
+            "http://user:secret@169.254.169.254/latest/meta-data/?token=abc#frag"
+        )
+
+        assert redacted == "http://169.254.169.254/latest/meta-data/"
+        assert "secret" not in redacted
+        assert "token" not in redacted
+        assert "frag" not in redacted
+
+    def test_rejected_url_log_redaction_handles_invalid_urls(self):
+        """Invalid URLs are collapsed before they are added to security logs."""
+        assert _redact_url_for_log("not a url") == "<unparseable-url>"
 
     def test_dns_failure_returns_unreachable(self, validator):
         """DNS resolution failure returns url_unreachable."""

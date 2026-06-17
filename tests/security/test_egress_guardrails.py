@@ -15,6 +15,8 @@ or network call.
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 # Loopback, RFC1918, and the cloud-metadata endpoint — all must be refused.
@@ -34,6 +36,16 @@ class TestEgressGuardrails:
         client = HTTPClient()
         with pytest.raises(ValueError, match=r"SSRF|URL"):
             client.get(url)
+
+    @pytest.mark.parametrize("url", BLOCKED_URLS)
+    def test_httpclient_head_blocks_ssrf_without_network(self, url):
+        from primr.data.http_client import HTTPClient
+
+        client = HTTPClient()
+        with patch.object(client._session, "head") as mock_head:
+            assert client.head(url) is None
+
+        mock_head.assert_not_called()
 
     @pytest.mark.parametrize("url", BLOCKED_URLS)
     def test_fallback_http_get_blocks_ssrf(self, url):

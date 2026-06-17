@@ -67,3 +67,12 @@ class TestDnsFailureFailsClosed:
         ok, _, error = validate_url_for_request("https://does-not-exist.invalid.primr-test/")
         assert ok is False
         assert error is not None
+
+
+class TestInvalidPortFailsClosed:
+    def test_out_of_range_port_rejected_before_request_layer(self) -> None:
+        ok, _, error = validate_url_for_request("https://example.com:99999/path")
+
+        assert ok is False
+        assert error is not None
+        assert "port" in error.lower()

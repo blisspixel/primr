@@ -306,6 +306,7 @@ async def test_check_website_reachable(validator):
 
     fake_client.head = _head
     with (
+        patch("primr.utils.security.is_safe_url", return_value=(True, None)),
         patch("httpx.AsyncClient", return_value=_AsyncCM(fake_client)),
         patch(
             "primr.utils.security.validate_final_url_after_redirect",
@@ -327,6 +328,7 @@ async def test_check_website_unsafe_redirect(validator):
 
     fake_client.head = _head
     with (
+        patch("primr.utils.security.is_safe_url", return_value=(True, None)),
         patch("httpx.AsyncClient", return_value=_AsyncCM(fake_client)),
         patch(
             "primr.utils.security.validate_final_url_after_redirect",
@@ -340,6 +342,39 @@ async def test_check_website_unsafe_redirect(validator):
 
 
 @pytest.mark.asyncio
+async def test_check_website_blocks_unsafe_initial_url_without_network(validator):
+    with (
+        patch(
+            "primr.utils.security.is_safe_url",
+            return_value=(False, "Private/reserved IP addresses are blocked"),
+        ),
+        patch("httpx.AsyncClient") as async_client,
+    ):
+        errors, warnings, checks = [], [], {}
+        await validator._check_website("http://127.0.0.1/admin", errors, warnings, checks, _noop)
+
+    assert any("unsafe" in e.lower() for e in errors)
+    assert checks["website"]["status"] == "unsafe_url"
+    assert not warnings
+    async_client.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_check_website_dns_failure_stays_reachability_warning(validator):
+    with (
+        patch("primr.utils.security.is_safe_url", return_value=(False, "DNS resolution failed")),
+        patch("httpx.AsyncClient") as async_client,
+    ):
+        errors, warnings, checks = [], [], {}
+        await validator._check_website("https://missing.example", errors, warnings, checks, _noop)
+
+    assert not errors
+    assert any("Could not reach website" in w for w in warnings)
+    assert checks["website"]["status"] == "unreachable"
+    async_client.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_check_website_http_error_status_warns(validator):
     fake_client = MagicMock()
 
@@ -348,6 +383,7 @@ async def test_check_website_http_error_status_warns(validator):
 
     fake_client.head = _head
     with (
+        patch("primr.utils.security.is_safe_url", return_value=(True, None)),
         patch("httpx.AsyncClient", return_value=_AsyncCM(fake_client)),
         patch(
             "primr.utils.security.validate_final_url_after_redirect",
@@ -361,7 +397,10 @@ async def test_check_website_http_error_status_warns(validator):
 
 @pytest.mark.asyncio
 async def test_check_website_unreachable(validator):
-    with patch("httpx.AsyncClient", side_effect=RuntimeError("dns fail")):
+    with (
+        patch("primr.utils.security.is_safe_url", return_value=(True, None)),
+        patch("httpx.AsyncClient", side_effect=RuntimeError("dns fail")),
+    ):
         errors, warnings, checks = [], [], {}
         await validator._check_website("https://example.com", errors, warnings, checks, _noop)
     assert any("Could not reach website" in w for w in warnings)

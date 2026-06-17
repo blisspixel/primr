@@ -23,6 +23,9 @@ import logging
 import time
 from urllib.parse import urlparse
 
+from primr.utils.security import validate_final_url_after_redirect
+from primr.utils.validators import validate_url_for_request
+
 from .config import DEFAULT_TIMEOUT_HTTPX
 from .models import Attempt, ErrorType, ScrapeResult
 
@@ -42,6 +45,11 @@ def _fetch(
     try:
         import httpx
 
+        is_valid, normalized_url, error = validate_url_for_request(url)
+        if not is_valid:
+            logger.debug("Wayback fetch URL blocked: %s", error)
+            return None, None, None
+
         with httpx.Client(
             timeout=timeout,
             follow_redirects=True,
@@ -50,8 +58,13 @@ def _fetch(
                 "Accept": "text/html,application/json,*/*",
             },
         ) as client:
-            resp = client.get(url, params=params)
-            return resp.status_code, resp.content, str(resp.url)
+            resp = client.get(normalized_url, params=params)
+            final_url = str(resp.url)
+            is_safe, redirect_error = validate_final_url_after_redirect(final_url)
+            if not is_safe:
+                logger.debug("Wayback fetch redirect blocked: %s", redirect_error)
+                return None, None, None
+            return resp.status_code, resp.content, final_url
     except Exception as e:
         logger.debug("Wayback fetch failed for %s: %s", url, e)
         return None, None, None
@@ -167,6 +180,19 @@ def scrape_with_wayback(
             tier=tier_name,
             elapsed_ms=(time.time() - start_time) * 1000,
         )
+
+    is_valid, normalized_url, error = validate_url_for_request(url)
+    if not is_valid:
+        return ScrapeResult(
+            url=url,
+            success=False,
+            error_type=ErrorType.NETWORK_ERROR,
+            error=f"Invalid URL for Wayback: {error}",
+            tier=tier_name,
+            elapsed_ms=(time.time() - start_time) * 1000,
+        )
+
+    url = normalized_url
 
     # Step 1: find snapshots (most recent first).
     # CDX can be slow; cap at 30s to leave room for replay fetches.

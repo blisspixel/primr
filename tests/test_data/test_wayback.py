@@ -23,6 +23,21 @@ from primr.data.scraping.wayback import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _mock_url_guards():
+    def _safe_url(url, *args, **kwargs):
+        return True, url, None
+
+    with (
+        patch("primr.data.scraping.wayback.validate_url_for_request", side_effect=_safe_url),
+        patch(
+            "primr.data.scraping.wayback.validate_final_url_after_redirect",
+            return_value=(True, None),
+        ),
+    ):
+        yield
+
+
 def _cdx_json(captures: list[tuple[str, str, int]]) -> bytes:
     """Build a CDX-formatted JSON body from (timestamp, url, length) tuples."""
     header = ["urlkey", "timestamp", "original", "mimetype", "statuscode", "digest", "length"]
@@ -158,6 +173,21 @@ class TestScrapeWithWayback:
         result = scrape_with_wayback("https://")
         assert result.success is False
 
+    def test_rejects_ssrf_target_before_wayback_lookup(self):
+        with (
+            patch(
+                "primr.data.scraping.wayback.validate_url_for_request",
+                return_value=(False, "http://127.0.0.1/admin", "blocked host"),
+            ),
+            patch("primr.data.scraping.wayback.find_wayback_snapshots") as find_snapshots,
+        ):
+            result = scrape_with_wayback("http://127.0.0.1/admin")
+
+        assert result.success is False
+        assert result.error_type is ErrorType.NETWORK_ERROR
+        assert "blocked host" in (result.error or "")
+        find_snapshots.assert_not_called()
+
     def test_returns_failure_when_no_snapshots(self):
         with patch(
             "primr.data.scraping.wayback.find_wayback_snapshots",
@@ -256,6 +286,51 @@ class TestScrapeWithWayback:
 
 
 class TestFetchHelperRaisesAreSwallowed:
+    def test_fetch_blocks_invalid_url_before_httpx_client(self):
+        from primr.data.scraping.wayback import _fetch
+
+        with (
+            patch(
+                "primr.data.scraping.wayback.validate_url_for_request",
+                return_value=(False, None, "blocked host"),
+            ),
+            patch("httpx.Client") as client_cls,
+        ):
+            assert _fetch("http://127.0.0.1/", timeout=1.0) == (None, None, None)
+
+        client_cls.assert_not_called()
+
+    def test_fetch_blocks_unsafe_redirect(self):
+        from primr.data.scraping.wayback import _fetch
+
+        response = type(
+            "Response",
+            (),
+            {"status_code": 200, "content": b"<html>x</html>", "url": "http://127.0.0.1/"},
+        )()
+        client = type(
+            "Client",
+            (),
+            {
+                "__enter__": lambda self: self,
+                "__exit__": lambda self, *args: False,
+                "get": lambda self, url, params=None: response,
+            },
+        )()
+
+        with (
+            patch("httpx.Client", return_value=client),
+            patch(
+                "primr.data.scraping.wayback.validate_final_url_after_redirect",
+                return_value=(False, "loopback"),
+            ),
+        ):
+            assert _fetch("https://web.archive.org/web/1id_/https://example.com", 1.0) == (
+                None,
+                None,
+                None,
+            )
+
     def test_fetch_returns_none_on_exception(self):
         from primr.data.scraping.wayback import _fetch
 

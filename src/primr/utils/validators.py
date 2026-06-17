@@ -101,6 +101,12 @@ def validate_url(
     if require_host and not parsed.netloc:
         raise InputValidationError("url", "URL must have a host")
 
+    # urllib validates port range lazily when parsed.port is accessed.
+    try:
+        _port = parsed.port
+    except ValueError as e:
+        raise InputValidationError("url", f"Invalid URL port: {e}") from e
+
     # Check for suspicious patterns
     suspicious_patterns = [
         r"javascript:",

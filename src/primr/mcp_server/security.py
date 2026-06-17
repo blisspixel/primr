@@ -25,7 +25,7 @@ def _utcnow() -> datetime:
 
 
 import contextlib
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 from primr.utils.security import numeric_host_block_reason
 
@@ -89,6 +89,30 @@ METADATA_HOSTS = {
     "metadata.google.internal",
     "metadata.goog",
 }
+
+
+def _redact_url_for_log(url: str) -> str:
+    """Return a URL suitable for security logs without credentials or query secrets."""
+    try:
+        parsed = urlparse(url)
+        if not parsed.scheme or not parsed.netloc:
+            return "<unparseable-url>"
+
+        host = parsed.hostname
+        if not host:
+            return "<unparseable-url>"
+
+        if ":" in host and not host.startswith("["):
+            host = f"[{host}]"
+
+        netloc = host
+        with contextlib.suppress(ValueError):
+            if parsed.port is not None:
+                netloc = f"{netloc}:{parsed.port}"
+
+        return urlunparse((parsed.scheme, netloc, parsed.path, "", "", ""))
+    except Exception:
+        return "<unparseable-url>"
 
 
 @dataclass
@@ -370,6 +394,14 @@ class URLValidator:
             )
 
         hostname = parsed.hostname.lower()
+        try:
+            port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        except ValueError:
+            return URLValidationResult(
+                valid=False,
+                error_type="invalid_url",
+                error_message="URL has an invalid port",
+            )
 
         # Check metadata endpoints by hostname
         if hostname in METADATA_HOSTS:
@@ -395,9 +427,7 @@ class URLValidator:
 
         # Resolve hostname to IP
         try:
-            ip_addresses = socket.getaddrinfo(
-                hostname, parsed.port or (443 if parsed.scheme == "https" else 80)
-            )
+            ip_addresses = socket.getaddrinfo(hostname, port)
             resolved_ips: set[str] = set()
             for _family, _type, _proto, _canonname, sockaddr in ip_addresses:
                 ip = str(sockaddr[0])  # Ensure string type
@@ -456,7 +486,7 @@ class URLValidator:
             "SSRF blocked",
             extra={
                 "client_id": client_id or "unknown",
-                "attempted_url": url,
+                "attempted_url": _redact_url_for_log(url),
                 "resolved_ip": resolved_ip or "unresolved",
                 "reason": reason,
             },

@@ -125,6 +125,21 @@ class HTTPClient:
             f"pool_maxsize={self._config.pool_maxsize}"
         )
 
+    def _validate_outbound_url(self, url: str) -> str:
+        """Validate a URL before any outbound network request."""
+        from primr.utils.validators import validate_url_for_request
+
+        if not url or not isinstance(url, str):
+            raise ValueError("URL must be a non-empty string")
+        url = url.strip()
+        if not url.startswith(("http://", "https://")):
+            raise ValueError(f"URL must start with http:// or https://, got: {url[:50]}")
+
+        is_valid, normalized_url, error = validate_url_for_request(url)
+        if not is_valid:
+            raise ValueError(f"SSRF protection: {error}")
+        return normalized_url
+
     def _create_session(self) -> requests.Session:
         """Create a configured requests session."""
         session = requests.Session()
@@ -179,20 +194,7 @@ class HTTPClient:
             ScrapingError: If request fails after retries
             ValueError: If URL is invalid or fails SSRF validation
         """
-        from primr.utils.validators import validate_url_for_request
-
-        # Validate URL format
-        if not url or not isinstance(url, str):
-            raise ValueError("URL must be a non-empty string")
-        url = url.strip()
-        if not url.startswith(("http://", "https://")):
-            raise ValueError(f"URL must start with http:// or https://, got: {url[:50]}")
-
-        # SSRF protection
-        is_valid, normalized_url, error = validate_url_for_request(url)
-        if not is_valid:
-            raise ValueError(f"SSRF protection: {error}")
-        url = normalized_url
+        url = self._validate_outbound_url(url)
 
         # Validate timeout if provided
         if timeout is not None and (not isinstance(timeout, int | float) or timeout <= 0):
@@ -303,7 +305,11 @@ class HTTPClient:
             return None
 
     def head(
-        self, url: str, timeout: float | None = None, **kwargs: Any
+        self,
+        url: str,
+        timeout: float | None = None,
+        allow_redirects: bool = False,
+        **kwargs: Any,
     ) -> requests.Response | None:
         """
         Make a HEAD request.
@@ -311,19 +317,33 @@ class HTTPClient:
         Args:
             url: URL to request
             timeout: Request timeout
+            allow_redirects: Whether to follow redirects
             **kwargs: Additional arguments
 
         Returns:
             Response object or None if failed
         """
         try:
+            url = self._validate_outbound_url(url)
             response = self._session.head(
                 url,
                 timeout=timeout or self._config.timeout,
+                allow_redirects=allow_redirects,
                 verify=self._config.verify_ssl,
                 **kwargs,
             )
+            if allow_redirects:
+                from primr.utils.security import validate_final_url_after_redirect
+
+                final_url = str(response.url)
+                is_safe, redirect_error = validate_final_url_after_redirect(final_url)
+                if not is_safe:
+                    logger.warning("HEAD redirect blocked by SSRF protection: %s", redirect_error)
+                    return None
             return response
+        except ValueError as e:
+            logger.warning("HEAD blocked: %s", e)
+            return None
         except requests.RequestException as e:
             logger.warning("HEAD %s failed: %s", url, e)
             return None

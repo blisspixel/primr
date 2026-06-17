@@ -400,11 +400,29 @@ class PreflightValidator:
         try:
             import httpx
 
-            from primr.utils.security import validate_final_url_after_redirect
+            from primr.utils.security import is_safe_url, validate_final_url_after_redirect
 
             # Normalize URL
             if not website_url.startswith(("http://", "https://")):
                 website_url = f"https://{website_url}"
+
+            is_safe, initial_error = is_safe_url(website_url)
+            if not is_safe:
+                if initial_error == "DNS resolution failed":
+                    warnings.append(f"Could not reach website: {initial_error}")
+                    checks["website"] = {
+                        "passed": False,
+                        "status": "unreachable",
+                        "detail": initial_error,
+                    }
+                    return
+                errors.append(f"Website URL is unsafe: {initial_error}")
+                checks["website"] = {
+                    "passed": False,
+                    "status": "unsafe_url",
+                    "detail": f"Blocked before request: {initial_error}",
+                }
+                return
 
             async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
                 response = await client.head(website_url)
