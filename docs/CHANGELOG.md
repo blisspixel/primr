@@ -22,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   every skill in the same role family. The reference is built once from
   sanitized role evidence and archetype grounding so shared role context stays
   consistent across skills instead of being independently authored per skill.
+- `primr skills` now treats generated files explicitly as draft skills with a
+  tighter house structure: exactly three body sections, required input and
+  produced-output markers, no extra report/background H2 sections, and a
+  300-1500 word target. Authoring and refinement prompts now use company
+  context to make workflows, inputs, outputs, and validation concrete rather
+  than turning the skill body into a context summary.
 
 ### Fixed
 

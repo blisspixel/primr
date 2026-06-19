@@ -10,6 +10,12 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+REQUIRED_BODY_SECTIONS = (
+    "What This Skill Does",
+    "Workflow",
+    "Output Format",
+)
+
 
 @dataclass(frozen=True)
 class BodyQualityMarker:
@@ -23,6 +29,16 @@ QUALITY_MARKERS: tuple[BodyQualityMarker, ...] = (
         "intake checklist",
         re.compile(r"\b(?:first ask|intake|inputs? needed|clarify)\b", re.IGNORECASE),
         "include an intake or elicitation step for missing inputs",
+    ),
+    BodyQualityMarker(
+        "required inputs",
+        re.compile(r"\brequired inputs\s*:", re.IGNORECASE),
+        "include an explicit 'Required inputs:' line or list",
+    ),
+    BodyQualityMarker(
+        "produces",
+        re.compile(r"\bproduces\s*:", re.IGNORECASE),
+        "include an explicit 'Produces:' line or list",
     ),
     BodyQualityMarker(
         "scope guardrail",
@@ -58,4 +74,42 @@ def quality_marker_guidance(labels: list[str]) -> str:
     return " ".join(guidance[label] for label in labels if label in guidance)
 
 
-__all__ = ["missing_quality_markers", "quality_marker_guidance"]
+def section_shape_errors(body: str) -> list[str]:
+    """Return structural H2-section errors for the draft-skill house format."""
+    found = [
+        match.group(1).strip()
+        for match in re.finditer(r"^##\s+(.+?)\s*$", body, re.IGNORECASE | re.MULTILINE)
+    ]
+    normalized_required = {section.lower(): section for section in REQUIRED_BODY_SECTIONS}
+    found_lower = [section.lower() for section in found]
+
+    errors: list[str] = []
+    missing = [section for section in REQUIRED_BODY_SECTIONS if section.lower() not in found_lower]
+    if missing:
+        errors.append(f"missing required H2 section(s): {', '.join(missing)}")
+
+    unexpected = [section for section in found if section.lower() not in normalized_required]
+    if unexpected:
+        errors.append(
+            "unexpected H2 section(s): "
+            + ", ".join(unexpected)
+            + "; draft skills must keep company/background/detail in the three-section format"
+        )
+
+    ordered_required = [section.lower() for section in REQUIRED_BODY_SECTIONS]
+    projected = [section for section in found_lower if section in normalized_required]
+    if projected != ordered_required[: len(projected)]:
+        errors.append(
+            "required H2 sections are out of order; use What This Skill Does, Workflow, "
+            "Output Format"
+        )
+
+    return errors
+
+
+__all__ = [
+    "REQUIRED_BODY_SECTIONS",
+    "missing_quality_markers",
+    "quality_marker_guidance",
+    "section_shape_errors",
+]

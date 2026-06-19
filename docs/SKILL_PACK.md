@@ -1,6 +1,6 @@
 # Skill Pack — Generate Agent Skills for Claude + Microsoft 365 Copilot Cowork
 
-`primr skills` produces a QA-refined Agent Skills pack for a target company. The same byte-identical `SKILL.md` files ship to both ecosystems: an unpacked `roles/<slug>/SKILL.md` tree (drop-in for Claude Code, Cursor, VS Code Copilot, Gemini CLI, JetBrains Junie) and a Microsoft 365 Copilot Cowork sideload `.zip` (Unified App Manifest v1.28, deterministic UUID v5).
+`primr skills` produces a QA-refined draft Agent Skills pack for a target company. The same byte-identical `SKILL.md` files ship to both ecosystems: an unpacked `roles/<slug>/SKILL.md` tree (drop-in for Claude Code, Cursor, VS Code Copilot, Gemini CLI, JetBrains Junie) and a Microsoft 365 Copilot Cowork sideload `.zip` (Unified App Manifest v1.28, deterministic UUID v5).
 
 This guide covers the planning architecture, input layer, operator curation surface, output artifacts, authoring + validation, CLI + MCP reference, costs, and troubleshooting.
 
@@ -61,7 +61,7 @@ When `--roles-add` or `--roles-skip` are set, `apply_curation` runs after the me
 - `industry` — emphasize "this role reflects business-model typicality, tuned to the company's named stack; avoid claims about specific company programs not in the evidence."
 - `override` — pass through; operator supplied the label, ground in the company's general recon + research context.
 
-Every skill body must reference at least 2 company-specific signals (DNS-confirmed tool, hiring-mentioned technology, named practice, etc.) per the Anthropic-aligned `author_skill.yaml` system prompt.
+Every skill body must use at least 2 company-specific signals (DNS-confirmed tool, hiring-mentioned technology, named practice, etc.) as workflow details, input requirements, output fields, or validation checks per the `author_skill.yaml` system prompt. Skill bodies are procedural draft skills, not company reports or evidence dumps.
 
 After authoring, the pipeline attaches a deterministic `references/role-family.md` file to every skill in the same role family. The file is built from sanitized role evidence, DNS signals, citations, and matched archetype capabilities. It is generated once per role family and reused across that role's skills so cross-skill terminology and evidence do not drift.
 
@@ -76,8 +76,8 @@ Key validators:
 - `DESC-TRIG` — description includes explicit "Use when..." guidance
 - `NAME-GERUND` — skill name uses gerund form (verb + -ing)
 - `NAME-PRODUCT` — skill name reads as a bare product/feature (`azure-front-door`, `aks`) rather than a task; refinement re-scopes the title to the capability the product is used for (the product stays in the body). SOFT — fires only when the name carries a known brand token and no verb/task token
-- `BODY-LEN` — body word count within target band (default 300-3000; under 300 is HARD)
-- `BODY-QUALITY` — body includes intake, `Scope guardrail:`, `Human checkpoint:`, `Example input:`, and `Example output:` markers so thin role templates do not ship
+- `BODY-LEN` — body word count within target band (default 300-1500; under 300 is HARD)
+- `BODY-QUALITY` — body includes intake, `Required inputs:`, `Produces:`, `Scope guardrail:`, `Human checkpoint:`, `Example input:`, and `Example output:` markers so thin role templates do not ship
 - `SEC-INJECT` — body does not contain agent-instruction patterns (prompt-injection guard)
 - `BUNDLE-PATH` — bundled progressive-disclosure files use safe paths (`references/*.md`, `scripts/*.py`, `evals/*.json`, single subdir, no traversal). SOFT; unsafe files are dropped at package time
 
@@ -248,6 +248,8 @@ The JSON contains the full `RolePlan` shape (`observed`, `plausible`, `gap_flagg
 
 Authored bodies follow Anthropic's Agent Skills authoring conventions enforced by the validator. By default the frontmatter is clean Agent Skills standard frontmatter: `name` + `description` only. If you need machine-readable handoff metadata, pass `--emit-agent-metadata` or set `SkillPackConfig(emit_agent_metadata=True)` to add a primr-namespaced `metadata` block with role, provenance, confidence, approximate context-token budget, and refresh hints.
 
+The generated files are draft skills. They use company context to make the task procedure specific, but the `SKILL.md` body should not become a mini report, evidence appendix, role profile, or company background document. Detailed role grounding lives in `references/role-family.md` and is loaded only when the downstream agent needs it.
+
 ```markdown
 ---
 name: "facilitating-m365-customer-immersion-experiences"
@@ -256,7 +258,13 @@ description: "Facilitates 90-minute M365 Customer Immersion Experiences (CIEs) w
 
 ## What This Skill Does
 
-<2-4 short paragraphs grounded in 2+ company-specific signals>
+Use this skill to run a specific M365 Customer Immersion Experience workflow for ExampleCo commercial accounts.
+
+Required inputs:
+- Account name, target audience, workshop objective, available demo tenant, and any known Intune or Teams constraints.
+
+Produces:
+- A CIE preparation checklist, demo scenario map, stakeholder questions, and post-workshop follow-up table.
 
 ## Workflow
 
@@ -284,9 +292,9 @@ Example output: <small completed output in the required format>.
 Hard rules (validator-enforced):
 - `name` is kebab-case, 1-64 chars, matches folder name (ASKILL-P006)
 - `description` is 1-1024 chars, third person, includes explicit "Use when..." trigger phrases
-- Body contains the three H2 sections in order
+- Body contains exactly the three H2 sections in order
 - Body target 300-1500 words (sweet spot 500-800); under 300 words is a hard failure
-- Body includes intake, scope guardrail, human checkpoint, and worked input/output example markers
+- Body includes intake, required inputs, produces, scope guardrail, human checkpoint, and worked input/output example markers
 - No agent-instruction patterns, no hardcoded local paths, no fenced shell blocks, no credential references
 
 ## CLI reference

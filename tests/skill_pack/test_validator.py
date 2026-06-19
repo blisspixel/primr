@@ -31,6 +31,14 @@ including Snowflake for the data warehouse and Airflow for orchestration.
 This skill helps a person in the role drive concrete day-to-day work
 with the systems already in place.
 
+Required inputs:
+- Source table name, target metric, expected grain, business owner, and
+  target dashboard or consumer.
+
+Produces:
+- A dbt model change plan, validation checklist, deployment note, and
+  human-checkpoint summary.
+
 ## Workflow
 
 Progress:
@@ -152,6 +160,31 @@ def test_missing_required_h2_section_is_hard_fail():
     skill = _good_skill()
     # Drop the Workflow section
     skill.body = skill.body.replace("## Workflow", "## Approach")
+    issues = validate_skill(skill, role_name="data-engineer")
+    codes = [i.code for i in issues if i.severity == IssueSeverity.HARD]
+    assert "BODY-SEC" in codes
+
+
+def test_unexpected_h2_section_is_hard_fail():
+    skill = _good_skill()
+    skill.body = skill.body.replace(
+        "## Workflow",
+        "## Company Background\n\nA report-like section that does not belong.\n\n## Workflow",
+    )
+    issues = validate_skill(skill, role_name="data-engineer")
+    codes = [i.code for i in issues if i.severity == IssueSeverity.HARD]
+    assert "BODY-SEC" in codes
+
+
+def test_required_h2_sections_must_be_in_order():
+    skill = _good_skill()
+    what_idx = skill.body.index("## What This Skill Does")
+    workflow_idx = skill.body.index("## Workflow")
+    output_idx = skill.body.index("## Output Format")
+    what_section = skill.body[what_idx:workflow_idx]
+    workflow_section = skill.body[workflow_idx:output_idx]
+    output_section = skill.body[output_idx:]
+    skill.body = workflow_section + "\n\n" + what_section + "\n\n" + output_section
     issues = validate_skill(skill, role_name="data-engineer")
     codes = [i.code for i in issues if i.severity == IssueSeverity.HARD]
     assert "BODY-SEC" in codes
@@ -611,6 +644,8 @@ def test_short_body_is_hard_failure():
 
 def test_missing_quality_markers_are_hard_failures():
     skill = _good_skill()
+    skill.body = skill.body.replace("Required inputs:", "Inputs:")
+    skill.body = skill.body.replace("Produces:", "Output:")
     skill.body = skill.body.replace("Scope guardrail:", "Scope:")
     skill.body = skill.body.replace("Human checkpoint:", "Checkpoint:")
     skill.body = skill.body.replace("Example input:", "Input:")

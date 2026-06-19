@@ -12,3 +12,7 @@
 - Clean Agent Skills frontmatter should be the default. Machine-readable
   handoff metadata is useful, but it should be opt-in so generated skills feel
   native in every host.
+- A draft skill body is not the place for a company report. Use company context
+  to choose specific inputs, outputs, workflow steps, guardrails, examples, and
+  validation checks; keep deeper grounding in references loaded only when
+  needed.

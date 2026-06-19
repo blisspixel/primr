@@ -17,6 +17,10 @@ from primr.skill_pack.schema import Role, RoleEvidence, RoleProvenance, Skill, S
 _GOOD_BODY = (
     "## What This Skill Does\n\n"
     + ("Handles a concrete company-specific task using the named stack. " * 24)
+    + "\n\nRequired inputs:\n"
+    + "- Source artifact, account context, target audience, time window, and decision owner.\n\n"
+    + "Produces:\n"
+    + "- A ranked action table, validation note, and human-checkpoint summary.\n"
     + "\n\n## Workflow\n\n"
     + "Progress:\n"
     + "- [ ] Intake: confirm the source artifact, account context, and decision owner.\n"

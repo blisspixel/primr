@@ -43,3 +43,9 @@ in this cycle are:
 
 The next high-leverage item in the same lane is JD-as-evidence input, followed
 by enterprise role-discovery honesty and the Cowork packaging refresh.
+
+Update from the latest cycle: skill-pack output should be treated as a draft
+skill generator, not a company-insight artifact generator. The skill body stays
+compact and procedural: required inputs, produced artifact, workflow, guardrail,
+human checkpoint, and worked example. Company context is used to make those
+items specific, while role grounding stays in progressively loaded references.

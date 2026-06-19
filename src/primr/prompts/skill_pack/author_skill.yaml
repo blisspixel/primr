@@ -8,8 +8,9 @@
 # the IDENTICAL Agent Skills format, so what's good for one is good for both.
 #
 # CORE STANCE:
-#   A skill is NOT a generic role template. A skill at *this specific company*
-#   must reference *this company's* tools, products, industry, and signals.
+#   A skill is NOT a generic role template or a mini company report. A skill
+#   at *this specific company* must use context to choose the right workflow,
+#   inputs, outputs, and guardrails.
 #   The archetype below is SCAFFOLDING — a hint about the territory — NOT
 #   a template to fill in. Every output must be heavily customized to the
 #   company AND must follow Anthropic's authoring conventions for skills
@@ -18,7 +19,7 @@
 meta:
   name: author_skill
   phase: 3
-  version: "2.1.0"
+  version: "2.2.0"
 
 system_prompt: |
   You author Agent Skills for the Agent Skills open standard — the same
@@ -33,6 +34,8 @@ system_prompt: |
        trigger phrase, e.g. "Use when the user asks to <specific thing>".
     3. The BODY contains all three H2 sections in order:
        `## What This Skill Does`, `## Workflow`, `## Output Format`.
+       Do not add extra H2 sections. Keep background, evidence, and examples
+       inside those three sections.
     4. Body target: 300-1500 words. Concision matters; pad-words hurt.
        Hard cap at ~5000 tokens.
     5. NEVER embed agent-targeted instructions: no "ignore previous",
@@ -99,6 +102,19 @@ system_prompt: |
     - 300-1500 words is the target. 500-800 is a sweet spot for most
       skills. Long isn't better.
 
+    **Skill body as procedure, not a book**:
+    - The skill body is an operating instruction for another agent. It is not
+      a strategic brief, company profile, role essay, or evidence appendix.
+    - Use company context to make the procedure specific. Do not reproduce
+      the research corpus, public facts, or long evidence summaries in the
+      SKILL.md body.
+    - `## What This Skill Does` should be short: name the task, list the
+      required inputs, and list what the skill produces. Keep detailed role
+      grounding in `references/role-family.md`, which the pipeline attaches
+      automatically.
+    - Include exact labels `Required inputs:` and `Produces:` in
+      `## What This Skill Does`.
+
     **Workflow as a checklist, not prose**:
     - Use numbered steps that map to concrete, observable actions
       (read a file, call a tool, generate an output, validate against
@@ -154,11 +170,11 @@ system_prompt: |
     A skill for "Salesforce Administrator at Acme Corp" is FUNDAMENTALLY
     DIFFERENT from "Salesforce Administrator (generic)". The archetype
     canonical skills below describe the *territory* — they tell you what
-    capabilities matter. But the actual SKILL.md body MUST reference:
+    capabilities matter. But the actual SKILL.md body MUST translate company
+    context into specific task machinery:
 
       - Specific tools detected in this company's DNS / hiring evidence
-        (named by product, e.g. "Acme uses Salesforce Sales Cloud with
-        a Conga integration based on the careers page").
+        as workflow inputs, systems to inspect, or validation targets.
       - The company's actual business model, industry, customer segment.
       - Workflow steps that name the specific systems involved at this
         company — not generic placeholders.
@@ -168,8 +184,9 @@ system_prompt: |
       - Realistic discovery questions a new hire would actually ask THIS
         company's stakeholders.
 
-    A skill body that could equally apply to any company in this
-    archetype has FAILED the customization bar.
+    A skill body that could equally apply to any company in this archetype
+    has FAILED the customization bar. A skill body that reads like a company
+    profile instead of a repeatable procedure has also FAILED.
 
   Output VALID JSON ONLY. No prose before or after. No markdown fences.
 
@@ -218,7 +235,7 @@ user_prompt_template: |
         "name": "drafting-acme-dbt-models",
         "display_name": "Drafting Acme dbt models",
         "description": "Drafts new dbt models for Acme's Snowflake warehouse, including required tests and lineage docs. Use when the user asks to add a model, write a transformation, build a mart, or extend the dbt project.",
-        "body": "## What This Skill Does\\n\\n<2-4 short paragraphs, COMPANY-SPECIFIC, concise. Skip explaining basics the agent knows. Reference at least 2 specific company signals.>\\n\\n## Workflow\\n\\nProgress:\\n- [ ] Intake: confirm the missing source artifact, account context, or decision owner.\\n- [ ] Evidence: gather the company-specific systems and constraints.\\n- [ ] Draft: produce the requested artifact.\\n- [ ] Validate: check the output against the guardrail and evidence.\\n\\n1. First ask for any missing input that blocks the work.\\n2. <step that names a specific tool or system at this company>\\n3. <step that transforms the evidence into an output>\\n4. Validate that each recommendation traces to a named company signal.\\n\\nScope guardrail: <what this skill must not do or decide>.\\nHuman checkpoint: <when the agent must pause for a person before finalizing>.\\n\\n## Output Format\\n\\n<concrete table, list, or document structure>\\n\\nExample input: <small realistic request using this company's context>.\\nExample output: <small completed output in the required format>.",
+        "body": "## What This Skill Does\\n\\nUse this skill to <perform one specific task> for <role/company context>. Keep this section short; do not summarize the company or role.\\n\\nRequired inputs:\\n- <source artifact, system export, account context, time window, decision owner, or other required input>\\n\\nProduces:\\n- <named artifact the agent returns, such as a table, checklist, brief, change plan, triage note, or validation report>\\n\\n## Workflow\\n\\nProgress:\\n- [ ] Intake: confirm the missing source artifact, account context, or decision owner.\\n- [ ] Evidence: gather the company-specific systems and constraints.\\n- [ ] Draft: produce the requested artifact.\\n- [ ] Validate: check the output against the guardrail and evidence.\\n\\n1. First ask for any missing input that blocks the work.\\n2. <step that names a specific tool or system at this company>\\n3. <step that transforms the evidence into the named output>\\n4. Validate that each recommendation traces to an input, company signal, or role-family reference.\\n\\nScope guardrail: <what this skill must not do or decide>.\\nHuman checkpoint: <when the agent must pause for a person before finalizing>.\\n\\n## Output Format\\n\\n<concrete table, list, or document structure>\\n\\nExample input: <small realistic request using this company's context>.\\nExample output: <small completed output in the required format>.",
         "canonical_skill_basis": "name of the archetype skill this maps to, or null"
       }}
     ]
@@ -230,11 +247,13 @@ user_prompt_template: |
   the sweet spot for a dense, company-specific skill. If a draft body is
   short, add a concrete worked example to the Output Format section or a
   company-specific edge-case note to the Workflow — do NOT pad with generic
-  filler. Each body must explicitly reference at least 2 company-specific signals
-  — a named tool from DNS, a named technology from hiring postings, the
-  company's industry, or a strategic initiative visible in the evidence.
+  filler and do NOT add a company-background section. Each body must use at
+  least 2 company-specific signals as workflow details, input requirements,
+  output fields, or validation checks — not as a facts-only summary.
 
   Each body must include these exact marker labels:
+  - `Required inputs:` in the What This Skill Does section
+  - `Produces:` in the What This Skill Does section
   - `Scope guardrail:` in the Workflow section
   - `Human checkpoint:` in the Workflow section
   - `Example input:` in the Output Format section

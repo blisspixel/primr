@@ -59,6 +59,14 @@ Snowflake, building dbt models on top, and exposing dashboards in Looker.
 The role is grounded in two open postings on Acme's Ashby board and the
 DNS evidence that Salesforce, Microsoft 365, and Snowflake are all live.
 
+Required inputs:
+- Source system, target dashboard, requester, deadline, business owner, and
+  expected decision supported by the data change.
+
+Produces:
+- A data-change plan, dbt validation checklist, dashboard review note, and
+  human-checkpoint summary.
+
 ## Workflow
 
 Progress:

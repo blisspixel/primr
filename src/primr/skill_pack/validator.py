@@ -13,11 +13,12 @@ Spec references:
       consecutive hyphens)
     - DESC-LEN: description in [1, 1024] chars
     - DESC-TRIG: description contains a trigger phrase
-    - BODY-SEC: body has all three required H2 sections
-    - BODY-LEN: body word count in [300, 3000] (HARD-fail below 300 words
+    - BODY-SEC: body has exactly the three required H2 sections, in order
+    - BODY-LEN: body word count in [300, 1500] (HARD-fail below 300 words
       or above ~5000 tokens)
-    - BODY-QUALITY: body includes intake, scope, checkpoint, and worked
-      input/output markers instead of shipping as a thin role template
+    - BODY-QUALITY: body includes intake, required inputs, produced output,
+      scope, checkpoint, and worked input/output markers instead of shipping
+      as a thin role template
     - SEC-INJECT: no prompt-injection / agent-instruction patterns
     - SEC-PATH: no hardcoded local file paths
     - PACK-OVERLAP: no two skills with >0.85 name+trigger similarity
@@ -29,7 +30,11 @@ import ast
 import re
 from difflib import SequenceMatcher
 
-from primr.skill_pack.body_quality import missing_quality_markers, quality_marker_guidance
+from primr.skill_pack.body_quality import (
+    missing_quality_markers,
+    quality_marker_guidance,
+    section_shape_errors,
+)
 from primr.skill_pack.schema import (
     IssueSeverity,
     Role,
@@ -195,18 +200,13 @@ _TASK_TOKEN_PATTERN = re.compile(r"(?:ing|ation|ment|sis|tion)$|^(?:manage|opera
 
 # --- Body rules -----------------------------------------------------------
 
-_REQUIRED_BODY_SECTIONS = [
-    "What This Skill Does",
-    "Workflow",
-    "Output Format",
-]
 # Target range for skill bodies. A skill under 300 words is almost always
 # missing one of the things that makes the artifact useful in practice:
 # intake prompts, scope boundaries, a human checkpoint, or a worked example.
 # Keep the upper bound generous so rich, grounded skills are allowed, but
 # fail closed on thin bodies instead of merely reporting them.
 _BODY_MIN_WORDS = 300
-_BODY_TARGET_MAX_WORDS = 3000
+_BODY_TARGET_MAX_WORDS = 1500
 _BODY_HARD_MAX_WORDS = 5000
 
 # --- Security patterns ---------------------------------------------------
@@ -572,16 +572,6 @@ def _looks_like_product_name(name: str, display_name: str) -> bool:
     return not has_task
 
 
-def _has_required_sections(body: str) -> list[str]:
-    """Return the list of REQUIRED sections that are MISSING from body."""
-    missing: list[str] = []
-    for section in _REQUIRED_BODY_SECTIONS:
-        pattern = re.compile(rf"^##\s+{re.escape(section)}\s*$", re.IGNORECASE | re.MULTILINE)
-        if not pattern.search(body):
-            missing.append(section)
-    return missing
-
-
 def validate_kebab_case(name: str) -> bool:
     """Public helper for use outside the pipeline (e.g. CLI input parsing)."""
     if not name or len(name) > _MAX_NAME_LEN:
@@ -729,13 +719,13 @@ def validate_skill(skill: Skill, role_name: str) -> list[SkillIssue]:
         )
 
     # BODY-SEC
-    missing_sections = _has_required_sections(skill.body)
-    if missing_sections:
+    section_errors = section_shape_errors(skill.body)
+    if section_errors:
         issues.append(
             SkillIssue(
                 code="BODY-SEC",
                 severity=IssueSeverity.HARD,
-                message=f"body is missing required H2 section(s): {', '.join(missing_sections)}",
+                message="body has invalid H2 section structure: " + "; ".join(section_errors),
                 role_name=role_name,
                 field="body",
             )

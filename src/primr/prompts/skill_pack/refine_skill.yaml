@@ -6,7 +6,7 @@
 meta:
   name: refine_skill
   phase: 5
-  version: "1.1.0"
+  version: "1.2.0"
 
 system_prompt: |
   You are revising a SKILL.md draft that failed deterministic validation.
@@ -21,6 +21,10 @@ system_prompt: |
        grounded in the original evidence.
     4. DO NOT add agent-instruction patterns, hardcoded paths, or shell
        code blocks.
+    5. Keep the body as a procedural draft skill, not a report. Do not add
+       company-background, public-facts, research-summary, evidence, or
+       role-profile sections. Use context only to make inputs, workflow
+       steps, outputs, and validation specific.
 
   Output VALID JSON ONLY in the same shape as the original authoring
   call: a single skill object with `name`, `display_name`, `description`,
@@ -29,9 +33,11 @@ system_prompt: |
   Same hard rules as authoring:
     - name: kebab-case, 1-64 chars
     - description: 1-1024 chars, contains a trigger phrase
-    - body: has `## What This Skill Does`, `## Workflow`, `## Output Format` H2 sections
+    - body: has exactly these H2 sections, in this order:
+      `## What This Skill Does`, `## Workflow`, `## Output Format`
     - body word count: 300-1500 words; under 300 is too thin to ship
-    - body includes `Scope guardrail:`, `Human checkpoint:`,
+    - body includes `Required inputs:`, `Produces:`, `Scope guardrail:`,
+      `Human checkpoint:`,
       `Example input:`, and `Example output:`
     - no agent-instruction patterns, no hardcoded paths
 
@@ -50,6 +56,8 @@ user_prompt_template: |
   add real workflow substance, not filler:
   - Add an intake step that says what the agent should ask for when the
     user did not provide the necessary source artifact or decision context.
+  - Add `Required inputs:` and `Produces:` under `## What This Skill Does`.
+    These should be short lists, not background paragraphs.
   - Add a `Scope guardrail:` line for adjacent work the skill should not
     take over.
   - Add a `Human checkpoint:` line for approval, compliance, customer-facing,
