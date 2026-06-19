@@ -20,6 +20,10 @@ from typing import Any
 
 from primr.skill_pack.archetypes import load_archetypes
 from primr.skill_pack.prompts_loader import extract_json, load_skill_pack_prompt
+from primr.skill_pack.role_brief import (
+    ROLE_BRIEF_EVIDENCE_HEADING,
+    ROLE_BRIEF_EVIDENCE_RELATIVE_PATH,
+)
 from primr.skill_pack.schema import Role, RoleEvidence
 
 logger = logging.getLogger(__name__)
@@ -32,6 +36,7 @@ HIRING_FILENAMES = [
     "_hiring/hiring_signals.txt",
     "_hiring/hiring_summary.md",
 ]
+ROLE_BRIEF_FILENAMES = [ROLE_BRIEF_EVIDENCE_RELATIVE_PATH.as_posix()]
 # Research evidence — the strategic report and scraped-content insights.
 # When present these are the load-bearing input for plausible-role
 # inference (Phase C-E) and the report-derived industry classification.
@@ -58,6 +63,7 @@ _RESEARCH_MAX_CHARS = 18_000
 # on legitimate hiring summaries that quote "0 postings" inline (e.g.,
 # "year-over-year hiring grew from 0 postings found in Q1 to 40 in Q4").
 _HIRING_PLACEHOLDER = "(no hiring evidence available)"
+_ROLE_BRIEF_MARKER = ROLE_BRIEF_EVIDENCE_HEADING.lower()
 _HIRING_EMPTY_MARKERS = (
     re.compile(r"^\s*source:\s*\*?\*?none\*?\*?\s*$", re.IGNORECASE | re.MULTILINE),
     re.compile(r"^\s*0\s+postings\s+found\s*$", re.IGNORECASE | re.MULTILINE),
@@ -82,6 +88,8 @@ def hiring_evidence_is_empty(text: str) -> bool:
     stripped = text.strip()
     if not stripped:
         return True
+    if _ROLE_BRIEF_MARKER in stripped.lower():
+        return False
     if _HIRING_PLACEHOLDER in stripped.lower():
         return True
     return any(marker.search(stripped) for marker in _HIRING_EMPTY_MARKERS)
@@ -96,6 +104,19 @@ def _read_first_existing(base_dir: Path, candidates: list[str]) -> str | None:
             except OSError as exc:
                 logger.warning("Could not read %s: %s", path, exc)
     return None
+
+
+def _compose_hiring_evidence(hiring: str | None, role_brief: str | None) -> str | None:
+    """Combine operator role-brief evidence with scraped hiring evidence.
+
+    The operator-supplied brief comes first because it is intentional,
+    high-signal evidence. This also keeps it inside the prompt budget when a
+    generic ATS scrape is large or dominated by unrelated postings.
+    """
+    parts = [part.strip() for part in (role_brief, hiring) if part and part.strip()]
+    if not parts:
+        return None
+    return "\n\n---\n\n".join(parts)
 
 
 def load_evidence(working_dir: Path) -> tuple[str, str]:
@@ -127,7 +148,10 @@ def load_full_evidence(working_dir: Path) -> tuple[str, str, str]:
     to justify running.
     """
     recon = _read_first_existing(working_dir, RECON_FILENAMES)
-    hiring = _read_first_existing(working_dir, HIRING_FILENAMES)
+    hiring = _compose_hiring_evidence(
+        _read_first_existing(working_dir, HIRING_FILENAMES),
+        _read_first_existing(working_dir, ROLE_BRIEF_FILENAMES),
+    )
     research = _read_first_existing(working_dir, RESEARCH_FILENAMES)
 
     if recon is None and hiring is None and research is None:
@@ -135,7 +159,8 @@ def load_full_evidence(working_dir: Path) -> tuple[str, str, str]:
             f"No recon, hiring, or research evidence found under {working_dir}. "
             "Run `primr <Company> <url> --mode scrape` first, or supply "
             "--from-report pointing at a directory that contains at least "
-            "one of _recon_context.txt, _hiring/, report.md, or insights.txt."
+            "one of _recon_context.txt, _hiring/, report.md, insights.txt, "
+            "or an operator role brief supplied with --from-jd."
         )
 
     recon = (recon or "(no recon evidence available)")[:_RECON_MAX_CHARS]
@@ -279,4 +304,4 @@ def _call_llm(
     )
 
 
-__all__ = ["discover_roles", "load_evidence"]
+__all__ = ["discover_roles", "load_evidence", "load_full_evidence"]

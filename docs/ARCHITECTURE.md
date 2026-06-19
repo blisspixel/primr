@@ -383,12 +383,12 @@ Fail-open at every stage. No ATS match + no careers page + no web-search hits �
 
 Location: `src/primr/skill_pack/planner.py`, `industry.py`, `discovery.py`
 
-Job postings are the primary input to the skill pack subsystem; DNS recon and the strategic report are supporting context. The planning step replaces the single-call `discover_roles` with a structured two-call plan that preserves provenance end-to-end.
+Job postings are the primary input to the skill pack subsystem; operator-supplied job descriptions / role briefs (`--from-jd`) are treated as explicit hiring evidence when the operator has a better role artifact than discovery can find. DNS recon and the strategic report are supporting context. The planning step replaces the single-call `discover_roles` with a structured two-call plan that preserves provenance end-to-end.
 
 Pipeline:
-1. **Evidence load** — recon (`_recon_context.txt`), hiring (`_hiring/hiring_signals.md`), research (`insights.txt` / `report.md` / `analysis_workbook.md`). Fails closed when both posting and research evidence are empty unless `allow_recon_only=True`.
+1. **Evidence load** — recon (`_recon_context.txt`), hiring (`_hiring/hiring_signals.md` plus optional `_hiring/operator_role_brief.md` from `--from-jd`), research (`insights.txt` / `report.md` / `analysis_workbook.md`). Fails closed when posting / role-brief evidence and research evidence are empty unless `allow_recon_only=True`.
 2. **Industry classification** — LLM-only resolution (no heuristics): parse structured fields from a primr strategic report when one is supplied via `--from-report`, otherwise one cheap LLM call against the evidence inputs. Produces `IndustryClassification` with business_model / industry_vertical / company_stage / employee_estimate / confidence / cited_evidence / source.
-3. **Call A — observed roles** — LLM extracts roles from the hiring evidence only. Every role MUST carry at least one verbatim posting citation or it's dropped at parse time. Provenance: `posting`. Confidence: `Confirmed`.
+3. **Call A — observed roles** — LLM extracts roles from the hiring evidence only. Operator role briefs are prepended to the hiring stream and treated as evidence, never instructions. Every role MUST carry at least one verbatim posting or role-brief citation or it's dropped at parse time. Provenance: `posting`. Confidence: `Confirmed`.
 4. **Call B — plausible roles** — LLM infers roles from recon + research + the industry classification + the Call A output (to exclude duplicates). Every role MUST carry at least one specific research citation OR an explicit business-model + stage rationale. Common org-shape roles (Marketing, Sales, Customer Success, Finance, HR) become plausible only when company stage is Mid-market or larger. Generic VP / Chief-X titles are forbidden without specific evidence. Provenance: `research` or `industry`. Confidence: `Inferred` or `Speculated`.
 5. **Merge and cap** — archetype-based dedupe with observed-wins; signal-driven split with no hard ratio; cap at `roles_count`; overflow goes to `gap_flagged`.
 6. **Persist** — writes `<working>/role_plan.md` (human view) and `<working>/role_plan.json` (machine view, used by `--from-plan`).
@@ -396,6 +396,7 @@ Pipeline:
 Operator surface (roster curation):
 - `--plan-only` writes the plan and exits before authoring.
 - `--from-plan PATH` skips planning and authors against a saved plan's `final_roster` verbatim.
+- `--from-jd PATH` sanitizes a local JD / role brief into `_hiring/operator_role_brief.md`; it can augment a normal run or act as the sole evidence source for a JD-only draft skill pack.
 - `--roles-add "A, B"` augments the discovered or saved-plan roster with operator-supplied labels (materialized as `provenance: override`).
 - `--roles-skip "X, Y"` removes named roles from the discovered or saved-plan roster (matches `display_name` or kebab-case slug, exact, case-insensitive).
 - `--roles-override "A, B, ..."` bypasses planning entirely; up to `MAX_ROLES` labels. Mutually exclusive with `--roles-add` / `--roles-skip` (override wins, curation warned).

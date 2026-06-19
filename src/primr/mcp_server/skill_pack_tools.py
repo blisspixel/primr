@@ -76,6 +76,13 @@ def register_skill_pack_tools(server: Server, mcp_server: PrimrMCPServer) -> lis
                             "evidence-collection step is skipped (cheaper)."
                         ),
                     },
+                    "from_jd_path": {
+                        "type": "string",
+                        "description": (
+                            "Optional path to a local job description or role "
+                            "brief to add to the hiring evidence layer."
+                        ),
+                    },
                     "roles_count": {
                         "type": "integer",
                         "minimum": MIN_ROLES,
@@ -109,7 +116,7 @@ def register_skill_pack_tools(server: Server, mcp_server: PrimrMCPServer) -> lis
                     "company_name": {"type": "string"},
                     "company_url": {
                         "type": "string",
-                        "description": "Required unless report_path is provided.",
+                        "description": "Required unless report_path or from_jd_path is provided.",
                     },
                     "report_path": {
                         "type": "string",
@@ -117,6 +124,16 @@ def register_skill_pack_tools(server: Server, mcp_server: PrimrMCPServer) -> lis
                             "Optional path to an existing primr report or "
                             "working directory. When provided, the pipeline "
                             "reuses that directory's recon + hiring evidence."
+                        ),
+                    },
+                    "from_jd_path": {
+                        "type": "string",
+                        "description": (
+                            "Optional path to a local job description or role "
+                            "brief. The server sanitizes it and materializes it "
+                            "into the hiring evidence stream before planning "
+                            "and authoring. Can be used as the sole evidence "
+                            "source when company_url/report_path are absent."
                         ),
                     },
                     "roles_count": {
@@ -276,6 +293,41 @@ def _is_cost_cap_enforced() -> bool:
     return is_cost_cap_enforced()
 
 
+def _validate_from_jd_path(
+    from_jd_path: str | None,
+    mcp_server: PrimrMCPServer,
+) -> tuple[str | None, TextContent | None]:
+    """Validate and resolve the optional operator JD path for MCP calls."""
+    if not from_jd_path:
+        return None, None
+
+    jd_result = mcp_server.path_validator.validate(from_jd_path)
+    if not jd_result.valid or jd_result.resolved_path is None:
+        return (
+            None,
+            _error_response(f"from_jd_path rejected: {jd_result.error_message or 'invalid path'}"),
+        )
+    if not jd_result.resolved_path.is_file():
+        return (
+            None,
+            _error_response(f"from_jd_path does not exist: {jd_result.resolved_path}"),
+        )
+    return str(jd_result.resolved_path), None
+
+
+def _pipeline_error_response(exc: Exception) -> TextContent:
+    """Map expected skill-pack pipeline exceptions to user-facing MCP errors."""
+    if isinstance(exc, FileNotFoundError):
+        return _error_response(f"Evidence missing: {exc}")
+    if isinstance(exc, ValueError):
+        return _error_response(f"Invalid input: {exc}")
+    if isinstance(exc, RuntimeError):
+        return _error_response(f"Pipeline failed: {exc}")
+    if isinstance(exc, OSError):
+        return _error_response(f"Evidence IO failed: {exc}")
+    return _error_response(f"Unexpected error: {exc}")
+
+
 async def handle_skill_pack_tool(
     name: str,
     arguments: dict[str, Any],
@@ -297,19 +349,26 @@ async def _handle_estimate_skill_pack(arguments: dict[str, Any]) -> list[TextCon
     roles_count = int(arguments.get("roles_count") or DEFAULT_ROLES)
     skills_per_role = int(arguments.get("skills_per_role") or DEFAULT_SKILLS_PER_ROLE)
     has_report_path = bool(arguments.get("report_path"))
+    has_jd_path = bool(arguments.get("from_jd_path") or arguments.get("from_jd"))
 
-    estimate = _estimate_skill_pack_cost(roles_count, skills_per_role, has_report_path)
+    estimate = _estimate_skill_pack_cost(
+        roles_count,
+        skills_per_role,
+        has_report_path=bool(has_report_path or (has_jd_path and not arguments.get("company_url"))),
+    )
     payload = {
         "company_name": company_name,
         "roles_count": roles_count,
         "skills_per_role": skills_per_role,
         "uses_existing_report": has_report_path,
+        "uses_operator_role_brief": has_jd_path,
         **estimate,
         "notes": (
             "Includes role discovery, parallel authoring, validation, "
             "refinement (capped), and pack-level coherence pass. "
             "Evidence collection (recon + hiring) excluded when "
-            "report_path is provided."
+            "report_path is provided, or when from_jd_path is the sole "
+            "evidence source."
         ),
     }
     return [TextContent(type="text", text=json.dumps(payload, indent=2))]
@@ -322,15 +381,20 @@ async def _handle_generate_skill_pack(
     company_name = str(arguments.get("company_name", "")).strip()
     company_url = str(arguments.get("company_url", "")).strip() or None
     report_path = str(arguments.get("report_path", "")).strip() or None
+    from_jd_path = (
+        str(arguments.get("from_jd_path") or arguments.get("from_jd") or "").strip() or None
+    )
 
     if not company_name:
         return [_error_response("company_name is required")]
-    if not company_url and not report_path:
+    if not company_url and not report_path and not from_jd_path:
         return [
             _error_response(
-                "Either company_url or report_path must be provided "
+                "Either company_url, report_path, or from_jd_path must be provided "
                 "(company_url runs a standalone evidence collection; "
-                "report_path reuses an existing primr run's evidence)."
+                "report_path reuses an existing primr run's evidence; "
+                "from_jd_path adds a local job description / role brief as "
+                "the evidence source)."
             )
         ]
 
@@ -358,6 +422,10 @@ async def _handle_generate_skill_pack(
     roles_add = _coerce_list(arguments.get("roles_add"))
     roles_skip = _coerce_list(arguments.get("roles_skip"))
 
+    from_jd_path, from_jd_error = _validate_from_jd_path(from_jd_path, mcp_server)
+    if from_jd_error is not None:
+        return [from_jd_error]
+
     # Cost gate. Estimate on the EFFECTIVE roster size that will actually be
     # authored, not the raw roles_count: roles_override replaces the count and
     # roles_add augments it, so estimating on roles_count alone let a caller
@@ -366,7 +434,9 @@ async def _handle_generate_skill_pack(
     effective_roles = len(roles_override) if roles_override else roles_count
     effective_roles = min(effective_roles + len(roles_add), MAX_ROLES)
     estimate = _estimate_skill_pack_cost(
-        effective_roles, skills_per_role, has_report_path=bool(report_path)
+        effective_roles,
+        skills_per_role,
+        has_report_path=bool(report_path or (from_jd_path and not company_url)),
     )
     if _is_cost_cap_enforced():
         # Fail closed: when server-side caps are enforced, a cost-incurring run
@@ -413,6 +483,7 @@ async def _handle_generate_skill_pack(
             roles_skip=roles_skip,
             plan_only=plan_only,
             from_plan_path=from_plan_path,
+            from_jd_path=from_jd_path,
         )
         config.validate()
     except ValueError as exc:
@@ -439,23 +510,23 @@ async def _handle_generate_skill_pack(
     else:
         from primr.skill_pack.evidence import collect_evidence
 
-        assert company_url is not None
         tmp = Path(tempfile.mkdtemp(prefix="primr-skill-pack-mcp-"))
         working_dir = tmp
         cleanup_tempdir = tmp
-        outcome = collect_evidence(
-            company_name=company_name,
-            company_url=company_url,
-            working_dir=working_dir,
-        )
-        if not outcome.get("recon") and not outcome.get("hiring"):
-            return [
-                _error_response(
-                    "Could not collect any evidence (recon and hiring both "
-                    "failed). Supply report_path or check that the URL is "
-                    "reachable."
-                )
-            ]
+        if company_url:
+            outcome = collect_evidence(
+                company_name=company_name,
+                company_url=company_url,
+                working_dir=working_dir,
+            )
+            if not outcome.get("recon") and not outcome.get("hiring") and not from_jd_path:
+                return [
+                    _error_response(
+                        "Could not collect any evidence (recon and hiring both "
+                        "failed). Supply report_path, supply from_jd_path with "
+                        "a role brief, or check that the URL is reachable."
+                    )
+                ]
 
     # Destination is caller-controlled too — contain it to allowed roots before
     # creating directories and writing the SKILL.md tree / Cowork zip / report.
@@ -477,10 +548,8 @@ async def _handle_generate_skill_pack(
             config=config,
             output_dir=output_dir,
         )
-    except FileNotFoundError as exc:
-        return [_error_response(f"Evidence missing: {exc}")]
-    except RuntimeError as exc:
-        return [_error_response(f"Pipeline failed: {exc}")]
+    except (FileNotFoundError, ValueError, RuntimeError, OSError) as exc:
+        return [_pipeline_error_response(exc)]
     except Exception as exc:
         logger.exception("generate_skill_pack failed")
         return [_error_response(f"Unexpected error: {exc}")]

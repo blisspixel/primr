@@ -52,7 +52,7 @@ def _mcp_server_for(arguments):
     """
     roots: list[str] = ["output", "logs", "working"]
     tmp_base = Path(tempfile.gettempdir()).resolve()
-    for key in ("report_path", "destination"):
+    for key in ("report_path", "destination", "from_jd_path"):
         val = arguments.get(key)
         if not val:
             continue
@@ -190,6 +190,20 @@ async def test_estimate_with_report_path_flags_reuse():
     assert payload["roles_count"] == 7
 
 
+@pytest.mark.asyncio
+async def test_estimate_with_from_jd_path_flags_role_brief(tmp_path):
+    jd = tmp_path / "role.md"
+    jd.write_text("role brief", encoding="utf-8")
+
+    payload = await _call(
+        "estimate_skill_pack",
+        {"company_name": "Acme Corp", "from_jd_path": str(jd), "roles_count": 1},
+    )
+
+    assert payload["uses_operator_role_brief"] is True
+    assert payload["roles_count"] == 1
+
+
 # ---------------------------------------------------------------------------
 # generate_skill_pack: validation / early-exit branches (no pipeline)
 # ---------------------------------------------------------------------------
@@ -207,6 +221,18 @@ async def test_generate_requires_url_or_report_path():
     payload = await _call("generate_skill_pack", {"company_name": "Acme Corp"})
     assert payload["error"] is True
     assert "company_url" in payload["message"]
+
+
+@pytest.mark.asyncio
+async def test_generate_rejects_nonexistent_from_jd_path(tmp_path):
+    missing = tmp_path / "missing.md"
+    payload = await _call(
+        "generate_skill_pack",
+        {"company_name": "Acme Corp", "from_jd_path": str(missing)},
+    )
+
+    assert payload["error"] is True
+    assert "from_jd_path does not exist" in payload["message"]
 
 
 @pytest.mark.asyncio
@@ -353,6 +379,27 @@ async def test_generate_success_with_url_collects_evidence(patched_pipeline):
 
 
 @pytest.mark.asyncio
+async def test_generate_success_with_from_jd_path_only(tmp_path, patched_pipeline):
+    jd = tmp_path / "role.md"
+    jd.write_text("Licensing Operations Analyst role brief", encoding="utf-8")
+
+    payload = await _call(
+        "generate_skill_pack",
+        {
+            "company_name": "Acme Corp",
+            "from_jd_path": str(jd),
+            "roles_override": ["Licensing Operations Analyst"],
+        },
+    )
+
+    assert payload["company_name"] == "Acme Corp"
+    patched_pipeline["collect"].assert_not_called()
+    cfg = patched_pipeline["run"].call_args.kwargs["config"]
+    assert cfg.from_jd_path == str(jd.resolve())
+    assert cfg.roles_override == ["Licensing Operations Analyst"]
+
+
+@pytest.mark.asyncio
 async def test_generate_evidence_collection_empty_returns_error():
     collect = MagicMock(return_value={"recon": False, "hiring": False})
     with patch("primr.skill_pack.evidence.collect_evidence", collect):
@@ -401,7 +448,7 @@ async def test_generate_no_report_md_path_yields_empty(tmp_path):
     [
         (FileNotFoundError("missing recon"), "Evidence missing"),
         (RuntimeError("authoring blew up"), "Pipeline failed"),
-        (ValueError("weird"), "Unexpected error"),
+        (ValueError("weird"), "Invalid input"),
     ],
 )
 @pytest.mark.asyncio

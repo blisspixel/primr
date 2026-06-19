@@ -81,6 +81,18 @@ def _create_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--from-jd",
+        type=str,
+        default=None,
+        help=(
+            "Path to a local job description or role brief. The file is "
+            "sanitized and added to the hiring evidence layer before planning "
+            "and authoring. Can be used with --roles-override for a single "
+            "well-specified role, or as the sole evidence source when no URL "
+            "or report directory is available."
+        ),
+    )
+    parser.add_argument(
         "--output-dir",
         type=str,
         default="output",
@@ -209,7 +221,7 @@ def _is_skills_command(args: list[str] | None) -> bool:
     return len(argv) >= 1 and argv[0] == "skills"
 
 
-def _estimate(config: SkillPackConfig, has_from_report: bool) -> tuple[float, int]:
+def _estimate(config: SkillPackConfig, *, will_collect_evidence: bool) -> tuple[float, int]:
     """Cheap cost / time estimate for the dry-run path.
 
     Numbers come from the budget plan in the design doc:
@@ -221,7 +233,7 @@ def _estimate(config: SkillPackConfig, has_from_report: bool) -> tuple[float, in
     """
     cost = 0.0
     minutes = 0.0
-    if not has_from_report:
+    if will_collect_evidence:
         cost += 0.04
         minutes += 1.0
     cost += 0.02  # discovery
@@ -252,10 +264,11 @@ def run_skills_cli(args: list[str] | None) -> int:
     company_name = parsed.company_name
     company_url = parsed.company_url
     from_report = parsed.from_report
+    from_jd = parsed.from_jd
 
-    if not from_report and not company_url:
+    if not from_report and not company_url and not from_jd:
         print(
-            "Error: company_url is required when --from-report is not provided.",
+            "Error: company_url is required unless --from-report or --from-jd is provided.",
             file=sys.stderr,
         )
         return 2
@@ -289,6 +302,17 @@ def run_skills_cli(args: list[str] | None) -> int:
             return 2
         from_plan_path = str(plan_path_obj)
 
+    from_jd_path: str | None = from_jd
+    if from_jd_path:
+        jd_path_obj = Path(from_jd_path).expanduser().resolve()
+        if not jd_path_obj.is_file():
+            print(
+                f"Error: --from-jd path does not exist or is not a file: {jd_path_obj}",
+                file=sys.stderr,
+            )
+            return 2
+        from_jd_path = str(jd_path_obj)
+
     try:
         config = SkillPackConfig(
             roles_count=(len(override_labels) if override_labels else parsed.roles),
@@ -306,6 +330,7 @@ def run_skills_cli(args: list[str] | None) -> int:
             roles_skip=skip_labels,
             plan_only=parsed.plan_only,
             from_plan_path=from_plan_path,
+            from_jd_path=from_jd_path,
         )
         config.validate()
     except ValueError as exc:
@@ -313,7 +338,10 @@ def run_skills_cli(args: list[str] | None) -> int:
         return 2
 
     if parsed.dry_run:
-        cost, minutes = _estimate(config, has_from_report=bool(from_report))
+        cost, minutes = _estimate(
+            config,
+            will_collect_evidence=bool(company_url and not from_report),
+        )
         print(f"Skill pack estimate for {company_name}:")
         print(f"  Roles: {config.roles_count} x {config.skills_per_role} skills")
         print(f"  Formats: {config.formats.value}")
@@ -333,25 +361,27 @@ def run_skills_cli(args: list[str] | None) -> int:
             return 2
         print(f"Using existing evidence from {working_dir}")
     else:
-        # Standalone: create a temp working dir and collect evidence.
-        assert company_url is not None
+        # Standalone: create a temp working dir and collect evidence when a
+        # URL is available. A role brief can also be the sole evidence source.
         tmp = Path(tempfile.mkdtemp(prefix="primr-skill-pack-"))
         working_dir = tmp
-        print(f"Collecting recon + hiring evidence for {company_name}...")
-        outcome = collect_evidence(
-            company_name=company_name,
-            company_url=company_url,
-            working_dir=working_dir,
-        )
-        recon_path = outcome.get("recon")
-        hiring_path = outcome.get("hiring")
-        if not recon_path and not hiring_path:
-            print(
-                "Error: Could not collect any evidence (recon and hiring both "
-                "failed). Try --from-report against an existing primr run.",
-                file=sys.stderr,
+        if company_url:
+            print(f"Collecting recon + hiring evidence for {company_name}...")
+            outcome = collect_evidence(
+                company_name=company_name,
+                company_url=company_url,
+                working_dir=working_dir,
             )
-            return 1
+            recon_path = outcome.get("recon")
+            hiring_path = outcome.get("hiring")
+            if not recon_path and not hiring_path and not config.from_jd_path:
+                print(
+                    "Error: Could not collect any evidence (recon and hiring both "
+                    "failed). Try --from-report against an existing primr run, "
+                    "or supply --from-jd with a job description / role brief.",
+                    file=sys.stderr,
+                )
+                return 1
 
     try:
         pack, artifacts = run_skill_pack_pipeline(
@@ -364,8 +394,14 @@ def run_skills_cli(args: list[str] | None) -> int:
     except FileNotFoundError as exc:
         print(f"Evidence missing: {exc}", file=sys.stderr)
         return 1
+    except ValueError as exc:
+        print(f"Input invalid: {exc}", file=sys.stderr)
+        return 2
     except RuntimeError as exc:
         print(f"Pipeline failed: {exc}", file=sys.stderr)
+        return 1
+    except OSError as exc:
+        print(f"Evidence IO failed: {exc}", file=sys.stderr)
         return 1
 
     print()

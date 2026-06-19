@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `primr skills` now accepts `--from-jd PATH` to add a local job description
+  or role brief as sanitized hiring evidence. The JD is materialized at
+  `_hiring/operator_role_brief.md`, prepended ahead of scraped hiring summaries,
+  and used by both role planning and authoring. MCP `estimate_skill_pack` /
+  `generate_skill_pack` mirror the same `from_jd_path` input.
+
 ### Changed
 
 - `primr skills` now emits clean Agent Skills frontmatter by default

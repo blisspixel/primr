@@ -118,6 +118,12 @@ class SkillPackConfig:
     # workflow without re-running the planning LLM calls.
     from_plan_path: str | None = None
 
+    # Path to an operator-supplied job description or role brief. The pipeline
+    # materializes this into the hiring evidence layer before planning and
+    # authoring, so it augments discovered postings and also works as the sole
+    # evidence source for hand-curated / single-role draft skill generation.
+    from_jd_path: str | None = None
+
     # Operator-supplied role names that AUGMENT automatic discovery (or a
     # loaded plan via `from_plan_path`). After planning + merge, these
     # entries are materialized as operator-supplied roles and added to

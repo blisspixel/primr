@@ -87,8 +87,12 @@ def _provenance_guidance(role: Role) -> str:
         return (
             "OPERATOR-SUPPLIED ROLE. This role was supplied directly by "
             "the operator and bypasses automatic discovery. Author skills "
-            "that fit the role label and the company's general evidence; "
-            "no posting or research citation is required."
+            "that fit the role label and the company's general evidence. "
+            "If the hiring evidence includes an operator-provided role "
+            "brief or job description, treat that brief as the primary "
+            "grounding for responsibilities, tools, constraints, required "
+            "inputs, and worked examples. No public posting or research "
+            "citation is required."
         )
     # The enum covers POSTING / RESEARCH / INDUSTRY / OVERRIDE; if a new
     # value is added to RoleProvenance without updating this function we

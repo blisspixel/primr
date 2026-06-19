@@ -402,3 +402,71 @@ def test_pipeline_drops_roles_with_unrecoverable_issues(tmp_path: Path, working_
             config=config,
             output_dir=tmp_path / "output",
         )
+
+
+def test_pipeline_uses_from_jd_with_override_role(tmp_path: Path):
+    """A JD-only run should ground override-role authoring in the supplied brief."""
+    jd = tmp_path / "licensing-ops-jd.md"
+    jd.write_text(
+        "Licensing Operations Analyst\n\n"
+        "Responsibilities include reconciling enterprise license renewals, "
+        "reviewing vendor true-up reports, preparing exception summaries, "
+        "and escalating non-standard commercial terms to legal operations.",
+        encoding="utf-8",
+    )
+    prompts: list[str] = []
+
+    def _jd_mock(prompt: str, **_kwargs: Any) -> str:
+        prompts.append(prompt)
+        if "ROLE TO AUTHOR" in prompt:
+            return json.dumps(
+                {
+                    "role_name": "licensing-operations-analyst",
+                    "skills": [
+                        {
+                            "name": "reviewing-license-renewal-exceptions",
+                            "display_name": "Reviewing license renewal exceptions",
+                            "description": (
+                                "Reviews enterprise license renewal exceptions for "
+                                "ExampleCo, including true-up evidence and owner "
+                                "handoffs. Use when the user asks to reconcile "
+                                "renewals, inspect vendor reports, or prepare "
+                                "exception summaries."
+                            ),
+                            "body": _GOOD_BODY.replace(
+                                "dbt models",
+                                "license renewal exception summaries",
+                            ).replace("Snowflake", "vendor true-up reports"),
+                            "canonical_skill_basis": None,
+                        }
+                    ],
+                }
+            )
+        raise AssertionError(f"Unexpected LLM prompt in JD test: {prompt[:200]!r}")
+
+    config = SkillPackConfig(
+        roles_count=1,
+        skills_per_role=1,
+        formats=SkillPackFormat.CLAUDE,
+        max_refine_iterations=0,
+        run_pack_coherence_pass=False,
+        roles_override=["Licensing Operations Analyst"],
+        from_jd_path=str(jd),
+    )
+
+    with patch("primr.ai.grok_client.grok_llm", side_effect=_jd_mock):
+        pack, artifacts = run_skill_pack_pipeline(
+            company_name="ExampleCo",
+            company_url=None,
+            working_dir=tmp_path / "working",
+            config=config,
+            output_dir=tmp_path / "output",
+        )
+
+    assert len(pack.roles) == 1
+    assert pack.roles[0].display_name == "Licensing Operations Analyst"
+    assert artifacts.claude_tree_root is not None
+    author_prompt = "\n".join(prompts)
+    assert "Operator-Provided Role Brief" in author_prompt
+    assert "reconciling enterprise license renewals" in author_prompt
+    assert "vendor true-up reports" in author_prompt

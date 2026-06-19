@@ -38,6 +38,7 @@ from primr.skill_pack.refiner import (
     refine_role,
     run_pack_coherence_pass,
 )
+from primr.skill_pack.role_brief import attach_role_brief_evidence
 from primr.skill_pack.schema import (
     IssueSeverity,
     Role,
@@ -168,6 +169,13 @@ def run_skill_pack_pipeline(
     """
     config.validate()
     company_url = company_url or None
+
+    if config.from_jd_path:
+        attach_role_brief_evidence(
+            working_dir=working_dir,
+            role_brief_path=config.from_jd_path,
+            company_name=company_name,
+        )
 
     plan: RolePlan | None = None
     roles: list[Role]

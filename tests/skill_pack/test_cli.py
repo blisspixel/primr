@@ -49,6 +49,12 @@ class TestParser:
         assert ns.formats == SkillPackFormat.BOTH.value
         assert ns.dry_run is False
 
+    def test_from_jd_flag_parses(self):
+        parser = _create_parser()
+        ns = parser.parse_args(["Acme", "--from-jd", "role.md"])
+        assert ns.company_url is None
+        assert ns.from_jd == "role.md"
+
     def test_company_url_optional(self):
         parser = _create_parser()
         ns = parser.parse_args(["Acme"])
@@ -80,19 +86,19 @@ class TestParser:
 class TestEstimate:
     def test_standalone_run_includes_evidence_cost(self):
         config = SkillPackConfig(roles_count=5, skills_per_role=3)
-        cost, minutes = _estimate(config, has_from_report=False)
+        cost, minutes = _estimate(config, will_collect_evidence=True)
         assert cost > 0
         assert minutes >= 1
 
     def test_from_report_cheaper_than_standalone(self):
         config = SkillPackConfig(roles_count=5, skills_per_role=3)
-        standalone, _ = _estimate(config, has_from_report=False)
-        from_report, _ = _estimate(config, has_from_report=True)
+        standalone, _ = _estimate(config, will_collect_evidence=True)
+        from_report, _ = _estimate(config, will_collect_evidence=False)
         assert from_report < standalone
 
     def test_more_roles_costs_more(self):
-        small, _ = _estimate(SkillPackConfig(roles_count=2), has_from_report=True)
-        big, _ = _estimate(SkillPackConfig(roles_count=10), has_from_report=True)
+        small, _ = _estimate(SkillPackConfig(roles_count=2), will_collect_evidence=False)
+        big, _ = _estimate(SkillPackConfig(roles_count=10), will_collect_evidence=False)
         assert big > small
 
 
@@ -101,6 +107,23 @@ class TestRunSkillsCliEarlyReturns:
         rc = run_skills_cli(["skills", "Acme"])
         assert rc == 2
         assert "company_url is required" in capsys.readouterr().err
+
+    def test_from_jd_allows_no_company_url_for_dry_run(self, capsys, tmp_path):
+        jd = tmp_path / "role.md"
+        jd.write_text("Licensing Operations Analyst role brief", encoding="utf-8")
+
+        rc = run_skills_cli(["skills", "Acme", "--from-jd", str(jd), "--dry-run"])
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Skill pack estimate for Acme" in out
+
+    def test_from_jd_nonexistent_path_errors(self, capsys, tmp_path):
+        missing = tmp_path / "missing.md"
+        rc = run_skills_cli(["skills", "Acme", "--from-jd", str(missing), "--dry-run"])
+
+        assert rc == 2
+        assert "--from-jd path does not exist" in capsys.readouterr().err
 
     def test_dry_run_exits_without_pipeline(self, capsys):
         rc = run_skills_cli(["skills", "Acme", "https://acme.example", "--dry-run"])

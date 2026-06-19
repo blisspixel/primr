@@ -16,7 +16,7 @@ primr skills "ExampleCo" https://example.co
 #   working/ExampleCo/.../role_plan.md  +  role_plan.json
 ```
 
-`primr skills` requires either `company_url` (standalone evidence collection) or `--from-report <dir>` (reuse evidence from an existing primr run).
+`primr skills` requires `company_url` (standalone evidence collection), `--from-report <dir>` (reuse evidence from an existing primr run), or `--from-jd <path>` (use a local job description / role brief as operator-supplied hiring evidence).
 
 ## When to use it
 
@@ -36,14 +36,14 @@ research ──┘                           ├─► plan_roles  ──► app
                                        └─► role_plan.md + role_plan.json
 ```
 
-Job postings are the **primary input**. DNS recon and strategic research are supporting context. When both posting evidence and research evidence are empty the pipeline fails closed unless `--allow-recon-only` is set — recon alone is structurally incomplete for services / reseller / consultancy companies.
+Job postings are the **primary input**. An operator-supplied JD / role brief is treated as explicit hiring evidence and is prioritized ahead of scraped hiring summaries in the prompt budget. DNS recon and strategic research are supporting context. When posting or role-brief evidence and research evidence are empty the pipeline fails closed unless `--allow-recon-only` is set — recon alone is structurally incomplete for services / reseller / consultancy companies.
 
 ### Phase 1 — Planning (`src/primr/skill_pack/planner.py`)
 
 `plan_roles` runs three LLM calls in sequence and produces a `RolePlan`:
 
 1. **Industry classification** (`industry.py`) — one cheap call. Returns `IndustryClassification` with `business_model`, `industry_vertical`, `company_stage`, `employee_estimate`, `confidence`, `cited_evidence`, `source`. Resolution order: parse structured fields from a primr strategic report if `--from-report` is set; otherwise call the LLM.
-2. **Call A — observed roles** (`plan_observed_roles.yaml`) — extracts roles from hiring evidence only. Every role MUST cite at least one verbatim phrase from the hiring evidence or it's dropped at parse time. Provenance: `posting`. Confidence: `Confirmed`.
+2. **Call A — observed roles** (`plan_observed_roles.yaml`) — extracts roles from hiring evidence only, including operator-provided JD / role-brief evidence when `--from-jd` is supplied. Every role MUST cite at least one verbatim phrase from the hiring evidence or it's dropped at parse time. Provenance: `posting`. Confidence: `Confirmed`.
 3. **Call B — plausible roles** (`plan_plausible_roles.yaml`) — infers roles from research + recon + industry classification. Every role MUST cite either a specific research phrase OR a business-model + stage rationale. The call is instructed to cover BOTH (1) the company-specific named practices / services from the research (highest priority — these are listed first and are what make the pack about *this* company; a flagship branded offering named in the research always earns a role) AND (2) the universal go-to-market and back-office functions every org of this size runs (Sales, Marketing, Customer Success, HR/People, Operations, Finance, Legal/Compliance, IT) — so the roster doesn't collapse into only generic functions or only technical practices. Common org-shape functions are reasonable inferences only when `company_stage` is Mid-market or larger. Generic VP / Chief-X titles are forbidden without specific evidence. Provenance: `research` or `industry`. Confidence: `Inferred` or `Speculated`.
 
 Merge (`_merge_and_cap`) runs archetype-based dedupe (observed wins; if both calls return roles matching the same archetype, the observed entry survives and the plausible entry is dropped). The split is signal-driven — no hard ratio between observed and plausible — but a **plausible reserve** (`PLAUSIBLE_RESERVE_FRACTION`, default 0.4) keeps a fraction of the roster available for plausible org-shape roles when eligible plausible roles are waiting, so a posting set dominated by one technical function can't crowd out the universal business functions. Observed roles still take the leading slots and win on ties; observed roles the reserve displaces flow to `gap_flagged` (a contiguous suffix of observed) rather than being silently dropped. Cap is `roles_count`; overflow also flows to `gap_flagged` so the plan artifact records what got dropped.
@@ -133,6 +133,19 @@ iCIMS and BambooHR are not covered as dedicated providers — they have no clean
 
 `load_full_evidence` reads `report.md`, `insights.txt`, `scraped_website_summary.txt`, or `analysis_workbook.md` from the working directory in that priority order. Trimmed to 18,000 chars before being passed to the plausible-roles call. The research stream is what enables strong inference for revenue-layer roles (consultants, account roles, practice leads) that DNS fingerprints can't reveal.
 
+### Operator role brief / JD (`--from-jd`)
+
+`--from-jd PATH` reads a local UTF-8 job description or role brief, sanitizes it for prompt-injection patterns, and writes it to `<working>/_hiring/operator_role_brief.md`. The evidence loader prepends that file to the hiring stream, so the JD remains visible even when scraped hiring evidence is broad, noisy, or dominated by unrelated front-line postings.
+
+Use this when the best grounding for a draft skill is a specific role description:
+
+```bash
+primr skills "Co" --from-jd ./licensing-operations-jd.md \
+  --roles-override "Licensing Operations Analyst"
+```
+
+The JD can also augment a normal company URL or `--from-report` run. It is treated as evidence, never as instructions. The generated `SKILL.md` should use it to choose the workflow, required inputs, output template, guardrails, and worked example; it should not copy the JD into the body or turn it into a company report.
+
 ## Operator curation
 
 When the auto-discovery doesn't match what you want, four flags compose to give you full control:
@@ -141,6 +154,7 @@ When the auto-discovery doesn't match what you want, four flags compose to give 
 |---|---|---|
 | `--plan-only` | Plan, persist, exit before authoring | Inspect the plan before paying for skills |
 | `--from-plan PATH` | Skip planning; load saved plan and author against it | Author a previously-reviewed plan |
+| `--from-jd PATH` | Add a local JD / role brief to hiring evidence | Ground a specialized role that discovery missed |
 | `--roles-add "A, B"` | Append operator-supplied labels to the planned roster | Plan looked good but missed X |
 | `--roles-skip "X, Y"` | Drop named roles from the planned roster | Plan looked good except for one role |
 | `--roles-override "..."` | Bypass planning entirely; author exactly these roles | You know what you want, skip discovery |
@@ -168,6 +182,10 @@ primr skills "Co" url --from-report dir --from-plan working/.../role_plan.json \
 # Hand-curated set from scratch (bypasses planning)
 primr skills "Co" url --from-report dir \
   --roles-override "Role A, Role B, Role C"
+
+# Single-role draft grounded in a local JD
+primr skills "Co" --from-jd ./role.md \
+  --roles-override "Licensing Operations Analyst"
 ```
 
 ### Composition matrix (locked behavior)
@@ -175,6 +193,8 @@ primr skills "Co" url --from-report dir \
 | Flags | Behavior |
 |---|---|
 | `--roles-override` alone | Bypasses planning; the four other curation/plan flags are ignored if `--roles-override` is set (CLI warns) |
+| `--from-jd PATH` alone | Uses the local JD / role brief as the hiring evidence source; no URL scrape required |
+| `--from-jd PATH --roles-override "..."` | Bypasses planning but still grounds authoring in the supplied JD |
 | `--from-plan PATH` | Load plan, no planning LLM calls |
 | `--from-plan PATH --roles-add "..."` | Load plan, append added |
 | `--from-plan PATH --roles-skip "..."` | Load plan, drop skipped |
@@ -305,12 +325,13 @@ primr skills <company_name> [company_url] [options]
 
 Positional arguments:
 - `company_name` — display name (quote multi-word names)
-- `company_url` — required unless `--from-report` is provided
+- `company_url` — required unless `--from-report` or `--from-jd` is provided
 
 Planning + roster:
 - `--roles N` — number of roles to generate (1-15, default 5)
 - `--skills-per-role N` — skills per role (1-5, default 3)
 - `--from-report PATH` — reuse evidence from an existing primr working dir
+- `--from-jd PATH` — add a local job description / role brief as sanitized hiring evidence
 - `--plan-only` — plan, persist, exit before authoring
 - `--from-plan PATH` — author from a saved `role_plan.json`; skip planning
 - `--roles-add "A, B"` — augment the discovered roster
@@ -341,6 +362,7 @@ Optional:
 - `roles_count` (1-15, default 5)
 - `skills_per_role` (1-5, default 3)
 - `report_path` (skips standalone evidence collection)
+- `from_jd_path` (adds local role-brief evidence; skips evidence collection when used without `company_url`)
 
 Returns `{cost_usd, min_minutes, max_minutes}`.
 
@@ -352,6 +374,7 @@ Synchronous (~30-120s). Required:
 Optional:
 - `company_url` (required unless `report_path` is set)
 - `report_path` — reuse an existing primr working dir
+- `from_jd_path` — local job description / role brief to sanitize and add to hiring evidence
 - `roles_count`, `skills_per_role`, `formats`, `max_refine_iterations`, `destination`, `max_estimated_cost_usd`
 - `allow_recon_only: bool` — fail-closed override
 - `emit_agent_metadata: bool` — optional metadata block in `SKILL.md`; default false
@@ -369,6 +392,7 @@ Cost is dominated by authoring (~$0.03 per role per skill). Planning adds ~$0.04
 
 Indicative numbers for a default run (5 roles × 3 skills = 15 skills):
 - Pack with `--from-report`: ~$0.25-$0.35, 60-90s
+- JD-only pack with `--from-jd` and `--roles-override`: skips standalone evidence collection; cost scales with planned roles/skills
 - Pack with standalone evidence collection (no `--from-report`): ~$0.30-$0.40, 90-150s
 - Larger pack (10 roles × 3 skills = 30 skills): ~$0.55-$0.75, 120-240s
 - `--plan-only`: ~$0.05, 10-30s
@@ -382,7 +406,8 @@ Use `--dry-run` for a per-run estimate that reflects your exact flag combination
 Both the posting layer and the research layer came up empty. Most often: the company uses an ATS provider primr doesn't support yet AND `--from-report` wasn't used. Options:
 1. Run a full primr research run first, then pass `--from-report working/<company>/<timestamp>` so the strategic research grounds the plausible-roles call.
 2. Pass `--allow-recon-only` to proceed with DNS-only role discovery (structurally incomplete for services / reseller / consultancy companies — the pack will skew toward IT-ops admin roles only).
-3. Use `--roles-override "Role A, Role B, ..."` to supply roles manually.
+3. Use `--from-jd path/to/role.md --roles-override "Role A"` when you have a specific job description / role brief.
+4. Use `--roles-override "Role A, Role B, ..."` to supply roles manually without extra role evidence.
 
 **`Curation left an empty roster`**
 

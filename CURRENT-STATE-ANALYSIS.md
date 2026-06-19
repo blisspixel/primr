@@ -49,3 +49,11 @@ skill generator, not a company-insight artifact generator. The skill body stays
 compact and procedural: required inputs, produced artifact, workflow, guardrail,
 human checkpoint, and worked example. Company context is used to make those
 items specific, while role grounding stays in progressively loaded references.
+
+Current cycle update: JD-as-evidence is now the active shipped slice of roadmap
+item 25. `--from-jd` / MCP `from_jd_path` adds a sanitized local role brief to
+the hiring evidence layer before planning and authoring, and JD-only single-role
+draft generation is supported without pretending discovery found broader
+company evidence. The next highest-leverage item remains enterprise
+role-discovery honesty for large companies whose discovered postings cluster in
+one narrow segment, followed by the Cowork packaging refresh.
