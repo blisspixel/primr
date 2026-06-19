@@ -36,7 +36,7 @@ research ──┘                           ├─► plan_roles  ──► app
                                        └─► role_plan.md + role_plan.json
 ```
 
-Job postings are the **primary input**. An operator-supplied JD / role brief is treated as explicit hiring evidence and is prioritized ahead of scraped hiring summaries in the prompt budget. DNS recon and strategic research are supporting context. When posting or role-brief evidence and research evidence are empty the pipeline fails closed unless `--allow-recon-only` is set — recon alone is structurally incomplete for services / reseller / consultancy companies.
+Job postings are the **primary input**. An operator-supplied JD / role brief is treated as explicit hiring evidence and is prioritized ahead of scraped hiring summaries in the prompt budget. DNS recon and strategic research are supporting context. When posting or role-brief evidence and research evidence are empty the pipeline fails closed unless `--allow-recon-only` is set — recon alone is structurally incomplete for services / reseller / consultancy companies. For mid-market-or-larger organizations, the planner also emits a non-blocking `posting-incomplete` warning when observed postings cluster in one narrow band, such as only store/front-line roles, so operators know the roster is probably a partial career-site slice rather than full enterprise coverage.
 
 ### Phase 1 — Planning (`src/primr/skill_pack/planner.py`)
 
@@ -46,7 +46,7 @@ Job postings are the **primary input**. An operator-supplied JD / role brief is 
 2. **Call A — observed roles** (`plan_observed_roles.yaml`) — extracts roles from hiring evidence only, including operator-provided JD / role-brief evidence when `--from-jd` is supplied. Every role MUST cite at least one verbatim phrase from the hiring evidence or it's dropped at parse time. Provenance: `posting`. Confidence: `Confirmed`.
 3. **Call B — plausible roles** (`plan_plausible_roles.yaml`) — infers roles from research + recon + industry classification. Every role MUST cite either a specific research phrase OR a business-model + stage rationale. The call is instructed to cover BOTH (1) the company-specific named practices / services from the research (highest priority — these are listed first and are what make the pack about *this* company; a flagship branded offering named in the research always earns a role) AND (2) the universal go-to-market and back-office functions every org of this size runs (Sales, Marketing, Customer Success, HR/People, Operations, Finance, Legal/Compliance, IT) — so the roster doesn't collapse into only generic functions or only technical practices. Common org-shape functions are reasonable inferences only when `company_stage` is Mid-market or larger. Generic VP / Chief-X titles are forbidden without specific evidence. Provenance: `research` or `industry`. Confidence: `Inferred` or `Speculated`.
 
-Merge (`_merge_and_cap`) runs archetype-based dedupe (observed wins; if both calls return roles matching the same archetype, the observed entry survives and the plausible entry is dropped). The split is signal-driven — no hard ratio between observed and plausible — but a **plausible reserve** (`PLAUSIBLE_RESERVE_FRACTION`, default 0.4) keeps a fraction of the roster available for plausible org-shape roles when eligible plausible roles are waiting, so a posting set dominated by one technical function can't crowd out the universal business functions. Observed roles still take the leading slots and win on ties; observed roles the reserve displaces flow to `gap_flagged` (a contiguous suffix of observed) rather than being silently dropped. Cap is `roles_count`; overflow also flows to `gap_flagged` so the plan artifact records what got dropped.
+Merge (`_merge_and_cap`) runs archetype-based dedupe (observed wins; if both calls return roles matching the same archetype, the observed entry survives and the plausible entry is dropped). The split is signal-driven — no hard ratio between observed and plausible — but a **plausible reserve** (`PLAUSIBLE_RESERVE_FRACTION`, default 0.4) keeps a fraction of the roster available for plausible org-shape roles when eligible plausible roles are waiting, so a posting set dominated by one technical function can't crowd out the universal business functions. Observed roles still take the leading slots and win on ties; observed roles the reserve displaces flow to `gap_flagged` (a contiguous suffix of observed) rather than being silently dropped. Cap is `roles_count`; overflow also flows to `gap_flagged` so the plan artifact records what got dropped. After merge, a pure posting-coverage assessment records whether observed postings look broad enough for the organization's scale; it surfaces warnings in `role_plan.md` and the pack report but never blocks authoring.
 
 ### Phase 2 — Curation (`apply_curation`)
 
@@ -239,7 +239,7 @@ Each `primr skills` run produces:
   - `skills/<skill-slug>/SKILL.md` plus `skills/<skill-slug>/references/role-family.md` — byte-identical to the unpacked tree
 - `<Company>_Skills_Pack_Report.md` — human-readable pack summary:
   - Configuration (target roles, skills per role, formats, coherence pass)
-  - Role Composition (observed / plausible / operator-added counts; industry classification; plan reference; gap-flagged count; operator-skipped names)
+  - Role Composition (observed / plausible / operator-added counts; industry classification; posting-coverage warning when present; plan reference; gap-flagged count; operator-skipped names)
   - Per-role section showing confidence, provenance, archetype, citations, summary, and the skills authored
   - Validation Scorecard (HARD / SOFT counts + per-finding table)
   - Refinement Iterations used
@@ -254,6 +254,7 @@ Written during planning **before** authoring begins. Inspect the markdown to see
 The markdown layout:
 - `## Industry Classification` — business model, vertical, stage, employee estimate, confidence, cited evidence, source (report / llm)
 - `## Evidence Summary` — character counts and per-stage counts
+- `## Posting Coverage` — non-blocking warning when enterprise-scale observed postings cluster in one narrow band
 - `## Observed Roles` — posting-grounded roles with verbatim posting citations
 - `## Plausible Roles` — research/industry-grounded roles with citations
 - `## Operator-Added Roles` (when `--roles-add` was used) — operator-supplied labels with `provenance: override`
@@ -428,6 +429,10 @@ The bundled archetype catalog doesn't yet cover every common role, so `match_arc
 **Plan looks right but authoring produces generic skills**
 
 Most often a result of thin research evidence. Re-run with `--from-report` pointing at a richer primr run (e.g., the standard `primr "Company" url` output rather than a `--mode scrape` run), or augment by running the full pipeline first.
+
+**Role plan says `posting-incomplete`**
+
+The planner found real postings, but they cluster in one narrow band for a mid-market-or-larger organization. Treat the observed roster as a partial career-site slice. Add a corporate role brief with `--from-jd`, curate known specialized roles with `--roles-add` / `--roles-override`, or rerun from a richer report or segmented career-site evidence set.
 
 **Pack manifest UUID changed unexpectedly**
 

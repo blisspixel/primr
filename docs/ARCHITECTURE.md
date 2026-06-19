@@ -383,7 +383,7 @@ Fail-open at every stage. No ATS match + no careers page + no web-search hits â†
 
 Location: `src/primr/skill_pack/planner.py`, `industry.py`, `discovery.py`
 
-Job postings are the primary input to the skill pack subsystem; operator-supplied job descriptions / role briefs (`--from-jd`) are treated as explicit hiring evidence when the operator has a better role artifact than discovery can find. DNS recon and the strategic report are supporting context. The planning step replaces the single-call `discover_roles` with a structured two-call plan that preserves provenance end-to-end.
+Job postings are the primary input to the skill pack subsystem; operator-supplied job descriptions / role briefs (`--from-jd`) are treated as explicit hiring evidence when the operator has a better role artifact than discovery can find. DNS recon and the strategic report are supporting context. The planning step replaces the single-call `discover_roles` with a structured two-call plan that preserves provenance end-to-end. It also records a non-blocking posting-coverage assessment so enterprise-scale rosters that only see one narrow posting band are marked `posting-incomplete` rather than treated as complete coverage.
 
 Pipeline:
 1. **Evidence load** â€” recon (`_recon_context.txt`), hiring (`_hiring/hiring_signals.md` plus optional `_hiring/operator_role_brief.md` from `--from-jd`), research (`insights.txt` / `report.md` / `analysis_workbook.md`). Fails closed when posting / role-brief evidence and research evidence are empty unless `allow_recon_only=True`.
@@ -397,6 +397,7 @@ Operator surface (roster curation):
 - `--plan-only` writes the plan and exits before authoring.
 - `--from-plan PATH` skips planning and authors against a saved plan's `final_roster` verbatim.
 - `--from-jd PATH` sanitizes a local JD / role brief into `_hiring/operator_role_brief.md`; it can augment a normal run or act as the sole evidence source for a JD-only draft skill pack.
+- `posting-incomplete` is a visibility signal, not a ship block: role planning preserves the observed postings, then points the operator toward `--from-jd`, `--roles-add`, `--roles-override`, or richer segmented evidence when the discovered posting slice is too narrow for the organization's scale.
 - `--roles-add "A, B"` augments the discovered or saved-plan roster with operator-supplied labels (materialized as `provenance: override`).
 - `--roles-skip "X, Y"` removes named roles from the discovered or saved-plan roster (matches `display_name` or kebab-case slug, exact, case-insensitive).
 - `--roles-override "A, B, ..."` bypasses planning entirely; up to `MAX_ROLES` labels. Mutually exclusive with `--roles-add` / `--roles-skip` (override wins, curation warned).

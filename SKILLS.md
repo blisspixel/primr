@@ -21,3 +21,8 @@
   hiring evidence stream, prioritize it ahead of noisy scraped postings, and let
   the generated skill use it to shape workflow, inputs, outputs, guardrails, and
   examples.
+- When observed job postings cluster in one narrow band for an enterprise-scale
+  organization, surface that as a partial-coverage warning instead of blocking
+  or over-correcting. The planner should preserve the real posting evidence,
+  flag `posting-incomplete`, and point the operator toward better evidence or
+  curation rather than inventing missing corporate roles.

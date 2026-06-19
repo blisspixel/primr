@@ -2,6 +2,49 @@
 
 ## 2026-06-19
 
+### Cycle: Enterprise Posting Coverage Honesty
+
+Re-read and aligned against the project reference set for this cycle:
+`README.md`, `ROADMAP.md`, `CLAUDE.md`, `AGENTS.md`, `docs/SKILL_PACK.md`,
+`docs/ARCHITECTURE.md`, `docs/design/agentic-balance.md`,
+`docs/design/engineering-excellence.md`, `PROGRESS-LOG.md`, `SKILLS.md`, and
+`CURRENT-STATE-ANALYSIS.md`.
+
+Implemented:
+
+- Added a pure skill-pack posting-coverage assessor that flags
+  `posting-incomplete` when observed postings for a mid-market-or-larger
+  organization cluster in one narrow role band.
+- Surfaced the warning in `role_plan.md` and the skill-pack report with
+  concrete operator actions: provide `--from-jd`, curate with `--roles-add` or
+  `--roles-override`, or rerun from richer segmented evidence.
+- Extracted role-plan rendering into `skill_pack.plan_artifacts`, reducing
+  `planner.py` from the file-size ceiling to 830 lines while preserving the
+  existing role-plan artifact contract.
+- Updated README, roadmap, architecture, changelog, skill-pack guide,
+  current-state analysis, and engineering learnings.
+
+Validation:
+
+- `uv run pytest tests/skill_pack/test_posting_coverage.py tests/skill_pack/test_planner.py tests/skill_pack/test_packager.py -q`
+  passed with 35 tests.
+- `uv run pytest tests/skill_pack -q` passed with 283 tests.
+- `uv run pytest tests/test_architecture.py -q` passed with 5 tests.
+- `uv run ruff check src/primr/` passed.
+- `uv run ruff format --check src/ tests/` passed.
+- `uv run mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'`
+  passed.
+- `uv run bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q`
+  passed with the existing `mcp_server/security.py` B108 nosec warnings.
+- `uv run pip-audit --ignore-vuln PYSEC-2026-196` passed after one transient
+  remote connection reset.
+- `uv run pytest tests/ --ignore=tests/manual -x --tb=short -q --cov=src/primr --cov-branch --cov-fail-under=81`
+  passed with `10058 passed, 38 skipped`, branch coverage `85.07%`.
+
+Cost:
+
+- `$0.00`. No cloud or paid validation was used.
+
 ### Cycle: JD Evidence For Draft Skill Generation
 
 Re-read and aligned against the active reference set for this cycle:

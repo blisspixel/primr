@@ -347,6 +347,75 @@ class TestPlanRoles:
         assert plan.observed == []
         assert len(plan.plausible) >= 1
 
+    def test_enterprise_frontline_cluster_records_posting_coverage_warning(
+        self,
+        tmp_path: Path,
+    ):
+        working = tmp_path / "working"
+        _write_evidence(
+            working,
+            recon="Recon: M365 and Okta",
+            hiring="# Hiring\n- Store Associate\n- Retail Shift Lead\n- Warehouse Associate",
+            research="Acme is a multi-brand retailer with corporate operations.",
+        )
+
+        def _frontline_mock(prompt: str, **_kwargs: Any) -> str:
+            if "Classify the company below" in prompt:
+                return json.dumps(
+                    {
+                        "business_model": "Retail",
+                        "industry_vertical": "Multi-brand retailer",
+                        "company_stage": "Enterprise",
+                        "employee_estimate": "10,000+",
+                        "confidence": "Medium",
+                        "cited_evidence": ["multi-brand retailer"],
+                    }
+                )
+            if "Extract every distinct role" in prompt:
+                return json.dumps(
+                    {
+                        "signal_strength": "narrow",
+                        "roles": [
+                            {
+                                "name": "store-associate",
+                                "display_name": "Store Associate",
+                                "archetype": None,
+                                "summary": "Front-line store role.",
+                                "posting_citations": ["Store Associate"],
+                                "posting_count": 7,
+                            },
+                            {
+                                "name": "retail-shift-lead",
+                                "display_name": "Retail Shift Lead",
+                                "archetype": None,
+                                "summary": "Front-line shift role.",
+                                "posting_citations": ["Retail Shift Lead"],
+                                "posting_count": 2,
+                            },
+                        ],
+                    }
+                )
+            if "Identify up to" in prompt and "plausible" in prompt:
+                return json.dumps({"signal_strength": "sparse", "roles": []})
+            raise AssertionError(f"Unexpected prompt in planner mock: {prompt[:120]!r}")
+
+        with patch("primr.ai.grok_client.grok_llm", side_effect=_frontline_mock):
+            plan = plan_roles(
+                company_name="Acme",
+                company_url="https://acme.example",
+                working_dir=working,
+                roles_count=3,
+            )
+
+        assert plan.evidence_summary["posting_coverage_status"] == "posting-incomplete"
+        assert plan.evidence_summary["posting_coverage_warns"] is True
+        assert plan.evidence_summary["posting_coverage_dominant_bucket"] == "frontline-operations"
+        assert plan.plan_md_path is not None
+        plan_md = Path(plan.plan_md_path).read_text(encoding="utf-8")
+        assert "## Posting Coverage" in plan_md
+        assert "posting-incomplete" in plan_md
+        assert "--from-jd" in plan_md
+
 
 class TestLoadPlan:
     def test_roundtrip_persist_and_load(self, tmp_path: Path):

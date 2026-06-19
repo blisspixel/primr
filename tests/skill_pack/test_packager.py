@@ -20,8 +20,10 @@ from primr.skill_pack.packager import (
 )
 from primr.skill_pack.schema import (
     BundledFile,
+    IndustryClassification,
     Role,
     RoleEvidence,
+    RolePlan,
     Skill,
     SkillPack,
     ValidationReport,
@@ -355,6 +357,35 @@ def test_report_md_lists_dropped_roles(tmp_path: Path):
     assert "Dropped Roles" in text
     assert "eng-manager" in text
     assert "by primr" not in text.lower()
+
+
+def test_report_md_surfaces_posting_incomplete_warning(tmp_path: Path):
+    pack = _make_pack()
+    pack.plan = RolePlan(
+        observed=list(pack.roles),
+        final_roster=list(pack.roles),
+        industry=IndustryClassification(
+            business_model="Retail",
+            industry_vertical="Multi-brand retailer",
+            company_stage="Enterprise",
+            employee_estimate="10,000+",
+            confidence="Medium",
+            source="llm",
+        ),
+        evidence_summary={
+            "posting_coverage_warns": True,
+            "posting_coverage_status": "posting-incomplete",
+            "posting_coverage_reason": "9/10 postings cluster in `frontline-operations`.",
+            "posting_coverage_recommendation": "Use --from-jd or --roles-add.",
+        },
+    )
+    config = SkillPackConfig(formats=SkillPackFormat.CLAUDE)
+    artifacts = package_skill_pack(pack, config, tmp_path)
+
+    assert artifacts.report_md_path is not None
+    text = Path(artifacts.report_md_path).read_text(encoding="utf-8")
+    assert "Posting coverage: **posting-incomplete**" in text
+    assert "Use --from-jd or --roles-add" in text
 
 
 @pytest.mark.parametrize(

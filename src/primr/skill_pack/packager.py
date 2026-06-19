@@ -254,6 +254,7 @@ def _build_pack_report_md(
                 f"- Gap-flagged roles not authored: {len(plan.gap_flagged)} "
                 "(see role plan for details)"
             )
+        _append_posting_coverage_report_lines(lines, plan.evidence_summary)
         lines.append("")
 
     lines.extend(
@@ -375,6 +376,19 @@ def _build_pack_report_md(
     )
     lines.append("")
     return "\n".join(lines)
+
+
+def _append_posting_coverage_report_lines(
+    lines: list[str],
+    evidence_summary: dict[str, object],
+) -> None:
+    if not evidence_summary.get("posting_coverage_warns"):
+        return
+    reason = str(evidence_summary.get("posting_coverage_reason") or "")
+    recommendation = str(evidence_summary.get("posting_coverage_recommendation") or "")
+    lines.append("- Posting coverage: **posting-incomplete**" + (f" - {reason}" if reason else ""))
+    if recommendation:
+        lines.append(f"- Recommended curation: {recommendation}")
 
 
 # A folder slug must be a single safe path segment: lowercase alphanumerics,

@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `_hiring/operator_role_brief.md`, prepended ahead of scraped hiring summaries,
   and used by both role planning and authoring. MCP `estimate_skill_pack` /
   `generate_skill_pack` mirror the same `from_jd_path` input.
+- `primr skills` role planning now records a non-blocking `posting-incomplete`
+  warning when observed postings for a mid-market-or-larger organization
+  cluster in one narrow band. The warning appears in `role_plan.md` and the
+  pack report with recommended operator curation paths.
 
 ### Changed
 
