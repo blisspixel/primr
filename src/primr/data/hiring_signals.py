@@ -1,38 +1,9 @@
-"""
-Hiring-signal gathering: discover a company's open job postings and extract
-strategic signals (tech stack, initiatives, org shape, culture) that aren't
-in the marketing copy.
+"""Discover open job postings and extract strategic hiring signals.
 
-Pipeline
---------
-1. **Discover** — try ATS board APIs (Greenhouse, Lever, Ashby,
-   SmartRecruiters) in parallel against slug candidates derived from the
-   company name and website. If all ATS probes miss, fall back to an HTML
-   crawl of the company's careers page.
-2. **Triage** — ask an LLM to pick the most signal-rich postings out of the
-   discovered list (senior / engineering / product / platform roles are
-   almost always more informative than retail / support / entry). Falls
-   back to a deterministic title-based ranker if the LLM call fails.
-3. **Fetch** — for ATS hits the posting body is usually already in the
-   board-API response. For HTML discoveries fetch individual postings via
-   the popup-free external orchestrator.
-4. **Extract** — one batched LLM call over the aggregated JD text produces
-   structured signals: tech-stack frequency, strategic initiatives,
-   culture cues, hiring volume, and a one-paragraph synthesis.
-5. **Persist** — write a human-readable markdown summary and a structured
-   JSON artifact into `<working>/_hiring/`; individual JD bodies go into
-   `<working>/_hiring/raw/` for auditability.
-
-All stages are fail-open — missing / broken data at any point still
-produces either a shorter artifact or None. The caller treats None as
-"no hiring signals available, carry on."
-
-Why this exists
----------------
-Job posts are one of the most honest signals a company emits about what
-they're building *right now*. "Hiring 5 engineers with Snowflake + dbt
-+ Terraform experience" tells you more about the near-term data platform
-direction than any marketing page will.
+The pipeline discovers postings via known ATS APIs, explicit career URLs,
+careers-page HTML, and a web-search fallback; triages the most signal-rich
+roles; fetches usable bodies; extracts structured stack / initiative / org
+signals; and persists audit artifacts under `<working>/_hiring/`.
 """
 
 from __future__ import annotations
@@ -46,6 +17,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any
 from urllib.parse import urljoin, urlparse
+
+from primr.data.hiring_career_urls import discover_career_url_postings, normalize_career_urls
 
 logger = logging.getLogger(__name__)
 
@@ -1784,6 +1757,7 @@ def gather_hiring_signals(
     working_folder: str | None = None,
     max_selected: int = MAX_SELECTED_POSTINGS,
     recon_hints: dict | None = None,
+    career_urls: list[str] | None = None,
 ) -> HiringSignals | None:
     """Discover open postings, triage them, extract strategic signals.
 
@@ -1795,26 +1769,36 @@ def gather_hiring_signals(
     ``fetch_web_content``. Passing it lets the HTML fallback skip re-fetching
     a careers page we already have in memory.
 
-    ``recon_hints`` is an optional dict that may contain ``ats_slugs`` — a
-    list of slugs extracted from recon-detected ATS subdomains. These are
-    tried before name-based guesses.
+    ``career_urls`` lets operators provide exact segmented career / ATS
+    boards. These are tried before slug guessing and may merge multiple boards.
     """
     if os.getenv("PRIMR_SKIP_HIRING_SIGNALS", "").strip().lower() in {"1", "true", "yes"}:
         logger.info("Hiring signals disabled via PRIMR_SKIP_HIRING_SIGNALS")
         return None
 
+    explicit_career_urls = normalize_career_urls(career_urls)
     slugs = _candidate_slugs(company_name, website, recon_hints)
-    if not slugs:
+    if not slugs and not explicit_career_urls:
         logger.info("No slug candidates for hiring signals (company=%r)", company_name)
         return None
 
-    # If the scraped corpus already revealed an explicit Workday board URL,
-    # hit those endpoints directly before the slug-based fan-out. This
-    # avoids the bounded blind-discovery cost when we have ground truth.
-    corpus_workday_triples = _discover_workday_triples(corpus)
     postings: list[Posting] = []
     ats_source: str | None = None
-    if corpus_workday_triples:
+
+    if explicit_career_urls:
+        postings, ats_source = discover_career_url_postings(
+            explicit_career_urls,
+            corpus=corpus,
+            http_get=_http_get,
+            detect_ats_redirect=_detect_ats_redirect,
+            extract_posting_links=_extract_posting_links,
+            make_html_posting=lambda url, label: Posting(url=url, title=label, source="html"),
+            html_timeout_s=_HTML_LIST_TIMEOUT_S,
+            max_discovered=MAX_DISCOVERED_POSTINGS,
+        )
+
+    corpus_workday_triples = _discover_workday_triples(corpus)
+    if not postings and corpus_workday_triples:
         logger.info(
             "Hiring signals: corpus revealed %d Workday triple(s); fetching directly",
             len(corpus_workday_triples),
@@ -1826,7 +1810,7 @@ def gather_hiring_signals(
                 ats_source = "workday"
                 break
 
-    if not postings:
+    if not postings and slugs:
         logger.info("Hiring signals: trying ATS slugs %s", slugs)
         postings, ats_source = _discover_via_ats(slugs)
 
@@ -1868,7 +1852,7 @@ def gather_hiring_signals(
             postings = web_hits
             discovery_source = "web-search"
 
-    chosen_slug = slugs[0] if slugs else ""
+    chosen_slug = slugs[0] if slugs else _slugify(company_name) or "career-url"
 
     if not postings:
         logger.info("Hiring signals: no postings discovered — skipping extraction")

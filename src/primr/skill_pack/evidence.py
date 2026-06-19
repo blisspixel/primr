@@ -3,6 +3,8 @@
 When `primr skills <Company> <url>` is run without `--from-report`, this
 module produces just enough evidence — DNS recon + hiring signals — into
 a fresh working directory so the pipeline has something to ground on.
+Explicit career URLs can supply hiring evidence without implying a DNS
+recon target.
 
 This is intentionally NARROWER than `primr scrape`: no full corpus build,
 no link discovery, no LLM summarization of pages. Recon is free; hiring
@@ -40,9 +42,10 @@ def _extract_domain(url: str) -> str | None:
 
 def collect_evidence(
     company_name: str,
-    company_url: str,
+    company_url: str | None,
     working_dir: Path,
     *,
+    career_urls: list[str] | None = None,
     skip_recon: bool = False,
     skip_hiring: bool = False,
 ) -> dict[str, str | None]:
@@ -57,12 +60,19 @@ def collect_evidence(
     """
     working_dir.mkdir(parents=True, exist_ok=True)
     result: dict[str, str | None] = {"recon": None, "hiring": None}
+    career_urls = career_urls or []
 
-    if not skip_recon:
+    if not skip_recon and company_url:
         result["recon"] = _collect_recon(company_url, working_dir)
 
-    if not skip_hiring:
-        result["hiring"] = _collect_hiring(company_name, company_url, working_dir)
+    hiring_seed_url = company_url or (career_urls[0] if career_urls else None)
+    if not skip_hiring and hiring_seed_url:
+        result["hiring"] = _collect_hiring(
+            company_name,
+            hiring_seed_url,
+            working_dir,
+            career_urls=career_urls,
+        )
 
     return result
 
@@ -98,7 +108,13 @@ def _collect_recon(company_url: str, working_dir: Path) -> str | None:
         return None
 
 
-def _collect_hiring(company_name: str, company_url: str, working_dir: Path) -> str | None:
+def _collect_hiring(
+    company_name: str,
+    company_url: str,
+    working_dir: Path,
+    *,
+    career_urls: list[str] | None = None,
+) -> str | None:
     if os.getenv("PRIMR_SKIP_HIRING_SIGNALS", "").strip().lower() in {"1", "true", "yes"}:
         logger.info("Hiring signals skipped via PRIMR_SKIP_HIRING_SIGNALS env var")
         return None
@@ -115,6 +131,7 @@ def _collect_hiring(company_name: str, company_url: str, working_dir: Path) -> s
             company_url,
             corpus=None,
             working_folder=str(working_dir),
+            career_urls=career_urls or [],
         )
     except Exception as exc:
         logger.warning("Hiring signals collection failed: %s", exc)

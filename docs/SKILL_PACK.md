@@ -16,7 +16,7 @@ primr skills "ExampleCo" https://example.co
 #   working/ExampleCo/.../role_plan.md  +  role_plan.json
 ```
 
-`primr skills` requires `company_url` (standalone evidence collection), `--from-report <dir>` (reuse evidence from an existing primr run), or `--from-jd <path>` (use a local job description / role brief as operator-supplied hiring evidence).
+`primr skills` requires `company_url` (standalone evidence collection), `--from-report <dir>` (reuse evidence from an existing primr run), `--from-jd <path>` (use a local job description / role brief as operator-supplied hiring evidence), or at least one `--career-url <url>` (use exact career / ATS boards as hiring evidence).
 
 ## When to use it
 
@@ -36,7 +36,7 @@ research ──┘                           ├─► plan_roles  ──► app
                                        └─► role_plan.md + role_plan.json
 ```
 
-Job postings are the **primary input**. An operator-supplied JD / role brief is treated as explicit hiring evidence and is prioritized ahead of scraped hiring summaries in the prompt budget. DNS recon and strategic research are supporting context. When posting or role-brief evidence and research evidence are empty the pipeline fails closed unless `--allow-recon-only` is set — recon alone is structurally incomplete for services / reseller / consultancy companies. For mid-market-or-larger organizations, the planner also emits a non-blocking `posting-incomplete` warning when observed postings cluster in one narrow band, such as only store/front-line roles, so operators know the roster is probably a partial career-site slice rather than full enterprise coverage.
+Job postings are the **primary input**. Operator-supplied JD / role brief files and explicit career URLs are treated as hiring evidence, not instructions or public-fact blocks. DNS recon and strategic research are supporting context. When posting or role-brief evidence and research evidence are empty the pipeline fails closed unless `--allow-recon-only` is set; recon alone is structurally incomplete for services / reseller / consultancy companies. For mid-market-or-larger organizations, the planner also emits a non-blocking `posting-incomplete` warning when observed postings cluster in one narrow band, such as only store/front-line roles, so operators know the roster is probably a partial career-site slice rather than full enterprise coverage.
 
 ### Phase 1 — Planning (`src/primr/skill_pack/planner.py`)
 
@@ -129,6 +129,18 @@ Output persists to `<working>/_hiring/` (`hiring_signals.md` + `hiring_signals.j
 
 iCIMS and BambooHR are not covered as dedicated providers — they have no clean public JSON APIs, and the HTML fallback handles them.
 
+### Explicit career / ATS URLs (`--career-url`)
+
+Use `--career-url URL` when the company career site is segmented across multiple boards, subsidiaries, regions, or job families. The flag can be repeated:
+
+```bash
+primr skills "Co" \
+  --career-url https://jobs.co.example/corporate \
+  --career-url https://boards.greenhouse.io/co
+```
+
+Each URL is structurally validated, fetched through the existing hiring SSRF guard, and treated only as a source selector. Direct ATS board URLs are parsed by their provider adapter; vanity career pages that redirect to a known ATS are resolved to that provider; plain HTML pages use the posting-link extractor. Valid postings from repeated URLs are merged and deduped before planning. When no `company_url` is supplied, Primr skips DNS recon rather than treating the first career URL as a corporate domain.
+
 ### Research (when `--from-report` is set)
 
 `load_full_evidence` reads `report.md`, `insights.txt`, `scraped_website_summary.txt`, or `analysis_workbook.md` from the working directory in that priority order. Trimmed to 18,000 chars before being passed to the plausible-roles call. The research stream is what enables strong inference for revenue-layer roles (consultants, account roles, practice leads) that DNS fingerprints can't reveal.
@@ -155,6 +167,7 @@ When the auto-discovery doesn't match what you want, four flags compose to give 
 | `--plan-only` | Plan, persist, exit before authoring | Inspect the plan before paying for skills |
 | `--from-plan PATH` | Skip planning; load saved plan and author against it | Author a previously-reviewed plan |
 | `--from-jd PATH` | Add a local JD / role brief to hiring evidence | Ground a specialized role that discovery missed |
+| `--career-url URL` | Add an exact career / ATS board; repeatable | Merge segmented career-site slices before planning |
 | `--roles-add "A, B"` | Append operator-supplied labels to the planned roster | Plan looked good but missed X |
 | `--roles-skip "X, Y"` | Drop named roles from the planned roster | Plan looked good except for one role |
 | `--roles-override "..."` | Bypass planning entirely; author exactly these roles | You know what you want, skip discovery |
@@ -186,6 +199,11 @@ primr skills "Co" url --from-report dir \
 # Single-role draft grounded in a local JD
 primr skills "Co" --from-jd ./role.md \
   --roles-override "Licensing Operations Analyst"
+
+# Merge segmented career boards before planning
+primr skills "Co" \
+  --career-url https://jobs.co.example/corporate \
+  --career-url https://jobs.lever.co/co
 ```
 
 ### Composition matrix (locked behavior)
@@ -195,6 +213,8 @@ primr skills "Co" --from-jd ./role.md \
 | `--roles-override` alone | Bypasses planning; the four other curation/plan flags are ignored if `--roles-override` is set (CLI warns) |
 | `--from-jd PATH` alone | Uses the local JD / role brief as the hiring evidence source; no URL scrape required |
 | `--from-jd PATH --roles-override "..."` | Bypasses planning but still grounds authoring in the supplied JD |
+| `--career-url URL` alone | Collects hiring evidence from the supplied board(s), skips DNS recon, and plans from postings |
+| `company_url --career-url URL` | Runs DNS recon against `company_url` and uses the explicit board(s) for hiring discovery before fallback |
 | `--from-plan PATH` | Load plan, no planning LLM calls |
 | `--from-plan PATH --roles-add "..."` | Load plan, append added |
 | `--from-plan PATH --roles-skip "..."` | Load plan, drop skipped |
@@ -335,30 +355,31 @@ primr skills <company_name> [company_url] [options]
 ```
 
 Positional arguments:
-- `company_name` — display name (quote multi-word names)
-- `company_url` — required unless `--from-report` or `--from-jd` is provided
+- `company_name` - display name (quote multi-word names)
+- `company_url` - required unless `--from-report`, `--from-jd`, or `--career-url` is provided
 
 Planning + roster:
-- `--roles N` — number of roles to generate (1-15, default 5)
-- `--skills-per-role N` — skills per role (1-5, default 3)
-- `--from-report PATH` — reuse evidence from an existing primr working dir
-- `--from-jd PATH` — add a local job description / role brief as sanitized hiring evidence
-- `--plan-only` — plan, persist, exit before authoring
-- `--from-plan PATH` — author from a saved `role_plan.json`; skip planning
-- `--roles-add "A, B"` — augment the discovered roster
-- `--roles-skip "X, Y"` — prune from the discovered roster
-- `--roles-override "A, B, C"` — bypass planning entirely (mutually exclusive with add/skip)
-- `--allow-recon-only` — proceed when both posting and research evidence are empty
+- `--roles N` - number of roles to generate (1-15, default 5)
+- `--skills-per-role N` - skills per role (1-5, default 3)
+- `--from-report PATH` - reuse evidence from an existing primr working dir
+- `--from-jd PATH` - add a local job description / role brief as sanitized hiring evidence
+- `--career-url URL` - exact career / ATS board to use as hiring evidence; repeat for segmented sites
+- `--plan-only` - plan, persist, exit before authoring
+- `--from-plan PATH` - author from a saved `role_plan.json`; skip planning
+- `--roles-add "A, B"` - augment the discovered roster
+- `--roles-skip "X, Y"` - prune from the discovered roster
+- `--roles-override "A, B, C"` - bypass planning entirely (mutually exclusive with add/skip)
+- `--allow-recon-only` - proceed when both posting and research evidence are empty
 
 Output + validation:
-- `--formats {claude,cowork,both}` — which artifact formats to emit (default `both`)
-- `--output-dir PATH` — where the dated pack folder is written (default `output/`)
-- `--max-refine-iterations N` — cap on per-skill refinement (default 2)
-- `--no-coherence-pass` — skip the pack-level coherence LLM pass (saves ~$0.02)
-- `--optimize-triggers` — measure + optimize each skill's trigger description against a discovery simulator (Phase 5c; adds LLM calls, off by default)
-- `--with-evals` — behavioral eval: run each skill's task cases with vs without the skill, grade, report the delta, write `evals/evals.json` (Phase 5d; expensive, off by default)
-- `--emit-agent-metadata` — add optional primr-namespaced metadata to each `SKILL.md` frontmatter; off by default
-- `--dry-run` — estimate cost + time, exit before running
+- `--formats {claude,cowork,both}` - which artifact formats to emit (default `both`)
+- `--output-dir PATH` - where the dated pack folder is written (default `output/`)
+- `--max-refine-iterations N` - cap on per-skill refinement (default 2)
+- `--no-coherence-pass` - skip the pack-level coherence LLM pass (saves ~$0.02)
+- `--optimize-triggers` - measure + optimize each skill's trigger description against a discovery simulator (Phase 5c; adds LLM calls, off by default)
+- `--with-evals` - behavioral eval: run each skill's task cases with vs without the skill, grade, report the delta, write `evals/evals.json` (Phase 5d; expensive, off by default)
+- `--emit-agent-metadata` - add optional primr-namespaced metadata to each `SKILL.md` frontmatter; off by default
+- `--dry-run` - estimate cost + time, exit before running
 
 ## MCP reference
 
@@ -374,6 +395,7 @@ Optional:
 - `skills_per_role` (1-5, default 3)
 - `report_path` (skips standalone evidence collection)
 - `from_jd_path` (adds local role-brief evidence; skips evidence collection when used without `company_url`)
+- `career_urls` (array of exact career / ATS URLs; merged before planning)
 
 Returns `{cost_usd, min_minutes, max_minutes}`.
 
@@ -383,17 +405,18 @@ Synchronous (~30-120s). Required:
 - `company_name`
 
 Optional:
-- `company_url` (required unless `report_path` is set)
-- `report_path` — reuse an existing primr working dir
-- `from_jd_path` — local job description / role brief to sanitize and add to hiring evidence
+- `company_url` (required unless `report_path`, `from_jd_path`, or `career_urls` is set)
+- `report_path` - reuse an existing primr working dir
+- `from_jd_path` - local job description / role brief to sanitize and add to hiring evidence
+- `career_urls: array[string]` - exact career / ATS URLs to merge as hiring evidence
 - `roles_count`, `skills_per_role`, `formats`, `max_refine_iterations`, `destination`, `max_estimated_cost_usd`
-- `allow_recon_only: bool` — fail-closed override
-- `emit_agent_metadata: bool` — optional metadata block in `SKILL.md`; default false
-- `plan_only: bool` — write plan, return without authoring
-- `from_plan_path: string` — author against a saved plan
-- `roles_override: array[string]` — bypass planning entirely
-- `roles_add: array[string]` — augment discovered roster
-- `roles_skip: array[string]` — prune from discovered roster
+- `allow_recon_only: bool` - fail-closed override
+- `emit_agent_metadata: bool` - optional metadata block in `SKILL.md`; default false
+- `plan_only: bool` - write plan, return without authoring
+- `from_plan_path: string` - author against a saved plan
+- `roles_override: array[string]` - bypass planning entirely
+- `roles_add: array[string]` - augment discovered roster
+- `roles_skip: array[string]` - prune from discovered roster
 
 Mirrors the CLI flags. Returns the pack metadata + artifact paths.
 
@@ -404,6 +427,7 @@ Cost is dominated by authoring (~$0.03 per role per skill). Planning adds ~$0.04
 Indicative numbers for a default run (5 roles × 3 skills = 15 skills):
 - Pack with `--from-report`: ~$0.25-$0.35, 60-90s
 - JD-only pack with `--from-jd` and `--roles-override`: skips standalone evidence collection; cost scales with planned roles/skills
+- Career-URL-only pack with `--career-url`: includes standalone hiring evidence collection but skips DNS recon when no `company_url` is supplied
 - Pack with standalone evidence collection (no `--from-report`): ~$0.30-$0.40, 90-150s
 - Larger pack (10 roles × 3 skills = 30 skills): ~$0.55-$0.75, 120-240s
 - `--plan-only`: ~$0.05, 10-30s
@@ -418,7 +442,8 @@ Both the posting layer and the research layer came up empty. Most often: the com
 1. Run a full primr research run first, then pass `--from-report working/<company>/<timestamp>` so the strategic research grounds the plausible-roles call.
 2. Pass `--allow-recon-only` to proceed with DNS-only role discovery (structurally incomplete for services / reseller / consultancy companies — the pack will skew toward IT-ops admin roles only).
 3. Use `--from-jd path/to/role.md --roles-override "Role A"` when you have a specific job description / role brief.
-4. Use `--roles-override "Role A, Role B, ..."` to supply roles manually without extra role evidence.
+4. Add repeated `--career-url` values when the company splits hiring across multiple boards and automatic discovery found only one slice.
+5. Use `--roles-override "Role A, Role B, ..."` to supply roles manually without extra role evidence.
 
 **`Curation left an empty roster`**
 
@@ -442,7 +467,7 @@ Most often a result of thin research evidence. Re-run with `--from-report` point
 
 **Role plan says `posting-incomplete`**
 
-The planner found real postings, but they cluster in one narrow band for a mid-market-or-larger organization. Treat the observed roster as a partial career-site slice. Add a corporate role brief with `--from-jd`, curate known specialized roles with `--roles-add` / `--roles-override`, or rerun from a richer report or segmented career-site evidence set.
+The planner found real postings, but they cluster in one narrow band for a mid-market-or-larger organization. Treat the observed roster as a partial career-site slice. Add exact segmented boards with repeated `--career-url`, add a corporate role brief with `--from-jd`, curate known specialized roles with `--roles-add` / `--roles-override`, or rerun from a richer report.
 
 **Pack manifest UUID changed unexpectedly**
 

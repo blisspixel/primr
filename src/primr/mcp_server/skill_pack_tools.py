@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any
 
 from mcp.types import TextContent, Tool
 
+from primr.data.hiring_career_urls import normalize_career_urls
 from primr.skill_pack.config import (
     DEFAULT_MAX_COST_PER_ROLE_USD,
     DEFAULT_MAX_REFINE_ITERATIONS,
@@ -83,6 +84,14 @@ def register_skill_pack_tools(server: Server, mcp_server: PrimrMCPServer) -> lis
                             "brief to add to the hiring evidence layer."
                         ),
                     },
+                    "career_urls": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "Optional exact career / ATS URLs to use as hiring "
+                            "evidence. Repeat entries for segmented career sites."
+                        ),
+                    },
                     "roles_count": {
                         "type": "integer",
                         "minimum": MIN_ROLES,
@@ -116,7 +125,9 @@ def register_skill_pack_tools(server: Server, mcp_server: PrimrMCPServer) -> lis
                     "company_name": {"type": "string"},
                     "company_url": {
                         "type": "string",
-                        "description": "Required unless report_path or from_jd_path is provided.",
+                        "description": (
+                            "Required unless report_path, from_jd_path, or career_urls is provided."
+                        ),
                     },
                     "report_path": {
                         "type": "string",
@@ -134,6 +145,14 @@ def register_skill_pack_tools(server: Server, mcp_server: PrimrMCPServer) -> lis
                             "into the hiring evidence stream before planning "
                             "and authoring. Can be used as the sole evidence "
                             "source when company_url/report_path are absent."
+                        ),
+                    },
+                    "career_urls": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "Optional exact career / ATS URLs to use as hiring "
+                            "evidence. Multiple URLs are merged before planning."
                         ),
                     },
                     "roles_count": {
@@ -328,6 +347,16 @@ def _pipeline_error_response(exc: Exception) -> TextContent:
     return _error_response(f"Unexpected error: {exc}")
 
 
+def _coerce_list(raw: object) -> list[str]:
+    if not raw:
+        return []
+    if isinstance(raw, str):
+        return [s.strip() for s in raw.split(",") if s.strip()]
+    if isinstance(raw, list):
+        return [str(s).strip() for s in raw if str(s).strip()]
+    return []
+
+
 async def handle_skill_pack_tool(
     name: str,
     arguments: dict[str, Any],
@@ -350,11 +379,18 @@ async def _handle_estimate_skill_pack(arguments: dict[str, Any]) -> list[TextCon
     skills_per_role = int(arguments.get("skills_per_role") or DEFAULT_SKILLS_PER_ROLE)
     has_report_path = bool(arguments.get("report_path"))
     has_jd_path = bool(arguments.get("from_jd_path") or arguments.get("from_jd"))
+    try:
+        career_urls = normalize_career_urls(_coerce_list(arguments.get("career_urls")))
+    except ValueError as exc:
+        return [_error_response(f"Invalid career_urls: {exc}")]
 
     estimate = _estimate_skill_pack_cost(
         roles_count,
         skills_per_role,
-        has_report_path=bool(has_report_path or (has_jd_path and not arguments.get("company_url"))),
+        has_report_path=bool(
+            has_report_path
+            or (has_jd_path and not arguments.get("company_url") and not career_urls)
+        ),
     )
     payload = {
         "company_name": company_name,
@@ -362,13 +398,15 @@ async def _handle_estimate_skill_pack(arguments: dict[str, Any]) -> list[TextCon
         "skills_per_role": skills_per_role,
         "uses_existing_report": has_report_path,
         "uses_operator_role_brief": has_jd_path,
+        "uses_career_urls": bool(career_urls),
         **estimate,
         "notes": (
             "Includes role discovery, parallel authoring, validation, "
             "refinement (capped), and pack-level coherence pass. "
             "Evidence collection (recon + hiring) excluded when "
             "report_path is provided, or when from_jd_path is the sole "
-            "evidence source."
+            "evidence source. career_urls are treated as standalone "
+            "hiring evidence and included in the collection estimate."
         ),
     }
     return [TextContent(type="text", text=json.dumps(payload, indent=2))]
@@ -385,16 +423,23 @@ async def _handle_generate_skill_pack(
         str(arguments.get("from_jd_path") or arguments.get("from_jd") or "").strip() or None
     )
 
+    career_urls_raw = _coerce_list(arguments.get("career_urls") or arguments.get("career_url"))
+    try:
+        career_urls = normalize_career_urls(career_urls_raw)
+    except ValueError as exc:
+        return [_error_response(f"Invalid career_urls: {exc}")]
+
     if not company_name:
         return [_error_response("company_name is required")]
-    if not company_url and not report_path and not from_jd_path:
+    if not company_url and not report_path and not from_jd_path and not career_urls:
         return [
             _error_response(
-                "Either company_url, report_path, or from_jd_path must be provided "
+                "Either company_url, report_path, from_jd_path, or career_urls must be provided "
                 "(company_url runs a standalone evidence collection; "
                 "report_path reuses an existing primr run's evidence; "
                 "from_jd_path adds a local job description / role brief as "
-                "the evidence source)."
+                "the evidence source; career_urls provide exact hiring boards "
+                "for segmented career sites)."
             )
         ]
 
@@ -408,15 +453,6 @@ async def _handle_generate_skill_pack(
     emit_agent_metadata = bool(arguments.get("emit_agent_metadata") or False)
     plan_only = bool(arguments.get("plan_only") or False)
     from_plan_path = arguments.get("from_plan_path") or None
-
-    def _coerce_list(raw: object) -> list[str]:
-        if not raw:
-            return []
-        if isinstance(raw, str):
-            return [s.strip() for s in raw.split(",") if s.strip()]
-        if isinstance(raw, list):
-            return [str(s).strip() for s in raw if str(s).strip()]
-        return []
 
     roles_override = _coerce_list(arguments.get("roles_override"))
     roles_add = _coerce_list(arguments.get("roles_add"))
@@ -436,7 +472,7 @@ async def _handle_generate_skill_pack(
     estimate = _estimate_skill_pack_cost(
         effective_roles,
         skills_per_role,
-        has_report_path=bool(report_path or (from_jd_path and not company_url)),
+        has_report_path=bool(report_path or (from_jd_path and not company_url and not career_urls)),
     )
     if _is_cost_cap_enforced():
         # Fail closed: when server-side caps are enforced, a cost-incurring run
@@ -484,6 +520,7 @@ async def _handle_generate_skill_pack(
             plan_only=plan_only,
             from_plan_path=from_plan_path,
             from_jd_path=from_jd_path,
+            career_urls=career_urls,
         )
         config.validate()
     except ValueError as exc:
@@ -513,18 +550,20 @@ async def _handle_generate_skill_pack(
         tmp = Path(tempfile.mkdtemp(prefix="primr-skill-pack-mcp-"))
         working_dir = tmp
         cleanup_tempdir = tmp
-        if company_url:
+        if company_url or config.career_urls:
             outcome = collect_evidence(
                 company_name=company_name,
                 company_url=company_url,
                 working_dir=working_dir,
+                career_urls=config.career_urls,
             )
             if not outcome.get("recon") and not outcome.get("hiring") and not from_jd_path:
                 return [
                     _error_response(
                         "Could not collect any evidence (recon and hiring both "
                         "failed). Supply report_path, supply from_jd_path with "
-                        "a role brief, or check that the URL is reachable."
+                        "a role brief, add exact career_urls for segmented "
+                        "career sites, or check that the URL is reachable."
                     )
                 ]
 

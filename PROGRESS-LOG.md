@@ -2,6 +2,56 @@
 
 ## 2026-06-19
 
+### Cycle: Segmented Career URL Evidence For Draft Skills
+
+Re-read and aligned against the active reference set for this cycle:
+`README.md`, `ROADMAP.md`, `CLAUDE.md`, `AGENTS.md`, `docs/SKILL_PACK.md`,
+`docs/ARCHITECTURE.md`, `docs/design/agentic-balance.md`,
+`docs/design/engineering-excellence.md`, `PROGRESS-LOG.md`, `SKILLS.md`, and
+`CURRENT-STATE-ANALYSIS.md`. Kept the scope intentionally focused on draft
+skill generation: narrow, explicit, evidence-backed `SKILL.md` artifacts rather
+than broad public-facts dossiers.
+
+Implemented:
+
+- Added repeatable `--career-url` inputs for `primr skills`, allowing operators
+  to seed draft skill-pack generation from specific segmented career pages or
+  direct ATS URLs without requiring a company landing page.
+- Added MCP parity through `career_urls` on `estimate_skill_pack` and
+  `generate_skill_pack`, including normalized structured estimates that report
+  when explicit career URLs are being used.
+- Added a shared career-URL discovery helper that normalizes, deduplicates, and
+  caps operator-supplied URLs, then routes direct ATS URLs, ATS redirects, and
+  HTML career pages through the existing guarded hiring-signal collectors.
+- Updated evidence collection so career URLs can be the primary source, while
+  still preserving SSRF guards in the fetch path and provenance labels for
+  downstream role planning.
+- Updated README, roadmap, changelog, the skill-pack guide, architecture notes,
+  current-state analysis, and engineering learnings.
+
+Validation:
+
+- `uv run pytest tests/test_data/test_hiring_signals_more_coverage.py tests/skill_pack/test_evidence_more_coverage.py tests/skill_pack/test_cli.py tests/mcp_server/test_skill_pack_tools_more_coverage.py tests/test_architecture.py -q`
+  passed with 170 tests.
+- `uv run ruff check src/primr/` passed.
+- `uv run ruff format --check src/ tests/` passed after formatting the updated
+  architecture ratchet test.
+- `uv run mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'`
+  passed.
+- `uv run bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q`
+  passed with the existing `mcp_server/security.py` B108 nosec warnings.
+- `uv run pip-audit --ignore-vuln PYSEC-2026-196` passed.
+- `uv run pytest tests/ --ignore=tests/manual -x --tb=short -q --cov=src/primr --cov-branch --cov-fail-under=81`
+  passed with `10073 passed, 38 skipped`, branch coverage `85.06%`.
+- Confirmed the latest pushed main commit before this cycle had green Docs,
+  Scorecard, CodeQL, and CI runs. The visible failed CI run was on the previous
+  dependency-audit commit and was fixed by the subsequent dependency-floor
+  commit.
+
+Cost:
+
+- `$0.00`. No cloud or paid validation was used.
+
 ### Cycle: Cowork Packaging Limits
 
 Re-read and aligned against the project reference set for this cycle:

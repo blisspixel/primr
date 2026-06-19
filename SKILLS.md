@@ -36,3 +36,8 @@
   CI audit locally, run `uv sync --frozen --extra dev --extra api --extra a2a`
   before `uv run --no-sync pip-audit ...`; otherwise the local virtualenv can
   still contain the old vulnerable resolution.
+- Segmented career-site inputs should be modeled as deterministic hiring-source
+  selectors, not as company context to paste into skills. Validate URL shape,
+  rely on the existing SSRF-guarded fetch boundary, merge/dedupe the resulting
+  postings, and keep role planning grounded in the postings rather than the URL
+  list itself.

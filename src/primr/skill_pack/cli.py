@@ -93,6 +93,17 @@ def _create_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--career-url",
+        action="append",
+        default=[],
+        help=(
+            "Exact career or ATS URL to use as hiring evidence. Repeat for "
+            "segmented career sites, for example corporate and field boards. "
+            "Can be used with or without company_url; DNS recon runs only "
+            "when company_url is provided."
+        ),
+    )
+    parser.add_argument(
         "--output-dir",
         type=str,
         default="output",
@@ -265,10 +276,12 @@ def run_skills_cli(args: list[str] | None) -> int:
     company_url = parsed.company_url
     from_report = parsed.from_report
     from_jd = parsed.from_jd
+    career_urls = parsed.career_url or []
 
-    if not from_report and not company_url and not from_jd:
+    if not from_report and not company_url and not from_jd and not career_urls:
         print(
-            "Error: company_url is required unless --from-report or --from-jd is provided.",
+            "Error: company_url is required unless --from-report, --from-jd, "
+            "or --career-url is provided.",
             file=sys.stderr,
         )
         return 2
@@ -331,6 +344,7 @@ def run_skills_cli(args: list[str] | None) -> int:
             plan_only=parsed.plan_only,
             from_plan_path=from_plan_path,
             from_jd_path=from_jd_path,
+            career_urls=career_urls,
         )
         config.validate()
     except ValueError as exc:
@@ -340,7 +354,7 @@ def run_skills_cli(args: list[str] | None) -> int:
     if parsed.dry_run:
         cost, minutes = _estimate(
             config,
-            will_collect_evidence=bool(company_url and not from_report),
+            will_collect_evidence=bool((company_url or config.career_urls) and not from_report),
         )
         print(f"Skill pack estimate for {company_name}:")
         print(f"  Roles: {config.roles_count} x {config.skills_per_role} skills")
@@ -365,12 +379,13 @@ def run_skills_cli(args: list[str] | None) -> int:
         # URL is available. A role brief can also be the sole evidence source.
         tmp = Path(tempfile.mkdtemp(prefix="primr-skill-pack-"))
         working_dir = tmp
-        if company_url:
+        if company_url or config.career_urls:
             print(f"Collecting recon + hiring evidence for {company_name}...")
             outcome = collect_evidence(
                 company_name=company_name,
                 company_url=company_url,
                 working_dir=working_dir,
+                career_urls=config.career_urls,
             )
             recon_path = outcome.get("recon")
             hiring_path = outcome.get("hiring")
@@ -378,7 +393,8 @@ def run_skills_cli(args: list[str] | None) -> int:
                 print(
                     "Error: Could not collect any evidence (recon and hiring both "
                     "failed). Try --from-report against an existing primr run, "
-                    "or supply --from-jd with a job description / role brief.",
+                    "supply --from-jd with a job description / role brief, "
+                    "or add exact --career-url values for segmented career sites.",
                     file=sys.stderr,
                 )
                 return 1

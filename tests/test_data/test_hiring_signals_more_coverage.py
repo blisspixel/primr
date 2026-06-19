@@ -22,6 +22,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from primr.data import hiring_signals as hs
+from primr.data.hiring_career_urls import (
+    discover_career_url_postings,
+    normalize_career_urls,
+)
 from primr.data.hiring_signals import (
     Posting,
     _candidate_workday_triples,
@@ -487,6 +491,43 @@ class TestCareersUrlCandidates:
         assert "https://jobs.acme.com/listing" in urls
 
 
+class TestExplicitCareerUrls:
+    def test_normalize_dedupes_and_caps_structurally(self):
+        assert normalize_career_urls(
+            [
+                " HTTPS://careers.acme.example/jobs ",
+                "https://careers.acme.example/jobs",
+                "",
+            ]
+        ) == ["https://careers.acme.example/jobs"]
+
+    @pytest.mark.parametrize("url", ["ftp://jobs.example.com", "jobs.example.com", "https://"])
+    def test_normalize_rejects_non_http_absolute_urls(self, url):
+        with pytest.raises(ValueError):
+            normalize_career_urls([url])
+
+    def test_discover_explicit_html_url_extracts_postings(self):
+        html = b'<a href="/jobs/platform-engineer">Platform Engineer</a>'
+
+        postings, source = discover_career_url_postings(
+            ["https://careers.acme.example/jobs"],
+            corpus=None,
+            http_get=MagicMock(return_value=(200, html, "https://careers.acme.example/jobs")),
+            detect_ats_redirect=MagicMock(return_value=None),
+            extract_posting_links=MagicMock(
+                return_value=[
+                    ("https://careers.acme.example/jobs/platform-engineer", "Platform Engineer")
+                ]
+            ),
+            make_html_posting=lambda url, label: Posting(url=url, title=label, source="html"),
+            html_timeout_s=1.0,
+            max_discovered=10,
+        )
+
+        assert source == "career-url:html"
+        assert [p.title for p in postings] == ["Platform Engineer"]
+
+
 class TestDetectAtsRedirect:
     def test_workday_redirect_dispatches_to_fetch_one(self):
         hit = [Posting(url="u", title="Eng", source="workday")]
@@ -764,6 +805,62 @@ class TestPersist:
 
 
 class TestGatherE2EBranches:
+    def test_explicit_direct_ats_urls_merge_without_slug_candidates(self, tmp_path):
+        greenhouse_posts = [
+            Posting(
+                url="https://boards.greenhouse.io/acmeco/jobs/1",
+                title="Senior Platform Engineer",
+                source="greenhouse",
+                body="Build the platform with Kubernetes and Terraform. " * 8,
+            )
+        ]
+        lever_posts = [
+            Posting(
+                url="https://jobs.lever.co/acmeco/2",
+                title="Data Operations Lead",
+                source="lever",
+                body="Own warehouse automation with Snowflake and dbt. " * 8,
+            )
+        ]
+
+        def fake_detect(url):
+            if "greenhouse" in url:
+                return "greenhouse", greenhouse_posts
+            if "lever" in url:
+                return "lever", lever_posts
+            return None
+
+        def fake_grok(prompt, **kw):
+            if "Pick up to" in prompt:
+                return '{"selected": [0, 1]}'
+            return json.dumps(
+                {
+                    "summary": "Platform and data operations hiring.",
+                    "tech_stack": {"Kubernetes": 1, "Snowflake": 1},
+                }
+            )
+
+        with (
+            patch.object(hs, "_detect_ats_redirect", side_effect=fake_detect),
+            patch.object(hs, "_http_get") as http_get,
+            patch("primr.ai.grok_client.grok_llm", side_effect=fake_grok),
+        ):
+            signals = gather_hiring_signals(
+                "",
+                "",
+                career_urls=[
+                    "https://boards.greenhouse.io/acmeco",
+                    "https://jobs.lever.co/acmeco",
+                ],
+                working_folder=str(tmp_path),
+            )
+
+        assert signals is not None
+        assert signals.source == "career-url:greenhouse+lever"
+        assert signals.postings_found == 2
+        assert signals.tech_stack == {"Kubernetes": 1, "Snowflake": 1}
+        http_get.assert_not_called()
+
     def test_corpus_workday_triple_fetched_directly(self, tmp_path):
         """A Workday board URL in the corpus skips slug fan-out entirely."""
         corpus = {

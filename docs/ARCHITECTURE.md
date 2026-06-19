@@ -397,7 +397,7 @@ Operator surface (roster curation):
 - `--plan-only` writes the plan and exits before authoring.
 - `--from-plan PATH` skips planning and authors against a saved plan's `final_roster` verbatim.
 - `--from-jd PATH` sanitizes a local JD / role brief into `_hiring/operator_role_brief.md`; it can augment a normal run or act as the sole evidence source for a JD-only draft skill pack.
-- `posting-incomplete` is a visibility signal, not a ship block: role planning preserves the observed postings, then points the operator toward `--from-jd`, `--roles-add`, `--roles-override`, or richer segmented evidence when the discovered posting slice is too narrow for the organization's scale.
+- `posting-incomplete` is a visibility signal, not a ship block: role planning preserves the observed postings, then points the operator toward repeatable `--career-url`, `--from-jd`, `--roles-add`, `--roles-override`, or richer report evidence when the discovered posting slice is too narrow for the organization's scale.
 - `--roles-add "A, B"` augments the discovered or saved-plan roster with operator-supplied labels (materialized as `provenance: override`).
 - `--roles-skip "X, Y"` removes named roles from the discovered or saved-plan roster (matches `display_name` or kebab-case slug, exact, case-insensitive).
 - `--roles-override "A, B, ..."` bypasses planning entirely; up to `MAX_ROLES` labels. Mutually exclusive with `--roles-add` / `--roles-skip` (override wins, curation warned).

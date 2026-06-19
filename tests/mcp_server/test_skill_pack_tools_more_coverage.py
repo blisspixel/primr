@@ -204,6 +204,20 @@ async def test_estimate_with_from_jd_path_flags_role_brief(tmp_path):
     assert payload["roles_count"] == 1
 
 
+@pytest.mark.asyncio
+async def test_estimate_with_career_urls_flags_collection():
+    payload = await _call(
+        "estimate_skill_pack",
+        {
+            "company_name": "Acme Corp",
+            "career_urls": ["https://jobs.acme.example/corporate"],
+        },
+    )
+
+    assert payload["uses_career_urls"] is True
+    assert payload["uses_existing_report"] is False
+
+
 # ---------------------------------------------------------------------------
 # generate_skill_pack: validation / early-exit branches (no pipeline)
 # ---------------------------------------------------------------------------
@@ -221,6 +235,7 @@ async def test_generate_requires_url_or_report_path():
     payload = await _call("generate_skill_pack", {"company_name": "Acme Corp"})
     assert payload["error"] is True
     assert "company_url" in payload["message"]
+    assert "career_urls" in payload["message"]
 
 
 @pytest.mark.asyncio
@@ -248,6 +263,16 @@ async def test_generate_invalid_config_returns_error():
     )
     assert payload["error"] is True
     assert "Invalid config" in payload["message"]
+
+
+@pytest.mark.asyncio
+async def test_generate_invalid_career_urls_returns_error():
+    payload = await _call(
+        "generate_skill_pack",
+        {"company_name": "Acme Corp", "career_urls": ["jobs.acme.example"]},
+    )
+    assert payload["error"] is True
+    assert "Invalid career_urls" in payload["message"]
 
 
 @pytest.mark.asyncio
@@ -376,6 +401,34 @@ async def test_generate_success_with_url_collects_evidence(patched_pipeline):
     # fresh temp working dir, evidence reuse off
     cfg = patched_pipeline["run"].call_args.kwargs["config"]
     assert cfg.reuse_existing_evidence is False
+
+
+@pytest.mark.asyncio
+async def test_generate_success_with_career_urls_only_collects_hiring(patched_pipeline):
+    payload = await _call(
+        "generate_skill_pack",
+        {
+            "company_name": "Acme Corp",
+            "career_urls": [
+                "https://jobs.acme.example/corporate",
+                "https://boards.greenhouse.io/acmeco",
+            ],
+        },
+    )
+    assert payload["company_name"] == "Acme Corp"
+    patched_pipeline["collect"].assert_called_once()
+    _, kwargs = patched_pipeline["collect"].call_args
+    assert kwargs["company_name"] == "Acme Corp"
+    assert kwargs["company_url"] is None
+    assert kwargs["career_urls"] == [
+        "https://jobs.acme.example/corporate",
+        "https://boards.greenhouse.io/acmeco",
+    ]
+    cfg = patched_pipeline["run"].call_args.kwargs["config"]
+    assert cfg.career_urls == [
+        "https://jobs.acme.example/corporate",
+        "https://boards.greenhouse.io/acmeco",
+    ]
 
 
 @pytest.mark.asyncio

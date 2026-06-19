@@ -55,6 +55,23 @@ class TestParser:
         assert ns.company_url is None
         assert ns.from_jd == "role.md"
 
+    def test_repeated_career_url_flags_parse(self):
+        parser = _create_parser()
+        ns = parser.parse_args(
+            [
+                "Acme",
+                "--career-url",
+                "https://jobs.acme.example/corporate",
+                "--career-url",
+                "https://boards.greenhouse.io/acmeco",
+            ]
+        )
+        assert ns.company_url is None
+        assert ns.career_url == [
+            "https://jobs.acme.example/corporate",
+            "https://boards.greenhouse.io/acmeco",
+        ]
+
     def test_company_url_optional(self):
         parser = _create_parser()
         ns = parser.parse_args(["Acme"])
@@ -117,6 +134,27 @@ class TestRunSkillsCliEarlyReturns:
         assert rc == 0
         out = capsys.readouterr().out
         assert "Skill pack estimate for Acme" in out
+
+    def test_career_url_allows_no_company_url_for_dry_run(self, capsys):
+        rc = run_skills_cli(
+            [
+                "skills",
+                "Acme",
+                "--career-url",
+                "https://jobs.acme.example/corporate",
+                "--dry-run",
+            ]
+        )
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Skill pack estimate for Acme" in out
+
+    def test_invalid_career_url_errors(self, capsys):
+        rc = run_skills_cli(["skills", "Acme", "--career-url", "jobs.acme.example"])
+
+        assert rc == 2
+        assert "career_urls entries must be absolute HTTP(S) URLs" in capsys.readouterr().err
 
     def test_from_jd_nonexistent_path_errors(self, capsys, tmp_path):
         missing = tmp_path / "missing.md"

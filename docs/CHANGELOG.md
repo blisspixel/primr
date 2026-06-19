@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Raised transitive dependency security floors for `msgpack` and
   `pydantic-settings` so CI and downstream installs resolve past newly
   published `pip-audit` advisories.
+- `primr skills` now accepts repeatable `--career-url URL` inputs and MCP
+  `career_urls` to collect exact segmented career / ATS boards as hiring
+  evidence. Direct ATS URLs are parsed with the provider adapters, vanity
+  career pages can resolve through redirects, and valid board slices are merged
+  before role planning.
 
 ### Changed
 

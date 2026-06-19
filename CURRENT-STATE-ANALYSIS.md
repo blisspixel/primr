@@ -60,5 +60,9 @@ postings for a mid-market-or-larger organization cluster in one narrow band.
 The Cowork packaging refresh is also now aligned to current Microsoft limits:
 plugin sideload manifests cap at 20 `agentSkills`, companions are allowed but
 bounded, and larger packs keep the full unpacked tree while emitting a valid
-20-skill Cowork slice. The remaining work in this lane is segmented /
-multi-ATS career-site input support.
+20-skill Cowork slice. Segmented / multi-ATS career-site input support is now
+shipped through repeatable `--career-url` / MCP `career_urls`: exact career
+boards are source selectors for hiring evidence, merged before planning, and
+usable without a company URL when only postings are available. The next
+high-leverage work in this lane is broader live-quality evaluation of generated
+packs against real operator workflows rather than adding more context volume.

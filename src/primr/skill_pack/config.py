@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
+from primr.data.hiring_career_urls import normalize_career_urls
+
 
 class SkillPackFormat(str, Enum):
     CLAUDE = "claude"
@@ -124,6 +126,12 @@ class SkillPackConfig:
     # evidence source for hand-curated / single-role draft skill generation.
     from_jd_path: str | None = None
 
+    # Operator-supplied career / ATS URLs. These are deterministic discovery
+    # hints for segmented hiring sites, not research facts: each URL is fetched
+    # through the hiring SSRF guard, direct ATS boards are parsed with their
+    # provider adapter, and multiple valid boards are merged before planning.
+    career_urls: list[str] = field(default_factory=list)
+
     # Operator-supplied role names that AUGMENT automatic discovery (or a
     # loaded plan via `from_plan_path`). After planning + merge, these
     # entries are materialized as operator-supplied roles and added to
@@ -178,6 +186,7 @@ class SkillPackConfig:
         self.roles_override = _clean(self.roles_override, "roles_override")
         self.roles_add = _clean(self.roles_add, "roles_add")
         self.roles_skip = _clean(self.roles_skip, "roles_skip")
+        self.career_urls = normalize_career_urls(self.career_urls)
 
         # Clash detection across all three list flags. Operator intent is
         # ambiguous when the same label appears in more than one list:

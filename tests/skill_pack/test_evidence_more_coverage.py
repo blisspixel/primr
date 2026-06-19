@@ -227,9 +227,10 @@ def test_collect_hiring_returns_path_when_file_present(
 
     expected = tmp_path / "_hiring" / "hiring_signals.md"
 
-    def _gather(name, url, *, corpus, working_folder):
+    def _gather(name, url, *, corpus, working_folder, career_urls):
         # Simulate the real module writing its output file.
         assert corpus is None
+        assert career_urls == []
         assert working_folder == str(tmp_path)
         expected.parent.mkdir(parents=True, exist_ok=True)
         expected.write_text("# Hiring signals\n", encoding="utf-8")
@@ -257,7 +258,30 @@ def test_collect_evidence_creates_working_dir_and_delegates(tmp_path: Path) -> N
     assert target.is_dir()
     assert result == {"recon": "/recon.txt", "hiring": "/hiring.md"}
     mock_recon.assert_called_once_with("https://acme.example", target)
-    mock_hiring.assert_called_once_with("Acme Corp", "https://acme.example", target)
+    mock_hiring.assert_called_once_with(
+        "Acme Corp",
+        "https://acme.example",
+        target,
+        career_urls=[],
+    )
+
+
+def test_collect_evidence_with_career_urls_skips_recon_without_company_url(tmp_path: Path) -> None:
+    career_urls = ["https://jobs.acme.example/corporate"]
+    with (
+        patch.object(evidence, "_collect_recon") as mock_recon,
+        patch.object(evidence, "_collect_hiring", return_value="/hiring.md") as mock_hiring,
+    ):
+        result = collect_evidence("Acme Corp", None, tmp_path, career_urls=career_urls)
+
+    assert result == {"recon": None, "hiring": "/hiring.md"}
+    mock_recon.assert_not_called()
+    mock_hiring.assert_called_once_with(
+        "Acme Corp",
+        "https://jobs.acme.example/corporate",
+        tmp_path,
+        career_urls=career_urls,
+    )
 
 
 def test_collect_evidence_skip_recon(tmp_path: Path) -> None:
