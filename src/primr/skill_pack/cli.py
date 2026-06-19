@@ -120,6 +120,14 @@ def _create_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--emit-agent-metadata",
+        action="store_true",
+        help=(
+            "Add optional primr-namespaced metadata to each SKILL.md "
+            "frontmatter. Off by default so skills stay clean and portable."
+        ),
+    )
+    parser.add_argument(
         "--allow-recon-only",
         action="store_true",
         help=(
@@ -290,6 +298,7 @@ def run_skills_cli(args: list[str] | None) -> int:
             run_pack_coherence_pass=not parsed.no_coherence_pass,
             optimize_triggers=parsed.optimize_triggers,
             with_evals=parsed.with_evals,
+            emit_agent_metadata=parsed.emit_agent_metadata,
             reuse_existing_evidence=bool(from_report),
             allow_recon_only=parsed.allow_recon_only,
             roles_override=override_labels,

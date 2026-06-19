@@ -14,7 +14,10 @@ Spec references:
     - DESC-LEN: description in [1, 1024] chars
     - DESC-TRIG: description contains a trigger phrase
     - BODY-SEC: body has all three required H2 sections
-    - BODY-LEN: body word count in [1500, 3000] (HARD-fail >5000 tokens)
+    - BODY-LEN: body word count in [300, 3000] (HARD-fail below 300 words
+      or above ~5000 tokens)
+    - BODY-QUALITY: body includes intake, scope, checkpoint, and worked
+      input/output markers instead of shipping as a thin role template
     - SEC-INJECT: no prompt-injection / agent-instruction patterns
     - SEC-PATH: no hardcoded local file paths
     - PACK-OVERLAP: no two skills with >0.85 name+trigger similarity
@@ -26,6 +29,7 @@ import ast
 import re
 from difflib import SequenceMatcher
 
+from primr.skill_pack.body_quality import missing_quality_markers, quality_marker_guidance
 from primr.skill_pack.schema import (
     IssueSeverity,
     Role,
@@ -196,21 +200,12 @@ _REQUIRED_BODY_SECTIONS = [
     "Workflow",
     "Output Format",
 ]
-# Target range for skill bodies. The v1 design had 1500 as the floor, but
-# back-to-back real-data validation runs against rich evidence (n=12 skill
-# bodies across a mid-market public-signal company) showed the model
-# consistently authoring at 235-495 words — and those bodies are genuinely
-# good: focused, company-specific, dense with named tools. Pushing toward
-# 1500 introduces padding. 250 is the new floor: it catches truly thin
-# stubs (one-paragraph fragments) without complaining about appropriately
-# tight skills. SOFT warning outside [250, 3000]; HARD fail above ~5000 tokens.
-# Three validation runs against rich real-world evidence settled the
-# minimum at 150. The model authors complete, dense skills (workflow
-# + output format + company-specific What section) at 150-250 words
-# when the upstream evidence is good. 150 catches genuinely thin stubs
-# (one-paragraph fragments) without false-positiving on appropriately
-# tight skills. Per Anthropic: "concision matters; pad-words hurt."
-_BODY_MIN_WORDS = 150
+# Target range for skill bodies. A skill under 300 words is almost always
+# missing one of the things that makes the artifact useful in practice:
+# intake prompts, scope boundaries, a human checkpoint, or a worked example.
+# Keep the upper bound generous so rich, grounded skills are allowed, but
+# fail closed on thin bodies instead of merely reporting them.
+_BODY_MIN_WORDS = 300
 _BODY_TARGET_MAX_WORDS = 3000
 _BODY_HARD_MAX_WORDS = 5000
 
@@ -761,7 +756,20 @@ def validate_skill(skill: Skill, role_name: str) -> list[SkillIssue]:
                 field="body",
             )
         )
-    elif words < _BODY_MIN_WORDS or words > _BODY_TARGET_MAX_WORDS:
+    elif words < _BODY_MIN_WORDS:
+        issues.append(
+            SkillIssue(
+                code="BODY-LEN",
+                severity=IssueSeverity.HARD,
+                message=(
+                    f"body word count {words} is below the minimum "
+                    f"{_BODY_MIN_WORDS}; thin skills are not shipped"
+                ),
+                role_name=role_name,
+                field="body",
+            )
+        )
+    elif words > _BODY_TARGET_MAX_WORDS:
         issues.append(
             SkillIssue(
                 code="BODY-LEN",
@@ -769,6 +777,24 @@ def validate_skill(skill: Skill, role_name: str) -> list[SkillIssue]:
                 message=(
                     f"body word count {words} outside target "
                     f"[{_BODY_MIN_WORDS}, {_BODY_TARGET_MAX_WORDS}]"
+                ),
+                role_name=role_name,
+                field="body",
+            )
+        )
+
+    # BODY-QUALITY
+    missing_markers = missing_quality_markers(skill.body)
+    if missing_markers:
+        issues.append(
+            SkillIssue(
+                code="BODY-QUALITY",
+                severity=IssueSeverity.HARD,
+                message=(
+                    "body is missing required quality marker(s): "
+                    + ", ".join(missing_markers)
+                    + ". "
+                    + quality_marker_guidance(missing_markers)
                 ),
                 role_name=role_name,
                 field="body",
@@ -877,8 +903,9 @@ def validate_role(role: Role) -> list[SkillIssue]:
 
     # SEC-INJECT on role metadata. display_name / confidence / summary can come
     # from job postings, research evidence, LLM planning, saved plans, or
-    # operator labels, and the packager emits display_name + confidence into
-    # SKILL.md frontmatter (primr-role / primr-confidence) by default. Without
+    # operator labels, and the packager can emit display_name + confidence into
+    # SKILL.md frontmatter (primr-role / primr-confidence) when metadata is
+    # enabled. Without
     # this scan an attacker who influences role discovery could land a
     # prompt-injection string in agent-consumed metadata even though every
     # Skill field passed SEC-INJECT. HARD: a hit drops the role (fail closed).

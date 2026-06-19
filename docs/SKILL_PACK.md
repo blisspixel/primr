@@ -63,6 +63,8 @@ When `--roles-add` or `--roles-skip` are set, `apply_curation` runs after the me
 
 Every skill body must reference at least 2 company-specific signals (DNS-confirmed tool, hiring-mentioned technology, named practice, etc.) per the Anthropic-aligned `author_skill.yaml` system prompt.
 
+After authoring, the pipeline attaches a deterministic `references/role-family.md` file to every skill in the same role family. The file is built from sanitized role evidence, DNS signals, citations, and matched archetype capabilities. It is generated once per role family and reused across that role's skills so cross-skill terminology and evidence do not drift.
+
 ### Phase 4 — Validation (`validator.py`)
 
 Deterministic checks against each `SKILL.md`. Codes prefixed `ASKILL-` (hard) and others (soft). Hard findings trigger per-skill refinement (capped); roles that still carry hard findings after refinement are dropped before packaging.
@@ -74,7 +76,8 @@ Key validators:
 - `DESC-TRIG` — description includes explicit "Use when..." guidance
 - `NAME-GERUND` — skill name uses gerund form (verb + -ing)
 - `NAME-PRODUCT` — skill name reads as a bare product/feature (`azure-front-door`, `aks`) rather than a task; refinement re-scopes the title to the capability the product is used for (the product stays in the body). SOFT — fires only when the name carries a known brand token and no verb/task token
-- `BODY-LEN` — body word count within target band (default 150-3000)
+- `BODY-LEN` — body word count within target band (default 300-3000; under 300 is HARD)
+- `BODY-QUALITY` — body includes intake, `Scope guardrail:`, `Human checkpoint:`, `Example input:`, and `Example output:` markers so thin role templates do not ship
 - `SEC-INJECT` — body does not contain agent-instruction patterns (prompt-injection guard)
 - `BUNDLE-PATH` — bundled progressive-disclosure files use safe paths (`references/*.md`, `scripts/*.py`, `evals/*.json`, single subdir, no traversal). SOFT; unsafe files are dropped at package time
 
@@ -209,10 +212,11 @@ Each `primr skills` run produces:
 ### `<output_dir>/<Company>_Skills_Pack_<YYYYMMDD>/`
 
 - `roles/<skill-slug>/SKILL.md` — one folder per skill, the canonical Agent Skills layout. Drop into `~/.claude/skills/`, `.cursor/skills/`, `.vscode/skills/`, or any other Agent Skills host.
+- `roles/<skill-slug>/references/role-family.md` — deterministic shared role-family grounding copied into every skill for the same role family.
 - `<Company>_Cowork_Pack.zip` — the Microsoft 365 Copilot Cowork sideload. Upload via **M365 Admin Center → Manage Apps → Upload custom app**. Contents:
   - `manifest.json` — Unified App Manifest v1.28 with deterministic UUID v5 (the same company name always yields the same UUID, so re-installs replace rather than duplicate)
   - `color.png` (192x192) and `outline.png` (32x32) — icons. Generated via multi-provider fallback: Grok Imagine → Gemini Imagen → OpenAI image → Pillow gradient+shape → solid PNG
-  - `skills/<skill-slug>/SKILL.md` — byte-identical to the unpacked tree
+  - `skills/<skill-slug>/SKILL.md` plus `skills/<skill-slug>/references/role-family.md` — byte-identical to the unpacked tree
 - `<Company>_Skills_Pack_Report.md` — human-readable pack summary:
   - Configuration (target roles, skills per role, formats, coherence pass)
   - Role Composition (observed / plausible / operator-added counts; industry classification; plan reference; gap-flagged count; operator-skipped names)
@@ -242,18 +246,12 @@ The JSON contains the full `RolePlan` shape (`observed`, `plausible`, `gap_flagg
 
 ## SKILL.md structure
 
-Authored bodies follow Anthropic's Agent Skills authoring conventions enforced by the validator. The frontmatter carries `name` + `description` plus a primr-namespaced `metadata` block — an agent-handoff contract (role, provenance, confidence, an approximate context-token budget, and how to refresh/extend the skill via primr's MCP/A2A surface) so a consuming agent can use the pack without inferring its capability/cost shape. The metadata block is byte-identical across the Claude tree and Cowork zip, and can be turned off via `SkillPackConfig(emit_agent_metadata=False)` for a minimal `name`+`description` frontmatter:
+Authored bodies follow Anthropic's Agent Skills authoring conventions enforced by the validator. By default the frontmatter is clean Agent Skills standard frontmatter: `name` + `description` only. If you need machine-readable handoff metadata, pass `--emit-agent-metadata` or set `SkillPackConfig(emit_agent_metadata=True)` to add a primr-namespaced `metadata` block with role, provenance, confidence, approximate context-token budget, and refresh hints.
 
 ```markdown
 ---
 name: "facilitating-m365-customer-immersion-experiences"
 description: "Facilitates 90-minute M365 Customer Immersion Experiences (CIEs) workshops for ExampleCo commercial accounts. Use when the user asks to schedule a CIE, prepare Modern Workplace demo content, align Intune scenarios, or document post-workshop outcomes."
-metadata:
-  primr-role: "Customer Success Manager"
-  primr-provenance: "posting"
-  primr-confidence: "Confirmed"
-  primr-context-tokens: "1180"
-  primr-refresh-via: "mcp:primr/generate_skill_pack, a2a:primr"
 ---
 
 ## What This Skill Does
@@ -263,22 +261,32 @@ metadata:
 ## Workflow
 
 Progress:
-- [ ] Step 1: ...
-- [ ] Step 2: ...
+- [ ] Intake: confirm the missing source artifact, account context, and decision owner.
+- [ ] Evidence: gather the named systems and constraints.
+- [ ] Draft: produce the requested artifact.
+- [ ] Validate: check the output against evidence and scope.
 
-1. <step that names a specific tool or system at this company>
-2. ...
+1. First ask for any missing input that blocks the work.
+2. <step that names a specific tool or system at this company>
+3. <step that transforms evidence into the output>
+
+Scope guardrail: <what this skill must not do or decide>.
+Human checkpoint: <when the agent must pause for a person before finalizing>.
 
 ## Output Format
 
-<concrete template — table, list, or document structure>
+<concrete template - table, list, or document structure>
+
+Example input: <small realistic request using this company's context>.
+Example output: <small completed output in the required format>.
 ```
 
 Hard rules (validator-enforced):
 - `name` is kebab-case, 1-64 chars, matches folder name (ASKILL-P006)
 - `description` is 1-1024 chars, third person, includes explicit "Use when..." trigger phrases
 - Body contains the three H2 sections in order
-- Body target 300-1500 words (sweet spot 500-800)
+- Body target 300-1500 words (sweet spot 500-800); under 300 words is a hard failure
+- Body includes intake, scope guardrail, human checkpoint, and worked input/output example markers
 - No agent-instruction patterns, no hardcoded local paths, no fenced shell blocks, no credential references
 
 ## CLI reference
@@ -309,6 +317,7 @@ Output + validation:
 - `--no-coherence-pass` — skip the pack-level coherence LLM pass (saves ~$0.02)
 - `--optimize-triggers` — measure + optimize each skill's trigger description against a discovery simulator (Phase 5c; adds LLM calls, off by default)
 - `--with-evals` — behavioral eval: run each skill's task cases with vs without the skill, grade, report the delta, write `evals/evals.json` (Phase 5d; expensive, off by default)
+- `--emit-agent-metadata` — add optional primr-namespaced metadata to each `SKILL.md` frontmatter; off by default
 - `--dry-run` — estimate cost + time, exit before running
 
 ## MCP reference
@@ -337,6 +346,7 @@ Optional:
 - `report_path` — reuse an existing primr working dir
 - `roles_count`, `skills_per_role`, `formats`, `max_refine_iterations`, `destination`, `max_estimated_cost_usd`
 - `allow_recon_only: bool` — fail-closed override
+- `emit_agent_metadata: bool` — optional metadata block in `SKILL.md`; default false
 - `plan_only: bool` — write plan, return without authoring
 - `from_plan_path: string` — author against a saved plan
 - `roles_override: array[string]` — bypass planning entirely

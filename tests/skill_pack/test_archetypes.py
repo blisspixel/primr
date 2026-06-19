@@ -94,6 +94,7 @@ def test_grounding_fragment_includes_canonical_skills():
     assert "Canonical skills" in fragment
     # Should mention at least one of the data-engineer canonical skills
     assert any(skill.name in fragment for skill in archetype.canonical_skills[:5])
+    assert "—" not in fragment
 
 
 def test_grounding_fragment_includes_ai_patterns():

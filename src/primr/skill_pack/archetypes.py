@@ -182,7 +182,7 @@ def grounding_prompt_fragment(archetype: Archetype, max_skills: int) -> str:
     """
     skill_lines = []
     for skill in archetype.canonical_skills[:max_skills]:
-        skill_lines.append(f"- {skill.name} — {skill.display_name}")
+        skill_lines.append(f"- {skill.name} - {skill.display_name}")
         if skill.summary:
             # Indent the summary so it visually belongs to the bullet.
             for line in skill.summary.strip().splitlines():
@@ -201,7 +201,7 @@ def grounding_prompt_fragment(archetype: Archetype, max_skills: int) -> str:
         + "\n".join(skill_lines)
         + "\n\n"
         + (
-            "AI augmentation patterns (illustrative — incorporate where "
+            "AI augmentation patterns (illustrative - incorporate where "
             "appropriate to the role and the company's signals):\n" + "\n".join(ai_lines) + "\n\n"
             if ai_lines
             else ""

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `primr skills` now emits clean Agent Skills frontmatter by default
+  (`name` + `description` only). The primr-namespaced handoff metadata remains
+  available through the CLI `--emit-agent-metadata` flag, the MCP
+  `emit_agent_metadata` argument, or `SkillPackConfig(emit_agent_metadata=True)`.
+- Skill authoring now bakes in stronger hand-built-skill patterns: intake
+  prompts, explicit scope guardrails, human checkpoints, and worked
+  input/output examples. Bodies under 300 words are now ship-blocking hard
+  findings, and missing quality markers produce a hard `BODY-QUALITY` finding
+  that refinement must repair before packaging.
+- Skill packs now attach a deterministic `references/role-family.md` file to
+  every skill in the same role family. The reference is built once from
+  sanitized role evidence and archetype grounding so shared role context stays
+  consistent across skills instead of being independently authored per skill.
+
+### Fixed
+
+- Removed visible generator attribution from generated Cowork manifests, role
+  plans, and skill-pack reports so sideloaded skill packs do not show a
+  tool-branded developer label.
+
 ## [1.32.7] - 2026-06-17
 
 ### Changed

@@ -13,17 +13,31 @@ from primr.skill_pack.config import SkillPackConfig
 from primr.skill_pack.refiner import _actionable_findings, auto_resolve_overlaps, refine_role
 from primr.skill_pack.schema import Role, RoleEvidence, RoleProvenance, Skill, SkillPack
 
-# A body comfortably over the 150-word floor with all three required sections.
+# A body comfortably over the 300-word floor with all required quality markers.
 _GOOD_BODY = (
     "## What This Skill Does\n\n"
-    + ("Handles a concrete company-specific task using the named stack. " * 12)
+    + ("Handles a concrete company-specific task using the named stack. " * 24)
     + "\n\n## Workflow\n\n"
-    + "\n".join(f"{i}. Step {i} that names a specific system." for i in range(1, 7))
+    + "Progress:\n"
+    + "- [ ] Intake: confirm the source artifact, account context, and decision owner.\n"
+    + "- [ ] Evidence: collect the named systems, constraints, and citations.\n"
+    + "- [ ] Draft: produce the requested artifact.\n"
+    + "- [ ] Validate: check the result against the guardrail.\n\n"
+    + "1. First ask for missing customer scope, time window, source artifact, "
+    + "and approval owner.\n"
+    + "\n".join(f"{i}. Step {i} that names a specific system." for i in range(2, 8))
+    + "\n\nScope guardrail: This skill prepares the analysis; it does not approve "
+    + "customer-facing commitments or contractual changes.\n"
+    + "Human checkpoint: Pause before sending recommendations to a customer, "
+    + "changing pricing assumptions, or making compliance claims."
     + "\n\n## Output Format\n\n"
-    + ("A structured report with a table of results and ranked actions. " * 8)
+    + "| Field | Value |\n|---|---|\n| Source | named system |\n| Action | ranked next step |\n\n"
+    + "Example input: Review the latest account data and produce a savings plan.\n"
+    + "Example output: A ranked table of findings, evidence, owner, risk, and next action.\n\n"
+    + ("A structured report with a table of results and ranked actions. " * 12)
 )
 
-# A body under the 150-word floor (thin stub) but structurally valid.
+# A body under the 300-word floor (thin stub) but structurally valid.
 _THIN_BODY = (
     "## What This Skill Does\n\nDoes a thing for the company.\n\n"
     "## Workflow\n\n1. Do step one.\n2. Do step two.\n\n"

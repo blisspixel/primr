@@ -19,6 +19,10 @@ from primr.skill_pack.archetypes import (
 )
 from primr.skill_pack.discovery import load_evidence
 from primr.skill_pack.prompts_loader import extract_json, load_skill_pack_prompt
+from primr.skill_pack.role_references import (
+    add_role_family_reference,
+    build_role_family_reference,
+)
 from primr.skill_pack.schema import BundledFile, Role, RoleProvenance, Skill
 
 logger = logging.getLogger(__name__)
@@ -174,6 +178,13 @@ def author_role_skills(
             )
         )
 
+    role_family_reference = build_role_family_reference(
+        role,
+        company_name=company_name,
+        company_url=company_url,
+        archetype=match.archetype,
+    )
+    add_role_family_reference(skills, role_family_reference)
     return skills
 
 

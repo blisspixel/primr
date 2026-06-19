@@ -572,12 +572,14 @@ async def test_plan_only_and_from_plan_path_mapped(tmp_path, patched_pipeline):
             "plan_only": True,
             "from_plan_path": str(plan_json),
             "allow_recon_only": True,
+            "emit_agent_metadata": True,
         },
     )
     cfg = patched_pipeline["run"].call_args.kwargs["config"]
     assert cfg.plan_only is True
     assert cfg.from_plan_path == str(plan_json)
     assert cfg.allow_recon_only is True
+    assert cfg.emit_agent_metadata is True
 
 
 @pytest.mark.asyncio

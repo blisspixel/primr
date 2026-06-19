@@ -169,6 +169,15 @@ def register_skill_pack_tools(server: Server, mcp_server: PrimrMCPServer) -> lis
                             "fails closed."
                         ),
                     },
+                    "emit_agent_metadata": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": (
+                            "When True, add optional primr-namespaced "
+                            "metadata to each SKILL.md frontmatter. Default "
+                            "False keeps skills clean and portable."
+                        ),
+                    },
                     "plan_only": {
                         "type": "boolean",
                         "default": False,
@@ -332,6 +341,7 @@ async def _handle_generate_skill_pack(
     destination = arguments.get("destination") or "output"
     max_cost = arguments.get("max_estimated_cost_usd")
     allow_recon_only = bool(arguments.get("allow_recon_only") or False)
+    emit_agent_metadata = bool(arguments.get("emit_agent_metadata") or False)
     plan_only = bool(arguments.get("plan_only") or False)
     from_plan_path = arguments.get("from_plan_path") or None
 
@@ -397,6 +407,7 @@ async def _handle_generate_skill_pack(
             max_cost_per_role_usd=DEFAULT_MAX_COST_PER_ROLE_USD,
             max_total_cost_usd=float(max_cost) if max_cost is not None else None,
             allow_recon_only=allow_recon_only,
+            emit_agent_metadata=emit_agent_metadata,
             roles_override=roles_override,
             roles_add=roles_add,
             roles_skip=roles_skip,

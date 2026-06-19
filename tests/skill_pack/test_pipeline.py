@@ -61,12 +61,26 @@ DNS evidence that Salesforce, Microsoft 365, and Snowflake are all live.
 
 ## Workflow
 
-1. Read the upstream specification document in Confluence.
-2. Cross-check with the Snowflake schema using the schemachange tool.
-3. Open a dbt PR with the new model and required tests.
-4. Trigger the orchestrator DAG via the merge-on-green pipeline.
-5. Verify the data quality dashboard in Looker after deploy.
-6. Capture a one-paragraph summary in the team Slack channel.
+Progress:
+- [ ] Intake: confirm the source artifact, dashboard owner, and target decision.
+- [ ] Evidence: inspect Salesforce, Snowflake, dbt, and the current dashboard.
+- [ ] Draft: produce the data change or triage recommendation.
+- [ ] Validate: tie every recommendation to a named Acme system.
+
+1. First ask for the missing source table, dashboard, requester, and deadline
+   when the user has not provided them.
+2. Read the upstream specification document in Confluence.
+3. Cross-check with the Snowflake schema using the schemachange tool.
+4. Open a dbt PR with the new model and required tests.
+5. Trigger the orchestrator DAG via the merge-on-green pipeline.
+6. Verify the data quality dashboard in Looker after deploy.
+7. Capture a one-paragraph summary in the team Slack channel.
+
+Scope guardrail: This skill prepares analytics changes and triage notes; it
+does not approve production access grants, new customer-facing metrics, or
+executive reporting definitions.
+Human checkpoint: Pause before merge when the work changes revenue reporting,
+customer-facing dashboards, privacy-sensitive fields, or executive summaries.
 
 ## Output Format
 
@@ -76,8 +90,16 @@ DNS evidence that Salesforce, Microsoft 365, and Snowflake are all live.
 | Tests added | dbt | green |
 | DAG run id | orchestrator | success |
 | Dashboard | Looker | reviewed |
+| Checkpoint | Owner | pending or approved |
 
-The body continues below to meet the 1500-word target. """ + ("Detail. " * 220)
+Example input: "Draft a renewal-risk mart from Salesforce opportunities and
+Snowflake billing snapshots for the Acme Customer Success dashboard."
+
+Example output: A table naming the dbt model, upstream Snowflake tables,
+orchestrator DAG, Looker dashboard, validation tests, open definition
+questions, and human checkpoint owner.
+
+The body continues below to meet the body target. """ + ("Detail. " * 220)
 
 
 def _mock_grok_llm(prompt: str, **_kwargs: Any) -> str:
@@ -306,6 +328,7 @@ def test_pipeline_end_to_end_with_mocked_llm(tmp_path: Path, working_dir: Path):
         assert "outline.png" in names
         skills_entries = [n for n in names if n.startswith("skills/") and n.endswith("/SKILL.md")]
         assert len(skills_entries) == pack.total_skills
+        assert any(n.endswith("/references/role-family.md") for n in names)
 
 
 def test_pipeline_drops_roles_with_unrecoverable_issues(tmp_path: Path, working_dir: Path):

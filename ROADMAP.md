@@ -521,10 +521,10 @@ and [best-practices guide](https://platform.claude.com/docs/en/agents-and-tools/
 > (false-positives patched release after release). Per the standing rule
 > ([`agentic-balance.md`](docs/design/agentic-balance.md)): the right tier-2/4
 > work is the *eval* (trigger-discovery + behavioral with/without grading) —
-> those measure quality. The content-shape validators are shrinking backstops
-> capped at structural/safety checks (valid YAML, path-traversal, injection in
-> emitted frontmatter); they must not grow new prose-quality cases. Prefer
-> fixing the authoring prompt over adding a validator.
+> those measure quality. The content-shape validators stay structural and
+> safety-focused: valid YAML, path traversal, injection, portability, minimum
+> substance, and explicit authoring markers. Avoid subjective prose-grading
+> regexes; prefer fixing the authoring prompt over policing style.
 
 - **Quality baseline (Tier 1) — SHIPPED:** holistic rosters (plausible
   reserve + universal-function coverage so a posting-heavy company still gets
@@ -533,6 +533,10 @@ and [best-practices guide](https://platform.claude.com/docs/en/agents-and-tools/
   rewritten to count enumerated trigger intents (no more false positives on
   services descriptions); thin bodies auto-expanded; cross-role overlaps
   auto-resolved (`PACK-OVERLAP-LLM` / `PACK-TRIGGER`) instead of only flagged.
+  Follow-up shipped: bodies under 300 words are hard failures, `BODY-QUALITY`
+  requires intake, scope guardrail, human checkpoint, and worked input/output
+  markers, and `author_skill.yaml` now asks for those hand-built-skill patterns
+  directly.
 - **Per-skill trigger eval generation — SHIPPED (Tier 2, `--optimize-triggers`):**
   generate should/should-not-trigger queries, score the description against a
   blind discovery simulator, and rewrite it when below threshold — kept only
@@ -551,7 +555,9 @@ and [best-practices guide](https://platform.claude.com/docs/en/agents-and-tools/
   `evals/evals.json` (`skill_pack/behavioral_eval.py`).
 - **Agent-handoff declarations in SKILL.md frontmatter** — PARTIAL: the
   primr-namespaced `metadata` block (role, provenance, confidence,
-  context-token budget, MCP/A2A refresh hint) ships today. Remaining: an
+  context-token budget, MCP/A2A refresh hint) is available as an explicit
+  opt-in (`--emit-agent-metadata` / MCP `emit_agent_metadata`) while clean
+  `name` + `description` frontmatter remains the default. Remaining: an
   explicit declared tool surface (`allowed-tools`) so the pack is fully
   self-describing to a consuming agent. Folds into the control-plane work (#21).
 - **Multi-model testing** — PLANNED: Anthropic recommends testing skills
@@ -709,7 +715,7 @@ Surfaced building a skill pack for a specialized, non-technical role at a large 
 
 - **JD-as-evidence input**: `--roles-override` accepts only a label; add a `--from-jd` / role-brief input that feeds a pasted or attached job description into the authoring evidence layer, so a single well-specified role can be authored with full grounding without relying on discovered postings.
 - **Enterprise role-discovery honesty**: when discovered postings cluster in one narrow band (e.g. all store/front-line for a large org), the observed-roles set silently under-represents specialized corporate roles. Flag a roster as posting-incomplete in that case, and support segmented / multi-ATS career sites rather than treating a thin slice as full coverage. Reinforces the "postings are primary input" invariant.
-- **Authoring quality patterns**: bake the patterns that distinguished a strong hand-built pack into `author_skill.yaml` — an intake/elicitation opening, a worked input→output example per skill, one shared single-source reference per role family (instead of per-skill duplication that drifts), an explicit scope guardrail, and a human-gated self-refinement section. Cross-refs #15.
+- **Authoring quality patterns**: intake/elicitation opening, worked input→output example per skill, explicit scope guardrail, and human checkpoint are now baked into `author_skill.yaml` and guarded by `BODY-QUALITY`. The role-family reference is now generated once from structured role evidence and attached as `references/role-family.md` across every skill in the role family, replacing per-skill role-reference duplication that could drift. Cross-refs #15.
 - **Cowork packaging refresh**: re-check the Cowork docs/packager against current platform docs, which now allow companion files (`references/`, ~20 files / 10 MB) and a higher custom-skill cap. Cross-refs #15.
 
 ### 26. Provider Expansion: API Keys, Account-Capacity Agents, Gateways, $0 Local Profile

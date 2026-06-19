@@ -6,7 +6,7 @@
 meta:
   name: refine_skill
   phase: 5
-  version: "1.0.0"
+  version: "1.1.0"
 
 system_prompt: |
   You are revising a SKILL.md draft that failed deterministic validation.
@@ -30,7 +30,9 @@ system_prompt: |
     - name: kebab-case, 1-64 chars
     - description: 1-1024 chars, contains a trigger phrase
     - body: has `## What This Skill Does`, `## Workflow`, `## Output Format` H2 sections
-    - body word count: 1500-3000 words
+    - body word count: 300-1500 words; under 300 is too thin to ship
+    - body includes `Scope guardrail:`, `Human checkpoint:`,
+      `Example input:`, and `Example output:`
     - no agent-instruction patterns, no hardcoded paths
 
 user_prompt_template: |
@@ -44,4 +46,13 @@ user_prompt_template: |
   company-specific signals):
   {company_context}
 
-  Produce the corrected skill JSON.
+  Produce the corrected skill JSON. When fixing BODY-QUALITY or BODY-LEN,
+  add real workflow substance, not filler:
+  - Add an intake step that says what the agent should ask for when the
+    user did not provide the necessary source artifact or decision context.
+  - Add a `Scope guardrail:` line for adjacent work the skill should not
+    take over.
+  - Add a `Human checkpoint:` line for approval, compliance, customer-facing,
+    or irreversible decisions.
+  - Add `Example input:` and `Example output:` under Output Format using
+    the same company context as the current draft.

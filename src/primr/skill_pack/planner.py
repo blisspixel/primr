@@ -579,9 +579,9 @@ def _render_plan_md(
     roles_count: int,
 ) -> str:
     lines: list[str] = []
-    lines.append(f"# Role Plan — {company_name}")
+    lines.append(f"# Role Plan - {company_name}")
     lines.append("")
-    lines.append(f"_Generated {generated_at} by primr._")
+    lines.append(f"_Created {generated_at}._")
     lines.append("")
 
     lines.append("## Industry Classification")
@@ -605,7 +605,7 @@ def _render_plan_md(
         lines.append(f"- {key}: {value}")
     lines.append("")
 
-    lines.append(f"## Observed Roles — {len(plan.observed)} (from postings)")
+    lines.append(f"## Observed Roles - {len(plan.observed)} (from postings)")
     lines.append("")
     if plan.observed:
         for role in plan.observed:
@@ -615,7 +615,7 @@ def _render_plan_md(
         lines.append("_No observed roles — no posting evidence available._")
         lines.append("")
 
-    lines.append(f"## Plausible Roles — {len(plan.plausible)} (from research + industry)")
+    lines.append(f"## Plausible Roles - {len(plan.plausible)} (from research + industry)")
     lines.append("")
     if plan.plausible:
         for role in plan.plausible:
@@ -627,7 +627,7 @@ def _render_plan_md(
 
     if plan.operator_added:
         lines.append(
-            f"## Operator-Added Roles — {len(plan.operator_added)} (supplied via --roles-add)"
+            f"## Operator-Added Roles - {len(plan.operator_added)} (supplied via --roles-add)"
         )
         lines.append("")
         lines.append(
@@ -642,7 +642,7 @@ def _render_plan_md(
 
     if plan.operator_skipped:
         lines.append(
-            f"## Operator-Skipped Roles — {len(plan.operator_skipped)} (dropped via --roles-skip)"
+            f"## Operator-Skipped Roles - {len(plan.operator_skipped)} (dropped via --roles-skip)"
         )
         lines.append("")
         lines.append(
@@ -656,7 +656,7 @@ def _render_plan_md(
         lines.append("")
 
     if plan.gap_flagged:
-        lines.append(f"## Gap-flagged Roles — {len(plan.gap_flagged)} (excluded from this pack)")
+        lines.append(f"## Gap-flagged Roles - {len(plan.gap_flagged)} (excluded from this pack)")
         lines.append("")
         lines.append(
             "These plausible roles were dropped because the requested "
@@ -673,7 +673,7 @@ def _render_plan_md(
     for idx, role in enumerate(plan.final_roster, start=1):
         provenance = role.evidence.provenance.value
         lines.append(
-            f"{idx}. **{role.display_name}** — `{role.name}` ({provenance}, {role.confidence})"
+            f"{idx}. **{role.display_name}** - `{role.name}` ({provenance}, {role.confidence})"
         )
     lines.append("")
 
@@ -833,10 +833,10 @@ def plan_roles(
         observed_block = (
             "\n".join(
                 f"- {r.display_name} (`{r.name}`)"
-                + (f" — archetype: `{r.evidence.archetype}`" if r.evidence.archetype else "")
+                + (f" - archetype: `{r.evidence.archetype}`" if r.evidence.archetype else "")
                 for r in observed
             )
-            or "(none — no observed roles found)"
+            or "(none - no observed roles found)"
         )
         remaining = max(roles_count - len(observed), 1)
         plausible_user_msg = plausible_prompt.render(

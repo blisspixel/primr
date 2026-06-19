@@ -18,7 +18,7 @@
 meta:
   name: author_skill
   phase: 3
-  version: "2.0.0"  # bumped after applying Anthropic best-practices
+  version: "2.1.0"
 
 system_prompt: |
   You author Agent Skills for the Agent Skills open standard — the same
@@ -104,6 +104,14 @@ system_prompt: |
       (read a file, call a tool, generate an output, validate against
       a rule). Avoid steps like "consider the data" that don't produce
       an artifact.
+    - Start with an intake step. Tell the agent what to ask for when
+      the user's request omits the required source artifact, customer
+      context, time window, or target audience.
+    - Include a `Scope guardrail:` line that names what the skill should
+      NOT attempt. This keeps role skills from grabbing adjacent work.
+    - Include a `Human checkpoint:` line for judgment calls, high-risk
+      changes, external communication, legal/compliance exposure, or
+      customer-facing claims.
     - For multi-step workflows that take more than a minute, include
       a copyable checklist at the top of the Workflow section the agent
       can mark off as it works:
@@ -117,6 +125,9 @@ system_prompt: |
     **Output Format: concrete template, not vague guidance**:
     - Show the EXACT table, list, or document structure the skill
       produces. A concrete example reduces variance dramatically.
+    - Include both `Example input:` and `Example output:`. The example
+      should be small but concrete enough that another agent can imitate
+      the shape without asking what "good" means.
     - If output is strict, say "ALWAYS use this exact structure" and
       show the template.
     - If output is flexible, show a sensible default and add "Adjust
@@ -207,21 +218,27 @@ user_prompt_template: |
         "name": "drafting-acme-dbt-models",
         "display_name": "Drafting Acme dbt models",
         "description": "Drafts new dbt models for Acme's Snowflake warehouse, including required tests and lineage docs. Use when the user asks to add a model, write a transformation, build a mart, or extend the dbt project.",
-        "body": "## What This Skill Does\\n\\n<2-4 short paragraphs, COMPANY-SPECIFIC, concise. Skip explaining basics the agent knows. Reference at least 2 specific company signals.>\\n\\n## Workflow\\n\\nProgress:\\n- [ ] Step 1: ...\\n- [ ] Step 2: ...\\n\\n1. <step that names a specific tool or system at this company>\\n2. ...\\n\\n## Output Format\\n\\n<concrete table, list, or document structure>",
+        "body": "## What This Skill Does\\n\\n<2-4 short paragraphs, COMPANY-SPECIFIC, concise. Skip explaining basics the agent knows. Reference at least 2 specific company signals.>\\n\\n## Workflow\\n\\nProgress:\\n- [ ] Intake: confirm the missing source artifact, account context, or decision owner.\\n- [ ] Evidence: gather the company-specific systems and constraints.\\n- [ ] Draft: produce the requested artifact.\\n- [ ] Validate: check the output against the guardrail and evidence.\\n\\n1. First ask for any missing input that blocks the work.\\n2. <step that names a specific tool or system at this company>\\n3. <step that transforms the evidence into an output>\\n4. Validate that each recommendation traces to a named company signal.\\n\\nScope guardrail: <what this skill must not do or decide>.\\nHuman checkpoint: <when the agent must pause for a person before finalizing>.\\n\\n## Output Format\\n\\n<concrete table, list, or document structure>\\n\\nExample input: <small realistic request using this company's context>.\\nExample output: <small completed output in the required format>.",
         "canonical_skill_basis": "name of the archetype skill this maps to, or null"
       }}
     ]
   }}
 
   Body must be valid markdown (use \\n for line breaks inside the JSON
-  string). Each body MUST be at least 150 words (a body under 150 words is
-  too thin to be useful and will be rejected) and at most ~1500; 250-600 is
+  string). Each body MUST be at least 300 words (a body under 300 words is
+  too thin to be useful and will be rejected) and at most ~1500; 500-800 is
   the sweet spot for a dense, company-specific skill. If a draft body is
   short, add a concrete worked example to the Output Format section or a
   company-specific edge-case note to the Workflow — do NOT pad with generic
   filler. Each body must explicitly reference at least 2 company-specific signals
   — a named tool from DNS, a named technology from hiring postings, the
   company's industry, or a strategic initiative visible in the evidence.
+
+  Each body must include these exact marker labels:
+  - `Scope guardrail:` in the Workflow section
+  - `Human checkpoint:` in the Workflow section
+  - `Example input:` in the Output Format section
+  - `Example output:` in the Output Format section
 
   Each description must:
   - Start with a third-person verb ("Drafts...", "Analyzes...", "Triages...")
@@ -254,6 +271,11 @@ user_prompt_template: |
     paths outside the skill). Scripts must be complete and runnable. If a
     skill doesn't clearly need a bundled file, OMIT the array entirely — do
     not invent filler resources.
+
+    Do NOT create duplicate role-level reference files per skill. The pipeline
+    automatically attaches a shared `references/role-family.md` file to every
+    skill in the same role family, built from the role evidence and archetype.
+    Only add bundled files for material unique to that single skill.
 
   To include bundled files, add an OPTIONAL "bundled_files" array to a skill:
 

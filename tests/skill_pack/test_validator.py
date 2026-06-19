@@ -33,11 +33,30 @@ with the systems already in place.
 
 ## Workflow
 
-1. Read the upstream specification document in Confluence.
-2. Cross-check with the Snowflake schema using the schemachange tool.
-3. Open a dbt PR with the new model and required tests.
-4. Trigger the Airflow DAG run via the merge-on-green pipeline.
-5. Verify the data quality dashboard in Looker after deploy.
+Progress:
+- [ ] Intake: confirm the source table, target dashboard, owner, and delivery deadline.
+- [ ] Evidence: inspect Snowflake, Airflow, dbt, and the current Looker dashboard.
+- [ ] Draft: prepare the model change and validation notes.
+- [ ] Validate: tie every recommendation to one observed system or requirement.
+
+1. First ask for the source table name, target metric, expected grain, and
+   business owner when the request does not provide them.
+2. Read the upstream specification document in Confluence and record the
+   Snowflake schema, Airflow DAG, dbt model, and Looker dashboard that will be
+   affected.
+3. Cross-check the requested metric against existing Snowflake columns using
+   the schemachange inventory so the work does not duplicate a similar model.
+4. Open a dbt PR with the new model, lineage documentation, and tests for
+   uniqueness, freshness, and accepted values where they apply.
+5. Trigger the Airflow DAG run via the merge-on-green pipeline, then verify
+   the data quality dashboard in Looker after deploy.
+6. Capture a short decision log entry that names the requester, the evidence,
+   the validation result, and the next owner.
+
+Scope guardrail: This skill drafts and validates analytics model changes; it
+does not approve new business definitions or change production access grants.
+Human checkpoint: Pause before merge when the metric changes revenue reporting,
+customer-facing dashboards, privacy-sensitive fields, or executive reporting.
 
 ## Output Format
 
@@ -46,6 +65,14 @@ with the systems already in place.
 | Model name | dbt | created |
 | Tests added | dbt | green |
 | DAG run id | Airflow | success |
+| Checkpoint | Owner | pending or approved |
+
+Example input: "Add a weekly renewal-risk mart from Salesforce opportunity
+history and Snowflake billing snapshots for the Customer Success dashboard."
+
+Example output: A table naming the dbt model, upstream Snowflake tables,
+Airflow DAG, Looker dashboard, validation tests, unresolved definition
+questions, and the human checkpoint owner.
 
 Additional context follows below to bring the body to the required word
 target. """ + ("Detail. " * 220)
@@ -570,7 +597,7 @@ def test_packager_drops_unsafe_bundled_script(tmp_path):
     assert any(n.endswith("safe.py") for n in names)
 
 
-def test_short_body_is_soft_warning():
+def test_short_body_is_hard_failure():
     skill = _good_skill()
     skill.body = (
         "## What This Skill Does\n\nShort body.\n\n## Workflow\n\n1. Do thing.\n\n"
@@ -578,8 +605,19 @@ def test_short_body_is_soft_warning():
     )
     issues = validate_skill(skill, role_name="data-engineer")
     severities = {i.code: i.severity for i in issues}
-    # BODY-LEN should be SOFT (under target but not over the hard token cap)
-    assert severities.get("BODY-LEN") == IssueSeverity.SOFT
+    # Thin bodies are ship-blocking now, not merely reported.
+    assert severities.get("BODY-LEN") == IssueSeverity.HARD
+
+
+def test_missing_quality_markers_are_hard_failures():
+    skill = _good_skill()
+    skill.body = skill.body.replace("Scope guardrail:", "Scope:")
+    skill.body = skill.body.replace("Human checkpoint:", "Checkpoint:")
+    skill.body = skill.body.replace("Example input:", "Input:")
+    skill.body = skill.body.replace("Example output:", "Output:")
+    issues = validate_skill(skill, role_name="data-engineer")
+    hard = {i.code for i in issues if i.severity == IssueSeverity.HARD}
+    assert "BODY-QUALITY" in hard
 
 
 # ---------------------------------------------------------------------------
