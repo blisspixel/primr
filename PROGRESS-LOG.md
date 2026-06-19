@@ -39,6 +39,14 @@ Validation:
 - `uv run pip-audit --ignore-vuln PYSEC-2026-196` passed.
 - `uv run pytest tests/ --ignore=tests/manual -x --tb=short -q --cov=src/primr --cov-branch --cov-fail-under=81`
   passed with `10060 passed, 38 skipped`, branch coverage `85.07%`.
+- Remote CI initially failed on Python 3.13 because `pip-audit` reported newly
+  published transitive advisories for `msgpack 1.1.2` and
+  `pydantic-settings 2.14.1`. Added explicit dependency floors
+  (`msgpack>=1.2.1`, `pydantic-settings>=2.14.2`), refreshed `uv.lock`, synced
+  locally with the same extras as CI, and confirmed
+  `uv run --no-sync pip-audit --ignore-vuln PYSEC-2026-196` passes. Re-ran
+  full coverage after the dependency refresh; it still passed with
+  `10060 passed, 38 skipped`, branch coverage `85.07%`.
 
 Cost:
 

@@ -31,3 +31,8 @@
   keep the Cowork zip manifest valid: max 20 `agentSkills`, max 1 MB
   `SKILL.md`, and companion files capped at 20 files / 5 MB each / 10 MB total
   per skill.
+- When CI `pip-audit` fails on a transitive package, add an explicit security
+  floor in `pyproject.toml` as well as refreshing `uv.lock`. To reproduce the
+  CI audit locally, run `uv sync --frozen --extra dev --extra api --extra a2a`
+  before `uv run --no-sync pip-audit ...`; otherwise the local virtualenv can
+  still contain the old vulnerable resolution.

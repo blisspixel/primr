@@ -78,8 +78,12 @@ dependencies = [
     # never select a known-vulnerable version on any install path:
     #   cryptography      GHSA-537c-gmf6-5ccf  vulnerable OpenSSL in wheels
     #   python-multipart  CVE-2026-53538/53539/53540  quadratic-time DoS
+    #   msgpack           GHSA-6v7p-g79w-8964
+    #   pydantic-settings GHSA-4xgf-cpjx-pc3j
     "cryptography>=48.0.1",
     "python-multipart>=0.0.31",
+    "msgpack>=1.2.1",
+    "pydantic-settings>=2.14.2",
 ]
 
 [project.optional-dependencies]

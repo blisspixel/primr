@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   max 1 MB per `SKILL.md`, and companion files capped at 20 files / 5 MB each /
   10 MB total per skill. Larger packs still emit the full unpacked tree while
   the Cowork zip contains the first valid 20-skill slice.
+- Raised transitive dependency security floors for `msgpack` and
+  `pydantic-settings` so CI and downstream installs resolve past newly
+  published `pip-audit` advisories.
 
 ### Changed
 
