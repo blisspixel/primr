@@ -65,6 +65,15 @@ PRIMR_SKILL_PACK_NAMESPACE = uuid.UUID("64a4d3ab-2cdb-5e8a-9b51-7ad11e3c4a6e")
 # in the future — see plan's "Out of Scope (v1)".
 DEFAULT_ACCENT_COLOR = "#2B579A"
 
+# Microsoft 365 Copilot Cowork validation limits, refreshed from Microsoft
+# Learn on 2026-06-19. The unpacked tree can still contain the whole pack, but
+# the Cowork zip must stay inside these limits to sideload successfully.
+MAX_COWORK_AGENT_SKILLS = 20
+MAX_COWORK_SKILL_MD_BYTES = 1 * 1024 * 1024
+MAX_COWORK_COMPANION_FILES_PER_SKILL = 20
+MAX_COWORK_COMPANION_FILE_BYTES = 5 * 1024 * 1024
+MAX_COWORK_COMPANION_TOTAL_BYTES = 10 * 1024 * 1024
+
 
 def _safe_filename_token(text: str) -> str:
     """Sanitize a company name into a safe filename token."""
@@ -206,6 +215,7 @@ def _build_pack_report_md(
     pack: SkillPack,
     artifacts: SkillPackArtifacts,
     config: SkillPackConfig,
+    cowork_skill_count: int | None = None,
 ) -> str:
     """Human-readable summary of what the pipeline produced."""
     lines: list[str] = [
@@ -222,6 +232,7 @@ def _build_pack_report_md(
         f"- Pillow available: {'yes' if pillow_available() else 'no (using solid PNG fallback)'}",
         "",
     ]
+    _append_cowork_packaging_report_lines(lines, pack, config, cowork_skill_count)
 
     if pack.plan is not None:
         plan = pack.plan
@@ -391,6 +402,45 @@ def _append_posting_coverage_report_lines(
         lines.append(f"- Recommended curation: {recommendation}")
 
 
+def _append_cowork_packaging_report_lines(
+    lines: list[str],
+    pack: SkillPack,
+    config: SkillPackConfig,
+    cowork_skill_count: int | None,
+) -> None:
+    if not config.emit_cowork:
+        return
+    total_skills = pack.total_skills
+    included_count = (
+        cowork_skill_count
+        if cowork_skill_count is not None
+        else min(total_skills, MAX_COWORK_AGENT_SKILLS)
+    )
+    lines.extend(
+        [
+            "## Cowork Packaging",
+            "",
+            (
+                f"- Cowork skills included: {included_count}/{total_skills} "
+                f"(manifest max {MAX_COWORK_AGENT_SKILLS})"
+            ),
+            (
+                "- Companion files per skill: max "
+                f"{MAX_COWORK_COMPANION_FILES_PER_SKILL} files, "
+                f"{MAX_COWORK_COMPANION_FILE_BYTES // (1024 * 1024)} MB each, "
+                f"{MAX_COWORK_COMPANION_TOTAL_BYTES // (1024 * 1024)} MB total"
+            ),
+            f"- SKILL.md size limit: {MAX_COWORK_SKILL_MD_BYTES // (1024 * 1024)} MB",
+        ]
+    )
+    if total_skills > MAX_COWORK_AGENT_SKILLS:
+        lines.append(
+            "- Cowork cap applied: the unpacked tree contains the full pack; "
+            "the Cowork zip includes only the first valid manifest slice."
+        )
+    lines.append("")
+
+
 # A folder slug must be a single safe path segment: lowercase alphanumerics,
 # hyphens (incl. the `--` disambiguator), dots, underscores; no slash,
 # backslash, traversal, or leading separator/dot.
@@ -415,7 +465,7 @@ def _flatten_skills(pack: SkillPack) -> list[tuple[Role, Skill]]:
     return [(role, skill) for role in pack.roles for skill in role.skills]
 
 
-def _valid_bundled_files(skill: Skill) -> list[BundledFile]:
+def _safe_bundled_files(skill: Skill) -> list[BundledFile]:
     """Filter a skill's bundled files to those that are safe to write, de-duped
     by relpath.
 
@@ -428,7 +478,7 @@ def _valid_bundled_files(skill: Skill) -> list[BundledFile]:
 
     This is defense-in-depth: even if a role somehow ships with a HARD finding
     unresolved, no unreviewed executable or injected content reaches the
-    Claude tree or the Cowork zip.
+    unpacked tree or the Cowork zip.
     """
     out: list[BundledFile] = []
     seen: set[str] = set()
@@ -444,6 +494,61 @@ def _valid_bundled_files(skill: Skill) -> list[BundledFile]:
         seen.add(bf.relpath)
         out.append(bf)
     return out
+
+
+def _cowork_bundled_files(skill: Skill) -> list[BundledFile]:
+    """Return safe bundled files that also fit Cowork companion limits."""
+    out: list[BundledFile] = []
+    total_bytes = 0
+    for bf in _safe_bundled_files(skill):
+        content_size = len(bf.content.encode("utf-8"))
+        if content_size > MAX_COWORK_COMPANION_FILE_BYTES:
+            logger.warning(
+                "Dropping bundled file %r: %d bytes exceeds Cowork per-file limit",
+                bf.relpath,
+                content_size,
+            )
+            continue
+        if len(out) >= MAX_COWORK_COMPANION_FILES_PER_SKILL:
+            logger.warning(
+                "Dropping bundled file %r: Cowork companion-file count limit reached",
+                bf.relpath,
+            )
+            continue
+        if total_bytes + content_size > MAX_COWORK_COMPANION_TOTAL_BYTES:
+            logger.warning(
+                "Dropping bundled file %r: Cowork companion total-size limit reached",
+                bf.relpath,
+            )
+            continue
+        total_bytes += content_size
+        out.append(bf)
+    return out
+
+
+def _cowork_packaged_skills(
+    flat_skills: list[tuple[str, Role, Skill]],
+    agent_meta: dict[str, dict[str, str]],
+) -> list[tuple[str, Role, Skill, str]]:
+    packaged: list[tuple[str, Role, Skill, str]] = []
+    for slug, role, skill in flat_skills:
+        if len(packaged) >= MAX_COWORK_AGENT_SKILLS:
+            logger.warning(
+                "Skipping skill %r in Cowork zip: manifest agentSkills limit reached",
+                slug,
+            )
+            continue
+        skill_md = _format_skill_md(skill, agent_meta.get(slug))
+        size = len(skill_md.encode("utf-8"))
+        if size > MAX_COWORK_SKILL_MD_BYTES:
+            logger.warning(
+                "Skipping skill %r in Cowork zip: SKILL.md is %d bytes",
+                slug,
+                size,
+            )
+            continue
+        packaged.append((slug, role, skill, skill_md))
+    return packaged
 
 
 def _ensure_unique_slugs(items: list[tuple[Role, Skill]]) -> list[tuple[str, Role, Skill]]:
@@ -480,6 +585,7 @@ def package_skill_pack(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     artifacts = SkillPackArtifacts(output_dir=str(output_dir))
+    cowork_skill_count: int | None = None
 
     flat_skills = _ensure_unique_slugs(_flatten_skills(pack))
 
@@ -528,7 +634,7 @@ def package_skill_pack(
             )
             artifacts.skill_md_paths.append(str(skill_path))
             # Progressive-disclosure resources (references/*.md, scripts/*.py).
-            for bf in _valid_bundled_files(skill):
+            for bf in _safe_bundled_files(skill):
                 bf_path = skill_dir / bf.relpath
                 bf_resolved = bf_path.resolve()
                 if not _is_relative_to(bf_resolved, skill_dir.resolve()):
@@ -541,12 +647,14 @@ def package_skill_pack(
         zip_path = output_dir / f"{company_token}_Cowork_Pack.zip"
         pack_uuid = uuid.uuid5(PRIMR_SKILL_PACK_NAMESPACE, pack.company_name)
         artifacts.manifest_uuid = str(pack_uuid)
+        cowork_skills = _cowork_packaged_skills(flat_skills, agent_meta)
+        cowork_skill_count = len(cowork_skills)
 
         manifest = _build_manifest(
             pack.company_name,
             company_token,
             pack_uuid,
-            [slug for slug, _, _ in flat_skills],
+            [slug for slug, _, _, _ in cowork_skills],
         )
 
         # Multi-provider image generation: tries Grok > Gemini > OpenAI image
@@ -565,18 +673,15 @@ def package_skill_pack(
             zf.writestr("manifest.json", json.dumps(manifest, indent=2))
             zf.writestr("color.png", color_png)
             zf.writestr("outline.png", outline_png)
-            for slug, _role, skill in flat_skills:
-                zf.writestr(
-                    f"skills/{slug}/SKILL.md",
-                    _format_skill_md(skill, agent_meta.get(slug)),
-                )
-                for bf in _valid_bundled_files(skill):
+            for slug, _role, skill, skill_md in cowork_skills:
+                zf.writestr(f"skills/{slug}/SKILL.md", skill_md)
+                for bf in _cowork_bundled_files(skill):
                     zf.writestr(f"skills/{slug}/{bf.relpath}", bf.content)
 
         zip_path.write_bytes(buf.getvalue())
         artifacts.cowork_zip_path = str(zip_path)
 
-    report_md = _build_pack_report_md(pack, artifacts, config)
+    report_md = _build_pack_report_md(pack, artifacts, config, cowork_skill_count)
     report_path = output_dir / f"{company_token}_Skills_Pack_Report.md"
     report_path.write_text(report_md, encoding="utf-8")
     artifacts.report_md_path = str(report_path)

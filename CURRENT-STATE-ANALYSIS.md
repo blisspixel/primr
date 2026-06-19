@@ -57,5 +57,8 @@ before planning and authoring, and JD-only single-role draft generation is
 supported without pretending discovery found broader company evidence. The
 planner also records a non-blocking `posting-incomplete` warning when observed
 postings for a mid-market-or-larger organization cluster in one narrow band.
-The remaining work in this lane is segmented / multi-ATS career-site input
-support, followed by the Cowork packaging refresh.
+The Cowork packaging refresh is also now aligned to current Microsoft limits:
+plugin sideload manifests cap at 20 `agentSkills`, companions are allowed but
+bounded, and larger packs keep the full unpacked tree while emitting a valid
+20-skill Cowork slice. The remaining work in this lane is segmented /
+multi-ATS career-site input support.

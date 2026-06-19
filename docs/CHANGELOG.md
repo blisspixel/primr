@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   warning when observed postings for a mid-market-or-larger organization
   cluster in one narrow band. The warning appears in `role_plan.md` and the
   pack report with recommended operator curation paths.
+- Cowork skill-pack packaging now enforces the current Microsoft 365 Copilot
+  Cowork plugin limits locally: max 20 `agentSkills` in the sideload manifest,
+  max 1 MB per `SKILL.md`, and companion files capped at 20 files / 5 MB each /
+  10 MB total per skill. Larger packs still emit the full unpacked tree while
+  the Cowork zip contains the first valid 20-skill slice.
 
 ### Changed
 

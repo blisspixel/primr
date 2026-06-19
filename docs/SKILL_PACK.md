@@ -1,6 +1,6 @@
 # Skill Pack — Generate Agent Skills for Claude + Microsoft 365 Copilot Cowork
 
-`primr skills` produces a QA-refined draft Agent Skills pack for a target company. The same byte-identical `SKILL.md` files ship to both ecosystems: an unpacked `roles/<slug>/SKILL.md` tree (drop-in for Claude Code, Cursor, VS Code Copilot, Gemini CLI, JetBrains Junie) and a Microsoft 365 Copilot Cowork sideload `.zip` (Unified App Manifest v1.28, deterministic UUID v5).
+`primr skills` produces a QA-refined draft Agent Skills pack for a target company. The same byte-identical `SKILL.md` files ship to both ecosystems: an unpacked `roles/<slug>/SKILL.md` tree (drop-in for Claude Code, Cursor, VS Code Copilot, Gemini CLI, JetBrains Junie) and a Microsoft 365 Copilot Cowork sideload `.zip` (Unified App Manifest v1.28, deterministic UUID v5). Cowork plugin packages cap `agentSkills` at 20 entries; when a generated pack is larger, the unpacked tree remains complete and the Cowork zip emits the first valid 20-skill manifest slice.
 
 This guide covers the planning architecture, input layer, operator curation surface, output artifacts, authoring + validation, CLI + MCP reference, costs, and troubleshooting.
 
@@ -102,7 +102,7 @@ Enabled with `--with-evals`. For each skill: generate task cases + objective ass
 
 Emits both formats from one byte-identical `SKILL.md` set:
 - Unpacked tree at `<output_dir>/<Company>_Skills_Pack_<date>/roles/<slug>/SKILL.md`
-- Cowork sideload `.zip` containing `manifest.json` (UUID v5 deterministic on company name), `color.png` (192x192), `outline.png` (32x32), and `skills/<slug>/SKILL.md`. Re-running against the same company produces the same UUID, so sideload **replaces** the previous install rather than creating a parallel one.
+- Cowork sideload `.zip` containing `manifest.json` (UUID v5 deterministic on company name), `color.png` (192x192), `outline.png` (32x32), and up to 20 `skills/<slug>/SKILL.md` entries. Re-running against the same company produces the same UUID, so sideload **replaces** the previous install rather than creating a parallel one.
 
 ## Input layer
 
@@ -236,9 +236,10 @@ Each `primr skills` run produces:
 - `<Company>_Cowork_Pack.zip` — the Microsoft 365 Copilot Cowork sideload. Upload via **M365 Admin Center → Manage Apps → Upload custom app**. Contents:
   - `manifest.json` — Unified App Manifest v1.28 with deterministic UUID v5 (the same company name always yields the same UUID, so re-installs replace rather than duplicate)
   - `color.png` (192x192) and `outline.png` (32x32) — icons. Generated via multi-provider fallback: Grok Imagine → Gemini Imagen → OpenAI image → Pillow gradient+shape → solid PNG
-  - `skills/<skill-slug>/SKILL.md` plus `skills/<skill-slug>/references/role-family.md` — byte-identical to the unpacked tree
+  - `skills/<skill-slug>/SKILL.md` plus safe companion files such as `skills/<skill-slug>/references/role-family.md` — byte-identical to the matching unpacked-tree files
 - `<Company>_Skills_Pack_Report.md` — human-readable pack summary:
   - Configuration (target roles, skills per role, formats, coherence pass)
+  - Cowork Packaging (manifest skill count and companion-file limits)
   - Role Composition (observed / plausible / operator-added counts; industry classification; posting-coverage warning when present; plan reference; gap-flagged count; operator-skipped names)
   - Per-role section showing confidence, provenance, archetype, citations, summary, and the skills authored
   - Validation Scorecard (HARD / SOFT counts + per-finding table)
@@ -317,6 +318,15 @@ Hard rules (validator-enforced):
 - Body target 300-1500 words (sweet spot 500-800); under 300 words is a hard failure
 - Body includes intake, required inputs, produces, scope guardrail, human checkpoint, and worked input/output example markers
 - No agent-instruction patterns, no hardcoded local paths, no fenced shell blocks, no credential references
+
+## Cowork packaging limits
+
+Primr validates Cowork sideload output against Microsoft 365 Copilot Cowork's current plugin limits before writing the zip:
+
+- Manifest `agentSkills`: max 20 entries. Larger packs still write every skill to the unpacked tree, while the Cowork zip contains the first valid 20-skill slice.
+- `SKILL.md`: max 1 MB per skill.
+- Companion files: max 20 files per skill, max 5 MB per companion file, max 10 MB total companion bytes per skill.
+- Companion paths must be relative, safe, and stay under allowed progressive-disclosure folders. Unsafe or over-limit companion files are dropped before packaging.
 
 ## CLI reference
 

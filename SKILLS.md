@@ -26,3 +26,8 @@
   or over-correcting. The planner should preserve the real posting evidence,
   flag `posting-incomplete`, and point the operator toward better evidence or
   curation rather than inventing missing corporate roles.
+- Cowork sideload packages and unpacked Agent Skills trees do not have the
+  same capacity shape. Preserve the full unpacked tree for large packs, but
+  keep the Cowork zip manifest valid: max 20 `agentSkills`, max 1 MB
+  `SKILL.md`, and companion files capped at 20 files / 5 MB each / 10 MB total
+  per skill.

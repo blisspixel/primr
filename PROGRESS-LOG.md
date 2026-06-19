@@ -2,6 +2,48 @@
 
 ## 2026-06-19
 
+### Cycle: Cowork Packaging Limits
+
+Re-read and aligned against the project reference set for this cycle:
+`README.md`, `ROADMAP.md`, `CLAUDE.md`, `AGENTS.md`, `docs/SKILL_PACK.md`,
+`docs/ARCHITECTURE.md`, `docs/design/agentic-balance.md`,
+`docs/design/engineering-excellence.md`, `PROGRESS-LOG.md`, `SKILLS.md`, and
+`CURRENT-STATE-ANALYSIS.md`. Refreshed the Cowork packaging assumptions
+against current Microsoft Learn documentation before changing the packager.
+
+Implemented:
+
+- Added explicit Cowork packaging constants for manifest, `SKILL.md`, and
+  companion-file limits.
+- Limited the Cowork sideload manifest and zip payload to the first valid
+  20-skill slice while preserving the full unpacked Agent Skills tree for
+  Claude/Cursor/VS Code style consumers.
+- Split bundled-file handling into shared safety filtering and Cowork-only
+  packaging filtering, so safe companion files remain in the unpacked tree even
+  when they exceed Cowork's sideload caps.
+- Surfaced Cowork packaging counts and limits in the pack report.
+- Updated README, roadmap, changelog, the skill-pack guide, current-state
+  analysis, and engineering learnings.
+
+Validation:
+
+- `uv run pytest tests/skill_pack/test_packager.py -q` passed with 21 tests.
+- `uv run pytest tests/skill_pack -q` passed with 285 tests.
+- `uv run pytest tests/test_architecture.py -q` passed with 5 tests.
+- `uv run ruff check src/primr/` passed.
+- `uv run ruff format --check src/ tests/` passed.
+- `uv run mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'`
+  passed.
+- `uv run bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q`
+  passed with the existing `mcp_server/security.py` B108 nosec warnings.
+- `uv run pip-audit --ignore-vuln PYSEC-2026-196` passed.
+- `uv run pytest tests/ --ignore=tests/manual -x --tb=short -q --cov=src/primr --cov-branch --cov-fail-under=81`
+  passed with `10060 passed, 38 skipped`, branch coverage `85.07%`.
+
+Cost:
+
+- `$0.00`. No cloud or paid validation was used.
+
 ### Cycle: Enterprise Posting Coverage Honesty
 
 Re-read and aligned against the project reference set for this cycle:

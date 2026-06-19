@@ -15,6 +15,7 @@ import pytest
 from primr.skill_pack.config import SkillPackConfig, SkillPackFormat
 from primr.skill_pack.packager import (
     MANIFEST_SCHEMA_URL,
+    MAX_COWORK_AGENT_SKILLS,
     PACKAGE_VERSION,
     package_skill_pack,
 )
@@ -275,6 +276,93 @@ def test_cowork_zip_matches_spec(tmp_path: Path):
     # ASKILL-M001: agentSkills folder references must exist
     folders = [entry["folder"] for entry in manifest["agentSkills"]]
     assert "./skills/draft-dbt-models" in folders
+
+
+def test_cowork_zip_caps_manifest_skill_count(tmp_path: Path):
+    body = (
+        "## What This Skill Does\n\nDo one scoped task.\n\n"
+        "## Workflow\n\n1. Collect input.\n\n"
+        "## Output Format\n\nReturn the artifact.\n"
+    )
+    role = Role(
+        name="role-a",
+        display_name="Role A",
+        confidence="Inferred",
+        evidence=RoleEvidence(),
+        skills=[
+            Skill(
+                name=f"skill-{idx:02d}",
+                display_name=f"Skill {idx:02d}",
+                description="Use when the user asks for a scoped task.",
+                body=body,
+            )
+            for idx in range(MAX_COWORK_AGENT_SKILLS + 5)
+        ],
+    )
+    pack = SkillPack(
+        company_name="Acme Corp",
+        company_url=None,
+        generated_at="2026-05-28T00:00:00+00:00",
+        roles=[role],
+        validation=ValidationReport(),
+    )
+
+    artifacts = package_skill_pack(pack, SkillPackConfig(formats=SkillPackFormat.BOTH), tmp_path)
+
+    assert artifacts.cowork_zip_path is not None
+    assert artifacts.claude_tree_root is not None
+    with zipfile.ZipFile(artifacts.cowork_zip_path) as zf:
+        names = set(zf.namelist())
+        manifest = json.loads(zf.read("manifest.json"))
+    assert len(manifest["agentSkills"]) == MAX_COWORK_AGENT_SKILLS
+    cowork_skill_mds = [
+        name for name in names if name.startswith("skills/") and name.endswith("SKILL.md")
+    ]
+    assert len(cowork_skill_mds) == MAX_COWORK_AGENT_SKILLS
+    assert (
+        len(list(Path(artifacts.claude_tree_root).glob("*/SKILL.md")))
+        == MAX_COWORK_AGENT_SKILLS + 5
+    )
+
+    assert artifacts.report_md_path is not None
+    report = Path(artifacts.report_md_path).read_text(encoding="utf-8")
+    assert "Cowork cap applied" in report
+
+
+def test_cowork_companion_limits_filter_zip_entries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    import primr.skill_pack.packager as packager
+
+    monkeypatch.setattr(packager, "MAX_COWORK_COMPANION_FILES_PER_SKILL", 2)
+    monkeypatch.setattr(packager, "MAX_COWORK_COMPANION_FILE_BYTES", 20)
+    monkeypatch.setattr(packager, "MAX_COWORK_COMPANION_TOTAL_BYTES", 35)
+
+    pack = _make_pack()
+    pack.roles[0].skills[0].bundled_files = [
+        BundledFile(relpath="references/a.md", content="a" * 10),
+        BundledFile(relpath="references/b.md", content="b" * 10),
+        BundledFile(relpath="references/c.md", content="c" * 10),
+        BundledFile(relpath="references/too-large.md", content="x" * 21),
+    ]
+
+    artifacts = package_skill_pack(pack, SkillPackConfig(formats=SkillPackFormat.BOTH), tmp_path)
+
+    assert artifacts.cowork_zip_path is not None
+    with zipfile.ZipFile(artifacts.cowork_zip_path) as zf:
+        names = set(zf.namelist())
+    assert "skills/draft-dbt-models/references/a.md" in names
+    assert "skills/draft-dbt-models/references/b.md" in names
+    assert "skills/draft-dbt-models/references/c.md" not in names
+    assert "skills/draft-dbt-models/references/too-large.md" not in names
+
+    assert artifacts.claude_tree_root is not None
+    tree_root = Path(artifacts.claude_tree_root) / "draft-dbt-models"
+    assert (tree_root / "references/a.md").is_file()
+    assert (tree_root / "references/b.md").is_file()
+    assert (tree_root / "references/c.md").is_file()
+    assert (tree_root / "references/too-large.md").is_file()
 
 
 def test_manifest_uuid_is_deterministic(tmp_path: Path):
