@@ -1,5 +1,56 @@
 # Progress Log
 
+## 2026-06-20
+
+### Cycle: v1.32.8 Build And Release Prep
+
+Re-read and aligned against the active reference set for this release cycle:
+`README.md`, `ROADMAP.md`, `CLAUDE.md`, `AGENTS.md`, `docs/SKILL_PACK.md`,
+`docs/ARCHITECTURE.md`, `docs/CONTRIBUTING.md`,
+`docs/design/agentic-balance.md`, `docs/design/engineering-excellence.md`,
+`docs/CHANGELOG.md`, `PROGRESS-LOG.md`, `SKILLS.md`, and
+`CURRENT-STATE-ANALYSIS.md`. Re-read the release workflow and version-integrity
+test before editing because this cycle updates the package build and PyPI
+release path.
+
+Implemented:
+
+- Promoted the accumulated skill-pack quality work from `Unreleased` to
+  `v1.32.8`.
+- Modernized package license metadata and raised the build backend floor so the
+  local wheel/sdist build no longer emits the setuptools license deprecation
+  warning.
+- Bumped the single version truth across `pyproject.toml`, `primr.__version__`,
+  ROADMAP current state, ROADMAP changelog row, `CITATION.cff`, and `uv.lock`.
+- Updated current-state analysis and engineering learnings to record the release
+  metadata requirement.
+
+Validation:
+
+- `uv sync --frozen --extra dev --extra api --extra a2a` confirmed the local
+  environment matches the CI extras.
+- `uv run pytest tests/test_release_integrity.py -q` passed with 6 tests.
+- `uv run --no-sync ruff check src/primr/` passed.
+- `uv run --no-sync ruff format --check src/ tests/` passed after formatting
+  `src/primr/__init__.py`.
+- `uv run --no-sync mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'`
+  passed.
+- `uv run --no-sync bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q`
+  passed with the existing `mcp_server/security.py` B108 nosec warnings.
+- `uv run --no-sync pip-audit --ignore-vuln PYSEC-2026-196` passed.
+- `uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q --cov=src/primr --cov-branch --cov-fail-under=81`
+  passed with `10081 passed, 38 skipped`, branch coverage `85.06%`.
+- `uv run --no-project --with mkdocs-material --with pymdown-extensions mkdocs build --site-dir _site`
+  passed with the repo's existing non-strict link warnings.
+- `uv run --with build python -m build --outdir dist-check` built the
+  `primr-1.32.8` wheel and sdist.
+- `uv run --with twine twine check dist-check/*` passed for both distributions.
+- Added-line scans found no em dash or AI/tool attribution phrases.
+
+Cost:
+
+- `$0.00`. No cloud or paid validation was used.
+
 ## 2026-06-19
 
 ### Cycle: Business Role Archetypes For Draft Skills

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.32.8] - 2026-06-20
+
 ### Added
 
 - `primr skills` now accepts `--from-jd PATH` to add a local job description
@@ -39,6 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Modernized package license metadata to the SPDX-style `license = "MIT"`
+  form and raised the build backend floor to `setuptools>=77.0`, removing the
+  release-build deprecation warning before it becomes unsupported.
 - `primr skills` now emits clean Agent Skills frontmatter by default
   (`name` + `description` only). The primr-namespaced handoff metadata remains
   available through the CLI `--emit-agent-metadata` flag, the MCP

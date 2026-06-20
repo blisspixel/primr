@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.32.7
+Current State: v1.32.8
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -173,7 +173,7 @@ a schedule. Detailed breakdowns live in [`docs/design/`](docs/design/README.md)
 
 The job is "URL in, consultant-grade artifact out," done well.
 
-**Status (as of v1.32.7):** most of the 1.x engineering backlog is closed -
+**Status (as of v1.32.8):** most of the 1.x engineering backlog is closed -
 artifact pipeline contract (#1–2), cost/observability surface (#5, #7, #8,
 #12, #13), production failover (#6), QA iteration loop (#10), agentic write
 constraints (#11), runtime robustness (#24), and the `perform_fast_research`
@@ -1234,6 +1234,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.32.8 | Jun 2026 | **Skill pack draft quality release.** Released the accumulated `primr skills` quality work: clean Agent Skills frontmatter by default, stronger procedural skill bodies, role-family references, JD and segmented career-board evidence inputs, posting-coverage honesty, Cowork packaging caps, business-role archetypes, and safer archetype matching so weak fuzzy guesses do not steer draft skills into unrelated templates. |
 | 1.32.7 | Jun 2026 | **4090 local report race.** Added a focused `4090-report-race` local eval model shortlist and documented the RTX 4090 path as a concrete `$0 API vs sub-dollar API` validation track. The goal is to answer whether a single 24 GB local GPU can clear Primr's trust, utility, provenance, and runtime bar before spending on repeated API report runs. |
 | 1.32.6 | Jun 2026 | **Capability routing foundation.** Added the pure stage-level backend router for the backend-freedom workstream: `StageRequirements`, backend capability rows, cloud/agent/hybrid/local profiles, billing-mode guards, ordered route plans, and explicit rejection reasons. It is side-effect-free, fake-backend tested, and not yet wired into full-report execution. Also hardened the OpenClaw TypeScript adapter tests so macOS CI warms `npx --yes tsx` before adapter assertions instead of timing out on first cold start. |
 | 1.32.5 | Jun 2026 | **Host-agent runner seam and account-backed roadmap alignment.** Added a bounded host-agent stage-packet contract with explicit billing policy, evidence fencing, normalized runner metadata, and fake-runner tests. README, ROADMAP, API-key docs, backend-freedom docs, provider-expansion docs, and the agentic-balance doctrine now draw the same boundary: direct provider API keys are the supported full-run path today; official Codex/Claude Code style host runners are planned opt-ins; no unofficial subscription proxies or browser-session scraping. MCP doctor now recognizes XAI, Gemini/Google, OpenAI, and Anthropic direct provider keys. |

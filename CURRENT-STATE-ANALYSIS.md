@@ -71,3 +71,9 @@ marketing, people operations, finance, legal/compliance, and operations. Weak
 display-name similarity no longer returns a usable archetype, so unknown roles
 author from company evidence only instead of inheriting misleading technical
 scaffolding.
+
+Release cycle update: the accumulated skill-pack quality lane is being cut as
+v1.32.8 so the package build and PyPI distribution carry the same shipped state
+as `main`: clean skill frontmatter, stronger procedural bodies, role-family
+references, JD and career-board evidence inputs, posting-coverage warnings,
+Cowork packaging caps, and business-role archetype grounding.

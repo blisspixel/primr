@@ -45,3 +45,7 @@
   business-role scaffolds should be explicit bundled archetypes, while weak
   fuzzy matches should return no grounding so authoring relies on the actual
   company evidence instead of a misleading template family.
+- Release only after the package metadata, ROADMAP current state, ROADMAP
+  changelog row, `CITATION.cff`, and `primr.__version__` all agree. Let
+  `tests/test_release_integrity.py` be the release-preflight witness before
+  tagging for PyPI.
