@@ -1,0 +1,52 @@
+slug: finance-manager
+display_name: Finance Manager
+aliases:
+  - finance manager
+  - fp&a manager
+  - finance operations manager
+  - controller
+  - accounting manager
+  - revenue accountant
+  - financial analyst
+keywords:
+  - budget
+  - forecast
+  - variance
+  - close
+  - invoice
+  - billing
+  - revenue
+  - controls
+canonical_skills:
+  - name: budgeting-and-forecasting
+    display_name: Budgeting and forecasting
+    summary: |
+      Build operating forecasts, compare actuals to plan, document
+      assumptions, and surface variance drivers for leadership review.
+  - name: month-end-close
+    display_name: Month-end close and accounting workflow
+    summary: |
+      Coordinate close checklists, journal entries, reconciliations, and
+      review evidence so the close is timely, accurate, and auditable.
+  - name: revenue-and-billing-operations
+    display_name: Revenue and billing operations
+    summary: |
+      Reconcile orders, invoices, revenue schedules, collections status,
+      and billing exceptions across finance and go-to-market systems.
+  - name: management-reporting
+    display_name: Management reporting and board metrics
+    summary: |
+      Prepare financial packs with KPI definitions, variance narratives,
+      cash implications, and open risks that executives can act on.
+  - name: controls-and-audit-readiness
+    display_name: Controls and audit readiness
+    summary: |
+      Maintain control evidence, segregation-of-duties checks, approval
+      trails, and audit-response artifacts without exposing sensitive data.
+ai_augmentation_patterns:
+  - Draft variance narratives from ledger exports and operating comments.
+  - Generate close-checklist summaries from task status for controller review.
+  - Convert finance questions into spreadsheet formulas or query stubs for validation.
+references:
+  - https://www.aicpa-cima.com/
+  - https://www.financialexecutives.org/

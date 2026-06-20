@@ -457,9 +457,9 @@ A role name appears in both `--roles-add` and `--roles-skip` (normalized: case-i
 
 The validator caught a quality issue that refinement couldn't recover within the cap. Pack ships with the surviving roles; the drop is logged in the pack report's "Dropped Roles" section. To author more aggressively, raise `--max-refine-iterations` (default 2). To investigate, re-run with `PRIMR_LOG_LEVEL=DEBUG` and inspect the per-skill validation findings in the pack report.
 
-**Archetype mismatch in pack report** (e.g., `sales-director` matched to `salesforce-admin` archetype)
+**Unexpected archetype in pack report**
 
-The bundled archetype catalog doesn't yet cover every common role, so `match_archetype` falls through to its display-name similarity heuristic which can pick the wrong neighbor. Authoring still works — the archetype is a scaffolding hint, not a template — but the pack-report "Archetype" line shows the closest match the matcher found. Tracked on the roadmap.
+`match_archetype` uses exact slugs, normalized aliases, strong display-name similarity, and multi-keyword evidence. Weak display-name similarity is no longer returned as usable grounding, so unknown roles author from company evidence only. The bundled catalog covers common business functions such as sales, marketing, people operations, finance, legal/compliance, and operations in addition to the technical archetypes. If a role still looks too broad, add a more specific role with `--roles-add`, force the roster with `--roles-override`, or add a focused role brief with `--from-jd`.
 
 **Plan looks right but authoring produces generic skills**
 

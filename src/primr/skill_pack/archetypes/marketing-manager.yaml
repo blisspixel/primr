@@ -1,0 +1,51 @@
+slug: marketing-manager
+display_name: Marketing Manager
+aliases:
+  - marketing manager
+  - marketing director
+  - demand generation manager
+  - growth marketing manager
+  - product marketing manager
+  - lifecycle marketing manager
+keywords:
+  - campaign
+  - demand generation
+  - lifecycle
+  - content
+  - seo
+  - email marketing
+  - pipeline
+  - brand
+canonical_skills:
+  - name: campaign-planning
+    display_name: Campaign planning and execution
+    summary: |
+      Plan campaigns around audience, offer, channel, timeline, budget,
+      dependencies, and measurement so execution is coordinated and traceable.
+  - name: messaging-and-positioning
+    display_name: Messaging and positioning
+    summary: |
+      Turn customer, competitor, and product evidence into positioning,
+      messaging pillars, proof points, and review-ready launch narratives.
+  - name: lifecycle-and-email-programs
+    display_name: Lifecycle and email programs
+    summary: |
+      Design lifecycle journeys, segmentation, email briefs, nurture
+      paths, and compliance checks before launch.
+  - name: content-and-seo-briefs
+    display_name: Content and SEO briefs
+    summary: |
+      Create content briefs with search intent, audience problem,
+      outline, source requirements, distribution plan, and refresh cadence.
+  - name: performance-reporting
+    display_name: Performance reporting and optimization
+    summary: |
+      Report campaign performance, diagnose funnel gaps, propose tests,
+      and separate leading indicators from business outcomes.
+ai_augmentation_patterns:
+  - Draft campaign briefs from audience, offer, and channel constraints.
+  - Summarize customer language from interviews or call notes into message themes.
+  - Generate experiment ideas, then require human review of feasibility and risk.
+references:
+  - https://www.ama.org/
+  - https://contentmarketinginstitute.com/

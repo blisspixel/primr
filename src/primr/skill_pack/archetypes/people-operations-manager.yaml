@@ -1,0 +1,51 @@
+slug: people-operations-manager
+display_name: People Operations Manager
+aliases:
+  - people operations manager
+  - hr business partner
+  - human resources manager
+  - hr manager
+  - talent acquisition manager
+  - recruiter
+keywords:
+  - hiring
+  - onboarding
+  - employee relations
+  - performance review
+  - workforce
+  - benefits
+  - ats
+  - retention
+canonical_skills:
+  - name: workforce-planning
+    display_name: Workforce planning
+    summary: |
+      Translate business priorities into hiring plans, capacity gaps,
+      role requirements, budget implications, and approval-ready scenarios.
+  - name: recruiting-and-interviewing
+    display_name: Recruiting and interviewing workflow
+    summary: |
+      Build role scorecards, sourcing briefs, interview plans, candidate
+      summaries, and debrief records that support fair decisions.
+  - name: onboarding-and-enablement
+    display_name: Onboarding and enablement
+    summary: |
+      Prepare onboarding plans, manager checklists, access requests,
+      training milestones, and first-30/60/90-day feedback loops.
+  - name: performance-and-employee-relations
+    display_name: Performance and employee relations
+    summary: |
+      Support performance cycles, employee-relations fact gathering,
+      manager coaching notes, and escalation records with appropriate care.
+  - name: policy-and-people-analytics
+    display_name: Policy and people analytics
+    summary: |
+      Interpret policy questions, summarize workforce metrics, identify
+      retention or engagement risks, and route sensitive issues correctly.
+ai_augmentation_patterns:
+  - Draft role scorecards and interview rubrics from approved job requirements.
+  - Summarize candidate feedback while removing irrelevant or biased language.
+  - Turn onboarding requirements into manager and employee checklists.
+references:
+  - https://www.shrm.org/
+  - https://www.cipd.org/

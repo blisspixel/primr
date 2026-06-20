@@ -1,0 +1,51 @@
+slug: legal-compliance-manager
+display_name: Legal and Compliance Manager
+aliases:
+  - legal counsel
+  - compliance manager
+  - contracts manager
+  - privacy counsel
+  - risk manager
+  - legal operations manager
+keywords:
+  - contract
+  - compliance
+  - privacy
+  - dpa
+  - vendor risk
+  - policy
+  - regulatory
+  - audit
+canonical_skills:
+  - name: contract-review-and-redlines
+    display_name: Contract review and redlines
+    summary: |
+      Review agreements against playbooks, flag business and legal risks,
+      draft redlines, and preserve decision records for non-standard terms.
+  - name: privacy-and-data-processing
+    display_name: Privacy and data-processing review
+    summary: |
+      Assess data flows, DPAs, subprocessors, retention, and transfer
+      terms; route high-risk decisions to legal or privacy leadership.
+  - name: vendor-risk-intake
+    display_name: Vendor risk intake
+    summary: |
+      Coordinate security, privacy, procurement, and legal evidence for
+      vendor review before approval or renewal.
+  - name: policy-and-regulatory-tracking
+    display_name: Policy and regulatory tracking
+    summary: |
+      Maintain obligation inventories, monitor regulatory changes, and
+      translate requirements into operational controls and owner tasks.
+  - name: issue-escalation-and-recordkeeping
+    display_name: Issue escalation and recordkeeping
+    summary: |
+      Triage legal or compliance issues, capture facts, identify owners,
+      and maintain privileged or sensitive records according to policy.
+ai_augmentation_patterns:
+  - Summarize contract deviations against a clause playbook for counsel review.
+  - Draft vendor-risk questions from security and privacy artifacts.
+  - Convert policy changes into owner-specific control tasks with citations.
+references:
+  - https://iapp.org/resources/
+  - https://www.societycorpgov.org/

@@ -66,3 +66,8 @@ boards are source selectors for hiring evidence, merged before planning, and
 usable without a company URL when only postings are available. The next
 high-leverage work in this lane is broader live-quality evaluation of generated
 packs against real operator workflows rather than adding more context volume.
+Latest cycle update: common business-role archetypes are now bundled for sales,
+marketing, people operations, finance, legal/compliance, and operations. Weak
+display-name similarity no longer returns a usable archetype, so unknown roles
+author from company evidence only instead of inheriting misleading technical
+scaffolding.

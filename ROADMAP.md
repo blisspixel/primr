@@ -537,6 +537,12 @@ and [best-practices guide](https://platform.claude.com/docs/en/agents-and-tools/
   requires intake, scope guardrail, human checkpoint, and worked input/output
   markers, and `author_skill.yaml` now asks for those hand-built-skill patterns
   directly.
+- **Business-role archetype coverage - SHIPPED (2026-06-19):** the bundled
+  archetype catalog now covers sales, marketing, people operations, finance,
+  legal/compliance, and operations roles, matching the universal-function roster
+  work above. `match_archetype` no longer returns weak display-name similarity
+  as usable grounding, so unknown roles author from evidence only instead of
+  inheriting a misleading technical template family.
 - **Per-skill trigger eval generation — SHIPPED (Tier 2, `--optimize-triggers`):**
   generate should/should-not-trigger queries, score the description against a
   blind discovery simulator, and rewrite it when below threshold — kept only

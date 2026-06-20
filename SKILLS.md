@@ -41,3 +41,7 @@
   rely on the existing SSRF-guarded fetch boundary, merge/dedupe the resulting
   postings, and keep role planning grounded in the postings rather than the URL
   list itself.
+- A wrong archetype is worse than no archetype. For skill generation, common
+  business-role scaffolds should be explicit bundled archetypes, while weak
+  fuzzy matches should return no grounding so authoring relies on the actual
+  company evidence instead of a misleading template family.

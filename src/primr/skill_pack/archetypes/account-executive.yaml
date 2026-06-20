@@ -1,0 +1,56 @@
+slug: account-executive
+display_name: Account Executive
+aliases:
+  - account executive
+  - enterprise account executive
+  - strategic account executive
+  - sales executive
+  - sales representative
+  - sales manager
+  - sales director
+  - business development representative
+keywords:
+  - sales
+  - pipeline
+  - territory
+  - quota
+  - discovery call
+  - opportunity
+  - forecast
+  - proposal
+canonical_skills:
+  - name: account-research-and-prioritization
+    display_name: Account research and prioritization
+    summary: |
+      Build account briefs from public signals, CRM history, buying
+      committee context, and current business triggers; prioritize outreach
+      by fit, timing, and potential value.
+  - name: discovery-and-qualification
+    display_name: Discovery and qualification
+    summary: |
+      Run structured discovery calls, qualify pain and urgency, map
+      stakeholders, and document decision criteria without over-claiming
+      what the product can solve.
+  - name: opportunity-strategy
+    display_name: Opportunity strategy and mutual action plans
+    summary: |
+      Turn discovery into a deal plan with risks, next steps, mutual
+      commitments, executive alignment, and a close plan that can be
+      inspected by sales leadership.
+  - name: proposal-and-business-case
+    display_name: Proposal and business-case drafting
+    summary: |
+      Draft proposals, value hypotheses, ROI narratives, and objection
+      responses that remain grounded in buyer evidence and known constraints.
+  - name: forecast-and-handoff
+    display_name: Forecasting and post-sale handoff
+    summary: |
+      Keep stage, amount, close date, risks, and next steps current; hand
+      won opportunities to delivery or customer success with clear scope.
+ai_augmentation_patterns:
+  - Summarize account signals into a call-prep brief with cited source snippets.
+  - Generate discovery questions from industry context, then prune for relevance.
+  - Draft follow-up emails and mutual action plans from call notes for human review.
+references:
+  - https://www.salesforce.com/resources/articles/sales-process/
+  - https://www.hubspot.com/sales

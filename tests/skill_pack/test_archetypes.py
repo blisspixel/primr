@@ -70,6 +70,13 @@ def test_display_name_similarity_match():
         ("DevOps Engineer", "devops-engineer"),
         ("Product Manager", "product-manager"),
         ("Customer Success Manager", "customer-success-manager"),
+        ("Sales Director", "account-executive"),
+        ("Account Executive", "account-executive"),
+        ("Marketing Manager", "marketing-manager"),
+        ("HR Business Partner", "people-operations-manager"),
+        ("Finance Manager", "finance-manager"),
+        ("Legal Counsel", "legal-compliance-manager"),
+        ("Operations Manager", "operations-manager"),
     ],
 )
 def test_canonical_titles_match_intended_archetypes(role_name: str, expected_slug: str):
@@ -85,6 +92,12 @@ def test_unknown_role_returns_none_or_low_confidence():
     # Either no match or a very low-confidence match — both are acceptable.
     if match.archetype is not None:
         assert match.confidence < HIGH_MATCH_THRESHOLD
+
+
+def test_weak_display_name_similarity_is_not_returned_as_grounding():
+    match = match_archetype("Retail Floor Supervisor")
+    assert match.archetype is None
+    assert match.confidence < HIGH_MATCH_THRESHOLD
 
 
 def test_grounding_fragment_includes_canonical_skills():

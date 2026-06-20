@@ -31,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   evidence. Direct ATS URLs are parsed with the provider adapters, vanity
   career pages can resolve through redirects, and valid board slices are merged
   before role planning.
+- Skill packs now include curated archetypes for common business functions:
+  sales, marketing, people operations, finance, legal/compliance, and
+  operations. Weak display-name matches no longer produce usable archetype
+  grounding, preventing business roles from inheriting unrelated technical
+  templates.
 
 ### Changed
 

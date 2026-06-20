@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import functools
 import logging
+import re
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -104,9 +105,28 @@ def _similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
 
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+def _normalize_phrase(value: str) -> str:
+    return " ".join(_TOKEN_RE.findall(value.lower()))
+
+
+def _phrase_in_text(text: str, phrase: str) -> bool:
+    phrase_norm = _normalize_phrase(phrase)
+    if not phrase_norm:
+        return False
+    text_norm = f" {_normalize_phrase(text)} "
+    return f" {phrase_norm} " in text_norm
+
+
+def _slugify(value: str) -> str:
+    return "-".join(_TOKEN_RE.findall(value.lower()))
+
+
 # Match-quality thresholds. Above HIGH_MATCH_THRESHOLD we treat the match
 # as authoritative grounding; below LOW_MATCH_THRESHOLD we treat the role
-# as unknown and trigger DDG fallback (handled by the caller).
+# as unknown. Callers then author from company evidence only.
 HIGH_MATCH_THRESHOLD = 0.78
 LOW_MATCH_THRESHOLD = 0.55
 
@@ -133,19 +153,21 @@ def match_archetype(role_name: str, hints: list[str] | None = None) -> Archetype
         return ArchetypeMatch(None, 0.0, "none")
 
     role_lower = role_name.lower().strip()
+    role_slug = _slugify(role_name)
 
     if hints:
         for hint in hints:
-            if hint in archetypes:
-                return ArchetypeMatch(archetypes[hint], 1.0, "exact-slug")
+            hint_slug = _slugify(hint)
+            if hint_slug in archetypes:
+                return ArchetypeMatch(archetypes[hint_slug], 1.0, "exact-slug")
 
-    if role_lower in archetypes:
-        return ArchetypeMatch(archetypes[role_lower], 1.0, "exact-slug")
+    if role_slug in archetypes:
+        return ArchetypeMatch(archetypes[role_slug], 1.0, "exact-slug")
 
-    # Alias: exact substring/equality
+    # Alias: exact phrase after token normalization.
     for archetype in archetypes.values():
         for alias in archetype.aliases:
-            if alias == role_lower or alias in role_lower:
+            if _phrase_in_text(role_name, alias):
                 return ArchetypeMatch(archetype, 0.95, "alias")
 
     # Display-name similarity
@@ -161,15 +183,17 @@ def match_archetype(role_name: str, hints: list[str] | None = None) -> Archetype
     # Keyword presence in the role name
     keyword_best: tuple[Archetype | None, int] = (None, 0)
     for archetype in archetypes.values():
-        hits = sum(1 for kw in archetype.keywords if kw in role_lower)
+        hits = sum(1 for kw in archetype.keywords if _phrase_in_text(role_name, kw))
         if hits > keyword_best[1]:
             keyword_best = (archetype, hits)
     if keyword_best[0] and keyword_best[1] >= 2:
         return ArchetypeMatch(keyword_best[0], 0.7, "keyword")
 
-    # Fall back to the best display-name sim even if below HIGH threshold.
+    # Do not return weak display-name guesses as usable grounding. A wrong
+    # archetype is worse than none because it steers the generated SKILL.md
+    # toward the wrong workflow family.
     if best[0] and best[1] >= LOW_MATCH_THRESHOLD:
-        return ArchetypeMatch(best[0], best[1], "display-name")
+        return ArchetypeMatch(None, best[1], "none")
 
     return ArchetypeMatch(None, 0.0, "none")
 

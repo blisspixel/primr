@@ -2,6 +2,63 @@
 
 ## 2026-06-19
 
+### Cycle: Business Role Archetypes For Draft Skills
+
+Re-read and aligned against the active reference set for this cycle:
+`README.md`, `ROADMAP.md`, `CLAUDE.md`, `AGENTS.md`, `docs/SKILL_PACK.md`,
+`docs/ARCHITECTURE.md`, `docs/design/agentic-balance.md`,
+`docs/design/engineering-excellence.md`, `docs/design/23-orchestrator-refactor-map.md`,
+`docs/design/eval-plan.md`, `PROGRESS-LOG.md`, `SKILLS.md`, and
+`CURRENT-STATE-ANALYSIS.md`. Re-read the local `skill-creator` guidance before
+editing because this work changes how primr drafts Agent Skills. Kept the scope
+on concise, procedural skill creation rather than broad company-background
+content.
+
+Implemented:
+
+- Added curated archetypes for common business functions: account executive,
+  marketing manager, people operations manager, finance manager,
+  legal/compliance manager, and operations manager.
+- Tightened archetype matching so exact slugs, aliases, and keywords are token
+  normalized, while weak display-name similarity no longer returns usable
+  archetype grounding.
+- Added regression coverage for common business titles and the previous bad
+  match class where a retail operations role could inherit an unrelated
+  technical or product archetype.
+- Updated README, roadmap, changelog, the skill-pack guide, architecture notes,
+  current-state analysis, and engineering learnings.
+
+Validation:
+
+- Confirmed the previous bad behavior before the fix: `Sales Director` matched
+  `salesforce-admin`; `Marketing Manager`, `Finance Manager`, and
+  `Operations Manager` matched `product-manager`; `Retail Floor Supervisor`
+  received a weak display-name match.
+- `uv run pytest tests/skill_pack/test_archetypes.py tests/skill_pack/test_curation.py tests/skill_pack/test_planner.py -q`
+  passed with 66 tests.
+- `uv run pytest tests/skill_pack/test_archetypes.py tests/skill_pack/test_curation.py tests/skill_pack/test_planner.py tests/skill_pack/test_pipeline.py -q`
+  passed with 69 tests after formatting.
+- `uv run pytest tests/skill_pack -q` passed with 297 tests.
+- `uv run ruff check src/primr/` passed.
+- `uv run ruff format --check src/ tests/` passed.
+- `uv run mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'`
+  passed.
+- `uv run bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q`
+  passed with the existing `mcp_server/security.py` B108 nosec warnings.
+- `uv run pip-audit --ignore-vuln PYSEC-2026-196` passed.
+- `uv run pytest tests/test_architecture.py tests/test_no_brand_leak.py -q`
+  passed with 6 tests.
+- `uv run pytest tests/ --ignore=tests/manual -x --tb=short -q --cov=src/primr --cov-branch --cov-fail-under=81`
+  passed with `10081 passed, 38 skipped`, branch coverage `85.06%`.
+- Investigated the visible failed GitHub Actions CI run on `df4c747`. Root
+  cause was `pip-audit` reporting `msgpack 1.1.2` and
+  `pydantic-settings 2.14.1`; that was fixed by the later dependency-floor
+  commit, and subsequent `main` CI runs passed.
+
+Cost:
+
+- `$0.00`. No cloud or paid validation was used.
+
 ### Cycle: Segmented Career URL Evidence For Draft Skills
 
 Re-read and aligned against the active reference set for this cycle:

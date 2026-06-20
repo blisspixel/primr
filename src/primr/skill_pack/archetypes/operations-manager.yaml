@@ -1,0 +1,51 @@
+slug: operations-manager
+display_name: Operations Manager
+aliases:
+  - operations manager
+  - business operations manager
+  - process improvement manager
+  - procurement manager
+  - vendor manager
+  - chief of staff
+keywords:
+  - process
+  - workflow
+  - procurement
+  - vendor
+  - sla
+  - kpi
+  - capacity planning
+  - operating rhythm
+canonical_skills:
+  - name: process-mapping-and-improvement
+    display_name: Process mapping and improvement
+    summary: |
+      Map current workflows, identify bottlenecks, document controls,
+      propose improvements, and define measurable operating changes.
+  - name: vendor-and-procurement-workflow
+    display_name: Vendor and procurement workflow
+    summary: |
+      Run intake, requirements collection, vendor comparison, approval
+      routing, renewal tracking, and stakeholder communication.
+  - name: operating-metrics
+    display_name: Operating metrics and dashboards
+    summary: |
+      Define KPIs, gather source data, reconcile discrepancies, and
+      produce concise operating reviews with decisions and owner actions.
+  - name: cross-functional-program-management
+    display_name: Cross-functional program management
+    summary: |
+      Coordinate work across teams, maintain risk and dependency logs,
+      run decision meetings, and keep executive updates action-oriented.
+  - name: ai-assisted-operations
+    display_name: AI-assisted operations analysis
+    summary: |
+      Use AI to summarize tickets, process notes, vendor data, or meeting
+      transcripts, then verify findings before changing operating policy.
+ai_augmentation_patterns:
+  - Convert process notes into swimlane drafts and exception lists.
+  - Summarize vendor proposals into comparison tables with cited assumptions.
+  - Draft operating-review narratives from KPI exports and owner comments.
+references:
+  - https://www.apqc.org/
+  - https://www.pmi.org/
