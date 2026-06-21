@@ -116,6 +116,39 @@ class TestSkipPaths:
         assert "ai" in result.strategy_paths
 
 
+class TestYAMLBudgetCheckpoint:
+    """The strategy stage rechecks --budget between YAML strategy documents, so a
+    multi-strategy run stops once the ceiling is reached (consistent with the
+    Phase-2/5 checkpoints). Strategies already produced still ship."""
+
+    _TYPES = ["customer_experience", "modern_security_compliance"]
+
+    def test_skips_remaining_strategies_when_budget_exceeded_mid_loop(self, seams, monkeypatch):
+        budget = MagicMock()
+        budget.max_cost = 1.50
+        # entry: under cap (proceed); first YAML type: under cap; second: over cap.
+        budget.exceeded.side_effect = [False, False, True]
+        monkeypatch.setattr("primr.utils.run_budget.get_run_budget", lambda: budget)
+
+        result = _call(seams, ai_strategy=False, platforms=None, strategy_types=self._TYPES)
+
+        assert "customer_experience" in result.strategy_paths
+        assert "modern_security_compliance" not in result.strategy_paths
+        # Only the first strategy's writing call ran; the second was skipped.
+        assert seams["failover"].call_count == 1
+
+    def test_generates_all_strategies_with_headroom(self, seams, monkeypatch):
+        budget = MagicMock()
+        budget.exceeded.return_value = False
+        monkeypatch.setattr("primr.utils.run_budget.get_run_budget", lambda: budget)
+
+        result = _call(seams, ai_strategy=False, platforms=None, strategy_types=self._TYPES)
+
+        assert "customer_experience" in result.strategy_paths
+        assert "modern_security_compliance" in result.strategy_paths
+        assert seams["failover"].call_count == 2
+
+
 class TestAIStrategySingleVendor:
     def test_full_pipeline_saves_with_ai_key(self, seams):
         result = _call(seams)

@@ -1,8 +1,9 @@
 """Fast-run strategy-generation stage (roadmap #23, Batch C).
 
-Extracted verbatim from stage 9 (Phase 6 banner) of ``perform_fast_research``
-— no behavior change. Contains the --budget checkpoint, the per-vendor AI
-strategy closure with its parallel dispatch, and the YAML-defined strategy
+Extracted from stage 9 (Phase 6 banner) of ``perform_fast_research``. Contains
+the --budget checkpoints (at stage entry, and again per YAML strategy so a
+multi-strategy run stops generating once the ceiling is reached), the per-vendor
+AI strategy closure with its parallel dispatch, and the YAML-defined strategy
 loop (customer_experience, security, data_fabric, skills, ...).
 
 The LLM-prompt/enrich/output helpers stay in research_agent (lazy-imported)
@@ -307,6 +308,16 @@ def run_strategy_phase(
         for stype in strategy_types:
             if stype == "ai":
                 continue  # already handled above
+
+            # --budget checkpoint: each YAML strategy is a full WRITING call plus
+            # enrichment/polish (real spend). Stop generating further strategies
+            # once an active --budget ceiling is reached; strategies already
+            # produced still ship. Mirrors the stage-entry gate above and the
+            # Phase-2 deepening / Phase-5 cross-validation checkpoints.
+            if skip_stage_if_over_budget(
+                _compute_session_llm_cost(), "remaining strategy generation"
+            ):
+                break
 
             # Load strategy YAML config (name matches filename)
             yaml_path = Path(__file__).parent.parent / "prompts" / "strategies" / f"{stype}.yaml"
