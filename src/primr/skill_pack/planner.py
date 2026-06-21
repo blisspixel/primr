@@ -780,8 +780,19 @@ def load_plan(json_path: Path) -> RolePlan:
             f"Role plan at {json_path} is not a JSON object (got {type(data).__name__})."
         )
 
-    def _hydrate_role(entry: dict[str, Any]) -> Role:
-        evidence = entry.get("evidence") or {}
+    def _hydrate_role(entry: Any) -> Role:
+        # A hand-edited plan can carry a non-object role entry (e.g. a bare
+        # string) or a non-object ``evidence``. Fail with the same helpful
+        # RuntimeError the rest of load_plan promises, rather than a raw
+        # AttributeError from ``.get`` on a str.
+        if not isinstance(entry, dict):
+            raise RuntimeError(
+                f"Role plan at {json_path} has a non-object role entry: {entry!r}. "
+                "If you hand-edited it, re-run --plan-only to regenerate."
+            )
+        evidence = entry.get("evidence")
+        if not isinstance(evidence, dict):
+            evidence = {}
         provenance_val = str(evidence.get("provenance") or "posting").strip().lower()
         try:
             provenance = RoleProvenance(provenance_val)

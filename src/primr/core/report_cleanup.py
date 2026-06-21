@@ -134,11 +134,12 @@ _INTERNAL_REFERENCE_TERMS = (
     "internal roi model",
     "vendor-research",
     "workbook",
-    "company report",
-    "industry baseline",
-    "market analysis",
-    "itr on website",
-    "itron website",
+    # Only primr's own internal artifact names belong here. Generic external
+    # descriptors ("market analysis", "company report", "industry baseline")
+    # were removed: matched as lowercase substrings they silently deleted
+    # legitimate confidence-labeled external sources such as
+    # "[Reported: per Gartner market analysis]" (agentic-balance: never silently
+    # delete real content; cf. the case-sensitive Title-Case strip above).
     "insights.txt",
     "workbook.md",
 )

@@ -667,7 +667,7 @@ def find_edgar_cik(company_name: str) -> tuple[str, str, str] | None:
     # Fall back to substring
     for name, entry in index.items():
         norm = _normalize_company_name(name)
-        if target in norm or norm in target:
+        if target in norm or (norm and norm in target):
             if abs(len(target) - len(norm)) <= 10:  # avoid wildly different matches
                 cik = str(entry["cik_str"]).zfill(10)
                 return cik, entry.get("ticker", ""), entry.get("title", "")

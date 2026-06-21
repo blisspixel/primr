@@ -11,7 +11,9 @@ import tempfile
 from src.primr.qa.report_analyzer import (
     SCAFFOLDING_PROHIBITION_GUIDANCE,
     ReportAnalyzer,
+    scan_citation_integrity,
     scan_scaffolding_leakage,
+    scan_section_structure,
 )
 
 
@@ -599,3 +601,46 @@ class TestScaffoldingProhibitionParity:
         assert scan["workbook_markers"] > 0
         assert scan["bare_bold_validate"] > 0
         assert scan["informal_cite_markers"] > 0
+
+
+# =============================================================================
+# Code-fence masking on the ship gates (bug-hunt round)
+# =============================================================================
+
+
+def test_scan_citation_integrity_ignores_fenced_code_block():
+    """A [cite: N] inside a fenced code block is illustrative, not a real
+    citation, and must not false-block the DOCX on the citation-integrity gate."""
+    content = (
+        "Body text with a real citation [cite: 1].\n\n"
+        "```\nExample syntax: [cite: 99]\n```\n\n"
+        "## Sources\n[cite: 1] https://acme.example\n"
+    )
+    result = scan_citation_integrity(content)
+    assert result["clean"] is True
+    assert result["missing_count"] == 0
+
+
+def test_scan_citation_integrity_still_flags_real_dangling():
+    content = "Body [cite: 7].\n\n## Sources\n[cite: 1] https://acme.example\n"
+    result = scan_citation_integrity(content)
+    assert result["clean"] is False
+    assert 7 in result["missing_citations"]
+
+
+def test_scan_section_structure_ignores_fenced_headings():
+    """A ## line inside a fenced code block is not a real heading and must not
+    register as a duplicate/empty-section structural defect."""
+    content = (
+        "## Overview\nReal body.\n\n"
+        "```\n## Overview\n## Conclusion\n```\n\n"
+        "## Conclusion\nReal conclusion body.\n"
+    )
+    result = scan_section_structure(content)
+    assert result["total_defects"] == 0
+
+
+def test_scan_section_structure_still_flags_real_duplicate():
+    content = "## Overview\nbody one\n\n## Overview\nbody two\n"
+    result = scan_section_structure(content)
+    assert result["total_defects"] >= 1

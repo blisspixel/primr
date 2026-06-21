@@ -656,3 +656,18 @@ def test_discover_feed_urls_drops_userinfo_offsite_href():
     )
     urls = _discover_feed_urls("acme.example", homepage)
     assert all("evil.example" not in u for u in urls)
+
+
+def test_find_edgar_cik_skips_empty_normalizing_title():
+    """Regression (bug-hunt round): a ticker-index title that normalizes to ""
+    used to match every short query ("" in target is always True), returning a
+    wrong CIK. The empty-normalizing entry must be skipped."""
+    index = {
+        "": {"cik_str": 111, "ticker": "BAD", "title": ""},
+        "acme widgets inc": {"cik_str": 222, "ticker": "ACME", "title": "Acme Widgets Inc"},
+    }
+    with patch("primr.data.fallback_sources._load_edgar_ticker_index", return_value=index):
+        result = find_edgar_cik("Acme")
+    assert result is not None
+    _cik, ticker, _title = result
+    assert ticker == "ACME"

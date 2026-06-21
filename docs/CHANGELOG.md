@@ -20,6 +20,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the ceiling is reached instead of producing every requested strategy.
   Strategies already generated still ship.
 
+### Fixed
+
+- Bug-hunt round: final-report cleanup no longer silently deletes legitimate
+  confidence-labeled external sources. The internal-source-placeholder stripper
+  matched broad lowercase substrings ("market analysis", "company report",
+  "industry baseline"), so a real citation like `[Reported: per Gartner market
+  analysis]` was removed whole; only primr's own internal artifact names are
+  stripped now.
+- Bug-hunt round: the citation-integrity and section-structure ship gates now
+  ignore fenced code blocks, so a `[cite: N]` or `## heading` shown as example
+  syntax inside a code fence can no longer false-block the polished DOCX.
+- Bug-hunt round: EDGAR company lookup no longer mis-resolves a short company
+  name to a wrong CIK when a ticker-index title normalizes to an empty string.
+- Bug-hunt round: `primr skills --from-plan` now raises the documented helpful
+  error (instead of a raw `AttributeError`) when a hand-edited role plan
+  contains a non-object role entry or non-object `evidence`.
+
 ## [1.32.8] - 2026-06-20
 
 ### Added

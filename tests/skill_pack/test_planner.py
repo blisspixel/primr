@@ -437,3 +437,24 @@ class TestLoadPlan:
         loaded = load_plan(Path(plan.plan_json_path))
         assert [r.name for r in loaded.final_roster] == [r.name for r in plan.final_roster]
         assert loaded.industry.business_model == plan.industry.business_model
+
+
+def test_load_plan_rejects_non_object_role_entry(tmp_path):
+    """Regression (bug-hunt round): a hand-edited plan with a bare-string role
+    entry must raise the documented helpful RuntimeError, not a raw
+    AttributeError from .get on a str."""
+    bad = tmp_path / "role_plan.json"
+    bad.write_text(json.dumps({"observed": ["sales-manager"]}), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="non-object role entry"):
+        load_plan(bad)
+
+
+def test_load_plan_coerces_non_object_evidence(tmp_path):
+    plan = tmp_path / "role_plan.json"
+    plan.write_text(
+        json.dumps({"observed": [{"name": "x", "display_name": "X", "evidence": "oops"}]}),
+        encoding="utf-8",
+    )
+    loaded = load_plan(plan)  # must not raise
+    assert loaded.observed[0].name == "x"
+    assert loaded.observed[0].evidence.posting_count == 0
