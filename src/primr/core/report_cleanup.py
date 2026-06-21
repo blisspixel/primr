@@ -121,7 +121,15 @@ def _clean_fast_report_output(report_content: str) -> str:
 
     report_content = re.sub(r"\[Word count:\s*[\d,]+\]", "", report_content, flags=re.IGNORECASE)
 
-    report_content = re.sub(r"  +", " ", report_content)
+    # Collapse interior multi-space runs only. The old ``re.sub(r"  +", " ")``
+    # also collapsed LEADING indentation, which flattened nested lists and broke
+    # fenced/indented code blocks in the shipped report - silent structural
+    # corruption (agentic-balance: never mangle real content). The lookbehind
+    # preserves leading indentation; fenced code is skipped entirely.
+    _parts = re.split(r"(```.*?```)", report_content, flags=re.DOTALL)
+    for _i in range(0, len(_parts), 2):  # even indices are outside code fences
+        _parts[_i] = re.sub(r"(?<=\S) {2,}", " ", _parts[_i])
+    report_content = "".join(_parts)
     report_content = re.sub(r"\n{3,}", "\n\n", report_content)
 
     return report_content.strip() + "\n"

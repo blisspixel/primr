@@ -36,6 +36,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bug-hunt round: `primr skills --from-plan` now raises the documented helpful
   error (instead of a raw `AttributeError`) when a hand-edited role plan
   contains a non-object role entry or non-object `evidence`.
+- Bug-hunt round 2: final-report cleanup no longer collapses leading
+  indentation. The interior-space cleanup previously flattened nested lists and
+  broke fenced/indented code blocks in shipped reports; it now preserves leading
+  indentation and skips fenced code entirely.
+- Bug-hunt round 2: citation deduplication no longer treats `ref` and `source`
+  query parameters as tracking noise, so two genuinely distinct sources that
+  differ only by `?ref=`/`?source=` are no longer collapsed into one citation
+  (which silently dropped a real source). Unambiguous tracking params (`utm_*`,
+  `*clid`, `_ga`, etc.) are still stripped.
+- Bug-hunt round 2: markdown links whose URL contains balanced parentheses
+  (e.g. a Wikipedia `..._(company)` link) are no longer truncated at the first
+  `)`, which had corrupted the stored source URL and left a stray `)` in prose.
 
 ## [1.32.8] - 2026-06-20
 

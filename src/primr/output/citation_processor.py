@@ -54,7 +54,11 @@ class CitationProcessor:
     """
 
     # Pattern to match markdown links: [text](url)
-    MARKDOWN_LINK_PATTERN = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+    # URL group allows one level of balanced parentheses so links to URLs that
+    # legitimately contain "()" (e.g. Wikipedia "..._(company)") are not
+    # truncated at the first ")" (which corrupted the stored source URL and left
+    # a stray ")" in the prose).
+    MARKDOWN_LINK_PATTERN = re.compile(r"\[([^\]]+)\]\(([^()]*(?:\([^()]*\)[^()]*)*)\)")
 
     def __init__(self, style: CitationStyle = CitationStyle.NUMBERED):
         """
@@ -150,8 +154,10 @@ class CitationProcessor:
         "gclsrc",
         "dclid",
         "msclkid",
-        "ref",
-        "source",
+        # NOTE: "ref" and "source" were removed - they are frequently MEANINGFUL
+        # query params (article IDs, document selectors), so stripping them
+        # collapsed two genuinely-distinct sources into one citation number,
+        # silently dropping a real source. Only unambiguous tracking keys remain.
         "ref_src",
         "ref_url",
         "_ga",

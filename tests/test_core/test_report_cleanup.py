@@ -358,3 +358,24 @@ def test_strip_placeholders_still_drops_internal_artifacts():
 def test_internal_reference_terms_excludes_broad_external_phrases():
     for broad in ("market analysis", "industry baseline", "company report"):
         assert broad not in _INTERNAL_REFERENCE_TERMS
+
+
+def test_clean_output_preserves_nested_list_indentation():
+    # Bug-hunt round 2: the interior-space collapse used to eat LEADING
+    # indentation too, flattening nested lists. Indentation must survive.
+    content = "- Top item\n  - Nested item\n    - Deep item\n"
+    out = _clean_fast_report_output(content)
+    assert "  - Nested item" in out
+    assert "    - Deep item" in out
+
+
+def test_clean_output_preserves_code_fence_indentation():
+    content = "Intro.\n\n```python\nif x:\n    return 1\n```\n"
+    out = _clean_fast_report_output(content)
+    assert "    return 1" in out
+
+
+def test_clean_output_still_collapses_interior_double_spaces():
+    content = "This  has   interior    runs.\n"
+    out = _clean_fast_report_output(content)
+    assert "This has interior runs." in out
