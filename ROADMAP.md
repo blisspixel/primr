@@ -17,9 +17,15 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 > output and rot as prompts evolve — and over-agentifying the plumbing makes runs
 > unpredictable and unbounded. Rule of thumb: **determinism on structure and
 > irreversible acts (spend, egress, disk); judgment on content; measured eval
-> (never a regex) for quality.** When a change teaches you something new about
-> where that line sits, update the doc in the same PR so the next change inherits
-> the lesson.
+> (never a regex, and never a lone judge) for quality.** The failure is
+> symmetric: a brittle hand-rule that gates content rots as prompts evolve, but a
+> single LLM-judge is just as brittle (verdicts swing on seed, option order, and
+> paraphrase), so swapping a regex for one judge only moves the problem. Quality
+> eval must therefore be layered and agreement-validated (a multi-judge panel, or
+> cloud-vs-local concordance), and no hard ship or eval gate is ever armed from a
+> noisy single-judge or small-sample measurement. When a change teaches you
+> something new about where that line sits, update the doc in the same PR so the
+> next change inherits the lesson.
 
 ---
 
@@ -212,8 +218,11 @@ per-module coverage ratchet unlocked by the refactor:
   auto|local`, auto-detected, cloud default, provenance stamped in sidecars,
   `--judge-compare` measures cloud-vs-local agreement (the first production
   slice of the 2.0 backend-freedom pattern: detect, opt in, validate by
-  agreement, fail open). Remaining: one cheap baseline pass over recent
-  reports (~$0.10), then set the threshold from measured numbers — see
+  agreement, fail open). Remaining: gather a multi-report, agreement-validated
+  baseline (cloud-vs-local concordance), then set the threshold from those
+  numbers; a single small run is too judge-noisy to arm a hard gate on (judge
+  variance is itself a documented failure mode, see
+  [`docs/design/agentic-balance.md`](docs/design/agentic-balance.md)). See
   `docs/design/1x-completion.md` workstream 1
 
 **Exit criteria:** a sparse-company run still feels substantive; a
@@ -335,7 +344,7 @@ The active queue is ordered top-down by priority. Each item is concrete enough t
 
 > Cross-cutting engineering-standards and toolchain work is tracked separately in [Engineering Standards & Toolchain](#engineering-standards--toolchain) rather than as a numbered queue item, since it spans the whole repo and runs in parallel with feature work. Phase 1 (uv lockfile, CI Python matrix, security gates, coverage ratchet, pre-commit) is the current active engineering initiative.
 
-> **No brittle junk (applies to every item below).** primr's recurring self-inflicted wound is building a quality moat out of regex: deterministic gates that judge *content* (scaffolding-leak scanners, the QA penalty score, skill-pack heuristics) — they false-block good output, rot as prompts evolve, and become a maintenance treadmill. **The rule, per [`docs/design/agentic-balance.md`](docs/design/agentic-balance.md):** quality is enforced *upstream* (the writer/author prompt) and *measured* by eval/calibration — never by a new ship-time content gate. Deterministic checks are allowed ONLY for irreversible acts (spend, egress, disk) and prose-invariant structural validity (the DOCX renders, `[cite: N]` resolves, no duplicate `##`). Existing content scanners are shrinking backstops that trend toward signals, not blocks, and do not grow. If any item below tempts you to "add a check," that is the trap — fix the prompt and add the eval metric instead. Litmus: *would the check need a new case when the model rephrases?* If yes, don't build it.
+> **No brittle junk (applies to every item below).** primr's recurring self-inflicted wound is building a quality moat out of regex: deterministic gates that judge *content* (scaffolding-leak scanners, the QA penalty score, skill-pack heuristics) — they false-block good output, rot as prompts evolve, and become a maintenance treadmill. **The rule, per [`docs/design/agentic-balance.md`](docs/design/agentic-balance.md):** quality is enforced *upstream* (the writer/author prompt) and *measured* by eval/calibration — never by a new ship-time content gate. Deterministic checks are allowed ONLY for irreversible acts (spend, egress, disk) and prose-invariant structural validity (the DOCX renders, `[cite: N]` resolves, no duplicate `##`). Existing content scanners are shrinking backstops that trend toward signals, not blocks, and do not grow. If any item below tempts you to "add a check," that is the trap — fix the prompt and add the eval metric instead. Litmus: *would the check need a new case when the model rephrases?* If yes, don't build it. The same skepticism applies to the *fix*: do not replace a brittle rule with a single LLM-judge and call it measured. Judges are themselves brittle (sensitive to seed, option order, and paraphrase), so quality eval must be layered and agreement-validated, and a hard gate (including `FAIL_CALIBRATION`) is armed only from a robust, multi-judge or agreement-confirmed sample, never a single noisy run.
 
 ### 1. Artifact Drift — Remaining Work
 
