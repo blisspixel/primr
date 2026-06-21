@@ -7,10 +7,7 @@ name = "primr"
 version = "1.32.8"
 description = "Turn any company or organization URL into a strategic intelligence brief. Adaptive scraping + AI-powered research and synthesis."
 readme = "README.md"
-# Apache 2.0 plus the Commons Clause (source-available, not OSI-approved).
-# Expressed as an SPDX LicenseRef because Commons Clause is not a standard SPDX
-# identifier or exception. Full text in LICENSE.
-license = "LicenseRef-Apache-2.0-with-Commons-Clause"
+license = "Apache-2.0"
 # Floor is 3.12 (EOL-driven): 3.10 reaches EOL Oct 2026 and 3.11 Oct 2027,
 # while 3.12 carries security support to Oct 2028. Standardizing above the
 # soon-to-be-legacy line removes legacy codepaths and aligns with the

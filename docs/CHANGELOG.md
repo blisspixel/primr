@@ -9,13 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Relicensed from MIT to **Apache 2.0 with the Commons Clause**. Personal,
-  research, and sharing use stays free; selling a commercial or enterprise
-  product or SaaS whose value derives substantially from Primr now requires a
-  separate license from Nick Seal (nick@pueo.io). This is source-available, not
-  OSI open-source. `pyproject.toml` declares it as the SPDX expression
-  `LicenseRef-Apache-2.0-with-Commons-Clause`; `CITATION.cff` references the
-  LICENSE file via `license-url`.
+- Relicensed from MIT to the **Apache License 2.0** (OSI open-source). Free to
+  use, build on, fork, and share; for commercial or enterprise use, contact
+  Nick Seal (nick@pueo.io). `pyproject.toml` and `CITATION.cff` declare the
+  SPDX identifier `Apache-2.0`.
 
 - `--budget` now also bounds the cross-validation phase (Phase 5). Section
   enrichment (a web-search batch plus a regeneration call per weak section) and
