@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reached, so an active budget caps optional quality-polish spend instead of
   only the research-deepening (Phase 2) and strategy (Phase 6) stages. The
   assembled report still ships.
+- `--budget` is also rechecked between strategy documents in Phase 6, so a
+  multi-strategy run (multiple `--strategy-type` values) stops generating once
+  the ceiling is reached instead of producing every requested strategy.
+  Strategies already generated still ship.
 
 ## [1.32.8] - 2026-06-20
 
