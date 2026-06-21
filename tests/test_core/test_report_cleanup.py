@@ -323,3 +323,38 @@ class TestComputeRepairReport:
         report = compute_repair_report("x", "x with much more appended content here")
         assert report["chars_removed"] == 0
         assert report["scaffolding_removed"] == 0
+
+
+def test_strip_placeholders_preserves_external_source_descriptors():
+    """Regression (bug-hunt round): broad substrings like "market analysis" /
+    "industry baseline" / "company report" used to silently delete legitimate
+    confidence-labeled EXTERNAL sources. They must now survive."""
+    content = (
+        "Revenue is growing. [Reported: per Gartner market analysis of the sector]\n"
+        "Margins are typical. [Estimated: industry baseline margins near 20%]\n"
+        "Earnings rose. [Confirmed: the company report for FY24]\n"
+    )
+    out = _strip_internal_source_placeholders(content)
+    assert "[Reported: per Gartner market analysis of the sector]" in out
+    assert "[Estimated: industry baseline margins near 20%]" in out
+    assert "[Confirmed: the company report for FY24]" in out
+
+
+def test_strip_placeholders_still_drops_internal_artifacts():
+    content = (
+        "Claim A. [Reported: analysis workbook]\n"
+        "Claim B. [Confirmed: insights.txt]\n"
+        "Claim C. [Estimated: vendor-research dossier]\n"
+    )
+    out = _strip_internal_source_placeholders(content)
+    assert "analysis workbook" not in out
+    assert "insights.txt" not in out
+    assert "vendor-research" not in out
+    assert "Claim A." in out
+    assert "Claim B." in out
+    assert "Claim C." in out
+
+
+def test_internal_reference_terms_excludes_broad_external_phrases():
+    for broad in ("market analysis", "industry baseline", "company report"):
+        assert broad not in _INTERNAL_REFERENCE_TERMS

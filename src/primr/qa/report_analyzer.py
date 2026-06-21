@@ -88,6 +88,20 @@ def scan_scaffolding_leakage(content: str) -> dict:
     }
 
 
+_CODE_FENCE_RE = re.compile(r"```.*?```", re.DOTALL)
+
+
+def _strip_code_fences(text: str) -> str:
+    """Blank fenced code blocks before structural scanning.
+
+    Illustrative ``## headings`` or ``[cite: N]`` markers inside a fenced code
+    block are not real report structure; counting them would false-block a clean
+    deliverable on the citation-integrity and section-structure ship gates. This
+    is scan-view only and never mutates shipped content.
+    """
+    return _CODE_FENCE_RE.sub("", text)
+
+
 def scan_citation_integrity(content: str) -> dict:
     """Scan a report string for dangling inline citations.
 
@@ -108,6 +122,7 @@ def scan_citation_integrity(content: str) -> dict:
 
     Returns counts plus the sorted list of unresolved citation numbers.
     """
+    content = _strip_code_fences(content)
     # Inline references, including grouped forms like "[cite: 1, 2]".
     used: set[int] = set()
     for group in re.findall(r"\[cite:\s*(\d+(?:\s*,\s*\d+)*)\]", content, re.IGNORECASE):
@@ -164,6 +179,7 @@ def scan_section_structure(content: str) -> dict:
     ``total_defects`` counts extra duplicate occurrences (occurrences beyond the
     first) plus empty sections.
     """
+    content = _strip_code_fences(content)
     heading_re = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
     matches = list(heading_re.finditer(content))
     titles = [m.group(1).strip() for m in matches]
