@@ -231,3 +231,87 @@ class TestContradictions:
         result = _call(seams)
         assert result.unresolved_contradictions == 1
         assert result.report_content == REPORT
+
+
+class TestBudgetCheckpoint:
+    """Phase-5 enrichment (search + regeneration per weak section) and
+    contradiction resolution (one writing call) are optional spend on an
+    already-assembled report. An active ``--budget`` ceiling skips them and ships
+    the report, mirroring the Phase-2 deepening and Phase-6 strategy checkpoints
+    (roadmap #5). Gate the irreversible act (spend), never the reasoning."""
+
+    _WEAK = {
+        "weak_sections": [{"title": "Market", "queries": ["query about Market"]}],
+        "contradictions": ["Revenue $10M vs $12M"],
+    }
+
+    def test_enrichment_and_resolution_skipped_when_budget_exceeded(self, seams, monkeypatch):
+        from primr.utils.run_budget import clear_run_budget, set_run_budget
+
+        seams["cv_review"].return_value = dict(self._WEAK)
+        monkeypatch.setattr("primr.core.research_agent._compute_session_llm_cost", lambda: 100.0)
+        set_run_budget(1.0)  # ceiling $1, already spent $100 -> exceeded
+        try:
+            result = _call(seams)
+        finally:
+            clear_run_budget()
+
+        # No spend: no enrichment search/scrape/regeneration, no resolve call.
+        seams["search"].assert_not_called()
+        seams["scrape"].assert_not_called()
+        seams["regenerate"].assert_not_called()
+        seams["resolver"].assert_not_called()
+        # The assembled report ships unchanged; contradictions noted, unresolved.
+        assert result.report_content == REPORT
+        assert result.sections_enriched == 0
+        assert result.cv_search_count == 0
+        assert result.unresolved_contradictions == 1
+
+    def test_resolution_skipped_when_over_budget_with_no_weak_sections(self, seams, monkeypatch):
+        from primr.utils.run_budget import clear_run_budget, set_run_budget
+
+        # No weak sections -> the enrichment loop never runs and never syncs
+        # spend, so the contradiction checkpoint must gate on its own.
+        seams["cv_review"].return_value = {
+            "weak_sections": [],
+            "contradictions": ["Revenue $10M vs $12M"],
+        }
+        monkeypatch.setattr("primr.core.research_agent._compute_session_llm_cost", lambda: 100.0)
+        set_run_budget(1.0)
+        try:
+            result = _call(seams)
+        finally:
+            clear_run_budget()
+
+        seams["resolver"].assert_not_called()
+        assert result.unresolved_contradictions == 1
+
+    def test_proceeds_when_budget_has_headroom(self, seams, monkeypatch):
+        from primr.utils.run_budget import clear_run_budget, set_run_budget
+
+        seams["cv_review"].return_value = dict(self._WEAK)
+        monkeypatch.setattr("primr.core.research_agent._compute_session_llm_cost", lambda: 0.10)
+        set_run_budget(100.0)  # plenty of headroom -> full Phase-5 work
+        try:
+            result = _call(seams)
+        finally:
+            clear_run_budget()
+
+        seams["regenerate"].assert_called_once()
+        seams["resolver"].assert_called_once()
+        assert "ENRICHED Market body." in result.report_content
+        assert result.sections_enriched == 1
+
+    def test_no_budget_active_does_not_compute_spend(self, seams, monkeypatch):
+        # With no active budget the checkpoint must short-circuit and never call
+        # _compute_session_llm_cost, keeping the default path free.
+        cost = MagicMock(return_value=0.0)
+        monkeypatch.setattr("primr.core.research_agent._compute_session_llm_cost", cost)
+        seams["cv_review"].return_value = dict(self._WEAK)
+
+        result = _call(seams)
+
+        cost.assert_not_called()
+        seams["regenerate"].assert_called_once()
+        seams["resolver"].assert_called_once()
+        assert result.sections_enriched == 1

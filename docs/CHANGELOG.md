@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `--budget` now also bounds the cross-validation phase (Phase 5). Section
+  enrichment (a web-search batch plus a regeneration call per weak section) and
+  the contradiction-resolution call are skipped once the run budget ceiling is
+  reached, so an active budget caps optional quality-polish spend instead of
+  only the research-deepening (Phase 2) and strategy (Phase 6) stages. The
+  assembled report still ships.
+
 ## [1.32.8] - 2026-06-20
 
 ### Added
