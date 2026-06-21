@@ -1,8 +1,13 @@
 # Primr
 
+License: Apache 2.0  
+Author: Nick Seal (nick@pueo.io)  
+Free to use, build on, fork, and share patterns.  
+For commercial or enterprise use, contact nick@pueo.io
+
 [![CI](https://github.com/blisspixel/primr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/primr/actions/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/blisspixel/primr/badge)](https://securityscorecards.dev/viewer/?uri=github.com/blisspixel/primr)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 
 **Point it at a company's website. It reads their DNS records, their job postings, and fifty pages of their site, then drafts a strategic brief: what they appear to be building, where they look constrained, and which questions are worth asking.**
@@ -457,4 +462,5 @@ This software is provided as-is by a solo developer. The author is not liable fo
 
 ## License
 
-MIT
+Apache 2.0 (see [LICENSE](LICENSE)). Free to use, build on, fork, and share.
+For commercial or enterprise use, contact Nick Seal (nick@pueo.io).
