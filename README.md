@@ -1,8 +1,12 @@
 # Primr
 
+License: Apache 2.0 + Commons Clause  
+Personal/research/sharing use free.  
+Commercial/enterprise products require separate license from Nick Seal.
+
 [![CI](https://github.com/blisspixel/primr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/primr/actions/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/blisspixel/primr/badge)](https://securityscorecards.dev/viewer/?uri=github.com/blisspixel/primr)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: Apache 2.0 + Commons Clause](https://img.shields.io/badge/License-Apache--2.0%20%2B%20Commons%20Clause-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 
 **Point it at a company's website. It reads their DNS records, their job postings, and fifty pages of their site, then drafts a strategic brief: what they appear to be building, where they look constrained, and which questions are worth asking.**
@@ -457,4 +461,7 @@ This software is provided as-is by a solo developer. The author is not liable fo
 
 ## License
 
-MIT
+Apache 2.0 with the Commons Clause. Personal, research, and sharing use is free.
+Building and selling a commercial or enterprise product or SaaS whose value
+derives substantially from Primr requires a separate license from Nick Seal
+(nick@pueo.io). See [LICENSE](LICENSE) for the full terms.
