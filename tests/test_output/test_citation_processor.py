@@ -519,8 +519,7 @@ class TestCitationDataLossRegressions:
         # and must each get their own citation number.
         processor = CitationProcessor()
         content = (
-            "First [A](https://acme.example/p?ref=1) and "
-            "second [B](https://acme.example/p?ref=2)."
+            "First [A](https://acme.example/p?ref=1) and second [B](https://acme.example/p?ref=2)."
         )
         result = processor.process_content(content)
         assert "A [1]" in result.transformed_content
