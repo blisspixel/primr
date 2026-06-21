@@ -487,8 +487,6 @@ class TestURLNormalization:
             "gclsrc=x",
             "dclid=x",
             "msclkid=x",
-            "ref=x",
-            "source=x",
             "ref_src=x",
             "ref_url=x",
             "_ga=x",
@@ -510,3 +508,39 @@ class TestURLNormalization:
 
         # All should dedupe to single citation
         assert len(result.citations) == 1
+
+
+class TestCitationDataLossRegressions:
+    """Bug-hunt round 2: regressions for silent source loss in citation handling."""
+
+    def test_distinct_ref_param_urls_not_merged(self):
+        # ?ref= / ?source= are meaningful (article IDs, doc selectors), not
+        # tracking noise; two URLs differing only by them are DISTINCT sources
+        # and must each get their own citation number.
+        processor = CitationProcessor()
+        content = (
+            "First [A](https://acme.example/p?ref=1) and "
+            "second [B](https://acme.example/p?ref=2)."
+        )
+        result = processor.process_content(content)
+        assert "A [1]" in result.transformed_content
+        assert "B [2]" in result.transformed_content
+        assert len(result.citations) == 2
+
+    def test_utm_params_still_deduped(self):
+        processor = CitationProcessor()
+        content = (
+            "First [A](https://acme.example/p?utm_source=x) and "
+            "second [B](https://acme.example/p?utm_source=y)."
+        )
+        result = processor.process_content(content)
+        assert len(result.citations) == 1
+
+    def test_parenthesized_url_not_truncated(self):
+        # A URL with balanced parens (Wikipedia "..._(company)") must not be cut
+        # at the first ")" (which corrupted the source URL and left a stray ")").
+        processor = CitationProcessor()
+        content = "See [Acme](https://en.wikipedia.org/wiki/Acme_(company)) here."
+        result = processor.process_content(content)
+        assert len(result.citations) == 1
+        assert "See Acme [1] here." in result.transformed_content
