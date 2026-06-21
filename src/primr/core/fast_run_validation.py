@@ -1,11 +1,17 @@
 """Fast-run cross-validation + enrichment stage (roadmap #23, Batch E).
 
-Extracted verbatim from stage 6 (Phase 5 banner) of ``perform_fast_research``
-— no behavior change. Reviews the assembled report for weak sections and
-contradictions, enriches flagged sections with targeted external evidence
-under a per-section deadline, splices regenerated sections back into the
-report serially, and resolves contradictions with a structure-preservation
-guard.
+Extracted from stage 6 (Phase 5 banner) of ``perform_fast_research``. Reviews
+the assembled report for weak sections and contradictions, enriches flagged
+sections with targeted external evidence under a per-section deadline, splices
+regenerated sections back into the report serially, and resolves contradictions
+with a structure-preservation guard.
+
+The one behavioral addition over the original verbatim extraction is the
+``--budget`` checkpoints (see inline notes): this phase is optional quality
+polish on an already-assembled report, so when an active run budget reaches its
+ceiling, the remaining enrichment and the contradiction-resolution call are
+skipped and the report ships. Gates the irreversible act (spend), never the
+reasoning, mirroring the Phase-2 deepening and Phase-6 strategy checkpoints.
 
 Tangle points handled here (refactor map #2 and #4):
 
@@ -39,6 +45,7 @@ from primr.pipeline.llm_failover import LLMRole, call_with_failover
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
 from primr.utils.observability import log_structured
+from primr.utils.run_budget import get_run_budget, skip_stage_if_over_budget
 
 logger = get_logger("core.fast_run_validation")
 
@@ -73,7 +80,21 @@ def cross_validate_and_enrich(
     # Lazy import: research_agent imports this module, so the LLM-backed
     # review and regeneration helpers (which stay there until their own
     # extraction) must be resolved at call time to avoid a circular import.
-    from primr.core.research_agent import _fast_cross_validate, _fast_regenerate_section
+    from primr.core.research_agent import (
+        _compute_session_llm_cost,
+        _fast_cross_validate,
+        _fast_regenerate_section,
+    )
+
+    def _over_budget(stage_label: str) -> bool:
+        """True when an active ``--budget`` has been reached.
+
+        Spend is computed lazily only when a budget is active, so the no-budget
+        path (the default) does not invoke ``_compute_session_llm_cost`` at all.
+        """
+        if get_run_budget() is None:
+            return False
+        return skip_stage_if_over_budget(_compute_session_llm_cost(), stage_label)
 
     console.phase_banner(
         5,
@@ -141,6 +162,15 @@ def cross_validate_and_enrich(
         _returns_detector = DiminishingReturnsDetector()
 
         for ws in weak_sections:
+            # --budget checkpoint: enriching a weak section issues external
+            # searches and a regeneration LLM call (real spend). Enrichment is
+            # optional polish on the already-assembled report, so once an active
+            # --budget ceiling is reached we stop enriching further sections and
+            # ship rather than spend past the cap. Gates the irreversible act
+            # (spend), never the reasoning.
+            if _over_budget("remaining cross-validation enrichment"):
+                break
+
             raw_title = str(ws.get("title", "")).lstrip("#").strip()
             raw_queries = ws.get("queries", [])
             queries = [str(q) for q in raw_queries[:3]] if isinstance(raw_queries, list) else []
@@ -301,6 +331,10 @@ def cross_validate_and_enrich(
         for c in contradictions:
             console.info(f"Contradiction noted: {c[:100]}")
 
+    # --budget checkpoint: contradiction resolution is one more WRITING call (an
+    # optional standardization edit). Skip it when an active --budget ceiling is
+    # reached and ship the report with contradictions noted but unresolved.
+    if contradictions and not _over_budget("contradiction resolution"):
         # Resolve contradictions by asking Grok to standardize
         try:
             contradiction_list = "\n".join(f"- {c}" for c in contradictions)

@@ -312,3 +312,6 @@ nul
 # Coverage analysis artifact (local measurement)
 coverage_full.json
 .cov_*
+
+# Loop-engineering working state (local agent progress log + state analysis)
+.loop/
