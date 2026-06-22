@@ -268,3 +268,37 @@ def test_real_table_still_renders_as_table():
     doc = Document()
     render_section_content(doc, "| A | B |\n| --- | --- |\n| 1 | 2 |")
     assert len(doc.tables) == 1
+
+
+def test_pipe_in_heading_not_treated_as_table():
+    """Bug-hunt round 3: a heading that merely contains "|" must not be
+    mis-detected as a table and flushed as a plain paragraph leaking "## "."""
+    doc = Document()
+    render_section_content(doc, "## Market | Share\n\nBody text here.\n")
+    heading_texts = [p.text for p in doc.paragraphs if p.style.name.startswith("Heading")]
+    assert "Market | Share" in heading_texts
+    assert not any(p.text.strip().startswith("## ") for p in doc.paragraphs)
+    assert len(doc.tables) == 0
+
+
+def test_parenthesized_url_link_not_truncated():
+    """Bug-hunt round 3: a link whose URL has balanced parens must not be cut at
+    the first ")" (which left a stray ")" in the prose)."""
+    doc = Document()
+    para = doc.add_paragraph()
+    parse_inline_markdown(para, "See [Acme](https://en.wikipedia.org/wiki/Acme_(company)) here.")
+    run_text = "".join(r.text for r in para.runs)
+    assert ")" not in run_text  # no stray close-paren from a truncated URL
+    assert "hyperlink" in para._p.xml
+
+
+def test_math_asterisk_not_mis_italicized():
+    """Bug-hunt round 3: "5*3" math must not be consumed as italic when a real
+    *italic* appears later on the line."""
+    doc = Document()
+    para = doc.add_paragraph()
+    parse_inline_markdown(para, "Revenue grew 5*3 and *real* emphasis.")
+    run_text = "".join(r.text for r in para.runs)
+    assert "5*3" in run_text
+    italic_runs = [r.text for r in para.runs if r.font.italic]
+    assert italic_runs == ["real"]

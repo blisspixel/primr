@@ -129,3 +129,22 @@ class TestPrepareStrategyForOutput:
         monkeypatch.setattr("primr.ai.grok_client.grok_llm", MagicMock(return_value="ok"))
         result = _prepare_strategy_for_output("", "Acme", "azure", "Microsoft", [])
         assert len(result) == 3
+
+
+def test_repair_strategy_sends_full_document_not_truncated(monkeypatch):
+    """Bug-hunt round 3: the repair LLM must see the FULL document. The old
+    [:50_000] cap dropped everything past 50K from the rewrite (silent loss)."""
+    captured: dict = {}
+
+    def fake_failover(role, prompt, **kwargs):
+        captured["prompt"] = prompt
+        return "## Fixed\n\nrepaired document"
+
+    monkeypatch.setattr("primr.pipeline.llm_failover.call_with_failover", fake_failover)
+    tail_marker = "UNIQUE_TAIL_MARKER_XYZ"
+    big = "## Section\n\n" + ("filler word " * 8000) + "\n\n" + tail_marker + "\n"
+    assert len(big) > 80_000  # well past the old 50K cap
+    _repair_strategy_artifact_issues(
+        big, "Acme", "azure", "Microsoft", ["https://x.example"], ["budget_inconsistent"]
+    )
+    assert tail_marker in captured["prompt"]

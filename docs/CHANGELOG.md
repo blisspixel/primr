@@ -53,6 +53,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bug-hunt round 2: markdown links whose URL contains balanced parentheses
   (e.g. a Wikipedia `..._(company)` link) are no longer truncated at the first
   `)`, which had corrupted the stored source URL and left a stray `)` in prose.
+- Bug-hunt round 3: strategy citation normalization no longer truncates the
+  document at the *first* heading named `## Sources`/`## Citations`/`## References`.
+  A body section legitimately titled "References" used to delete itself and every
+  following section; only a real trailing citation appendix is replaced now.
+- Bug-hunt round 3: strategy artifact repair no longer truncates its input to
+  50K characters, which silently dropped everything past 50K from the repaired
+  document. The full document is sent to the repair step.
+- Bug-hunt round 3: DOCX rendering no longer mis-detects a heading or bullet
+  that merely contains a `|` as a table (which rendered it as plain text with
+  literal `## `/`- ` markers); a markdown `|---|` separator row is now required.
+  Parenthesized URLs render without truncation, and `5*3`-style math is no longer
+  mis-italicized.
 
 ## [1.32.8] - 2026-06-20
 

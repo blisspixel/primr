@@ -265,15 +265,23 @@ def _normalize_fast_citations(report_content: str, source_urls: list[str] | None
     sources_heading = re.compile(
         r"^##\s+(Sources|Citations|References)\s*$", re.IGNORECASE | re.MULTILINE
     )
-    if sources_heading.search(normalized):
-        lines = normalized.splitlines()
-        start_idx = None
-        for i, line in enumerate(lines):
-            if sources_heading.match(line.strip()):
-                start_idx = i
+    lines = normalized.splitlines()
+    heading_lines = [i for i, line in enumerate(lines) if sources_heading.match(line.strip())]
+    if heading_lines:
+        # Strip the existing sources appendix so the rebuilt one (below) replaces
+        # it, but ONLY at the LAST sources-style heading whose body is purely a
+        # citation appendix (cite/url lines). A body section merely TITLED
+        # "References"/"Citations"/"Sources" must not delete everything after it
+        # (that was silent total content loss).
+        _cite_like = re.compile(
+            r"^\s*(?:\[cite:\s*\d|\[\d+\]\s|\d+\.\s+https?://|https?://|[-*]\s+https?://)",
+            re.IGNORECASE,
+        )
+        for idx in reversed(heading_lines):
+            tail = lines[idx + 1 :]
+            if all((not ln.strip()) or _cite_like.match(ln) for ln in tail):
+                normalized = "\n".join(lines[:idx]).rstrip()
                 break
-        if start_idx is not None:
-            normalized = "\n".join(lines[:start_idx]).rstrip()
 
     known = dict(num_to_url)
     for url, num in url_to_num.items():

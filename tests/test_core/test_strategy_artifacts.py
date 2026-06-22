@@ -365,3 +365,28 @@ class TestSplitMarkdownSections:
         _, sections = _split_markdown_sections(content)
         assert sections[0] == ("A", "first\n\nsecond")
         assert sections[1] == ("B", "third")
+
+
+def test_normalize_citations_preserves_body_section_named_references():
+    """Bug-hunt round 3: a body section TITLED "References" must not delete every
+    following section. Only a real citation appendix is stripped/rebuilt."""
+    content = (
+        "## Overview\n\nThe company [Source: https://acme.example/a] leads.\n\n"
+        "## References\n\nThe firm references the EU AI Act in its filings.\n\n"
+        "## Risks\n\nKey risks here.\n"
+    )
+    result = _normalize_fast_citations(content)
+    assert "The firm references the EU AI Act" in result
+    assert "Key risks here." in result
+    assert "## Risks" in result
+
+
+def test_normalize_citations_replaces_real_sources_appendix():
+    content = (
+        "## Overview\n\nClaim [Source: https://acme.example/a].\n\n"
+        "## Sources\n\n[cite: 1] https://old.example/x\n"
+    )
+    result = _normalize_fast_citations(content)
+    assert "## Overview" in result
+    assert "Claim" in result
+    assert result.count("## Sources") == 1
