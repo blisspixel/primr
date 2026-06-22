@@ -4,7 +4,7 @@ site_url: https://blisspixel.github.io/primr/
 repo_url: https://github.com/blisspixel/primr
 repo_name: blisspixel/primr
 edit_uri: edit/main/docs/
-copyright: Copyright &copy; 2025-2026 Nick Seal — MIT License
+copyright: Copyright &copy; 2025-2026 Nick Seal — Apache License 2.0
 
 docs_dir: docs
 
@@ -91,6 +91,7 @@ nav:
   - Design notes:
       - Overview: design/README.md
       - Agentic balance: design/agentic-balance.md
+      - Open Knowledge Format: design/open-knowledge-format.md
       - Engineering excellence: design/engineering-excellence.md
       - Research tradecraft: design/research-tradecraft.md
       - Eval plan: design/eval-plan.md
