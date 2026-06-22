@@ -136,7 +136,7 @@ _async_correlation_id: contextvars.ContextVar[str | None] = contextvars.ContextV
 | State | Location | Access Pattern |
 |-------|----------|----------------|
 | Scrape cache | `data/scrape.py` | Read-heavy, occasional writes |
-| Circuit breaker state | `utils/circuit_breaker.py` | Per-key isolation |
+| Circuit breaker state | `utils/circuit_breaker.py` | RLock-guarded (per-key state); listeners notified outside the lock |
 | Job store | `mcp_server/job_store.py` | Single-writer, journal-backed |
 | Retry history | `utils/retry.py` | Per-manager instance |
 

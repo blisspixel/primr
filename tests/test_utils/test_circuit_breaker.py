@@ -224,6 +224,41 @@ class TestCircuitBreakerThreadSafety:
         stats = breaker.get_stats("test")
         assert stats.failure_count >= 100  # At least threshold reached
 
+    def test_concurrent_record_failure_no_lost_updates(self):
+        """Regression: the record_failure read-modify-write was lock-free, so
+        concurrent calls on the same key could lose increments. With a high
+        threshold the circuit never opens (a transition would reset the count),
+        so every failure must be counted exactly."""
+        breaker = CircuitBreaker(CircuitBreakerConfig(failure_threshold=1_000_000))
+        n_threads, per_thread = 8, 500
+        start = threading.Barrier(n_threads)
+
+        def worker() -> None:
+            start.wait()
+            for _ in range(per_thread):
+                breaker.record_failure("shared")
+
+        threads = [threading.Thread(target=worker) for _ in range(n_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert breaker.get_stats("shared").failure_count == n_threads * per_thread
+
+    def test_listener_reentry_does_not_deadlock(self):
+        """Listeners are notified OUTSIDE the lock, so a listener may re-enter
+        the breaker without self-deadlocking."""
+        breaker = CircuitBreaker(CircuitBreakerConfig(failure_threshold=1))
+        seen: list[CircuitState] = []
+
+        def listener(event) -> None:
+            seen.append(breaker.get_state(event.key))
+
+        breaker.add_state_change_listener(listener)
+        breaker.record_failure("k")  # opens at threshold 1 -> fires the listener
+        assert seen == [CircuitState.OPEN]
+
 
 class TestCircuitBreakerConfiguration:
     """Tests for configuration options."""
