@@ -1,10 +1,5 @@
 # Primr
 
-License: Apache 2.0  
-Author: Nick Seal (nick@pueo.io)  
-Free to use, build on, fork, and share patterns.  
-For commercial or enterprise use, contact nick@pueo.io
-
 [![CI](https://github.com/blisspixel/primr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/primr/actions/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/blisspixel/primr/badge)](https://securityscorecards.dev/viewer/?uri=github.com/blisspixel/primr)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
