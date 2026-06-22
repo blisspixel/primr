@@ -18,6 +18,7 @@ by tracking failure rates and temporarily blocking requests.
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -390,12 +391,18 @@ class CircuitBreaker:
 
         self._circuits: dict[str, _CircuitStateData] = {}
         self._listeners: list[StateChangeListener] = []
+        # Reentrant lock guarding _circuits and per-key state mutation. RLock so
+        # a public method may call _get_or_create (which also locks) without
+        # self-deadlock. State-change listeners are always notified OUTSIDE the
+        # lock so a listener that re-enters the breaker cannot deadlock.
+        self._lock = threading.RLock()
 
     def _get_or_create(self, key: str) -> _CircuitStateData:
-        """Get or create circuit state for a key."""
-        if key not in self._circuits:
-            self._circuits[key] = _CircuitStateData()
-        return self._circuits[key]
+        """Get or create circuit state for a key (callers may already hold the lock)."""
+        with self._lock:
+            if key not in self._circuits:
+                self._circuits[key] = _CircuitStateData()
+            return self._circuits[key]
 
     def _notify_state_change(
         self, key: str, from_state: CircuitState, to_state: CircuitState, trigger: str
@@ -433,8 +440,8 @@ class CircuitBreaker:
 
         **Validates: Requirements 3.2**
         """
-        circuit = self._get_or_create(key)
-        return circuit.state
+        with self._lock:
+            return self._get_or_create(key).state
 
     def get_stats(self, key: str) -> CircuitStats:
         """
@@ -448,15 +455,16 @@ class CircuitBreaker:
 
         **Validates: Requirements 3.3**
         """
-        circuit = self._get_or_create(key)
-        return CircuitStats(
-            state=circuit.state,
-            failure_count=circuit.failure_count,
-            success_count=circuit.success_count,
-            last_failure_time=circuit.last_failure_time,
-            last_state_change=circuit.last_state_change,
-            total_rejections=circuit.total_rejections,
-        )
+        with self._lock:
+            circuit = self._get_or_create(key)
+            return CircuitStats(
+                state=circuit.state,
+                failure_count=circuit.failure_count,
+                success_count=circuit.success_count,
+                last_failure_time=circuit.last_failure_time,
+                last_state_change=circuit.last_state_change,
+                total_rejections=circuit.total_rejections,
+            )
 
     def get_all_stats(self) -> dict[str, CircuitStats]:
         """
@@ -467,7 +475,8 @@ class CircuitBreaker:
 
         **Validates: Requirements 3.3**
         """
-        return {key: self.get_stats(key) for key in self._circuits}
+        with self._lock:
+            return {key: self.get_stats(key) for key in list(self._circuits)}
 
     def record_success(self, key: str | None = None) -> None:
         """
@@ -482,10 +491,12 @@ class CircuitBreaker:
         **Validates: Requirements 3.1, 3.2**
         """
         circuit_key = key or self._name or "default"
-        circuit = self._get_or_create(circuit_key)
-        old_state = circuit.state
-        new_state = circuit.record_success(self.config)
+        with self._lock:
+            circuit = self._get_or_create(circuit_key)
+            old_state = circuit.state
+            new_state = circuit.record_success(self.config)
 
+        # Notify outside the lock (listeners may re-enter the breaker).
         if new_state is not None:
             self._notify_state_change(circuit_key, old_state, new_state, "success")
 
@@ -502,10 +513,12 @@ class CircuitBreaker:
         **Validates: Requirements 3.1, 3.2**
         """
         circuit_key = key or self._name or "default"
-        circuit = self._get_or_create(circuit_key)
-        old_state = circuit.state
-        new_state = circuit.record_failure(self.config)
+        with self._lock:
+            circuit = self._get_or_create(circuit_key)
+            old_state = circuit.state
+            new_state = circuit.record_failure(self.config)
 
+        # Notify outside the lock (listeners may re-enter the breaker).
         if new_state is not None:
             self._notify_state_change(circuit_key, old_state, new_state, "failure")
 
@@ -525,28 +538,36 @@ class CircuitBreaker:
 
         **Validates: Requirements 3.7**
         """
-        circuit = self._get_or_create(key)
+        notify: tuple[str, CircuitState, CircuitState, str] | None = None
+        error: CircuitOpenError | None = None
+        with self._lock:
+            circuit = self._get_or_create(key)
+            if circuit.state == CircuitState.OPEN:
+                # Check if timeout has passed
+                if circuit.should_attempt_reset(self.config):
+                    old_state = circuit.state
+                    circuit.transition_to(CircuitState.HALF_OPEN)
+                    notify = (key, old_state, CircuitState.HALF_OPEN, "timeout")
+                else:
+                    # Still in open state, reject request
+                    circuit.total_rejections += 1
+                    retry_after = self.config.timeout_seconds - circuit.time_in_current_state()
+                    error = CircuitOpenError(host=key, retry_after=max(0.0, retry_after))
+            elif circuit.state == CircuitState.HALF_OPEN:
+                # Check if we've exceeded max calls in half-open state
+                if circuit.half_open_calls >= self.config.half_open_max_calls:
+                    circuit.total_rejections += 1
+                    error = CircuitOpenError(
+                        message=f"Circuit breaker half-open limit reached for {key}",
+                        host=key,
+                        retry_after=1.0,  # Short retry for half-open limit
+                    )
 
-        if circuit.state == CircuitState.OPEN:
-            # Check if timeout has passed
-            if circuit.should_attempt_reset(self.config):
-                old_state = circuit.state
-                circuit.transition_to(CircuitState.HALF_OPEN)
-                self._notify_state_change(key, old_state, CircuitState.HALF_OPEN, "timeout")
-            else:
-                # Still in open state, reject request
-                circuit.total_rejections += 1
-                retry_after = self.config.timeout_seconds - circuit.time_in_current_state()
-                raise CircuitOpenError(host=key, retry_after=max(0.0, retry_after))
-        elif circuit.state == CircuitState.HALF_OPEN:
-            # Check if we've exceeded max calls in half-open state
-            if circuit.half_open_calls >= self.config.half_open_max_calls:
-                circuit.total_rejections += 1
-                raise CircuitOpenError(
-                    message=f"Circuit breaker half-open limit reached for {key}",
-                    host=key,
-                    retry_after=1.0,  # Short retry for half-open limit
-                )
+        # Notify / raise outside the lock (listeners may re-enter the breaker).
+        if notify is not None:
+            self._notify_state_change(*notify)
+        if error is not None:
+            raise error
 
     def add_state_change_listener(self, listener: StateChangeListener) -> None:
         """
@@ -581,16 +602,22 @@ class CircuitBreaker:
         Args:
             key: The circuit key to reset
         """
-        if key in self._circuits:
-            circuit = self._circuits[key]
-            old_state = circuit.state
-            if old_state != CircuitState.CLOSED:
-                circuit.transition_to(CircuitState.CLOSED)
-                self._notify_state_change(key, old_state, CircuitState.CLOSED, "manual_reset")
+        notify: tuple[str, CircuitState, CircuitState, str] | None = None
+        with self._lock:
+            if key in self._circuits:
+                circuit = self._circuits[key]
+                old_state = circuit.state
+                if old_state != CircuitState.CLOSED:
+                    circuit.transition_to(CircuitState.CLOSED)
+                    notify = (key, old_state, CircuitState.CLOSED, "manual_reset")
+        if notify is not None:
+            self._notify_state_change(*notify)
 
     def reset_all(self) -> None:
         """Reset all circuits to closed state."""
-        for key in list(self._circuits.keys()):
+        with self._lock:
+            keys = list(self._circuits.keys())
+        for key in keys:
             self.reset(key)
 
     # =========================================================================
@@ -622,18 +649,21 @@ class CircuitBreaker:
             True if requests should be made, False if circuit is open
         """
         key = self._extract_domain(url) if self._legacy_mode else url
-        circuit = self._get_or_create(key)
-
-        if circuit.state == CircuitState.OPEN:
-            # Check if timeout has passed
-            if circuit.should_attempt_reset(self.config):
-                old_state = circuit.state
-                circuit.transition_to(CircuitState.HALF_OPEN)
-                self._notify_state_change(key, old_state, CircuitState.HALF_OPEN, "timeout")
-                return True  # Allow request in half-open
-            return False  # Block request
-
-        return True  # Allow request (closed or half-open)
+        notify: tuple[str, CircuitState, CircuitState, str] | None = None
+        allow = True
+        with self._lock:
+            circuit = self._get_or_create(key)
+            if circuit.state == CircuitState.OPEN:
+                # Check if timeout has passed
+                if circuit.should_attempt_reset(self.config):
+                    old_state = circuit.state
+                    circuit.transition_to(CircuitState.HALF_OPEN)
+                    notify = (key, old_state, CircuitState.HALF_OPEN, "timeout")
+                else:
+                    allow = False  # Block request
+        if notify is not None:
+            self._notify_state_change(*notify)
+        return allow
 
     def can_execute(self, key: str | None = None) -> bool:
         """
@@ -646,67 +676,73 @@ class CircuitBreaker:
             True if requests can be made, False if circuit is open
         """
         circuit_key = key or self._name or "default"
-        circuit = self._get_or_create(circuit_key)
-
-        if circuit.state == CircuitState.OPEN:
-            # Check if timeout has passed
-            if circuit.should_attempt_reset(self.config):
-                old_state = circuit.state
-                circuit.transition_to(CircuitState.HALF_OPEN)
-                self._notify_state_change(circuit_key, old_state, CircuitState.HALF_OPEN, "timeout")
-                return True  # Allow request in half-open
-            return False  # Block request
-
-        return True  # Allow request (closed or half-open)
+        notify: tuple[str, CircuitState, CircuitState, str] | None = None
+        allow = True
+        with self._lock:
+            circuit = self._get_or_create(circuit_key)
+            if circuit.state == CircuitState.OPEN:
+                # Check if timeout has passed
+                if circuit.should_attempt_reset(self.config):
+                    old_state = circuit.state
+                    circuit.transition_to(CircuitState.HALF_OPEN)
+                    notify = (circuit_key, old_state, CircuitState.HALF_OPEN, "timeout")
+                else:
+                    allow = False  # Block request
+        if notify is not None:
+            self._notify_state_change(*notify)
+        return allow
 
     # Legacy properties for test compatibility
     @property
     def _failure_count(self) -> int:
         """Legacy property: Get failure count for default circuit."""
         key = self._name or "default"
-        if key in self._circuits:
-            return self._circuits[key].failure_count
-        return 0
+        with self._lock:
+            if key in self._circuits:
+                return self._circuits[key].failure_count
+            return 0
 
     @_failure_count.setter
     def _failure_count(self, value: int) -> None:
         """Legacy property: Set failure count for default circuit."""
         key = self._name or "default"
-        circuit = self._get_or_create(key)
-        circuit.failure_count = value
+        with self._lock:
+            self._get_or_create(key).failure_count = value
 
     @property
     def _state(self) -> str:
         """Legacy property: Get state as string for default circuit."""
         key = self._name or "default"
-        if key in self._circuits:
-            return self._circuits[key].state.value
-        return "closed"
+        with self._lock:
+            if key in self._circuits:
+                return self._circuits[key].state.value
+            return "closed"
 
     @_state.setter
     def _state(self, value: str) -> None:
         """Legacy property: Set state from string for default circuit."""
         key = self._name or "default"
-        circuit = self._get_or_create(key)
         state_map = {
             "closed": CircuitState.CLOSED,
             "open": CircuitState.OPEN,
             "half_open": CircuitState.HALF_OPEN,
         }
         if value in state_map:
-            circuit.state = state_map[value]
+            with self._lock:
+                self._get_or_create(key).state = state_map[value]
 
     @property
     def _last_failure_time(self) -> datetime | None:
         """Legacy property: Get last failure time for default circuit."""
         key = self._name or "default"
-        if key in self._circuits:
-            return self._circuits[key].last_failure_time
-        return None
+        with self._lock:
+            if key in self._circuits:
+                return self._circuits[key].last_failure_time
+            return None
 
     @_last_failure_time.setter
     def _last_failure_time(self, value: datetime | None) -> None:
         """Legacy property: Set last failure time for default circuit."""
         key = self._name or "default"
-        circuit = self._get_or_create(key)
-        circuit.last_failure_time = value
+        with self._lock:
+            self._get_or_create(key).last_failure_time = value

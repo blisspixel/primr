@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The circuit breaker (`utils/circuit_breaker.py`) is now thread-safe: per-key
+  state, failure/success counts, and state transitions are guarded by a
+  re-entrant lock, and state-change listeners are notified outside the lock (so
+  a listener can re-enter the breaker without deadlocking). Previously the
+  lock-free read-modify-write could lose failure-count updates under the
+  parallel section-writing and strategy pools, skewing failover/quota
+  bookkeeping. `docs/CONCURRENCY.md` updated to match.
+
 ## [1.33.0] - 2026-06-21
 
 ### Changed
