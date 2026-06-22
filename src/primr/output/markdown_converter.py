@@ -80,7 +80,11 @@ def parse_inline_markdown(paragraph: Any, text: str) -> None:
     if not text:
         return
     # Pattern: **bold**, *italic*, `code`, [text](url)
-    pattern = r"(\*\*.*?\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)]+\))"
+    # italic: guarded so "5*3" / "a*b" math is not mis-italicized (the "*" must
+    #   not be flanked by word chars or another "*").
+    # link: URL group allows one level of balanced parens so "..._(company)"
+    #   Wikipedia-style links are not truncated at the first ")".
+    pattern = r"(\*\*.*?\*\*|(?<![\w*])\*[^*]+\*(?![\w*])|`[^`]+`|\[[^\]]+\]\([^()]*(?:\([^()]*\)[^()]*)*\))"
     parts = re.split(pattern, text)
     for part in parts:
         if not part:
@@ -100,7 +104,7 @@ def parse_inline_markdown(paragraph: Any, text: str) -> None:
             run.font.size = Pt(10)
         # Link
         elif part.startswith("[") and "](" in part:
-            match = re.match(r"\[(.*?)\]\((.*?)\)", part)
+            match = re.match(r"\[(.*?)\]\((.*)\)", part)
             if match:
                 add_hyperlink(paragraph, match.group(1), match.group(2))
         # Regular text
@@ -340,10 +344,17 @@ def markdown_to_docx(
             continue
         # Table detection
         if "|" in line and not in_table:
-            in_table = True
-            table_lines = [line]
-            i += 1
-            continue
+            # Only start a table when this line or the next is a |---| separator
+            # row (real markdown tables have one). Otherwise a heading/bullet/
+            # prose line that merely contains "|" was buffered as a table and
+            # flushed as a plain paragraph, leaking literal "## "/"- " markers
+            # and losing the heading/list structure.
+            _next_line = lines[i + 1] if i + 1 < len(lines) else ""
+            if _is_table_separator(line) or _is_table_separator(_next_line):
+                in_table = True
+                table_lines = [line]
+                i += 1
+                continue
         if in_table:
             if "|" in line:
                 table_lines.append(line)
@@ -429,10 +440,17 @@ def render_section_content(doc: Document, content: str) -> None:
             continue
         # Table detection
         if "|" in line and not in_table:
-            in_table = True
-            table_lines = [line]
-            i += 1
-            continue
+            # Only start a table when this line or the next is a |---| separator
+            # row (real markdown tables have one). Otherwise a heading/bullet/
+            # prose line that merely contains "|" was buffered as a table and
+            # flushed as a plain paragraph, leaking literal "## "/"- " markers
+            # and losing the heading/list structure.
+            _next_line = lines[i + 1] if i + 1 < len(lines) else ""
+            if _is_table_separator(line) or _is_table_separator(_next_line):
+                in_table = True
+                table_lines = [line]
+                i += 1
+                continue
         if in_table:
             if "|" in line:
                 table_lines.append(line)

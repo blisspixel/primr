@@ -1341,7 +1341,7 @@ ALLOWED SOURCE URLS:
 {source_block}
 
 DOCUMENT:
-{strategy_content[:50_000]}
+{strategy_content}
 
 RULES:
 - Preserve the depth and specificity of the document
