@@ -173,6 +173,20 @@ approval for high-impact actions, and complete mediation in downstream systems.
 Full local validation passes: ruff, format check, mypy, Bandit, pip-audit, and
 `uv run pytest tests/ -q` (10126 passed, 42 skipped).
 
+Follow-up: PyPI latest is `1.33.1`, matching `pyproject.toml`, so no
+same-version publish is appropriate. The release workflow now builds under
+Python 3.12, matching the declared package floor, and
+`tests/test_release_integrity.py` pins that the PyPI workflow cannot drift back
+to Python 3.11.
+
+The supplied agentic-systems guide reinforces the next control-plane step:
+structured invocation audit logging. Approval tokens already cover bounded
+action for spend-governed MCP tools; the next slice should persist who invoked
+which tool, granted scopes, approval token id, normalized argument hash,
+estimated cost, result status, and job id. That addresses idempotency,
+approval provenance, execution traces, and side-effect visibility without
+adding brittle content-quality gates.
+
 ## Quality Rubric for this work
 - Correctness: structural + prompt + tests.
 - No brittle: only prose-invariant checks.

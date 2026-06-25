@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `approval_token`, blocking approve-one-shape execute-another swaps and token
   replay.
 
+### Fixed
+
+- Release publishing now builds and extracts GitHub release notes under Python
+  3.12, matching the package's declared supported floor. A release-integrity
+  test pins that the PyPI workflow cannot drift back to Python 3.11.
+
 ## [1.33.1] - 2026-06-22
 
 ### Fixed

@@ -36,6 +36,13 @@ Implemented:
 Validation so far:
 
 - `uv run pytest tests/mcp_server/test_approval_tokens.py -q` passed: 6 tests.
+- CI follow-up: GitHub `CI` failed only on Python 3.13 because the tampered
+  token test sometimes replaced an `A` suffix with `A`, leaving the token
+  unchanged. The test now flips the HMAC signature suffix deterministically.
+- Build/PyPI follow-up: PyPI latest is already `1.33.1`, matching
+  `pyproject.toml`, so no publish is appropriate. The release workflow now
+  builds and extracts release notes under Python 3.12, matching the package
+  floor, with a release-integrity test pinning the invariant.
 - `uv run pytest tests/mcp_server/test_tools.py::TestCostCaps tests/mcp_server/test_skill_pack_tools_more_coverage.py::test_cost_cap_passes_when_under_cap -q`
   passed: 13 tests.
 - `uv run pytest tests/test_architecture.py -q` passed: 5 tests.
@@ -45,6 +52,9 @@ Validation so far:
   `uv run mypy src/primr/ --ignore-missing-imports`, Bandit,
   `uv run pip-audit`, and `uv run pytest tests/ -q` (10126 passed, 42
   skipped, 2 existing warnings).
+- CI-equivalent Python 3.13 gate after the follow-up fix passed:
+  `uv run pytest tests/ --ignore=tests/manual -x --tb=short -q -k "not test_wait_times_out_when_no_change" -m "not integration" --cov=src/primr --cov-branch --cov-fail-under=81`
+  passed with 10121 passed, 39 skipped, 5 deselected, and 85.10% coverage.
 - `uv run --no-project --with mkdocs-material --with pymdown-extensions mkdocs
   build --site-dir _site` passed with the repo's existing non-strict link
   warnings; generated `_site/` was removed after verification.

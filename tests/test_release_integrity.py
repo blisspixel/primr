@@ -27,6 +27,17 @@ def _read_pyproject_version() -> str:
     return match.group("version")
 
 
+def _read_pyproject_python_floor() -> str:
+    pyproject_path = REPO_ROOT / "pyproject.toml"
+    match = re.search(
+        r'^\s*requires-python\s*=\s*">=(?P<floor>\d+\.\d+)"\s*$',
+        pyproject_path.read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    assert match is not None, "pyproject.toml must declare a >=N.N requires-python floor"
+    return match.group("floor")
+
+
 def _read_roadmap_current_state_version() -> str:
     match = re.search(
         r"^Current State:\s+v(?P<version>\d+\.\d+\.\d+)\b",
@@ -67,6 +78,17 @@ def test_roadmap_changelog_contains_current_state_version() -> None:
 
 def test_citation_version_matches_package_version() -> None:
     assert _read_citation_version() == primr.__version__
+
+
+def test_release_workflow_builds_on_supported_python_floor() -> None:
+    floor = _read_pyproject_python_floor()
+    release_workflow = (REPO_ROOT / ".github" / "workflows" / "release.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert release_workflow.count(f"python-version: '{floor}'") == 2
+    assert f"Set up Python {floor}" in release_workflow
+    assert "python-version: '3.11'" not in release_workflow
 
 
 def test_cli_epilog_uses_current_default_cost_band() -> None:

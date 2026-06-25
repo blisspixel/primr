@@ -157,7 +157,9 @@ async def test_approval_token_is_single_use_for_strategy(server, monkeypatch):
 async def test_tampered_approval_token_is_rejected(server, monkeypatch):
     monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
     estimate = await _call(server, "estimate_run", {"company_url": "https://example.com"})
-    token = estimate["approval_token"][:-1] + "A"
+    payload, signature = estimate["approval_token"].split(".", 1)
+    replacement = "A" if signature[-1] != "A" else "B"
+    token = f"{payload}.{signature[:-1]}{replacement}"
 
     data = await _call(
         server,

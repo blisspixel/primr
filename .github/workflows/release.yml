@@ -57,10 +57,10 @@ jobs:
           # We only need to read the tree; no push from this job.
           persist-credentials: false
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.12
         uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Install build tooling
         run: |
@@ -188,10 +188,10 @@ jobs:
           # gh release uses GH_TOKEN env, not the checkout-persisted credential.
           persist-credentials: false
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.12
         uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
       - name: Download build artifacts
         uses: actions/download-artifact@v8
