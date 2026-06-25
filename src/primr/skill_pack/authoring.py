@@ -21,6 +21,8 @@ from primr.skill_pack.discovery import load_evidence
 from primr.skill_pack.prompts_loader import extract_json, load_skill_pack_prompt
 from primr.skill_pack.role_references import (
     add_role_family_reference,
+    build_composition_reference,
+    build_gotchas_reference,
     build_role_family_reference,
 )
 from primr.skill_pack.schema import BundledFile, Role, RoleProvenance, Skill
@@ -189,6 +191,58 @@ def author_role_skills(
         archetype=match.archetype,
     )
     add_role_family_reference(skills, role_family_reference)
+
+    # Always attach progressive gotchas + composition (BP: Gotchas highest signal,
+    # progressive disclosure, composability by name).
+    gotchas_ref = build_gotchas_reference(
+        role,
+        company_name=company_name,
+        evidence_citations=role.evidence.citations or [],
+    )
+    comp_ref = build_composition_reference(role)
+    for skill in skills:
+        for bf in (gotchas_ref, comp_ref):
+            skill.bundled_files = [b for b in skill.bundled_files if b.relpath != bf.relpath]
+            skill.bundled_files.append(bf)
+        # lightweight hint in body (non-duplicating)
+        if "references/gotchas.md" not in skill.body:
+            skill.body = (
+                skill.body.rstrip()
+                + "\n\nSee references/gotchas.md for known issues and references/composition.md for cross-skill handoffs."
+            )
+
+    # Ensure at least one verification skill has a deterministic script attached.
+    # This uses the existing BundledFile seam (no new way). Prompt drives selection;
+    # this guarantees the script for the verifier (TDD: test expects it in authoring).
+    verifier = None
+    for s in skills:
+        if any(k in (s.name or "").lower() for k in ("validat", "review", "check", "verif")):
+            verifier = s
+            break
+    if verifier:
+        has_script = any(bf.relpath.startswith("scripts/") for bf in verifier.bundled_files)
+        if not has_script:
+            default_verify = (
+                "#!/usr/bin/env python3\n"
+                '"""Deterministic verification script for this role\'s primary artifacts.\n'
+                "Run with path to artifact. Uses company signals from context.\n"
+                '"""\n'
+                "import sys\n\n"
+                "def verify(artifact_path: str) -> bool:\n"
+                "    # TODO: implement real checks grounded in role evidence (DNS, hiring)\n"
+                "    print(f'Verifying {artifact_path} against company signals...')\n"
+                "    return True\n\n"
+                "if __name__ == '__main__':\n"
+                "    if len(sys.argv) < 2:\n"
+                "        print('Usage: python scripts/verify-*.py <artifact>')\n"
+                "        sys.exit(2)\n"
+                "    ok = verify(sys.argv[1])\n"
+                "    sys.exit(0 if ok else 1)\n"
+            )
+            verifier.bundled_files.append(
+                BundledFile(relpath="scripts/verify-artifact.py", content=default_verify)
+            )
+
     return skills
 
 

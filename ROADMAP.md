@@ -252,9 +252,9 @@ The step-change that earns the major bump is three pillars landing together:
   classification), not acquiring one later. Design doc:
   [`docs/design/2.0-research-memory.md`](docs/design/2.0-research-memory.md).
 - **Interoperability** — primr presented as a *role* other agents assign work
-  to: per-tool capability-scoped authorization (T8), server-issued approval
-  tokens, a structured invocation audit log, job-scoped artifact resources,
-  A2A output negotiation (#21). Design doc:
+  to: per-tool capability-scoped authorization (T8, Stage 1 shipped),
+  server-issued approval tokens, a structured invocation audit log,
+  job-scoped artifact resources, A2A output negotiation (#21). Design doc:
   [`docs/design/2.0-agent-control-plane.md`](docs/design/2.0-agent-control-plane.md).
 
 **Exit criteria:** a downstream agent can delegate to primr unattended — on a
@@ -318,9 +318,11 @@ Each step unblocks the ones after it; items within a step are independent.
    collection tuning are parked as low-expected-value per the eval.)
 4. **Cost levers** (#9 batch API, #19 pipeline overlap) (1.x): mechanical
    after step 2; each validated with one cheap live run.
-5. **Control plane** (T8 + #21) (2.0): per-tool authz → approval tokens →
-   audit log, in that order (each builds on the previous). Independent of
-   steps 1–4; can proceed in parallel.
+5. **Control plane** (T8 + #21) (2.0): per-tool authz is now shipped for MCP
+   dispatch (`read`, `research`, `delegate`, `admin`; OAuth `scope` / Entra
+   `scp` honored; legacy `write` remains a compatibility alias), then approval
+   tokens, then audit log, in that order (each builds on the previous).
+   Independent of steps 1-4; can proceed in parallel.
 6. **Backend freedom** (#18 + provider expansion) (2.0):
    capability-requirement routing first (pure refactor of existing routing),
    then first-class OpenAI/Anthropic API recipes, official account-capacity
@@ -857,7 +859,7 @@ Already shipped: SSRF guard on every outbound URL (`primr.utils.security`), cont
 - **Output / egress guardrails** — SHIPPED. `is_safe_url` + post-redirect validation enforced on every egress helper (`HTTPClient.get`, `fallback_sources._http_get`, `hiring_signals._http_get`); the "no fetch bypasses the SSRF guard" invariant is locked by `tests/security/test_egress_guardrails.py`.
 - **Secret / log redaction** — SHIPPED. `SecretMaskingFilter` on all log handlers (sink-level, not opt-in) + `mask_sensitive_data` (incl. xAI) applied in `chat_logger` before persist, with atomic writes. Provider patterns: xAI/Google/OpenAI/Anthropic/GitHub/AWS/Slack/JWT. Note: `usage_history.json` and `_run_state.json` are metadata-only (no secrets) — verified, no change needed.
 - **Scoped threat model** — SHIPPED. `docs/SECURITY.md` documents the client/scraper/agent threat model (ATLAS-style table T1-T8), shipped controls, residual-risk acceptance, and coordinated disclosure.
-- **Agentic trust boundaries (MCP/A2A)** — PLANNED (T8). Capability-scoped tokens + per-tool authorization so every tool invocation is authenticated, capability-bounded, and cost-bounded (the JWT `role` claim is extracted today but not enforced per-tool). Folds into Active Queue #11 (constrained agent permissions) and #21 (agent control-plane hardening).
+- **Agentic trust boundaries (MCP/A2A)** - MCP Stage 1 SHIPPED (T8). MCP now enforces per-tool scopes at dispatch (`read`, `research`, `delegate`, `admin`) and honors OAuth `scope` plus Entra `scp` JWT claims while keeping legacy `write` tokens compatible. Remaining control-plane work: approval tokens, structured invocation audit, and A2A parity. Folds into Active Queue #11 (constrained agent permissions) and #21 (agent control-plane hardening).
 
 Decision principle: secure the surface primr actually has — untrusted input, agent tool use, secrets, supply chain — and explicitly decline model-training/serving security primr will never own.
 

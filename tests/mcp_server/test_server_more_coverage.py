@@ -298,6 +298,78 @@ class TestRunHttp:
             await healthz.endpoint(object())
 
     @pytest.mark.asyncio
+    async def test_run_http_bridges_authenticated_user_to_request_context(self):
+        """Authenticated HTTP scope state is visible during tool dispatch."""
+        from types import SimpleNamespace
+
+        from mcp.server.auth.provider import AccessToken
+
+        s = _http_server(host="127.0.0.1", require_auth=True)
+
+        fake_uvicorn = MagicMock()
+        fake_uvicorn.Config.return_value = MagicMock()
+        served = MagicMock()
+        served.serve = AsyncMock()
+        fake_uvicorn.Server.return_value = served
+
+        captured = {}
+
+        async def capture_request(_scope, _receive, _send):
+            ctx = s._auth_context
+            captured["client_id"] = ctx.client_id if ctx else None
+            captured["scopes"] = ctx.scopes if ctx else []
+
+        transport = MagicMock()
+        transport.handle_request = AsyncMock(side_effect=capture_request)
+        fake_streamable = MagicMock()
+        fake_streamable.StreamableHTTPServerTransport.return_value = transport
+
+        def fake_starlette(routes, on_startup, on_shutdown):
+            captured["routes"] = routes
+            return MagicMock()
+
+        access_token = AccessToken(
+            token="scoped-token",
+            client_id="scoped-client",
+            scopes=["read", "research"],
+        )
+
+        def fake_auth_middleware(_verifier):
+            def wrap(app):
+                async def wrapped(scope, receive, send):
+                    scoped = dict(scope)
+                    scoped["user"] = SimpleNamespace(access_token=access_token)
+                    await app(scoped, receive, send)
+
+                return wrapped
+
+            return wrap
+
+        with (
+            patch("primr.mcp_server.server.configure_http_logging"),
+            patch.object(s, "_setup_signal_handlers"),
+            patch("primr.mcp_server.auth.create_auth_middleware", fake_auth_middleware),
+            patch.dict(
+                "sys.modules",
+                {
+                    "uvicorn": fake_uvicorn,
+                    "mcp.server.streamable_http": fake_streamable,
+                    "starlette.applications": MagicMock(Starlette=fake_starlette),
+                    "starlette.routing": _make_routing_module(),
+                    "starlette.responses": MagicMock(JSONResponse=MagicMock()),
+                },
+            ),
+        ):
+            await s.run_http()
+
+        mcp_mount = next(r for r in captured["routes"] if r.path == "/mcp")
+        await mcp_mount.app({"type": "http"}, AsyncMock(), AsyncMock())
+
+        assert captured["client_id"] == "scoped-client"
+        assert captured["scopes"] == ["read", "research"]
+        assert s._auth_context is None
+
+    @pytest.mark.asyncio
     async def test_run_http_a2a_generic_exception_is_tolerated(self):
         """A non-ImportError failure building A2A is logged and tolerated (327-328)."""
         s = _http_server(host="127.0.0.1", require_auth=False)

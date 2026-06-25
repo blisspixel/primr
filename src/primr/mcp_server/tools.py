@@ -34,6 +34,7 @@ from primr.mcp_server.skill_pack_tools import (
     handle_skill_pack_tool,
     register_skill_pack_tools,
 )
+from primr.mcp_server.tool_authz import authorize_tool_call, scope_denied_response
 from primr.mcp_server.types import (
     MCPErrorCode,
     ResearchStage,
@@ -435,17 +436,16 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
         """Handle tool calls."""
         import json
 
-        # Rate limiting - use "stdio" for stdio mode, auth context for HTTP
-        # HTTP mode client_id is extracted by auth middleware and stored in
-        # mcp_server._auth_context. Only honor it when client_id is a real
-        # string — MagicMock placeholders in unit tests would otherwise look
-        # like an HTTP caller and trip ownership checks.
+        # Rate limiting and authz use stdio locally, or the bridged HTTP context.
         client_id = "stdio"
         ctx = getattr(mcp_server, "_auth_context", None)
         if ctx is not None:
             _cid = getattr(ctx, "client_id", None)
             if isinstance(_cid, str) and _cid:
                 client_id = _cid
+
+        if not (authz := authorize_tool_call(name, ctx)).allowed:
+            return scope_denied_response(name, authz)
 
         rate_result = mcp_server.rate_limiter.check_and_record(client_id, name)
         if not rate_result.allowed:

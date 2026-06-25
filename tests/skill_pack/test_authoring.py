@@ -174,3 +174,11 @@ def test_author_role_skills_attaches_role_family_reference(monkeypatch):
         for skill in skills
     ]
     assert contents[0] == contents[1]
+
+    # Verification skill bias + script guarantee (per BP high-leverage + "use scripts for deterministic")
+    verifiers = [s for s in skills if "validat" in s.name.lower()]
+    assert len(verifiers) >= 1
+    v = verifiers[0]
+    scripts = [bf for bf in v.bundled_files if bf.relpath.startswith("scripts/")]
+    assert len(scripts) >= 1
+    assert "verify" in scripts[0].content.lower()

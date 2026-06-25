@@ -24,9 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Relicensed from MIT to the **Apache License 2.0** (OSI open-source). Free to
-  use, build on, fork, and share; for commercial or enterprise use, contact
-  Nick Seal (nick@pueo.io). `pyproject.toml` and `CITATION.cff` declare the
-  SPDX identifier `Apache-2.0`.
+  use, build on, fork, and share. `pyproject.toml` and `CITATION.cff` declare
+  the SPDX identifier `Apache-2.0`.
 
 - `--budget` now also bounds the cross-validation phase (Phase 5). Section
   enrichment (a web-search batch plus a regeneration call per weak section) and

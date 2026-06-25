@@ -3,6 +3,13 @@
 The validator owns ship/no-ship decisions. This module only owns the small
 set of structural markers that keep generated skills from becoming thin role
 templates with headings but no usable workflow guidance.
+
+Per agentic-balance.md: these checks are limited to prose-invariant
+structural markers and minimum authoring contracts. Higher-order practices
+(Gotchas content, verifier depth, etc.) are driven by the authoring prompt
+and measured structurally (e.g. presence of attached reference files)
+or via behavioral evals. No regexes here judge the quality of generated
+prose.
 """
 
 from __future__ import annotations
@@ -64,7 +71,11 @@ QUALITY_MARKERS: tuple[BodyQualityMarker, ...] = (
 
 
 def missing_quality_markers(body: str) -> list[str]:
-    """Return required quality markers absent from a skill body."""
+    """Return required quality markers absent from a skill body.
+    These are structural authoring markers (intake, inputs, outputs, guardrails, examples).
+    Gotchas and similar higher-order practices are encouraged via the authoring prompt
+    and delivered structurally via bundled reference files (see packager report).
+    """
     return [marker.label for marker in QUALITY_MARKERS if not marker.pattern.search(body)]
 
 

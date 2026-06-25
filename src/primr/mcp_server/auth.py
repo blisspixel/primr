@@ -23,6 +23,8 @@ from typing import Any
 
 from mcp.server.auth.provider import AccessToken
 
+from primr.mcp_server.tool_authz import ADMIN_SCOPE, DELEGATE_SCOPE, READ_SCOPE, RESEARCH_SCOPE
+
 logger = logging.getLogger(__name__)
 
 # Minimum secret key length for security
@@ -236,7 +238,7 @@ class PrimrTokenVerifier:
             access = AccessToken(
                 token=token,
                 client_id=f"admin-{hashlib.sha256(token.encode()).hexdigest()[:12]}",
-                scopes=["admin", "read", "write"],
+                scopes=[ADMIN_SCOPE, READ_SCOPE, "write", RESEARCH_SCOPE, DELEGATE_SCOPE],
                 expires_at=None,  # Static tokens don't expire
             )
             self._cache_token(token, access)
@@ -325,10 +327,14 @@ class PrimrTokenVerifier:
             role = payload.get("role", "user")
             exp = payload.get("exp")
 
-            # Determine scopes based on role
-            scopes = ["read", "write"]
+            # Determine scopes. Explicit OAuth-style scope/scp claims allow
+            # least-privilege callers; no-scope tokens retain the legacy
+            # read/write default for backwards compatibility.
+            scopes = self._extract_scopes(payload)
             if role == "admin":
-                scopes.append("admin")
+                for scope in (ADMIN_SCOPE, READ_SCOPE, "write", RESEARCH_SCOPE, DELEGATE_SCOPE):
+                    if scope not in scopes:
+                        scopes.append(scope)
 
             logger.info(f"JWT authenticated: client_id={client_id}, role={role}")
 
@@ -342,6 +348,33 @@ class PrimrTokenVerifier:
         except Exception as e:
             logger.warning("JWT verification failed: %s", e)
             return None
+
+    def _extract_scopes(self, payload: dict) -> list[str]:
+        """Extract scopes from JWT claims or return legacy defaults."""
+        explicit_scopes = self._coerce_scope_claim(payload.get("scope"))
+        if not explicit_scopes:
+            explicit_scopes = self._coerce_scope_claim(payload.get("scp"))
+        if explicit_scopes:
+            return explicit_scopes
+        return [READ_SCOPE, "write"]
+
+    def _coerce_scope_claim(self, raw_scopes: object) -> list[str]:
+        """Normalize OAuth scope claims from strings or arrays."""
+        if isinstance(raw_scopes, str):
+            candidates = raw_scopes.replace(",", " ").split()
+        elif isinstance(raw_scopes, list):
+            candidates = [item for item in raw_scopes if isinstance(item, str)]
+        else:
+            return []
+
+        seen: set[str] = set()
+        scopes: list[str] = []
+        for scope in candidates:
+            normalized = scope.strip()
+            if normalized and normalized not in seen:
+                seen.add(normalized)
+                scopes.append(normalized)
+        return scopes
 
     def _decode_jwt_part(self, part_b64: str) -> dict | None:
         """Decode a base64url-encoded JWT part."""

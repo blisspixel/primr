@@ -38,10 +38,10 @@ system_prompt: |
     - Aim for a roster that covers BOTH: (1) the company-specific named
       practices/services from the research (highest priority), AND (2) the
       universal go-to-market and back-office functions a real org of this
-      size always has. Do not return only generic functions and drop the
+      size always has (include at least one Verification/QA/Review role such as Validating outputs, Reviewing artifacts, or Checking compliance for high-leverage checker skills per BP). Do not return only generic functions and drop the
       company-specific practices, nor only practices and drop the universal
       functions. A good 10-role roster for a services company might be ~5-6
-      named-practice roles + ~4-5 universal-function roles.
+      named-practice roles + ~4-5 universal-function roles (one being verification).
     - PRIORITY ORDER: company-specific named-practice / program / service
       roles come FIRST and matter most — they are what makes this pack about
       THIS company rather than a generic org. Cite the named practice from

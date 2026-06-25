@@ -161,6 +161,39 @@ class TestPrimrTokenVerifier:
         assert "admin" not in result.scopes
 
     @pytest.mark.asyncio
+    async def test_verify_jwt_scope_claim_limits_scopes(self, verifier):
+        """Explicit OAuth scope claims replace the legacy read/write default."""
+        token = create_signed_jwt(
+            {
+                "sub": "reader",
+                "scope": "read",
+                "exp": int(time.time()) + 3600,
+            }
+        )
+
+        result = await verifier.verify_token(token)
+
+        assert result is not None
+        assert result.client_id == "reader"
+        assert result.scopes == ["read"]
+
+    @pytest.mark.asyncio
+    async def test_verify_jwt_scp_claim_accepts_space_delimited_scopes(self, verifier):
+        """Entra-style scp claims are accepted for scoped MCP callers."""
+        token = create_signed_jwt(
+            {
+                "sub": "researcher",
+                "scp": "read research",
+                "exp": int(time.time()) + 3600,
+            }
+        )
+
+        result = await verifier.verify_token(token)
+
+        assert result is not None
+        assert result.scopes == ["read", "research"]
+
+    @pytest.mark.asyncio
     async def test_verify_jwt_admin_role(self, verifier):
         """JWT with admin role gets admin scope."""
         token = create_signed_jwt(

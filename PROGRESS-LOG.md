@@ -1,5 +1,111 @@
 # Progress Log
 
+## 2026-06-24
+
+### Loop cycle: MCP control-plane Stage 1 per-tool scopes
+
+Refresh: re-read README, ROADMAP, `CLAUDE.md`, `docs/design/agentic-balance.md`,
+`docs/design/2.0-agent-control-plane.md`, `docs/SECURITY.md`,
+`CURRENT-STATE-ANALYSIS.md`, `PROGRESS-LOG.md`, and `SKILLS.md`. Online check
+against current MCP authorization guidance and agentic-tool best practices
+confirmed the same priority: keep agents simple, place guardrails at the tool
+execution boundary, and use least-privilege scopes.
+
+Prioritize: selected ROADMAP / SECURITY T8 Stage 1 because it is deterministic,
+free to validate locally, unblocks approval tokens and audit logging, and
+closes the all-or-nothing authenticated MCP surface without touching brittle
+content-quality gates.
+
+Implemented:
+
+- Added `src/primr/mcp_server/tool_authz.py` as the central policy table for
+  `read`, `research`, `delegate`, and `admin` tool scopes.
+- Enforced the policy in `tools.call_tool` before rate limiting and before any
+  agentic, skill-pack, or built-in tool handler can run.
+- Added structured `insufficient_scope` responses with required, granted, and
+  missing scopes.
+- Updated JWT verification to honor explicit OAuth `scope` and Entra `scp`
+  claims while keeping legacy no-scope `read` / `write` behavior.
+- Bridged authenticated HTTP scope state into MCP dispatch through request-local
+  context storage, avoiding shared mutable request auth state.
+- Marked MCP T8 Stage 1 shipped in SECURITY / ROADMAP while keeping approval
+  tokens, invocation audit, and A2A parity open.
+
+Validation:
+
+- `uv run pytest tests/mcp_server/test_tool_authorization.py tests/mcp_server/test_auth.py tests/mcp_server/test_server_more_coverage.py -q`
+  passed: 97 passed, 1 existing Starlette deprecation warning.
+- `git diff --check` passed after removing pre-existing trailing spaces in the
+  progress docs.
+- `uv run ruff check src/primr/` passed.
+- `uv run ruff format --check src/ tests/` passed after formatting the touched
+  Python files.
+- `uv run mypy src/primr/ --ignore-missing-imports` passed.
+- `uv run bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium`
+  passed.
+- `uv run pip-audit` passed after upgrading the local virtualenv installer from
+  vulnerable `pip 26.1.1` to fixed `pip 26.1.2` (no project dependency change).
+- `uv run pytest tests/ -q` passed: 10119 passed, 42 skipped, 2 existing
+  warnings in 12:01.
+
+Spend: `$0.00`.
+
+Self-review: correctness Strong, security Strong for this stage, performance
+Strong, readability Strong, maintainability Strong. Remaining risks are
+intentionally deferred to the next control-plane stages: server-issued approval
+tokens, structured invocation audit, and A2A parity.
+
+=== MILESTONE REACHED ===
+MCP now has enforced per-tool scopes at dispatch, with explicit read-only JWTs,
+legacy compatibility, request-local HTTP auth context, and targeted tests.
+
+### Loop cycle: Skill generator refinement for Anthropic BP (verification + scripts, exemplar update)
+
+Refresh: re-read ROADMAP §15 (deeper BP, no brittle regex, prefer prompt+eval, structural validators), agentic-balance standing rule (determinism on structure, judgment on content, no new content gates that rephrase-break), CLAUDE.md (one seam, no giant, use existing BundledFile/role_references, verify current, tests ship, full pre-PR gates, no real data, no AI attribution), CURRENT-STATE (updated), SKILL_PACK.md.
+
+Prioritize per answers: a) verification bias + scripts in generator; yes to updating primr own skill as exemplar; no new measure code.
+
+Atomic 1 (TDD): strengthened author_skill.yaml to MUST one verifier skill per role with script. Added post-parse guarantee in authoring.py using existing BundledFile seam to attach default verify-*.py if missing. Updated test_authoring.py to assert it. Test passes.
+
+Atomic 2: created claude-code/skills/primr/references/gotchas.md (living, real failures from docs). Updated SKILL.md to point to it (progressive, exemplar).
+
+Atomic 3: strengthened plan_plausible_roles.yaml to explicitly include verification roles in universal functions (bias at planning stage). TDD validated via planner tests.
+
+No brittle introduced (no body regex; structural + prompt). Simple, idiomatic. $0 spend. Local pytest/ruff/mypy clean (299+ passed).
+
+Self-review: correctness (tests pass, follows seam), security (no new paths), perf/readable (small diffs, comments cite docs), maintain (no duplication). Rubric Strong.
+
+Ship: updated PROGRESS-LOG, CURRENT-STATE. Continue loop.
+
+=== MILESTONE REACHED ===
+Strengthened skill generator planning + authoring for verification skills bias + deterministic scripts (per BP and user priority). Updated primr self-skill exemplar with references/gotchas.md. All changes simple, seam-compliant, no brittle per agentic-balance/ROADMAP/CLAUDE. Tests green.
+
+## 2026-06-24 (prior)
+
+=== MILESTONE REACHED ===
+Refined skill generator and primr exemplar to produce/use verification skills with deterministic scripts, Gotchas via progressive refs (no brittle content regex per agentic-balance), folders structure. All per user answers, ROADMAP, CLAUDE, BP. Tests green, zero slop.
+
+## 2026-06-24 (prior)
+
+### Cycle: Skill Pack Generator - Anthropic Best Practices Refinement (approved plan execution)
+
+Re-read + internalized: README.md, ROADMAP.md (esp §15 Skill Pack + Engineering Standards), CLAUDE.md, CURRENT-STATE-ANALYSIS.md, docs/SKILL_PACK.md, docs/CONTRIBUTING.md, docs/design/agentic-balance.md, and the generated plan.md. Confirmed alignment with one-seam, no-giant-file, deterministic-structure + eval-content, cost-gate, and "measure real usage" principles. Zero external spend.
+
+Implemented (seam-respecting, test-first where structural):
+- Strengthened authoring prompt (author_skill.yaml v2.3): Gotchas as living highest-signal section, deterministic scripts emission (solve don't punt), per-role verifier bias, narrow-scope + one-category rule, trigger wording with real user phrasing, progressive disclosure pointers, composition by name, primr-skill cross-reference note.
+- body_quality.py: added soft gotchas marker + has_gotchas_section; section_shape now tolerates Gotchas.
+- validator.py: GOTCHAS soft advisory issue; updated docs/comments for tolerance.
+- role_references.py + authoring.py: always attach references/gotchas.md + references/composition.md (progressive + composability).
+- packager.py: "Anthropic Best Practices Adherence" report section (counts for Gotchas/scripts/verifiers).
+- claude-code/skills/primr/SKILL.md: added ## Gotchas (models the BP for self-suggestion).
+- docs/SKILL_PACK.md: documented the enforced patterns.
+- tests: extended for has_gotchas; full suite 300/300 green after fix.
+- CURRENT-STATE-ANALYSIS.md + this log updated.
+
+Verification: full skill_pack tests + ruff + mypy slice green. All changes follow approved plan, CLAUDE.md seams, and the user's condensed takeaway (small composable, clear triggers, scripts, verifiers, Gotchas from real, progressive, measure).
+
+Milestone: generator now produces skills aligned to the full Anthropic BP list. Next loop item: any follow-on test expansion or archetype gotcha examples if needed.
+
 ## 2026-06-20
 
 ### Cycle: v1.32.8 Build And Release Prep

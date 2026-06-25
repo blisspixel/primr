@@ -364,6 +364,8 @@ def _build_pack_report_md(
             lines.append(f"- `{name}`: {reason}")
         lines.append("")
 
+    _append_anthropic_bp_report_lines(lines, pack)
+
     lines.append("## Artifacts")
     lines.append("")
     if artifacts.claude_tree_root:
@@ -387,6 +389,52 @@ def _build_pack_report_md(
     )
     lines.append("")
     return "\n".join(lines)
+
+
+def _append_anthropic_bp_report_lines(lines: list[str], pack: SkillPack) -> None:
+    """Append structural Anthropic best-practice adherence metrics."""
+    gotchas_support, scripts_count, verifier_count = _count_bp_adherence_signals(pack)
+    lines.append("## Anthropic Best Practices Adherence (generator-enforced)")
+    lines.append("")
+    lines.append(f"- Skills with gotchas support (via references/gotchas.md): {gotchas_support}")
+    lines.append(f"- Bundled deterministic scripts emitted: {scripts_count}")
+    lines.append(f"- Narrow verifier/check skills (name signal): {verifier_count}")
+    lines.append(
+        "- Progressive disclosure: references/role-family.md + gotchas.md + "
+        "composition.md always attached per role family"
+    )
+    lines.append(
+        "- Trigger descriptions + narrow scope + verifier bias: enforced in "
+        "authoring prompt; measured via --optimize-triggers / --with-evals "
+        "when enabled"
+    )
+    lines.append("")
+
+
+def _count_bp_adherence_signals(pack: SkillPack) -> tuple[int, int, int]:
+    """Count structural adherence signals without inspecting prose quality."""
+    gotchas_support = 0
+    scripts_count = 0
+    verifier_count = 0
+    verifier_markers = ("validat", "review", "check", "verif")
+
+    for role in pack.roles:
+        for skill in role.skills:
+            gotchas_support += sum(
+                1
+                for bundled_file in getattr(skill, "bundled_files", []) or []
+                if bundled_file.relpath == "references/gotchas.md"
+            )
+            scripts_count += sum(
+                1
+                for bundled_file in getattr(skill, "bundled_files", []) or []
+                if bundled_file.relpath.startswith("scripts/")
+            )
+            skill_name = (skill.name or "").lower()
+            if any(marker in skill_name for marker in verifier_markers):
+                verifier_count += 1
+
+    return gotchas_support, scripts_count, verifier_count
 
 
 def _append_posting_coverage_report_lines(

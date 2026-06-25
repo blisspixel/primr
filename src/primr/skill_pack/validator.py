@@ -14,6 +14,7 @@ Spec references:
     - DESC-LEN: description in [1, 1024] chars
     - DESC-TRIG: description contains a trigger phrase
     - BODY-SEC: body has exactly the three required H2 sections, in order
+      (Gotchas is explicitly tolerated as an additive living section)
     - BODY-LEN: body word count in [300, 1500] (HARD-fail below 300 words
       or above ~5000 tokens)
     - BODY-QUALITY: body includes intake, required inputs, produced output,

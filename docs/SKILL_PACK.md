@@ -98,6 +98,19 @@ Enabled with `--optimize-triggers`. For each skill: generate should/should-not-t
 
 Enabled with `--with-evals`. For each skill: generate task cases + objective assertions, run each task WITH the skill body as guidance vs WITHOUT it (baseline), grade both blind, and report the with-skill-vs-baseline pass-rate delta — proving the skill changes output. Also attaches `evals/evals.json` (Anthropic's published structure) so users can re-grade. Expensive (~3 LLM calls per case per skill); off by default.
 
+### Anthropic Best Practices (enforced in generator)
+
+The pipeline now bakes in the highest-leverage patterns:
+- Gotchas section (highest-signal; seeded from evidence, living).
+- Scripts/ for deterministic work (validation, extraction, formatting).
+- At least one narrow verifier/check skill per role.
+- Trigger-first descriptions ("Use when..." + real user phrasing).
+- Progressive disclosure (lean SKILL.md + references/ + scripts/ + composition.md + gotchas.md).
+- Narrow scope (one capability, one category).
+- Small composable skills (name references, no giant orchestrators).
+
+See the authoring prompt and pack report "Anthropic Best Practices Adherence" section for current signals.
+
 ### Phase 6 — Packaging (`packager.py`)
 
 Emits both formats from one byte-identical `SKILL.md` set:

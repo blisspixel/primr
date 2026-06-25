@@ -77,3 +77,80 @@ v1.32.8 so the package build and PyPI distribution carry the same shipped state
 as `main`: clean skill frontmatter, stronger procedural bodies, role-family
 references, JD and career-board evidence inputs, posting-coverage warnings,
 Cowork packaging caps, and business-role archetype grounding.
+
+## 2026-06-24 Refinement: Deeper Anthropic Agent Skills Best Practices
+Approved plan executed for the skill_pack generator (primr skills). Changes embed
+the exact patterns from research (Anthropic engineering post + best-practices
+guide + user query):
+
+- Skills as folders (SKILL.md + references/ + scripts/ + evals/).
+- Narrowly scoped (one capability per skill, one category).
+- Verification skills high leverage (bias for at least one verifier per role; planner updated to include in universal; authoring MUST + default script guarantee via seam).
+- Use scripts for deterministic work ("solve, don't punt" - emit real .py; default verify script for verifiers).
+- Gotchas section as highest-signal, seeded from real evidence/failures, living (update over time) - structural via attached references/gotchas.md (no body regex).
+- Trigger descriptions ("Use when..." with concrete user phrasing, not summaries).
+- Progressive disclosure (lean SKILL.md, point to extra files; we always attach role-family, gotchas, composition refs).
+- Compose small skills (name references, no giant orchestrators).
+- Measure usage (via trigger/behavioral evals, pack report adherence counts; structural for gotchas via attached files; no new mechanism per answer).
+
+All changes strictly follow agentic-balance.md: determinism on structure/referential validity (validators only for kebab, injection, min length, required markers, bundled paths); judgment on content (prompt-driven); quality measured by evals (existing trigger + behavioral), not new brittle regex content gates. Recent pass removed body-scanning regex for Gotchas presence (now structural via deterministically attached references/gotchas.md).
+
+primr self-suggestion (claude-code/skills/primr/SKILL.md + references/gotchas.md) aligned as exemplar: trigger-rich description, references/ dir with living Gotchas, modeling BP (cost gate, async, no brittle, folders, etc.). Root skills/ kept thin as designed.
+
+Generator now produces production-grade, non-slop skills matching the condensed takeaway. No new giant files, use existing seams (BundledFile, role_references, prompt + structural validators + evals), zero external spend in this cycle, full tests + gates pass.
+
+Current focus (loop continuing): complete any remaining PLANNED from ROADMAP §15 (e.g. verifiable intermediate outputs), update additional root skills if fits, full folder + verification by default in generator.
+
+Alignment confirmed with README (skill pack as first-class), ROADMAP (deeper BP, anti-brittle), CLAUDE.md (one seam, no monster, verify APIs, tests with code), agentic-balance (no brittle, prompt + eval).
+
+## 2026-06-24 Control Plane Slice: MCP Per-Tool Authorization
+
+After re-reading README, ROADMAP, `CLAUDE.md`, `docs/design/agentic-balance.md`,
+`docs/design/2.0-agent-control-plane.md`, and `docs/SECURITY.md`, the highest
+leverage next slice is the first 2.0 control-plane stage: enforce capability
+scopes at the actual MCP tool-dispatch boundary.
+
+Shipped in this slice:
+
+- New central MCP tool policy for `read`, `research`, `delegate`, and `admin`.
+- OAuth `scope` and Entra `scp` JWT claims honored for least-privilege tokens.
+- Legacy no-scope `read` / `write` JWTs retained through a compatibility alias,
+  so existing authenticated clients do not break while new clients can be
+  explicitly read-only.
+- HTTP auth context now bridges the SDK-authenticated user into tool dispatch
+  through request-local context storage instead of a shared mutable server
+  field.
+- Structured `insufficient_scope` tool responses include required, granted, and
+  missing scopes.
+- Security docs and ROADMAP now mark T8 MCP Stage 1 shipped while leaving
+  approval tokens, structured invocation audit, and A2A parity as next work.
+
+Current estimate:
+
+- Next patch release readiness: this is a coherent `1.33.x` patch slice once
+  full CI gates are green.
+- 2.0 control-plane pillar: about 35% complete. Per-tool authz is the required
+  base. Approval provenance and invocation audit remain.
+- Full 2.0 release: about 20-25% complete. Control-plane Stage 1 helps, but
+  backend freedom and the research-memory layers still carry most of the
+  remaining release mass.
+
+Spend: `$0.00`. Full local validation now passes: `git diff --check`,
+`ruff check src/primr/`, `ruff format --check src/ tests/`, full `mypy`,
+Bandit, `pip-audit`, and `uv run pytest tests/ -q` (10119 passed, 42 skipped).
+
+## Quality Rubric for this work
+- Correctness: structural + prompt + tests.
+- No brittle: only prose-invariant checks.
+- Simplicity: incremental on existing.
+- Maintainability: comments reference agentic-balance.
+- All changes TDD-ish, self-reviewed as senior principal (HATE slop).
+
+All via existing seams (BundledFile, role_references, authoring prompt +
+body_quality markers, validator signals, packager report). No new giants, no
+second seams, deterministic structure preserved, zero external spend. Tests +
+full gates (ruff/mypy/pytest) updated. This advances ROADMAP §15 and directly
+implements the user's condensed takeaway for higher-leverage, higher-quality
+emitted skills. CURRENT-STATE now reflects the generator produces skills that
+are small, composable, trigger-clear, script-equipped, verifier-rich, Gotchas-
+living, and progressively disclosed.

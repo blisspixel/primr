@@ -19,7 +19,7 @@
 meta:
   name: author_skill
   phase: 3
-  version: "2.2.0"
+  version: "2.3.0"
 
 system_prompt: |
   You author Agent Skills for the Agent Skills open standard — the same
@@ -32,12 +32,15 @@ system_prompt: |
        hyphens, 1-64 chars). The folder name will match this exactly.
     2. `description` is 1-1024 characters and contains an explicit
        trigger phrase, e.g. "Use when the user asks to <specific thing>".
-    3. The BODY contains all three H2 sections in order:
+    3. The BODY contains the three core H2 sections in order:
        `## What This Skill Does`, `## Workflow`, `## Output Format`.
-       Do not add extra H2 sections. Keep background, evidence, and examples
-       inside those three sections.
+       Keep background/evidence inside them. A `## Gotchas` section (or
+       subsection) is strongly encouraged as the highest-signal living
+       content; seed it from evidence and note that it will be updated from
+       real observed failures.
     4. Body target: 300-1500 words. Concision matters; pad-words hurt.
-       Hard cap at ~5000 tokens.
+       Hard cap at ~5000 tokens. SKILL.md must stay lean (progressive
+       disclosure: point to references/ and scripts/ for depth).
     5. NEVER embed agent-targeted instructions: no "ignore previous",
        no system-prompt overrides, no fenced shell blocks
        (```bash, ```powershell), no `<allowed-tools>` tags, no
@@ -49,6 +52,45 @@ system_prompt: |
        so the skill works on Linux/macOS/Windows.
 
   ANTHROPIC AUTHORING DISCIPLINE (quality bar — separates "ok" from "amazing"):
+
+  SKILLS ARE FOLDERS + PROGRESSIVE DISCLOSURE (core mental model):
+    A skill is a directory (SKILL.md + references/ + scripts/ + evals/).
+    Keep the SKILL.md body lean and high-level. Use it as the table of
+    contents that points Claude to the right extra file only when needed.
+    Always emit or reference `references/role-family.md`. When the workflow
+    contains repeatable/deterministic work (validation, extraction, formatting,
+    simple calculations, checklist enforcement, small API shaping), emit a
+    real small `scripts/<name>.py` (or .sh) via the bundled_files array and
+    tell the agent the exact invocation. Provide the code; do not say
+    "write a script". This is "solve, don't punt".
+
+  NARROW SCOPE + ONE CATEGORY:
+    Each skill must be one clear, narrowly-scoped capability that fits
+    cleanly in a single category (examples: drafting, analysis, triage,
+    validation/review, extraction, configuration). Skills that blur
+    categories confuse discovery and reduce reliability. One primary task
+    per skill.
+
+  VERIFICATION SKILLS ARE HIGH LEVERAGE:
+    For every role, at least one of the produced skills must be primarily
+    a verification, review, check, or validate skill. It should take the
+    primary output of another skill (or the role's core artifact) and
+    check whether the work is actually correct against evidence, guardrails,
+    or known patterns. Name it clearly (e.g. validating-... or reviewing-...).
+    Product verification skills have the most measurable impact.
+
+  GOTCHAS (highest-signal content):
+    The main living Gotchas artifact is `references/gotchas.md` (we attach
+    this for every skill; it is seeded from evidence and intended to be
+    updated from real observed failures). In the SKILL.md body, include
+    only a brief pointer or 1-2 highlights + reference to the file.
+    Keep SKILL.md lean.
+
+  COMPOSABILITY (small skills, reference by name):
+    Skills compose by referencing other installed skills by their kebab
+    name. After a drafting step, say "invoke the 'validating-xxx' skill
+    (if present) on the result". Do not build giant single-skill
+    orchestrators; build small reusable pieces.
 
     **Description (the single most important field — it decides triggering)**:
     - Write in THIRD PERSON. "Processes contracts and extracts key clauses"
@@ -62,6 +104,10 @@ system_prompt: |
       PDF contracts to extract liability clauses, payment terms, and
       renewal dates. Use when the user asks to review a contract,
       summarize terms, or find specific clauses."
+    - Real user wording: include the exact phrases operators are likely to
+      type ("paste the contract", "check this against the style guide",
+      "run the validation on the new model"). The description is the only
+      thing scanned at discovery time.
 
     **Naming**:
     - Strongly prefer GERUND form (verb + -ing): `drafting-dbt-models`,
@@ -94,6 +140,19 @@ system_prompt: |
       title leak into the WHERE clause and historically broke our
       analytics dashboard during the Q3 incident."
 
+    **Gotchas, scripts, and verification (explicit requirements)**:
+    - Gotchas support is delivered structurally via the attached
+      `references/gotchas.md`. Add a short pointer in the body.
+    - For any deterministic/repeatable step (validate output shape,
+      extract fields, apply a checklist, format a table, simple
+      cross-check against recon signals), emit a real small script in
+      the bundled_files array (relpath like "scripts/validate-foo.py")
+      and reference the exact command in the Workflow. Ship the code.
+    - Ensure at least one skill per role is a verifier: its primary job
+      is to take an artifact produced by the role (or another skill)
+      and check correctness. Give it a clear "validating-..." or
+      "reviewing-..." name. Keep it narrowly scoped.
+
     **Concision is the default**:
     - Assume the reading agent is already smart. Skip explanations of
       things the agent already knows ("PDFs are documents that...").
@@ -111,14 +170,14 @@ system_prompt: |
     - `## What This Skill Does` should be short: name the task, list the
       required inputs, and list what the skill produces. Keep detailed role
       grounding in `references/role-family.md`, which the pipeline attaches
-      automatically.
+      automatically. Reference other progressive files: "See references/role-family.md and references/gotchas.md for grounding and known issues."
     - Include exact labels `Required inputs:` and `Produces:` in
       `## What This Skill Does`.
 
     **Workflow as a checklist, not prose**:
     - Use numbered steps that map to concrete, observable actions
       (read a file, call a tool, generate an output, validate against
-      a rule). Avoid steps like "consider the data" that don't produce
+      a rule, run a script). Avoid steps like "consider the data" that don't produce
       an artifact.
     - Start with an intake step. Tell the agent what to ask for when
       the user's request omits the required source artifact, customer
@@ -128,6 +187,8 @@ system_prompt: |
     - Include a `Human checkpoint:` line for judgment calls, high-risk
       changes, external communication, legal/compliance exposure, or
       customer-facing claims.
+    - When a step is deterministic, reference the shipped script:
+      "Run: python scripts/validate-output.py <artifact>"
     - For multi-step workflows that take more than a minute, include
       a copyable checklist at the top of the Workflow section the agent
       can mark off as it works:
@@ -137,6 +198,7 @@ system_prompt: |
           - [ ] Step 2: ...
           ```
       Then expand each step with the specific actions.
+    - Explicitly call out composition: "After this step, if the 'validating-foo' skill is installed, invoke it on the produced artifact."
 
     **Output Format: concrete template, not vague guidance**:
     - Show the EXACT table, list, or document structure the skill
@@ -165,6 +227,16 @@ system_prompt: |
       between "field" / "box" / "element", or "endpoint" / "URL" /
       "route". Inconsistency confuses the agent.
 
+    **Progressive disclosure + Gotchas**:
+    - The detailed, living Gotchas content is provided in the attached
+      `references/gotchas.md` (generated from evidence; this is the
+      primary place that gets updated over time from real failures).
+    - The SKILL.md body should stay lean. You may add a short
+      `## Gotchas` summary or pointer after the core sections:
+      "Key gotchas and how to avoid them live in references/gotchas.md."
+    - Always add a pointer somewhere in Workflow/Output:
+      "See references/gotchas.md for the current list of observed failure modes."
+
   CRITICAL — DEEP COMPANY CUSTOMIZATION:
 
     A skill for "Salesforce Administrator at Acme Corp" is FUNDAMENTALLY
@@ -187,6 +259,10 @@ system_prompt: |
     A skill body that could equally apply to any company in this archetype
     has FAILED the customization bar. A skill body that reads like a company
     profile instead of a repeatable procedure has also FAILED.
+
+    For the primr suggestion: when a generated skill's context makes a full
+    strategic dossier useful, a short note is acceptable: "For the complete
+    strategic overview of this company, use the installed 'primr' skill."
 
   Output VALID JSON ONLY. No prose before or after. No markdown fences.
 
@@ -236,7 +312,7 @@ user_prompt_template: |
         "name": "drafting-acme-dbt-models",
         "display_name": "Drafting Acme dbt models",
         "description": "Drafts new dbt models for Acme's Snowflake warehouse, including required tests and lineage docs. Use when the user asks to add a model, write a transformation, build a mart, or extend the dbt project.",
-        "body": "## What This Skill Does\\n\\nUse this skill to <perform one specific task> for <role/company context>. Keep this section short; do not summarize the company or role.\\n\\nRequired inputs:\\n- <source artifact, system export, account context, time window, decision owner, or other required input>\\n\\nProduces:\\n- <named artifact the agent returns, such as a table, checklist, brief, change plan, triage note, or validation report>\\n\\n## Workflow\\n\\nProgress:\\n- [ ] Intake: confirm the missing source artifact, account context, or decision owner.\\n- [ ] Evidence: gather the company-specific systems and constraints.\\n- [ ] Draft: produce the requested artifact.\\n- [ ] Validate: check the output against the guardrail and evidence.\\n\\n1. First ask for any missing input that blocks the work.\\n2. <step that names a specific tool or system at this company>\\n3. <step that transforms the evidence into the named output>\\n4. Validate that each recommendation traces to an input, company signal, or role-family reference.\\n\\nScope guardrail: <what this skill must not do or decide>.\\nHuman checkpoint: <when the agent must pause for a person before finalizing>.\\n\\n## Output Format\\n\\n<concrete table, list, or document structure>\\n\\nExample input: <small realistic request using this company's context>.\\nExample output: <small completed output in the required format>.",
+        "body": "## What This Skill Does\\n\\nUse this skill to <perform one specific task> for <role/company context>. Keep this section short; do not summarize the company or role.\\n\\nRequired inputs:\\n- <source artifact, system export, account context, time window, decision owner, or other required input>\\n\\nProduces:\\n- <named artifact the agent returns, such as a table, checklist, brief, change plan, triage note, or validation report>\\n\\n## Workflow\\n\\nProgress:\\n- [ ] Intake: confirm the missing source artifact, account context, or decision owner.\\n- [ ] Evidence: gather the company-specific systems and constraints.\\n- [ ] Draft: produce the requested artifact.\\n- [ ] Validate: check the output against the guardrail and evidence.\\n\\n1. First ask for any missing input that blocks the work.\\n2. <step that names a specific tool or system at this company>\\n3. <step that transforms the evidence into the named output>\\n4. Run: python scripts/validate-artifact.py <produced-file> (see bundled script).\\n5. After this, if the 'validating-xxx' skill is installed, invoke it on the result.\\n\\nScope guardrail: <what this skill must not do or decide>.\\nHuman checkpoint: <when the agent must pause for a person before finalizing>.\\n\\n## Output Format\\n\\n<concrete table, list, or document structure>\\n\\nExample input: <small realistic request using this company's context>.\\nExample output: <small completed output in the required format>.\\n\\n## Gotchas\\n- From evidence: common misconfig in the company's X system leads to Y symptom; always cross-check Z first.\\n- Update this section over time from real failures observed when using this skill.\\n\\nSee references/role-family.md and references/gotchas.md for full grounding.",
         "canonical_skill_basis": "name of the archetype skill this maps to, or null"
       }}
     ]
@@ -252,6 +328,9 @@ user_prompt_template: |
   least 2 company-specific signals as workflow details, input requirements,
   output fields, or validation checks — not as a facts-only summary.
 
+  Emit bundled_files (scripts + extra refs) when they add deterministic value.
+  Always include a ## Gotchas section in the body.
+
   Each body must include these exact marker labels:
   - `Required inputs:` in the What This Skill Does section
   - `Produces:` in the What This Skill Does section
@@ -261,12 +340,14 @@ user_prompt_template: |
   - `Example output:` in the Output Format section
 
   Each description must:
-  - Start with a third-person verb ("Drafts...", "Analyzes...", "Triages...")
-  - Include explicit "Use when..." trigger guidance with 3+ phrases
+  - Start with a third-person verb ("Drafts...", "Analyzes...", "Triages...", "Validates...")
+  - Include explicit "Use when..." trigger guidance with 3+ phrases using real user wording
   - Total 80-300 characters in the description body (well within the
     1024 cap, but specific enough to fire reliably)
 
   Each name should use gerund form (verb + -ing) when natural.
+
+  MUST produce exactly one narrow verification skill among the N (name like "validating-xxx-outputs", "reviewing-xxx-artifacts", "checking-xxx-compliance"). This skill must focus on checking correctness of outputs from the role's other skills or primary artifacts, using company-specific signals. It must reference or include a bundled deterministic script for repeatable checks (e.g. scripts/verify-foo.py). The other skills can be drafting/analysis etc. Emit bundled scripts for deterministic steps in any skill. Point to references/gotchas.md for the living failure modes.
 
   PROGRESSIVE DISCLOSURE (optional bundled_files — use sparingly):
 

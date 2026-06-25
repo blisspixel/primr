@@ -9,6 +9,7 @@ Requirements: 1.1-1.10, 15.1-15.5, 16.1-16.10, 20.1-20.5
 
 import asyncio
 import contextlib
+import contextvars
 import logging
 import signal
 import sys
@@ -76,8 +77,12 @@ class PrimrMCPServer:
         self.url_validator = URLValidator()
         self.rate_limiter = RateLimiter()
 
-        # Auth context for current request (set during HTTP handling)
-        self._auth_context = None
+        # Auth context for current request. HTTP transport can handle
+        # concurrent requests, so request auth lives in a context variable.
+        # Tests may still set _auth_context directly through the property
+        # below to exercise ownership and scope checks.
+        self._auth_context_var = contextvars.ContextVar("primr_mcp_auth_context", default=None)
+        self._auth_context_override = None
 
         # Create MCP server
         self.server = Server("primr")
@@ -90,6 +95,18 @@ class PrimrMCPServer:
 
         # Track running background tasks for graceful shutdown
         self._background_tasks: set[asyncio.Task] = set()
+
+    @property
+    def _auth_context(self):
+        """Return the current request auth context, if any."""
+        if self._auth_context_override is not None:
+            return self._auth_context_override
+        return self._auth_context_var.get()
+
+    @_auth_context.setter
+    def _auth_context(self, value) -> None:
+        """Set a test override for the auth context."""
+        self._auth_context_override = value
 
     def _track_task(self, task: asyncio.Task) -> None:
         """Track a background task for shutdown coordination."""
@@ -277,6 +294,15 @@ class PrimrMCPServer:
                 # Handle HTTP requests
                 await transport.handle_request(scope, receive, send)
 
+        async def handle_mcp_with_auth_context(scope, receive, send):
+            """Bridge SDK-authenticated HTTP users into tool dispatch."""
+            auth_context = self._auth_context_from_scope(scope)
+            token = self._auth_context_var.set(auth_context)
+            try:
+                await handle_mcp(scope, receive, send)
+            finally:
+                self._auth_context_var.reset(token)
+
         from starlette.responses import JSONResponse
         from starlette.routing import Route
 
@@ -285,7 +311,7 @@ class PrimrMCPServer:
         # public for liveness probes and (b) lifespan events never reach the
         # auth middleware — RequireAuthMiddleware does not guard the scope type
         # and would try to 401 a lifespan scope, breaking startup/shutdown.
-        mcp_app = handle_mcp
+        mcp_app = handle_mcp_with_auth_context
         if self.require_auth:
             from primr.mcp_server.auth import (
                 AuthConfig,
@@ -350,6 +376,16 @@ class PrimrMCPServer:
 
         # Run server with shutdown handling
         await server.serve()
+
+    def _auth_context_from_scope(self, scope):
+        """Build an AuthContext from Starlette/MCP auth scope state."""
+        access_token = getattr(scope.get("user"), "access_token", None)
+        if access_token is None:
+            return None
+
+        from primr.mcp_server.auth import AuthContext
+
+        return AuthContext(access_token)
 
     async def run(self) -> None:
         """Run the server with configured transport."""

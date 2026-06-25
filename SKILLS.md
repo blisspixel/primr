@@ -1,5 +1,19 @@
 # Engineering Learnings
 
+## MCP Control Plane
+
+- Enforce MCP authorization at the central `call_tool` dispatch boundary, before
+  rate limiting and before agentic, skill-pack, or built-in handlers can run.
+  Keep the policy table explicit by tool name and scope so roadmap changes are
+  reviewable.
+- Treat OAuth `scope` and Entra `scp` JWT claims as the path for new
+  least-privilege clients. Preserve legacy `write` as a compatibility alias for
+  old no-scope tokens, but prefer explicit `read`, `research`, `delegate`, and
+  `admin` scopes for new integrations.
+- Do not store HTTP request auth in a shared mutable server attribute. Bridge
+  authenticated SDK scope state into request-local context, then let existing
+  handlers read the current context through the established seam.
+
 ## Skill Pack Generation
 
 - Do not ask the authoring model to produce the same role-level reference notes
@@ -42,6 +56,17 @@
   postings, and keep role planning grounded in the postings rather than the URL
   list itself.
 - A wrong archetype is worse than no archetype. For skill generation, common
+
+## Agent Skills Best Practices (Anthropic-aligned refinement)
+- Skills are folders (SKILL.md + references/ + scripts/ + evals/). Progressive disclosure; SKILL.md lean.
+- Narrowly scoped to one capability/category.
+- Verification skills high leverage; generator must bias for >=1 per role.
+- Scripts for deterministic (validate/extract/format); ship code ("solve, don't punt").
+- Gotchas highest-signal: seed real failures in references/gotchas.md; living.
+- Descriptions as triggers ("Use when..."), third-person, pushy, concrete phrasing.
+- Compose by name reference; small skills, not giant.
+- Measure via evals + structural counts in report. No brittle content regex (agentic-balance).
+- Update own exemplars (primr skill) when refining generator. Use existing seams only.
   business-role scaffolds should be explicit bundled archetypes, while weak
   fuzzy matches should return no grounding so authoring relies on the actual
   company evidence instead of a misleading template family.

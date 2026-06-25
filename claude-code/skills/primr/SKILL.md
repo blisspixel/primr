@@ -141,6 +141,17 @@ primr's voice is **hedged strategic analysis with cited sources**. Mirror that:
 - Say "primr's analysis suggests…" rather than asserting findings as facts; the report is one input, not ground truth.
 - If the user asks a question the report doesn't cover, say so — do not extrapolate beyond what's written.
 
+## Gotchas
+
+See `references/gotchas.md` for the living list of real observed failure modes (cost gate, async, thin evidence, etc.) and how to avoid them. This file is the primary place for updates.
+
+Key highlights:
+- Always estimate first and get explicit approval.
+- Long runs are async; check state on next turn.
+- primr is for full pipeline, not quick briefs or DNS-only.
+
+Update references/gotchas.md from real failures when using the skill. Load it only when needed (progressive disclosure).
+
 ## Hard rules
 
 - **Cost gate.** Never launch a billable run without a fresh estimate and explicit approval in the same conversation turn.

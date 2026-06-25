@@ -458,4 +458,3 @@ This software is provided as-is by a solo developer. The author is not liable fo
 ## License
 
 Apache 2.0 (see [LICENSE](LICENSE)). Free to use, build on, fork, and share.
-For commercial or enterprise use, contact Nick Seal (nick@pueo.io).
