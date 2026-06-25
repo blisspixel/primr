@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.33.1
+Current State: v1.33.2
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -1255,6 +1255,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.33.2 | Jun 2026 | **MCP approval tokens and release hardening.** MCP estimate tools now return short-lived, signed, single-use approval tokens bound to the cost-affecting argument shape; `research_company`, `generate_strategy`, and `generate_skill_pack` require matching tokens when server-side MCP cost-cap enforcement is active. The PyPI release workflow now builds on Python 3.12, matching the package floor, and PyPI metadata uses the modern `Apache-2.0` SPDX expression without deprecated license classifiers. |
 | 1.33.1 | Jun 2026 | **Circuit breaker thread-safety.** Made the shared process-global circuit breaker thread-safe: an RLock guards per-key state and all read-modify-writes, and state-change listeners are notified outside the lock (no self-deadlock). The parallel section-writing and strategy pools no longer lose failure-count updates or skew failover/quota bookkeeping. |
 | 1.33.0 | Jun 2026 | **Cost-guard, bug-hunt hardening, and Apache 2.0 relicense.** Extended `--budget` to recheck actual spend across all optional stages (research deepening, cross-validation enrichment and contradiction resolution, and multi-strategy generation). Three bug-hunt rounds fixed verified silent-data-loss and rendering defects: internal-source over-deletion, citation/heading false-block on code fences, EDGAR mis-resolution, `--from-plan` crash, leading-indentation collapse, `ref`/`source` citation merge, parenthesized-URL truncation, `References`-heading total truncation, 50K strategy-repair truncation, pipe-line table mis-detection, and math-asterisk italic. Documented the Open Knowledge Format as the findings-interchange shape. Relicensed from MIT to Apache 2.0. |
 | 1.32.8 | Jun 2026 | **Skill pack draft quality release.** Released the accumulated `primr skills` quality work: clean Agent Skills frontmatter by default, stronger procedural skill bodies, role-family references, JD and segmented career-board evidence inputs, posting-coverage honesty, Cowork packaging caps, business-role archetypes, and safer archetype matching so weak fuzzy guesses do not steer draft skills into unrelated templates. |

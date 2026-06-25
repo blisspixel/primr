@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -25,6 +26,11 @@ def _read_pyproject_version() -> str:
     )
     assert match is not None, "pyproject.toml must declare project.version"
     return match.group("version")
+
+
+def _read_pyproject() -> dict:
+    pyproject_path = REPO_ROOT / "pyproject.toml"
+    return tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
 
 
 def _read_pyproject_python_floor() -> str:
@@ -78,6 +84,18 @@ def test_roadmap_changelog_contains_current_state_version() -> None:
 
 def test_citation_version_matches_package_version() -> None:
     assert _read_citation_version() == primr.__version__
+
+
+def test_package_metadata_declares_pep639_apache_license() -> None:
+    pyproject = _read_pyproject()
+    classifiers = pyproject["project"]["classifiers"]
+    license_classifiers = [
+        classifier for classifier in classifiers if classifier.startswith("License ::")
+    ]
+
+    assert pyproject["project"]["license"] == "Apache-2.0"
+    assert license_classifiers == []
+    assert "License :: OSI Approved :: MIT License" not in classifiers
 
 
 def test_release_workflow_builds_on_supported_python_floor() -> None:

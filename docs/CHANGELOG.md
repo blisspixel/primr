@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.33.2] - 2026-06-25
+
 ### Added
 
 - MCP estimate tools now return signed, short-lived, single-use approval tokens
@@ -21,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release publishing now builds and extracts GitHub release notes under Python
   3.12, matching the package's declared supported floor. A release-integrity
   test pins that the PyPI workflow cannot drift back to Python 3.11.
+- PyPI metadata now relies on the modern `Apache-2.0` SPDX license expression
+  and avoids deprecated license classifiers, so the old MIT classifier cannot
+  reappear.
 
 ## [1.33.1] - 2026-06-22
 

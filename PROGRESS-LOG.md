@@ -43,6 +43,11 @@ Validation so far:
   `pyproject.toml`, so no publish is appropriate. The release workflow now
   builds and extracts release notes under Python 3.12, matching the package
   floor, with a release-integrity test pinning the invariant.
+- Release follow-up: bumped the package to `1.33.2` for publication, moved the
+  shipped approval-token and release-hardening entries from Unreleased into the
+  changelog release section, added the matching ROADMAP changelog row, and
+  pinned the modern Apache 2.0 SPDX license metadata without deprecated license
+  classifiers.
 - `uv run pytest tests/mcp_server/test_tools.py::TestCostCaps tests/mcp_server/test_skill_pack_tools_more_coverage.py::test_cost_cap_passes_when_under_cap -q`
   passed: 13 tests.
 - `uv run pytest tests/test_architecture.py -q` passed: 5 tests.

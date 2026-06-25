@@ -179,6 +179,11 @@ Python 3.12, matching the declared package floor, and
 `tests/test_release_integrity.py` pins that the PyPI workflow cannot drift back
 to Python 3.11.
 
+Release follow-up: current source is now bumped to `1.33.2` for publication.
+The done work is represented in both `docs/CHANGELOG.md` and the ROADMAP
+changelog table, and PyPI metadata uses the modern Apache 2.0 SPDX expression
+without deprecated license classifiers.
+
 The supplied agentic-systems guide reinforces the next control-plane step:
 structured invocation audit logging. Approval tokens already cover bounded
 action for spend-governed MCP tools; the next slice should persist who invoked
