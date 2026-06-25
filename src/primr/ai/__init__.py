@@ -87,6 +87,18 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "primr.ai.provider_availability",
         "provider_with_most_headroom",
     ),
+    "collect_env_provider_availability": (
+        "primr.ai.provider_availability_collectors",
+        "collect_env_provider_availability",
+    ),
+    "collect_local_openai_compatible_availability": (
+        "primr.ai.provider_availability_collectors",
+        "collect_local_openai_compatible_availability",
+    ),
+    "collect_provider_availability_snapshots": (
+        "primr.ai.provider_availability_collectors",
+        "collect_provider_availability_snapshots",
+    ),
     # Insights
     "InsightAnalyzer": ("primr.ai.insights", "InsightAnalyzer"),
     "InsightReport": ("primr.ai.insights", "InsightReport"),

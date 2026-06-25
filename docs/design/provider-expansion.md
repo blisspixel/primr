@@ -13,16 +13,16 @@ will route over.
    not a dependency. Every pipeline role (reasoning, writing, utility)
    should be servable by any provider whose models meet the role's bar.
 2. **Support whatever someone has.** A user arrives with an OpenAI key, or
-   an Anthropic key, or a Codex/Claude Code subscription, or a corporate
-   Bedrock/Foundry gateway, or just a gaming GPU and Ollama. Each of those
-   should produce a report once its recipe is validated. Absence of any of
-   them is silent, never an error.
-3. **Account capacity is a first-class capacity source.** Codex, Claude Code,
-   Kiro CLI, Copilot Cowork, Claude/Cowork-style hosts, and comparable agent
-   products should be evaluated as ways to spend capacity the user already has.
+   an Anthropic key, or a corporate Bedrock/Foundry gateway, or sanctioned
+   agent-host allocation, or just a gaming GPU and Ollama. Each of those should
+   produce a report once its recipe is validated. Absence of any of them is
+   silent, never an error.
+3. **Account capacity is a first-class capacity source.** Sanctioned agent
+   hosts should be evaluated as ways to spend capacity the user already has.
    They become Primr runners only through official automation, connector, CLI,
    hook, or agent-skill surfaces that can accept bounded stage packets and
-   return structured outputs. They are never treated as hidden API keys.
+   return structured outputs. They are never treated as hidden API keys or
+   repo-owned accounts.
 4. **Mac/Linux/Windows equally.** Local inference integrates over HTTP to
    OpenAI-compatible servers only; no platform-specific code. (vLLM has no
    Windows support; that is the server operator's concern, not primr's,
@@ -47,6 +47,12 @@ will route over.
    incremental route is configured, the default should be the best validated
    sub-dollar direct API recipe. Premium recipes are opt-in and must document
    the marginal quality or coverage they buy.
+8. **Caching must prove savings before it runs.** Provider prompt caching is a
+   cost optimization only when a paid write is likely to be reused inside the
+   provider's supported cache window. Do not enable cache writes, pre-warming,
+   background refresh, keepalive requests, or long TTLs until the estimator
+   accounts for write/read pricing and usage records expose cache reads and
+   writes by provider.
 
 ## Current state (what already exists in the codebase)
 
@@ -70,11 +76,11 @@ will route over.
 - The typed host-account runner contract now exists in
   `ai/host_agent_runner.py`: bounded `HostAgentStagePacket`, billing policy,
   normalized result/provenance, and a prompt renderer that fences evidence with
-  the existing content-sanitizer. No concrete Codex/Claude Code process runner
-  is wired yet. Claude Code and Codex integrations today operate primr through
-  MCP/skills, while the full internal report pipeline still uses provider keys.
-  The seam below is a stage runner, not a claim that subscription credentials
-  are interchangeable with API keys.
+  the existing content-sanitizer. No concrete official-host process runner is
+  wired yet. Agent-host integrations today operate primr through MCP/skills,
+  while the full internal report pipeline still uses provider keys. The seam
+  below is a stage runner, not a claim that subscription credentials are
+  interchangeable with API keys.
 
 ## Verified provider facts (June 12, 2026)
 
@@ -112,31 +118,29 @@ Full citations live in the research transcripts; key integration facts:
   minimum cacheable prefix 2,048-4,096 tokens by model.
 - No deep-research API product; the agentic loop equivalent is DIY or the
   Managed Agents beta.
+- Prompt caching requires cost-aware handling. Anthropic's current docs price
+  5-minute cache writes above normal input, 1-hour writes higher again, and
+  cache hits lower than base input. Automatic caching exists on the Claude API,
+  Claude Platform on AWS, and Microsoft Foundry beta; Bedrock and Vertex AI do
+  not support automatic caching. Implementation must therefore model writes,
+  reads, TTL choice, gateway support, and cache-hit expectations before enabling
+  this for any Primr stage.
 
-### Account-capacity agent runners (Codex / Claude Code / Kiro / Cowork)
+### Account-capacity agent runners
 
 These are not provider SDKs. They are host-agent execution surfaces that can
 consume already-paid or already-allocated capacity when official auth and
 automation support it.
 
-- OpenAI Codex supports ChatGPT sign-in for subscription access and API-key
-  sign-in for usage-based access. Codex CLI and IDE support both; Codex cloud
-  requires ChatGPT sign-in. API-key auth uses standard API pricing. Enterprise
-  Codex access tokens are intended for trusted local automation and represent a
-  ChatGPT workspace user.
-- Claude Code authentication prioritizes API-key/helper modes before
-  subscription OAuth; `/login` subscription credentials are the default for Pro,
-  Max, Team, and Enterprise users. `claude setup-token` can create a
-  `CLAUDE_CODE_OAUTH_TOKEN` for CI/scripts where browser login is unavailable.
-  Claude Code's `/usage` view distinguishes API token costs from subscription
-  plan usage, and Pro/Max transitions to API credit usage require explicit user
-  consent.
-- Kiro CLI and Cowork-style products are tracked as candidate host surfaces, not
-  provider APIs. Kiro-style hooks/agent configuration can host Primr control
-  flows if they expose a stable CLI or connector seam. Copilot Cowork,
-  Claude/Cowork-style connector surfaces, and similar workplace agents can be
-  Primr runners only where they provide an official task, connector, action, or
-  skill interface that can be invoked with a bounded packet and audited result.
+- Candidate host surfaces are tracked as sanctioned execution hosts, not
+  provider APIs. A host can become a Primr runner only where it provides an
+  official task, connector, action, CLI, hook, or skill interface that can be
+  invoked with a bounded packet and audited result.
+- Authentication must come from the user's own configured host surface. Primr
+  must not ship repo-owned tokens, account ids, private endpoint knowledge, or
+  hidden credential reuse. If a host can transition from plan allocation to API
+  credit spend, that transition must remain explicit in the host and visible in
+  Primr's estimate.
 - Integration shape for primr: emit a bounded stage packet, call the host runner
   through its official CLI/SDK/automation surface, parse structured output, and
   validate with the same structural checks and semantic evals as direct API
@@ -233,34 +237,46 @@ automation support it.
    exits validation with a default class: sub-dollar default candidate,
    specialty fallback, or premium-only.
 
-### Phase B: account-capacity host runners (Codex, Claude Code, Kiro, Cowork)
+### Phase A.1: provider prompt-caching research and cost-safe design
+
+1. Research current provider behavior for Anthropic, OpenAI, Gemini, xAI,
+   Bedrock, Foundry, and Vertex. Capture which APIs support explicit
+   breakpoints, automatic caching, cache TTLs, cache diagnostics, and gateway
+   parity.
+2. Add model/provider metadata for cache write multiplier, cache read
+   multiplier, minimum cacheable prefix, supported TTLs, breakpoint limits, and
+   automatic-caching availability.
+3. Extend estimates and usage records before enabling cache controls. A route
+   must show projected savings from repeated static prefixes; otherwise caching
+   stays off.
+4. Disallow paid background cache pre-warming, keepalive refresh loops,
+   max-token workarounds, and 1-hour TTL defaults. Long TTLs require explicit
+   operator opt-in and a cost estimate.
+5. Add tests proving cost accounting covers cache writes and reads, and proving
+   caching is disabled for one-off or volatile prompts that would pay repeated
+   writes without hits.
+
+### Phase B: account-capacity host runners
 
 1. **Foundation seam - STARTED:** `HostAgentRunner` accepts a typed stage
    packet (`role`, prompt, evidence bundle, output schema, budget/plan policy)
    and returns structured text plus runner metadata. It is covered with fake
    runner tests. Remaining: concrete process runners and explicit
    `--inference agent` opt-in.
-2. Codex runner: use official Codex CLI authentication modes
-   (ChatGPT sign-in locally, `CODEX_ACCESS_TOKEN` for trusted Enterprise
-   automation, API-key sign-in only when the operator explicitly chose
-   usage-based billing). Probe with `codex login status`; fail open to other
-   configured profiles when unavailable.
-3. Claude runner: use official Claude Code subscription OAuth or
-   `CLAUDE_CODE_OAUTH_TOKEN` where available. Respect Anthropic's credential
-   precedence, especially that `ANTHROPIC_API_KEY` can take precedence over
-   subscription auth. Surface `/status` and `/usage` guidance rather than
-   guessing billing state.
-4. Kiro and Cowork pilots: add capability probes before runners. A surface is
-   eligible only if it can be invoked through official automation, returns or
-   stores schema-constrained output, exposes enough provenance to stamp the
-   sidecar, and can be bounded by wall-clock plus task-count policy. If any of
-   those are missing, it remains an operating host for Primr, not an internal
-   stage runner.
-5. Budget model: API dollars are unknown for account-capacity stages, so the
+2. First official-host runner: use only the host's documented local
+   authentication, automation, or connector modes. Fail open to other configured
+   profiles when unavailable unless the operator explicitly selected
+   `--inference agent`.
+3. Add capability probes before any runner. A surface is eligible only if it can
+   be invoked through official automation, returns or stores schema-constrained
+   output, exposes enough provenance to stamp the sidecar, and can be bounded by
+   wall-clock plus task-count policy. If any of those are missing, it remains an
+   operating host for Primr, not an internal stage runner.
+4. Budget model: API dollars are unknown for account-capacity stages, so the
    preflight estimate must show "host plan usage" with bounded stage count,
    wall-clock cap, and optional token/task ceilings. Any handoff to API credits
    must remain explicit in the host, never hidden by primr.
-6. Validation: one cheap or plan-backed recipe eval per runner on the standing
+5. Validation: one cheap or plan-backed recipe eval per runner on the standing
    corpus. It must pass the same label calibration and trust checks as direct
    provider recipes before README promotion. Once promoted and explicitly
    enabled, compatible host-runner stages should beat paid API stages in default

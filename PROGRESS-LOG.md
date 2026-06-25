@@ -2,6 +2,100 @@
 
 ## 2026-06-25
 
+### Loop cycle: Backend-freedom generic availability collectors
+
+Refresh: re-read the README, ROADMAP, backend-freedom design notes, provider
+availability code, local inference detector, provider registry, current-state,
+progress log, and skills memory. Re-checked the direction against the user's
+constraint: this must work for any user's configured capacity and must not
+depend on personal accounts, repo-owned credentials, or hidden host assumptions.
+
+Prioritize: selected generic collector wiring over a provider-specific quota
+adapter. The pure quota contract already exists; the next useful seam is a
+safe translator that can report what is configured locally or through provider
+keys without doing billable calls or leaking account-specific details.
+
+Implemented:
+
+- Added `ai/provider_availability_collectors.py` with cloud provider
+  configuration snapshots, a generic local OpenAI-compatible collector, and
+  aggregate snapshot collection.
+- Cloud snapshots expose configuration state, roles, key env name, and
+  `quota_source=not_collected`, but never API key values.
+- Local snapshots use the existing `/v1/models` path and report
+  chat-model availability without storing raw endpoint URLs or installed model
+  names.
+- Exported the collectors through `primr.ai` lazy imports.
+- Added tests covering configured/missing cloud keys, provider defaults, local
+  chat models, embed-only local endpoints, probe failures, aggregate snapshots,
+  and secret/hostname/model-name non-leakage.
+- Updated README, ROADMAP, changelog, current-state, backend-freedom docs,
+  provider-expansion docs, and skills memory to emphasize user-owned capacity
+  and no repo-owned account assumptions.
+
+Validation so far:
+
+- `uv run --no-sync pytest tests/test_ai/test_provider_availability.py tests/test_ai/test_provider_availability_collectors.py tests/test_ai/test_local_inference.py -q`
+  passed with 27 tests.
+- `uv run ruff check src/primr/ai/provider_availability_collectors.py tests/test_ai/test_provider_availability_collectors.py src/primr/ai/__init__.py`
+  passed.
+- `uv run --no-sync mypy src/primr/ai/provider_availability_collectors.py src/primr/ai/provider_availability.py src/primr/ai/local_inference.py --ignore-missing-imports --disable-error-code=import-untyped`
+  passed.
+- After the full local gate passed, the user flagged Anthropic prompt caching
+  as a possible direct-API optimization. Verified the current Anthropic prompt
+  caching docs: cache writes cost more than base input, cache reads cost less,
+  default TTL is 5 minutes, 1-hour TTL costs more, and automatic caching is not
+  universally supported across gateways. Added ROADMAP and provider-expansion
+  guardrails requiring provider-by-provider research, estimator support, usage
+  accounting, and no background pre-warming or paid keepalive behavior before
+  any new caching controls ship.
+
+Spend: `$0.00`.
+
+Self-review: correctness Strong for translating configuration and local probe
+state into the existing normalized contract; security Strong because secrets,
+raw local endpoints, account ids, and installed model names are not recorded;
+performance Strong because local probing stays cached and short-timeout;
+readability Strong through a small collector module; maintainability Strong
+because official live quota collectors can feed the same snapshot shape later.
+Residual work: full validation, release hygiene if the slice ships, and the
+next production wiring step: official quota/status collectors plus router
+integration.
+
+### Release prep: 1.33.4
+
+Promoted the generic availability collectors and provider prompt-caching
+roadmap guardrails from Unreleased to `1.33.4`.
+
+Updated:
+
+- `pyproject.toml`
+- `src/primr/__init__.py`
+- `CITATION.cff`
+- `uv.lock`
+- ROADMAP current state and changelog table
+- `docs/CHANGELOG.md`
+
+Validation already completed before release prep:
+
+- Full CI-equivalent coverage gate passed:
+  `$env:GEMINI_API_KEY='fake-key-for-ci-tests'; uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q -k "not test_wait_times_out_when_no_change" -m "not integration" --cov=src/primr --cov-branch --cov-fail-under=81`
+  passed with 10141 passed, 39 skipped, 5 deselected, and 85.14% coverage.
+- Focused provider availability/local tests passed after the prompt-caching
+  roadmap update: 27 tests.
+- Ruff format check and Ruff check passed after the roadmap update.
+- Release-prep validation passed:
+  - `uv run pytest tests/test_release_integrity.py -q`
+  - `uv run ruff format --check src/ tests/`
+  - `uv run --no-sync mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'`
+  - `uv run --no-project --with mkdocs-material --with pymdown-extensions mkdocs build --site-dir _site`
+  - `uv run --with build python -m build`
+  - `uv run --with twine twine check dist/*`
+  - `uv run bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium`
+  - `uv run --no-sync pip-audit --ignore-vuln PYSEC-2026-196`
+- Generated `_site`, `build`, and `dist` outputs were removed after validation.
+
+
 ### Loop cycle: MCP control-plane Stage 3 invocation audit
 
 Refresh: re-read README, ROADMAP, `CLAUDE.md`,

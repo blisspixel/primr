@@ -264,6 +264,50 @@ tests, ruff, format check, CI-shaped mypy, Bandit, pip-audit, MkDocs build, and
 the CI-equivalent coverage run (`10134 passed, 39 skipped, 5 deselected`,
 85.13% branch coverage).
 
+## 2026-06-25 Backend Freedom Slice: Generic Availability Collectors
+
+The next backend-freedom step is now the generic collector layer, not
+provider-specific account wiring. This keeps Primr useful for any user's
+capacity shape: direct API keys, sanctioned host allocation, local
+OpenAI-compatible services, or gateways later, without baking in personal
+accounts or repo-owned credentials.
+
+Shipped in this slice:
+
+- `ai/provider_availability_collectors.py` translates known cloud provider
+  configuration into `ProviderQuotaSnapshot` rows without reading or storing API
+  key values.
+- The same module probes local OpenAI-compatible services through the existing
+  `/v1/models` detector and reports model count plus chat-model availability
+  without storing raw endpoint URLs or installed model names.
+- Aggregation skips the registry's Ollama credential-default row and reports a
+  single generic local OpenAI-compatible snapshot, so users can bring Ollama, LM
+  Studio, llama.cpp server, vLLM, LocalAI, or a gateway-compatible local server.
+- Tests assert secret values, local hostnames, and installed model names do not
+  appear in snapshots, even on probe failures.
+- README, ROADMAP, backend-freedom docs, provider-expansion docs, changelog,
+  progress log, and skill memory now draw the same line: use what the user has,
+  never what the repo owns.
+
+Current estimate:
+
+- 2.0 backend-freedom pillar: about 32-35% complete. Pure routing,
+  provider-availability math, host-agent packet shape, local model detection,
+  and generic availability collectors are now tested. Remaining work is
+  production integration: official cloud quota/status collectors, capability
+  rows fed from availability decisions, stage-by-stage route adoption,
+  host-runner pilots, hybrid eval, and local profile fit checks.
+- Full 2.0 release: about 35% complete. Control-plane is still furthest along;
+  backend freedom has the core deterministic seams; durable research memory
+  remains the largest unstarted pillar.
+
+Spend: `$0.00`. Validation passed for this slice: focused provider
+availability/local tests, ruff on touched files, mypy on the touched AI modules,
+the CI-equivalent full coverage gate (`10141 passed, 39 skipped, 5 deselected`,
+85.14% branch coverage), release-integrity test, docs build, package build,
+twine metadata check, Bandit, and pip-audit. `1.33.4` is ready for commit,
+push, tag, and CI release verification.
+
 ## Quality Rubric for this work
 - Correctness: structural + prompt + tests.
 - No brittle: only prose-invariant checks.

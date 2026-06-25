@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.33.3
+Current State: v1.33.4
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -75,7 +75,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 - Provider abstraction at `src/primr/ai/providers/` — `Provider` ABC, `OpenAICompatibleProvider` (xAI/OpenAI/Ollama/vLLM), `GeminiProvider`, `AnthropicProvider`
 - `pick_model_for_role` chooses the best model from configured providers; `primr doctor` shows what each key unlocks
 - Pure capability router foundation shipped in `src/primr/ai/capability_routing.py`: `StageRequirements`, backend capability rows, cloud/agent/hybrid/local profiles, billing-mode guards, ordered route plans, and explicit rejection reasons. It is not yet wired into full-report execution.
-- Pure provider availability foundation shipped in `src/primr/ai/provider_availability.py`: normalized quota windows, binding headroom, elapsed-reset handling, stale last-known-good snapshots, and deterministic provider ranking. It is not yet wired to live provider collectors.
+- Provider availability foundation shipped across `src/primr/ai/provider_availability.py` and `src/primr/ai/provider_availability_collectors.py`: normalized quota windows, binding headroom, elapsed-reset handling, stale last-known-good snapshots, deterministic provider ranking, non-secret cloud provider configuration snapshots, and generic local OpenAI-compatible availability probes. Official live cloud quota/status collectors and router wiring remain planned.
 - Provider-aware fallback chain: WRITING/UTILITY prefer GEMINI > OPENAI > ANTHROPIC > XAI; REASONING prefers XAI (cached) > GEMINI > OPENAI > ANTHROPIC
 - Cross-provider dispatch in `grok_llm` and `llm()` so writing-tier calls reach the right provider when the resolved model is non-Grok
 - Quota-aware `ModelCircuitBreaker.execute_with_fallback()` with midnight-UTC reset (callable; production call-site integration still pending — see queue below)
@@ -133,7 +133,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 - Product over middleware — integrations should act as a disciplined control plane for Primr's long-running research jobs, not turn Primr into a generic orchestration framework.
 - Artifact-first delivery — the main unit of value is a report, strategy, or evaluation artifact, not a stream of chat-sized tool responses.
 - The pipeline is the product — Primr's value is the 9-tier scraping engine, the org-aware link selection, the research deepening, the cross-validation, the deterministic QA gate, the eval harness, the crash recovery, and the cost estimation. None of these are model calls. The model is a commodity; the orchestration pipeline is the moat.
-- Credentials are transport, not product identity. API keys, official agent-account auth, enterprise gateways, and local models are all ways to run the same pipeline. Do not bake a provider, billing model, or subscription workaround into the core loop. The default routing goal is the lowest incremental spend that clears the measured quality bar: already-paid official host runners or local/gateway capacity when configured and explicitly approved, then the best validated sub-dollar direct API recipe, with premium paths opt-in and justified by measured lift. Direct APIs remain the reproducible baseline and fallback; host-account runners use official Codex, Claude Code, Kiro CLI, Copilot Cowork, Claude/Cowork-style, or comparable sanctioned surfaces only; local/gateway profiles are validated recipes, not second-class forks. As local AI hardware improves, the same eval gate should let $0 API local stages graduate from utility support to hybrid default, and eventually to full-run default where they honestly match the quality bar.
+- Credentials are transport, not product identity. API keys, official agent-account auth, enterprise gateways, and local models are all ways to run the same pipeline. Do not bake a provider, billing model, or subscription workaround into the core loop. The default routing goal is the lowest incremental spend that clears the measured quality bar: already-paid official host runners or local/gateway capacity when configured and explicitly approved, then the best validated sub-dollar direct API recipe, with premium paths opt-in and justified by measured lift. Direct APIs remain the reproducible baseline and fallback; host-account runners use sanctioned official automation, local CLI, or connector surfaces only; local/gateway profiles are validated recipes, not second-class forks. As local AI hardware improves, the same eval gate should let $0 API local stages graduate from utility support to hybrid default, and eventually to full-run default where they honestly match the quality bar.
 
 Primr is intentionally not designed as a generic web scraper, a SaaS collaboration platform, a presentation builder, or a generic agent middleware layer.
 
@@ -240,10 +240,9 @@ The step-change that earns the major bump is three pillars landing together:
 - **Backend freedom** — the capability-requirement routing layer (#18) plus
   validated API-keyed cloud, account-capacity agent runner, gateway, and
   local/hybrid inference profiles, so a run is cost-tunable from already-paid
-  host plan usage (Codex, Claude Code, Kiro CLI, Copilot/Claude Cowork-style
-  hosts where official automation exists) or $0 local through sub-$1 cloud, up
-  to premium only when measured lift justifies it, *without changing the
-  pipeline*. Local is not a permanent low-quality tier; it is a measured path
+  host plan usage where official automation exists or $0 local through sub-$1
+  cloud, up to premium only when measured lift justifies it, *without changing
+  the pipeline*. Local is not a permanent low-quality tier; it is a measured path
   that should automatically move up the default order as desktop-class models
   and hardware pass stage-level evals. Design doc:
   [`docs/design/2.0-backend-freedom.md`](docs/design/2.0-backend-freedom.md).
@@ -633,11 +632,19 @@ Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The firs
 
 - **Shipped foundation:** `StageRequirements`, `BackendCapabilities`, `RoutingPolicy`, and `route_stage()` return ordered cloud/gateway/host-agent/local candidates with explicit rejection reasons and no live provider calls
 - **Shipped availability foundation:** `ProviderQuotaSnapshot`, `QuotaWindow`, `availability_decision()`, and `provider_with_most_headroom()` normalize provider quota windows and stale last-known-good service availability without live provider calls
+- **Shipped generic collectors:** `collect_provider_availability_snapshots()` reports non-secret provider configuration status and generic local OpenAI-compatible availability from the user's own runtime environment, without storing API key values, raw endpoint URLs, account ids, or installed model names
 - Each production stage still needs to declare its requirements: minimum reasoning depth, trust sensitivity, required capabilities (web search, structured output, long context), and acceptable backend families
 - Router selection must be wired into execution and cost estimation stage by stage, keeping today's role defaults as fallback until eval data promotes a requirement profile
 - Integrates with the circuit breaker - unhealthy models are skipped automatically
-- Provider collectors must translate official quota/status surfaces into the availability shape, then feed `BackendCapabilities.available` and metadata before routing
+- Official cloud quota/status collectors must translate supported provider surfaces into the availability shape, then feed `BackendCapabilities.available` and metadata before routing
 - Integrates with effort-level routing for hybrid inference
+- Provider prompt-caching research must cover Anthropic, OpenAI, Gemini, xAI,
+  and gateway variants before new caching behavior is enabled. Caching is only
+  allowed when the estimator models cache-write and cache-read prices, usage
+  records expose hit/write tokens, and the route can prove expected savings. No
+  default pre-warming, no background cache refresh jobs, no 1-hour TTL default,
+  and no paid keepalive workaround. If the first write is not expected to be
+  reused inside the provider's supported window, do not cache.
 - Long-context surcharge modeling: populate `ModelConfig.tier_threshold_tokens` for OpenAI gpt-5.x family (>272K input: 2x input, 1.5x output) so cost estimates aren't silently wrong on long-input runs
 - Move `grok_browse_and_summarize` and Gemini quota UI into providers (two pieces of provider-specific behavior still living outside the abstraction)
 
@@ -760,8 +767,8 @@ Surfaced building a skill pack for a specialized, non-technical role at a large 
 
 There is no reason the pipeline must be Grok + Gemini; that pairing is the
 measured default, not a dependency. Research verified against provider docs
-on 2026-06-12 and refreshed for official Codex/Claude Code account auth on
-2026-06-17; full catalog, integration traps, and phased delivery plan in
+on 2026-06-12 and refreshed for official host-account auth on 2026-06-17;
+full catalog, integration traps, and phased delivery plan in
 [`docs/design/provider-expansion.md`](docs/design/provider-expansion.md).
 
 - **Phase A (1.x)**: refresh the model registry to the current generations
@@ -773,22 +780,25 @@ on 2026-06-12 and refreshed for official Codex/Claude Code account auth on
   Validate an openai-only and an anthropic-only recipe with one cheap live
   run each, eval-gated, before advertising them. Each recipe must state whether
   it can be the sub-dollar fallback default or only a premium option.
-- **Phase B**: account-capacity runners for users already paying for Codex,
-  Claude Code, Kiro CLI, Copilot Cowork, Claude/Cowork-style hosts, or similar
-  agent products. This is not "use a ChatGPT/Claude plan as an API key." It
-  means Primr emits bounded stage packets to official local/automation,
+- **Phase A.1**: provider prompt-caching research and cost-safe design. Start
+  with Anthropic's current prompt-caching docs, then compare OpenAI, Gemini,
+  xAI, Bedrock, Foundry, and Vertex behavior. Ship no new cache controls until
+  estimates include cache write/read multipliers, usage records expose cache
+  reads and writes per provider, and tests prove caching is disabled when it
+  would increase expected cost. No background pre-warming, cache keepalives,
+  paid refresh loops, or 1-hour TTL defaults.
+- **Phase B**: account-capacity runners for users already paying for sanctioned
+  agent-host allocation. This is not "use a consumer plan as an API key." It
+  means Primr emits bounded stage packets to official local automation,
   connector, or agent-skill surfaces, receives structured outputs, and keeps
   the harness in charge of order, spend approval, egress, disk writes, and eval.
-  Codex support should use ChatGPT-authenticated Codex CLI/access-token flows
-  where available; Claude support should use Claude Code subscription OAuth /
-  `CLAUDE_CODE_OAUTH_TOKEN` or the official Agent SDK surface where available;
-  Kiro/Cowork support requires an official automation or connector seam before
-  any runner is promoted. No unofficial proxies, browser-session scraping, or
-  credential reuse. Billing is reported as host plan usage/limits rather than
-  Primr API dollars, and any transition to API credits remains explicitly
-  user-approved in the host. Once a runner is configured and has passed eval, it
-  should be eligible for default routing on compatible stages because its
-  incremental API cost is zero.
+  Each host requires an official automation or connector seam before any runner
+  is promoted. No unofficial proxies, browser-session scraping, credential
+  reuse, or repo-owned account assumptions. Billing is reported as host plan
+  usage/limits rather than Primr API dollars, and any transition to API credits
+  remains explicitly user-approved in the host. Once a runner is configured and
+  has passed eval, it should be eligible for default routing on compatible
+  stages because its incremental API cost is zero.
 - **Phase C**: Bedrock (mantle endpoint, plain API-key auth) and Microsoft
   Foundry (`/openai/v1`, stock openai SDK) as base-URL + key profiles over
   the existing OpenAI-compatible provider — near-zero new code; doctor
@@ -1266,6 +1276,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.33.4 | Jun 2026 | **Generic availability collectors and prompt-caching guardrails.** Backend-freedom availability now includes non-secret cloud provider configuration snapshots and generic local OpenAI-compatible service probes using the user's configured runtime, without storing API key values, raw endpoint URLs, account ids, or installed model names. The provider-expansion roadmap now requires Anthropic/OpenAI/Gemini/xAI/gateway prompt-caching research, estimator support for cache write/read pricing, usage accounting, and no paid pre-warming or keepalive behavior before any new cache controls ship. |
 | 1.33.3 | Jun 2026 | **MCP invocation audit and provider availability.** MCP tool calls now append privacy-preserving JSONL audit events with hashed caller ids, argument/result hashes, approval-token provenance, cost metadata, duration, job id, and outcome. `primr://agent/audit/recent` exposes recent events to local stdio callers and admin-scoped HTTP callers without storing raw arguments, raw results, or approval tokens. The backend-freedom track also added a pure provider availability contract for quota windows, binding headroom, elapsed resets, stale last-known-good snapshots, and deterministic provider ranking before live quota collectors are wired. |
 | 1.33.2 | Jun 2026 | **MCP approval tokens and release hardening.** MCP estimate tools now return short-lived, signed, single-use approval tokens bound to the cost-affecting argument shape; `research_company`, `generate_strategy`, and `generate_skill_pack` require matching tokens when server-side MCP cost-cap enforcement is active. The PyPI release workflow now builds on Python 3.12, matching the package floor, and PyPI metadata uses the modern `Apache-2.0` SPDX expression without deprecated license classifiers. |
 | 1.33.1 | Jun 2026 | **Circuit breaker thread-safety.** Made the shared process-global circuit breaker thread-safe: an RLock guards per-key state and all read-modify-writes, and state-change listeners are notified outside the lock (no self-deadlock). The parallel section-writing and strategy pools no longer lose failure-count updates or skew failover/quota bookkeeping. |

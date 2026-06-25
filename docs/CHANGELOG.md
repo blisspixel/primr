@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.33.4] - 2026-06-25
+
+### Added
+
+- Backend-freedom availability now includes generic collectors for user-owned
+  runtime capacity: cloud providers report non-secret configuration status, and
+  local OpenAI-compatible services are probed through the existing
+  operator-configured `/v1/models` path. The snapshots intentionally avoid API
+  key values, raw endpoint URLs, account ids, and installed model names.
+
+### Changed
+
+- The provider-expansion roadmap now requires provider-by-provider prompt
+  caching research, estimator support for cache write/read pricing, usage
+  accounting, and explicit safeguards before any new Anthropic/OpenAI/Gemini/xAI
+  or gateway caching controls can ship. No background pre-warming, paid
+  keepalive refresh loops, or 1-hour TTL defaults are allowed.
+
 ## [1.33.3] - 2026-06-25
 
 ### Added

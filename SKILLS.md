@@ -37,6 +37,15 @@
 - A provider is only as available as its most constrained quota bucket. Treat
   elapsed reset times as fresh, preserve stale last-known-good snapshots as
   fallback signal, and prefer fresh snapshots when ranking providers.
+- Capacity discovery must meet the user where they are: environment keys,
+  sanctioned host allocation, gateways, and local OpenAI-compatible services.
+  Do not store API key values, raw local endpoint URLs, personal account ids,
+  repo-owned credentials, or installed local model names in availability
+  snapshots.
+- Local availability is generic OpenAI-compatible probing through `/v1/models`,
+  not an Ollama-only assumption. Report model count and chat-model availability;
+  keep exact model names out of persisted routing metadata unless a future
+  operator-visible diagnostic explicitly asks for them.
 
 ## Skill Pack Generation
 
