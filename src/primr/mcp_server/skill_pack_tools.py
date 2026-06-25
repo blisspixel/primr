@@ -24,6 +24,11 @@ from typing import TYPE_CHECKING, Any
 from mcp.types import TextContent, Tool
 
 from primr.data.hiring_career_urls import normalize_career_urls
+from primr.mcp_server.approval_tokens import (
+    enforce_approval_token,
+    issue_approval_token,
+    skill_pack_approval_args,
+)
 from primr.skill_pack.config import (
     DEFAULT_MAX_COST_PER_ROLE_USD,
     DEFAULT_MAX_REFINE_ITERATIONS,
@@ -194,6 +199,13 @@ def register_skill_pack_tools(server: Server, mcp_server: PrimrMCPServer) -> lis
                             "Optional hard ceiling for estimated run cost. "
                             "The server rejects execution if the estimate "
                             "exceeds this cap."
+                        ),
+                    },
+                    "approval_token": {
+                        "type": "string",
+                        "description": (
+                            "Server-issued token returned by estimate_skill_pack. "
+                            "Required when MCP cost-cap enforcement is enabled."
                         ),
                     },
                     "allow_recon_only": {
@@ -384,13 +396,13 @@ async def _handle_estimate_skill_pack(arguments: dict[str, Any]) -> list[TextCon
     except ValueError as exc:
         return [_error_response(f"Invalid career_urls: {exc}")]
 
+    cost_uses_existing_evidence = bool(
+        has_report_path or (has_jd_path and not arguments.get("company_url") and not career_urls)
+    )
     estimate = _estimate_skill_pack_cost(
         roles_count,
         skills_per_role,
-        has_report_path=bool(
-            has_report_path
-            or (has_jd_path and not arguments.get("company_url") and not career_urls)
-        ),
+        has_report_path=cost_uses_existing_evidence,
     )
     payload = {
         "company_name": company_name,
@@ -409,6 +421,19 @@ async def _handle_estimate_skill_pack(arguments: dict[str, Any]) -> list[TextCon
             "hiring evidence and included in the collection estimate."
         ),
     }
+    payload.update(
+        issue_approval_token(
+            tool_name="generate_skill_pack",
+            approval_args=skill_pack_approval_args(
+                effective_roles=roles_count,
+                skills_per_role=skills_per_role,
+                has_report_path=cost_uses_existing_evidence,
+                has_operator_role_brief=has_jd_path,
+                has_career_urls=bool(career_urls),
+            ),
+            max_cost_usd=float(estimate["cost_usd"]),
+        )
+    )
     return [TextContent(type="text", text=json.dumps(payload, indent=2))]
 
 
@@ -469,10 +494,13 @@ async def _handle_generate_skill_pack(
     # role. Capped at MAX_ROLES (the pipeline's hard ceiling).
     effective_roles = len(roles_override) if roles_override else roles_count
     effective_roles = min(effective_roles + len(roles_add), MAX_ROLES)
+    cost_uses_existing_evidence = bool(
+        report_path or (from_jd_path and not company_url and not career_urls)
+    )
     estimate = _estimate_skill_pack_cost(
         effective_roles,
         skills_per_role,
-        has_report_path=bool(report_path or (from_jd_path and not company_url and not career_urls)),
+        has_report_path=cost_uses_existing_evidence,
     )
     if _is_cost_cap_enforced():
         # Fail closed: when server-side caps are enforced, a cost-incurring run
@@ -501,6 +529,20 @@ async def _handle_generate_skill_pack(
                     f"to skip evidence collection."
                 )
             ]
+        approval_error = enforce_approval_token(
+            tool_name="generate_skill_pack",
+            approval_args=skill_pack_approval_args(
+                effective_roles=effective_roles,
+                skills_per_role=skills_per_role,
+                has_report_path=cost_uses_existing_evidence,
+                has_operator_role_brief=bool(from_jd_path),
+                has_career_urls=bool(career_urls),
+            ),
+            estimated_cost_usd=float(estimate["cost_usd"]),
+            approval_token=arguments.get("approval_token"),
+        )
+        if approval_error is not None:
+            return [TextContent(type="text", text=json.dumps(approval_error))]
 
     try:
         config = SkillPackConfig(

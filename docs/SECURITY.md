@@ -26,19 +26,21 @@ MCP/A2A tool surfaces, and (4) provider secrets + the dependency supply chain.
 | T1 | Indirect prompt injection | Instructions embedded in scraped pages / postings / sitemaps | `sanitize_for_llm` (injection-pattern + control-char stripping) + `fence_untrusted` data-fencing at every external-content→prompt boundary ("data, never instructions") | Shipped |
 | T2 | SSRF / internal pivot | Attacker page or redirect points primr at loopback / RFC1918 / link-local / cloud-metadata | `is_safe_url` + `validate_final_url_after_redirect` on every egress helper (`HTTPClient.get`, `fallback_sources._http_get`, `hiring_signals._http_get`); `SSRFGuardHook` on tool calls | Shipped |
 | T3 | Secret leakage | API key in a log line, prompt, or persisted artifact | `SecretMaskingFilter` on all log handlers; `mask_sensitive_data` (incl. xAI) applied in `chat_logger` before persist; hardcoded-secret CI gate | Shipped |
-| T4 | Cost / resource exhaustion | Runaway tool invocation | `CostGuardHook` budget; `estimate_run`-first; `PRIMR_ENFORCE_MCP_COST_CAPS`; single-job model; rate limiting | Shipped |
+| T4 | Cost / resource exhaustion | Runaway tool invocation | `CostGuardHook` budget; `estimate_run`-first; `PRIMR_ENFORCE_MCP_COST_CAPS`; server-issued approval tokens for MCP cost-cap-governed tools; single-job model; rate limiting | Shipped |
 | T5 | Unauthorized tool access | Calling MCP/A2A tools without/with stale creds | JWT (HMAC-SHA256, constant-time, expiry/nbf/aud), admin-token hashing, loopback-only unauthenticated A2A | Shipped (all-or-nothing) |
 | T6 | Output egress / scope expansion | Injected instruction tries to widen URL/tool scope or exfiltrate | All fetches gated by T2; the LLM cannot register tools or bypass `is_safe_url` (tested invariant) | Shipped |
 | T7 | Supply-chain compromise | Vulnerable/malicious dep or tampered release | `pip-audit` + `bandit` gates; Dependabot; `uv.lock`; OIDC publishing; SLSA build-provenance | Shipped |
-| T8 | Per-tool privilege separation | Low-trust client invokes a high-cost/admin tool | Per-tool MCP scope policy (`read`, `research`, `delegate`, `admin`) enforced at dispatch; OAuth `scope` / Entra `scp` claims honored; legacy `write` tokens retained for compatibility | Shipped (Stage 1) |
+| T8 | Per-tool privilege separation | Low-trust client invokes a high-cost/admin tool | Per-tool MCP scope policy (`read`, `research`, `delegate`, `admin`) enforced at dispatch; OAuth `scope` / Entra `scp` claims honored; legacy `write` tokens retained for compatibility; approval tokens required for cost-cap-governed execution when enforcement is active | Shipped (MCP Stages 1-2 slice) |
 
 ### Residual risks (accepted)
 - **T1** is mitigated, not eliminated — a novel phrasing could evade the pattern
   set; the data-fence is the backstop, and an injection red-team eval is tracked.
-- **T8 Stage 1** is shipped for MCP tool dispatch. Residual risk remains around
-  approval provenance and invocation audit until the next control-plane stages
-  land. Issue low-trust tokens with explicit `read` scopes rather than relying
-  on legacy no-scope JWT defaults.
+- **T8 Stage 1** is shipped for MCP tool dispatch. The first Stage 2 approval
+  token slice is shipped for MCP cost-cap-governed execution tools. Residual
+  risk remains around structured invocation audit, A2A parity, and any
+  cost-incurring paths that do not yet have a matching estimate tool. Issue
+  low-trust tokens with explicit `read` scopes rather than relying on legacy
+  no-scope JWT defaults.
 - Chat logs and reports are persisted locally; protect `logs/` and working dirs
   with normal filesystem permissions.
 

@@ -139,6 +139,40 @@ Spend: `$0.00`. Full local validation now passes: `git diff --check`,
 `ruff check src/primr/`, `ruff format --check src/ tests/`, full `mypy`,
 Bandit, `pip-audit`, and `uv run pytest tests/ -q` (10119 passed, 42 skipped).
 
+## 2026-06-25 Control Plane Slice: MCP Approval Tokens
+
+The next control-plane slice is now implemented for MCP cost-cap-governed
+execution tools. This follows the roadmap order: scope authz first, approval
+provenance second, audit later.
+
+Shipped in this slice:
+
+- `estimate_run`, `estimate_strategy`, and `estimate_skill_pack` return
+  short-lived server-issued `approval_token` fields.
+- `research_company`, `generate_strategy`, and `generate_skill_pack` require a
+  matching token when server-side MCP cost-cap enforcement is active.
+- Tokens are HMAC-signed, single-use, TTL-bound, and tied to the target tool,
+  cost-affecting approval-shape hash, and approved max cost.
+- Argument-swap and replay attempts return structured MCP errors before paid
+  execution starts.
+- Platform alias normalization moved out of the pinned `tools.py` module, and
+  `tools.py` stays within its pinned architecture ceiling.
+
+Current estimate:
+
+- 2.0 control-plane pillar: about 60% complete. MCP per-tool authz and approval
+  provenance are shipped for the primary paid execution paths. Structured audit,
+  A2A parity, and approval coverage for any non-cost-cap-governed paid paths
+  remain.
+- Full 2.0 release: about 25-30% complete. Control-plane work is advancing, but
+  backend freedom and durable research memory still carry most release mass.
+
+Spend: `$0.00`. Latest online check aligned this priority with current MCP
+authorization guidance and OWASP agentic guidance: least-privilege scopes,
+approval for high-impact actions, and complete mediation in downstream systems.
+Full local validation passes: ruff, format check, mypy, Bandit, pip-audit, and
+`uv run pytest tests/ -q` (10126 passed, 42 skipped).
+
 ## Quality Rubric for this work
 - Correctness: structural + prompt + tests.
 - No brittle: only prose-invariant checks.

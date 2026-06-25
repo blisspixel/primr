@@ -1,5 +1,61 @@
 # Progress Log
 
+## 2026-06-25
+
+### Loop cycle: MCP control-plane Stage 2 approval tokens
+
+Refresh: re-read README, ROADMAP, `CLAUDE.md`,
+`docs/design/agentic-balance.md`, `docs/design/2.0-agent-control-plane.md`,
+`docs/SECURITY.md`, `CURRENT-STATE-ANALYSIS.md`, `PROGRESS-LOG.md`, and
+`SKILLS.md`. Checked current public guidance again: MCP authorization guidance
+centers OAuth scopes and least privilege, while OWASP agentic guidance calls
+for approval on high-impact actions and complete mediation in downstream
+systems.
+
+Prioritize: selected the next control-plane stage because MCP per-tool authz
+was already shipped, approval tokens are deterministic, free to validate, and
+directly harden the estimate-first cost gate without adding brittle
+content-quality rules.
+
+Implemented:
+
+- Added `mcp_server.approval_tokens`, issuing HMAC-signed, short-lived,
+  single-use approval tokens with a TTL replay set.
+- Added cost-affecting approval shapes for research, strategy, and skill-pack
+  execution.
+- Updated `estimate_run`, `estimate_strategy`, and `estimate_skill_pack` to
+  return `approval_token`, `approval_token_id`, and `approval_expires_at`.
+- Updated `research_company`, `generate_strategy`, and `generate_skill_pack` so
+  server-side MCP cost-cap enforcement now requires both
+  `max_estimated_cost_usd` and a matching `approval_token`.
+- Split platform alias normalization into `mcp_server.platforms`, keeping
+  `tools.py` within its pinned line ceiling.
+- Updated MCP governance resources, prompts, SECURITY, ROADMAP, changelog, and
+  the 2.0 control-plane design doc.
+
+Validation so far:
+
+- `uv run pytest tests/mcp_server/test_approval_tokens.py -q` passed: 6 tests.
+- `uv run pytest tests/mcp_server/test_tools.py::TestCostCaps tests/mcp_server/test_skill_pack_tools_more_coverage.py::test_cost_cap_passes_when_under_cap -q`
+  passed: 13 tests.
+- `uv run pytest tests/test_architecture.py -q` passed: 5 tests.
+- `uv run pytest tests/mcp_server -q` passed: 506 passed, 2 skipped.
+- Full local gate passed: `uv run ruff check src/primr/`,
+  `uv run ruff format --check src/ tests/`,
+  `uv run mypy src/primr/ --ignore-missing-imports`, Bandit,
+  `uv run pip-audit`, and `uv run pytest tests/ -q` (10126 passed, 42
+  skipped, 2 existing warnings).
+- `uv run --no-project --with mkdocs-material --with pymdown-extensions mkdocs
+  build --site-dir _site` passed with the repo's existing non-strict link
+  warnings; generated `_site/` was removed after verification.
+
+Spend: `$0.00`.
+
+Self-review: correctness Strong for the covered tools, security Strong for
+approval provenance and replay resistance, performance Strong, readability
+Strong, maintainability Strong. Residual control-plane gaps are structured
+audit logging, A2A parity, and any paid path not yet governed by cost caps.
+
 ## 2026-06-24
 
 ### Loop cycle: MCP control-plane Stage 1 per-tool scopes

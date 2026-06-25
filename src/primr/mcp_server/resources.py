@@ -565,13 +565,15 @@ def _read_agent_governance() -> list[ReadResourceContents]:
             "Tell the user that research and strategy generation incur real API cost",
             "Get explicit user approval before execution",
             "Pass max_estimated_cost_usd into cost-incurring tools when possible",
+            "Pass the approval_token returned by the matching estimate tool when enforcement is enabled",
             "Treat Primr as a long-running async job system, not a synchronous request",
-            "If PRIMR_ENFORCE_MCP_COST_CAPS is enabled, cost-incurring tools require max_estimated_cost_usd",
+            "If PRIMR_ENFORCE_MCP_COST_CAPS is enabled, cost-governed execution tools require max_estimated_cost_usd and approval_token",
         ],
         "research_flow": {
             "estimate_tool": "estimate_run",
             "execute_tool": "research_company",
             "cap_argument": "max_estimated_cost_usd",
+            "approval_argument": "approval_token",
             "status_resource": "primr://research/status",
             "wait_tool": "wait_for_status_change",
             "expected_runtime": "standard runs are often 35-45 minutes; premium multi-vendor runs can reach 75-120 minutes",
@@ -581,6 +583,13 @@ def _read_agent_governance() -> list[ReadResourceContents]:
             "estimate_tool": "estimate_strategy",
             "execute_tool": "generate_strategy",
             "cap_argument": "max_estimated_cost_usd",
+            "approval_argument": "approval_token",
+        },
+        "skill_pack_flow": {
+            "estimate_tool": "estimate_skill_pack",
+            "execute_tool": "generate_skill_pack",
+            "cap_argument": "max_estimated_cost_usd",
+            "approval_argument": "approval_token",
         },
     }
 

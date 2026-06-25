@@ -327,12 +327,17 @@ async def test_cost_cap_ignored_when_not_enforced(monkeypatch, patched_pipeline)
 async def test_cost_cap_passes_when_under_cap(monkeypatch, tmp_path, patched_pipeline):
     # Enforcement on but cap is generous -> gate passes, pipeline runs.
     monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
+    estimate = await _call(
+        "estimate_skill_pack",
+        {"company_name": "Acme Corp", "report_path": str(tmp_path)},
+    )
     payload = await _call(
         "generate_skill_pack",
         {
             "company_name": "Acme Corp",
             "report_path": str(tmp_path),
             "max_estimated_cost_usd": 100.0,
+            "approval_token": estimate["approval_token"],
         },
     )
     assert payload.get("error") is not True
@@ -597,6 +602,21 @@ async def test_missing_cost_cap_is_rejected_when_enforced(monkeypatch, tmp_path)
     )
     assert payload["error"] is True
     assert "max_estimated_cost_usd is required" in payload["message"]
+
+
+@pytest.mark.asyncio
+async def test_missing_approval_token_is_rejected_when_enforced(monkeypatch, tmp_path):
+    monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
+    payload = await _call(
+        "generate_skill_pack",
+        {
+            "company_name": "Acme Corp",
+            "report_path": str(tmp_path),
+            "max_estimated_cost_usd": 100.0,
+        },
+    )
+    assert payload["error"] is True
+    assert payload["error_type"] == "approval_token_required"
 
 
 @pytest.mark.asyncio

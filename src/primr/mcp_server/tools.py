@@ -23,13 +23,21 @@ Requirements: 5.1-5.13, 6.1-6.7, 7.1-7.6, 8.1-8.6, 18.1-18.12
 import logging
 import math
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from mcp.server import Server
 from mcp.types import TextContent, Tool
 
 from primr.mcp_server.agentic_tools import handle_agentic_tool, register_agentic_tools
+from primr.mcp_server.approval_tokens import (
+    APPROVAL_TOKEN_SCHEMA,
+    enforce_approval_token,
+    issue_approval_token,
+    research_approval_args,
+    strategy_approval_args,
+)
 from primr.mcp_server.job_store import JobInProgressError, ResearchJobState
+from primr.mcp_server.platforms import normalize_platform, normalize_platforms
 from primr.mcp_server.skill_pack_tools import (
     handle_skill_pack_tool,
     register_skill_pack_tools,
@@ -44,44 +52,8 @@ if TYPE_CHECKING:
     from primr.mcp_server.server import PrimrMCPServer
 
 logger = logging.getLogger(__name__)
-
-# Alias map: friendly platform names → canonical values used internally.
-_PLATFORM_ALIASES: dict[str, str | list[str]] = {
-    "microsoft": "azure",
-    "amazon": "aws",
-    "google": "gcp",
-    "nvidia": "private",
-    "ms": ["azure", "private"],  # ms expands to both Azure + private
-}
-
-
-def _normalize_platform(value: str) -> str:
-    """Resolve a single platform alias to its canonical name."""
-    mapped = _PLATFORM_ALIASES.get(value.lower())
-    if isinstance(mapped, str):
-        return mapped
-    return value  # already canonical, or unknown
-
-
-def _normalize_platforms(values: list[str]) -> list[str]:
-    """Resolve a list of platform aliases, expanding multi-valued aliases like 'ms'."""
-    result: list[str] = []
-    for v in values:
-        mapped = _PLATFORM_ALIASES.get(v.lower())
-        if isinstance(mapped, list):
-            result.extend(mapped)
-        elif isinstance(mapped, str):
-            result.append(mapped)
-        else:
-            result.append(v)
-    # Deduplicate while preserving order
-    seen: set[str] = set()
-    deduped: list[str] = []
-    for item in result:
-        if item not in seen:
-            seen.add(item)
-            deduped.append(item)
-    return deduped
+_normalize_platform = normalize_platform
+_normalize_platforms = normalize_platforms
 
 
 def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
@@ -249,6 +221,7 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                             "type": "string",
                             "description": "Optional destination directory for output files. If not specified, uses the default output/ directory.",
                         },
+                        "approval_token": APPROVAL_TOKEN_SCHEMA,
                     },
                     "required": ["company_name", "company_url"],
                 },
@@ -295,6 +268,7 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                             "minimum": 0,
                             "description": "Optional hard ceiling for estimated strategy cost. The server rejects execution if the estimate exceeds this cap.",
                         },
+                        "approval_token": APPROVAL_TOKEN_SCHEMA,
                     },
                     "required": ["report_path", "strategy_type"],
                 },
@@ -669,6 +643,13 @@ async def _handle_estimate_run(
         ]
 
     estimate = _build_research_estimate(arguments)
+    estimate.update(
+        issue_approval_token(
+            tool_name="research_company",
+            approval_args=research_approval_args(arguments),
+            max_cost_usd=float(estimate["estimated_cost_usd"]),
+        )
+    )
 
     return [
         TextContent(
@@ -718,24 +699,26 @@ async def _handle_estimate_strategy(arguments: dict[str, Any]) -> list[TextConte
             )
         ]
 
-    return [
-        TextContent(
-            type="text",
-            text=json.dumps(
-                {
-                    "strategy_type": strategy["id"],
-                    "estimated_cost_usd": strategy["estimated_cost_usd"],
-                    "estimated_time_minutes": strategy["estimated_time_minutes"],
-                    "requires_platform": strategy["requires_platform"],
-                    "platform": platform,
-                    "cost_warning": (
-                        "Strategy generation incurs real API charges. Get explicit user approval "
-                        "before generate_strategy."
-                    ),
-                }
-            ),
+    estimated_cost_usd = float(cast("float", strategy["estimated_cost_usd"]))
+    payload = {
+        "strategy_type": strategy["id"],
+        "estimated_cost_usd": estimated_cost_usd,
+        "estimated_time_minutes": strategy["estimated_time_minutes"],
+        "requires_platform": strategy["requires_platform"],
+        "platform": platform,
+        "cost_warning": (
+            "Strategy generation incurs real API charges. Get explicit user approval "
+            "before generate_strategy."
+        ),
+    }
+    payload.update(
+        issue_approval_token(
+            tool_name="generate_strategy",
+            approval_args=strategy_approval_args(arguments),
+            max_cost_usd=estimated_cost_usd,
         )
-    ]
+    )
+    return [TextContent(type="text", text=json.dumps(payload))]
 
 
 async def _handle_research_company(
@@ -849,6 +832,14 @@ async def _handle_research_company(
     )
     if cost_cap_error is not None:
         return [TextContent(type="text", text=json.dumps(cost_cap_error))]
+    approval_error = enforce_approval_token(
+        tool_name="research_company",
+        approval_args=research_approval_args(arguments),
+        estimated_cost_usd=float(estimate["estimated_cost_usd"]),
+        approval_token=arguments.get("approval_token"),
+    )
+    if approval_error is not None:
+        return [TextContent(type="text", text=json.dumps(approval_error))]
 
     # Try to create job
     try:
@@ -969,6 +960,15 @@ async def _handle_generate_strategy(
                 ),
             )
         ]
+
+    approval_error = enforce_approval_token(
+        tool_name="generate_strategy",
+        approval_args=strategy_approval_args(arguments),
+        estimated_cost_usd=float(estimate_payload["estimated_cost_usd"]),
+        approval_token=arguments.get("approval_token"),
+    )
+    if approval_error is not None:
+        return [TextContent(type="text", text=json.dumps(approval_error))]
 
     # Run strategy generation
     try:

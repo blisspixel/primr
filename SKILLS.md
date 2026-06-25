@@ -13,6 +13,15 @@
 - Do not store HTTP request auth in a shared mutable server attribute. Bridge
   authenticated SDK scope state into request-local context, then let existing
   handlers read the current context through the established seam.
+- Approval tokens should bind to a normalized cost-affecting approval shape, not
+  raw tool arguments. Estimate and execution tools sometimes differ in harmless
+  fields (`company_name`, `destination`, singular `platform` vs plural
+  `platforms`), so the stable security boundary is target tool, canonical cost
+  shape, approved max cost, expiry, and single-use token id.
+- Keep approval-token enforcement adjacent to cost-cap enforcement. The cap
+  answers "how much was approved"; the token answers "was this execution shape
+  the one estimated and approved." Both are required when MCP cost enforcement
+  is active.
 
 ## Skill Pack Generation
 

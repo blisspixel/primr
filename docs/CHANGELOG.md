@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- MCP estimate tools now return signed, short-lived, single-use approval tokens
+  for the matching cost-governed execution tools. When server-side MCP cost-cap
+  enforcement is active, `research_company`, `generate_strategy`, and
+  `generate_skill_pack` require both `max_estimated_cost_usd` and a matching
+  `approval_token`, blocking approve-one-shape execute-another swaps and token
+  replay.
+
 ## [1.33.1] - 2026-06-22
 
 ### Fixed

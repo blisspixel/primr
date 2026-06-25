@@ -223,7 +223,7 @@ Use this contract whenever a Primr MCP client may trigger paid work.
 ## Required pattern
 1. Call `estimate_run` first — this includes AI strategy cost when platform is specified.
 2. Tell the user the total cost (research + strategy combined) and get ONE explicit approval.
-3. Pass `max_estimated_cost_usd` into `research_company`.
+3. Pass `max_estimated_cost_usd` and the returned `approval_token` into `research_company` when server-side MCP cost enforcement is active.
 4. Do NOT call `estimate_strategy` or `generate_strategy` separately — strategy is included in the research job when `platform` is set.
 5. Treat research as a long-running async job; poll `check_jobs` for completion.
 6. When `check_jobs` returns status "completed", the response includes full artifact content (report + strategy MD files) inline — no filesystem access needed.
@@ -234,7 +234,7 @@ estimate_run(company_url="https://example.com", mode="full", platforms=["azure"]
 # → shows combined cost for research + AI strategy
 # → user approves once
 
-research_company(company_name="ExampleCo", company_url="https://example.com", mode="full", platform="azure", max_estimated_cost_usd=0.67)
+research_company(company_name="ExampleCo", company_url="https://example.com", mode="full", platform="azure", max_estimated_cost_usd=0.67, approval_token="<token from estimate_run>")
 # → returns job_id immediately
 
 check_jobs(job_id="...")
@@ -250,7 +250,7 @@ research_company(company_name="ExampleCo", company_url="https://example.com", pl
 ## Adding a strategy to an existing report (rare — only when strategy was not part of the original run)
 ```text
 estimate_strategy(strategy_type="customer_experience")
-generate_strategy(report_path="output/report.md", strategy_type="customer_experience", max_estimated_cost_usd=0.25)
+generate_strategy(report_path="output/report.md", strategy_type="customer_experience", max_estimated_cost_usd=0.25, approval_token="<token from estimate_strategy>")
 ```
 """
 
