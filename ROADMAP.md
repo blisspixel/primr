@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.33.2
+Current State: v1.33.3
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -75,6 +75,7 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 - Provider abstraction at `src/primr/ai/providers/` — `Provider` ABC, `OpenAICompatibleProvider` (xAI/OpenAI/Ollama/vLLM), `GeminiProvider`, `AnthropicProvider`
 - `pick_model_for_role` chooses the best model from configured providers; `primr doctor` shows what each key unlocks
 - Pure capability router foundation shipped in `src/primr/ai/capability_routing.py`: `StageRequirements`, backend capability rows, cloud/agent/hybrid/local profiles, billing-mode guards, ordered route plans, and explicit rejection reasons. It is not yet wired into full-report execution.
+- Pure provider availability foundation shipped in `src/primr/ai/provider_availability.py`: normalized quota windows, binding headroom, elapsed-reset handling, stale last-known-good snapshots, and deterministic provider ranking. It is not yet wired to live provider collectors.
 - Provider-aware fallback chain: WRITING/UTILITY prefer GEMINI > OPENAI > ANTHROPIC > XAI; REASONING prefers XAI (cached) > GEMINI > OPENAI > ANTHROPIC
 - Cross-provider dispatch in `grok_llm` and `llm()` so writing-tier calls reach the right provider when the resolved model is non-Grok
 - Quota-aware `ModelCircuitBreaker.execute_with_fallback()` with midnight-UTC reset (callable; production call-site integration still pending — see queue below)
@@ -322,14 +323,16 @@ Each step unblocks the ones after it; items within a step are independent.
 5. **Control plane** (T8 + #21) (2.0): per-tool authz is now shipped for MCP
    dispatch (`read`, `research`, `delegate`, `admin`; OAuth `scope` / Entra
    `scp` honored; legacy `write` remains a compatibility alias). Approval
-   tokens are now shipped for MCP cost-cap-governed execution tools, leaving
-   structured invocation audit and A2A parity next.
+   tokens are now shipped for MCP cost-cap-governed execution tools. Structured
+   MCP invocation audit is now shipped for tool calls, leaving A2A parity and
+   richer job-scoped artifact resources next.
    Independent of steps 1-4; can proceed in parallel.
 6. **Backend freedom** (#18 + provider expansion) (2.0):
-   capability-requirement routing first (pure refactor of existing routing),
-   then first-class OpenAI/Anthropic API recipes, official account-capacity
-   runners, gateway recipes, hybrid-mode eval, and full-local eval. Depends on
-   step 1's instruments to judge each backend's quality honestly.
+   capability-requirement routing and provider-availability headroom first
+   (pure refactors of existing routing), then first-class OpenAI/Anthropic API
+   recipes, official account-capacity runners, gateway recipes, hybrid-mode
+   eval, and full-local eval. Depends on step 1's instruments to judge each
+   backend's quality honestly.
 7. **Memory layer 1 → 2 → 3** (2.0): persistent company tracking (filesystem,
    no new deps) → claim store + priming (SQLite + embeddings) → Strategy
    Delta Mode. Layer 3 also depends on the per-user cache (#12, shipped) and
@@ -629,9 +632,11 @@ Reduce manual work when new model variants drop by automating the eval-and-compa
 Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The first stage-requirements slice is now in place as a pure router; the remaining work is production wiring, health integration, and per-stage eval-backed tuning.
 
 - **Shipped foundation:** `StageRequirements`, `BackendCapabilities`, `RoutingPolicy`, and `route_stage()` return ordered cloud/gateway/host-agent/local candidates with explicit rejection reasons and no live provider calls
+- **Shipped availability foundation:** `ProviderQuotaSnapshot`, `QuotaWindow`, `availability_decision()`, and `provider_with_most_headroom()` normalize provider quota windows and stale last-known-good service availability without live provider calls
 - Each production stage still needs to declare its requirements: minimum reasoning depth, trust sensitivity, required capabilities (web search, structured output, long context), and acceptable backend families
 - Router selection must be wired into execution and cost estimation stage by stage, keeping today's role defaults as fallback until eval data promotes a requirement profile
 - Integrates with the circuit breaker - unhealthy models are skipped automatically
+- Provider collectors must translate official quota/status surfaces into the availability shape, then feed `BackendCapabilities.available` and metadata before routing
 - Integrates with effort-level routing for hybrid inference
 - Long-context surcharge modeling: populate `ModelConfig.tier_threshold_tokens` for OpenAI gpt-5.x family (>272K input: 2x input, 1.5x output) so cost estimates aren't silently wrong on long-input runs
 - Move `grok_browse_and_summarize` and Gemini quota UI into providers (two pieces of provider-specific behavior still living outside the abstraction)
@@ -701,6 +706,12 @@ Shipped:
   tool, approval-shape hash, approved max cost, and expiry. When server-side
   MCP cost enforcement is active, execution requires both the cap and a matching
   token.
+- Privacy-preserving MCP invocation audit logging. Tool calls append JSONL
+  events with timestamp, transport, tool name, hashed caller id, granted
+  scopes, argument/result hashes, approval token id, cost metadata, job id,
+  duration, and outcome. `primr://agent/audit/recent` exposes recent events to
+  local stdio callers and admin-scoped HTTP callers without storing raw
+  arguments, raw results, or approval tokens.
 
 Planned:
 - Expand job-scoped resources for artifact consumption (`qa_summary`, source appendix, trace summary) so clients do not need large report bodies in context by default
@@ -869,7 +880,7 @@ Already shipped: SSRF guard on every outbound URL (`primr.utils.security`), cont
 - **Output / egress guardrails** — SHIPPED. `is_safe_url` + post-redirect validation enforced on every egress helper (`HTTPClient.get`, `fallback_sources._http_get`, `hiring_signals._http_get`); the "no fetch bypasses the SSRF guard" invariant is locked by `tests/security/test_egress_guardrails.py`.
 - **Secret / log redaction** — SHIPPED. `SecretMaskingFilter` on all log handlers (sink-level, not opt-in) + `mask_sensitive_data` (incl. xAI) applied in `chat_logger` before persist, with atomic writes. Provider patterns: xAI/Google/OpenAI/Anthropic/GitHub/AWS/Slack/JWT. Note: `usage_history.json` and `_run_state.json` are metadata-only (no secrets) — verified, no change needed.
 - **Scoped threat model** — SHIPPED. `docs/SECURITY.md` documents the client/scraper/agent threat model (ATLAS-style table T1-T8), shipped controls, residual-risk acceptance, and coordinated disclosure.
-- **Agentic trust boundaries (MCP/A2A)** - MCP Stage 1 SHIPPED (T8). MCP now enforces per-tool scopes at dispatch (`read`, `research`, `delegate`, `admin`) and honors OAuth `scope` plus Entra `scp` JWT claims while keeping legacy `write` tokens compatible. MCP Stage 2 token approval is shipped for cost-cap-governed execution tools: estimate tools mint short-lived single-use tokens, and execution requires a matching token when server-side cost enforcement is active. Remaining control-plane work: structured invocation audit and A2A parity. Folds into Active Queue #11 (constrained agent permissions) and #21 (agent control-plane hardening).
+- **Agentic trust boundaries (MCP/A2A)** - MCP Stage 1 SHIPPED (T8). MCP now enforces per-tool scopes at dispatch (`read`, `research`, `delegate`, `admin`) and honors OAuth `scope` plus Entra `scp` JWT claims while keeping legacy `write` tokens compatible. MCP Stage 2 token approval is shipped for cost-cap-governed execution tools: estimate tools mint short-lived single-use tokens, and execution requires a matching token when server-side cost enforcement is active. MCP structured invocation audit is shipped for tool calls with hashed payloads and admin-readable recent events. Remaining control-plane work: A2A parity and richer job-scoped artifact resources. Folds into Active Queue #11 (constrained agent permissions) and #21 (agent control-plane hardening).
 
 Decision principle: secure the surface primr actually has — untrusted input, agent tool use, secrets, supply chain — and explicitly decline model-training/serving security primr will never own.
 
@@ -1255,6 +1266,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.33.3 | Jun 2026 | **MCP invocation audit and provider availability.** MCP tool calls now append privacy-preserving JSONL audit events with hashed caller ids, argument/result hashes, approval-token provenance, cost metadata, duration, job id, and outcome. `primr://agent/audit/recent` exposes recent events to local stdio callers and admin-scoped HTTP callers without storing raw arguments, raw results, or approval tokens. The backend-freedom track also added a pure provider availability contract for quota windows, binding headroom, elapsed resets, stale last-known-good snapshots, and deterministic provider ranking before live quota collectors are wired. |
 | 1.33.2 | Jun 2026 | **MCP approval tokens and release hardening.** MCP estimate tools now return short-lived, signed, single-use approval tokens bound to the cost-affecting argument shape; `research_company`, `generate_strategy`, and `generate_skill_pack` require matching tokens when server-side MCP cost-cap enforcement is active. The PyPI release workflow now builds on Python 3.12, matching the package floor, and PyPI metadata uses the modern `Apache-2.0` SPDX expression without deprecated license classifiers. |
 | 1.33.1 | Jun 2026 | **Circuit breaker thread-safety.** Made the shared process-global circuit breaker thread-safe: an RLock guards per-key state and all read-modify-writes, and state-change listeners are notified outside the lock (no self-deadlock). The parallel section-writing and strategy pools no longer lose failure-count updates or skew failover/quota bookkeeping. |
 | 1.33.0 | Jun 2026 | **Cost-guard, bug-hunt hardening, and Apache 2.0 relicense.** Extended `--budget` to recheck actual spend across all optional stages (research deepening, cross-validation enrichment and contradiction resolution, and multi-strategy generation). Three bug-hunt rounds fixed verified silent-data-loss and rendering defects: internal-source over-deletion, citation/heading false-block on code fences, EDGAR mis-resolution, `--from-plan` crash, leading-indentation collapse, `ref`/`source` citation merge, parenthesized-URL truncation, `References`-heading total truncation, 50K strategy-repair truncation, pipe-line table mis-detection, and math-asterisk italic. Documented the Open Knowledge Format as the findings-interchange shape. Relicensed from MIT to Apache 2.0. |

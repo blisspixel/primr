@@ -387,7 +387,7 @@ skills/
 └── scrape-strategy/SKILL.md
 ```
 
-These skills are thin intent routers over Primr MCP rather than separate product definitions. Generic MCP clients can also use `primr://agent/governance`, `primr://research/next-actions`, and the `governed_execution` prompt to follow the same estimate/approval/monitor pattern.
+These skills are thin intent routers over Primr MCP rather than separate product definitions. Generic MCP clients can also use `primr://agent/governance`, `primr://research/next-actions`, `primr://agent/audit/recent`, and the `governed_execution` prompt to follow the same estimate/approval/monitor/audit pattern.
 </details>
 
 [MCP docs](docs/API.md) | [A2A protocol](https://github.com/a2aproject/a2a-python) | [OpenClaw config](openclaw/openclaw.json) | [OpenClaw guide](docs/OPENCLAW.md)

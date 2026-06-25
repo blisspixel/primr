@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.33.3] - 2026-06-25
+
+### Added
+
+- MCP tool calls now write a privacy-preserving JSONL audit log with timestamp,
+  transport, tool name, hashed caller id, granted scopes, argument/result
+  hashes, approval token id, cost metadata, job id, duration, and outcome. The
+  new `primr://agent/audit/recent` resource exposes recent events to local
+  stdio callers and admin-scoped HTTP callers without storing raw tool
+  arguments, raw results, or approval tokens.
+- Backend-freedom availability now has a pure quota-headroom contract:
+  normalized quota windows, binding-window selection, elapsed-reset handling,
+  stale last-known-good snapshots, and deterministic provider ranking. The
+  contract is covered by unit tests and ready for live provider quota/status
+  collectors to feed into the capability router.
+
 ## [1.33.2] - 2026-06-25
 
 ### Added

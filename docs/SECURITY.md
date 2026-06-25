@@ -30,17 +30,17 @@ MCP/A2A tool surfaces, and (4) provider secrets + the dependency supply chain.
 | T5 | Unauthorized tool access | Calling MCP/A2A tools without/with stale creds | JWT (HMAC-SHA256, constant-time, expiry/nbf/aud), admin-token hashing, loopback-only unauthenticated A2A | Shipped (all-or-nothing) |
 | T6 | Output egress / scope expansion | Injected instruction tries to widen URL/tool scope or exfiltrate | All fetches gated by T2; the LLM cannot register tools or bypass `is_safe_url` (tested invariant) | Shipped |
 | T7 | Supply-chain compromise | Vulnerable/malicious dep or tampered release | `pip-audit` + `bandit` gates; Dependabot; `uv.lock`; OIDC publishing; SLSA build-provenance | Shipped |
-| T8 | Per-tool privilege separation | Low-trust client invokes a high-cost/admin tool | Per-tool MCP scope policy (`read`, `research`, `delegate`, `admin`) enforced at dispatch; OAuth `scope` / Entra `scp` claims honored; legacy `write` tokens retained for compatibility; approval tokens required for cost-cap-governed execution when enforcement is active | Shipped (MCP Stages 1-2 slice) |
+| T8 | Per-tool privilege separation | Low-trust client invokes a high-cost/admin tool | Per-tool MCP scope policy (`read`, `research`, `delegate`, `admin`) enforced at dispatch; OAuth `scope` / Entra `scp` claims honored; legacy `write` tokens retained for compatibility; approval tokens required for cost-cap-governed execution when enforcement is active; privacy-preserving MCP invocation audit log with admin-readable recent events | Shipped (MCP Stages 1-3 slice) |
 
 ### Residual risks (accepted)
 - **T1** is mitigated, not eliminated — a novel phrasing could evade the pattern
   set; the data-fence is the backstop, and an injection red-team eval is tracked.
-- **T8 Stage 1** is shipped for MCP tool dispatch. The first Stage 2 approval
-  token slice is shipped for MCP cost-cap-governed execution tools. Residual
-  risk remains around structured invocation audit, A2A parity, and any
-  cost-incurring paths that do not yet have a matching estimate tool. Issue
-  low-trust tokens with explicit `read` scopes rather than relying on legacy
-  no-scope JWT defaults.
+- **T8 Stages 1-3** are shipped for MCP tool dispatch: per-tool scopes,
+  server-issued approval tokens, and structured invocation audit events.
+  Residual risk remains around A2A parity, richer job-scoped artifact
+  resources, and any cost-incurring paths that do not yet have a matching
+  estimate tool. Issue low-trust tokens with explicit `read` scopes rather
+  than relying on legacy no-scope JWT defaults.
 - Chat logs and reports are persisted locally; protect `logs/` and working dirs
   with normal filesystem permissions.
 

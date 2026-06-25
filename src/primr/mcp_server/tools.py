@@ -36,6 +36,7 @@ from primr.mcp_server.approval_tokens import (
     research_approval_args,
     strategy_approval_args,
 )
+from primr.mcp_server.audit_log import audit_tool_calls
 from primr.mcp_server.job_store import JobInProgressError, ResearchJobState
 from primr.mcp_server.platforms import normalize_platform, normalize_platforms
 from primr.mcp_server.skill_pack_tools import (
@@ -43,10 +44,7 @@ from primr.mcp_server.skill_pack_tools import (
     register_skill_pack_tools,
 )
 from primr.mcp_server.tool_authz import authorize_tool_call, scope_denied_response
-from primr.mcp_server.types import (
-    MCPErrorCode,
-    ResearchStage,
-)
+from primr.mcp_server.types import MCPErrorCode, ResearchStage
 
 if TYPE_CHECKING:
     from primr.mcp_server.server import PrimrMCPServer
@@ -406,6 +404,7 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
         return base_tools + agentic_tools + skill_pack_tools
 
     @server.call_tool()
+    @audit_tool_calls(lambda: mcp_server)
     async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle tool calls."""
         import json

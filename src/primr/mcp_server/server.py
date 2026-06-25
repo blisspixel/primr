@@ -18,6 +18,7 @@ from typing import Literal
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 
+from primr.mcp_server.audit_log import MCPAuditLog
 from primr.mcp_server.job_store import SingleJobStore
 from primr.mcp_server.logging_config import configure_http_logging, configure_stdio_logging
 from primr.mcp_server.security import PathValidator, RateLimiter, URLValidator
@@ -45,6 +46,7 @@ class PrimrMCPServer:
         host: str = "127.0.0.1",
         log_level: str = "INFO",
         journal_path: str | None = None,
+        audit_log_path: str | None = None,
         allow_plaintext: bool = False,
         require_auth: bool = True,
     ):
@@ -57,6 +59,7 @@ class PrimrMCPServer:
             host: HTTP host to bind to (default: 127.0.0.1 for localhost only)
             log_level: Logging level (DEBUG, INFO, WARNING, ERROR)
             journal_path: Path to job journal file
+            audit_log_path: Path to MCP audit JSONL file
             allow_plaintext: Allow plaintext HTTP (for local dev only)
             require_auth: Require authentication for HTTP transport
         """
@@ -69,6 +72,7 @@ class PrimrMCPServer:
 
         # Initialize components
         self.job_store = SingleJobStore(journal_path=journal_path)
+        self.audit_log = MCPAuditLog(audit_log_path=audit_log_path, journal_path=journal_path)
         # "working" is primr's own run/scratch root: report_path reuse
         # (e.g. skill packs authored from `working/<run>` evidence) must be
         # allowed alongside the deliverable roots, while still blocking
@@ -409,6 +413,7 @@ def create_mcp_server(
     host: str = "127.0.0.1",
     log_level: str = "INFO",
     journal_path: str | None = None,
+    audit_log_path: str | None = None,
     allow_plaintext: bool = False,
     require_auth: bool = True,
     skip_background_tasks: bool = False,
@@ -422,6 +427,7 @@ def create_mcp_server(
         host: HTTP host to bind to (default: 127.0.0.1 for localhost only)
         log_level: Logging level (DEBUG, INFO, WARNING, ERROR)
         journal_path: Path to job journal file
+        audit_log_path: Path to MCP audit JSONL file
         allow_plaintext: Allow plaintext HTTP (for local dev only)
         require_auth: Require authentication for HTTP transport
         skip_background_tasks: Skip background task creation (for testing)
@@ -435,6 +441,7 @@ def create_mcp_server(
         host=host,
         log_level=log_level,
         journal_path=journal_path,
+        audit_log_path=audit_log_path,
         allow_plaintext=allow_plaintext,
         require_auth=require_auth,
     )

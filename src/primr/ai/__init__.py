@@ -76,6 +76,17 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "backend_meets_requirements": ("primr.ai.capability_routing", "backend_meets_requirements"),
     "estimate_stage_cost": ("primr.ai.capability_routing", "estimate_stage_cost"),
     "route_stage": ("primr.ai.capability_routing", "route_stage"),
+    # Provider availability
+    "AvailabilityDecision": ("primr.ai.provider_availability", "AvailabilityDecision"),
+    "ProviderQuotaSnapshot": ("primr.ai.provider_availability", "ProviderQuotaSnapshot"),
+    "QuotaWindow": ("primr.ai.provider_availability", "QuotaWindow"),
+    "availability_decision": ("primr.ai.provider_availability", "availability_decision"),
+    "binding_window": ("primr.ai.provider_availability", "binding_window"),
+    "provider_headroom": ("primr.ai.provider_availability", "provider_headroom"),
+    "provider_with_most_headroom": (
+        "primr.ai.provider_availability",
+        "provider_with_most_headroom",
+    ),
     # Insights
     "InsightAnalyzer": ("primr.ai.insights", "InsightAnalyzer"),
     "InsightReport": ("primr.ai.insights", "InsightReport"),

@@ -2,6 +2,132 @@
 
 ## 2026-06-25
 
+### Loop cycle: MCP control-plane Stage 3 invocation audit
+
+Refresh: re-read README, ROADMAP, `CLAUDE.md`,
+`docs/design/agentic-balance.md`, `docs/design/2.0-agent-control-plane.md`,
+`docs/SECURITY.md`, `CURRENT-STATE-ANALYSIS.md`, `PROGRESS-LOG.md`, and
+`SKILLS.md`. Researched current MCP and GenAI observability guidance: MCP tool
+security guidance calls for tool-usage audit logging; the MCP roadmap calls
+audit trails and observability an enterprise-readiness priority; the MCP
+Interceptors WG is standardizing audit logging as an interceptor use case; and
+OpenTelemetry GenAI guidance treats tool invocations as observable operations
+while warning that full content capture is sensitive and opt-in.
+
+Prioritize: selected structured MCP invocation audit because per-tool authz and
+approval tokens were already shipped, and audit closes the remaining MCP
+visibility gap without adding agentic content judgment or paid validation.
+
+Implemented:
+
+- Added `mcp_server.audit_log`, an append-only JSONL audit log for MCP tool
+  calls.
+- Decorated the registered MCP tool handler so all existing success, denial,
+  rate-limit, structured-error, and exception paths are captured without
+  growing the pinned `tools.py` dispatcher.
+- Recorded timestamp, transport, tool name, stdio actor or hashed HTTP caller
+  id, authenticated flag, granted scopes, argument/result hashes, approval token
+  id, cost metadata, job id, duration, outcome, and error metadata.
+- Added `primr://agent/audit/recent`, readable by local stdio callers and
+  admin-scoped HTTP callers.
+- Updated README, API docs, SECURITY, ROADMAP, changelog, current-state, and
+  the 2.0 control-plane design doc.
+
+Validation so far:
+
+- `uv run pytest tests/mcp_server/test_audit_log.py -q` passed: 4 tests.
+- `uv run ruff check src/primr/mcp_server/audit_log.py src/primr/mcp_server/server.py src/primr/mcp_server/tools.py src/primr/mcp_server/resources.py tests/mcp_server/test_audit_log.py` passed.
+- Full MCP suite passed: `uv run pytest tests/mcp_server -q` passed with 510
+  passed, 2 skipped.
+- Full CI-equivalent coverage gate passed:
+  `$env:GEMINI_API_KEY='fake-key-for-ci-tests'; uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q -k "not test_wait_times_out_when_no_change" -m "not integration" --cov=src/primr --cov-branch --cov-fail-under=81`
+  passed with 10134 passed, 39 skipped, 5 deselected, and 85.13% coverage.
+- Repo static/security gates passed: `ruff check src/primr/ tests/`, `ruff
+  format --check src/ tests/`, CI-shaped `mypy`, Bandit with `.bandit`, and
+  `pip-audit --ignore-vuln PYSEC-2026-196`.
+- MkDocs build passed with the repo's existing non-strict link warnings; `_site`
+  was removed after verification.
+
+Spend: `$0.00`.
+
+Self-review: correctness Strong for MCP tool-call coverage, security Strong
+for hashed inputs/results and admin-only HTTP resource access, performance
+Strong because each call adds one small append, readability Strong through a
+dedicated audit module, maintainability Strong because the dispatcher stays
+under its line ceiling. Residual work: A2A parity, richer job-scoped artifact
+resources, full local gates, commit, push, and CI verification.
+
+### Loop cycle: Backend-freedom provider availability contract
+
+Refresh: reviewed the neighboring quotabot project for quota/service
+availability patterns, then re-read the backend-freedom design doc and existing
+primr routing modules. Useful transfer: normalized quota windows, binding
+headroom, stale last-known-good snapshots, and concurrent provider collectors.
+Not transferred: quotabot's specific provider adapter endpoints, because primr
+needs official, supported provider or host-account surfaces only.
+
+Prioritize: selected a pure availability contract before live collectors. This
+matches the existing `capability_routing.py` pattern: deterministic seams first,
+provider I/O later, and no production behavior change until routing is wired
+stage by stage.
+
+Implemented:
+
+- Added `ai/provider_availability.py` with `QuotaWindow`,
+  `ProviderQuotaSnapshot`, `AvailabilityDecision`, `binding_window()`,
+  `provider_headroom()`, `availability_decision()`, and
+  `provider_with_most_headroom()`.
+- Exported the new availability helpers through `primr.ai` lazy imports.
+- Added unit tests for most-constrained windows, elapsed resets, exhausted
+  headroom thresholds, missing quota windows, stale snapshot ranking, and input
+  validation/clamping.
+- Updated ROADMAP, changelog, current-state, and the backend-freedom design doc
+  so the next backend-freedom step is live provider collectors feeding this
+  normalized shape.
+
+Validation so far:
+
+- `uv run pytest tests/test_ai/test_provider_availability.py -q` passed: 7
+  tests.
+- `uv run ruff check src/primr/ai/provider_availability.py src/primr/ai/__init__.py tests/test_ai/test_provider_availability.py` passed.
+- `uv run ruff format --check src/primr/ai/provider_availability.py src/primr/ai/__init__.py tests/test_ai/test_provider_availability.py` passed.
+- `uv run mypy src/primr/ai/provider_availability.py --ignore-missing-imports`
+  passed.
+- Full CI-equivalent coverage gate passed:
+  `$env:GEMINI_API_KEY='fake-key-for-ci-tests'; uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q -k "not test_wait_times_out_when_no_change" -m "not integration" --cov=src/primr --cov-branch --cov-fail-under=81`
+  passed with 10134 passed, 39 skipped, 5 deselected, and 85.13% coverage.
+
+Spend: `$0.00`.
+
+Self-review: correctness Strong for the normalized quota math, security Strong
+because no provider credentials or raw quota endpoint data are read here,
+performance Strong because routing consumes small immutable snapshots,
+readability Strong through a small pure module, maintainability Strong because
+future collectors can be provider-specific while routing stays provider-neutral.
+Residual work: live collector wiring, capability-router integration, release
+versioning, push, and CI verification.
+
+### Release prep: 1.33.3
+
+Moved the MCP invocation audit and provider availability work from Unreleased
+to `1.33.3`.
+
+Updated:
+
+- `pyproject.toml`
+- `src/primr/__init__.py`
+- `CITATION.cff`
+- ROADMAP current state and changelog table
+- `docs/CHANGELOG.md`
+
+Validation:
+
+- `uv run pytest tests/test_release_integrity.py -q` passed: 8 tests.
+- `uv run --with build python -m build` produced
+  `primr-1.33.3.tar.gz` and `primr-1.33.3-py3-none-any.whl`.
+- `uv run --with twine twine check dist/*` passed for both artifacts.
+- Local `dist/` and `build/` outputs were removed after validation.
+
 ### Loop cycle: MCP control-plane Stage 2 approval tokens
 
 Refresh: re-read README, ROADMAP, `CLAUDE.md`,

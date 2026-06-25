@@ -22,6 +22,21 @@
   answers "how much was approved"; the token answers "was this execution shape
   the one estimated and approved." Both are required when MCP cost enforcement
   is active.
+- Audit MCP actions at the registered tool-dispatch seam, not inside each tool
+  handler. Store hashes and governance metadata, not raw arguments, raw results,
+  raw client ids, or full approval tokens. Expose recent events as a local or
+  admin-scoped resource so operators can investigate without broadening normal
+  read-scope visibility.
+
+## Backend Routing and Availability
+
+- Treat quota and service availability as normalized routing data before adding
+  provider I/O. Pure helpers should compute binding headroom from quota windows;
+  provider collectors should only translate official status/quota surfaces into
+  that shape.
+- A provider is only as available as its most constrained quota bucket. Treat
+  elapsed reset times as fresh, preserve stale last-known-good snapshots as
+  fallback signal, and prefer fresh snapshots when ranking providers.
 
 ## Skill Pack Generation
 
@@ -65,8 +80,12 @@
   postings, and keep role planning grounded in the postings rather than the URL
   list itself.
 - A wrong archetype is worse than no archetype. For skill generation, common
+  business-role scaffolds should be explicit bundled archetypes, while weak
+  fuzzy matches should return no grounding so authoring relies on the actual
+  company evidence instead of a misleading template family.
 
 ## Agent Skills Best Practices (Anthropic-aligned refinement)
+
 - Skills are folders (SKILL.md + references/ + scripts/ + evals/). Progressive disclosure; SKILL.md lean.
 - Narrowly scoped to one capability/category.
 - Verification skills high leverage; generator must bias for >=1 per role.
@@ -76,9 +95,9 @@
 - Compose by name reference; small skills, not giant.
 - Measure via evals + structural counts in report. No brittle content regex (agentic-balance).
 - Update own exemplars (primr skill) when refining generator. Use existing seams only.
-  business-role scaffolds should be explicit bundled archetypes, while weak
-  fuzzy matches should return no grounding so authoring relies on the actual
-  company evidence instead of a misleading template family.
+
+## Release Hygiene
+
 - Release only after the package metadata, ROADMAP current state, ROADMAP
   changelog row, `CITATION.cff`, and `primr.__version__` all agree. Let
   `tests/test_release_integrity.py` be the release-preflight witness before

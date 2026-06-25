@@ -70,17 +70,29 @@ print(f"Removed {cleaned} expired keys")
 
 ## Audit Log Storage
 
-Primr generates security audit logs that should be stored persistently for compliance and incident investigation.
+Primr generates security audit logs that should be stored persistently for compliance and incident investigation. MCP tool invocations are appended to `output/.mcp_audit_log.jsonl` by default, or beside a custom MCP job journal when one is configured.
 
 ### Log Format
 
 Security events are logged with structured data:
 
+```json
+{
+  "schema_version": "1.0",
+  "timestamp": "2026-06-25T12:00:00Z",
+  "tool_name": "research_company",
+  "status": "success",
+  "client_id_hash": "sha256:...",
+  "auth_scopes": ["research"],
+  "args_hash": "sha256:...",
+  "result_hash": "sha256:...",
+  "approval_token_id": "tok_...",
+  "job_id": "job_abc123",
+  "duration_ms": 12
+}
 ```
-2026-02-02T10:30:00Z AUTH_SUCCESS: user=client-123, method=jwt, ip=192.168.1.100
-2026-02-02T10:30:05Z AUTH_FAILURE: reason=invalid_token, ip=192.168.1.101
-2026-02-02T10:30:10Z RATE_LIMIT: user=client-456, endpoint=/research, limit=100
-```
+
+Raw tool arguments, raw results, raw client ids, and full approval tokens are not persisted.
 
 ### AWS S3 Storage
 

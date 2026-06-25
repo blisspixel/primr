@@ -26,6 +26,8 @@ from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.types import Resource
 
 from primr.mcp_server.agentic_resources import get_agentic_resources, read_agentic_resource
+from primr.mcp_server.audit_log import read_agent_audit_recent_resource
+from primr.mcp_server.tool_authz import ADMIN_SCOPE
 from primr.mcp_server.types import (
     ArtifactInfo,
     ArtifactsResponse,
@@ -76,6 +78,12 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
                 uri="primr://agent/governance",
                 name="Agent Governance",
                 description="Recommended estimate, approval, and cost-cap contract for MCP clients",
+                mimeType="application/json",
+            ),
+            Resource(
+                uri="primr://agent/audit/recent",
+                name="Recent MCP Audit Events",
+                description="Recent privacy-preserving MCP tool invocation audit events",
                 mimeType="application/json",
             ),
             Resource(
@@ -144,6 +152,14 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
             "primr://agent/governance"
         ):
             return _read_agent_governance()
+        elif uri_str == "primr://agent/audit/recent" or uri_str.startswith(
+            "primr://agent/audit/recent"
+        ):
+            return read_agent_audit_recent_resource(
+                mcp_server,
+                uri_str,
+                can_read=_caller_can_read_audit(mcp_server),
+            )
         elif uri_str == "primr://research/modes" or uri_str.startswith("primr://research/modes"):
             return _read_research_modes()
         elif uri_str == "primr://output/latest" or uri_str.startswith("primr://output/latest"):
@@ -760,6 +776,15 @@ def _caller_client_id(mcp_server: "PrimrMCPServer") -> str:
         if isinstance(cid, str) and cid:
             return cid
     return "stdio"
+
+
+def _caller_can_read_audit(mcp_server: "PrimrMCPServer") -> bool:
+    """Audit events are local-only by default and admin-only over HTTP."""
+    if _caller_client_id(mcp_server) == "stdio":
+        return True
+    ctx = getattr(mcp_server, "_auth_context", None)
+    scopes = getattr(ctx, "scopes", []) if ctx is not None else []
+    return ADMIN_SCOPE in {str(scope) for scope in scopes}
 
 
 def _caller_owns_job_resource(job, client_id: str) -> bool:

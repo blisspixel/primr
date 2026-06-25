@@ -192,6 +192,78 @@ estimated cost, result status, and job id. That addresses idempotency,
 approval provenance, execution traces, and side-effect visibility without
 adding brittle content-quality gates.
 
+## 2026-06-25 Control Plane Slice: MCP Invocation Audit
+
+The MCP control-plane audit slice is now implemented for tool calls.
+
+Shipped in this slice:
+
+- Every MCP tool call records an append-only JSONL audit event through the
+  registered tool-dispatch seam.
+- Events include timestamp, transport, tool name, hashed HTTP caller id,
+  stdio actor marker, granted scopes, argument hash, result hash, approval
+  token id, estimated/max cost, job id, duration, status, error type, and error
+  code.
+- Raw tool arguments, raw results, raw URLs, raw client ids, and full approval
+  tokens are not stored.
+- `primr://agent/audit/recent` exposes recent events to local stdio callers and
+  admin-scoped HTTP callers.
+- Tests cover successful audit writes, cost-cap approval failures, scope
+  denial, privacy of raw URLs/tokens/client ids, and the local/admin resource
+  gate.
+
+Current estimate:
+
+- 2.0 control-plane pillar: about 70% complete. MCP per-tool authz, approval
+  provenance, and invocation audit are shipped for MCP tools. A2A parity,
+  richer job-scoped artifact resources, and approval coverage for any
+  non-cost-cap-governed paid paths remain.
+- Full 2.0 release: about 30-35% complete. Backend freedom and durable research
+  memory still carry most release mass.
+
+Spend: `$0.00`. Latest online check aligned this priority with current MCP
+guidance: MCP tool implementations should log tool usage for audit purposes,
+the MCP roadmap lists enterprise audit trails and observability as a priority,
+and current OpenTelemetry GenAI guidance treats tool invocations as first-class
+observable operations while defaulting away from full content capture.
+
+## 2026-06-25 Backend Freedom Slice: Provider Availability Contract
+
+The quotabot review produced one directly useful transfer for primr: treat
+quota and service availability as normalized routing data, not as provider UI
+or scattered exception text. The implementation is intentionally pure and free
+to validate before any live provider collector is added.
+
+Shipped in this slice:
+
+- `ai/provider_availability.py` defines `QuotaWindow`,
+  `ProviderQuotaSnapshot`, and `AvailabilityDecision`.
+- Headroom is computed from the most constrained quota window, so one tight
+  requests-per-minute or weekly host-plan bucket can govern routing.
+- Elapsed reset windows count as fresh quota, preventing stale quota reads from
+  keeping a provider marked exhausted after its reset boundary.
+- Stale last-known-good snapshots preserve routing signal but rank behind fresh
+  snapshots.
+- Tests cover binding windows, reset handling, exhausted headroom thresholds,
+  missing quota windows, stale snapshot behavior, and validation/clamping.
+
+Current estimate:
+
+- 2.0 backend-freedom pillar: about 30% complete. Stage capability routing,
+  host-agent packet shape, local judge detection, and quota availability
+  headroom are now pure and tested. The remaining work is production wiring:
+  live provider collectors, router integration, stage-by-stage requirement
+  declarations, first host-runner pilots, hybrid eval, and local eval.
+- Full 2.0 release: about 35% complete. Control-plane is the furthest along;
+  backend freedom now has the right deterministic seams; durable research
+  memory still carries substantial remaining release mass.
+
+Spend: `$0.00`. Validation passed for the new availability slice and the full
+repo gate: focused provider tests, focused MCP audit tests, full MCP server
+tests, ruff, format check, CI-shaped mypy, Bandit, pip-audit, MkDocs build, and
+the CI-equivalent coverage run (`10134 passed, 39 skipped, 5 deselected`,
+85.13% branch coverage).
+
 ## Quality Rubric for this work
 - Correctness: structural + prompt + tests.
 - No brittle: only prose-invariant checks.

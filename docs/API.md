@@ -1384,7 +1384,7 @@ The A2A server shares the MCP server's `SingleJobStore`, rate limiter, and secur
 
 ### Resources
 
-The MCP server exposes 7 primary read-only resources. For agent clients, assume research is long-running and monitor/resume from job state rather than blocking on one request:
+The MCP server exposes primary read-only resources for job state, governance, audit, and output discovery. For agent clients, assume research is long-running and monitor/resume from job state rather than blocking on one request:
 
 #### primr://research/status
 
@@ -1445,6 +1445,35 @@ Default governance contract for generic MCP clients.
     "execute_tool": "generate_strategy",
     "cap_argument": "max_estimated_cost_usd"
   }
+}
+```
+
+#### primr://agent/audit/recent
+
+Recent privacy-preserving MCP invocation audit events. Local stdio callers can
+read this directly; HTTP callers need `admin` scope. Events include hashes and
+metadata, not raw tool arguments, raw results, or approval tokens.
+
+```json
+{
+  "schema_version": "1.0",
+  "event_count": 1,
+  "events": [
+    {
+      "schema_version": "1.0",
+      "tool_name": "estimate_run",
+      "status": "success",
+      "transport": "stdio",
+      "actor": "stdio",
+      "client_id_hash": null,
+      "auth_scopes": [],
+      "args_hash": "sha256:...",
+      "result_hash": "sha256:...",
+      "approval_token_id": "tok_...",
+      "estimated_cost_usd": 0.89,
+      "duration_ms": 8
+    }
+  ]
 }
 ```
 
