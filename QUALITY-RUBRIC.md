@@ -156,3 +156,22 @@ Ruff, format check, architecture/release integrity, mypy, Bandit, pip-audit,
 MkDocs build, diff hygiene, and the CI-shaped coverage gate also pass. Coverage:
 85.24% branch.
 Spend: `$0.00`.
+
+2026-06-26 maintenance redirect hardening bug hunt:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: the maintenance review found and fixed one concrete behavior gap:
+`head_exists()` now converts SSRF-blocked redirect validation failures into a
+clean `False` result, preserving its existence-check contract. Focused net and
+discovery tests pass with 113 tests; Ruff, format check, focused
+net/security/discovery tests, architecture/release integrity, mypy, Bandit,
+pip-audit, MkDocs build, diff hygiene, and the CI-shaped coverage gate also
+pass. Coverage: 85.24% branch. Spend: `$0.00`.

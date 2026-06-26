@@ -2,6 +2,55 @@
 
 ## 2026-06-26
 
+### Maintenance sub-goal: redirect hardening bug hunt
+
+Trigger: cycle 7 maintenance lane.
+
+Reviewed:
+
+- `data.safe_http`
+- `data.scraping.net`
+- `data.scraping.wayback`
+- SSRF notes, ROADMAP posture text, `docs/SECURITY.md`, and focused tests.
+
+Finding and fix:
+
+- `head_exists()` could still propagate a `ValueError` raised by
+  `make_request()` when a redirect target failed SSRF validation. Its public
+  contract is boolean URL existence, so a blocked redirect should be a clean
+  `False` result.
+- Added `ValueError` to the handled failure classes and pinned it with a unit
+  test.
+
+Validation:
+
+- `uv run --no-sync pytest tests/test_data/test_scraping/test_net.py tests/test_data/test_scraping/test_discovery.py tests/test_data/test_scraping/test_discovery_more_coverage.py -q`
+  passed with 113 tests.
+- `uv run ruff check src/primr/data/scraping/net.py tests/test_data/test_scraping/test_net.py`
+  passed.
+- `uv run ruff format --check src/ tests/` passed.
+- `uv run --no-sync pytest tests/test_data/test_scraping/test_net.py tests/security/test_ssrf.py tests/security/test_egress_guardrails.py tests/test_data/test_scraping/test_discovery.py tests/test_data/test_scraping/test_discovery_more_coverage.py -q`
+  passed with 157 tests.
+- `uv run --no-sync pytest tests/test_architecture.py tests/test_release_integrity.py -q`
+  passed with 13 tests.
+- `uv run --no-sync mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'`
+  passed.
+- `uv run bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q`
+  passed with the existing `mcp_server/security.py` B108 nosec warnings.
+- `uv run --no-sync pip-audit --ignore-vuln PYSEC-2026-196` passed.
+- `uv run --no-project --with mkdocs-material --with pymdown-extensions mkdocs build --site-dir _site`
+  passed with the repo's existing non-strict link warnings; generated `_site`
+  was removed after validation.
+- `$env:GEMINI_API_KEY='fake-key-for-ci-tests'; uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q -k "not test_wait_times_out_when_no_change" -m "not integration" --cov=src/primr --cov-branch --cov-fail-under=81`
+  passed with `10227 passed, 39 skipped, 5 deselected`, branch coverage
+  `85.24%`.
+
+Rubric: Correctness 5/5, Security and Privacy 5/5, Simplicity 5/5,
+Maintainability 5/5, Performance and Cost 5/5, Verification 5/5.
+
+Cycle health: 5/5 | Simplicity: 5/5 | Est. spend: $0.00 | New skill distilled:
+none.
+
 ### Loop cycle: Discovery helper per-hop redirect guard
 
 Refresh: re-read NOTES, ROADMAP, `docs/SECURITY.md`,

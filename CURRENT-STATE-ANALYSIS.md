@@ -608,3 +608,26 @@ Validation status:
   5 deselected` and 85.24% branch coverage.
 
 Spend: `$0.00`.
+
+## 2026-06-26 Maintenance: Redirect Hardening Bug Hunt
+
+Cycle-7 maintenance reviewed the redirect hardening work and found one
+correctness gap:
+
+- `head_exists()` treated network exceptions as `False` but let `ValueError`
+  from an SSRF-blocked redirect propagate through discovery.
+- It now catches `ValueError` with `requests.RequestException`, preserving the
+  boolean existence-check contract.
+- A unit test pins the unsafe-redirect false result.
+
+Validation status:
+
+- Focused net and discovery tests pass with 113 tests.
+- Ruff check, Ruff format check, focused net/security/discovery tests,
+  architecture/release-integrity tests, mypy, Bandit, pip-audit, MkDocs build,
+  and diff hygiene pass. MkDocs emitted only the repo's existing non-strict
+  link warnings, and the generated `_site` directory was removed.
+- The CI-shaped non-manual coverage gate passed with `10227 passed, 39 skipped,
+  5 deselected` and 85.24% branch coverage.
+
+Spend: `$0.00`.

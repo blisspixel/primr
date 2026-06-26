@@ -180,7 +180,7 @@ def head_exists(
 
         return response.status_code < 400
 
-    except requests.RequestException as e:
+    except (requests.RequestException, ValueError) as e:
         logger.debug(f"URL check failed for {url}: {e}")
         return False
 

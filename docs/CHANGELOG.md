@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `head_exists()` now returns `False` when a redirect target is blocked by SSRF
+  validation instead of propagating a `ValueError` through discovery.
 - Final-report and strategy citation cleanup no longer deletes bracketed prose
   merely because it contains `cite:` inside the bracket. Informal citation
   cleanup now only rewrites brackets that begin with `cite:` or `cites:`, so

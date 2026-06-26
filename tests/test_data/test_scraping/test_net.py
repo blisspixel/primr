@@ -217,6 +217,11 @@ class TestHeadExists:
         ):
             assert head_exists("https://example.com") is False
 
+    def test_returns_false_on_unsafe_redirect(self):
+        """Should return False when a redirect target fails SSRF validation."""
+        with patch("primr.data.scraping.net.make_request", side_effect=ValueError("Invalid URL")):
+            assert head_exists("https://example.com") is False
+
     def test_falls_back_to_get_on_405(self):
         """Should fall back to GET when HEAD returns 405."""
         head_response = Mock()
