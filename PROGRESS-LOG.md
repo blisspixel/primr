@@ -2,6 +2,89 @@
 
 ## 2026-06-25
 
+### Roadmap note: security/profile rules
+
+Reviewed an external secure-agent ruleset as research input only and kept it
+out of Primr's docs by name. The useful Primr-native concepts are now recorded
+in ROADMAP #15 and #21: versioned local security/profile rules, always-apply
+versus context-selected categories, structural validation for secrets and
+egress, optional operator policy overlays, and compact agent resources instead
+of a large generic security skill or one MCP tool per rule.
+
+Spend: `$0.00`.
+
+### Local cycle: Availability-to-backend routing bridge
+
+Constraint: user asked for no more GitHub or PyPI uploads today. This cycle is
+local-only, with no commits, tags, pushes, releases, or paid validation.
+
+Refresh: re-read README, ROADMAP, `CLAUDE.md`, `docs/design/agentic-balance.md`,
+backend-freedom docs, provider-expansion docs, provider availability helpers,
+generic collectors, capability routing, and focused tests.
+
+Prioritize: selected the pure availability-to-backend adapter before live cloud
+quota collectors. This keeps the next step deterministic and testable: generic
+and future official snapshots can now change route eligibility without any
+provider call or execution wiring.
+
+Implemented:
+
+- Added `backend_with_availability()` and `backends_with_availability()` to
+  `ai/capability_routing.py`.
+- Availability snapshots now mark backend rows unavailable before `route_stage()`
+  and attach sanitized metadata.
+- Local backend rows can use the generic `local_openai_compatible` availability
+  snapshot, so local services remain provider-agnostic.
+- Sanitization preserves routing facts such as quota source, headroom, stale
+  status, and safe error codes while excluding raw endpoints, installed model
+  names, account ids, API key material, and raw exception text.
+- Exported the helpers through `primr.ai`.
+- Added sanitized provider availability output to `primr doctor`.
+- Updated ROADMAP, backend-freedom design notes, changelog Unreleased, and
+  current-state analysis.
+
+Bug-hunt follow-up:
+
+- Hardened routing availability metadata against malformed collector fields,
+  including host-like provider labels, unsafe endpoint/credential source
+  strings, and invalid local model counts.
+- Hardened `primr doctor` provider-availability output so malformed display
+  names, env labels, endpoint sources, and model-count values cannot crash the
+  command or leak host-like details.
+- Added regression tests for malformed snapshot metadata in both the capability
+  router and doctor output.
+
+Validation so far:
+
+- `uv run --no-sync pytest tests/test_ai/test_capability_routing.py tests/test_ai/test_provider_availability.py tests/test_ai/test_provider_availability_collectors.py -q`
+  passed with 28 tests.
+- `uv run --no-sync pytest tests/test_core/test_cli_doctor.py tests/test_ai/test_capability_routing.py tests/test_ai/test_provider_availability_collectors.py tests/test_ai/test_provider_availability.py -q`
+  passed with 71 tests.
+- `uv run ruff check src/primr/ai/capability_routing.py tests/test_ai/test_capability_routing.py`
+  passed.
+- `uv run ruff format --check src/primr/ai/capability_routing.py tests/test_ai/test_capability_routing.py`
+  passed.
+- `uv run --no-sync mypy src/primr/core/cli_doctor.py src/primr/ai/capability_routing.py src/primr/ai/provider_availability.py src/primr/ai/provider_availability_collectors.py --ignore-missing-imports --disable-error-code=import-untyped`
+  passed.
+- `uv run --no-sync pytest tests/test_architecture.py -q` passed with 5 tests.
+- `uv run --no-sync pytest tests/test_core/test_cli_doctor.py tests/test_ai/test_capability_routing.py -q`
+  passed with 59 tests after the bug-hunt hardening.
+- `uv run --no-sync pytest tests/test_core/test_cli_doctor.py tests/test_core/test_cli.py tests/test_core/test_cli_handlers.py tests/test_core/test_cli_main.py tests/test_ai/test_capability_routing.py tests/test_ai/test_provider_availability.py tests/test_ai/test_provider_availability_collectors.py tests/test_architecture.py -q`
+  passed with 217 tests.
+- `uv run ruff check README.md ROADMAP.md docs/CHANGELOG.md docs/design/2.0-backend-freedom.md CURRENT-STATE-ANALYSIS.md PROGRESS-LOG.md src/primr/core/cli_doctor.py src/primr/ai/__init__.py src/primr/ai/capability_routing.py tests/test_core/test_cli_doctor.py tests/test_ai/test_capability_routing.py`
+  passed.
+- `uv run ruff format --check src/primr/core/cli_doctor.py src/primr/ai/__init__.py src/primr/ai/capability_routing.py tests/test_core/test_cli_doctor.py tests/test_ai/test_capability_routing.py`
+  passed.
+- `git diff --check` passed with only Windows line-ending notices.
+- Full CI-shaped local coverage gate passed:
+  `$env:GEMINI_API_KEY='fake-key-for-ci-tests'; uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q -k "not test_wait_times_out_when_no_change" -m "not integration" --cov=src/primr --cov-branch --cov-fail-under=81`
+  passed with 10151 tests, 39 skipped, 5 deselected, and 85.17% coverage.
+
+Spend: `$0.00`.
+
+Next: official zero-token status collector scaffolding where provider docs
+expose a supported surface, then stage-by-stage production route adoption.
+
 ### Loop cycle: Backend-freedom generic availability collectors
 
 Refresh: re-read the README, ROADMAP, backend-freedom design notes, provider

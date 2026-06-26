@@ -12,6 +12,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from primr.ai.provider_availability import ProviderQuotaSnapshot, QuotaWindow
+from primr.ai.provider_availability_collectors import LOCAL_OPENAI_COMPATIBLE_PROVIDER
 from primr.core import cli_doctor
 from primr.core.cli_doctor import (
     _check_api_connectivity,
@@ -19,6 +21,7 @@ from primr.core.cli_doctor import (
     _check_dependencies,
     _check_filesystem,
     _check_gemini_resources,
+    _check_provider_availability,
     _check_providers,
     run_doctor,
 )
@@ -174,6 +177,156 @@ class TestCheckProviders:
         monkeypatch.delenv("XAI_API_KEY", raising=False)
         with patch("primr.ai.providers.KNOWN_PROVIDERS", [self._entry()]):
             assert _check_providers(0) == 1
+
+
+# ---------------------------------------------------------------------------
+# _check_provider_availability
+# ---------------------------------------------------------------------------
+
+
+class TestCheckProviderAvailability:
+    def test_provider_availability_outputs_sanitized_summary(self):
+        snapshots = (
+            ProviderQuotaSnapshot(
+                provider="openai",
+                display_name="OpenAI GPT",
+                ok=True,
+                metadata={
+                    "api_key_env": "OPENAI_API_KEY",
+                    "configured": True,
+                    "quota_source": "not_collected",
+                },
+            ),
+            ProviderQuotaSnapshot(
+                provider="anthropic",
+                display_name="Anthropic Claude",
+                ok=False,
+                error="missing_api_key",
+                metadata={
+                    "api_key_env": "ANTHROPIC_API_KEY",
+                    "configured": False,
+                    "quota_source": "not_collected",
+                },
+            ),
+            ProviderQuotaSnapshot(
+                provider=LOCAL_OPENAI_COMPATIBLE_PROVIDER,
+                display_name="Local OpenAI-compatible",
+                ok=True,
+                windows=(QuotaWindow("local_service", used_percent=0),),
+                metadata={
+                    "endpoint_source": "LOCAL_LLM_BASE_URL",
+                    "model_names": ("custom-model-name",),
+                    "model_count": 2,
+                    "quota_source": "local_probe",
+                },
+            ),
+        )
+        console = MagicMock()
+
+        with (
+            patch(
+                "primr.core.cli_doctor.collect_provider_availability_snapshots",
+                return_value=snapshots,
+            ),
+            patch("primr.core.cli_doctor.console", console),
+        ):
+            assert _check_provider_availability(3) == 3
+
+        output = str(console.mock_calls)
+        assert "OpenAI GPT: configured" in output
+        assert "Anthropic Claude: not configured" in output
+        assert "Local OpenAI-compatible: available" in output
+        assert "ANTHROPIC_API_KEY" in output
+        assert "custom-model-name" not in output
+        assert "operator-host" not in output
+        console.warn.assert_not_called()
+
+    def test_configured_unavailable_provider_warns_without_raw_endpoint(self):
+        snapshots = (
+            ProviderQuotaSnapshot(
+                provider="xai",
+                display_name="xAI Grok",
+                ok=False,
+                error="cannot reach http://operator-host.example.invalid:9999/quota",
+                metadata={
+                    "configured": True,
+                    "quota_source": "http://operator-host.example.invalid:9999/quota",
+                },
+            ),
+        )
+        console = MagicMock()
+
+        with (
+            patch(
+                "primr.core.cli_doctor.collect_provider_availability_snapshots",
+                return_value=snapshots,
+            ),
+            patch("primr.core.cli_doctor.console", console),
+        ):
+            assert _check_provider_availability(0) == 1
+
+        output = str(console.mock_calls)
+        assert "availability_error" in output
+        assert "operator-host" not in output
+        console.warn.assert_called_once()
+
+    def test_collector_failure_warns_with_safe_error(self):
+        console = MagicMock()
+
+        with (
+            patch(
+                "primr.core.cli_doctor.collect_provider_availability_snapshots",
+                side_effect=RuntimeError("failed at http://operator-host.example.invalid:9999"),
+            ),
+            patch("primr.core.cli_doctor.console", console),
+        ):
+            assert _check_provider_availability(2) == 3
+
+        output = str(console.mock_calls)
+        assert "availability_error" in output
+        assert "operator-host" not in output
+
+    def test_malformed_snapshot_metadata_does_not_crash_or_leak(self):
+        snapshots = (
+            ProviderQuotaSnapshot(
+                provider=LOCAL_OPENAI_COMPATIBLE_PROVIDER,
+                display_name="operator-host.example.invalid",
+                ok=True,
+                windows=(QuotaWindow("local_service", used_percent=0),),
+                metadata={
+                    "endpoint_source": "http://operator-host.example.invalid:9999/v1",
+                    "model_count": "not-a-number",
+                    "quota_source": "local_probe",
+                },
+            ),
+            ProviderQuotaSnapshot(
+                provider="anthropic",
+                display_name="operator-host.example.invalid",
+                ok=False,
+                error="missing_api_key",
+                metadata={
+                    "api_key_env": "http://operator-host.example.invalid/key",
+                    "configured": False,
+                    "quota_source": "not_collected",
+                },
+            ),
+        )
+        console = MagicMock()
+
+        with (
+            patch(
+                "primr.core.cli_doctor.collect_provider_availability_snapshots",
+                return_value=snapshots,
+            ),
+            patch("primr.core.cli_doctor.console", console),
+        ):
+            assert _check_provider_availability(0) == 0
+
+        output = str(console.mock_calls)
+        assert "local_openai_compatible: available (0 local model(s), $0 API runtime)" in output
+        assert "anthropic: not configured (provider key unset)" in output
+        assert "operator-host" not in output
+        console.warn.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -338,6 +491,11 @@ class TestRunDoctor:
         ):
             monkeypatch.setattr(cli_doctor, name, lambda ap, wc: (ap and all_passed, wc + warnings))
         monkeypatch.setattr(cli_doctor, "_check_providers", lambda wc: wc + warnings)
+        monkeypatch.setattr(
+            cli_doctor,
+            "_check_provider_availability",
+            lambda wc: wc + warnings,
+        )
         monkeypatch.setattr(cli_doctor, "_check_dependencies", lambda wc: wc + warnings)
         monkeypatch.setattr(cli_doctor, "_check_key_shadowing", lambda wc: wc + warnings)
 

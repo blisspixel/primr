@@ -14,10 +14,15 @@ judgment inside that bounded stage.
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
+from primr.ai.provider_availability import (
+    ProviderQuotaSnapshot,
+    availability_decision,
+)
 from primr.ai.routing import Role
 
 if TYPE_CHECKING:
@@ -95,6 +100,23 @@ _LATENCY_RANK: Mapping[LatencyClass, int] = {
     LatencyClass.STANDARD: 1,
     LatencyClass.LONG_RUNNING: 2,
 }
+
+_LOCAL_OPENAI_COMPATIBLE_PROVIDER = "local_openai_compatible"
+_AVAILABILITY_METADATA_KEY = "availability"
+_SAFE_SNAPSHOT_METADATA_KEYS = frozenset(
+    {
+        "chat_model_available",
+        "configured",
+        "credential_source",
+        "endpoint_source",
+        "model_count",
+        "zero_incremental_api_cost",
+    }
+)
+_SAFE_BOOL_SNAPSHOT_METADATA_KEYS = frozenset(
+    {"chat_model_available", "configured", "zero_incremental_api_cost"}
+)
+_SAFE_CODE_SNAPSHOT_METADATA_KEYS = frozenset({"credential_source", "endpoint_source"})
 
 
 @dataclass(frozen=True)
@@ -318,6 +340,55 @@ def route_stage(
     )
 
 
+def backend_with_availability(
+    backend: BackendCapabilities,
+    snapshots: Iterable[ProviderQuotaSnapshot],
+    *,
+    now: datetime | None = None,
+    require_snapshot: bool = False,
+) -> BackendCapabilities:
+    """Return a backend row annotated with sanitized provider availability."""
+
+    snapshot_by_provider = {snapshot.provider: snapshot for snapshot in snapshots}
+    snapshot = _availability_snapshot_for_backend(backend, snapshot_by_provider)
+    if snapshot is None:
+        if not require_snapshot:
+            return backend
+        return _backend_with_missing_availability(backend)
+
+    decision = availability_decision(snapshot, now)
+    metadata = {
+        **backend.metadata,
+        _AVAILABILITY_METADATA_KEY: _sanitized_availability_metadata(snapshot, now),
+    }
+    return replace(
+        backend,
+        available=backend.available and decision.available,
+        metadata=metadata,
+    )
+
+
+def backends_with_availability(
+    backends: Iterable[BackendCapabilities],
+    snapshots: Iterable[ProviderQuotaSnapshot],
+    *,
+    now: datetime | None = None,
+    require_snapshot: bool = False,
+) -> tuple[BackendCapabilities, ...]:
+    """Apply provider availability snapshots to backend capability rows."""
+
+    snapshot_tuple = tuple(snapshots)
+    return tuple(
+        backend_with_availability(
+            backend,
+            snapshot_tuple,
+            now=now,
+            require_snapshot=require_snapshot,
+        )
+        for backend in backends
+    )
+
+
 def backend_meets_requirements(
     backend: BackendCapabilities,
     requirements: StageRequirements,
@@ -489,3 +560,104 @@ def _candidate_sort_key(
         latency_rank,
         backend.backend_id,
     )
+
+
+def _availability_snapshot_for_backend(
+    backend: BackendCapabilities,
+    snapshot_by_provider: Mapping[str, ProviderQuotaSnapshot],
+) -> ProviderQuotaSnapshot | None:
+    for provider in _availability_provider_keys(backend):
+        snapshot = snapshot_by_provider.get(provider)
+        if snapshot is not None:
+            return snapshot
+    return None
+
+
+def _availability_provider_keys(backend: BackendCapabilities) -> tuple[str, ...]:
+    keys: list[str] = []
+    provider = backend.metadata.get("provider")
+    if isinstance(provider, str) and provider.strip():
+        keys.append(provider.strip())
+    if BackendKind(backend.kind) is BackendKind.LOCAL:
+        keys.append(_LOCAL_OPENAI_COMPATIBLE_PROVIDER)
+        keys.append("ollama")
+    keys.append(backend.backend_id)
+    return tuple(dict.fromkeys(keys))
+
+
+def _backend_with_missing_availability(backend: BackendCapabilities) -> BackendCapabilities:
+    metadata = {
+        **backend.metadata,
+        _AVAILABILITY_METADATA_KEY: {
+            "available": False,
+            "error": "missing_availability_snapshot",
+            "provider": _safe_provider_label(_availability_provider_keys(backend)[0]),
+            "quota_source": "not_collected",
+            "stale": False,
+        },
+    }
+    return replace(backend, available=False, metadata=metadata)
+
+
+def _sanitized_availability_metadata(
+    snapshot: ProviderQuotaSnapshot,
+    now: datetime | None,
+) -> dict[str, Any]:
+    decision = availability_decision(snapshot, now)
+    quota_source = _safe_error_code(str(snapshot.metadata.get("quota_source", "unknown")))
+    metadata: dict[str, Any] = {
+        "available": decision.available,
+        "provider": _safe_provider_label(snapshot.provider),
+        "quota_source": quota_source or "unknown",
+        "stale": decision.stale,
+    }
+    if decision.headroom_percent is not None:
+        metadata["headroom_percent"] = round(decision.headroom_percent, 3)
+    if decision.binding_window_label is not None:
+        metadata["binding_window_label"] = decision.binding_window_label
+    if decision.resets_at is not None:
+        metadata["resets_at"] = decision.resets_at.isoformat()
+    error = _safe_error_code(decision.error)
+    if error is not None:
+        metadata["error"] = error
+    for key in _SAFE_SNAPSHOT_METADATA_KEYS:
+        if key in snapshot.metadata:
+            metadata[key] = _safe_snapshot_metadata_value(key, snapshot.metadata[key])
+    return metadata
+
+
+def _safe_snapshot_metadata_value(key: str, value: Any) -> bool | int | str | None:
+    if value is None:
+        return None
+    if key in _SAFE_BOOL_SNAPSHOT_METADATA_KEYS:
+        return bool(value)
+    if key == "model_count":
+        return _safe_non_negative_int(value)
+    if key in _SAFE_CODE_SNAPSHOT_METADATA_KEYS:
+        return _safe_error_code(str(value)) or "unknown"
+    return None
+
+
+def _safe_non_negative_int(value: Any) -> int:
+    if isinstance(value, bool):
+        return 0
+    try:
+        count = int(value or 0)
+    except (OverflowError, TypeError, ValueError):
+        return 0
+    return max(0, count)
+
+
+def _safe_provider_label(value: str | None) -> str:
+    return _safe_error_code(value) or "provider"
+
+
+def _safe_error_code(error: str | None) -> str | None:
+    if not error:
+        return None
+    code = error.strip().lower().replace(" ", "_")
+    if len(code) > 80:
+        return "availability_error"
+    if all(character.isalnum() or character in {"_", "-"} for character in code):
+        return code
+    return "availability_error"

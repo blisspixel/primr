@@ -31,52 +31,36 @@ resources.
 
 ## Current Roadmap Focus
 
-Roadmap item 25 is the active skill-pack improvement lane. The completed slices
-in this cycle are:
+Backend freedom is the active 2.0 unblocker. The completed local slices now
+cover the deterministic routing skeleton:
 
-- Clean default skill frontmatter with optional metadata.
-- Stronger authoring prompts for intake, scope guardrails, human checkpoints,
-  and worked examples.
-- Hard validation for bodies under 300 words and missing structural quality
-  markers.
-- Deterministic role-family references attached across each role's skills.
+- Bounded host-agent stage packets in `ai/host_agent_runner.py`.
+- Pure stage capability routing in `ai/capability_routing.py`.
+- Pure provider quota and availability normalization in
+  `ai/provider_availability.py`.
+- Generic user-owned availability collection in
+  `ai/provider_availability_collectors.py`.
+- Availability-to-backend annotation in `ai/capability_routing.py`, which marks
+  backend rows unavailable and attaches sanitized metadata before routing.
+- Sanitized `primr doctor` visibility for the same generic availability
+  snapshots.
 
-The next high-leverage item in the same lane is JD-as-evidence input, followed
-by enterprise role-discovery honesty and the Cowork packaging refresh.
+The current priority is still not a paid live probe. The next local-safe step is
+production plumbing around the pure seam: wire official quota/status collectors
+only where providers expose supported zero-token status surfaces, then adopt the
+router stage by stage. Full-report execution should keep today's defaults until
+eval proves each route before it is advertised.
 
-Update from the latest cycle: skill-pack output should be treated as a draft
-skill generator, not a company-insight artifact generator. The skill body stays
-compact and procedural: required inputs, produced artifact, workflow, guardrail,
-human checkpoint, and worked example. Company context is used to make those
-items specific, while role grounding stays in progressively loaded references.
+Current estimate:
 
-Current cycle update: JD-as-evidence is now shipped, and enterprise
-role-discovery honesty has its first shipped slice. `--from-jd` / MCP
-`from_jd_path` adds a sanitized local role brief to the hiring evidence layer
-before planning and authoring, and JD-only single-role draft generation is
-supported without pretending discovery found broader company evidence. The
-planner also records a non-blocking `posting-incomplete` warning when observed
-postings for a mid-market-or-larger organization cluster in one narrow band.
-The Cowork packaging refresh is also now aligned to current Microsoft limits:
-plugin sideload manifests cap at 20 `agentSkills`, companions are allowed but
-bounded, and larger packs keep the full unpacked tree while emitting a valid
-20-skill Cowork slice. Segmented / multi-ATS career-site input support is now
-shipped through repeatable `--career-url` / MCP `career_urls`: exact career
-boards are source selectors for hiring evidence, merged before planning, and
-usable without a company URL when only postings are available. The next
-high-leverage work in this lane is broader live-quality evaluation of generated
-packs against real operator workflows rather than adding more context volume.
-Latest cycle update: common business-role archetypes are now bundled for sales,
-marketing, people operations, finance, legal/compliance, and operations. Weak
-display-name similarity no longer returns a usable archetype, so unknown roles
-author from company evidence only instead of inheriting misleading technical
-scaffolding.
-
-Release cycle update: the accumulated skill-pack quality lane is being cut as
-v1.32.8 so the package build and PyPI distribution carry the same shipped state
-as `main`: clean skill frontmatter, stronger procedural bodies, role-family
-references, JD and career-board evidence inputs, posting-coverage warnings,
-Cowork packaging caps, and business-role archetype grounding.
+- 2.0 backend-freedom pillar: about 35-38% complete. Routing, host-runner
+  packets, availability math, generic collection, backend annotation, and
+  doctor visibility are tested. Remaining work is official live collectors,
+  stage requirement declarations, production execution adoption, host-runner
+  pilots, hybrid eval, and local profile fit checks.
+- Full 2.0 release: about 35% complete. Control-plane and backend-freedom
+  infrastructure are furthest along; durable research memory remains the
+  largest unstarted pillar.
 
 ## 2026-06-24 Refinement: Deeper Anthropic Agent Skills Best Practices
 Approved plan executed for the skill_pack generator (primr skills). Changes embed
@@ -307,6 +291,42 @@ the CI-equivalent full coverage gate (`10141 passed, 39 skipped, 5 deselected`,
 85.14% branch coverage), release-integrity test, docs build, package build,
 twine metadata check, Bandit, and pip-audit. `1.33.4` is ready for commit,
 push, tag, and CI release verification.
+
+## 2026-06-25 Local Backend Freedom Slice: Availability-to-Backend Bridge
+
+The next local-only step after `1.33.4` is complete: provider availability
+snapshots can now feed the capability router without live provider calls.
+
+Implemented locally:
+
+- `backend_with_availability()` annotates one `BackendCapabilities` row from a
+  matching `ProviderQuotaSnapshot`.
+- `backends_with_availability()` applies that adapter across a route candidate
+  set.
+- Cloud backends match snapshots by sanitized `metadata["provider"]` or backend
+  id.
+- Local backends can match the generic `local_openai_compatible` snapshot, so
+  Ollama, LM Studio, llama.cpp server, vLLM, LocalAI, and similar services share
+  one local availability path.
+- Availability metadata is deliberately small and sanitized: no raw endpoint
+  URL, installed model name, API key material, account id, or raw exception
+  payload is copied into routing metadata.
+- `primr doctor` now shows the same sanitized availability view for configured
+  cloud providers, absent keys, and local OpenAI-compatible service status.
+
+Current estimate:
+
+- 2.0 backend-freedom pillar: about 35-38% complete. The pure route planner now
+  accepts availability decisions and doctor exposes those signals, but
+  production execution still needs official quota/status collectors where
+  supported and stage-by-stage route adoption.
+- Full 2.0 release: still about 35% complete because durable research memory
+  and production execution adoption remain substantial.
+
+Spend: `$0.00`. Validation for this local slice passed with focused
+capability-routing, provider-availability, and doctor tests plus ruff, format,
+mypy, architecture checks, and diff checks on the touched paths. No GitHub or
+PyPI upload was performed.
 
 ## Quality Rubric for this work
 - Correctness: structural + prompt + tests.

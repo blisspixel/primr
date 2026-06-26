@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from primr.ai.capability_routing import (
@@ -12,10 +15,16 @@ from primr.ai.capability_routing import (
     StageRequirements,
     TrustSensitivity,
     backend_meets_requirements,
+    backend_with_availability,
+    backends_with_availability,
     route_stage,
 )
+from primr.ai.provider_availability import ProviderQuotaSnapshot, QuotaWindow
+from primr.ai.provider_availability_collectors import LOCAL_OPENAI_COMPATIBLE_PROVIDER
 from primr.ai.routing import Role
 from primr.config.models import ModelRegistry
+
+NOW = datetime(2026, 6, 25, 12, 0, tzinfo=UTC)
 
 
 def _cloud(
@@ -279,6 +288,161 @@ def test_from_model_config_maps_registry_metadata_without_probing() -> None:
     assert ollama.billing_mode is BillingMode.ZERO_API_RUNTIME
     assert ollama.metadata["provider"] == "ollama"
     assert deprecated.available is False
+
+
+def test_provider_availability_marks_missing_cloud_key_unavailable() -> None:
+    backend = replace(
+        _cloud("openai-writer", roles=(Role.WRITING,)), metadata={"provider": "openai"}
+    )
+    snapshot = ProviderQuotaSnapshot(
+        provider="openai",
+        ok=False,
+        error="missing_api_key",
+        metadata={
+            "configured": False,
+            "credential_source": None,
+            "quota_source": "not_collected",
+        },
+    )
+
+    annotated = backend_with_availability(backend, (snapshot,))
+    requirements = StageRequirements(stage_id="writer", role=Role.WRITING)
+    plan = route_stage(requirements, (annotated,), RoutingPolicy())
+
+    assert annotated.available is False
+    assert annotated.metadata["availability"] == {
+        "available": False,
+        "provider": "openai",
+        "quota_source": "not_collected",
+        "stale": False,
+        "error": "missing_api_key",
+        "configured": False,
+        "credential_source": None,
+    }
+    assert plan.primary is None
+    assert plan.rejections[0].reasons == ("unavailable",)
+
+
+def test_provider_availability_applies_generic_local_snapshot_to_local_backend() -> None:
+    local = _local()
+    snapshot = ProviderQuotaSnapshot(
+        provider=LOCAL_OPENAI_COMPATIBLE_PROVIDER,
+        windows=(QuotaWindow("local_service", used_percent=0),),
+        metadata={
+            "chat_model_available": True,
+            "endpoint_source": "LOCAL_LLM_BASE_URL",
+            "model_count": 2,
+            "quota_source": "local_probe",
+            "zero_incremental_api_cost": True,
+        },
+    )
+
+    annotated = backend_with_availability(local, (snapshot,), require_snapshot=True)
+    requirements = StageRequirements(
+        stage_id="summarize",
+        role=Role.UTILITY,
+        accepts_local=True,
+    )
+    plan = route_stage(
+        requirements,
+        (annotated,),
+        RoutingPolicy(profile=InferenceProfile.LOCAL),
+    )
+
+    assert annotated.available is True
+    assert annotated.metadata["availability"]["provider"] == LOCAL_OPENAI_COMPATIBLE_PROVIDER
+    assert annotated.metadata["availability"]["headroom_percent"] == pytest.approx(100.0)
+    assert annotated.metadata["availability"]["model_count"] == 2
+    assert plan.primary is not None
+    assert plan.primary.backend.backend_id == "local-qwen"
+
+
+def test_provider_availability_honors_injected_reset_time() -> None:
+    backend = replace(
+        _cloud("anthropic", roles=(Role.WRITING,)),
+        metadata={"provider": "anthropic"},
+    )
+    snapshot = ProviderQuotaSnapshot(
+        provider="anthropic",
+        windows=(QuotaWindow("daily", used_percent=100, resets_at=NOW - timedelta(seconds=1)),),
+    )
+
+    annotated = backend_with_availability(backend, (snapshot,), now=NOW)
+
+    assert annotated.available is True
+    assert annotated.metadata["availability"]["headroom_percent"] == pytest.approx(100.0)
+
+
+def test_provider_availability_sanitizes_error_metadata() -> None:
+    backend = replace(
+        _cloud("xai-reasoning", roles=(Role.REASONING,)), metadata={"provider": "xai"}
+    )
+    snapshot = ProviderQuotaSnapshot(
+        provider="xai",
+        ok=False,
+        error="cannot reach http://operator-host.example.invalid:9999/quota",
+        metadata={
+            "quota_source": "http://operator-host.example.invalid:9999/quota",
+            "raw_endpoint": "http://operator-host.example.invalid:9999/quota",
+        },
+    )
+
+    annotated = backend_with_availability(backend, (snapshot,))
+
+    assert annotated.available is False
+    assert annotated.metadata["availability"]["error"] == "availability_error"
+    assert annotated.metadata["availability"]["quota_source"] == "availability_error"
+    assert "raw_endpoint" not in annotated.metadata["availability"]
+    assert "operator-host" not in str(annotated.metadata)
+
+
+def test_provider_availability_sanitizes_allowlisted_snapshot_metadata() -> None:
+    unsafe_provider = "operator-host.example.invalid"
+    backend = replace(
+        _cloud("unsafe-provider", roles=(Role.REASONING,)),
+        metadata={"provider": unsafe_provider},
+    )
+    snapshot = ProviderQuotaSnapshot(
+        provider=unsafe_provider,
+        metadata={
+            "chat_model_available": "yes",
+            "configured": "yes",
+            "credential_source": "secret://operator-host.example.invalid/key",
+            "endpoint_source": "http://operator-host.example.invalid:9999/v1",
+            "model_count": "not-a-number",
+            "quota_source": "operator-host.example.invalid",
+            "zero_incremental_api_cost": "yes",
+        },
+    )
+
+    annotated = backend_with_availability(backend, (snapshot,))
+    availability = annotated.metadata["availability"]
+
+    assert availability["provider"] == "availability_error"
+    assert availability["credential_source"] == "availability_error"
+    assert availability["endpoint_source"] == "availability_error"
+    assert availability["model_count"] == 0
+    assert availability["chat_model_available"] is True
+    assert availability["configured"] is True
+    assert availability["zero_incremental_api_cost"] is True
+    assert "operator-host" not in str(availability)
+
+
+def test_require_snapshot_can_make_missing_availability_explicit() -> None:
+    openai = replace(_cloud("openai", roles=(Role.UTILITY,)), metadata={"provider": "openai"})
+    gemini = replace(_cloud("gemini", roles=(Role.UTILITY,)), metadata={"provider": "gemini"})
+    snapshots = (ProviderQuotaSnapshot(provider="openai", windows=(QuotaWindow("daily", 10),)),)
+
+    annotated = backends_with_availability(
+        (openai, gemini),
+        snapshots,
+        require_snapshot=True,
+    )
+    by_id = {backend.backend_id: backend for backend in annotated}
+
+    assert by_id["openai"].available is True
+    assert by_id["gemini"].available is False
+    assert by_id["gemini"].metadata["availability"]["error"] == "missing_availability_snapshot"
 
 
 def test_stage_requirements_validate_and_coerce_values() -> None:

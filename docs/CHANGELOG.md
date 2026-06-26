@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Capability routing can now consume provider availability snapshots through
+  `backend_with_availability()` and `backends_with_availability()`. The adapter
+  marks backend rows unavailable from quota/configuration decisions and attaches
+  sanitized routing metadata without copying raw endpoint URLs, installed model
+  names, API key material, or account identifiers.
+- `primr doctor` now includes a sanitized provider-availability section built
+  from the same generic snapshots. It reports configured cloud providers, absent
+  keys, and local OpenAI-compatible availability without making paid provider
+  calls or leaking local endpoint hostnames.
+
+### Fixed
+
+- Provider availability metadata handling now tolerates malformed collector
+  values and sanitizes host-like labels, unsafe env names, quota-source strings,
+  and model-count values before they reach routing metadata or `primr doctor`.
+
 ## [1.33.4] - 2026-06-25
 
 ### Added

@@ -74,6 +74,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "StageRequirements": ("primr.ai.capability_routing", "StageRequirements"),
     "TrustSensitivity": ("primr.ai.capability_routing", "TrustSensitivity"),
     "backend_meets_requirements": ("primr.ai.capability_routing", "backend_meets_requirements"),
+    "backend_with_availability": (
+        "primr.ai.capability_routing",
+        "backend_with_availability",
+    ),
+    "backends_with_availability": (
+        "primr.ai.capability_routing",
+        "backends_with_availability",
+    ),
     "estimate_stage_cost": ("primr.ai.capability_routing", "estimate_stage_cost"),
     "route_stage": ("primr.ai.capability_routing", "route_stage"),
     # Provider availability

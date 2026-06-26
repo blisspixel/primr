@@ -74,8 +74,8 @@ For completed work, see the [Changelog](#changelog) at the bottom of this file, 
 - Five providers wired: xAI (Grok), Google (Gemini), OpenAI, Anthropic, Ollama (local)
 - Provider abstraction at `src/primr/ai/providers/` — `Provider` ABC, `OpenAICompatibleProvider` (xAI/OpenAI/Ollama/vLLM), `GeminiProvider`, `AnthropicProvider`
 - `pick_model_for_role` chooses the best model from configured providers; `primr doctor` shows what each key unlocks
-- Pure capability router foundation shipped in `src/primr/ai/capability_routing.py`: `StageRequirements`, backend capability rows, cloud/agent/hybrid/local profiles, billing-mode guards, ordered route plans, and explicit rejection reasons. It is not yet wired into full-report execution.
-- Provider availability foundation shipped across `src/primr/ai/provider_availability.py` and `src/primr/ai/provider_availability_collectors.py`: normalized quota windows, binding headroom, elapsed-reset handling, stale last-known-good snapshots, deterministic provider ranking, non-secret cloud provider configuration snapshots, and generic local OpenAI-compatible availability probes. Official live cloud quota/status collectors and router wiring remain planned.
+- Pure capability router foundation shipped in `src/primr/ai/capability_routing.py`: `StageRequirements`, backend capability rows, cloud/agent/hybrid/local profiles, billing-mode guards, ordered route plans, explicit rejection reasons, and pure availability-to-backend annotation. It is not yet wired into full-report execution.
+- Provider availability foundation shipped across `src/primr/ai/provider_availability.py` and `src/primr/ai/provider_availability_collectors.py`: normalized quota windows, binding headroom, elapsed-reset handling, stale last-known-good snapshots, deterministic provider ranking, non-secret cloud provider configuration snapshots, generic local OpenAI-compatible availability probes, sanitized routing metadata, and `primr doctor` visibility. Official live cloud quota/status collectors and production execution wiring remain planned.
 - Provider-aware fallback chain: WRITING/UTILITY prefer GEMINI > OPENAI > ANTHROPIC > XAI; REASONING prefers XAI (cached) > GEMINI > OPENAI > ANTHROPIC
 - Cross-provider dispatch in `grok_llm` and `llm()` so writing-tier calls reach the right provider when the resolved model is non-Grok
 - Quota-aware `ModelCircuitBreaker.execute_with_fallback()` with midnight-UTC reset (callable; production call-site integration still pending — see queue below)
@@ -588,6 +588,15 @@ and [best-practices guide](https://platform.claude.com/docs/en/agents-and-tools/
 - **Verifiable intermediate outputs (plan-validate-execute pattern)** —
   PLANNED: for skills that perform batch or high-stakes operations, emit a
   separate plan-file step the agent can validate before applying.
+- **Security/profile rules for generated skills and agent clients**:
+  PLANNED: maintain a small Primr-owned policy profile with metadata tags for
+  always-apply rules, context-selected rules, artifact type, and security
+  domain. Use it to guide skill-pack authoring and structural validation around
+  secrets, raw endpoint/account leakage, data retention, external egress,
+  approval thresholds, and declared tool permissions. Keep this as versioned
+  local data plus validators, not a prose mega-skill and not one tool per rule.
+  Later, allow optional operator policy overlays so generated packs can reflect
+  local org requirements without baking those requirements into Primr itself.
 
 After the standard pipeline, add domain-specific scrutiny of findings.
 
@@ -633,10 +642,12 @@ Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The firs
 - **Shipped foundation:** `StageRequirements`, `BackendCapabilities`, `RoutingPolicy`, and `route_stage()` return ordered cloud/gateway/host-agent/local candidates with explicit rejection reasons and no live provider calls
 - **Shipped availability foundation:** `ProviderQuotaSnapshot`, `QuotaWindow`, `availability_decision()`, and `provider_with_most_headroom()` normalize provider quota windows and stale last-known-good service availability without live provider calls
 - **Shipped generic collectors:** `collect_provider_availability_snapshots()` reports non-secret provider configuration status and generic local OpenAI-compatible availability from the user's own runtime environment, without storing API key values, raw endpoint URLs, account ids, or installed model names
+- **Shipped router bridge:** `backend_with_availability()` and `backends_with_availability()` apply provider snapshots to backend capability rows and attach sanitized availability metadata before `route_stage()`
+- **Shipped doctor visibility:** `primr doctor` now shows sanitized provider availability from the same generic snapshots, without paid cloud probes or local endpoint leakage
 - Each production stage still needs to declare its requirements: minimum reasoning depth, trust sensitivity, required capabilities (web search, structured output, long context), and acceptable backend families
 - Router selection must be wired into execution and cost estimation stage by stage, keeping today's role defaults as fallback until eval data promotes a requirement profile
 - Integrates with the circuit breaker - unhealthy models are skipped automatically
-- Official cloud quota/status collectors must translate supported provider surfaces into the availability shape, then feed `BackendCapabilities.available` and metadata before routing
+- Official cloud quota/status collectors must translate supported provider surfaces into the availability shape, then feed the existing availability-to-backend adapter before routing
 - Integrates with effort-level routing for hybrid inference
 - Provider prompt-caching research must cover Anthropic, OpenAI, Gemini, xAI,
   and gateway variants before new caching behavior is enabled. Caching is only
@@ -723,6 +734,10 @@ Shipped:
 Planned:
 - Expand job-scoped resources for artifact consumption (`qa_summary`, source appendix, trace summary) so clients do not need large report bodies in context by default
 - Add integration eval suites for routing, approval, recovery, and recomputation avoidance
+- Expose a compact project security/profile resource for agent clients when
+  useful, including always-on guardrails and context-selected guidance for
+  security-sensitive edits, without duplicating the application spec or growing
+  the MCP tool surface one rule at a time
 - Keep skills thin and MCP-first; intentionally avoid turning SKILL files into duplicated application specs
 - Preserve typed lifecycle/control-plane primitives instead of free-form execution wrappers
 
