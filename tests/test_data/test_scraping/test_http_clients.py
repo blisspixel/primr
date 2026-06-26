@@ -10,6 +10,21 @@ from primr.data.scraping.http_clients import (
 from primr.data.scraping.models import ErrorType, ScrapeResult
 
 
+def _mock_response(
+    *,
+    url: str,
+    status_code: int,
+    headers: dict[str, str] | None = None,
+    content: bytes = b"content",
+) -> Mock:
+    response = Mock()
+    response.content = content
+    response.headers = headers or {}
+    response.status_code = status_code
+    response.url = url
+    return response
+
+
 class TestScrapeWithRequests:
     """Tests for scrape_with_requests function."""
 
@@ -31,6 +46,30 @@ class TestScrapeWithRequests:
         assert result.tier == "requests"
         assert len(result.attempts) == 1
         assert result.attempts[0].tier == "requests"
+
+    def test_follows_safe_relative_redirect(self):
+        """Should validate and follow a safe relative redirect."""
+        redirect = _mock_response(
+            url="https://example.com/start",
+            status_code=302,
+            headers={"Location": "/final"},
+        )
+        final = _mock_response(
+            url="https://example.com/final",
+            status_code=200,
+            headers={"Content-Type": "text/html"},
+            content=b"<html>final</html>",
+        )
+
+        with patch("requests.get", side_effect=[redirect, final]) as mock_get:
+            result = scrape_with_requests("https://example.com/start")
+
+        assert result.success is True
+        assert result.final_url == "https://example.com/final"
+        assert result.raw_content == b"<html>final</html>"
+        assert mock_get.call_count == 2
+        assert mock_get.call_args_list[1].args[0] == "https://example.com/final"
+        assert all(call.kwargs["allow_redirects"] is False for call in mock_get.call_args_list)
 
     def test_timeout_error(self):
         """Should handle timeout errors."""
@@ -136,6 +175,34 @@ class TestScrapeWithHttpx:
         assert result.raw_content == b"<html><body>HTTPX content</body></html>"
         assert result.tier == "httpx"
 
+    def test_follows_safe_relative_redirect(self):
+        """Should validate and follow a safe relative redirect."""
+        redirect = _mock_response(
+            url="https://example.com/start",
+            status_code=301,
+            headers={"Location": "/final"},
+        )
+        final = _mock_response(
+            url="https://example.com/final",
+            status_code=200,
+            headers={"Content-Type": "text/html"},
+            content=b"<html>final</html>",
+        )
+
+        mock_client = MagicMock()
+        mock_client.__enter__ = Mock(return_value=mock_client)
+        mock_client.__exit__ = Mock(return_value=False)
+        mock_client.get.side_effect = [redirect, final]
+
+        with patch("httpx.Client", return_value=mock_client) as mock_client_cls:
+            result = scrape_with_httpx("https://example.com/start")
+
+        assert result.success is True
+        assert result.final_url == "https://example.com/final"
+        assert mock_client.get.call_count == 2
+        assert mock_client.get.call_args_list[1].args[0] == "https://example.com/final"
+        assert mock_client_cls.call_args.kwargs["follow_redirects"] is False
+
     def test_timeout_error(self):
         """Should handle timeout errors."""
         import httpx
@@ -175,6 +242,36 @@ class TestScrapeWithCurlCffi:
 
         assert isinstance(result, ScrapeResult)
         assert result.tier == "curl_cffi"
+
+    def test_follows_safe_relative_redirect(self):
+        """Should validate and follow a safe relative redirect."""
+        redirect = _mock_response(
+            url="https://example.com/start",
+            status_code=302,
+            headers={"Location": "/final"},
+        )
+        final = _mock_response(
+            url="https://example.com/final",
+            status_code=200,
+            headers={"Content-Type": "text/html"},
+            content=b"<html>final</html>",
+        )
+
+        mock_requests = Mock()
+        mock_requests.get.side_effect = [redirect, final]
+
+        with patch.dict("sys.modules", {"curl_cffi": Mock(requests=mock_requests)}):
+            from primr.data.scraping import http_clients
+
+            result = http_clients.scrape_with_curl_cffi("https://example.com/start")
+
+        assert result.success is True
+        assert result.final_url == "https://example.com/final"
+        assert mock_requests.get.call_count == 2
+        assert mock_requests.get.call_args_list[1].args[0] == "https://example.com/final"
+        assert all(
+            call.kwargs["allow_redirects"] is False for call in mock_requests.get.call_args_list
+        )
 
     def test_uses_impersonation(self):
         """Should use browser impersonation."""

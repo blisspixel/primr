@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `HTTPClient.get()` and `HTTPClient.head()` now follow redirects manually and
   validate each hop before connecting while preserving pooled session, retry,
   stats, and native `requests.Response` behavior.
+- Tiered HTTP scrapers (`scrape_with_requests`, `scrape_with_httpx`, and
+  `scrape_with_curl_cffi`) now follow redirects manually and validate every
+  redirect target before connecting while preserving each tier's transport
+  identity and raw-content result contract.
 
 ### Fixed
 

@@ -195,3 +195,23 @@ HTTP client, SSRF, egress-guardrail, and hardening tests pass with 91 tests and
 2 skipped; Ruff, format check, architecture/release integrity, mypy, Bandit,
 pip-audit, MkDocs build, diff hygiene, and the CI-shaped coverage gate also
 pass. Coverage: 85.24% branch. Spend: `$0.00`.
+
+2026-06-26 HTTP scraper tier per-hop redirect guard:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: the requests, httpx, and curl_cffi scraping tiers now validate each
+redirect target before connecting while preserving tier-specific transport
+behavior and the raw-content `ScrapeResult` contract. Tests prove safe relative
+redirects still work and unsafe internal redirects are blocked before a second
+request across all three tiers. Focused tiered scraper and SSRF tests pass with
+56 tests; Ruff, format check, architecture/release integrity, mypy, Bandit,
+pip-audit, MkDocs build, diff hygiene, and the CI-shaped coverage gate also
+pass. Coverage: 85.22% branch. Spend: `$0.00`.

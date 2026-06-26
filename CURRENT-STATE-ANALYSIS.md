@@ -566,7 +566,8 @@ Current state:
 - Wayback keeps its existing target URL validation before it asks CDX for
   snapshots.
 - `NOTES.md` no longer lists Wayback among the remaining intermediate-redirect
-  SSRF seams; older scraping clients and the async citation resolver remain.
+  SSRF seams; later cycles also migrated discovery, pooled HTTPClient, and
+  tiered HTTP scraper redirects. The async citation resolver remains.
 
 Validation status:
 
@@ -659,5 +660,37 @@ Validation status:
   directory was removed.
 - The CI-shaped non-manual coverage gate passed with `10229 passed, 39 skipped,
   5 deselected` and 85.24% branch coverage.
+
+Spend: `$0.00`.
+
+## 2026-06-26 HTTP Scraper Tier Per-Hop Redirect Guard
+
+The tiered HTTP scrapers now validate redirect hops before connecting.
+
+Current state:
+
+- `scrape_with_requests()`, `scrape_with_httpx()`, and
+  `scrape_with_curl_cffi()` follow redirects manually with
+  `allow_redirects=False`.
+- Each redirect target is resolved relative to the response URL, then validated
+  through `validate_url_for_request()` before the next request.
+- Unsafe redirect targets return a failed `ScrapeResult` without issuing the
+  second request.
+- Redirect depth is capped and the raw-content `ScrapeResult` contract is
+  preserved.
+- Requests headers/profiles, httpx HTTP/2 setup, cookies, and curl_cffi
+  impersonation remain tier-specific.
+- `NOTES.md` now lists only `ai/citation_resolution.py` as a remaining
+  intermediate-redirect SSRF migration seam.
+
+Validation status:
+
+- Focused tiered scraper and SSRF tests pass with 56 tests.
+- Ruff check, Ruff format check, architecture/release-integrity tests, mypy,
+  Bandit, pip-audit, MkDocs build, and diff hygiene pass. MkDocs emitted only
+  the repo's existing non-strict link warnings, and the generated `_site`
+  directory was removed.
+- The CI-shaped non-manual coverage gate passed with `10232 passed, 39 skipped,
+  5 deselected` and 85.22% branch coverage.
 
 Spend: `$0.00`.

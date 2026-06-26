@@ -7,6 +7,8 @@ Success signal check is applied by orchestrator (not here).
 
 import logging
 import time
+from collections.abc import Mapping
+from urllib.parse import urljoin
 
 from .config import (
     DEFAULT_TIMEOUT_CURL_CFFI,
@@ -18,6 +20,106 @@ from .net import get_default_headers
 from .profiles import HttpHeaderProfile, get_random_http_profile
 
 logger = logging.getLogger(__name__)
+
+_REDIRECT_STATUSES = {301, 302, 303, 307, 308}
+_MAX_REDIRECTS = 10
+
+
+def _redirect_location(response: object) -> str | None:
+    headers_obj = getattr(response, "headers", {}) or {}
+    location = _header_value(headers_obj, "Location") or _header_value(headers_obj, "location")
+    return location if isinstance(location, str) and location else None
+
+
+def _header_value(headers_obj: object, name: str) -> object:
+    if isinstance(headers_obj, Mapping):
+        return headers_obj.get(name)
+
+    get = getattr(headers_obj, "get", None)
+    if callable(get):
+        return get(name)
+    return None
+
+
+def _blocked_redirect_result(
+    *,
+    url: str,
+    tier_name: str,
+    start_time: float,
+    redirect_url: str,
+    error: str | None,
+) -> ScrapeResult:
+    elapsed_ms = (time.time() - start_time) * 1000
+    redirect_error = error or "URL blocked"
+    attempt = Attempt(
+        tier=tier_name,
+        success=False,
+        error_type=ErrorType.NETWORK_ERROR,
+        error=f"Redirect to unsafe URL blocked: {redirect_error}",
+        elapsed_ms=elapsed_ms,
+    )
+    return ScrapeResult(
+        url=url,
+        success=False,
+        error_type=ErrorType.NETWORK_ERROR,
+        error=f"SSRF protection: redirect to {redirect_url} blocked - {redirect_error}",
+        tier=tier_name,
+        elapsed_ms=elapsed_ms,
+        attempts=[attempt],
+    )
+
+
+def _too_many_redirects_result(*, url: str, tier_name: str, start_time: float) -> ScrapeResult:
+    elapsed_ms = (time.time() - start_time) * 1000
+    error = f"Exceeded {_MAX_REDIRECTS} redirects"
+    attempt = Attempt(
+        tier=tier_name,
+        success=False,
+        error_type=ErrorType.NETWORK_ERROR,
+        error=error,
+        elapsed_ms=elapsed_ms,
+    )
+    return ScrapeResult(
+        url=url,
+        success=False,
+        error_type=ErrorType.NETWORK_ERROR,
+        error=error,
+        tier=tier_name,
+        elapsed_ms=elapsed_ms,
+        attempts=[attempt],
+    )
+
+
+def _successful_scrape_result(
+    *,
+    url: str,
+    tier_name: str,
+    start_time: float,
+    response: object,
+) -> ScrapeResult:
+    elapsed_ms = (time.time() - start_time) * 1000
+    status_code = getattr(response, "status_code", None)
+    headers_obj = getattr(response, "headers", {}) or {}
+    content_type_value = _header_value(headers_obj, "Content-Type")
+    content_type = content_type_value if isinstance(content_type_value, str) else ""
+    attempt = Attempt(
+        tier=tier_name,
+        success=True,
+        elapsed_ms=elapsed_ms,
+        http_status=status_code,
+    )
+
+    return ScrapeResult(
+        url=url,
+        success=True,
+        raw_content=getattr(response, "content", b""),
+        content_type=content_type,
+        http_status=status_code,
+        final_url=str(getattr(response, "url", url)),
+        tier=tier_name,
+        elapsed_ms=elapsed_ms,
+        attempts=[attempt],
+    )
 
 
 def scrape_with_requests(
@@ -67,56 +169,49 @@ def scrape_with_requests(
     headers = get_default_headers(profile)
 
     try:
-        response = requests.get(
-            url,
-            headers=headers,
-            timeout=timeout,
-            allow_redirects=True,
-            cookies=cookies,
-        )
-
-        elapsed_ms = (time.time() - start_time) * 1000
-
-        # SSRF protection: validate final URL after redirects
-        final_url = str(response.url)
-        from primr.utils.security import validate_final_url_after_redirect
-
-        is_safe, redirect_error = validate_final_url_after_redirect(final_url)
-        if not is_safe:
-            attempt = Attempt(
-                tier=tier_name,
-                success=False,
-                error_type=ErrorType.NETWORK_ERROR,
-                error=f"Redirect to unsafe URL blocked: {redirect_error}",
-                elapsed_ms=elapsed_ms,
-            )
-            return ScrapeResult(
-                url=url,
-                success=False,
-                error_type=ErrorType.NETWORK_ERROR,
-                error=f"SSRF protection: redirect to {final_url} blocked - {redirect_error}",
-                tier=tier_name,
-                elapsed_ms=elapsed_ms,
-                attempts=[attempt],
+        current_url = url
+        for redirect_count in range(_MAX_REDIRECTS + 1):
+            response = requests.get(
+                current_url,
+                headers=headers,
+                timeout=timeout,
+                allow_redirects=False,
+                cookies=cookies,
             )
 
-        attempt = Attempt(
-            tier=tier_name,
-            success=True,
-            elapsed_ms=elapsed_ms,
-            http_status=response.status_code,
-        )
+            location = _redirect_location(response)
+            if response.status_code not in _REDIRECT_STATUSES or location is None:
+                return _successful_scrape_result(
+                    url=url,
+                    tier_name=tier_name,
+                    start_time=start_time,
+                    response=response,
+                )
 
-        return ScrapeResult(
+            redirect_url = urljoin(str(getattr(response, "url", current_url)), location)
+            is_valid, normalized_redirect_url, redirect_error = validate_url_for_request(
+                redirect_url
+            )
+            if not is_valid:
+                return _blocked_redirect_result(
+                    url=url,
+                    tier_name=tier_name,
+                    start_time=start_time,
+                    redirect_url=redirect_url,
+                    error=redirect_error,
+                )
+            if redirect_count == _MAX_REDIRECTS:
+                return _too_many_redirects_result(
+                    url=url,
+                    tier_name=tier_name,
+                    start_time=start_time,
+                )
+            current_url = normalized_redirect_url
+
+        return _too_many_redirects_result(
             url=url,
-            success=True,
-            raw_content=response.content,
-            content_type=response.headers.get("Content-Type", ""),
-            http_status=response.status_code,
-            final_url=final_url,
-            tier=tier_name,
-            elapsed_ms=elapsed_ms,
-            attempts=[attempt],
+            tier_name=tier_name,
+            start_time=start_time,
         )
 
     except requests.Timeout as e:
@@ -241,59 +336,52 @@ def scrape_with_httpx(
     headers = get_default_headers(profile)
 
     try:
+        current_url = url
         with httpx.Client(
             timeout=timeout,
-            follow_redirects=True,
+            follow_redirects=False,
             http2=True,
         ) as client:
-            response = client.get(
-                url,
-                headers=headers,
-                cookies=cookies,
-            )
+            for redirect_count in range(_MAX_REDIRECTS + 1):
+                response = client.get(
+                    current_url,
+                    headers=headers,
+                    cookies=cookies,
+                )
 
-        elapsed_ms = (time.time() - start_time) * 1000
+                location = _redirect_location(response)
+                if response.status_code not in _REDIRECT_STATUSES or location is None:
+                    return _successful_scrape_result(
+                        url=url,
+                        tier_name=tier_name,
+                        start_time=start_time,
+                        response=response,
+                    )
 
-        # SSRF protection: validate final URL after redirects
-        final_url = str(response.url)
-        from primr.utils.security import validate_final_url_after_redirect
+                redirect_url = urljoin(str(getattr(response, "url", current_url)), location)
+                is_valid, normalized_redirect_url, redirect_error = validate_url_for_request(
+                    redirect_url
+                )
+                if not is_valid:
+                    return _blocked_redirect_result(
+                        url=url,
+                        tier_name=tier_name,
+                        start_time=start_time,
+                        redirect_url=redirect_url,
+                        error=redirect_error,
+                    )
+                if redirect_count == _MAX_REDIRECTS:
+                    return _too_many_redirects_result(
+                        url=url,
+                        tier_name=tier_name,
+                        start_time=start_time,
+                    )
+                current_url = normalized_redirect_url
 
-        is_safe, redirect_error = validate_final_url_after_redirect(final_url)
-        if not is_safe:
-            attempt = Attempt(
-                tier=tier_name,
-                success=False,
-                error_type=ErrorType.NETWORK_ERROR,
-                error=f"Redirect to unsafe URL blocked: {redirect_error}",
-                elapsed_ms=elapsed_ms,
-            )
-            return ScrapeResult(
-                url=url,
-                success=False,
-                error_type=ErrorType.NETWORK_ERROR,
-                error=f"SSRF protection: redirect to {final_url} blocked - {redirect_error}",
-                tier=tier_name,
-                elapsed_ms=elapsed_ms,
-                attempts=[attempt],
-            )
-
-        attempt = Attempt(
-            tier=tier_name,
-            success=True,
-            elapsed_ms=elapsed_ms,
-            http_status=response.status_code,
-        )
-
-        return ScrapeResult(
+        return _too_many_redirects_result(
             url=url,
-            success=True,
-            raw_content=response.content,
-            content_type=response.headers.get("Content-Type", ""),
-            http_status=response.status_code,
-            final_url=final_url,
-            tier=tier_name,
-            elapsed_ms=elapsed_ms,
-            attempts=[attempt],
+            tier_name=tier_name,
+            start_time=start_time,
         )
 
     except httpx.TimeoutException as e:
@@ -423,57 +511,50 @@ def scrape_with_curl_cffi(
     }
 
     try:
-        response = curl_requests.get(
-            url,
-            headers=headers,
-            timeout=timeout,
-            allow_redirects=True,
-            cookies=cookies,
-            impersonate=impersonate,
-        )
-
-        elapsed_ms = (time.time() - start_time) * 1000
-
-        # SSRF protection: validate final URL after redirects
-        final_url = str(response.url)
-        from primr.utils.security import validate_final_url_after_redirect
-
-        is_safe, redirect_error = validate_final_url_after_redirect(final_url)
-        if not is_safe:
-            attempt = Attempt(
-                tier=tier_name,
-                success=False,
-                error_type=ErrorType.NETWORK_ERROR,
-                error=f"Redirect to unsafe URL blocked: {redirect_error}",
-                elapsed_ms=elapsed_ms,
-            )
-            return ScrapeResult(
-                url=url,
-                success=False,
-                error_type=ErrorType.NETWORK_ERROR,
-                error=f"SSRF protection: redirect to {final_url} blocked - {redirect_error}",
-                tier=tier_name,
-                elapsed_ms=elapsed_ms,
-                attempts=[attempt],
+        current_url = url
+        for redirect_count in range(_MAX_REDIRECTS + 1):
+            response = curl_requests.get(
+                current_url,
+                headers=headers,
+                timeout=timeout,
+                allow_redirects=False,
+                cookies=cookies,
+                impersonate=impersonate,
             )
 
-        attempt = Attempt(
-            tier=tier_name,
-            success=True,
-            elapsed_ms=elapsed_ms,
-            http_status=response.status_code,
-        )
+            location = _redirect_location(response)
+            if response.status_code not in _REDIRECT_STATUSES or location is None:
+                return _successful_scrape_result(
+                    url=url,
+                    tier_name=tier_name,
+                    start_time=start_time,
+                    response=response,
+                )
 
-        return ScrapeResult(
+            redirect_url = urljoin(str(getattr(response, "url", current_url)), location)
+            is_valid, normalized_redirect_url, redirect_error = validate_url_for_request(
+                redirect_url
+            )
+            if not is_valid:
+                return _blocked_redirect_result(
+                    url=url,
+                    tier_name=tier_name,
+                    start_time=start_time,
+                    redirect_url=redirect_url,
+                    error=redirect_error,
+                )
+            if redirect_count == _MAX_REDIRECTS:
+                return _too_many_redirects_result(
+                    url=url,
+                    tier_name=tier_name,
+                    start_time=start_time,
+                )
+            current_url = normalized_redirect_url
+
+        return _too_many_redirects_result(
             url=url,
-            success=True,
-            raw_content=response.content,
-            content_type=response.headers.get("Content-Type", ""),
-            http_status=response.status_code,
-            final_url=final_url,
-            tier=tier_name,
-            elapsed_ms=elapsed_ms,
-            attempts=[attempt],
+            tier_name=tier_name,
+            start_time=start_time,
         )
 
     except Exception as e:

@@ -2,6 +2,65 @@
 
 ## 2026-06-26
 
+### Loop cycle: HTTP scraper tier per-hop redirect guard
+
+Refresh: re-read NOTES, ROADMAP, `docs/SECURITY.md`,
+`docs/ARCHITECTURE.md`, `data.scraping.http_clients`, tiered scraper tests,
+and SSRF guardrail status.
+
+Prioritize: selected `data/scraping/http_clients.py` from the remaining
+intermediate-redirect SSRF seams. These scrapers intentionally exercise three
+different transports, so the right slice was to preserve transport identity
+while moving redirect following under shared per-hop validation helpers.
+
+Implemented:
+
+- Added shared redirect helpers local to the tiered scraper module.
+- `scrape_with_requests()`, `scrape_with_httpx()`, and
+  `scrape_with_curl_cffi()` now request with `allow_redirects=False`.
+- Each redirect target is resolved with `urljoin`, validated through
+  `validate_url_for_request()`, and blocked before the next network request if
+  unsafe.
+- Redirect depth is capped at 10 hops.
+- Raw-content result shape, timing, tier names, cookies, profiles, HTTP/2
+  setup, and curl_cffi impersonation remain intact.
+- Added regression tests proving safe relative redirects still work and unsafe
+  internal redirects are blocked before a second request across all three
+  tiers.
+- Updated NOTES, ROADMAP, `docs/SECURITY.md`, `docs/ARCHITECTURE.md`,
+  `docs/CHANGELOG.md`, current-state, the quality rubric, and skills.
+
+Validation:
+
+- `uv run --no-sync pytest tests/test_data/test_scraping/test_http_clients.py tests/test_data/test_scraping/test_http_clients_coverage.py tests/security/test_ssrf.py -q`
+  passed with 56 tests.
+- `uv run ruff check src/primr/data/scraping/http_clients.py tests/test_data/test_scraping/test_http_clients.py tests/test_data/test_scraping/test_http_clients_coverage.py`
+  passed.
+- `uv run ruff format --check src/ tests/` passed.
+- `uv run --no-sync pytest tests/test_architecture.py tests/test_release_integrity.py -q`
+  passed with 13 tests.
+- `uv run --no-sync mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'`
+  passed.
+- `uv run bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q`
+  passed with the existing `mcp_server/security.py` B108 nosec warnings.
+- `uv run --no-sync pip-audit --ignore-vuln PYSEC-2026-196` passed.
+- `uv run --no-project --with mkdocs-material --with pymdown-extensions mkdocs build --site-dir _site`
+  passed with the repo's existing non-strict docs link warnings; `_site` was
+  removed afterward.
+- The CI-shaped non-manual coverage gate passed with `10232 passed, 39 skipped,
+  5 deselected` and 85.22% branch coverage.
+
+Maker-checker review:
+
+- Maker: the implementation preserves transport-specific behavior and only
+  centralizes redirect policy.
+- Checker 1, security/performance: unsafe redirect targets are validated before
+  connection; no new external dependency or network fan-out was added.
+- Checker 2, maintainability/simplicity: one small helper set replaces three
+  duplicated final-url validation branches and keeps each tier readable.
+
+Spend: `$0.00`.
+
 ### Loop cycle: HTTPClient per-hop redirect guard
 
 Refresh: re-read NOTES, ROADMAP, `docs/SECURITY.md`,
@@ -344,9 +403,9 @@ Implemented (TDD, hermetic):
   covered by `test_safe_http.py`.
 
 Scope held deliberately tight to the two broad attacker-influenceable fan-out
-helpers. Remaining seams (scrape-tier httpx clients, the async citation
-resolver) are recorded in `NOTES.md` for follow-up migration to the same helper.
-The DNS-rebind TOCTOU (connect-time IP pinning) also remains noted.
+helpers. Later cycles migrated the scrape-tier HTTP clients; the async citation
+resolver remains recorded in `NOTES.md` for follow-up migration to an async
+equivalent. The DNS-rebind TOCTOU (connect-time IP pinning) also remains noted.
 
 Validation: `test_safe_http.py` (8) + the fallback/hiring suites (168) green;
 ruff + mypy clean on every touched file. Full CI-equivalent gate before push.

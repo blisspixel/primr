@@ -65,6 +65,10 @@
 - For pooled clients, keep the existing session and adapter path. Add manual
   redirect control inside the client instead of bypassing retry/pooling with a
   different HTTP library.
+- For tiered clients that differ by protocol, fingerprinting, or impersonation,
+  centralize only the redirect policy. Keep each transport in place, but make
+  every tier use `allow_redirects=False`, validate each resolved `Location`
+  before connecting, and pin tests that unsafe redirects are never fetched.
 
 ## Skill Pack Generation
 

@@ -1,7 +1,7 @@
 """Additional coverage for HTTP client scrapers.
 
 Targets the curl_cffi tier, SSRF rejection branches (invalid initial URL and
-unsafe redirect), the missing-dependency ImportError branches, and httpx
+unsafe redirect before connection), the missing-dependency ImportError branches, and httpx
 HTTP/connect errors. Network is fully mocked.
 """
 
@@ -54,39 +54,39 @@ class TestInvalidUrlRejection:
 
 
 # =============================================================================
-# SSRF: unsafe redirect after a successful fetch
+# SSRF: unsafe redirect before the next fetch
 # =============================================================================
 
 
 class TestRedirectRejection:
-    def test_requests_blocks_unsafe_redirect(self):
+    def test_requests_blocks_unsafe_redirect_before_second_request(self):
         mock_resp = Mock()
-        mock_resp.content = b"<html>internal</html>"
-        mock_resp.headers = {"Content-Type": "text/html"}
-        mock_resp.status_code = 200
-        mock_resp.url = "http://169.254.169.254/meta"
+        mock_resp.content = b""
+        mock_resp.headers = {"Location": "http://169.254.169.254/meta"}
+        mock_resp.status_code = 302
+        mock_resp.url = "https://example.com"
 
         with (
             patch(
                 "primr.utils.validators.validate_url_for_request",
-                return_value=(True, "https://example.com", None),
+                side_effect=[
+                    (True, "https://example.com", None),
+                    (False, "http://169.254.169.254/meta", "metadata endpoint"),
+                ],
             ),
-            patch("requests.get", return_value=mock_resp),
-            patch(
-                "primr.utils.security.validate_final_url_after_redirect",
-                return_value=(False, "metadata endpoint"),
-            ),
+            patch("requests.get", return_value=mock_resp) as mock_get,
         ):
             result = scrape_with_requests("https://example.com")
         assert result.success is False
         assert "SSRF protection" in (result.error or "")
+        assert mock_get.call_count == 1
 
-    def test_httpx_blocks_unsafe_redirect(self):
+    def test_httpx_blocks_unsafe_redirect_before_second_request(self):
         mock_resp = MagicMock()
-        mock_resp.content = b"<html>internal</html>"
-        mock_resp.headers = {"Content-Type": "text/html"}
-        mock_resp.status_code = 200
-        mock_resp.url = "http://127.0.0.1/admin"
+        mock_resp.content = b""
+        mock_resp.headers = {"Location": "http://127.0.0.1/admin"}
+        mock_resp.status_code = 302
+        mock_resp.url = "https://example.com"
         mock_client = MagicMock()
         mock_client.get.return_value = mock_resp
         mock_client.__enter__.return_value = mock_client
@@ -94,17 +94,17 @@ class TestRedirectRejection:
         with (
             patch(
                 "primr.utils.validators.validate_url_for_request",
-                return_value=(True, "https://example.com", None),
+                side_effect=[
+                    (True, "https://example.com", None),
+                    (False, "http://127.0.0.1/admin", "loopback"),
+                ],
             ),
             patch("httpx.Client", return_value=mock_client),
-            patch(
-                "primr.utils.security.validate_final_url_after_redirect",
-                return_value=(False, "loopback"),
-            ),
         ):
             result = scrape_with_httpx("https://example.com")
         assert result.success is False
         assert "SSRF protection" in (result.error or "")
+        assert mock_client.get.call_count == 1
 
 
 # =============================================================================
@@ -199,10 +199,6 @@ class TestCurlCffi:
                 return_value=(True, "https://example.com", None),
             ),
             patch.dict(sys.modules, {"curl_cffi": fake_curl}),
-            patch(
-                "primr.utils.security.validate_final_url_after_redirect",
-                return_value=(True, None),
-            ),
         ):
             result = scrape_with_curl_cffi("https://example.com")
         assert result.success is True
@@ -241,10 +237,10 @@ class TestCurlCffi:
 
     def test_blocks_unsafe_redirect(self):
         mock_resp = MagicMock()
-        mock_resp.content = b"<html>x</html>"
-        mock_resp.headers = {"Content-Type": "text/html"}
-        mock_resp.status_code = 200
-        mock_resp.url = "http://127.0.0.1/"
+        mock_resp.content = b""
+        mock_resp.headers = {"Location": "http://127.0.0.1/"}
+        mock_resp.status_code = 302
+        mock_resp.url = "https://example.com"
 
         fake_curl = MagicMock()
         fake_curl.requests.get.return_value = mock_resp
@@ -252,14 +248,14 @@ class TestCurlCffi:
         with (
             patch(
                 "primr.utils.validators.validate_url_for_request",
-                return_value=(True, "https://example.com", None),
+                side_effect=[
+                    (True, "https://example.com", None),
+                    (False, "http://127.0.0.1/", "loopback"),
+                ],
             ),
             patch.dict(sys.modules, {"curl_cffi": fake_curl}),
-            patch(
-                "primr.utils.security.validate_final_url_after_redirect",
-                return_value=(False, "loopback"),
-            ),
         ):
             result = scrape_with_curl_cffi("https://example.com")
         assert result.success is False
         assert "SSRF protection" in (result.error or "")
+        assert fake_curl.requests.get.call_count == 1
