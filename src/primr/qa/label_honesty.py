@@ -60,9 +60,11 @@ HONEST_DOWNGRADE_LABEL = "Estimated"
 # label overclaims: sources existed, were fetched, and none supported the claim.
 _DOWNGRADE_VERDICTS = frozenset({"untraceable"})
 
-# Audit every labeled claim by default (the pass mutates, so partial coverage
-# would be inconsistent), while staying finite so judge-call cost is bounded.
-DEFAULT_HONESTY_MAX_PER_LABEL = 50
+# Audit EVERY labeled claim (no per-label cap). The pass mutates the report, so a
+# cap would be actively harmful: it could leave the same ungrounded claim with
+# two different labels in one document. Cost is bounded by the report's
+# labeled-claim count, and source fetches are deduped by URL in calibrate_claims.
+_AUDIT_ALL: int | None = None
 
 
 @dataclass(frozen=True)
@@ -159,13 +161,14 @@ def apply_label_honesty(
     *,
     fetch_fn: Callable[[str], str] | None = None,
     judge_fn: Callable[[str, str], bool] | None = None,
-    max_per_label: int = DEFAULT_HONESTY_MAX_PER_LABEL,
+    max_per_label: int | None = _AUDIT_ALL,
 ) -> LabelHonestyResult:
     """Audit a report's confidence labels and downgrade the ungrounded ones.
 
     Extracts labeled claims, judges traceable-class labels against their cited
     sources (via the calibration harness's injectable fetch/judge seams), and
-    rewrites the labels that do not trace. Pure given its seams; with the
+    rewrites the labels that do not trace. Audits every labeled claim by default
+    so the mutation is internally consistent. Pure given its seams; with the
     defaults it performs SSRF-guarded fetches and cheap judge LLM calls.
     """
     claims = extract_labeled_claims(report_content, max_per_label=max_per_label)

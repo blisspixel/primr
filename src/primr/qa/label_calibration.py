@@ -210,7 +210,7 @@ def _claim_block_above(lines: list[str], label_index: int) -> str:
 
 def extract_labeled_claims(
     report_content: str,
-    max_per_label: int = DEFAULT_MAX_PER_LABEL,
+    max_per_label: int | None = DEFAULT_MAX_PER_LABEL,
 ) -> list[LabeledClaim]:
     """Deterministically sample labeled claims from a report.
 
@@ -224,7 +224,9 @@ def extract_labeled_claims(
       collected from the whole block.
 
     Citations resolve against the Sources appendix. Sampling keeps document
-    order, capped per label so calibration cost stays bounded.
+    order, capped per label so calibration cost stays bounded. Pass
+    ``max_per_label=None`` to extract every labeled claim (the label-honesty
+    pass needs complete coverage, since it mutates).
     """
     sources = parse_sources_appendix(report_content)
 
@@ -253,7 +255,7 @@ def extract_labeled_claims(
         if not label_match:
             continue
         label = label_match.group(1)
-        if per_label_counts.get(label, 0) >= max_per_label:
+        if max_per_label is not None and per_label_counts.get(label, 0) >= max_per_label:
             continue
         line_start = line_matches[index].start()
         section = _section_at(line_start)

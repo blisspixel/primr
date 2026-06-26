@@ -236,3 +236,30 @@ class TestApplyLabelHonesty:
         assert payload["downgrades"][0]["original_label"] == "Reported"
         assert payload["downgrades"][0]["new_label"] == HONEST_DOWNGRADE_LABEL
         assert "section" in payload["downgrades"][0]
+
+    def test_audits_all_claims_no_cap_inconsistency(self):
+        # The pass mutates, so it must audit EVERY claim: more than 50 of one
+        # label must never ship with some downgraded and some not (which would
+        # put two different labels on the same ungrounded claim).
+        body = "\n\n".join(f"Acme dominates segment {i}. [cite: 1] (Confirmed)" for i in range(55))
+        report = (
+            f"## Overview\n\n{body}\n\n## Sources\n\n[cite: 1] https://acme.example/unrelated\n"
+        )
+        result = apply_label_honesty(
+            report, fetch_fn=lambda u: "An unrelated page.", judge_fn=lambda c, t: False
+        )
+        assert result.report_content.count("(Confirmed)") == 0
+        assert result.report_content.count("(Estimated)") == 55
+        assert len(result.downgrades) == 55
+
+
+class TestExtractCoverage:
+    def test_none_extracts_all(self):
+        body = "\n\n".join(f"Claim {i}. (Confirmed)" for i in range(12))
+        report = f"## S\n\n{body}\n"
+        assert len(extract_labeled_claims(report, max_per_label=None)) == 12
+
+    def test_int_cap_still_bounds(self):
+        body = "\n\n".join(f"Claim {i}. (Confirmed)" for i in range(12))
+        report = f"## S\n\n{body}\n"
+        assert len(extract_labeled_claims(report, max_per_label=3)) == 3
