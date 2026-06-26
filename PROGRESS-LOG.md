@@ -2,6 +2,52 @@
 
 ## 2026-06-25
 
+### Loop cycle: Bug-hunt + security harden (release cadence lane)
+
+Per the ROADMAP "Release Cadence" standing lane, ran an adversarial review pass
+over the most-recently-touched modules (label-honesty, the availability bridge)
+plus a rotating cold module (report_cleanup / strategy_artifacts), with three
+parallel reviewers required to return only verified findings. Acted as the
+checker (maker-checker): triaged, prioritized the just-shipped 1.34.0 surface
+(security + new code) since the PyPI tag was not yet pushed, and folded the
+hardening into a clean first release. Researched current attribution /
+citation-faithfulness literature (CiteEval, CiteGuard, atomic calibration) to
+ground the label-honesty design before review.
+
+Fixed, each with a pinning regression test:
+
+- **Security HIGH:** a collector-controlled quota-window label was copied raw
+  into routing metadata (could leak a URL/account detail). Consolidated the
+  duplicated availability sanitizers from `capability_routing.py` and
+  `cli_doctor.py` into one shared seam `ai/availability_sanitize.py` (CLAUDE
+  one-way rule) and closed three bypasses: the raw window label, an ASCII-only
+  fix so homoglyph/accented host text can no longer pass `str.isalnum()`, a
+  dotted-host display guard that a space used to disable, and a model-count
+  clamp.
+- **Label-honesty completeness (new code):** the per-label sampling cap could
+  ship the same ungrounded claim with two different labels. The mutate path now
+  audits every labeled claim (`max_per_label=None`); calibration keeps its
+  bounded sampling.
+- **Artifact HIGH (pre-existing):** `_normalize_fast_citations` emitted a
+  duplicate `## Sources` section when the appendix carried a stray non-citation
+  line. It now strips the appendix whenever its heading runs to end-of-document,
+  while still preserving a real section that follows a sources-style heading.
+- **Artifact MEDIUM:** blank-line collapse now tolerates CRLF.
+
+Deferred (recorded in `NOTES.md`): scaffolding strips inside fenced code blocks,
+the informal-cite-in-prose deletion, and the off-contract multi-label-per-line
+case.
+
+Validation: focused suites green at each step (sanitizer 24, availability/doctor
+84, label 67, artifact cleanup 134), ruff + mypy clean on every touched file,
+architecture ceilings hold. Full CI-equivalent gate run before push. Spend
+`$0.00` (all review and validation local; no paid run).
+
+Self-review: correctness Strong (every fix has a regression test that fails
+before it), security Strong (one allowlist seam, invariant pinned), performance
+Strong (no hot-path change), readability/maintainability Strong (duplication
+removed, honest comments). Rubric all Strong.
+
 ### Loop cycle: Label-honesty pass (epistemic grounding, #4 / 1.x step 3)
 
 Refresh: re-read README, ROADMAP (order of operations, #4, changelog table),
