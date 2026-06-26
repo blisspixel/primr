@@ -873,10 +873,13 @@ The higher-level scraping tiers still call `validate_url_for_request()` before
 network access. Shared fail-open and archived-content recovery helpers use
 `src/primr/data/safe_http.py:safe_http_get()`, which follows redirects manually
 and revalidates each hop before connecting. Discovery helpers keep their
-`requests.Response` contract and manually revalidate each redirect hop.
+`requests.Response` contract and manually revalidate each redirect hop. The
+pooled `HTTPClient` does the same for GET/HEAD while preserving session and
+retry behavior.
 
 **Protected Functions and Seams**:
 - `src/primr/data/safe_http.py`: `safe_http_get()` for fallback, hiring, and Wayback CDX/replay fetches
+- `src/primr/data/http_client.py`: `HTTPClient.get()` and `HTTPClient.head()`
 - `src/primr/data/scraping/wayback.py`: `_fetch()` delegates to `safe_http_get()`
 - `src/primr/data/scraping/net.py`: `make_request()` and `head_exists()` for sitemap and URL-existence checks
 - `src/primr/data/scraping/http_clients.py`: `scrape_with_requests()`, `scrape_with_httpx()`, `scrape_with_curl_cffi()`

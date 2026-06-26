@@ -631,3 +631,33 @@ Validation status:
   5 deselected` and 85.24% branch coverage.
 
 Spend: `$0.00`.
+
+## 2026-06-26 HTTPClient Per-Hop Redirect Guard
+
+The pooled HTTP client now validates redirect hops before connecting.
+
+Current state:
+
+- `HTTPClient.get()` and `HTTPClient.head()` use a private manual redirect
+  helper with `allow_redirects=False`.
+- Each redirect target runs through the existing outbound URL validation before
+  the next request.
+- Relative redirects are supported, redirect count is capped, and GET `params`
+  are applied only to the initial request.
+- Pooled session, retry adapter, stats, and native `requests.Response` behavior
+  are preserved.
+- `NOTES.md` no longer lists `data/http_client.py` among the remaining
+  intermediate-redirect SSRF seams.
+
+Validation status:
+
+- Focused HTTP client, SSRF, egress-guardrail, and hardening tests pass with 91
+  tests and 2 skipped.
+- Ruff check, Ruff format check, architecture/release-integrity tests, mypy,
+  Bandit, pip-audit, MkDocs build, and diff hygiene pass. MkDocs emitted only
+  the repo's existing non-strict link warnings, and the generated `_site`
+  directory was removed.
+- The CI-shaped non-manual coverage gate passed with `10229 passed, 39 skipped,
+  5 deselected` and 85.24% branch coverage.
+
+Spend: `$0.00`.

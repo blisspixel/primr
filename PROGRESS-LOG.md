@@ -2,6 +2,59 @@
 
 ## 2026-06-26
 
+### Loop cycle: HTTPClient per-hop redirect guard
+
+Refresh: re-read NOTES, ROADMAP, `docs/SECURITY.md`,
+`docs/ARCHITECTURE.md`, `data.http_client`, HTTP client tests, hardening tests,
+and SSRF guardrail tests.
+
+Prioritize: selected `data/http_client.py` from the remaining
+intermediate-redirect SSRF seams. It is a pooled requests client, so the right
+slice was not to replace it with the tuple-returning `safe_http_get()` seam but
+to preserve `requests.Session`, retries, stats, and `requests.Response` return
+shape while moving redirect following under explicit per-hop validation.
+
+Implemented:
+
+- Added a private `_request_with_safe_redirects()` helper to `HTTPClient`.
+- `get()` and `head()` now request with `allow_redirects=False`, validate each
+  redirect target before the next request, resolve relative redirects, and cap
+  redirect depth.
+- `params` are applied only to the initial GET request, matching normal redirect
+  semantics.
+- Existing stats and error behavior remain intact.
+- Added GET and HEAD regression tests for safe relative redirects and blocked
+  internal redirect targets.
+- Updated NOTES, ROADMAP, `docs/SECURITY.md`, `docs/ARCHITECTURE.md`,
+  `docs/CHANGELOG.md`, current-state, and the quality rubric.
+
+Validation:
+
+- `uv run --no-sync pytest tests/test_data/test_http_client.py tests/security/test_ssrf.py tests/security/test_egress_guardrails.py tests/test_hardening.py -q`
+  passed with 91 tests and 2 skipped.
+- `uv run ruff check src/primr/data/http_client.py tests/test_data/test_http_client.py`
+  passed.
+- `uv run ruff format --check src/ tests/` passed.
+- `uv run --no-sync pytest tests/test_architecture.py tests/test_release_integrity.py -q`
+  passed with 13 tests.
+- `uv run --no-sync mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'`
+  passed.
+- `uv run bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q`
+  passed with the existing `mcp_server/security.py` B108 nosec warnings.
+- `uv run --no-sync pip-audit --ignore-vuln PYSEC-2026-196` passed.
+- `uv run --no-project --with mkdocs-material --with pymdown-extensions mkdocs build --site-dir _site`
+  passed with the repo's existing non-strict link warnings; generated `_site`
+  was removed after validation.
+- `$env:GEMINI_API_KEY='fake-key-for-ci-tests'; uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q -k "not test_wait_times_out_when_no_change" -m "not integration" --cov=src/primr --cov-branch --cov-fail-under=81`
+  passed with `10229 passed, 39 skipped, 5 deselected`, branch coverage
+  `85.24%`.
+
+Rubric: Correctness 5/5, Security and Privacy 5/5, Simplicity 5/5,
+Maintainability 5/5, Performance and Cost 5/5, Verification 5/5.
+
+Cycle health: 5/5 | Simplicity: 5/5 | Est. spend: $0.00 | New skill distilled:
+session-preserving redirect migration.
+
 ### Maintenance sub-goal: redirect hardening bug hunt
 
 Trigger: cycle 7 maintenance lane.

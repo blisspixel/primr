@@ -24,7 +24,7 @@ MCP/A2A tool surfaces, and (4) provider secrets + the dependency supply chain.
 | # | Threat | Vector | Control(s) | Status |
 |---|--------|--------|-----------|--------|
 | T1 | Indirect prompt injection | Instructions embedded in scraped pages / postings / sitemaps | `sanitize_for_llm` (injection-pattern + control-char stripping) + `fence_untrusted` data-fencing at every external-content→prompt boundary ("data, never instructions") | Shipped |
-| T2 | SSRF / internal pivot | Attacker page or redirect points primr at loopback / RFC1918 / link-local / cloud-metadata | `is_safe_url` on every egress helper; per-hop redirect validation through `data/safe_http.py` for `fallback_sources._http_get`, `hiring_signals._http_get`, and Wayback CDX/replay fetches; manual per-hop validation in `data/scraping/net.py`; final-url redirect validation on remaining legacy clients; `SSRFGuardHook` on tool calls | Shipped baseline, per-hop migration continuing |
+| T2 | SSRF / internal pivot | Attacker page or redirect points primr at loopback / RFC1918 / link-local / cloud-metadata | `is_safe_url` on every egress helper; per-hop redirect validation through `data/safe_http.py` for `fallback_sources._http_get`, `hiring_signals._http_get`, and Wayback CDX/replay fetches; manual per-hop validation in `data/scraping/net.py` and `HTTPClient.get/head`; final-url redirect validation on remaining legacy clients; `SSRFGuardHook` on tool calls | Shipped baseline, per-hop migration continuing |
 | T3 | Secret leakage | API key in a log line, prompt, or persisted artifact | `SecretMaskingFilter` on all log handlers; `mask_sensitive_data` (incl. xAI) applied in `chat_logger` before persist; hardcoded-secret CI gate | Shipped |
 | T4 | Cost / resource exhaustion | Runaway tool invocation | `CostGuardHook` budget; `estimate_run`-first; `PRIMR_ENFORCE_MCP_COST_CAPS`; server-issued approval tokens for MCP cost-cap-governed tools; explicit budget-enforcement payloads; MCP fast-path runtime budget propagation; single-job model; rate limiting | Shipped, with non-fast runtime checkpoints tracked |
 | T5 | Unauthorized tool access | Calling MCP/A2A tools without/with stale creds | JWT (HMAC-SHA256, constant-time, expiry/nbf/aud), admin-token hashing, loopback-only unauthenticated A2A | Shipped (all-or-nothing) |
@@ -36,9 +36,10 @@ MCP/A2A tool surfaces, and (4) provider secrets + the dependency supply chain.
 - **T1** is mitigated, not eliminated — a novel phrasing could evade the pattern
   set; the data-fence is the backstop, and an injection red-team eval is tracked.
 - **T2** has complete pre-request SSRF validation and stronger per-hop redirect
-  validation on the shared safe HTTP seam and discovery HTTP helpers. Some
-  older scraping clients still rely on final-url redirect validation and are
-  tracked for migration to the shared seam or an async equivalent.
+  validation on the shared safe HTTP seam, discovery HTTP helpers, and pooled
+  HTTPClient GET/HEAD calls. Some older scraping-tier clients still rely on
+  final-url redirect validation and are tracked for migration to the shared seam
+  or an async equivalent.
 - **T8 Stages 1-3** are shipped for MCP tool dispatch: per-tool scopes,
   server-issued approval tokens, and structured invocation audit events.
   Residual risk remains around A2A parity, richer job-scoped artifact

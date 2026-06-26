@@ -24,6 +24,17 @@ from primr.data.http_client import (
 )
 from primr.utils.errors import ScrapingError
 
+
+def _response(status_code: int, url: str, location: str | None = None) -> requests.Response:
+    response = requests.Response()
+    response.status_code = status_code
+    response.url = url
+    response._content = b"ok"
+    if location is not None:
+        response.headers["Location"] = location
+    return response
+
+
 # =============================================================================
 # HELPER FUNCTIONS TESTS
 # =============================================================================
@@ -164,6 +175,33 @@ class TestHTTPClient:
             assert call_kwargs["timeout"] == 10.0
 
     @patch("requests.Session.get")
+    def test_get_follows_safe_relative_redirect(self, mock_get):
+        """Test GET follows safe redirects manually."""
+        redirect = _response(302, "https://example.com/start", "/next")
+        final = _response(200, "https://example.com/next")
+        mock_get.side_effect = [redirect, final]
+
+        with HTTPClient() as client:
+            assert client.get("https://example.com/start") is final
+
+        assert mock_get.call_count == 2
+        assert mock_get.call_args_list[0].args[0] == "https://example.com/start"
+        assert mock_get.call_args_list[1].args[0] == "https://example.com/next"
+        assert mock_get.call_args_list[0].kwargs["allow_redirects"] is False
+        assert mock_get.call_args_list[1].kwargs["allow_redirects"] is False
+
+    @patch("requests.Session.get")
+    def test_get_blocks_unsafe_redirect_before_second_request(self, mock_get):
+        """Test GET blocks unsafe redirects before connecting to the target."""
+        redirect = _response(302, "https://example.com/start", "http://127.0.0.1/admin")
+        mock_get.return_value = redirect
+
+        with HTTPClient() as client, pytest.raises(ValueError, match=r"SSRF|URL"):
+            client.get("https://example.com/start")
+
+        mock_get.assert_called_once()
+
+    @patch("requests.Session.get")
     def test_get_failure_raises_scraping_error(self, mock_get):
         """Test that request failure raises ScrapingError."""
         mock_get.side_effect = requests.RequestException("Connection failed")
@@ -252,14 +290,14 @@ class TestHTTPClient:
     @patch("requests.Session.head")
     def test_head_blocks_private_redirect(self, mock_head):
         """Test HEAD redirect target is checked before returning response."""
-        mock_response = Mock()
-        mock_response.url = "http://127.0.0.1/internal"
+        mock_response = _response(302, "https://example.com/start", "http://127.0.0.1/internal")
         mock_head.return_value = mock_response
 
         with HTTPClient() as client:
             response = client.head("https://example.com", allow_redirects=True)
 
             assert response is None
+            mock_head.assert_called_once()
 
 
 # =============================================================================

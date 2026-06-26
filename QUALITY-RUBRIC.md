@@ -175,3 +175,23 @@ discovery tests pass with 113 tests; Ruff, format check, focused
 net/security/discovery tests, architecture/release integrity, mypy, Bandit,
 pip-audit, MkDocs build, diff hygiene, and the CI-shaped coverage gate also
 pass. Coverage: 85.24% branch. Spend: `$0.00`.
+
+2026-06-26 HTTPClient per-hop redirect guard:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: `HTTPClient.get()` and `HTTPClient.head()` now validate each redirect
+target before connecting while preserving pooled session/retry behavior, stats,
+and the `requests.Response` contract. Tests prove safe relative redirects still
+work and unsafe internal redirects are blocked before a second request. Focused
+HTTP client, SSRF, egress-guardrail, and hardening tests pass with 91 tests and
+2 skipped; Ruff, format check, architecture/release integrity, mypy, Bandit,
+pip-audit, MkDocs build, diff hygiene, and the CI-shaped coverage gate also
+pass. Coverage: 85.24% branch. Spend: `$0.00`.

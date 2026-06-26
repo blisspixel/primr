@@ -38,11 +38,12 @@ are architectural and worth a dedicated, well-tested cycle.
   fallback fan-out / hiring) now delegate to it; `data/scraping/wayback.py`
   uses the same seam for CDX and replay fetches; `data/scraping/net.py` now
   validates every redirect hop manually while preserving its
-  `requests.Response` return shape. **Remaining seams to migrate to the same
-  helper:** `data/http_client.py`, `data/scraping/http_clients.py`, and
-  `ai/citation_resolution.py` (async `HEAD`, narrowly gated to
-  `vertexaisearch.cloud.google.com` so low-risk; needs an async variant of the
-  helper).
+  `requests.Response` return shape; `data/http_client.py` now validates every
+  GET/HEAD redirect hop manually while preserving its pooled `requests.Session`
+  behavior. **Remaining seams to migrate to the same helper:**
+  `data/scraping/http_clients.py` and `ai/citation_resolution.py` (async
+  `HEAD`, narrowly gated to `vertexaisearch.cloud.google.com` so low-risk;
+  needs an async variant of the helper).
 - **MED/HIGH -- DNS-rebind TOCTOU.** `is_safe_url` resolves + validates IPs but
   returns the hostname; the client re-resolves at connect time, so a low-TTL
   attacker domain can answer public to the check and internal to the connect.

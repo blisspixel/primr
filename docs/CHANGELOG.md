@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Discovery HTTP helpers (`data/scraping/net.py`) now follow redirects
   manually and validate every hop before connecting while preserving their
   `requests.Response` return contract for sitemap and URL-existence checks.
+- `HTTPClient.get()` and `HTTPClient.head()` now follow redirects manually and
+  validate each hop before connecting while preserving pooled session, retry,
+  stats, and native `requests.Response` behavior.
 
 ### Fixed
 

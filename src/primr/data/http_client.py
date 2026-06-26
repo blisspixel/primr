@@ -19,8 +19,10 @@ Usage:
 import random
 import threading
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urljoin
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -30,6 +32,9 @@ from primr.utils.errors import ScrapingError
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("http_client")
+
+_REDIRECT_STATUSES = {301, 302, 303, 307, 308}
+_MAX_REDIRECTS = 10
 
 
 # =============================================================================
@@ -169,6 +174,61 @@ class HTTPClient:
 
         return session
 
+    def _request_with_safe_redirects(
+        self,
+        method: str,
+        url: str,
+        *,
+        timeout: float,
+        allow_redirects: bool,
+        verify: bool,
+        headers: dict[str, str] | None = None,
+        **kwargs: Any,
+    ) -> requests.Response:
+        """Request a URL, validating every redirect hop before connecting."""
+        request_func = self._session.get if method == "GET" else self._session.head
+        current_url = url
+
+        for redirect_count in range(_MAX_REDIRECTS + 1):
+            normalized_url = self._validate_outbound_url(current_url)
+            request_kwargs = dict(kwargs)
+            if current_url != url:
+                request_kwargs.pop("params", None)
+            if headers is not None:
+                request_kwargs["headers"] = headers
+
+            response = request_func(
+                normalized_url,
+                timeout=timeout,
+                allow_redirects=False,
+                verify=verify,
+                **request_kwargs,
+            )
+
+            if not allow_redirects:
+                return response
+
+            headers_obj = getattr(response, "headers", {}) or {}
+            location = None
+            if isinstance(headers_obj, Mapping):
+                location = headers_obj.get("Location") or headers_obj.get("location")
+
+            status_code = getattr(response, "status_code", None)
+            if (
+                status_code not in _REDIRECT_STATUSES
+                or not isinstance(location, str)
+                or not location
+            ):
+                return response
+
+            response_url = getattr(response, "url", normalized_url)
+            current_url = urljoin(str(response_url), location)
+
+            if redirect_count == _MAX_REDIRECTS:
+                raise requests.TooManyRedirects(f"Exceeded {_MAX_REDIRECTS} redirects for {url}")
+
+        raise requests.TooManyRedirects(f"Exceeded {_MAX_REDIRECTS} redirects for {url}")
+
     def get(
         self,
         url: str,
@@ -208,7 +268,8 @@ class HTTPClient:
             if headers:
                 request_headers.update(headers)
 
-            response = self._session.get(
+            response = self._request_with_safe_redirects(
+                "GET",
                 url,
                 headers=request_headers,
                 timeout=timeout or self._config.timeout,
@@ -216,17 +277,6 @@ class HTTPClient:
                 verify=self._config.verify_ssl,
                 **kwargs,
             )
-
-            # SSRF protection: validate final URL after redirects
-            if allow_redirects:
-                from primr.utils.security import validate_final_url_after_redirect
-
-                final_url = str(response.url)
-                is_safe, redirect_error = validate_final_url_after_redirect(final_url)
-                if not is_safe:
-                    raise ValueError(
-                        f"SSRF protection: redirect to {final_url} blocked - {redirect_error}"
-                    )
 
             duration = time.time() - start_time
             self._record_request(True, duration)
@@ -324,22 +374,14 @@ class HTTPClient:
             Response object or None if failed
         """
         try:
-            url = self._validate_outbound_url(url)
-            response = self._session.head(
+            response = self._request_with_safe_redirects(
+                "HEAD",
                 url,
                 timeout=timeout or self._config.timeout,
                 allow_redirects=allow_redirects,
                 verify=self._config.verify_ssl,
                 **kwargs,
             )
-            if allow_redirects:
-                from primr.utils.security import validate_final_url_after_redirect
-
-                final_url = str(response.url)
-                is_safe, redirect_error = validate_final_url_after_redirect(final_url)
-                if not is_safe:
-                    logger.warning("HEAD redirect blocked by SSRF protection: %s", redirect_error)
-                    return None
             return response
         except ValueError as e:
             logger.warning("HEAD blocked: %s", e)
