@@ -52,6 +52,23 @@ are architectural and worth a dedicated, well-tested cycle.
   hostname as SNI/Host (IP pinning). Harder (per-client transport work); after
   the redirect fix.
 
+## Flaky: cross-directory test pollution hits a browser import test
+
+`tests/test_data/test_scraping/test_browsers.py::TestScrapeWithDrissionpage::test_handles_import_error`
+intermittently fails in the FULL suite (`-x` stops there) but passes in
+isolation and when its whole directory runs (669 passed). So an earlier
+directory leaves global state that breaks it. Prime suspects are tests that
+patch import machinery and may not fully restore it: `test_ai/` runs before
+`test_data/` and several files there patch `builtins.__import__` /
+`sys.modules` (`test_preflight_coverage.py`, `test_anthropic_provider.py`,
+`test_providers_openai_compatible_coverage.py`), plus the Playwright
+`test_handles_import_error` in `test_browsers.py:236` does a raw
+`sys.modules.pop` + `patch("builtins.__import__")`. Pre-existing (CI green on
+the same test); not caused by the 1.34.0 work. Fix: bisect to the leaking test
+and make it hermetic (restore `sys.modules`/`__import__` in a `finally`, or use
+`monkeypatch`), then pin with a co-located ordering test. Until then it is a
+known intermittent.
+
 ## Multi-label-per-line (label_honesty / label_calibration)
 
 `extract_labeled_claims` uses `_LABEL_RE.search` (first label per line), so a
