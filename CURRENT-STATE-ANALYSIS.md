@@ -125,6 +125,37 @@ Ruff, format check, architecture/release-integrity tests, mypy, Bandit,
 pip-audit, MkDocs build, and the CI-shaped coverage gate (`10244 passed, 39
 skipped, 5 deselected`, 85.22% branch coverage).
 
+## 2026-06-26 SSRF Slice: Requests-Family IP Pinning
+
+Shipped in this slice:
+
+- Added `data.pinned_requests.PinnedHTTPAdapter`, a Requests transport adapter
+  that resolves the logical URL once, validates the resolved addresses through
+  the central SSRF guard, connects urllib3 to the validated IP literal, and
+  preserves the original Host header plus HTTPS SNI.
+- `HTTPClient` now mounts the pinned adapter while keeping its pooled session,
+  retry strategy, stats, manual redirect loop, and native
+  `requests.Response` contract.
+- `scrape_with_requests()` now reuses the same pinned session seam while
+  preserving its headers, cookies, manual redirect loop, and raw-content
+  `ScrapeResult` contract.
+- The `requests` dependency floor is now `>=2.34.0` because this relies on the
+  current Requests TLS-aware adapter hook verified in the local lock.
+
+Current estimate:
+
+- DNS-rebind IP pinning: complete for safe HTTP, citation HEAD, tiered httpx,
+  pooled `HTTPClient`, and the tiered requests scraper.
+- Remaining DNS-rebind hardening: curl_cffi and browser-backed fetch seams.
+
+Spend: `$0.00`. Validation passed: focused pinned-adapter/HTTP-client/scraper
+security suites, vertical-slice scraper tests, Ruff, format check,
+architecture/release-integrity tests, mypy, Bandit, pip-audit, MkDocs build,
+and the CI-shaped coverage gate (`10249 passed, 39 skipped, 5 deselected`,
+85.23% branch coverage). The first full coverage run exposed a stale
+vertical-slice test mock still targeting module-level `requests.get`; it was
+updated to the pinned `requests.Session.get` seam and the full gate passed.
+
 ## 2026-06-26 Control Plane Slice: MCP Runtime Budget Enforcement
 
 Shipped in this slice:

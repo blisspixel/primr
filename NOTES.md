@@ -54,8 +54,12 @@ are architectural and worth a dedicated, well-tested cycle.
   for fallback, hiring, Wayback CDX/replay, and citation HEAD fetches.
   **Also done:** `scrape_with_httpx()` now uses the same resolver artifact for
   each hop, preserving HTTP/2, cookies, Host, HTTPS SNI, and the logical final
-  URL. **Remaining:** add equivalent IP pinning to `data/http_client.py`, the
-  requests/curl_cffi scraper tiers, and browser-backed fetch seams.
+  URL. **Also done:** requests-family egress now uses
+  `data.pinned_requests.PinnedHTTPAdapter`; pooled `HTTPClient` calls and the
+  tiered requests scraper connect through urllib3 to the validated IP literal
+  while preserving retries, pooling, Host, SNI, and response/result contracts.
+  **Remaining:** add equivalent IP pinning to the curl_cffi scraper tier and
+  browser-backed fetch seams.
 
 ## Flaky: cross-directory test pollution hits a browser import test
 

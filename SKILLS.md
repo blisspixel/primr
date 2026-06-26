@@ -177,3 +177,8 @@
 - Do not disable TLS verification to make IP pinning work. Use the HTTP
   client's SNI extension or transport hook so certificate verification still
   checks the public hostname.
+- For Requests, use a custom `HTTPAdapter` rather than rewriting callers around
+  another client. Override the TLS-aware connection hook, point urllib3 at the
+  validated IP literal, set `Host` plus `server_hostname` / `assert_hostname`,
+  and fail closed on proxies because proxy resolution would bypass the pinned
+  local transport.

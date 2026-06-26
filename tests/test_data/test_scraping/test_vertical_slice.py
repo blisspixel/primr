@@ -33,7 +33,7 @@ class TestVerticalSlice:
         mock_response.status_code = 200
         mock_response.url = "https://example.com/"
 
-        with patch("requests.get", return_value=mock_response):
+        with patch("requests.Session.get", return_value=mock_response):
             result = scrape_single_url("https://example.com")
 
         assert result.success is True
@@ -63,7 +63,7 @@ class TestVerticalSlice:
         with tempfile.TemporaryDirectory() as tmpdir:
             cache = ScrapeCache(memory_size=100, cache_dir=tmpdir)
 
-            with patch("requests.get", return_value=mock_response) as mock_get:
+            with patch("requests.Session.get", return_value=mock_response) as mock_get:
                 # First request
                 result1 = scrape_single_url("https://example.com", cache=cache)
                 assert result1.cached is False
@@ -91,7 +91,7 @@ class TestVerticalSlice:
         mock_response.status_code = 200
         mock_response.url = "https://example.com/"
 
-        with patch("requests.get", return_value=mock_response):
+        with patch("requests.Session.get", return_value=mock_response):
             result = scrape_single_url("https://example.com")
 
         assert result.success is False
@@ -122,7 +122,7 @@ class TestVerticalSlice:
                 output_dir=tmpdir,
             )
 
-            with patch("requests.get", return_value=mock_response):
+            with patch("requests.Session.get", return_value=mock_response):
                 scrape_single_url(
                     "https://example.com",
                     trace_logger=trace_logger,
@@ -143,7 +143,7 @@ class TestVerticalSlice:
         """Should handle network errors gracefully."""
         import requests
 
-        with patch("requests.get", side_effect=requests.ConnectionError("Failed")):
+        with patch("requests.Session.get", side_effect=requests.ConnectionError("Failed")):
             result = scrape_single_url("https://example.com")
 
         assert result.success is False
@@ -153,7 +153,7 @@ class TestVerticalSlice:
         """Should handle timeout errors."""
         import requests
 
-        with patch("requests.get", side_effect=requests.Timeout("Timeout")):
+        with patch("requests.Session.get", side_effect=requests.Timeout("Timeout")):
             result = scrape_single_url("https://example.com", timeout=5)
 
         assert result.success is False
@@ -183,7 +183,7 @@ class TestVerticalSlice:
         mock_response.status_code = 200
         mock_response.url = "https://example.com/"
 
-        with patch("requests.get", return_value=mock_response):
+        with patch("requests.Session.get", return_value=mock_response):
             result = scrape_single_url("https://example.com")
 
         assert result.success is True
@@ -214,7 +214,7 @@ class TestVerticalSlice:
         mock_response.status_code = 200
         mock_response.url = "https://example.com/"
 
-        with patch("requests.get", return_value=mock_response):
+        with patch("requests.Session.get", return_value=mock_response):
             result = scrape_single_url("https://example.com")
 
         assert result.success is True

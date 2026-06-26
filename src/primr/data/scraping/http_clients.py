@@ -157,6 +157,7 @@ def scrape_with_requests(
     """
     import requests
 
+    from primr.data.pinned_requests import create_pinned_session
     from primr.utils.validators import validate_url_for_request
 
     # SSRF protection
@@ -183,43 +184,44 @@ def scrape_with_requests(
 
     try:
         current_url = url
-        for redirect_count in range(_MAX_REDIRECTS + 1):
-            response = requests.get(
-                current_url,
-                headers=headers,
-                timeout=timeout,
-                allow_redirects=False,
-                cookies=cookies,
-            )
-
-            location = _redirect_location(response)
-            if response.status_code not in _REDIRECT_STATUSES or location is None:
-                return _successful_scrape_result(
-                    url=url,
-                    tier_name=tier_name,
-                    start_time=start_time,
-                    response=response,
+        with create_pinned_session() as session:
+            for redirect_count in range(_MAX_REDIRECTS + 1):
+                response = session.get(
+                    current_url,
+                    headers=headers,
+                    timeout=timeout,
+                    allow_redirects=False,
+                    cookies=cookies,
                 )
 
-            redirect_url = urljoin(str(getattr(response, "url", current_url)), location)
-            is_valid, normalized_redirect_url, redirect_error = validate_url_for_request(
-                redirect_url
-            )
-            if not is_valid:
-                return _blocked_redirect_result(
-                    url=url,
-                    tier_name=tier_name,
-                    start_time=start_time,
-                    redirect_url=redirect_url,
-                    error=redirect_error,
+                location = _redirect_location(response)
+                if response.status_code not in _REDIRECT_STATUSES or location is None:
+                    return _successful_scrape_result(
+                        url=url,
+                        tier_name=tier_name,
+                        start_time=start_time,
+                        response=response,
+                    )
+
+                redirect_url = urljoin(str(getattr(response, "url", current_url)), location)
+                is_valid, normalized_redirect_url, redirect_error = validate_url_for_request(
+                    redirect_url
                 )
-            if redirect_count == _MAX_REDIRECTS:
-                return _too_many_redirects_result(
-                    url=url,
-                    tier_name=tier_name,
-                    start_time=start_time,
-                )
-            current_url = normalized_redirect_url
+                if not is_valid:
+                    return _blocked_redirect_result(
+                        url=url,
+                        tier_name=tier_name,
+                        start_time=start_time,
+                        redirect_url=redirect_url,
+                        error=redirect_error,
+                    )
+                if redirect_count == _MAX_REDIRECTS:
+                    return _too_many_redirects_result(
+                        url=url,
+                        tier_name=tier_name,
+                        start_time=start_time,
+                    )
+                current_url = normalized_redirect_url
 
         return _too_many_redirects_result(
             url=url,
@@ -285,6 +287,25 @@ def scrape_with_requests(
             success=False,
             error_type=ErrorType.NETWORK_ERROR,
             error=f"Request error: {e}",
+            tier=tier_name,
+            elapsed_ms=elapsed_ms,
+            attempts=[attempt],
+        )
+
+    except ValueError as e:
+        elapsed_ms = (time.time() - start_time) * 1000
+        attempt = Attempt(
+            tier=tier_name,
+            success=False,
+            error_type=ErrorType.NETWORK_ERROR,
+            error=str(e),
+            elapsed_ms=elapsed_ms,
+        )
+        return ScrapeResult(
+            url=url,
+            success=False,
+            error_type=ErrorType.NETWORK_ERROR,
+            error=f"SSRF protection: {e}",
             tier=tier_name,
             elapsed_ms=elapsed_ms,
             attempts=[attempt],

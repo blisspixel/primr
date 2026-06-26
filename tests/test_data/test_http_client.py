@@ -22,6 +22,7 @@ from primr.data.http_client import (
     http_get_text,
     reset_http_client,
 )
+from primr.data.pinned_requests import PinnedHTTPAdapter
 from primr.utils.errors import ScrapingError
 
 
@@ -496,6 +497,8 @@ class TestConnectionPooling:
             # HTTPAdapter stores pool config internally
             # The exact attribute varies by requests version
             assert adapter is not None
+            assert isinstance(adapter, PinnedHTTPAdapter)
+            assert client._session.trust_env is False
             # Verify it's an HTTPAdapter with pooling
             assert hasattr(adapter, "poolmanager") or hasattr(adapter, "config")
 

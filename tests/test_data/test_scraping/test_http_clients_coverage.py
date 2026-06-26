@@ -93,7 +93,7 @@ class TestRedirectRejection:
                     (False, "http://169.254.169.254/meta", "metadata endpoint"),
                 ],
             ),
-            patch("requests.get", return_value=mock_resp) as mock_get,
+            patch("requests.Session.get", return_value=mock_resp) as mock_get,
         ):
             result = scrape_with_requests("https://example.com")
         assert result.success is False

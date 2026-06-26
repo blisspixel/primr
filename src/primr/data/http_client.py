@@ -25,9 +25,9 @@ from typing import Any
 from urllib.parse import urljoin
 
 import requests
-from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from primr.data.pinned_requests import PinnedHTTPAdapter, mount_pinned_adapters
 from primr.utils.errors import ScrapingError
 from primr.utils.logging_config import get_logger
 
@@ -159,15 +159,13 @@ class HTTPClient:
         )
 
         # Configure adapter with connection pooling
-        adapter = HTTPAdapter(
+        adapter = PinnedHTTPAdapter(
             pool_connections=self._config.pool_connections,
             pool_maxsize=self._config.pool_maxsize,
             max_retries=retry_strategy,
         )
 
-        # Mount for both HTTP and HTTPS
-        session.mount("http://", adapter)
-        session.mount("https://", adapter)
+        mount_pinned_adapters(session, adapter)
 
         # Set default headers
         session.headers.update(get_default_headers())

@@ -65,7 +65,7 @@ class TestScrapeWithRequests:
         mock_response.status_code = 200
         mock_response.url = "https://example.com/"
 
-        with patch("requests.get", return_value=mock_response):
+        with patch("requests.Session.get", return_value=mock_response):
             result = scrape_with_requests("https://example.com")
 
         assert isinstance(result, ScrapeResult)
@@ -90,7 +90,7 @@ class TestScrapeWithRequests:
             content=b"<html>final</html>",
         )
 
-        with patch("requests.get", side_effect=[redirect, final]) as mock_get:
+        with patch("requests.Session.get", side_effect=[redirect, final]) as mock_get:
             result = scrape_with_requests("https://example.com/start")
 
         assert result.success is True
@@ -104,7 +104,7 @@ class TestScrapeWithRequests:
         """Should handle timeout errors."""
         import requests
 
-        with patch("requests.get", side_effect=requests.Timeout("Connection timed out")):
+        with patch("requests.Session.get", side_effect=requests.Timeout("Connection timed out")):
             result = scrape_with_requests("https://example.com", timeout=5)
 
         assert result.success is False
@@ -116,7 +116,9 @@ class TestScrapeWithRequests:
         """Should handle connection errors."""
         import requests
 
-        with patch("requests.get", side_effect=requests.ConnectionError("Failed to connect")):
+        with patch(
+            "requests.Session.get", side_effect=requests.ConnectionError("Failed to connect")
+        ):
             result = scrape_with_requests("https://example.com")
 
         assert result.success is False
@@ -141,7 +143,7 @@ class TestScrapeWithRequests:
         mock_response.status_code = 200
         mock_response.url = "https://example.com/"
 
-        with patch("requests.get", return_value=mock_response) as mock_get:
+        with patch("requests.Session.get", return_value=mock_response) as mock_get:
             scrape_with_requests("https://example.com", profile=profile)
 
         call_headers = mock_get.call_args[1]["headers"]
@@ -158,7 +160,7 @@ class TestScrapeWithRequests:
 
         cookies = {"session": "abc123"}
 
-        with patch("requests.get", return_value=mock_response) as mock_get:
+        with patch("requests.Session.get", return_value=mock_response) as mock_get:
             scrape_with_requests("https://example.com", cookies=cookies)
 
         assert mock_get.call_args[1]["cookies"] == cookies
@@ -171,7 +173,7 @@ class TestScrapeWithRequests:
         mock_response.status_code = 200
         mock_response.url = "https://example.com/"
 
-        with patch("requests.get", return_value=mock_response):
+        with patch("requests.Session.get", return_value=mock_response):
             result = scrape_with_requests("https://example.com")
 
         assert len(result.attempts) == 1
@@ -404,7 +406,7 @@ class TestScrapeResultStructure:
         mock_response.status_code = 200
         mock_response.url = "https://example.com/"
 
-        with patch("requests.get", return_value=mock_response):
+        with patch("requests.Session.get", return_value=mock_response):
             result = scrape_with_requests("https://example.com")
 
         # Check required fields exist
@@ -421,7 +423,7 @@ class TestScrapeResultStructure:
         """Failed ScrapeResult should have error information."""
         import requests
 
-        with patch("requests.get", side_effect=requests.Timeout("Timeout")):
+        with patch("requests.Session.get", side_effect=requests.Timeout("Timeout")):
             result = scrape_with_requests("https://example.com")
 
         assert result.success is False

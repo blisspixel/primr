@@ -24,6 +24,26 @@ Use this rubric for every loop cycle before marking work done. A category scores
 
 ## Current Cycle Score
 
+2026-06-26 requests-family DNS-rebind IP pinning:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: `PinnedHTTPAdapter` keeps Requests on its existing urllib3 transport
+while changing the actual socket target to the validated IP literal, preserving
+logical request URLs, original Host, HTTPS SNI, retries, pooling, and response
+contracts. The pooled `HTTPClient` and tiered requests scraper now share that
+adapter. Focused pinned-adapter, HTTP client, scraper, SSRF, egress, and
+vertical-slice tests pass; Ruff, format check, architecture/release-integrity
+tests, mypy, Bandit, pip-audit, MkDocs build, and the CI-shaped coverage gate
+all pass. Coverage: 85.23% branch. Spend: `$0.00`.
+
 2026-06-26 tiered httpx scraper DNS-rebind IP pinning:
 
 | Category | Score |

@@ -45,7 +45,7 @@ dependencies = [
     # `openai` SDK (see ai/providers/openai_compatible.py). It is therefore a
     # core runtime requirement, not an optional add-on.
     "openai>=1.0.0",
-    "requests>=2.31.0",
+    "requests>=2.34.0",
     "beautifulsoup4>=4.12.0",
     "fpdf>=1.7.2",
     "python-docx>=0.8.11",

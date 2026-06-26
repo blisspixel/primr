@@ -880,13 +880,17 @@ manually revalidate each redirect hop. The pooled `HTTPClient` does the same
 for GET/HEAD while preserving session and retry behavior. The requests, httpx,
 and curl_cffi scraping tiers also follow redirects manually so each tier
 validates redirect targets before connecting while preserving its own transport
-behavior. The httpx scraping tier also connects to the validated IP literal
-with original Host and HTTPS SNI. Equivalent IP pinning for the remaining
-requests, curl_cffi, pooled HTTPClient, and browser-backed transport families
-is tracked as the next SSRF hardening step.
+behavior. The httpx scraping tier connects to the validated IP literal with
+original Host and HTTPS SNI. Requests-family egress uses
+`data.pinned_requests.PinnedHTTPAdapter`, which lets pooled `HTTPClient`
+requests and the tiered requests scraper connect through urllib3 to the
+validated IP literal while keeping the logical request URL, original Host, and
+HTTPS SNI. Equivalent IP pinning for the remaining curl_cffi and browser-backed
+transport families is tracked as the next SSRF hardening step.
 
 **Protected Functions and Seams**:
 - `src/primr/data/safe_http.py`: `safe_http_get()` for fallback, hiring, and Wayback CDX/replay fetches; `async_safe_http_head()` for citation redirect resolution
+- `src/primr/data/pinned_requests.py`: `PinnedHTTPAdapter` for requests-family validated-IP connection pinning
 - `src/primr/data/http_client.py`: `HTTPClient.get()` and `HTTPClient.head()`
 - `src/primr/data/scraping/wayback.py`: `_fetch()` delegates to `safe_http_get()`
 - `src/primr/data/scraping/net.py`: `make_request()` and `head_exists()` for sitemap and URL-existence checks

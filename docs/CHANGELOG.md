@@ -50,6 +50,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The tiered httpx scraper now uses the same validated-IP connection artifact
   for every hop while preserving HTTP/2 setup, cookies, original Host, HTTPS
   SNI, and logical final URLs.
+- Requests-family egress now uses a shared `PinnedHTTPAdapter` that resolves
+  each logical request once, connects urllib3 to the validated IP literal, and
+  preserves the original Host header plus HTTPS SNI. The pooled `HTTPClient`
+  mounts this adapter while keeping retries, pooling, stats, and native
+  `requests.Response` semantics; the tiered requests scraper reuses it without
+  changing its raw-content result contract.
+
+### Changed
+
+- Raised the `requests` dependency floor to `>=2.34.0` because the
+  DNS-rebind pinning adapter depends on the current Requests transport-adapter
+  TLS hook.
 
 ### Fixed
 

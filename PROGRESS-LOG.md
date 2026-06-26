@@ -2,6 +2,74 @@
 
 ## 2026-06-26
 
+### Loop cycle: Requests-family DNS-rebind IP pinning
+
+Refresh: re-read README, ROADMAP, `CLAUDE.md`,
+`docs/design/agentic-balance.md`, `docs/design/engineering-excellence.md`,
+`docs/SECURITY.md`, `docs/ARCHITECTURE.md`, NOTES, current-state, the quality
+rubric, the pooled HTTP client, tiered HTTP scraper, and the Requests/urllib3
+transport APIs in the local lock.
+
+Prioritize: selected requests-family IP pinning because it closes the next
+check/connect split without changing the scraper tier order or bypassing the
+existing pooled session/retry seam. curl_cffi and browser-backed pinning remain
+queued because they need transport-specific APIs.
+
+Implemented:
+
+- Added `data.pinned_requests.PinnedHTTPAdapter`.
+- The adapter resolves each logical request once, blocks unsafe DNS answers
+  before urllib3 opens a pool, connects to the validated IP literal, and
+  preserves the logical request URL, original Host header, and HTTPS SNI.
+- The pooled `HTTPClient` now mounts the pinned adapter while keeping retries,
+  pooling, stats, manual redirects, and native `requests.Response` behavior.
+- `scrape_with_requests()` now uses the same pinned session seam while keeping
+  headers, cookies, manual redirects, and `ScrapeResult` behavior.
+- Raised the `requests` dependency floor to `>=2.34.0` to match the verified
+  TLS-aware adapter hook used by the implementation.
+- Updated NOTES, ROADMAP, `docs/SECURITY.md`, `docs/ARCHITECTURE.md`,
+  `docs/CHANGELOG.md`, current-state, and the quality rubric.
+
+Validation:
+
+- `uv run --no-sync pytest tests/test_data/test_pinned_requests.py tests/test_data/test_http_client.py tests/test_data/test_scraping/test_http_clients.py tests/test_data/test_scraping/test_http_clients_coverage.py tests/security/test_ssrf.py tests/security/test_egress_guardrails.py -q`
+  passed with 113 tests and 2 skipped.
+- `uv run ruff check src/primr/data/pinned_requests.py src/primr/data/http_client.py src/primr/data/scraping/http_clients.py tests/test_data/test_pinned_requests.py tests/test_data/test_http_client.py tests/test_data/test_scraping/test_http_clients.py tests/test_data/test_scraping/test_http_clients_coverage.py`
+  passed.
+- `uv run --no-sync pytest tests/test_data/test_scraping/test_vertical_slice.py tests/test_data/test_scraping/test_http_clients.py tests/test_data/test_scraping/test_http_clients_coverage.py -q`
+  passed with 41 tests after updating the vertical-slice tests to the pinned
+  session seam.
+- `uv run ruff format --check src/ tests/` passed.
+- `uv run --no-sync pytest tests/test_architecture.py tests/test_release_integrity.py -q`
+  passed with 13 tests.
+- `uv run --no-sync mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'`
+  passed.
+- `uv run bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q`
+  passed with the existing `mcp_server/security.py` B108 nosec warnings.
+- `uv run --no-sync pip-audit --ignore-vuln PYSEC-2026-196` passed.
+- `uv run --no-project --with mkdocs-material --with pymdown-extensions mkdocs build --site-dir _site`
+  passed with the repo's existing non-strict docs link warnings; `_site` was
+  removed afterward.
+- The first full coverage run exposed a stale vertical-slice test mock that
+  still patched module-level `requests.get`; the test was updated to patch
+  `requests.Session.get`, matching the new pinned session seam.
+- The CI-shaped non-manual coverage gate passed with `10249 passed, 39
+  skipped, 5 deselected` and 85.23% branch coverage.
+- `uv lock --check` passed.
+
+Maker-checker review:
+
+- Maker: the change uses Requests' existing adapter seam instead of replacing
+  the pooled client or scraper with a different HTTP library.
+- Checker 1, security/performance: the actual connection target is the same IP
+  that passed validation; proxy paths fail closed because they would move
+  resolution out of the pinned local transport; no paid validation was used.
+- Checker 2, maintainability/simplicity: one small adapter module is shared by
+  both Requests callers, and the dependency floor records the API contract it
+  relies on.
+
+Spend: `$0.00`.
+
 ### Loop cycle: Tiered httpx scraper DNS-rebind IP pinning
 
 Refresh: re-read ROADMAP, NOTES, `docs/SECURITY.md`,
