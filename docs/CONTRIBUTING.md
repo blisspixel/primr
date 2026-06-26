@@ -8,7 +8,7 @@ Thanks for your interest in contributing to Primr! This document provides guidel
 2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/primr.git`
 3. Set up the development environment. Three options:
 
-   **Option A — uv (recommended, fastest, reproducible):**
+   **Option A - uv (recommended, fastest, reproducible):**
    ```bash
    cd primr
    uv sync --frozen --extra dev --extra api   # installs from uv.lock
@@ -23,7 +23,7 @@ Thanks for your interest in contributing to Primr! This document provides guidel
    dependencies in `pyproject.toml`, run `uv lock` and commit the updated
    `uv.lock`. Install uv from https://docs.astral.sh/uv/ if you don't have it.
 
-   **Option B — manual pip (cross-platform):**
+   **Option B - manual pip (cross-platform):**
    ```bash
    cd primr
    python -m venv .venv
@@ -33,7 +33,7 @@ Thanks for your interest in contributing to Primr! This document provides guidel
    playwright install chromium
    ```
 
-   **Option C — guided bootstrap (Windows-friendly):**
+   **Option C - guided bootstrap (Windows-friendly):**
    ```bash
    cd primr
    py -3.13 setup_env.py           # Windows
@@ -61,14 +61,14 @@ python -m pytest tests/ --cov=src/primr --cov-report=html
 ### Code Quality
 
 Before submitting a PR, ensure your code passes all checks (CI gates on all of
-these — see the [Engineering Standards & Toolchain](../ROADMAP.md#engineering-standards--toolchain)
+these - see the [Engineering Standards & Toolchain](../ROADMAP.md#engineering-standards--toolchain)
 section of the ROADMAP for the full standards):
 
 ```bash
 # Linting
 uv run ruff check src/primr/
 
-# Type checking (incremental strict ratchet — see ROADMAP)
+# Type checking (incremental strict ratchet - see ROADMAP)
 uv run mypy src/primr/ --ignore-missing-imports
 
 # Security scan (gated at medium severity in CI)
@@ -87,9 +87,9 @@ uv run pre-commit install
 
 ### Code Style
 
-The canonical development contract — the single seams to use, the
+The canonical development contract - the single seams to use, the
 no-new-giant-file rule, the verify-current-APIs rule, the CLI verb convention,
-and the pre-PR slop check — lives in [`CLAUDE.md`](../CLAUDE.md) at the repo
+and the pre-PR slop check - lives in [`CLAUDE.md`](../CLAUDE.md) at the repo
 root. Claude Code loads it automatically; for other tools, read it directly.
 The essentials:
 
@@ -102,7 +102,7 @@ The essentials:
 
 ### No Real Company Data in the Repo
 
-Primr is a company-research tool, which makes it tempting to use real company names when writing examples, fixtures, eval results, sample reports, or commit messages. **Don't.** This applies to docs, code comments, test fixtures, prompt templates, eval artifacts, debug scripts, and git commit messages — anywhere that gets pushed to GitHub.
+Primr is a company-research tool, which makes it tempting to use real company names when writing examples, fixtures, eval results, sample reports, or commit messages. **Don't.** This applies to docs, code comments, test fixtures, prompt templates, eval artifacts, debug scripts, and git commit messages - anywhere that gets pushed to GitHub.
 
 Use these placeholders instead:
 
@@ -113,7 +113,7 @@ Use these placeholders instead:
 | Alternate company (multi-company snippets) | `ExampleCo` |
 | Fictional product / brand | `Cirrus Fleet` (or any made-up name) |
 
-Vendor/technology names referenced as **first-class product features** are fine — Cloudflare in bot-protection detection, Snowflake / Databricks / Microsoft Fabric in the data-fabric strategy, AWS / Azure / GCP / NVIDIA as `--platform` options. The line is: real names as *technical references* OK; real names as *research-subject examples* not OK.
+Vendor/technology names referenced as **first-class product features** are fine - Cloudflare in bot-protection detection, Snowflake / Databricks / Microsoft Fabric in the data-fabric strategy, AWS / Azure / GCP / NVIDIA as `--platform` options. The line is: real names as *technical references* OK; real names as *research-subject examples* not OK.
 
 When in doubt, grep your PR before opening it:
 
@@ -121,7 +121,7 @@ When in doubt, grep your PR before opening it:
 git diff main...HEAD | grep -i -E "\\b(real|actual)\\b.*\\binc\\.|<real-company-name>"
 ```
 
-If a real name slips into a commit message, fix it before the commit lands — rewriting messages after a tagged release means rewriting tags too.
+If a real name slips into a commit message, fix it before the commit lands - rewriting messages after a tagged release means rewriting tags too.
 
 ## Pull Request Process
 

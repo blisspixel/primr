@@ -74,9 +74,9 @@ primr today is Level 1 where it should be Level 2. Its collection is a
 *predefined path* dressed up as research
 ([research-tradecraft.md](research-tradecraft.md), code-grounded table):
 
-- "Blind broad scrape (≈50 pages)" — `fast_run_collection.py`, no hypothesis
+- "Blind broad scrape (≈50 pages)" - `fast_run_collection.py`, no hypothesis
   filter. The set of pages is fixed by the harness, not chosen by judgment.
-- "Reactive gap-fill (search for missing *data*, not to test a *claim*)" —
+- "Reactive gap-fill (search for missing *data*, not to test a *claim*)" -
   `fast_run_gaps.py`. Fills holes in a template, does not pursue a question.
 
 That is exactly the "open-ended problem hardcoded as a fixed path" the criterion
@@ -86,10 +86,10 @@ harness still owns:
 
 | Tradecraft step | Decision handed to the model | Loop still owned by harness |
 |-----------------|------------------------------|-----------------------------|
-| 4 — hypothesis-steered collection | *Which pages/queries test the open hypotheses* | Stage order, page cap, retries |
-| 5 — argument-derived structure | *What the report's sections should be, from the argument* | Render pipeline, validation |
-| 6 — adversarial refine (ACH / pre-mortem) | *Whether the governing thesis survives refutation* | Bounded number of refine rounds |
-| 7 — two-axis evidence grading | *Likelihood vs analytic confidence per claim* | Where grades attach in the artifact |
+| 4 - hypothesis-steered collection | *Which pages/queries test the open hypotheses* | Stage order, page cap, retries |
+| 5 - argument-derived structure | *What the report's sections should be, from the argument* | Render pipeline, validation |
+| 6 - adversarial refine (ACH / pre-mortem) | *Whether the governing thesis survives refutation* | Bounded number of refine rounds |
+| 7 - two-axis evidence grading | *Likelihood vs analytic confidence per claim* | Where grades attach in the artifact |
 
 ## The four principles to apply when refining
 
@@ -104,7 +104,7 @@ outcomes." smolagents is blunter:
 > behaviour."
 
 Application: the spine stays rule-based. Orchestration, scrape-tier escalation,
-HTTP client selection, atomic writes, retries, the cost estimate, rendering —
+HTTP client selection, atomic writes, retries, the cost estimate, rendering -
 these are well-defined tasks; workflows win on predictability. Do not agentify
 the plumbing. The bar for promoting a component to "judgment" is that the fixed
 path *demonstrably falls short too often*, not that judgment feels more modern.
@@ -115,21 +115,21 @@ The legitimate Level-2 decision points in primr are about *content*, never
 *control flow*: what to collect (4), how the analysis reasons within the
 report (the argument/insight per section), whether the thesis holds (6), how
 strong each claim is (7). If you can write the decision as an `if/else` that
-stays correct across companies, it is a rule — keep it one.
+stays correct across companies, it is a rule - keep it one.
 
-**Carve-out — the report's section *structure* is a rule, on purpose.** Which
+**Carve-out - the report's section *structure* is a rule, on purpose.** Which
 sections a strategic brief contains (the 23-section scaffold in
 `config/company_overview.yaml`) is **not** a per-run agentic decision, even
 though "structure the argument" sounds like judgment. A great deliverable's
 shape is a *known, stable thing*: you research and iterate it **offline** in the
-curated YAML, version-controlled, improved deliberately — you do not re-derive it
+curated YAML, version-controlled, improved deliberately - you do not re-derive it
 each run. Consistency is a feature here, not a limitation; rolling per-run
 structural dice trades reliability for variability nobody wants in a strategic
 report. By Principle 1's own test the fixed scaffold does not demonstrably fall
 short, so it stays a rule. The model's judgment goes into the *content within*
 each section (depth, insight, strategy, industry understanding), not into picking
 the sections. (This overrides the earlier "argument-derived structure" framing of
-tradecraft Step 5 — see [research-tradecraft.md](research-tradecraft.md).)
+tradecraft Step 5 - see [research-tradecraft.md](research-tradecraft.md).)
 
 ### 3. Gate the irreversible actions, not the reasoning (the keep-list).
 
@@ -142,11 +142,11 @@ So guardrails belong on *actions with external consequence*, and reasoning stays
 unconstrained. primr already does this and it is the pattern to preserve as
 collection gets more agentic:
 
-- **Spend** — the cost gate (estimate + explicit approval before any billable
+- **Spend** - the cost gate (estimate + explicit approval before any billable
   run). Non-negotiable.
-- **Egress** — every outbound URL through `utils.security.is_safe_url`
+- **Egress** - every outbound URL through `utils.security.is_safe_url`
   (validated post-redirect).
-- **Disk** — state writes through `utils.atomic_io`.
+- **Disk** - state writes through `utils.atomic_io`.
 
 A more judgment-driven Step 4 does not loosen any of these. It makes the model
 *choose better targets*; the SSRF guard still vets every fetch and the cost gate
@@ -161,20 +161,20 @@ The most-cited long-running-agent failure is self-declared done. Anthropic,
 
 The fix is external verification: "Only mark features as 'passing' after careful
 testing," validated against real behaviour. The primr analogue is the
-`core/refine.py` "artifact-discipline score" — a *proxy* for quality, and a
+`core/refine.py` "artifact-discipline score" - a *proxy* for quality, and a
 proxy is a self-report dressed as a metric. Tradecraft Step 7 is the
 ground-truth gate: a run is done when the governing thesis has survived an
 adversarial pass (Step 6) and each claim carries a likelihood/confidence grade,
 not when the pipeline reaches its last stage. Build completion checks that read
 the artifact's *substance*, not its *form*.
 
-## The failure mode in both directions — and which one to fear here
+## The failure mode in both directions - and which one to fear here
 
 The 2026 production consensus is blunt: **most agents fail not because the model
-is weak but because the harness is brittle** — hardcoded branching that tries to
+is weak but because the harness is brittle** - hardcoded branching that tries to
 anticipate every path, and regex/format rules that "break the moment someone
 adjusts the formatting." But the symmetric trap is just as real: handing
-*validation* to a model is also brittle — LLM-judge verdicts swing on seed,
+*validation* to a model is also brittle - LLM-judge verdicts swing on seed,
 option order, and instruction placement by margins comparable to the gains they
 claim to measure. Neither extreme is safe. The resolution the field landed on,
 and the one this doc encodes:
@@ -189,45 +189,45 @@ and the one this doc encodes:
 The concrete anti-pattern to refuse in primr: reaching for a regex or a hand-rule
 the moment LLM-generated *content* is involved. A regex can only check shape, so
 the instant you actually care about quality, argument strength, or relevance, a
-rule is the wrong tool — it false-blocks good output and silently rots as prompts
+rule is the wrong tool - it false-blocks good output and silently rots as prompts
 evolve. **The default for anything touching model output is judgment, measured by
 eval. A deterministic check is the exception**, and it earns its place only by
 being genuinely stable. Do not present a rule and judgment as equal options and
-"draw the line" between them — the burden is on the rule.
+"draw the line" between them - the burden is on the rule.
 
 Two failure smells worth naming, because primr has shipped both:
 
 - **The regex treadmill.** Scanning free-form prose for an open-ended marker
   vocabulary is brittle *by construction*. The scaffolding-leak scanner is the
   case study, not a model to copy: it kept missing new variants (colon-only, then
-  space-separated, then bare `[workbook]`), each patched in after the fact — which
+  space-separated, then bare `[workbook]`), each patched in after the fact - which
   is the failure, not the fix. The durable answer is *upstream* (prompt the writer
   not to emit the markers) plus an *eval metric* that measures leakage
   (`writer_output_clean`); any ship-time scan is a shrinking backstop that should
   trend toward zero work, never the mechanism. If a check needs a new case every
   time the model rephrases, it has already failed.
 - **Quality-as-regex.** A deterministic gate on "is this analysis good / strong /
-  complete / on-topic" cannot exist — that is the Level-2 judgment work (Steps
+  complete / on-topic" cannot exist - that is the Level-2 judgment work (Steps
   4–7), enforced by the calibration/verify instruments against ground truth, never
   a hand-written rule.
 
 What legitimately stays a rule is narrow: the irreversible-act guards (spend,
-egress, disk — Principle 3) and **referential/structural validity that does not
-change when prose is reworded** — does the DOCX render, is a `[cite: N]` token
+egress, disk - Principle 3) and **referential/structural validity that does not
+change when prose is reworded** - does the DOCX render, is a `[cite: N]` token
 (a marker the pipeline itself defines) resolvable to a `## Sources` entry, are
 there duplicate top-level headings. primr's own instinct here was right:
 required-section *presence* was deliberately left a QA *signal*, not a ship
 blocker, "too false-positive-prone to block on."
 
 Litmus test before adding any check: **would it need a new case every time the
-model rephrases?** If yes, it is content-policing in a structure costume — push
+model rephrases?** If yes, it is content-policing in a structure costume - push
 the fix upstream and measure it with eval; do not grow the regex. Direct
 corollary of Principle 4: substance is *measured*, not matched.
 
 ### The standing rule (cite this when reviewing roadmap/PR scope)
 
 > **No new ship-time rule that judges content.** Quality, strength, completeness,
-> relevance, label-correctness, "reads like a deliverable" — these are
+> relevance, label-correctness, "reads like a deliverable" - these are
 > model-judgment, enforced *upstream* (the writer/author prompt) and *measured* by
 > eval/calibration. A new deterministic gate is allowed ONLY for an irreversible
 > act (spend, egress, disk) or prose-invariant structural validity (the DOCX
@@ -235,7 +235,7 @@ corollary of Principle 4: substance is *measured*, not matched.
 > scanner (scaffolding-leak, the QA penalty score, the skill-pack heuristics) is a
 > *shrinking backstop* that trends toward a signal, never a block, and never
 > grows. If a check would need a new case when the model rephrases, it has already
-> failed — delete it, fix the prompt, trust the eval.
+> failed - delete it, fix the prompt, trust the eval.
 
 This is the trap primr keeps walking back into: shipping a quality moat made of
 regex. Refuse it at review time. A PR that adds a content gate must instead add
@@ -276,7 +276,7 @@ without turning primr into a Level-3 agent or weakening the cost gate.
 ## The coupling the sources don't name: agentic collection needs a budget
 
 This is the one design consequence specific to primr. A blind 50-page scrape is
-expensive but *boundable* — you can estimate it before the run, which is what
+expensive but *boundable* - you can estimate it before the run, which is what
 the cost gate depends on. Hypothesis-steered collection (Step 4) is cheaper on
 average but *variable*: the model decides how deep to go, so a static pre-run
 estimate stops being honest, and an honest pre-run estimate is the thing the
@@ -301,10 +301,10 @@ When a change makes part of primr "smarter," answer three questions in order:
 1. **Does a fixed path fall short here, often, across companies?** If no, keep
    it a rule (Principle 1). Most plumbing answers no.
 2. **If yes, is the decision about content, at a point the harness still
-   sequences — or is it about control flow?** Only the former is a legitimate
+   sequences - or is it about control flow?** Only the former is a legitimate
    Level-2 upgrade (Principle 2). Control-flow autonomy is out of scope by the
    "not a DAG engine" non-goal.
-3. **What does it touch — reasoning, or an irreversible act (spend, egress,
+3. **What does it touch - reasoning, or an irreversible act (spend, egress,
    disk)?** Guard the act, never the reasoning (Principle 3). If it touches
    spend, it needs a budget the model paces against (the coupling above).
 
@@ -313,13 +313,13 @@ Then make sure "done" is judged by the artifact's substance, not a flag
 
 ## Sources
 
-- Anthropic, [Building Effective Agents](https://www.anthropic.com/research/building-effective-agents) — the workflow-vs-agent definitions and decision criterion; "start simple."
-- Anthropic, [Effective Context Engineering for AI Agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) — hardcoded logic creates fragility; "less structure, more model."
-- Anthropic, [Effective Harnesses for Long-Running Agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) — self-declared completion is unreliable; verify against ground truth.
-- NVIDIA, [Agentic Autonomy Levels and Security](https://developer.nvidia.com/blog/agentic-autonomy-levels-and-security/) — risk lives in the tools/actions; Levels 0–3 taxonomy.
-- HuggingFace, [smolagents: Introduction to Agents](https://huggingface.co/docs/smolagents/en/conceptual_guides/intro_agents) — agency as a spectrum; regularize toward not-agentic when a fixed path fits.
-- Microsoft Security, [Updating the Taxonomy of Failure Modes in Agentic AI Systems](https://www.microsoft.com/en-us/security/blog/2026/06/04/updating-taxonomy-failure-modes-agentic-ai-systems-year-red-teaming-taught-us/) (Jun 2026) — a year of red-teaming: brittle harnesses fail; deterministic *structure* governs processes, not brittle *output* rules.
-- Adaline, [The Complete Guide to LLM & AI Agent Evaluation in 2026](https://www.adaline.ai/blog/complete-guide-llm-ai-agent-evaluation-2026) — layer deterministic format checks, heuristic scoring, LLM-as-judge, and human calibration; don't rely on regex gates for quality.
+- Anthropic, [Building Effective Agents](https://www.anthropic.com/research/building-effective-agents) - the workflow-vs-agent definitions and decision criterion; "start simple."
+- Anthropic, [Effective Context Engineering for AI Agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) - hardcoded logic creates fragility; "less structure, more model."
+- Anthropic, [Effective Harnesses for Long-Running Agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) - self-declared completion is unreliable; verify against ground truth.
+- NVIDIA, [Agentic Autonomy Levels and Security](https://developer.nvidia.com/blog/agentic-autonomy-levels-and-security/) - risk lives in the tools/actions; Levels 0–3 taxonomy.
+- HuggingFace, [smolagents: Introduction to Agents](https://huggingface.co/docs/smolagents/en/conceptual_guides/intro_agents) - agency as a spectrum; regularize toward not-agentic when a fixed path fits.
+- Microsoft Security, [Updating the Taxonomy of Failure Modes in Agentic AI Systems](https://www.microsoft.com/en-us/security/blog/2026/06/04/updating-taxonomy-failure-modes-agentic-ai-systems-year-red-teaming-taught-us/) (Jun 2026) - a year of red-teaming: brittle harnesses fail; deterministic *structure* governs processes, not brittle *output* rules.
+- Adaline, [The Complete Guide to LLM & AI Agent Evaluation in 2026](https://www.adaline.ai/blog/complete-guide-llm-ai-agent-evaluation-2026) - layer deterministic format checks, heuristic scoring, LLM-as-judge, and human calibration; don't rely on regex gates for quality.
 - [JudgeSense: A Benchmark for Prompt Sensitivity in LLM-as-a-Judge Systems](https://arxiv.org/html/2604.23478) (2026): a judge can be highly human-agreeing yet self-inconsistent under semantically equivalent prompts, so measure self-consistency, not just accuracy. The symmetric trap, evidence that swapping a brittle rule for a lone judge only moves the brittleness.
 - [Diagnosing the Reliability of LLM-as-a-Judge via Item Response Theory](https://arxiv.org/pdf/2602.00521) (2026): single-judge verdicts are psychometrically unstable, so prefer multi-judge panels and agreement checks over a lone judge, and do not arm a hard gate from a small single-judge sample.
 - OpenAI, [Codex authentication](https://developers.openai.com/codex/auth) and [Codex access tokens](https://developers.openai.com/codex/enterprise/access-tokens) - ChatGPT sign-in, API-key sign-in, and workspace access tokens are distinct credential modes.

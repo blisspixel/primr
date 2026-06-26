@@ -1,4 +1,4 @@
-# Foundry Agent Service — Primr MCP Integration
+# Foundry Agent Service - Primr MCP Integration
 
 Connect Primr's MCP server as a tool source in Microsoft Foundry Agent Service. This enables any Foundry prompt agent, workflow agent, or hosted agent to discover and invoke Primr's research tools via standard MCP tool discovery.
 
@@ -57,13 +57,13 @@ Foundry supports three Entra auth methods for MCP connections:
 3. In the agent configuration, go to **Tools** → **+ Add tool**
 4. Select **MCP tool** and choose the `primr-mcp` connection you created
 5. Foundry will call `tools/list` on the MCP endpoint and display the discovered tools:
-   - `estimate_run` — Get cost estimate before running research
-   - `research_company` — Submit a company research job
-   - `check_jobs` — Check job status and progress
-   - `wait_for_status_change` — Poll until job status changes
-   - `run_qa` — Run quality checks on completed research
-   - `doctor` — System diagnostics
-   - `show_usage` — Check spending and remaining budget
+   - `estimate_run` - Get cost estimate before running research
+   - `research_company` - Submit a company research job
+   - `check_jobs` - Check job status and progress
+   - `wait_for_status_change` - Poll until job status changes
+   - `run_qa` - Run quality checks on completed research
+   - `doctor` - System diagnostics
+   - `show_usage` - Check spending and remaining budget
 6. Enable the tools you want the agent to use (recommend enabling all)
 
 ### Configure Agent Instructions
@@ -163,5 +163,5 @@ If using private DNS zones, ensure the Foundry project can resolve the Container
 - OpenAPI spec: [`deploy/azure/openapi.yaml`](../deploy/azure/openapi.yaml)
 - Bicep templates: [`deploy/azure/bicep/`](../deploy/azure/bicep/)
 - Deploy script: [`deploy/azure/deploy.sh`](../deploy/azure/deploy.sh)
-- [Azure Quickstart](AZURE_QUICKSTART.md) — Deploy Primr to Azure
-- [Copilot Studio Guide](COPILOT_STUDIO_GUIDE.md) — Alternative: connect via Power Platform
+- [Azure Quickstart](AZURE_QUICKSTART.md) - Deploy Primr to Azure
+- [Copilot Studio Guide](COPILOT_STUDIO_GUIDE.md) - Alternative: connect via Power Platform

@@ -1,8 +1,8 @@
-# AGENTS.md — primr
+# AGENTS.md - primr
 
 This file is portable agent guidance in the [agents.md](https://agents.md) format. AI coding tools that auto-detect `AGENTS.md` (Kiro, OpenAI Codex, Jules, Aider, others) load it automatically. Tools that don't (Claude Code, Cursor, Windsurf) can reference or include it from their own rules / skill files.
 
-> **Operating primr vs. building primr.** This file is for agents that *operate* the primr CLI/MCP to do research. If you are an agent (or human) here to *change primr's source code*, read [`CLAUDE.md`](CLAUDE.md) — the development contract — not this file.
+> **Operating primr vs. building primr.** This file is for agents that *operate* the primr CLI/MCP to do research. If you are an agent (or human) here to *change primr's source code*, read [`CLAUDE.md`](CLAUDE.md) - the development contract - not this file.
 
 If you are an AI agent reading this in a primr-aware project: this is how to use the primr CLI and MCP server well.
 
@@ -13,15 +13,15 @@ Run a long, metered, autonomous research pipeline that turns a company URL into 
 Use primr when the user wants the full pipeline:
 
 - "Run primr on Contoso" / "primr Contoso https://contoso.com"
-- "Build me the full strategic dossier for Acme — I have a discovery in two weeks"
+- "Build me the full strategic dossier for Acme - I have a discovery in two weeks"
 - "Generate the AI strategy module for the Acme report"
 - "Reload the hypotheses we have on Acme and refresh weak ones"
 
 **Do not** use primr for:
 
-- A quick pre-call brief with no API budget — use the host's built-in web search and reasoning. primr is wrong for "give me two paragraphs on Acme."
-- DNS / tenant / email-security only — primr's recon stage is bundled into the full pipeline, not a standalone path. For passive lookups, shell out to `dig`, `host`, or a passive-recon tool.
-- Reviewing an existing primr report's quality — still primr (`run_qa` MCP tool or `primr --qa <company>` CLI), but invoke that path directly without estimating a new run.
+- A quick pre-call brief with no API budget - use the host's built-in web search and reasoning. primr is wrong for "give me two paragraphs on Acme."
+- DNS / tenant / email-security only - primr's recon stage is bundled into the full pipeline, not a standalone path. For passive lookups, shell out to `dig`, `host`, or a passive-recon tool.
+- Reviewing an existing primr report's quality - still primr (`run_qa` MCP tool or `primr --qa <company>` CLI), but invoke that path directly without estimating a new run.
 
 If the user is ambiguous ("research Acme"), default to the host's built-in research path and offer primr as the upgrade for "I want the full dossier." primr's cost and runtime mean it should never auto-fire on a vague trigger.
 
@@ -38,7 +38,7 @@ If `primr` is not on `PATH`:
 
 > "primr isn't installed. It's a Python CLI from github.com/blisspixel/primr. Use `pip install primr` on Python 3.12+. After install, run `primr init` to set provider keys. Grok + Gemini is the measured default, but OpenAI, Anthropic, and local OpenAI-compatible paths are also supported or tracked in the roadmap. Want me to walk through it?"
 
-Wait for explicit approval before running `pip install`. If `primr doctor` reports missing keys, do not attempt to set them yourself — surface the gap and let the user run `primr init` or `primr keys set <provider>`.
+Wait for explicit approval before running `pip install`. If `primr doctor` reports missing keys, do not attempt to set them yourself - surface the gap and let the user run `primr init` or `primr keys set <provider>`.
 
 ## Detecting MCP vs CLI
 
@@ -54,7 +54,7 @@ Do not call an MCP tool speculatively to test connectivity. To get from CLI-only
 primr runs cost real money and real time. **Never** launch a run without:
 
 1. **Estimating first.** MCP: `estimate_run(company_url=..., mode=..., platforms=[...], strategy_type=...)`. CLI: append `--dry-run` to the exact command you intend to run.
-2. **Reporting the estimate** verbatim — quoted dollars and minutes, plus what mode and what strategy.
+2. **Reporting the estimate** verbatim - quoted dollars and minutes, plus what mode and what strategy.
 3. **Getting explicit user approval** in the conversation. "Want me to launch it?" → wait for "yes" / "go" / equivalent. A user asking *"how much would it cost"* is **not** approval.
 
 If the user pushes back on cost, suggest a cheaper mode (`scrape` ~$0.10, default ~$4.27) before walking away. If they want premium depth, surface the `--grok-tier max` (~$3.75) and `--premium` (~$5) tiers and re-estimate.
@@ -68,13 +68,13 @@ The MCP server enforces this gate via `primr://agent/governance`; the CLI does n
 3. **Launch.** MCP: `research_company(company_name=..., company_url=..., mode=..., platform=..., destination=...)` → returns `job_id`. CLI: drop `--dry-run` and run the same command. Note the `job_id` or output directory.
 4. **Don't block.** Runs take 35-120 minutes. Tell the user the job is running and what file path will hold the report. Do not poll synchronously in a loop.
 5. **Resume on next turn.** When the user comes back ("is the Acme report done?"), check `primr://research/status` or `check_jobs` (MCP), or look for the markdown file at `output/<company>/<Company>_Strategic_Overview_<MM-DD-YYYY>.md` (CLI). If still running, report the stage and `stage_progress_percent`.
-6. **Confirm completion, then hand off.** Read the report path. Do NOT dump the full report into the conversation — it's ~21k words. Summarize the executive summary, list the section count, and offer downstream actions (see [references/downstream-handoff.md](references/downstream-handoff.md)).
+6. **Confirm completion, then hand off.** Read the report path. Do NOT dump the full report into the conversation - it's ~21k words. Summarize the executive summary, list the section count, and offer downstream actions (see [references/downstream-handoff.md](references/downstream-handoff.md)).
 
 ## Mode, tier, platform, strategy
 
 primr exposes four orthogonal levers. Default is `full` mode, no platform bias, default `--grok-tier`, no `--strategy-type` (Strategic Overview only).
 
-For the full decision matrix — when to pick each, cost and time per combination, multi-platform behavior — see [references/modes-and-strategies.md](references/modes-and-strategies.md). One-liner heuristics:
+For the full decision matrix - when to pick each, cost and time per combination, multi-platform behavior - see [references/modes-and-strategies.md](references/modes-and-strategies.md). One-liner heuristics:
 
 - **Mode**: `full` for almost everything. `scrape` if external research isn't needed. `deep` if the site is blocked. `premium` only when the user asks for board-grade depth.
 - **Platform**: omit unless the user is positioning a specific cloud. Then pass exactly what they're selling against (`--platform aws`, `--platform ms`, etc.). It biases the AI strategy module, not the core report.
@@ -88,16 +88,16 @@ For the schema and a worked example, see [references/custom-strategy-yaml.md](re
 
 ## Async monitoring
 
-Long runs are the common case. Pick the lightest async pattern your host supports — never poll synchronously in a tight loop.
+Long runs are the common case. Pick the lightest async pattern your host supports - never poll synchronously in a tight loop.
 
 **Preferred, in rough order:**
 
 1. **Background launch with completion notification.** If your host can run a command in the background and notify you when it exits, use that to launch primr. You get one event ~45 min later when the run finishes. This is the cleanest pattern.
-2. **Stream phase markers from the log.** If your host can tail a file and emit one event per matching line, watch the run log for the phase boundaries (`▸ PHASE`, `✓ Complete`, `✗`, `Error`) — about 6-8 events across a full run. Right density for "is it making progress?" without polling noise.
+2. **Stream phase markers from the log.** If your host can tail a file and emit one event per matching line, watch the run log for the phase boundaries (`PHASE`, `Complete`, `Error`) - about 6-8 events across a full run. Right density for "is it making progress?" without polling noise.
 3. **Schedule a single early sanity check at ~5 minutes.** Most failures (rejected key, scrape pilot fails, no external sources) surface in the first phase. A one-shot check at +5min catches those before the user wastes 45 minutes.
 4. **Fallback (no async primitives at all).** Tell the user "I'll check back in about an hour" and stop. When the next turn arrives, read state first (`check_jobs` / `primr://research/status` / the report file at `output/<company>/<Company>_Strategic_Overview_<MM-DD-YYYY>.md`), then summarize.
 
-**On every follow-up turn, regardless of how you got there:** read state first. Never claim done until the report file exists *and* `check_jobs` reports `status: completed`. On failure, read `primr://output/manifest/latest` if available — it contains the audit trail (estimate, approval, execution, error). Surface the failure cause; do not silently re-launch.
+**On every follow-up turn, regardless of how you got there:** read state first. Never claim done until the report file exists *and* `check_jobs` reports `status: completed`. On failure, read `primr://output/manifest/latest` if available - it contains the audit trail (estimate, approval, execution, error). Surface the failure cause; do not silently re-launch.
 
 **What not to do:**
 
@@ -109,10 +109,10 @@ Long runs are the common case. Pick the lightest async pattern your host support
 
 Reports land in `output/<company_slug>/`:
 
-- `<Company>_Strategic_Overview_<date>.md` — primary deliverable
-- `<Company>_AI_Strategy_<date>.md` — only if `--strategy-type ai` (or another module) was selected
-- `scraped_content.txt`, `insights.json`, `dossier.json` — pipeline intermediates
-- `run_manifest.json` — audit trail
+- `<Company>_Strategic_Overview_<date>.md` - primary deliverable
+- `<Company>_AI_Strategy_<date>.md` - only if `--strategy-type ai` (or another module) was selected
+- `scraped_content.txt`, `insights.json`, `dossier.json` - pipeline intermediates
+- `run_manifest.json` - audit trail
 
 When the user asks "what did we get": list the artifacts, quote the executive summary, and note section count. Do not dump the full markdown unless they ask for the full text. Offer to convert to DOCX (`primr` writes both by default in `full` mode) or to feed it to a downstream consumer.
 
@@ -135,16 +135,16 @@ Display confidence levels honestly (`untested`, `validated`, `invalidated`, `con
 
 primr's voice is **hedged strategic analysis with cited sources**. Mirror that:
 
-- Surface confidence annotations the report already carries — don't strip them.
+- Surface confidence annotations the report already carries - don't strip them.
 - Quote sources from the citation appendix when the user pushes on a specific claim.
 - Say "primr's analysis suggests…" rather than asserting findings as facts; the report is one input, not ground truth.
-- If the user asks a question the report doesn't cover, say so — do not extrapolate beyond what's written.
+- If the user asks a question the report doesn't cover, say so - do not extrapolate beyond what's written.
 
 ## Hard rules
 
 - **Cost gate.** Never launch a billable run without a fresh estimate and explicit approval in the same conversation turn.
 - **No synchronous waits.** Long runs are async; check state on the next turn.
-- **No silent retries.** A failed run gets reported back to the user with the manifest's error context — they decide whether to re-run.
+- **No silent retries.** A failed run gets reported back to the user with the manifest's error context - they decide whether to re-run.
 - **No re-estimating against an active job.** If `check_jobs` shows the company already running, surface that and ask if they want to monitor it instead of starting a parallel run.
 - **Defer behaviorally, not by skill name.** Vague "research X" with no budget → use the host's web search and reasoning. DNS-only → shell out to `dig` or a passive-recon tool. Quality-checking an existing report → `run_qa` directly, no new estimate.
 - **Never edit built-in strategy YAMLs.** Custom strategies live in the user's override path; built-ins ship with the package.

@@ -1,6 +1,6 @@
 # 1.x Completion: Finishing the Excellent Single-Shot Brief
 
-Status: ACTIVE — this is the current line of work.
+Status: ACTIVE - this is the current line of work.
 ROADMAP anchors: Active Queue #3 (remainder), #4, #9, #23; panel-review
 high tier (label calibration, evidence-fetching verify).
 
@@ -10,24 +10,24 @@ high tier (label calibration, evidence-fetching verify).
 engineering backlog behind that promise is largely closed: the artifact
 shipping contract, failover, budget controls, observability, the QA iteration
 loop, and runtime robustness all shipped. What remains is concentrated in two
-places — *measured quality* (is the analysis actually good, are the labels
+places - *measured quality* (is the analysis actually good, are the labels
 actually true) and *core testability* (the pipeline heart is a ~1,900-line
 function the suite can only test around).
 
 ## Workstreams, in dependency order
 
-### 1. Measure the epistemics — SHIPPED (post-1.30.0: PRs #27, #28, refine acceptance guard)
+### 1. Measure the epistemics - SHIPPED (post-1.30.0: PRs #27, #28, refine acceptance guard)
 
 All three pieces landed: evidence-based `--verify` (fetched snippets +
 first-party/third-party provenance + deterministic self-corroboration
 downgrade, PR #27); the label-calibration harness
-(`qa/label_calibration.py` — deterministic claim sampler, traceability
+(`qa/label_calibration.py` - deterministic claim sampler, traceability
 audit with injectable fetch/judge seams, per-label precision, PR #28); and
 the refine-loop anti-Goodhart guard (each iteration audited by the
 calibration harness; traceability degradation reverts the iteration).
 
 **Remaining within this workstream:**
-- ~~Wire the metric into the model_eval scorecard~~ — DONE: `primr calibrate
+- ~~Wire the metric into the model_eval scorecard~~ - DONE: `primr calibrate
   "Company"` / `--calibrate-recent N` (with `--dry-run` judge-call/cost
   preview) audits shipped reports and persists `<report>.calibration.json`
   sidecars; the offline eval reads sidecars into per-report
@@ -51,8 +51,8 @@ calibration harness; traceability degradation reverts the iteration).
   judging is trusted with receipts, not vibes. This is also the first
   concrete slice of the 2.0 backend-freedom pillar pulled into 1.x: the
   utility-tier local-routing plan (scrape summaries, link selection,
-  posting triage) follows the same pattern — detect, opt in, validate by
-  agreement, fail open to cloud — and is gated on these instruments.
+  posting triage) follows the same pattern - detect, opt in, validate by
+  agreement, fail open to cloud - and is gated on these instruments.
 - Surface contradicted claims from `verification.json` in the report's
   trust summary (today: JSON + console only)
 - v2 calibration check: Estimated/Hypothesis claims must NOT be
@@ -103,7 +103,7 @@ acceptance on a check the scorer can't see: a claim spot-check (from the
 calibration harness) on regenerated sections, or an LLM-judge delta. Reject
 the iteration when discipline rose but independent quality didn't.
 
-### 2. Refactor the orchestrators (#23) — EXTRACTION COMPLETE
+### 2. Refactor the orchestrators (#23) - EXTRACTION COMPLETE
 
 Status: all ten stages of `perform_fast_research` extracted (Batches A–G,
 ~1,600 lines into eleven stage modules with ~110 hermetic tests); the
@@ -115,7 +115,7 @@ per-module coverage target, the C901 budget, and the
 `perform_fast_research` (~1,900 lines) interleaves I/O, LLM calls, and state
 transitions; `_execute_consulting_research` (~270 lines) similar. Rules:
 
-- **No behavior change** — seam introduction only; eval scores must be
+- **No behavior change** - seam introduction only; eval scores must be
   unchanged after the refactor
 - Extract, in this order (each is independently shippable): scrape+corpus
   assembly; external search + gap analysis; workbook stage; the per-section

@@ -4,7 +4,7 @@ site_url: https://blisspixel.github.io/primr/
 repo_url: https://github.com/blisspixel/primr
 repo_name: blisspixel/primr
 edit_uri: edit/main/docs/
-copyright: Copyright &copy; 2025-2026 Nick Seal — Apache License 2.0
+copyright: Copyright &copy; 2025-2026 Nick Seal - Apache License 2.0
 
 docs_dir: docs
 
@@ -62,6 +62,7 @@ nav:
   - Getting started:
       - API keys: API_KEYS.md
       - Configuration: CONFIG.md
+      - Run modes and costs: RUN_MODES.md
       - Azure quickstart: AZURE_QUICKSTART.md
   - How-to guides:
       - Batch processing: BATCH.md
@@ -70,6 +71,7 @@ nav:
       - Skill packs: SKILL_PACK.md
       - Evaluation: EVAL.md
       - Model onboarding: MODEL_ONBOARDING.md
+      - Agent integration: AGENT_INTEGRATION.md
       - OpenClaw: OPENCLAW.md
       - Copilot Cowork: COPILOT_COWORK_GUIDE.md
       - Copilot Studio: COPILOT_STUDIO_GUIDE.md

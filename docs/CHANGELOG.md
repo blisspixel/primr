@@ -64,9 +64,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- README is now a concise project front door instead of the full manual. Run
+  mode, cost, agent-integration, and skill-pack details now link to focused docs
+  so first-time users can install, estimate, and run without wading through
+  advanced integration material.
 - Raised the `requests` dependency floor to `>=2.34.0` because the
   DNS-rebind pinning adapter depends on the current Requests transport-adapter
   TLS hook.
+
+### Added
+
+- Added `docs/RUN_MODES.md` for the mode and cost matrix, strategy/platform
+  selection, budget semantics, output locations, and sample run shape.
+- Added `docs/AGENT_INTEGRATION.md` for MCP, A2A, host snippets, packaged
+  skills, credential boundaries, and async monitoring guidance.
 
 ### Fixed
 
@@ -447,7 +458,7 @@ manual audit). All fixes ship with regression tests.
 
 - **SSRF validator crashed on an out-of-range port.** `is_safe_url` let the
   lazy `urllib` `parsed.port` `ValueError` (e.g. `:99999`) propagate instead of
-  returning `(False, reason)` — on the untrusted post-redirect path. Now guarded.
+  returning `(False, reason)` - on the untrusted post-redirect path. Now guarded.
 - **Modern OpenAI keys were not redacted in logs.** The secret-masking pattern
   only matched the classic 48-char form; `sk-proj-`/`sk-svcacct-`/`sk-admin-`
   keys slipped through. Broadened to cover the prefixed/variable-length forms.
@@ -482,7 +493,7 @@ manual audit). All fixes ship with regression tests.
 - **CSV-injection sanitizer missed leading-whitespace/newline payloads**
   (` =cmd`); now checks the first non-whitespace character.
 - **Dependency security floor:** `azure-identity>=1.16.1` (GHSA-m5vv-6r4h-3vj9,
-  elevation of privilege) — flagged by Scorecard's OSV scan against the floor.
+  elevation of privilege) - flagged by Scorecard's OSV scan against the floor.
 
 ## [1.32.1] - 2026-06-16
 
@@ -492,11 +503,11 @@ manual audit). All fixes ship with regression tests.
   and pip-audit flagged HIGH-severity vulnerabilities in dependencies that touch
   the MCP/A2A/API server surface; floors are now pinned so no install path can
   resolve to a vulnerable version:
-  - `starlette` `>=1.3.1` (was `>=0.27.0`) — CVE-2026-54282/54283: form-parsing
+  - `starlette` `>=1.3.1` (was `>=0.27.0`) - CVE-2026-54282/54283: form-parsing
     limits silently ignored, enabling denial of service.
-  - `python-multipart` `>=0.0.31` (newly pinned) — CVE-2026-53538/53539/53540:
+  - `python-multipart` `>=0.0.31` (newly pinned) - CVE-2026-53538/53539/53540:
     quadratic-time querystring parsing causes CPU denial of service.
-  - `cryptography` `>=48.0.1` (newly pinned) — GHSA-537c-gmf6-5ccf: vulnerable
+  - `cryptography` `>=48.0.1` (newly pinned) - GHSA-537c-gmf6-5ccf: vulnerable
     OpenSSL bundled in the affected wheels.
 - Lockfile resolves to `starlette` 1.3.1, `python-multipart` 0.0.32, and
   `cryptography` 49.0.0. No source changes; full suite green.
@@ -508,9 +519,9 @@ manual audit). All fixes ship with regression tests.
 - **Relevance-ranked section evidence (`PRIMR_SECTION_EVIDENCE_CURATION=1`).** The
   section writer's evidence subset was a blind first-100k-chars truncation of the
   scraped corpus, shared across sections. New `core/context_curation.py`
-  `rank_corpus_by_relevance()` instead keeps the *most-relevant* 100k — corpus
+  `rank_corpus_by_relevance()` instead keeps the *most-relevant* 100k - corpus
   `[Page:]` blocks ranked by term-overlap with the analysis workbook (which
-  already distilled the run's themes) — so the budget is spent on signal, not
+  already distilled the run's themes) - so the budget is spent on signal, not
   scrape order. Shared across sections (preserves the cached prompt prefix from
   the #8 split); deterministic and dependency-free; conservative fallbacks (no
   page markers / empty reference / corpus within budget → prior behavior). It is
@@ -518,16 +529,16 @@ manual audit). All fixes ship with regression tests.
   **eval-gated** (`docs/design/eval-plan.md` Eval 4): default off is
   byte-identical, so this ships as an opt-in to be validated by an A/B before any
   default change.
-  - **Evaluated (n=1, ~$1.4): WASH — stays default-off.** A/B on a large
+  - **Evaluated (n=1, ~$1.4): WASH - stays default-off.** A/B on a large
     content-dense company (corpus ~360k chars, so curation dropped ~72%): blind
     pairwise grade tied on every section. Relevance-ranking the corpus subset
     doesn't change brief quality even when it fires hard. Combined with the Step 4
     result, this shows quality isn't bottlenecked by *which evidence reaches the
-    writer* — it rides on the workbook + writer prompts. The feature stays merged
+    writer* - it rides on the workbook + writer prompts. The feature stays merged
     but off (no harm; a seam for a future per-section-routing version). Next real
     quality lever: the analysis/section prompts (content depth, #4), not plumbing.
 
-### Artifact shipping — de-brittle (content gates become signals)
+### Artifact shipping - de-brittle (content gates become signals)
 
 - **Leaked-label scan no longer false-blocks legitimate lowercase prose.** The
   forbidden-output scan ran case-insensitively, so a report saying "based on our
@@ -537,13 +548,13 @@ manual audit). All fixes ship with regression tests.
   **case-sensitively** (a new `_FORBIDDEN_LEAKED_LABELS` set), so only the exact
   Title-Case leaked form is caught and ordinary lowercase content ships
   untouched. The bracketed/filename tokens (`[Source:]`, `vendor-research-*.txt`,
-  ...) stay case-insensitive — their delimiters never occur in prose, so they
+  ...) stay case-insensitive - their delimiters never occur in prose, so they
   can't false-block. (agentic-balance: don't gate real content.)
 - **Scaffolding-leak detection is now a non-blocking warning, not a ship gate.**
   A leaked internal marker (`[workbook]`, bold `**What to validate:**`, informal
   `[cite: label]`) no longer withholds the polished DOCX; it is surfaced (logged)
   and eval-tracked (`## Artifact Drift`) while the deliverable ships. A regex
-  cannot be a quality moat — content quality is enforced upstream (the writer
+  cannot be a quality moat - content quality is enforced upstream (the writer
   prompt) and measured by eval, per the standing rule in
   `docs/design/agentic-balance.md`. Blocking is reserved for what a rule can
   legitimately judge: structural/referential validity (citation resolution,
@@ -633,14 +644,14 @@ manual audit). All fixes ship with regression tests.
 
 ### Install / update quality-of-life
 
-- **`primr update`** — self-upgrade to the latest PyPI release; detects pipx
+- **`primr update`** - self-upgrade to the latest PyPI release; detects pipx
   vs pip and runs the right command, reporting before/after version.
   `primr update --check` checks without installing; `-y` skips the prompt.
-- **Passive update notice** — a one-line "update available" hint after a
+- **Passive update notice** - a one-line "update available" hint after a
   successful research run and in `primr doctor`. Cached ~24h in the per-user
   dir, fail-safe (never blocks a run), opt-out via `PRIMR_NO_UPDATE_CHECK`.
-  Uses `requests` (already a core dep) — bandit-clean, no new dependency.
-- **Idempotent installers** — `scripts/install.{ps1,sh}` now upgrade an
+  Uses `requests` (already a core dep) - bandit-clean, no new dependency.
+- **Idempotent installers** - `scripts/install.{ps1,sh}` now upgrade an
   existing install on re-run, verify the result, and surface `primr update`.
 
 ### Engineering: anti-slop development contract + fitness gates
@@ -657,7 +668,7 @@ manual audit). All fixes ship with regression tests.
   `test_context_map_*` property tests (they skipped while no `CLAUDE.md` was
   committed): required sections, negative constraints, verification commands,
   progressive disclosure, and the Quick Start token budget.
-- **`tests/test_architecture.py`** — deterministic architectural fitness
+- **`tests/test_architecture.py`** - deterministic architectural fitness
   suite: a rise-only per-file line ceiling (14 files >1,000 lines pinned and
   blocked from growing; new files cap at 1,000), a single-JSON-library gate
   (stdlib `json` only), and an agent-contract-exists check. Design doc:
@@ -666,7 +677,7 @@ manual audit). All fixes ship with regression tests.
   The June-13 registry audit pushed `config/models.py` past its ceiling, so the
   ~760-line `ModelRegistry` data block (the part you edit when a provider ships
   or retires a model) moved to a new `config/model_registry.py` and is
-  re-exported from `config/models.py` — every `from primr.config.models import
+  re-exported from `config/models.py` - every `from primr.config.models import
   ModelRegistry/ModelConfig/ModelType/GrokTier` keeps working, and adding model
   entries no longer trips the ratchet. The `keys` subcommand handler
   (`_create_keys_parser` + `_run_keys`, ~130 lines) moved out of `core/cli.py`
@@ -676,7 +687,7 @@ manual audit). All fixes ship with regression tests.
 ### Design docs
 
 - **Decision: report section structure stays a curated rule (tradecraft Step 5
-  descoped).** A strategic brief's *shape* is a known, stable thing — consistency
+  descoped).** A strategic brief's *shape* is a known, stable thing - consistency
   is a feature of a deliverable, and per-run structural variability trades
   reliability for "rolling the dice." The `company_overview.yaml` scaffold is
   researched/iterated *offline*, not re-derived per run; by Principle 1 it does
@@ -685,42 +696,42 @@ manual audit). All fixes ship with regression tests.
   constrained-evidence reasoning), not in choosing sections. Recorded in
   `agentic-balance.md` (structure carve-out), `research-tradecraft.md` (Step 5),
   and ROADMAP #4.
-- `docs/design/research-tradecraft.md` — plan to shift the pipeline's
+- `docs/design/research-tradecraft.md` - plan to shift the pipeline's
   *collection and analysis* from collection-first to hypothesis-first (framing,
   Day-1 hypothesis tree, plan checkpoint), keeping the deliverable structure a
   curated scaffold.
-- `docs/design/eval-plan.md` — pre-registered, cheapest-first plan for the
+- `docs/design/eval-plan.md` - pre-registered, cheapest-first plan for the
   pending paid evals (label-calibration baseline ~$0.10, framed-vs-unframed
   ~$1.58/co, content-depth ~$4-5/co) with exact commands, instruments, and
   go/no-go acceptance criteria, so a paid run yields a decision, not a vibe.
-- **Eval result — tradecraft Step 4 (framed-vs-unframed) = NO-GO for default
+- **Eval result - tradecraft Step 4 (framed-vs-unframed) = NO-GO for default
   (~$0.69 spent, n=1).** First paid A/B confirmed the hypothesis-steering *fires*
   correctly but produced *no quality lift* (blind pairwise wash, slightly
-  favoring unframed) at neutral cost — steered collection trades breadth for depth
+  favoring unframed) at neutral cost - steered collection trades breadth for depth
   and fights the broad fixed structure. Step 4 stays opt-in; not promoted; no
   further collection-steering built on it. The label-calibration baseline also
   ran (~$0.00) and flagged low label-traceability worth re-measuring at scale.
   Next candidate lever recorded: *context curation* at the analysis/writing stage
   (the ~1.9M-token prompts are the real bottleneck), not more collection-steering.
-- **Eval finding — epistemic grounding is the one real quality lever (~$2.17
+- **Eval finding - epistemic grounding is the one real quality lever (~$2.17
   total spend across all evals).** Label-calibration at scale (3 reports, incl.
   large content-dense briefs with 25+ "Reported" claims): Confirmed 8% / Reported
-  0% source-traceability (`unfetchable=0` — sources fetched, claims didn't trace).
+  0% source-traceability (`unfetchable=0` - sources fetched, claims didn't trace).
   Combined with the two wash results (collection-steering, context-curation) and a
   direct read confirming the prose is already consultant-grade, the data-backed
   map is: prose strong, evidence-plumbing exhausted, **grounding systemically
   deficient**. The next quality work is a label-honesty pass (verify each claim
-  against its source, downgrade ungrounded labels — like `--verify`), validated
+  against its source, downgrade ungrounded labels - like `--verify`), validated
   for ~$0 via calibration on existing reports. Recorded in `eval-plan.md` Eval 1.
-- `docs/design/agentic-balance.md` — the standing rule-vs-judgment decision aid
+- `docs/design/agentic-balance.md` - the standing rule-vs-judgment decision aid
   (primr targets NVIDIA "Level 2": deterministic control flow, model judgment at
-  fixed decision points). Now spells out the failure mode in both directions —
+  fixed decision points). Now spells out the failure mode in both directions -
   brittle *content* rules (regex gating quality) are a documented FAIL driver,
   grounded in June-2026 sources (Microsoft red-team taxonomy, the eval-layering
-  guides) — and the litmus test for which side of the line a change sits on. The
+  guides) - and the litmus test for which side of the line a change sits on. The
   ROADMAP header now routes every "add a rule or go agentic" decision through
   this doc and asks contributors to keep it current.
-- `docs/design/engineering-excellence.md` — anti-slop enforcement plan.
+- `docs/design/engineering-excellence.md` - anti-slop enforcement plan.
 
 ## [1.29.2] - 2026-06-05
 
@@ -764,11 +775,11 @@ against Anthropic's skill-creator workflow (see ROADMAP #15). Tiers 1 and 3
 are on by default at no extra LLM cost; Tiers 2 and 4 are opt-in measured
 proof loops behind CLI flags.
 
-**Tier 1 — roster + authoring quality (default, no added cost):**
+**Tier 1 - roster + authoring quality (default, no added cost):**
 
 - **Holistic rosters.** `plan_plausible_roles.yaml` now produces a roster
   spanning BOTH the company-specific named practices/services (highest
-  priority — a flagship branded offering named in the research always earns a
+  priority - a flagship branded offering named in the research always earns a
   role) AND the universal functions every Mid-market+ org runs (Sales,
   Marketing, Customer Success, HR/People, Operations, Finance,
   Legal/Compliance, IT). `_merge_and_cap` reserves a fraction of the roster
@@ -794,35 +805,35 @@ proof loops behind CLI flags.
   only the second is touched, reverted if it gains a HARD finding) instead of
   only reporting them. Toggle `SkillPackConfig.auto_resolve_overlaps`.
 
-**Tier 2 — measured trigger optimization (`--optimize-triggers`, opt-in):**
+**Tier 2 - measured trigger optimization (`--optimize-triggers`, opt-in):**
 
 - New `skill_pack/trigger_eval.py`: per skill, generate should/should-not-
   trigger queries, score the description against a blind discovery simulator,
-  and rewrite it when below threshold — kept only if it beats the original on
+  and rewrite it when below threshold - kept only if it beats the original on
   a held-out split. The rigorous replacement for the `DESC-PUSHY` heuristic
   (Anthropic's published description-optimization loop). Results in the report.
 
-**Tier 3 — progressive disclosure (default):**
+**Tier 3 - progressive disclosure (default):**
 
 - Skills can ship bundled resources alongside `SKILL.md`: `references/*.md`
-  (load-on-demand deep material) and `scripts/*.py` (deterministic helpers —
+  (load-on-demand deep material) and `scripts/*.py` (deterministic helpers -
   "solve, don't punt"). New `BundledFile` on the `Skill` schema; authoring may
   emit them; the packager writes them to both the Claude tree and the Cowork
   `.zip`. `BUNDLE-PATH` validates paths (`references/*.md`, `scripts/*.py`,
   `evals/*.json`, single subdir, no traversal); unsafe paths dropped.
 
-**Tier 4 — behavioral evaluation (`--with-evals`, opt-in):**
+**Tier 4 - behavioral evaluation (`--with-evals`, opt-in):**
 
 - New `skill_pack/behavioral_eval.py`: per skill, generate task cases +
   objective assertions, run each task WITH the skill vs WITHOUT, grade both
-  blind, and report the with-skill-vs-baseline pass-rate delta — proving the
+  blind, and report the with-skill-vs-baseline pass-rate delta - proving the
   skill changes output, not just that it is well-formed. Also writes
   `evals/evals.json` per skill (Anthropic's published structure). Expensive,
   so gated and off by default. Results surfaced in the pack report.
 
 ## [1.28.0] - 2026-06-02
 
-### Artifact pipeline — prompt hardening (Active Queue #2 closed)
+### Artifact pipeline - prompt hardening (Active Queue #2 closed)
 
 - Writer and regeneration prompts now explicitly forbid the internal-scaffolding
   markers the ship-time gate strips (`[workbook]`/`[Analysis Workbook]`,
@@ -836,10 +847,10 @@ proof loops behind CLI flags.
   runtime tracked by `writer_output_clean` (`_shipping_repair.json`) + the eval
   `## Artifact Drift` metric.
 
-### Verified page access — first-party RSS/Atom feed recovery (Active Queue #3)
+### Verified page access - first-party RSS/Atom feed recovery (Active Queue #3)
 
 - `fallback_sources.fetch_feed_content` adds the host's own RSS/Atom feeds as a
-  first-class source in the blocked-origin fallback fan-out — HTML
+  first-class source in the blocked-origin fallback fan-out - HTML
   `<link rel="alternate">` autodiscovery + common-path sweep, same-site-filtered
   (defense-in-depth on the SSRF guard), RSS 2.0 / Atom / RSS 1.0-RDF parsed
   namespace-agnostically with `defusedxml` (untrusted-XML safe; 5 MB body cap;
@@ -851,7 +862,7 @@ proof loops behind CLI flags.
 - Global branch coverage 78.65% → **82.05%**; CI ratchet raised 77 → 81. The
   coverage job now installs the `a2a` extra so the 165 a2a tests are counted,
   plus ~630 new unit tests across `research_orchestrator`, `utils.security`
-  (incl. 100 adversarial SSRF cases — no vuln found), `skill_pack.evidence`,
+  (incl. 100 adversarial SSRF cases - no vuln found), `skill_pack.evidence`,
   `data.scrape`, `model_eval`, `mcp_server.{skill_pack_tools,server}`, the
   `agentic` modules, `hiring_signals`, the `scraping` helpers, and `ai_strategy`.
 - **Dependabot removed** (`.github/dependabot.yml` deleted) in favor of manual
@@ -869,7 +880,7 @@ proof loops behind CLI flags.
   `output.artifact_validation._validate_output_markdown`; leaks above
   `PRIMR_MAX_SCAFFOLDING_LEAKS` (default 0) withhold the polished DOCX (MD/TXT +
   sidecar still written). Canonicalization runs upstream, so a healthy run sits
-  at 0 and never trips — the gate only fires on a regression. Eval harness now
+  at 0 and never trips - the gate only fires on a regression. Eval harness now
   tracks `scaffolding_leaks` per report + `total_scaffolding_leaks` per profile,
   surfaced in a scorecard `## Artifact Drift` section and a CSV column.
 - **Upstream cause of bold `What to validate:` lines** addressed: the section
@@ -889,12 +900,12 @@ proof loops behind CLI flags.
   headings (merge/regeneration artifacts) and empty sections (a `##` heading
   with no body); wired into the same validator with a configurable
   `PRIMR_MAX_STRUCTURE_DEFECTS` (default 0). Required-section *presence* is
-  deliberately not gated — it is report-type-dependent and too false-positive-
+  deliberately not gated - it is report-type-dependent and too false-positive-
   prone to block shipping on; it stays a QA-scoring signal. Validated against
   the regression corpus so it does not false-block clean long-form reports.
 - **Repair observability**: `report_cleanup.compute_repair_report(before, after)`
   (reusing the ship-time scaffolding scanner) measures how much the silent
-  deterministic cleanup actually changed — scaffolding markers removed, chars
+  deterministic cleanup actually changed - scaffolding markers removed, chars
   stripped, and whether the raw writer output was already clean. Wired at the
   report cleanup seam to log a one-line summary and persist `_shipping_repair.json`.
   This is the measurement foundation for "push consistency upstream": the
@@ -902,7 +913,7 @@ proof loops behind CLI flags.
   status trackable so prompt hardening can target the repairs that actually fire.
 - **Artifact regression corpus**: `tests/fixtures/artifacts/` (placeholder
   companies) + `manifest.json` of expected gate outcomes, exercised by the
-  data-driven harness `tests/test_output/test_artifact_corpus.py` — which also
+  data-driven harness `tests/test_output/test_artifact_corpus.py` - which also
   renders the clean fixtures end-to-end through `markdown_to_docx` +
   `_validate_output_docx`. A completeness test fails if a fixture is added
   without a manifest entry. Sanitized real artifacts can be dropped in later
@@ -923,9 +934,9 @@ proof loops behind CLI flags.
 
 ### Model eval wiring (Gemini 3.5 Flash PRO-tier decision)
 
-- Registered a head-to-head eval pair in `config/eval_profiles.py` —
+- Registered a head-to-head eval pair in `config/eval_profiles.py` -
   `protier-gemini31pro` (reference, Gemini 3.1 Pro writer) vs
-  `protier-gemini35flash` (candidate, Gemini 3.5 Flash writer) — isolating the
+  `protier-gemini35flash` (candidate, Gemini 3.5 Flash writer) - isolating the
   quality-writer model so the scorecard can answer whether to repoint the PRO
   tier. The default pipeline is unchanged; the repoint is eval-gated and the run
   is billed/user-triggered (`primr eval ... --profiles protier-gemini31pro protier-gemini35flash`).
@@ -933,7 +944,7 @@ proof loops behind CLI flags.
 ### Supply-chain hardening
 
 - **Fixed a latent release-breaking bug**: the dependency manifest was written
-  into `dist/`, which the PyPI publish step uploads verbatim — twine would have
+  into `dist/`, which the PyPI publish step uploads verbatim - twine would have
   rejected the non-distribution file and failed the next release. SBOM artifacts
   now go in a separate `sbom/` artifact, attached to the GitHub release but never
   to PyPI; `dist/` holds only the wheel + sdist.
@@ -944,16 +955,16 @@ proof loops behind CLI flags.
   PyPI publish step (default-on for Trusted Publishing; pinned so it can't
   silently regress), complementing the existing SLSA build-provenance attestation.
 - **Trivy supply-chain scan** added to CI (filesystem vuln + misconfig,
-  HIGH/CRITICAL, unfixed-ignored), now a **hard gate** — complements the
+  HIGH/CRITICAL, unfixed-ignored), now a **hard gate** - complements the
   pip-audit + bandit hard gates. It immediately earned its keep:
   - **Fixed (CRITICAL ×3)**: `openclaw/Dockerfile.primr` declared secret API
-    keys via `ENV` (bakes secret-named vars into image layers); removed — they
+    keys via `ENV` (bakes secret-named vars into image layers); removed - they
     are runtime-provided.
   - **KSV-0118 resolved as a platform false-positive (corrected from the
     initial triage)**: verified against the Cloud Run v1 YAML schema that
     fully-managed Cloud Run does not expose a container `securityContext`
     (the RunV1 type carries only `runAsUser`, "Not supported by Cloud Run"), so
-    `runAsNonRoot` is rejected by `gcloud run ... replace` — no manifest change
+    `runAsNonRoot` is rejected by `gcloud run ... replace` - no manifest change
     can clear it. Non-root is already enforced by the image (`deploy/Dockerfile`
     + `openclaw/Dockerfile.primr` run `USER primr`, uid 1000). The `.trivyignore`
     entry is now a permanent, doc-cited false-positive, pinned by a regression
@@ -982,14 +993,14 @@ proof loops behind CLI flags.
   documented ignores (TypeVar generics are correct; the bulk unsafe-rewrite
   isn't worth the risk now).
 - **mypy config consolidated + strict ratchet made real**: `mypy.ini` is the
-  authoritative config — the duplicate `[tool.mypy]` block in `pyproject.toml`
+  authoritative config - the duplicate `[tool.mypy]` block in `pyproject.toml`
   was **dead config that never took effect** (and described a strict allowlist
   that wasn't applied); removed it and added a pointer. Bumped `python_version`
   to 3.12 and added the first genuine strict allowlist (`disallow_untyped_defs` +
   `disallow_incomplete_defs`): `skill_pack.{schema,config,planner,industry}`,
   `utils.content_sanitizer`, `utils.logging_config`, `data.hiring_signals`.
 - Complexity budget (`C901`) remains deferred until the monster functions are
-  refactored (Active Queue #23) — a meaningful cap would otherwise require
+  refactored (Active Queue #23) - a meaningful cap would otherwise require
   noqa-ing the known offenders.
 
 ### Verification ratchets
@@ -997,11 +1008,11 @@ proof loops behind CLI flags.
 - **Invariant property tests** (Hypothesis) pinning the load-bearing correctness
   invariants, chosen over the `deal` library (no new dependency; fits the
   exception-based style): skill-pack roster-cap merge
-  (`tests/skill_pack/test_invariant_properties.py` — partition, cap, observed
+  (`tests/skill_pack/test_invariant_properties.py` - partition, cap, observed
   priority, archetype-dedup-for-plausible, trim-priority order), the SSRF guard
-  result shape (`tests/security/test_invariant_properties.py` —
+  result shape (`tests/security/test_invariant_properties.py` -
   always `(True, None)` or `(False, <non-empty>)`), and the `CostGuardHook`
-  budget rule (`tests/agentic/test_costguard_properties.py` — `remaining ≥ 0`;
+  budget rule (`tests/agentic/test_costguard_properties.py` - `remaining ≥ 0`;
   BLOCK iff `spent + max(0, estimate) > max_cost`). The roster property test
   also sharpened the documented contract (observed-vs-observed archetype repeats
   are intentional; dedup applies to plausible roles only).
@@ -1010,7 +1021,7 @@ proof loops behind CLI flags.
   `RuleBasedStateMachine` driving arbitrary attempt sequences and asserting
   failures ≤ attempts, any-success ⇒ never-skipped, skip ⇒ all-failures-past-threshold.
 - **Fault-injection hardening**: closed a real redaction gap surfaced by the
-  fault lens — `SecretMaskingFilter` now also masks secrets inside **exception
+  fault lens - `SecretMaskingFilter` now also masks secrets inside **exception
   tracebacks** (`exc_text`), not just the log message. A secret raised in an
   exception and logged with `exc_info=True` no longer leaks to the log file.
 
@@ -1034,7 +1045,7 @@ T1-T7). No change to research-pipeline behavior beyond defensive sanitization.
   `mask_sensitive_data` over prompt + response before persisting and writes
   atomically (temp + `os.replace`); errors go through the logger, not `print`.
 - **Threat model (T1-T8)**: `docs/SECURITY.md` rewritten as a scoped MITRE-ATLAS
-  threat model — explicitly declares model-training/serving security out of scope
+  threat model - explicitly declares model-training/serving security out of scope
   (primr owns no weights), documents per-threat control status + residual risk,
   and refreshes supported versions / disclosure. Linked from README + docs index.
 - Drive-by: fixed genuine pre-existing typing/dead-code nits in touched files
@@ -1048,7 +1059,7 @@ pipeline. See ROADMAP "Engineering Standards & Toolchain" for the full plan.
 - **Python floor raised to 3.12** (`requires-python>=3.12`, EOL-driven: 3.11
   reaches EOL Oct 2027, 3.12 covered to Oct 2028). 3.11 dropped from classifiers,
   CI matrix, and `setup_env.py` interpreter discovery. **Breaking for 3.11-only
-  users.** CI now runs a `3.12 / 3.13 / 3.14` hard matrix — all fully supported
+  users.** CI now runs a `3.12 / 3.13 / 3.14` hard matrix - all fully supported
   (full suite passes on each; native-dep stack installs cleanly on 3.14).
   Free-threading (3.14t) remains a non-goal.
 - **uv toolchain**: committed `uv.lock` + `.python-version`; CI installs via
@@ -1069,7 +1080,7 @@ pipeline. See ROADMAP "Engineering Standards & Toolchain" for the full plan.
 ### Model registry refresh (May 30, 2026 audit)
 
 - **Claude Opus 4.7 -> 4.8** (`claude-opus-4-8`, GA May 28; identical $5/$25
-  pricing) — canonical Anthropic slug swapped repo-wide.
+  pricing) - canonical Anthropic slug swapped repo-wide.
 - **Gemini 3.5 Flash** (`gemini-3.5-flash`, GA May 19; $1.50/$9 + $0.15 cached)
   registered as available. Not a default: it's a PRO-tier replacement candidate
   (cheaper + stronger than 3.1 Pro), eval-gated. Default pipeline unchanged.
@@ -1079,7 +1090,7 @@ pipeline. See ROADMAP "Engineering Standards & Toolchain" for the full plan.
 
 ### Skill pack: operator roster curation
 
-The v1.27.0 planning architecture decides "what roles should exist at this company" by analyzing job postings + research. Operators still need to override that decision when they know something the data doesn't show — augment with specific roles ("the discovered list misses Account Executive"), prune roles they don't want ("drop Marketing Manager"), or do both at once ("swap Marketing Manager for Demand Generation Manager"). v1.27.0 covered the binary cases (full override via `--roles-override`, accept-as-is via `--from-plan`) but had no augmentation surface — the only way to do partial curation was to hand-edit `role_plan.json`. v1.27.1 closes that gap.
+The v1.27.0 planning architecture decides "what roles should exist at this company" by analyzing job postings + research. Operators still need to override that decision when they know something the data doesn't show - augment with specific roles ("the discovered list misses Account Executive"), prune roles they don't want ("drop Marketing Manager"), or do both at once ("swap Marketing Manager for Demand Generation Manager"). v1.27.0 covered the binary cases (full override via `--roles-override`, accept-as-is via `--from-plan`) but had no augmentation surface - the only way to do partial curation was to hand-edit `role_plan.json`. v1.27.1 closes that gap.
 
 #### Four-flag curation surface
 
@@ -1109,7 +1120,7 @@ Trimmed entries flow to `gap_flagged` so the plan artifact records what got drop
 
 #### Name + archetype dedup
 
-When `--roles-add "Marketing Manager"` lands in a roster that already contains a Marketing Manager (or any role with archetype `marketing-manager`), the existing role wins — its posting/research citations are richer than the bare operator label. The add is silently skipped with a one-line log. Operators who want to force a specific variant can combine `--roles-skip "Marketing Manager"` with `--roles-add "Demand Generation Manager"` to swap.
+When `--roles-add "Marketing Manager"` lands in a roster that already contains a Marketing Manager (or any role with archetype `marketing-manager`), the existing role wins - its posting/research citations are richer than the bare operator label. The add is silently skipped with a one-line log. Operators who want to force a specific variant can combine `--roles-skip "Marketing Manager"` with `--roles-add "Demand Generation Manager"` to swap.
 
 #### Hard failure modes
 
@@ -1149,16 +1160,16 @@ Hiring-signal gathering (`src/primr/data/hiring_signals.py`) expands from 4 ATS 
 
 New **DuckDuckGo web-search fallback** (`_discover_via_web_search`) fires only when the ATS chain + HTML careers-page crawl both return zero postings. Filters results to known job-board hosts (LinkedIn, Indeed, Glassdoor, Workday boards, the ATS hosts) and returns metadata-only postings. The no-bodies branch was extended to populate `signals.roles` from posting titles when bodies aren't recoverable, so the skill pack discovery layer still sees role-type signal even when posting hosts block automated scraping.
 
-iCIMS and BambooHR are still not covered as dedicated providers — they have no clean public JSON APIs, and the existing HTML fallback handles them.
+iCIMS and BambooHR are still not covered as dedicated providers - they have no clean public JSON APIs, and the existing HTML fallback handles them.
 
 #### Planning architecture
 
 `src/primr/skill_pack/planner.py` replaces the single-call `discover_roles` with a two-call planning step:
 
-- **Call A — observed roles**: extracts roles from hiring signals only. Every role MUST carry at least one verbatim posting citation or it's dropped. Provenance: `posting`. Confidence: `Confirmed`.
-- **Call B — plausible roles**: infers roles from recon + research evidence + an `IndustryClassification` (business model, vertical, stage, employee estimate, citations). Every plausible role MUST carry at least one specific research citation OR an explicit business-model + stage rationale. Common org-shape roles (Marketing, Sales, Customer Success, Finance, HR) become plausible only when company stage is Mid-market or larger. Generic VP and Chief-X titles are forbidden without specific evidence. Provenance: `research` or `industry`. Confidence: `Inferred` or `Speculated`.
+- **Call A - observed roles**: extracts roles from hiring signals only. Every role MUST carry at least one verbatim posting citation or it's dropped. Provenance: `posting`. Confidence: `Confirmed`.
+- **Call B - plausible roles**: infers roles from recon + research evidence + an `IndustryClassification` (business model, vertical, stage, employee estimate, citations). Every plausible role MUST carry at least one specific research citation OR an explicit business-model + stage rationale. Common org-shape roles (Marketing, Sales, Customer Success, Finance, HR) become plausible only when company stage is Mid-market or larger. Generic VP and Chief-X titles are forbidden without specific evidence. Provenance: `research` or `industry`. Confidence: `Inferred` or `Speculated`.
 
-Merge is archetype-based with observed-wins dedupe. The split is signal-driven — no hard ratio. Rich postings + thin research yields observed-dominant; thin postings + rich research yields plausible-dominant. Cap is `roles_count`; overflow goes to `gap_flagged` so operators can re-run with `--roles-override` to promote any of them.
+Merge is archetype-based with observed-wins dedupe. The split is signal-driven - no hard ratio. Rich postings + thin research yields observed-dominant; thin postings + rich research yields plausible-dominant. Cap is `roles_count`; overflow goes to `gap_flagged` so operators can re-run with `--roles-override` to promote any of them.
 
 `IndustryClassification` resolution is LLM-only (deterministic heuristics were considered and rejected): first parse structured fields from a primr strategic report when one is supplied via `--from-report`, otherwise run a single cheap LLM classification call. `source` field on the result records which path produced it.
 
@@ -1166,8 +1177,8 @@ Merge is archetype-based with observed-wins dedupe. The split is signal-driven �
 
 The planning step writes two artifacts into the working directory before authoring begins:
 
-- `role_plan.md` — human-readable view with industry classification, evidence summary, observed roles + citations, plausible roles + citations, gap-flagged roles, final roster, and operator next-step hints.
-- `role_plan.json` — machine view used by `--from-plan`. Includes the full role payload, evidence, citations, industry, and provenance per role.
+- `role_plan.md` - human-readable view with industry classification, evidence summary, observed roles + citations, plausible roles + citations, gap-flagged roles, final roster, and operator next-step hints.
+- `role_plan.json` - machine view used by `--from-plan`. Includes the full role payload, evidence, citations, industry, and provenance per role.
 
 The pack report (`<Company>_Skills_Pack_Report.md`) now shows the observed/plausible split, industry classification, per-role provenance with citation excerpts, and a reference back to `role_plan.md`.
 
@@ -1177,10 +1188,10 @@ The pack report (`<Company>_Skills_Pack_Report.md`) now shows the observed/plaus
 
 #### CLI
 
-- `--plan-only` — run through the planning step, persist `role_plan.md` / `role_plan.json`, exit before authoring.
-- `--from-plan PATH` — load a previously-persisted plan and author against its `final_roster` verbatim. Supports the plan → inspect → author workflow.
-- `--roles-override "Role A, Role B, ..."` — bypass planning entirely; up to `MAX_ROLES` labels.
-- `--allow-recon-only` — opt in to the degraded recon-only path when both posting and research evidence are empty (the default is hard failure with a clear error message).
+- `--plan-only` - run through the planning step, persist `role_plan.md` / `role_plan.json`, exit before authoring.
+- `--from-plan PATH` - load a previously-persisted plan and author against its `final_roster` verbatim. Supports the plan → inspect → author workflow.
+- `--roles-override "Role A, Role B, ..."` - bypass planning entirely; up to `MAX_ROLES` labels.
+- `--allow-recon-only` - opt in to the degraded recon-only path when both posting and research evidence are empty (the default is hard failure with a clear error message).
 
 #### Configuration
 
@@ -1205,9 +1216,9 @@ The pack report (`<Company>_Skills_Pack_Report.md`) now shows the observed/plaus
 
 ### Cost estimator now reflects cross-provider routing
 
-The dry-run estimator for the standard pipeline (`primr "X" url --dry-run`) was reporting the legacy ~$5.67/run number even when both `GEMINI_API_KEY` and `XAI_API_KEY` were configured — the v1.24.x cross-provider routing that picks `gemini-3.1-flash-lite` for bulk writing was implemented in `pick_model_for_role` but never threaded through the estimator. `_estimate_fast_mode_cost` was calling `PrimrModels.get_grok_models(tier)` directly, which always returns Grok models regardless of which keys are set.
+The dry-run estimator for the standard pipeline (`primr "X" url --dry-run`) was reporting the legacy ~$5.67/run number even when both `GEMINI_API_KEY` and `XAI_API_KEY` were configured - the v1.24.x cross-provider routing that picks `gemini-3.1-flash-lite` for bulk writing was implemented in `pick_model_for_role` but never threaded through the estimator. `_estimate_fast_mode_cost` was calling `PrimrModels.get_grok_models(tier)` directly, which always returns Grok models regardless of which keys are set.
 
-Fixed by deferring writing-model resolution to `pick_model_for_role(Role.WRITING)` for the FAST and HYBRID tiers. `--grok-tier max` still uses Grok-everywhere — that flag is the explicit user opt-in to the all-Grok stack. The estimate now reports:
+Fixed by deferring writing-model resolution to `pick_model_for_role(Role.WRITING)` for the FAST and HYBRID tiers. `--grok-tier max` still uses Grok-everywhere - that flag is the explicit user opt-in to the all-Grok stack. The estimate now reports:
 
 - Standard run, no AI strategy: ~$0.76 (matches the README's $0.79 claim and the v1.24.0 stage-1 eval)
 - Standard + verify: ~$0.78
@@ -1235,7 +1246,7 @@ Re-release of v1.24.2: prior release had `primr.__version__` still at `1.24.1` w
 Internal scaffolding markers were leaking into shipped reports more often than the roadmap previously estimated. A scan of 16 recent reports found 240 `[workbook]` markers, 87 `[cross-ref ...]` markers, and 65 bold-wrapped `**What to validate:**` lines that should never reach a deliverable. Three root causes, all fixed:
 
 - **`[cross-ref ...]` cleanup was too narrow.** The strip regex in `_clean_fast_report_output` required a colon (`\[cross-ref:`), so the space-separated variant the model actually emits most often (`[cross-ref Financial Profile]`) sailed through. Broadened to match colon-separated, space-separated, and bare forms. Verified on five historical reports: 28 leaked instances stripped to 0.
-- **`[workbook]` cleanup missed the bare and space-separated forms.** The existing regexes caught `[Workbook: ...]`, `[workbook section ...]`, and `[Workbook §...]` but missed bare `[workbook]` and `[workbook ARDA/prior sections]` — the variants the model emits when treating workbook as a literal source citation. Replaced with one inclusive `[workbook(?:[\s:§]...)?\]` regex. Verified: 51 leaked instances stripped to 0.
+- **`[workbook]` cleanup missed the bare and space-separated forms.** The existing regexes caught `[Workbook: ...]`, `[workbook section ...]`, and `[Workbook §...]` but missed bare `[workbook]` and `[workbook ARDA/prior sections]` - the variants the model emits when treating workbook as a literal source citation. Replaced with one inclusive `[workbook(?:[\s:§]...)?\]` regex. Verified: 51 leaked instances stripped to 0.
 - **Bold-wrapped `**What to validate:**` lines bypassed normalization.** `_normalize_generated_section_payload` matched `^What to validate:` but not `**What to validate:**`, so bolded variants leaked into the body alongside a separately-appended default trailing line. New regex recognizes optional leading/trailing bold or italic emphasis and dedups into the single canonical trailing line.
 
 ### ReportAnalyzer scaffolding-leakage check
@@ -1244,8 +1255,8 @@ Added `analyze_scaffolding_leakage()` to `ReportAnalyzer` covering the four leak
 
 ### Bonus fixes
 
-- `analyze_urls_and_sources()` had a hardcoded vendor domain as the "company_website" category — a leftover from one early test report that was meaningless for every other run. Replaced with a generic `primary_host` derived from the most-cited non-news, non-LinkedIn domain.
-- Fixed a `lstrip("www.")` bug in the same area (would have stripped any leading `w` or `.` character, not the literal prefix) — switched to `removeprefix("www.")`.
+- `analyze_urls_and_sources()` had a hardcoded vendor domain as the "company_website" category - a leftover from one early test report that was meaningless for every other run. Replaced with a generic `primary_host` derived from the most-cited non-news, non-LinkedIn domain.
+- Fixed a `lstrip("www.")` bug in the same area (would have stripped any leading `w` or `.` character, not the literal prefix) - switched to `removeprefix("www.")`.
 
 ### Tests
 
@@ -1260,7 +1271,7 @@ Re-release of v1.24.0 with sanitized docs (generic placeholder for eval-target c
 
 ### Sub-$1 default via cross-provider eval
 
-Cross-provider eval picked Grok 4.3 reasoning + Gemini 3.1 Flash-Lite writing as the new default — verified at $0.79/run (vs $3.49 on the previous Grok-only hybrid, 4.4x cheaper with trust gate PASS and faster runtime). Default auto-selects when both `XAI_API_KEY` and `GEMINI_API_KEY` are configured; XAI-only setups stay on the legacy ~$4.27/run path.
+Cross-provider eval picked Grok 4.3 reasoning + Gemini 3.1 Flash-Lite writing as the new default - verified at $0.79/run (vs $3.49 on the previous Grok-only hybrid, 4.4x cheaper with trust gate PASS and faster runtime). Default auto-selects when both `XAI_API_KEY` and `GEMINI_API_KEY` are configured; XAI-only setups stay on the legacy ~$4.27/run path.
 
 ### Provider-aware role routing
 
@@ -1272,7 +1283,7 @@ Cross-provider eval picked Grok 4.3 reasoning + Gemini 3.1 Flash-Lite writing as
 
 ### Eval profile slot registry
 
-`src/primr/core/model_eval.py` + `src/primr/config/eval_profiles.py` gain a profile slot registry with 11 candidate slots — one slot per (provider × model × role-recipe). New models register a slot, run the corpus once, and score against existing baselines without re-doing prior work.
+`src/primr/core/model_eval.py` + `src/primr/config/eval_profiles.py` gain a profile slot registry with 11 candidate slots - one slot per (provider × model × role-recipe). New models register a slot, run the corpus once, and score against existing baselines without re-doing prior work.
 
 ### Pipeline resilience
 
@@ -1287,14 +1298,14 @@ Full decision audit in `docs/EVAL_V1_24_0.md`.
 - **OpenAI integration** via `OpenAICompatibleProvider`. `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano` registered with cached-input pricing. `OPENAI_API_KEY` auto-detected. `reasoning_effort` plumbed through provider kwargs.
 - **Ollama / local-inference** via `OpenAICompatibleProvider`. `qwen3-coder:30b`, `qwen2.5:32b`, `deepseek-r1:32b`, `qwen3:7b` registered at zero marginal cost. `OLLAMA_BASE_URL` env honoured; `api_key_default="ollama"` so the OpenAI SDK accepts the call.
 - **Anthropic Claude provider** as a separate class (`src/primr/ai/providers/anthropic.py`). System-message translation, retry/backoff, billing-exhaustion detection raising `QuotaExhaustedError`, cache-aware token tracking. `claude-opus-4-7`, `claude-sonnet-4-6`, `claude-haiku-4-5` registered.
-- **Quota-aware fallback infrastructure** in `ModelCircuitBreaker.execute_with_fallback()` — consumes `QuotaExhaustedError`, marks the provider exhausted with midnight-UTC reset, advances through cross-provider chains. Per-call-site integration into the production pipeline is scoped to v1.24.0.
+- **Quota-aware fallback infrastructure** in `ModelCircuitBreaker.execute_with_fallback()` - consumes `QuotaExhaustedError`, marks the provider exhausted with midnight-UTC reset, advances through cross-provider chains. Per-call-site integration into the production pipeline is scoped to v1.24.0.
 - **Prompt-cache token plumbing.** Providers extract cached counts from xAI / OpenAI (`prompt_tokens_details.cached_tokens` / `cached_tokens`) and Anthropic (`cache_read_input_tokens` / `cache_creation_input_tokens`). `_UsageAccumulator` aggregates them; `get_usage()` exposes them. Bridging into per-run `UsageRecord` and `primr show-usage` is scoped to v1.24.0.
 
 ### Skills Ideation strategy (`--strategy-type skills`)
 
 - New YAML-defined strategy at `src/primr/prompts/strategies/skills.yaml` that ideates a top-5 roles x top-3 skills hypothesis grounded in DNS recon and hiring signals.
-- **Per-role `SKILL.md` emission** via `src/primr/output/skills_generator.py`. Selecting `--strategy-type skills` produces both the strategy markdown/DOCX *and* `output/<Company>_Skills_Ideation_<date>/roles/<slug>/SKILL.md` files with proper `name` / `description` frontmatter — drop-in loadable by Claude Code, Copilot Studio, or any skill-aware agent host.
-- **YAML strategy context loader extended** to also pull `_recon_context.txt` and `_hiring/hiring_signals.md`. This change strengthens the existing Customer Experience, Modern Security, and Data Fabric strategies as a side effect — they now see recon and hiring signals which previously only reached the AI strategy path.
+- **Per-role `SKILL.md` emission** via `src/primr/output/skills_generator.py`. Selecting `--strategy-type skills` produces both the strategy markdown/DOCX *and* `output/<Company>_Skills_Ideation_<date>/roles/<slug>/SKILL.md` files with proper `name` / `description` frontmatter - drop-in for Claude Code, Copilot Studio, or any skill-aware agent host.
+- **YAML strategy context loader extended** to also pull `_recon_context.txt` and `_hiring/hiring_signals.md`. This change strengthens the existing Customer Experience, Modern Security, and Data Fabric strategies as a side effect - they now see recon and hiring signals which previously only reached the AI strategy path.
 - Sparse-signal companies pivot to industry-baseline mode and say so explicitly rather than fabricating roles, per the YAML's mandatory Signal Strength section.
 
 ### Anthropic correctness fixes
@@ -1302,12 +1313,12 @@ Full decision audit in `docs/EVAL_V1_24_0.md`.
 - Opus 4.7 context window corrected to 1M (was 200K), output corrected to 128K (was 32K).
 - Sonnet 4.6 context window corrected to 1M (was 200K).
 - Haiku 4.5 output corrected to 64K (was 16K), `supports_thinking=True`.
-- Removed bogus `cache_control_blocks` provider-kwarg passthrough — Anthropic prompt caching is configured at the message-content level (cache_control directives inside content blocks), not as a top-level API parameter. The previous plumbing would have raised `TypeError` if a caller actually used it.
+- Removed bogus `cache_control_blocks` provider-kwarg passthrough - Anthropic prompt caching is configured at the message-content level (cache_control directives inside content blocks), not as a top-level API parameter. The previous plumbing would have raised `TypeError` if a caller actually used it.
 - Opus 4.7 tokenizer-inflation caveat (~35% more tokens than 4.6 for the same input) documented in `ModelRegistry`.
 
 ### Misc fixes
 
-- `--help` no longer crashes Python 3.10 on Windows when stdout decodes as UTF-8 — replaced the lone `×` (multiplication sign) in the skills strategy description with `x`.
+- `--help` no longer crashes Python 3.10 on Windows when stdout decodes as UTF-8 - replaced the lone `×` (multiplication sign) in the skills strategy description with `x`.
 - `UTILITY_FALLBACK_CHAIN` now references `PrimrModels.GROK_MODEL_WRITING` instead of the hardcoded `"grok-4.20-non-reasoning"` string.
 - mypy fix in `core/cli.py` xAI key-verification branch.
 
@@ -1318,21 +1329,21 @@ Full decision audit in `docs/EVAL_V1_24_0.md`.
 - **`grok-4.3` registered** in `ModelRegistry` ($1.25/$2.50 per 1M with $0.20 cached input, 1M context, always-on reasoning, no non-reasoning variant). HYBRID and MAX tiers now route reasoning stages to 4.3; FAST stays on 4.1; legacy `grok-4.20-*` IDs remain registered for resume of in-flight runs.
 - **`ModelConfig` extended** with `cost_per_1m_input_tokens_cached`. `calculate_cost` now accepts `cached_input_tokens` and bills the cached portion at the discount rate when the model exposes one.
 - **Analysis fallback chain reordered** to `(4.3 → 4.20 → 4.1 → Flash)`.
-- **`docs/MODEL_ONBOARDING.md`** added — five-step playbook (verify → register → wire → test → eval-gate) for future model additions, with Grok 4.3 as the worked example. Referenced from `README.md`.
+- **`docs/MODEL_ONBOARDING.md`** added - five-step playbook (verify → register → wire → test → eval-gate) for future model additions, with Grok 4.3 as the worked example. Referenced from `README.md`.
 
 ### Utility-tier LLM calls migrated to Grok when XAI_API_KEY is set
 
 - `llm()` now routes scraping summaries / link selection / generic "fast" calls to Grok 4.1-NR when `XAI_API_KEY` is set. Grok 4.1-NR is 2.5x cheaper input and 6x cheaper output than Gemini Flash and lives on the same key the standard pipeline already uses.
-- The standard pipeline no longer requires a Gemini key — `XAI_API_KEY` alone is sufficient. `GEMINI_API_KEY` is now only needed for `--premium` mode (or as a utility-tier fallback when no xAI key is set).
+- The standard pipeline no longer requires a Gemini key - `XAI_API_KEY` alone is sufficient. `GEMINI_API_KEY` is now only needed for `--premium` mode (or as a utility-tier fallback when no xAI key is set).
 - Surfaced when a stalled Gemini Flash link-selection call hung the first 4.3 comparison run; the cross-provider dependency was a historical artifact, not a deliberate design.
 
 ### Provider abstraction and routing layer
 
 - **`src/primr/ai/providers/`** new package: `Provider` ABC, `ChatResponse`, `ProviderUnavailableError`, `QuotaExhaustedError`, shared `_UsageAccumulator`, plus three concrete provider classes:
-  - `OpenAICompatibleProvider` — single class for any OpenAI-shaped endpoint, parameterized by `base_url` and `api_key_env`. xAI / OpenAI / Ollama / vLLM / llama.cpp all become one-line registry entries.
-  - `GeminiProvider` — wraps `google.genai`, translates message lists into `system_instruction` + `contents`, raises `QuotaExhaustedError` on daily limits.
-  - `ProviderRegistry` (`registry.py`) — auto-detects which providers are configured from env keys.
-- **`src/primr/ai/routing.py`** — single source of truth for "which model for which role". `pick_model_for_role(role)` and `get_provider_for_model(name)` replace the previous scattered `if XAI_API_KEY` checks.
+  - `OpenAICompatibleProvider` - single class for any OpenAI-shaped endpoint, parameterized by `base_url` and `api_key_env`. xAI / OpenAI / Ollama / vLLM / llama.cpp all become one-line registry entries.
+  - `GeminiProvider` - wraps `google.genai`, translates message lists into `system_instruction` + `contents`, raises `QuotaExhaustedError` on daily limits.
+  - `ProviderRegistry` (`registry.py`) - auto-detects which providers are configured from env keys.
+- **`src/primr/ai/routing.py`** - single source of truth for "which model for which role". `pick_model_for_role(role)` and `get_provider_for_model(name)` replace the previous scattered `if XAI_API_KEY` checks.
 - **`grok_llm`, `ContinuousReasoningSession`, and `llm()`** delegate to providers internally; public signatures unchanged.
 - **`primr doctor`** gains a "Providers" section listing each configured provider and the roles it serves.
 - **60+ new tests** across `test_providers.py`, `test_provider_registry.py`, `test_routing.py`, `test_grok_client.py`, `test_llm_dispatch.py`. Full suite remains green: 4945 pass, 28 skipped (optional deps).
@@ -1355,7 +1366,7 @@ The default flip from 4.20-hybrid to 4.3-hybrid was made on mechanical wiring + 
 
 ### Skill async-monitoring guidance: behavioral, not tool-specific
 
-- **`claude-code/skills/primr/SKILL.md` "Async monitoring"** rewritten as a four-tier preference list, ordered from cleanest to fallback: (1) background launch with completion notification if the host supports it, (2) phase-marker streaming from the log if the host can tail-and-emit, (3) a one-shot sanity check at +5min to catch first-phase failures, (4) honest "I'll check back in about an hour" when no async primitives are available. Same change in `AGENTS.md` (regenerated from the skill body). The earlier copy implied the agent should statelessly wait for the user to ping — the new copy lets the agent pick the lightest mechanism its host actually supports.
+- **`claude-code/skills/primr/SKILL.md` "Async monitoring"** rewritten as a four-tier preference list, ordered from cleanest to fallback: (1) background launch with completion notification if the host supports it, (2) phase-marker streaming from the log if the host can tail-and-emit, (3) a one-shot sanity check at +5min to catch first-phase failures, (4) honest "I'll check back in about an hour" when no async primitives are available. Same change in `AGENTS.md` (regenerated from the skill body). The earlier copy implied the agent should statelessly wait for the user to ping - the new copy lets the agent pick the lightest mechanism its host actually supports.
 - **No prescribed tool names.** The skill describes what the agent should *want* (one event on completion, light progress signals, early-fail catch) without assuming a specific Claude Code tool exists. Hosts with stronger async primitives (Claude Code's `run_in_background`, `Monitor`) get the cleaner experience; portable hosts get the honest "back in an hour" path.
 - **Explicit "what not to do"** section: no sub-minute polling, no promised heartbeat cadence the host can't deliver, no treating "still running at 60 minutes" as failure.
 
@@ -1363,14 +1374,14 @@ The default flip from 4.20-hybrid to 4.3-hybrid was made on mechanical wiring + 
 
 ### Native AI-tool integration: Claude Code plugin, AGENTS.md, per-host clients
 
-primr now ships full agent-host integration mirroring the [recon](https://github.com/blisspixel/recon) layout. After `pip install primr`, AI-tool integration is one paste away — no install subcommand, no JSON-merge tooling, no host-specific glue inside the CLI.
+primr now ships full agent-host integration mirroring the [recon](https://github.com/blisspixel/recon) layout. After `pip install primr`, AI-tool integration is one paste away - no install subcommand, no JSON-merge tooling, no host-specific glue inside the CLI.
 
-- **`claude-code/` plugin directory** — `.claude-plugin/plugin.json`, `.mcp.json` (registers `primr mcp` over stdio), and `skills/primr/SKILL.md` with three `references/` files. Installable via `/plugin marketplace add blisspixel/primr` then `/plugin install primr@blisspixel-primr` once a marketplace catalog is registered.
-- **`clients/` directory** — copy-pasteable MCP snippets for Kiro (`clients/kiro/mcp.json`), Windsurf (`clients/windsurf/mcp_config.json`), Cursor, VS Code + Copilot, and Claude Desktop. Each entry uses the unified `{"command": "primr", "args": ["mcp"]}` shape. README documents per-host file paths plus the macOS GUI-PATH gotcha.
-- **`AGENTS.md` at repo root** — same body as `SKILL.md` minus the frontmatter, in the [agents.md](https://agents.md) standard format. Auto-detected by Kiro, Codex, Aider, Jules, and any other tool that loads `AGENTS.md` without configuration.
-- **`primr mcp` subcommand** — single-binary entry point matching the recon `recon mcp` pattern. `primr mcp` defaults to `--stdio` (the canonical Claude Code use case); `primr mcp --http --port 8000` still works. The legacy `primr-mcp` console script is preserved for backwards compatibility.
-- **SKILL.md is agentskills.io-compliant** — same file works in Claude Code skills, Kiro skills, and any other host that follows the open Agent Skills standard. Encodes the cost gate, async-on-next-turn lifecycle, mode/tier/platform selection heuristics, hypothesis memory pattern, and behavioral deferral rules ("vague research → use the host's web search; DNS-only → shell out to dig").
-- **README "Use primr from your AI tool" section** — leads with the one-line "tell Claude to fetch this URL and save the skill" install for users who don't want the full plugin, plus the plugin install commands for users who do.
+- **`claude-code/` plugin directory** - `.claude-plugin/plugin.json`, `.mcp.json` (registers `primr mcp` over stdio), and `skills/primr/SKILL.md` with three `references/` files. Installable via `/plugin marketplace add blisspixel/primr` then `/plugin install primr@blisspixel-primr` once a marketplace catalog is registered.
+- **`clients/` directory** - copy-pasteable MCP snippets for Kiro (`clients/kiro/mcp.json`), Windsurf (`clients/windsurf/mcp_config.json`), Cursor, VS Code + Copilot, and Claude Desktop. Each entry uses the unified `{"command": "primr", "args": ["mcp"]}` shape. README documents per-host file paths plus the macOS GUI-PATH gotcha.
+- **`AGENTS.md` at repo root** - same body as `SKILL.md` minus the frontmatter, in the [agents.md](https://agents.md) standard format. Auto-detected by Kiro, Codex, Aider, Jules, and any other tool that loads `AGENTS.md` without configuration.
+- **`primr mcp` subcommand** - single-binary entry point matching the recon `recon mcp` pattern. `primr mcp` defaults to `--stdio` (the canonical Claude Code use case); `primr mcp --http --port 8000` still works. The legacy `primr-mcp` console script is preserved for backwards compatibility.
+- **SKILL.md is agentskills.io-compliant** - same file works in Claude Code skills, Kiro skills, and any other host that follows the open Agent Skills standard. Encodes the cost gate, async-on-next-turn lifecycle, mode/tier/platform selection heuristics, hypothesis memory pattern, and behavioral deferral rules ("vague research → use the host's web search; DNS-only → shell out to dig").
+- **README "Use primr from your AI tool" section** - leads with the one-line "tell Claude to fetch this URL and save the skill" install for users who don't want the full plugin, plus the plugin install commands for users who do.
 
 ### Why this shape
 
@@ -1382,7 +1393,7 @@ We considered (and ruled out) shipping `primr install-skill` and `primr install-
 
 PyPI installs of `primr` 1.20.1 through 1.20.3 crashed on the first research run with `FileNotFoundError: ... primr/config/prompts.json`. Source checkouts were unaffected. The wheel was packaging only `py.typed` because `[tool.setuptools.package-data]` in `pyproject.toml` did not include the JSON or YAML files that live inside the `primr` package.
 
-- **Fix in `pyproject.toml`** — `[tool.setuptools.package-data]` now ships `config/*.json`, `prompts/*.yaml`, `prompts/shared/*.yaml`, and `prompts/strategies/*.yaml` alongside `py.typed`. Local `python -m build` confirms 14 data files plus `py.typed` are present in the resulting wheel (vs. 1 file in the broken builds).
+- **Fix in `pyproject.toml`** - `[tool.setuptools.package-data]` now ships `config/*.json`, `prompts/*.yaml`, `prompts/shared/*.yaml`, and `prompts/strategies/*.yaml` alongside `py.typed`. Local `python -m build` confirms 14 data files plus `py.typed` are present in the resulting wheel (vs. 1 file in the broken builds).
 - **Anyone on 1.20.1 – 1.20.3 from PyPI must upgrade**: `pip install -U primr`.
 
 ### `--version` Flag
@@ -1394,80 +1405,80 @@ PyPI installs of `primr` 1.20.1 through 1.20.3 crashed on the first research run
 ### Live Key Validation in `primr init`
 
 - **Pasted keys are now verified before they are saved.** `_validate_key_live(provider, value)` in `src/primr/core/cli.py` makes a cheap `models.list()` call against Gemini (`google-genai`) or xAI (`openai` SDK pointed at `https://api.x.ai/v1`). On 401/403/"invalid key" responses, the user sees a clear "rejected by provider" message and is offered up to two retries. Network/transient failures fall back to "could not verify" and let the user retry or skip without a hard block.
-- **Replace path for already-configured keys.** Previously, init silently skipped any key whose value looked configured (length ≥ 10), which left no obvious way to recover from a bad paste. Init now shows the masked existing key and asks "Replace? (only if the saved key is wrong) [y/N]" — defaulting to no, so the common path stays one keystroke. Saying yes drops into the same paste-and-validate flow used for first-time setup.
+- **Replace path for already-configured keys.** Previously, init silently skipped any key whose value looked configured (length ≥ 10), which left no obvious way to recover from a bad paste. Init now shows the masked existing key and asks "Replace? (only if the saved key is wrong) [y/N]" - defaulting to no, so the common path stays one keystroke. Saying yes drops into the same paste-and-validate flow used for first-time setup.
 - **No-token validation.** `models.list()` is metadata-only, so verification has zero token cost. Tests covering init/keys flows still pass (99/99).
 
 ## [1.20.2] - 2026-04-29
 
 ### Friendlier Missing-Key UX
 
-- **No more "open the .env file" prompt for missing keys.** When `primr "Company" url` is run without API keys configured, primr now offers to set them up inline: each key prompt explains *why* it's needed (with cost estimates) and *where to get one* (with a hint about free tiers/credits), and the user pastes the key directly into a hidden prompt. Pasted keys are saved to the per-user config file — no manual `.env` editing.
-- **Auto-launches when validation fails.** `src/primr/core/cli.py` now detects validation failures whose only errors are missing API keys, and offers the guided init flow inline if stdin/stdout is a TTY. After keys are saved, the original command continues automatically — users do not have to re-run their command.
+- **No more "open the .env file" prompt for missing keys.** When `primr "Company" url` is run without API keys configured, primr now offers to set them up inline: each key prompt explains *why* it's needed (with cost estimates) and *where to get one* (with a hint about free tiers/credits), and the user pastes the key directly into a hidden prompt. Pasted keys are saved to the per-user config file - no manual `.env` editing.
+- **Auto-launches when validation fails.** `src/primr/core/cli.py` now detects validation failures whose only errors are missing API keys, and offers the guided init flow inline if stdin/stdout is a TTY. After keys are saved, the original command continues automatically - users do not have to re-run their command.
 - **Updated suggestion copy** in `src/primr/utils/config_validation.py` so the missing-key error leads with `primr init` rather than a "set this in .env" instruction.
 
 ## [1.20.1] - 2026-04-26
 
 ### PyPI Release Infrastructure
 
-- **`.github/workflows/release.yml`** — release workflow that triggers on tag push (`v*`) and supports manual dispatch from the Actions tab. Two-stage pipeline: `build` verifies the tag version matches `pyproject.toml`, builds sdist + wheel via `python -m build`, runs `twine check` on the distribution metadata, and uploads artifacts; `publish` targets the `pypi` environment so deploys can be gated on review and uses the PyPI trusted-publisher OIDC flow (no API token in repo secrets).
+- **`.github/workflows/release.yml`** - release workflow that triggers on tag push (`v*`) and supports manual dispatch from the Actions tab. Two-stage pipeline: `build` verifies the tag version matches `pyproject.toml`, builds sdist + wheel via `python -m build`, runs `twine check` on the distribution metadata, and uploads artifacts; `publish` targets the `pypi` environment so deploys can be gated on review and uses the PyPI trusted-publisher OIDC flow (no API token in repo secrets).
 - **PyPI listing metadata already in place**: `pyproject.toml` carries the project URLs (Homepage, Documentation, Repository, Bug Tracker), classifiers (Development Status, Intended Audience, Python versions, Topics), keywords, and MIT license. First PyPI publish picks all of this up automatically.
 
 ### Repo Cleanup
 
 - **Root `.md` reduced to `README.md` and `ROADMAP.md`.** `CHANGELOG.md`, `CONCURRENCY.md`, `CONTRIBUTING.md`, and `SECURITY.md` moved into `docs/`. All internal links updated (README, `docs/INDEX.md`, `docs/CHANGELOG.md` self-link, `MANIFEST.in`). `ROADMAP.md` stays at root because the agentic `RoadmapAPI`, MCP `agentic_resources` / `agentic_tools` modules, and the roadmap property tests all hardcode `Path("ROADMAP.md")`.
-- **`CLAUDE.md` removed from version control** (added to `.gitignore`, untracked via `git rm --cached`). It is project-level instructions for the local Claude Code workflow — useful locally, noise for anyone reading the public repo who does not use Claude Code. The local file on disk is untouched.
+- **`CLAUDE.md` removed from version control** (added to `.gitignore`, untracked via `git rm --cached`). It is project-level instructions for the local Claude Code workflow - useful locally, noise for anyone reading the public repo who does not use Claude Code. The local file on disk is untouched.
 - **ROADMAP entry queued**: when shipping to PyPI, fold `setup_env.py`'s post-install steps (`.env` template creation, Playwright/Patchright browser install, Python version validation, doctor handoff) into a `primr init` subcommand so PyPI installs get the same convenience as source installs without a separate top-level script.
 
 ## [1.20.0] - 2026-04-26
 
-### Continuous Reasoning Session — Now Default
+### Continuous Reasoning Session - Now Default
 
 After an n=3 paired-comparison pilot (rich/mid/sparse signal density, blind LLM judge), the continuous-reasoning topology is now the default for the standard Grok 4.20 pipeline. Workbook generation (Phase 3) and cross-validation (Phase 5) share a single Grok session so the validator inherits the corpus + workbook reasoning instead of re-reading the report cold.
 
 - **New class `ContinuousReasoningSession`** in `src/primr/ai/grok_client.py`: multi-turn Grok session that preserves message history across stages, with the same retry/error/token-tracking semantics as the existing `grok_llm` helper. One session per primr run.
-- **Wired into the standard Grok pipeline**: workbook generation and cross-validation share the session. Section writing (Phase 4) is intentionally unchanged — it stays parallel + fresh-call per section since the topology change is targeted at sequential reasoning handoffs, not parallel sub-agents.
+- **Wired into the standard Grok pipeline**: workbook generation and cross-validation share the session. Section writing (Phase 4) is intentionally unchanged - it stays parallel + fresh-call per section since the topology change is targeted at sequential reasoning handoffs, not parallel sub-agents.
 - **`--continuous-reasoning` is on by default.** Pass `--no-continuous-reasoning` to revert to the fresh-call topology for a single run, or set `PRIMR_CONTINUOUS_REASONING=0` (or `false`/`no`/`off`) to disable across all runs on the machine.
 - **Lazy session construction with proper `role:system`**: the session is constructed at the workbook stage so the workbook's system prompt becomes a real `role:system` message at session init. (An earlier implementation that folded the system prompt into the first user turn measurably degraded workbook quality during the pilot; the fix is in.)
-- **Pilot results that drove the default-change decision**: workbook quality improved 3/3 by blind judge, cross-validation quality improved 2/3 (one close call), final report quality improved 2/3 with one judge call complicated by a separate baseline-pipeline drift issue (now its own ROADMAP entry — "Artifact Drift in the Standard Pipeline"). Quantified drift reduction independent of judge opinion: bare leaked-instruction lines drop from an average of 5.3 per baseline report to 1.0 per continuous report (~81% fewer). Cost delta ranged −3.7% to +32% across runs (average ~+12%); never catastrophic, well under the 40% pre-flip gate.
+- **Pilot results that drove the default-change decision**: workbook quality improved 3/3 by blind judge, cross-validation quality improved 2/3 (one close call), final report quality improved 2/3 with one judge call complicated by a separate baseline-pipeline drift issue (now its own ROADMAP entry - "Artifact Drift in the Standard Pipeline"). Quantified drift reduction independent of judge opinion: bare leaked-instruction lines drop from an average of 5.3 per baseline report to 1.0 per continuous report (~81% fewer). Cost delta ranged −3.7% to +32% across runs (average ~+12%); never catastrophic, well under the 40% pre-flip gate.
 
 ## [1.19.0] - 2026-04-21
 
-### Hiring-Signal Gathering — Job Posts as Strategic Input
+### Hiring-Signal Gathering - Job Posts as Strategic Input
 
-- **New module `src/primr/data/hiring_signals.py`**: after the main-site scrape, Primr discovers a company's open job postings and extracts strategic signals — tech-stack frequency, initiatives, culture cues, notable absences. Job posts are one of the most honest signals a company emits about what they're actually building right now.
+- **New module `src/primr/data/hiring_signals.py`**: after the main-site scrape, Primr discovers a company's open job postings and extracts strategic signals - tech-stack frequency, initiatives, culture cues, notable absences. Job posts are one of the most honest signals a company emits about what they're actually building right now.
 - **ATS board APIs first**: Greenhouse (`boards-api.greenhouse.io`), Lever (`api.lever.co`), Ashby (`api.ashbyhq.com`), and SmartRecruiters (`api.smartrecruiters.com`) public job-board endpoints are probed in parallel against slug candidates derived from the company name, website hostname, and any recon-supplied ATS hints. First provider returning a non-empty board wins.
 - **HTML careers-page fallback**: when no ATS matches, Primr crawls the company's own careers page via the popup-free external orchestrator, extracts individual posting URLs with a regex scan, and fetches up to 15 bodies.
 - **LLM triage**: a small Grok call picks up to 15 postings biased toward senior, engineering, product, data, security, and platform roles; retail, sales SDR, and entry-level roles are down-weighted. Deterministic title-based ranker as fallback when the LLM call fails.
-- **Batched LLM extraction**: one Grok reasoning call over the aggregated JD text produces structured JSON — roles & locations, tech-stack frequency map, strategic initiatives, culture signals, locations, hiring volume, notable absences, and a one-paragraph summary. Robust JSON parser handles fenced blocks and prose-embedded JSON.
-- **Downstream integration**: extracted signals are threaded into `insights.txt` and the raw external-sources bundle so every downstream phase — gap analysis, workbook, section writing, cross-validation, and Phase 6 strategy — sees them. The rebuild that happens during Phase 2 gap-filling preserves the hiring block.
+- **Batched LLM extraction**: one Grok reasoning call over the aggregated JD text produces structured JSON - roles & locations, tech-stack frequency map, strategic initiatives, culture signals, locations, hiring volume, notable absences, and a one-paragraph summary. Robust JSON parser handles fenced blocks and prose-embedded JSON.
+- **Downstream integration**: extracted signals are threaded into `insights.txt` and the raw external-sources bundle so every downstream phase - gap analysis, workbook, section writing, cross-validation, and Phase 6 strategy - sees them. The rebuild that happens during Phase 2 gap-filling preserves the hiring block.
 - **Artifacts persisted to `<working>/_hiring/`**: human-readable `hiring_signals.md`, structured `hiring_signals.json`, full `postings_index.json`, and raw JDs under `raw/jd_NNN_<slug>.txt` for auditability.
 - **Fail-open at every stage**: no ATS match and no careers page → the phase records `source: none` and continues. LLM triage or extraction failure → skeleton artifact with counts but empty signals. Companies that don't publish jobs produce reports unchanged.
 - **Cost/time**: ~$0.01 and +1-2 min baked into `--dry-run`. Disable entirely with `PRIMR_SKIP_HIRING_SIGNALS=1`.
 - **40 new unit tests** at `tests/test_data/test_hiring_signals.py`: slug guessing, HTML stripping, JSON parse robustness, every ATS provider parser (including malformed-response handling), HTML fallback link extraction, triage fallback, extraction coercion, render_for_prompt, end-to-end with fully-mocked HTTP + LLM, env-toggle skip, recon-hint priority, and posting staleness.
 
-### Scraping Resilience — Routing Around Bot Protection
+### Scraping Resilience - Routing Around Bot Protection
 
 - **Recon moved to external `recon-tool` package**: the embedded `src/primr/recon/` module was deleted; primr now depends on the standalone `recon-tool` (PyPI) so recon work can evolve in its own repo. `primr recon <domain>` CLI shorthand still works via mount of `recon_tool.cli:app`. `dnspython` removed as a primr dependency (owned by recon-tool now).
 - **Patchright stealth-browser tier** (`src/primr/data/scraping/stealth_browser.py`): real-Chrome + persistent per-host user-data-dir, bypasses Kasada / Akamai / PerimeterX challenges that blank plain Playwright. Two-phase: headless first, headed only if headless returns a challenge shell.
-- **First-time browser install is automatic**: on first scrape that needs Patchright, primr runs `python -m patchright install chromium` in a subprocess with a one-line CLI notice. No manual setup required — baked into install.
+- **First-time browser install is automatic**: on first scrape that needs Patchright, primr runs `python -m patchright install chromium` in a subprocess with a one-line CLI notice. No manual setup required - baked into install.
 - **Global headed-popup budget** (default `0`, opt in per run with `PRIMR_MAX_HEADED_POPUPS=N`): single shared counter across the Patchright stealth tier and the orchestrator's adaptive Playwright retry. At the default of 0 no visible-browser windows ever open; blocked pages go straight to public-data fallbacks. Set `N` to allow up to N total popups for a run. On Linux the budget is automatically treated as 0 unless `DISPLAY` or `WAYLAND_DISPLAY` is set, so headless servers skip the visible-browser path entirely.
 - **Shared popup budget covers adaptive retry** (`src/primr/data/scraping/headed_budget.py`): the orchestrator's per-host adaptive browser retry (Playwright / Playwright Aggressive) now consumes the same counter as the Patchright stealth tier, so validation passes can't independently pop a new window per soft-blocked URL.
-- **No more host-pinning to headed mode**: `HostState.browser_headed_preferred` sticky flag removed — a successful headed retry no longer locks the host into headed mode for subsequent pages. The host falls through to fallback tiers on later requests.
+- **No more host-pinning to headed mode**: `HostState.browser_headed_preferred` sticky flag removed - a successful headed retry no longer locks the host into headed mode for subsequent pages. The host falls through to fallback tiers on later requests.
 - **Tiny, minimized, off-screen popup**: when Patchright does go headed, the Chrome window is resized to 320x200 via CDP, minimized to the taskbar, and positioned off-screen before navigation starts. Chrome profile `Preferences` is also sanitized to prevent saved maximized state from overriding.
 - **Low-value URL filter**: Glassdoor, Indeed, G2, Capterra, LinkedIn, Twitter/X, Reddit, privacy/terms/cookie paths etc. skip Patchright entirely. No popup possible on those.
 - **External-source orchestrator** (`get_external_orchestrator`): web-search validation and discovery scrapes use a popup-free orchestrator (Patchright stripped from tier list). Blocked external sources are silently skipped.
 - **Per-host rate-limit memory** (`src/primr/data/scraping/rate_limit_state.py`): 429 responses record a 20-minute cooldown (expandable on repeat) at `logs/rate_limit_state.json`. Subsequent scrapes on cooldown hosts skip live fetch and go straight to public-data fallbacks with a clear user-facing message.
-- **Public-data fallback fan-out** (`src/primr/data/fallback_sources.py`): when the origin is blocked or returns zero pages, primr fetches content in parallel from Wayback Machine (CDX API), live sister subdomains (investor./ir./newsroom./press.), SEC EDGAR 10-K filings, Wikipedia REST API, and xAI Grok surrogate synthesis. Fails open — any one source returning content produces a report.
+- **Public-data fallback fan-out** (`src/primr/data/fallback_sources.py`): when the origin is blocked or returns zero pages, primr fetches content in parallel from Wayback Machine (CDX API), live sister subdomains (investor./ir./newsroom./press.), SEC EDGAR 10-K filings, Wikipedia REST API, and xAI Grok surrogate synthesis. Fails open - any one source returning content produces a report.
 - **Grok surrogate** (`grok_browse_and_summarize` in `primr.ai.grok_client`): uses xAI's Responses API with `web_search` agent tool to fetch URLs or synthesize equivalent content from public sources when direct fetch fails. Returns citations. Opt-out via `PRIMR_DISABLE_GROK_SURROGATE=1`.
-- **"Thin website data" threshold widened**: 3 rich fallback pages totalling 60K+ chars no longer trigger the "thin" branch — char volume is the real signal, not page count.
+- **"Thin website data" threshold widened**: 3 rich fallback pages totalling 60K+ chars no longer trigger the "thin" branch - char volume is the real signal, not page count.
 - **Wayback parallelized and bounded**: CDX lookups run concurrently across candidate URLs with a hard 75s total deadline; can't starve the fan-out budget.
 - **New tests**: `tests/test_data/test_fallback_sources.py` (12), `tests/test_data/test_scraping/test_rate_limit_state.py` (9). Existing `tests/test_data/test_external_sources.py` patch paths updated for new orchestrator routing.
 
 ## [1.18.0] - 2026-04-10
 
-### Recon Integration — DNS Intelligence Pre-Flight
+### Recon Integration - DNS Intelligence Pre-Flight
 - **Recon as first-class module**: DNS intelligence tool relocated from standalone `recon/` into `src/primr/recon/`, fully integrated into primr's package, linting, type checking, and CI
-- **`primr recon` subcommand**: Standalone DNS intelligence lookups — `primr recon acme.com` returns company name, email provider, tenant ID, 156 SaaS service fingerprints, email security score, and 20 signal intelligence rules. Supports `--json`, `--md`, `--services`, `--full`, batch mode, and `primr recon doctor`
+- **`primr recon` subcommand**: Standalone DNS intelligence lookups - `primr recon acme.com` returns company name, email provider, tenant ID, 156 SaaS service fingerprints, email security score, and 20 signal intelligence rules. Supports `--json`, `--md`, `--services`, `--full`, batch mode, and `primr recon doctor`
 - **Auto-platform detection**: Recon runs automatically before scraping, detects cloud platform(s) from DNS fingerprints (AWS Route 53, Azure DNS, GCP DNS, etc.), and auto-selects `--platform` value. Override with explicit `--platform` flag
 - **Recon context injection**: Detected services, signal intelligence, email security, auth type, and infrastructure insights injected as context into all strategy types (AI, Security, CX, Data Fabric)
 - **`--cloud-vendor` renamed to `--platform`**: Cleaner flag name. `--cloud-vendor` kept as deprecated alias with warning
@@ -1488,35 +1499,35 @@ After an n=3 paired-comparison pilot (rich/mid/sparse signal density, blind LLM 
 This release consolidates all work from v1.7.0 through v1.16.0. See [ROADMAP.md](../ROADMAP.md) for the detailed changelog.
 
 ### Added
-- **A2A Protocol Integration** — Agent-to-agent communication with AgentCard, executor, client, hooks, and 165 dedicated tests
+- **A2A Protocol Integration** - Agent-to-agent communication with AgentCard, executor, client, hooks, and 165 dedicated tests
   - Standalone `primr-a2a` server or co-hosted `primr-mcp --http --a2a`
   - `delegate_to_agent` MCP tool for calling external A2A agents
   - Governance hooks: SSRF, cost budget, content sanitization
-- **Grok 4.20 Hybrid Tier** — 4.20 reasoning + 4.1 writing as new default, `--grok-tier` flag (fast/hybrid/max), per-model cost tracking, calibrated estimates
-- **Private Cloud Vendor** — NVIDIA-first, on-prem AI strategy via `--cloud-vendor private`
-- **Agentic Architecture** (v1.7.0) — Hypothesis tracking, subagents (scraper, analyst, writer, QA), hook system (cost guard, SSRF guard, QA gate), orchestrator, research memory, Claude Skills
-- **Output Improve Mode** — `primr improve <path>` for deterministic cleanup + optional `--improve-agentic` review pass
-- **Versioned Eval Workflow** — `primr --eval` with scorecards, auto-staging, LLM-judge overlays (cloud and local), multi-model sweeps
-- **Fast Mode as Default** — Auto-detects Grok 4.1 when `XAI_API_KEY` set; `--premium` for Gemini + Deep Research
-- **Startup Banner** — Animated ANSI gradient with 5-layer terminal fallback, cross-platform
-- **Adaptive Output Shipping Gate** — Deterministic salvage pass, DOCX pre/post validation, strategy-only reruns
-- **Agentic Pipeline** — Adaptive search depth, source quality filtering, dynamic section selection, 2 new report sections (23 total)
-- **Deep Research Refactor** — Shared parsing/polling/execution modules, durable async recovery, `--resume-latest`, `--resume-local`
-- **Shared AI Error Policy** — Unified sync/async retry classification
-- **Scraping Reliability** — Adaptive lazy-load scrolling, strict quality gate, scrape trace logging, external search caps
-- **Content Sanitization** (v1.8.1) — Prompt injection protection
-- **Interactive Research Mode** (v1.11.0) — Expanded external search, MCP progress subscriptions
-- **Multi-Cloud-Vendor AI Strategy** (v1.12.0) — `--cloud-vendor aws azure` for multi-vendor strategy documents
-- **Strategy Enrichment** — Cross-validation, evidence search, section regeneration, polish pass, pre-ship repair
-- **Gemini 3.1 Pro Preview** — Registered with tiered pricing in ModelRegistry
-- **All Strategy Types in Fast Mode** — `--strategy-type` works with Grok pipeline, YAML configs auto-discovered
+- **Grok 4.20 Hybrid Tier** - 4.20 reasoning + 4.1 writing as new default, `--grok-tier` flag (fast/hybrid/max), per-model cost tracking, calibrated estimates
+- **Private Cloud Vendor** - NVIDIA-first, on-prem AI strategy via `--cloud-vendor private`
+- **Agentic Architecture** (v1.7.0) - Hypothesis tracking, subagents (scraper, analyst, writer, QA), hook system (cost guard, SSRF guard, QA gate), orchestrator, research memory, Claude Skills
+- **Output Improve Mode** - `primr improve <path>` for deterministic cleanup + optional `--improve-agentic` review pass
+- **Versioned Eval Workflow** - `primr --eval` with scorecards, auto-staging, LLM-judge overlays (cloud and local), multi-model sweeps
+- **Fast Mode as Default** - Auto-detects Grok 4.1 when `XAI_API_KEY` set; `--premium` for Gemini + Deep Research
+- **Startup Banner** - Animated ANSI gradient with 5-layer terminal fallback, cross-platform
+- **Adaptive Output Shipping Gate** - Deterministic salvage pass, DOCX pre/post validation, strategy-only reruns
+- **Agentic Pipeline** - Adaptive search depth, source quality filtering, dynamic section selection, 2 new report sections (23 total)
+- **Deep Research Refactor** - Shared parsing/polling/execution modules, durable async recovery, `--resume-latest`, `--resume-local`
+- **Shared AI Error Policy** - Unified sync/async retry classification
+- **Scraping Reliability** - Adaptive lazy-load scrolling, strict quality gate, scrape trace logging, external search caps
+- **Content Sanitization** (v1.8.1) - Prompt injection protection
+- **Interactive Research Mode** (v1.11.0) - Expanded external search, MCP progress subscriptions
+- **Multi-Cloud-Vendor AI Strategy** (v1.12.0) - `--cloud-vendor aws azure` for multi-vendor strategy documents
+- **Strategy Enrichment** - Cross-validation, evidence search, section regeneration, polish pass, pre-ship repair
+- **Gemini 3.1 Pro Preview** - Registered with tiered pricing in ModelRegistry
+- **All Strategy Types in Fast Mode** - `--strategy-type` works with Grok pipeline, YAML configs auto-discovered
 
 ### Fixed
-- **Silent Failure Audit** — 45+ bare `except: pass` and DEBUG-level error handlers upgraded across 23 modules
-- **Report Quality** — Duplicate section elimination, coherence pass rewrite (guard threshold 0.92→0.96), contradiction resolution
-- **Scraping Robustness** (v1.12.1) — PDF routing, bug fixes
-- **SharedBrowser** (v1.11.2) — ETA progress, UI polish
-- **Deep Research Progress** (v1.11.1) — Visibility and failure recovery
+- **Silent Failure Audit** - 45+ bare `except: pass` and DEBUG-level error handlers upgraded across 23 modules
+- **Report Quality** - Duplicate section elimination, coherence pass rewrite (guard threshold 0.92→0.96), contradiction resolution
+- **Scraping Robustness** (v1.12.1) - PDF routing, bug fixes
+- **SharedBrowser** (v1.11.2) - ETA progress, UI polish
+- **Deep Research Progress** (v1.11.1) - Visibility and failure recovery
 
 ### Changed
 - Default pipeline uses Grok 4.20 hybrid (was Grok 4.1)

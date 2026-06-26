@@ -1,7 +1,7 @@
 # #23 Orchestrator Refactor: Stage Map for `perform_fast_research`
 
 Companion to [1x-completion.md](1x-completion.md) workstream 2. This is the
-verified structural map the extraction works from — line numbers are
+verified structural map the extraction works from - line numbers are
 approximate (they drift with each extraction; anchor by the stage banner
 comments and named calls). Rules: **no behavior change**, one batch per PR,
 full suite green per slice, eval scores unchanged.
@@ -10,18 +10,18 @@ full suite green per slice, eval scores unchanged.
 
 | # | Stage | Anchor | Notes |
 |---|-------|--------|-------|
-| 0 | Setup & model resolution | — | **EXTRACTED** → `core/fast_run_setup.resolve_fast_run_setup()` (frozen `FastRunSetup`) |
+| 0 | Setup & model resolution | - | **EXTRACTED** → `core/fast_run_setup.resolve_fast_run_setup()` (frozen `FastRunSetup`) |
 | 1 | Data collection | `fetch_web_content` call → external validation pools | **EXTRACTED** → `core/fast_run_collection.collect_research_data()` (frozen `DataCollectionResult`); creates AND returns the recovery executor (consumed by stages 4/5/6/9) and the four live source pools later stages mutate; adaptive depth, attempt cap, deadline/detach pattern all verbatim |
 | 2 | Hiring signals | `gather_hiring_signals` | **EXTRACTED** → `core/fast_run_hiring.collect_hiring_block()` |
 | 2B | Combined insights build | writes `insights.txt` | **EXTRACTED** → `core/insights_assembly.py` (pure assembly; both build sites call it, file write stays in orchestrator) |
 | 3 | Gap analysis + deepening | `_fast_gap_analysis` → gap pools | **EXTRACTED** → `core/fast_run_gaps.deepen_research()` (frozen `GapDeepeningResult`); in-place pool mutation + rebuild-don't-mutate and the deadline/detach shutdown pattern preserved verbatim |
-| 4 | Analysis workbook | `_build_fast_analysis_prompt` | **EXTRACTED** → `core/fast_run_workbook.generate_analysis_workbook()` — returns `(workbook, reasoning_session)` so the lazily-constructed session still reaches stage 6 |
+| 4 | Analysis workbook | `_build_fast_analysis_prompt` | **EXTRACTED** → `core/fast_run_workbook.generate_analysis_workbook()` - returns `(workbook, reasoning_session)` so the lazily-constructed session still reaches stage 6 |
 | 5 | Section writing | `_group_sections_by_part` → per-part pools | **EXTRACTED** → `core/fast_run_sections.write_report_sections()` (frozen `SectionWritingResult`; `report_content=None` signals the all-failed early exit); exec-summary pop/write-last and frozen per-part snapshots moved verbatim |
 | 6 | Cross-validation + enrichment | `_fast_cross_validate` → weak-section loop | **EXTRACTED** → `core/fast_run_validation.cross_validate_and_enrich()` (frozen `CrossValidationResult`); serial splice loop, default-arg query binding, deadline pool, and in-place `source_urls`/`source_urls_seen` mutation all preserved verbatim; takes both `company_name` (raw, for search) and `company_label` (display) |
 | 7 | Trust polish + citation repair | `_polish_fast_report_for_trust` chain | **EXTRACTED** → `core/fast_run_trust.polish_and_gate_fast_report()` (frozen `FastTrustResult`); the LLM polish/repair helpers stay in research_agent (lazy-imported) until their own extraction |
-| 8 | Artifact assembly | `_convert_deep_research_to_docx` | Thin (~25 lines). DECISION: kept inline — extracting a 25-line wrapper around an already-extracted function adds indirection without testability gain; fold into the eventual FastRunContext pass |
+| 8 | Artifact assembly | `_convert_deep_research_to_docx` | Thin (~25 lines). DECISION: kept inline - extracting a 25-line wrapper around an already-extracted function adds indirection without testability gain; fold into the eventual FastRunContext pass |
 | 9 | Strategy generation | budget checkpoint → vendor closures | **EXTRACTED** → `core/fast_run_strategy.run_strategy_phase()` (frozen `StrategyPhaseResult`); budget checkpoint, per-vendor closures + parallel dispatch, YAML loop all moved verbatim |
-| 10 | Summary & usage | — | **EXTRACTED** → `core/fast_run_summary.finalize_fast_run()` |
+| 10 | Summary & usage | - | **EXTRACTED** → `core/fast_run_summary.finalize_fast_run()` |
 
 ## The thread (locals consumed across many stages → future run-context object)
 
@@ -32,73 +32,73 @@ full suite green per slice, eval scores unchanged.
 `analysis_workbook` (4 → 5/6/9), `report_content` (5, mutated 6/7),
 `written_sections`, `validated_source_count`/`validated_source_urls`,
 `pages_scraped`. Introduce a frozen-ish `FastRunContext` dataclass only after
-several stages are out — premature centralization couples stages that are
+several stages are out - premature centralization couples stages that are
 about to move.
 
 ## Tangle points (handle with care)
 
-1. **External-sources mutation across the gap phase** — preserve O(1)
+1. **External-sources mutation across the gap phase** - preserve O(1)
    `source_urls_seen` dedup and the rebuild-don't-mutate pattern for
    `external_sources_raw`.
-2. **Closure capture in cross-validation enrichment** — `_enrich_section_work`
+2. **Closure capture in cross-validation enrichment** - `_enrich_section_work`
    uses default-arg binding (late-binding trap) and feeds mutations back to
    outer scope; thread parameters explicitly when extracting.
-3. **Per-part frozen snapshots in section writing** — `prior_sections =
+3. **Per-part frozen snapshots in section writing** - `prior_sections =
    list(written_sections)` before each pool; exec summary gets ALL priors.
-4. **Regex splice loop in cross-validation** — sections spliced serially into
+4. **Regex splice loop in cross-validation** - sections spliced serially into
    `report_content`; later patterns depend on earlier splices. Never
    parallelize/reorder.
-5. **Lazy reasoning-session construction** — stage 4 creates it, stage 6
+5. **Lazy reasoning-session construction** - stage 4 creates it, stage 6
    reuses it; extraction must pass the session as shared context.
-6. **Function-wide try/except** — swallows everything and returns None; when
+6. **Function-wide try/except** - swallows everything and returns None; when
    stages move out, keep their internal try/excepts intact and leave the
    outer catch-all's semantics unchanged until a deliberate later decision.
 7. **Deadline + shutdown pattern** (`wait=False, cancel_futures=True` +
-   `detach_running_workers`) — copy precisely; it prevents hung-thread exit
+   `detach_running_workers`) - copy precisely; it prevents hung-thread exit
    blocks.
 
 ## Extraction order (batched; each batch one PR)
 
-- **Batch A (lowest risk) — DONE:** stage 10 (fast_run_summary.py), stage 0
+- **Batch A (lowest risk) - DONE:** stage 10 (fast_run_summary.py), stage 0
   (fast_run_setup.py); stage 8 deliberately kept inline (see table)
-- **Batch B (deterministic polish) — DONE:** stage 7 (fast_run_trust.py),
+- **Batch B (deterministic polish) - DONE:** stage 7 (fast_run_trust.py),
   stage 2B (insights_assembly.py)
-- **Batch C (contained closures) — DONE:** stage 9 (fast_run_strategy.py),
+- **Batch C (contained closures) - DONE:** stage 9 (fast_run_strategy.py),
   stage 4 (fast_run_workbook.py), stage 2 (fast_run_hiring.py)
-- **Batch D (section context) — DONE:** stage 5 (fast_run_sections.py)
-- **Batch E (cross-validation) — DONE:** stage 6 (fast_run_validation.py) —
+- **Batch D (section context) - DONE:** stage 5 (fast_run_sections.py)
+- **Batch E (cross-validation) - DONE:** stage 6 (fast_run_validation.py) -
   was unassigned in the original plan; got its own batch because it owns the
   two highest-risk tangles (closure capture feeding outer-scope mutations,
   serial regex splice loop), both pinned by tests
-- **Batch F (research deepening) — DONE:** stage 3 (fast_run_gaps.py)
-- **Batch G (data collection, last) — DONE:** stage 1 (fast_run_collection.py).
-  ALL STAGES EXTRACTED — `perform_fast_research` is now a ~150-line
+- **Batch F (research deepening) - DONE:** stage 3 (fast_run_gaps.py)
+- **Batch G (data collection, last) - DONE:** stage 1 (fast_run_collection.py).
+  ALL STAGES EXTRACTED - `perform_fast_research` is now a ~150-line
   coordinator over ten tested stage modules.
 
 ## Endgame (after G)
 
-- **`FastRunContext` — DECISION: not now.** The post-extraction coordinator
+- **`FastRunContext` - DECISION: not now.** The post-extraction coordinator
   (~295 lines) threads data between stages via explicit keyword arguments,
   which IS the legible data-flow documentation; a frozen context object with
   members that stages mutate in place would obscure exactly the contracts the
   extraction made explicit (who mutates the pools, who owns the recovery
   executor, who rebuilds vs reads). Revisit only when resume/checkpointing
-  work needs a serializable run state — that is the use case that would pay
+  work needs a serializable run state - that is the use case that would pay
   for the indirection.
-- **`C901` complexity budget — DONE:** `max-complexity = 25` repo-wide
+- **`C901` complexity budget - DONE:** `max-complexity = 25` repo-wide
   (`[tool.ruff.lint.mccabe]` in pyproject.toml). 25, not 10: at 10 even the
-  freshly extracted stage modules violate (171 functions / 91 files — noise);
+  freshly extracted stage modules violate (171 functions / 91 files - noise);
   at 25 the gate catches exactly the monsters. The 15 files with existing
   >25 functions are grandfathered via per-file-ignores; that list must only
-  shrink. `perform_fast_research` no longer appears — the refactor took it
+  shrink. `perform_fast_research` no longer appears - the refactor took it
   from the #1 offender off the leaderboard entirely.
-- **`_execute_consulting_research` split — ALREADY DONE** (predates this
+- **`_execute_consulting_research` split - ALREADY DONE** (predates this
   map; verified 2026-06-12): `DeepResearchOrchestrator` is split into
   `generate_report` → `_execute_with_retry` → `_execute_single` →
   `_poll_for_completion`, each with dedicated suites
   (`tests/test_ai/test_execute_with_retry.py`,
   `test_deep_research_generate_report.py`). The ROADMAP bullet was stale.
-- **Remaining:** raise research_agent per-module coverage toward 80% — it
+- **Remaining:** raise research_agent per-module coverage toward 80% - it
   still hosts the LLM-backed helpers (`_polish_fast_report_for_trust`,
   `_repair_fast_report_citation_integrity`, `_fast_cross_validate`,
   `_fast_regenerate_section`, `_fast_gap_analysis`, `_write_section_with_retry`,

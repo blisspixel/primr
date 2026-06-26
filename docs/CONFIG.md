@@ -62,7 +62,7 @@ To revert to Gemini 3.0 Pro (flat $2/$12 pricing):
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `PRIMR_MAX_HEADED_POPUPS` | Total number of visible-browser challenges allowed per run. Shared across the Patchright stealth tier (main-site rescue) and the orchestrator's adaptive Playwright retry. Default is 0 (no popups ever); set to `5` (or any N) to opt in for a run. | `0` |
-| `PRIMR_SKIP_HIRING_SIGNALS` | When set to `1` / `true` / `yes`, skips the hiring-signals stage entirely — no ATS probes (eight providers: Greenhouse, Lever, Ashby, SmartRecruiters, Workday, Workable, Recruitee, Jobvite), no careers-page crawl, no DuckDuckGo web-search fallback, no LLM extraction. Use when researching companies where hiring data is irrelevant or when debugging. Note: skill packs treat job postings as their primary input, so packs generated against companies with `PRIMR_SKIP_HIRING_SIGNALS=1` will fall back to recon + research only and may require `--allow-recon-only`. | unset |
+| `PRIMR_SKIP_HIRING_SIGNALS` | When set to `1` / `true` / `yes`, skips the hiring-signals stage entirely - no ATS probes (eight providers: Greenhouse, Lever, Ashby, SmartRecruiters, Workday, Workable, Recruitee, Jobvite), no careers-page crawl, no DuckDuckGo web-search fallback, no LLM extraction. Use when researching companies where hiring data is irrelevant or when debugging. Note: skill packs treat job postings as their primary input, so packs generated against companies with `PRIMR_SKIP_HIRING_SIGNALS=1` will fall back to recon + research only and may require `--allow-recon-only`. | unset |
 | `PRIMR_ALLOW_HEADED_FALLBACK` | Master switch for the visible-browser path in the stealth tier. Set to `0` / `false` / `no` to disable entirely regardless of budget. | `1` |
 | `PRIMR_ENABLE_DRISSION` | Include DrissionPage tiers in the external validation orchestrator. | `0` |
 | `PRIMR_BROWSER_HEADED` | Force the Playwright tiers to launch in headed mode for a specific call. Normally set internally by the adaptive-retry path, not by users. | unset |
@@ -78,7 +78,7 @@ Notes on continuous reasoning:
 - On by default after the n=3 pilot. Pass `--no-continuous-reasoning` on the CLI to disable for a single run.
 - Section writing (Phase 4) is intentionally untouched and remains parallel + fresh-call per section. The topology change only affects Phase 3 + Phase 5.
 - Cost impact varies by company: an n=3 pilot saw deltas from −3.7% to +32% versus the prior fresh-call topology (average ~+12%). Token accumulation across the shared session is the source of any extra cost.
-- Quantified quality benefit: bare leaked-instruction lines in the final report drop from an average of 5.3 (fresh-call) to 1.0 (continuous) — about 81% fewer. Hard count, not LLM-judge opinion.
+- Quantified quality benefit: bare leaked-instruction lines in the final report drop from an average of 5.3 (fresh-call) to 1.0 (continuous) - about 81% fewer. Hard count, not LLM-judge opinion.
 - Env var precedence: `PRIMR_CONTINUOUS_REASONING` overrides the CLI flag if explicitly set, so you can disable across all runs on a machine without changing CLI invocations.
 
 ### Confidence-Label Honesty
@@ -112,7 +112,7 @@ metric, not a shipping gate.
 | `PRIMR_MAX_STRUCTURE_DEFECTS` | Max tolerated structural defects: duplicate top-level `##` headings and empty sections. Required-section presence is intentionally not gated here because it is report-type-dependent and stays a QA-scoring signal. | `0` |
 
 Notes on the popup budget:
-- The budget is a single shared counter — opt in once with `PRIMR_MAX_HEADED_POPUPS=N` and that N is the total allowance across all trigger points in the run.
+- The budget is a single shared counter - opt in once with `PRIMR_MAX_HEADED_POPUPS=N` and that N is the total allowance across all trigger points in the run.
 - External-source validation (web-search results) uses a separate orchestrator that excludes the Patchright stealth tier by design, so validation-pass popups are already impossible even when the budget is set.
 - On Linux, the budget is automatically treated as 0 when neither `DISPLAY` nor `WAYLAND_DISPLAY` is set, so SSH sessions, CI runners, and headless containers never attempt a visible-browser launch.
 

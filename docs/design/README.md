@@ -14,7 +14,7 @@ Conventions:
   budgets the paid part.
 - **Explicitly-not sections are binding.** They exist so scope doesn't get
   re-litigated; changing one is a deliberate decision, not drift.
-- **No real company names** in examples — placeholders only (see
+- **No real company names** in examples - placeholders only (see
   `docs/CONTRIBUTING.md`).
 
 | Doc | Workstream | Version band |

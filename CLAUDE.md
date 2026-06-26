@@ -1,4 +1,4 @@
-# CLAUDE.md — the contract for building primr
+# CLAUDE.md - the contract for building primr
 
 You are working **on the primr codebase**. This file is the development
 contract and context map: read it before writing code. It is the canonical
@@ -10,7 +10,7 @@ guide for any contributor (human or agent); Claude Code loads it natively, and
 > This file is about *changing primr's source*. If you are here to run
 > research, you want AGENTS.md, not this.
 
-The bar: code any human or AI could admire — tidy, consistent, secure,
+The bar: code any human or AI could admire - tidy, consistent, secure,
 well-tested. We are not making slopware. The rules below exist because
 AI-assisted code reliably regresses on exactly these axes (duplication,
 inconsistent patterns, stale APIs, silent insecurity) unless held to a
@@ -20,10 +20,10 @@ contract.
 
 primr turns a company URL into a sourced strategic brief. It is a CLI-first,
 local-first Python package (`src/` layout), an LLM API **client** + adaptive
-scraper + MCP/A2A agent — it trains and serves no models. To work on it:
+scraper + MCP/A2A agent - it trains and serves no models. To work on it:
 
 1. Set up the dev env (`uv sync --frozen --extra dev --extra api`, then
-   `uv run playwright install chromium`) — see
+   `uv run playwright install chromium`) - see
    [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md).
 2. Put code in the package that owns it (see Architecture Pointers). Use the
    existing **seam** rather than inventing a second way to do the same thing.
@@ -42,28 +42,28 @@ new `core/ai/data` imports). Design docs live in
 [ROADMAP → Engineering Standards](ROADMAP.md#engineering-standards--toolchain).
 
 <details>
-<summary>Package map — where things live</summary>
+<summary>Package map - where things live</summary>
 
-- `core/` — pipeline orchestration, CLI, research agent, strategy
-- `ai/` — LLM clients, providers, routing, deep research
-- `data/` — scraping engine (`data/scraping/`), hiring signals, fallback sources
-- `output/` — report/strategy rendering (MD/TXT/DOCX), validation
-- `qa/` — report analysis, calibration, scoring
-- `agentic/` — hypothesis tracking, hooks, subagents, orchestrator
-- `skill_pack/` — skill-pack planning/authoring/validation
-- `config/` — settings, env, model registry, validation (keep near-leaf)
-- `utils/` — shared seams (below); not a dumping ground
-- `mcp_server/`, `a2a/`, `api/` — agent / HTTP surfaces
+- `core/` - pipeline orchestration, CLI, research agent, strategy
+- `ai/` - LLM clients, providers, routing, deep research
+- `data/` - scraping engine (`data/scraping/`), hiring signals, fallback sources
+- `output/` - report/strategy rendering (MD/TXT/DOCX), validation
+- `qa/` - report analysis, calibration, scoring
+- `agentic/` - hypothesis tracking, hooks, subagents, orchestrator
+- `skill_pack/` - skill-pack planning/authoring/validation
+- `config/` - settings, env, model registry, validation (keep near-leaf)
+- `utils/` - shared seams (below); not a dumping ground
+- `mcp_server/`, `a2a/`, `api/` - agent / HTTP surfaces
 
 </details>
 
-## Use the one seam — don't invent a sixth way
+## Use the one seam - don't invent a sixth way
 
 The fastest way to rot a codebase is N ways to do one thing. Before reaching
 for a library or pattern, use the existing seam.
 
 <details>
-<summary>Seam table — use these, not the alternatives</summary>
+<summary>Seam table - use these, not the alternatives</summary>
 
 | Need | Use | Not |
 |------|-----|-----|
@@ -77,9 +77,9 @@ for a library or pattern, use the existing seam.
 | Outbound HTTP | the scraping-tier clients / `data.http_client` | a *new* HTTP client |
 
 HTTP is deliberately multi-client (browser → curl_cffi → httpx → requests →
-urllib) for scrape-tier evasion — that set is **closed**. A sixth client is a
+urllib) for scrape-tier evasion - that set is **closed**. A sixth client is a
 reviewed exception, not a default. If you genuinely need a new pattern, add the
-seam *and* migrate callers — don't leave two ways behind.
+seam *and* migrate callers - don't leave two ways behind.
 
 </details>
 
@@ -90,29 +90,29 @@ What NOT to do. These are gated or will fail review:
 - **NEVER add a second way** to do something that already has a seam (above).
 - **NEVER let a monster file grow.** A new file over ~800 lines needs a split
   plan; the large files (`research_agent.py`, `cli.py`, `deep_research.py`, …)
-  are pinned by `tests/test_architecture.py` and may not grow — split instead
+  are pinned by `tests/test_architecture.py` and may not grow - split instead
   of raising the ceiling.
 - **NEVER trust training memory for "now."** Verify the current library
   version, API signature, and model ID (against `uv.lock` / `config/models.py`
   / current docs) before using them. Stale/deprecated APIs and hallucinated
-  packages are a top AI-code failure mode — assume your recall is six months
+  packages are a top AI-code failure mode - assume your recall is six months
   stale and confirm.
 - **NEVER bypass the SSRF guard.** Every outbound URL goes through
   `utils.security.is_safe_url` (validated post-redirect); untrusted scraped
   text entering a prompt is fenced via `utils.content_sanitizer.fence_untrusted`.
   No secrets in code, logs, or fixtures.
-- **NEVER launch a billable run without an estimate + explicit approval** —
+- **NEVER launch a billable run without an estimate + explicit approval** -
   primr runs cost real money and time; the cost gate is non-negotiable (this is
   the operate-side contract in `AGENTS.md`, restated here as a design boundary).
-- **NEVER turn primr into a daemon / always-on watcher** — it is **single-job**
+- **NEVER turn primr into a daemon / always-on watcher** - it is **single-job**
   by design (URL in, artifact out). Loops and scheduling live on the consumer
   side; do not add a background watcher to the core.
 - **NEVER put real company data** anywhere that ships (docs, fixtures, commit
-  messages) — use `Acme Corp` / `ExampleCo` / `acme.example`. See CONTRIBUTING.
+  messages) - use `Acme Corp` / `ExampleCo` / `acme.example`. See CONTRIBUTING.
 - **NEVER add non-human authorship attribution** to commits, PR bodies, or
-  comments — no `Co-Authored-By`, no "generated by", and nothing crediting an
-  AI, bot, or tool (Claude, Codex, Copilot, Dependabot, etc.). Every commit
-  reads as a human engineer's work.
+  comments. Avoid coauthor trailers, AI-generation credits, or tool-credit
+  language for any AI, bot, or automation tool. Every commit reads as a human
+  engineer's work.
 
 ## Verification Commands
 

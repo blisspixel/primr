@@ -1124,7 +1124,7 @@ Response:
 
 #### research_company
 
-Initiate company research (async - returns job_id immediately). Includes AI strategy generation when `platform` is specified — no separate `generate_strategy` call needed. This should only be called after `estimate_run` and explicit user approval.
+Initiate company research (async - returns job_id immediately). Includes AI strategy generation when `platform` is specified - no separate `generate_strategy` call needed. This should only be called after `estimate_run` and explicit user approval.
 
 ```json
 {
@@ -1164,7 +1164,7 @@ Response:
 
 #### generate_strategy
 
-Generate strategy document from an existing report after the fact. Only needed when adding a strategy to a previously completed research run. For new research, use `research_company` with `platform` instead — strategy is included automatically.
+Generate strategy document from an existing report after the fact. Only needed when adding a strategy to a previously completed research run. For new research, use `research_company` with `platform` instead - strategy is included automatically.
 
 ```json
 {
@@ -1207,7 +1207,7 @@ Response (in progress):
 }
 ```
 
-Response (completed — includes artifact content):
+Response (completed - includes artifact content):
 ```json
 {
   "jobs": [

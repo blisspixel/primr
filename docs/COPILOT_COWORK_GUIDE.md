@@ -1,8 +1,8 @@
-# Copilot Cowork — Publish Primr to M365 Agent Store
+# Copilot Cowork - Publish Primr to M365 Agent Store
 
 Publish your Copilot Studio research agent to the Microsoft 365 Agent Store so that Copilot Cowork (and other M365 Copilot users) can discover and invoke it. Once published, users can say things like "Research ExampleCo for me" in Copilot and it routes to your Primr agent.
 
-> **Primr is CLI-first, local-first.** Copilot Cowork publishing is the furthest end of the scaling spectrum — it makes Primr available to your entire organization through M365 Copilot. Most users don't need this. Start with the [Azure Quickstart](AZURE_QUICKSTART.md) if you haven't deployed yet.
+> **Primr is CLI-first, local-first.** Copilot Cowork publishing is the furthest end of the scaling spectrum - it makes Primr available to your entire organization through M365 Copilot. Most users don't need this. Start with the [Azure Quickstart](AZURE_QUICKSTART.md) if you haven't deployed yet.
 
 ## Prerequisites
 
@@ -134,8 +134,8 @@ I need a strategic analysis of ExampleCo
 
 ## Reference
 
-- [Azure Quickstart](AZURE_QUICKSTART.md) — Deploy Primr to Azure
-- [Copilot Studio Guide](COPILOT_STUDIO_GUIDE.md) — Create the Copilot Studio agent (prerequisite)
-- [Foundry Agent Guide](FOUNDRY_AGENT_GUIDE.md) — Alternative: connect via Foundry Agent Service
+- [Azure Quickstart](AZURE_QUICKSTART.md) - Deploy Primr to Azure
+- [Copilot Studio Guide](COPILOT_STUDIO_GUIDE.md) - Create the Copilot Studio agent (prerequisite)
+- [Foundry Agent Guide](FOUNDRY_AGENT_GUIDE.md) - Alternative: connect via Foundry Agent Service
 - OpenAPI spec: [`deploy/azure/openapi.yaml`](../deploy/azure/openapi.yaml)
 - Bicep templates: [`deploy/azure/bicep/`](../deploy/azure/bicep/)

@@ -322,3 +322,24 @@ safe HTTP, pinned requests, vertical scrape, and pooled HTTP client tests pass
 with 139 tests and 2 skipped. Repo-wide Ruff, format check, architecture and
 release-integrity tests, mypy, Bandit, pip-audit, MkDocs build, and the
 CI-shaped coverage gate also pass. Coverage: 85.26% branch. Spend: `$0.00`.
+
+2026-06-26 README and documentation front door refresh:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: README now acts as a concise first-stop project page, while detailed
+run-mode and agent-integration material lives in focused docs that are indexed
+by MkDocs. The change follows Diataxis-style separation of overview, how-to,
+reference, and explanation content without changing runtime behavior. Security
+and privacy posture is unchanged, and the credential-boundary text is clearer.
+Style scans pass for em dashes, scanned emoji/symbol markers, and generated
+attribution phrase matches across tracked docs and guidance. MkDocs build,
+architecture/release-integrity tests, brand-leak test, and diff hygiene pass.
+Spend: `$0.00`.

@@ -1326,6 +1326,47 @@ Cost:
 
 - `$0.00`. No cloud or paid validation was used.
 
+### Cycle: README and Documentation Front Door Refresh
+
+Read and realigned against `README.md`, `ROADMAP.md`, `CLAUDE.md`,
+`AGENTS.md`, `docs/README.md`, `docs/API_KEYS.md`, `docs/CONFIG.md`,
+`docs/API.md`, `docs/SKILL_PACK.md`, `docs/CHANGELOG.md`, and `mkdocs.yml`.
+Checked current documentation guidance from Diataxis, GitHub README docs, and
+Google's developer documentation style guide.
+
+Implemented:
+
+- Rebuilt `README.md` as a concise project front door: purpose, quick start,
+  cost estimate, first commands, evidence streams, outputs, configuration,
+  agent integration entry point, development gates, and documentation map.
+- Moved detailed mode, cost, strategy, platform, budget, output, and sample-run
+  material into `docs/RUN_MODES.md`.
+- Moved MCP, A2A, host snippets, packaged skills, credential boundaries, and
+  async monitoring guidance into `docs/AGENT_INTEGRATION.md`.
+- Updated `docs/README.md` and `mkdocs.yml` so both new pages are part of the
+  docs index and published site nav.
+- Removed em dashes from tracked documentation and guidance files, while
+  leaving non-doc regression fixtures unchanged.
+- Removed scanned emoji/symbol phase markers from agent guidance and reworded
+  attribution rules to avoid exact generated-attribution phrasing.
+- Updated ROADMAP and changelog for the documentation split.
+
+Validation status:
+
+- Style scans passed: no em dashes, scanned emoji/symbol markers, or attribution
+  phrase matches across README, docs, root guidance, packaged skill docs, and
+  client docs.
+- `uv run --no-project --with mkdocs-material --with pymdown-extensions mkdocs build --site-dir _site`
+  passed with only the repo's existing non-strict link warnings.
+- `uv run --no-sync pytest tests/test_architecture.py tests/test_release_integrity.py -q`
+  passed with 13 tests.
+- `uv run --no-sync pytest tests/test_no_brand_leak.py -q` passed with 1 test.
+- `git diff --check` passed.
+
+Cost:
+
+- `$0.00`. No cloud or paid validation was used.
+
 ### Cycle: curl_cffi Validated-IP Pinning
 
 Read and realigned against `README.md`, `ROADMAP.md`, `CLAUDE.md`,

@@ -264,7 +264,7 @@ The `src/primr/core/` directory contains the research orchestration logic, decom
 | `cli.py` | Command-line interface, argument parsing, utility commands |
 
 The fast-mode orchestrator (`perform_fast_research`) is being decomposed into
-per-stage modules (roadmap #23 — see
+per-stage modules (roadmap #23 - see
 [`design/23-orchestrator-refactor-map.md`](design/23-orchestrator-refactor-map.md)
 for the stage map and batch plan). Extracted so far:
 
@@ -348,7 +348,7 @@ The `scrape_page` primitive uses a tiered fallback system for web scraping, desi
 - **Soft Block Detection**: Checks content, not just HTTP status (catches "200 OK" traps)
 - **TLS Fingerprint Impersonation**: curl_cffi mimics real browser TLS signatures
 - **Driverless Browsers**: DrissionPage uses CDP directly, bypassing WebDriver detection
-- **Content-Type Routing**: Automatic detection (HTML, PDF, binary) via headers and magic bytes — PDFs extracted via Gemini LLM with PyMuPDF fallback
+- **Content-Type Routing**: Automatic detection (HTML, PDF, binary) via headers and magic bytes - PDFs extracted via Gemini LLM with PyMuPDF fallback
 - **Smart Tier Escalation** (v1.2.4+): Stops after 3 consecutive failures of same error type to avoid wasting time on impossible pages
 - **Adaptive Timeout**: 45s max per page (reduced to 25s when best_tier is known for the host)
 - **Headed Popup Budget**: Opt-in counter (env `PRIMR_MAX_HEADED_POPUPS`, default `0`) shared across the Patchright stealth tier and the orchestrator's adaptive Playwright retry. When unset no visible-browser windows ever open; set to `N` to allow up to N total popups for a single run. External-source validation uses a separate orchestrator that excludes Patchright entirely, so validation scrapes never trigger popups regardless of the budget. On Linux the budget is treated as 0 unless `DISPLAY` or `WAYLAND_DISPLAY` is set, so headless runs never attempt a visible launch.
@@ -357,23 +357,23 @@ The `scrape_page` primitive uses a tiered fallback system for web scraping, desi
 
 Location: `src/primr/data/hiring_signals.py`
 
-Runs after the main-site scrape (fast mode) and before Phase 2 research deepening. Extracts strategic signals from a company's open job postings — often the most honest public statement of what they're building right now. Job postings are also the primary input to the skill pack subsystem (`primr skills`) — see *Skill Pack Planning* below.
+Runs after the main-site scrape (fast mode) and before Phase 2 research deepening. Extracts strategic signals from a company's open job postings - often the most honest public statement of what they're building right now. Job postings are also the primary input to the skill pack subsystem (`primr skills`) - see *Skill Pack Planning* below.
 
 Discovery chain:
-1. **Slug candidates** — derived from the company name, website hostname, and any recon-supplied ATS subdomain hints. Capped at 6.
-2. **Corpus-driven Workday URL discovery** — scans the already-scraped corpus for canonical `https://{tenant}.{wd*}.myworkdayjobs.com/{site}` URLs. When found, hits the matching `/wday/cxs/{tenant}/{site}/jobs` endpoint directly — zero blind guesses.
-3. **ATS board APIs (parallel)** — eight providers, first returning postings wins: Greenhouse (`boards-api.greenhouse.io`), Lever (`api.lever.co`), Ashby (`api.ashbyhq.com`), SmartRecruiters (`api.smartrecruiters.com`), Workday (bounded blind probing across `wd1`/`wd3`/`wd5`/`wd103` × `External`/`Careers`/`External_Careers`/`External_Career_Site`/`Global_External`), Workable (`apply.workable.com/api/v1/widget/accounts/{slug}`), Recruitee (`{slug}.recruitee.com/api/offers/`), Jobvite (RSS feed at `jobs.jobvite.com/{slug}/jobs?format=rss`). All are free, public, and designed for programmatic reading. Workday's JSON endpoint is undocumented; the provider fails closed on schema mismatch and falls through to subsequent paths rather than crashing.
-4. **HTML careers-page fallback** — if every ATS misses, crawl the company's own `/careers` or `/jobs` page via the popup-free external orchestrator, extract individual posting URLs with a regex scan, cap at 80 discovered links.
-5. **DuckDuckGo web-search fallback** — only fires when the entire chain above returns zero postings. Searches `"{company}" jobs OR careers OR hiring {domain}`, filters results to known job-board hosts (LinkedIn, Indeed, Glassdoor, Workday boards, the ATS hosts, ZipRecruiter, BuiltIn, Monster, Dice, iCIMS pattern), strips suffix noise from titles ("| LinkedIn", "at {Company}"), returns metadata-only postings. Bodies are rarely recoverable from these hosts and the downstream no-bodies branch populates `signals.roles` directly from posting titles so the skill pack still sees role-type signal.
-6. **LLM triage** — small Grok call picks up to 15 signal-rich postings (biased toward senior / engineering / product / data / security / platform roles; down-weights retail / sales SDR / entry-level). Deterministic title-based ranker as fallback when the LLM call fails.
-7. **Body fetch** — ATS postings usually include the body inline. HTML postings fetched in parallel via the external orchestrator.
-8. **Batched LLM extraction** — one Grok reasoning call over the aggregated JD text produces structured JSON: roles & locations, tech-stack frequency, strategic initiatives, culture signals, notable absences, hiring volume, summary.
+1. **Slug candidates** - derived from the company name, website hostname, and any recon-supplied ATS subdomain hints. Capped at 6.
+2. **Corpus-driven Workday URL discovery** - scans the already-scraped corpus for canonical `https://{tenant}.{wd*}.myworkdayjobs.com/{site}` URLs. When found, hits the matching `/wday/cxs/{tenant}/{site}/jobs` endpoint directly - zero blind guesses.
+3. **ATS board APIs (parallel)** - eight providers, first returning postings wins: Greenhouse (`boards-api.greenhouse.io`), Lever (`api.lever.co`), Ashby (`api.ashbyhq.com`), SmartRecruiters (`api.smartrecruiters.com`), Workday (bounded blind probing across `wd1`/`wd3`/`wd5`/`wd103` × `External`/`Careers`/`External_Careers`/`External_Career_Site`/`Global_External`), Workable (`apply.workable.com/api/v1/widget/accounts/{slug}`), Recruitee (`{slug}.recruitee.com/api/offers/`), Jobvite (RSS feed at `jobs.jobvite.com/{slug}/jobs?format=rss`). All are free, public, and designed for programmatic reading. Workday's JSON endpoint is undocumented; the provider fails closed on schema mismatch and falls through to subsequent paths rather than crashing.
+4. **HTML careers-page fallback** - if every ATS misses, crawl the company's own `/careers` or `/jobs` page via the popup-free external orchestrator, extract individual posting URLs with a regex scan, cap at 80 discovered links.
+5. **DuckDuckGo web-search fallback** - only fires when the entire chain above returns zero postings. Searches `"{company}" jobs OR careers OR hiring {domain}`, filters results to known job-board hosts (LinkedIn, Indeed, Glassdoor, Workday boards, the ATS hosts, ZipRecruiter, BuiltIn, Monster, Dice, iCIMS pattern), strips suffix noise from titles ("| LinkedIn", "at {Company}"), returns metadata-only postings. Bodies are rarely recoverable from these hosts and the downstream no-bodies branch populates `signals.roles` directly from posting titles so the skill pack still sees role-type signal.
+6. **LLM triage** - small Grok call picks up to 15 signal-rich postings (biased toward senior / engineering / product / data / security / platform roles; down-weights retail / sales SDR / entry-level). Deterministic title-based ranker as fallback when the LLM call fails.
+7. **Body fetch** - ATS postings usually include the body inline. HTML postings fetched in parallel via the external orchestrator.
+8. **Batched LLM extraction** - one Grok reasoning call over the aggregated JD text produces structured JSON: roles & locations, tech-stack frequency, strategic initiatives, culture signals, notable absences, hiring volume, summary.
 
 Outputs:
-- `<working>/_hiring/hiring_signals.md` — human-readable summary
-- `<working>/_hiring/hiring_signals.json` — structured extraction
-- `<working>/_hiring/postings_index.json` — full discovered list before triage
-- `<working>/_hiring/raw/jd_NNN_*.txt` — individual JD bodies with metadata
+- `<working>/_hiring/hiring_signals.md` - human-readable summary
+- `<working>/_hiring/hiring_signals.json` - structured extraction
+- `<working>/_hiring/postings_index.json` - full discovered list before triage
+- `<working>/_hiring/raw/jd_NNN_*.txt` - individual JD bodies with metadata
 
 Integration: the extracted signals are rendered via `render_for_prompt` into a `=== HIRING SIGNALS ===` block and appended to `insights.txt` plus the raw external-sources bundle. The Phase 2 gap-filling rebuild preserves this block so every downstream phase (workbook, section writing, cross-validation, Phase 6 strategy) can see it.
 
@@ -386,12 +386,12 @@ Location: `src/primr/skill_pack/planner.py`, `industry.py`, `discovery.py`
 Job postings are the primary input to the skill pack subsystem; operator-supplied job descriptions / role briefs (`--from-jd`) are treated as explicit hiring evidence when the operator has a better role artifact than discovery can find. DNS recon and the strategic report are supporting context. The planning step replaces the single-call `discover_roles` with a structured two-call plan that preserves provenance end-to-end. It also records a non-blocking posting-coverage assessment so enterprise-scale rosters that only see one narrow posting band are marked `posting-incomplete` rather than treated as complete coverage.
 
 Pipeline:
-1. **Evidence load** — recon (`_recon_context.txt`), hiring (`_hiring/hiring_signals.md` plus optional `_hiring/operator_role_brief.md` from `--from-jd`), research (`insights.txt` / `report.md` / `analysis_workbook.md`). Fails closed when posting / role-brief evidence and research evidence are empty unless `allow_recon_only=True`.
-2. **Industry classification** — LLM-only resolution (no heuristics): parse structured fields from a primr strategic report when one is supplied via `--from-report`, otherwise one cheap LLM call against the evidence inputs. Produces `IndustryClassification` with business_model / industry_vertical / company_stage / employee_estimate / confidence / cited_evidence / source.
-3. **Call A — observed roles** — LLM extracts roles from the hiring evidence only. Operator role briefs are prepended to the hiring stream and treated as evidence, never instructions. Every role MUST carry at least one verbatim posting or role-brief citation or it's dropped at parse time. Provenance: `posting`. Confidence: `Confirmed`.
-4. **Call B — plausible roles** — LLM infers roles from recon + research + the industry classification + the Call A output (to exclude duplicates). Every role MUST carry at least one specific research citation OR an explicit business-model + stage rationale. Common org-shape roles (Marketing, Sales, Customer Success, Finance, HR) become plausible only when company stage is Mid-market or larger. Generic VP / Chief-X titles are forbidden without specific evidence. Provenance: `research` or `industry`. Confidence: `Inferred` or `Speculated`.
+1. **Evidence load** - recon (`_recon_context.txt`), hiring (`_hiring/hiring_signals.md` plus optional `_hiring/operator_role_brief.md` from `--from-jd`), research (`insights.txt` / `report.md` / `analysis_workbook.md`). Fails closed when posting / role-brief evidence and research evidence are empty unless `allow_recon_only=True`.
+2. **Industry classification** - LLM-only resolution (no heuristics): parse structured fields from a primr strategic report when one is supplied via `--from-report`, otherwise one cheap LLM call against the evidence inputs. Produces `IndustryClassification` with business_model / industry_vertical / company_stage / employee_estimate / confidence / cited_evidence / source.
+3. **Call A - observed roles** - LLM extracts roles from the hiring evidence only. Operator role briefs are prepended to the hiring stream and treated as evidence, never instructions. Every role MUST carry at least one verbatim posting or role-brief citation or it's dropped at parse time. Provenance: `posting`. Confidence: `Confirmed`.
+4. **Call B - plausible roles** - LLM infers roles from recon + research + the industry classification + the Call A output (to exclude duplicates). Every role MUST carry at least one specific research citation OR an explicit business-model + stage rationale. Common org-shape roles (Marketing, Sales, Customer Success, Finance, HR) become plausible only when company stage is Mid-market or larger. Generic VP / Chief-X titles are forbidden without specific evidence. Provenance: `research` or `industry`. Confidence: `Inferred` or `Speculated`.
 5. **Merge and cap** - archetype-based dedupe with observed-wins; signal-driven split with no hard ratio; cap at `roles_count`; overflow goes to `gap_flagged`. Archetype matching favors exact slugs, normalized aliases, strong display-name matches, and multi-keyword evidence; weak display-name guesses return no archetype so authoring does not inherit the wrong role family.
-6. **Persist** — writes `<working>/role_plan.md` (human view) and `<working>/role_plan.json` (machine view, used by `--from-plan`).
+6. **Persist** - writes `<working>/role_plan.md` (human view) and `<working>/role_plan.json` (machine view, used by `--from-plan`).
 
 Operator surface (roster curation):
 - `--plan-only` writes the plan and exits before authoring.
@@ -523,7 +523,7 @@ cross_val = session.send(cross_val_prompt, max_tokens=5_000, temperature=0.2)
 # can verify the report against the workbook's mandate, not just against URLs.
 ```
 
-**When the session is constructed.** The CLI flag (or env var) is resolved during run setup (`fast_run_setup.resolve_fast_run_setup`), but the session itself is constructed lazily at the workbook stage (`fast_run_workbook.generate_analysis_workbook`, which returns it for cross-validation reuse). That lets the workbook's system prompt be passed as a real `role:system` message at session init — Grok rejects mid-conversation system messages, so this placement matters. An earlier implementation that folded the system prompt into the first user turn measurably degraded workbook quality during the pilot; the lazy construction is the fix.
+**When the session is constructed.** The CLI flag (or env var) is resolved during run setup (`fast_run_setup.resolve_fast_run_setup`), but the session itself is constructed lazily at the workbook stage (`fast_run_workbook.generate_analysis_workbook`, which returns it for cross-validation reuse). That lets the workbook's system prompt be passed as a real `role:system` message at session init - Grok rejects mid-conversation system messages, so this placement matters. An earlier implementation that folded the system prompt into the first user turn measurably degraded workbook quality during the pilot; the lazy construction is the fix.
 
 **What stays unchanged.** Section writing (Phase 4) is intentionally untouched and remains parallel + fresh-call per section via the existing `ThreadPoolExecutor(max_workers=4)` pattern. The topology change is targeted at sequential reasoning handoffs, not parallel sub-agents. Strategy generation (Phase 6) and gap analysis (Phase 2) also remain fresh-call.
 
@@ -823,11 +823,11 @@ Daily API quota exhaustion is detected and handled specially:
 
 Location: `src/primr/pipeline/`
 
-The pipeline resilience layer formalizes Primr's retry and recovery logic into three interlocking subsystems. Instead of ad-hoc retry loops scattered across AI clients, every pipeline stage declares a **cost-ordered recovery hierarchy** — a sequence of actions ranked cheapest-first (e.g., retry → fallback model → skip). A **stage classifier** labels each stage as *foreground* (must complete) or *background* (bail on API overload or budget stress), so background stages like cross-validation and strategy generation never amplify capacity cascades during batch runs. A **model circuit breaker** tracks consecutive API failures per model and automatically routes to fallback models after 3 failures, with recovery probes after 10 minutes.
+The pipeline resilience layer formalizes Primr's retry and recovery logic into three interlocking subsystems. Instead of ad-hoc retry loops scattered across AI clients, every pipeline stage declares a **cost-ordered recovery hierarchy** - a sequence of actions ranked cheapest-first (e.g., retry → fallback model → skip). A **stage classifier** labels each stage as *foreground* (must complete) or *background* (bail on API overload or budget stress), so background stages like cross-validation and strategy generation never amplify capacity cascades during batch runs. A **model circuit breaker** tracks consecutive API failures per model and automatically routes to fallback models after 3 failures, with recovery probes after 10 minutes.
 
 The resilience layer sits between the pipeline orchestrator (`research_agent.py`) and the AI clients (`grok_client.py`, `llm.py`). It shares no mutable global state and is fully unit-testable. On successful runs, it adds no observable behavior change (NFR 1).
 
-- **Recovery Table** (`recovery.py`): Declarative mapping from each of the six pipeline stages to its recovery hierarchy. Pure data — serializable to JSON, inspectable via `--dry-run` (`primr --dry-run` includes the full recovery table).
+- **Recovery Table** (`recovery.py`): Declarative mapping from each of the six pipeline stages to its recovery hierarchy. Pure data - serializable to JSON, inspectable via `--dry-run` (`primr --dry-run` includes the full recovery table).
 - **Stage Classifier** (`stages.py`): Static foreground/background classification. Foreground: scraping, external search, analysis, section writing. Background: cross-validation, strategy generation.
 - **Model Circuit Breaker** (`model_breaker.py`): Per-model health tracking with provider-aware fallback chains (e.g., Grok 4.3 → Grok 4.20 → Grok 4.1 → Gemini Flash). Verifies API key availability before cross-provider fallback.
 - **Recovery Executor** (`executor.py`): Integration glue that wraps stage callables, consults the classifier and recovery table on failure, and logs all recovery events to `_run_state.json`.
@@ -1135,7 +1135,7 @@ The architecture is designed to support future enhancements without major restru
 See `ROADMAP.md` for planned features.
 
 
-## Under the Hood — Quick Reference
+## Under the Hood - Quick Reference
 
 This section provides a quick-reference summary of the retrieval engine, model pricing, and agentic architecture. For full details, see the component sections above.
 
@@ -1161,14 +1161,14 @@ Playwright tiers now perform adaptive lazy-load scrolling (up to 20 steps by def
 |-------|------|-------------------------|
 | Grok 4.3 | Default mode: reasoning stages (analysis, workbook, cross-validation) | $1.25 in / $2.50 out · $0.20 cached |
 | Grok 4.1 fast | Default mode: utility tier (scraping summaries, link selection, QA) and writing in HYBRID tier | $0.20 in / $0.50 out |
-| Grok 4.20 | Legacy flagship — kept registered for resume of in-flight runs and as a fallback in the analysis chain | $2.00 in / $6.00 out |
+| Grok 4.20 | Legacy flagship - kept registered for resume of in-flight runs and as a fallback in the analysis chain | $2.00 in / $6.00 out |
 | Gemini 3 Flash | Used for utility tier when only `GEMINI_API_KEY` is set (no `XAI_API_KEY`) | $0.50 in / $3 out |
 | Gemini 3.1 Pro | `--premium` mode: section writing, analysis | $2/$12 (≤200k) · $4/$18 (>200k) |
 | Deep Research Agent | `--premium` mode: autonomous research | ~$2.50/task (flat) |
 
 ### Why Grok is the Default
 
-Primr originally ran everything through Google's Deep Research API + Gemini 3.1 Pro — excellent research quality, but the Deep Research API runs ~$2.50 per task, pushing full runs to ~$5 and 50-75 minutes. When xAI released Grok 4.1, testing showed it handles company research comparably: strong at search-grounded analysis, solid structured output, and reliable citation handling. The default pipeline now uses Grok 4.3 hybrid (4.3 always-on reasoning for analysis stages, 4.1-fast for bulk writing and utility-tier calls like scraping summaries and link selection) at ~$0.60/run — ~88% cheaper than premium. As of v1.22.0, `XAI_API_KEY` alone is sufficient for the standard pipeline; Gemini Flash is only used for utility-tier calls when no xAI key is configured. The full Gemini + Deep Research pipeline remains available via `--premium` when maximum research depth justifies the cost.
+Primr originally ran everything through Google's Deep Research API + Gemini 3.1 Pro - excellent research quality, but the Deep Research API runs ~$2.50 per task, pushing full runs to ~$5 and 50-75 minutes. When xAI released Grok 4.1, testing showed it handles company research comparably: strong at search-grounded analysis, solid structured output, and reliable citation handling. The default pipeline now uses Grok 4.3 hybrid (4.3 always-on reasoning for analysis stages, 4.1-fast for bulk writing and utility-tier calls like scraping summaries and link selection) at ~$0.60/run - ~88% cheaper than premium. As of v1.22.0, `XAI_API_KEY` alone is sufficient for the standard pipeline; Gemini Flash is only used for utility-tier calls when no xAI key is configured. The full Gemini + Deep Research pipeline remains available via `--premium` when maximum research depth justifies the cost.
 
 ### Agentic Architecture
 

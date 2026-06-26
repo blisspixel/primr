@@ -27,8 +27,8 @@ Behavior that is unacceptable includes:
 
 ## Scope
 
-This Code of Conduct applies within all project spaces — the repository, issues,
-pull requests, and any other channel where someone represents the project — and
+This Code of Conduct applies within all project spaces - the repository, issues,
+pull requests, and any other channel where someone represents the project - and
 also when an individual is officially representing the project in public spaces.
 
 ## Enforcement

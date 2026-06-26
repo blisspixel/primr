@@ -3,7 +3,7 @@
 ## What primr is (and isn't), security-wise
 
 primr is an **LLM-API client + adaptive web scraper + MCP/A2A agent**. It does
-**not** train, fine-tune, host, or serve models — the models are third-party
+**not** train, fine-tune, host, or serve models - the models are third-party
 hosted APIs (Gemini, Grok, OpenAI, Anthropic, Ollama). Per primr's design
 philosophy, *the model is a commodity; the orchestration pipeline is the asset.*
 
@@ -33,7 +33,7 @@ MCP/A2A tool surfaces, and (4) provider secrets + the dependency supply chain.
 | T8 | Per-tool privilege separation | Low-trust client invokes a high-cost/admin tool | Per-tool MCP scope policy (`read`, `research`, `delegate`, `admin`) enforced at dispatch; OAuth `scope` / Entra `scp` claims honored; legacy `write` tokens retained for compatibility; approval tokens required for cost-cap-governed execution when enforcement is active; privacy-preserving MCP invocation audit log with admin-readable recent events | Shipped (MCP Stages 1-3 slice) |
 
 ### Residual risks (accepted)
-- **T1** is mitigated, not eliminated — a novel phrasing could evade the pattern
+- **T1** is mitigated, not eliminated - a novel phrasing could evade the pattern
   set; the data-fence is the backstop, and an injection red-team eval is tracked.
 - **T2** has complete pre-request SSRF validation and per-hop redirect
   validation on the shared safe HTTP seam, async citation HEAD requests,
@@ -120,7 +120,7 @@ See [SECURITY_OPS.md](SECURITY_OPS.md) for operational security guidance.
 
 - January 2026: Initial security review (XXE, SSRF fixes)
 - February 2026: JWT verification, CORS hardening, input sanitization
-- May 2026: AI/agent security posture — indirect prompt-injection fencing
+- May 2026: AI/agent security posture - indirect prompt-injection fencing
   (`fence_untrusted`) at all external-content boundaries, sink-level secret
   redaction (`SecretMaskingFilter`) + chat-log redaction, egress-guardrail
   invariant tests across all fetch helpers, supply-chain gates (pip-audit,

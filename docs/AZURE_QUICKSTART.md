@@ -2,7 +2,7 @@
 
 Deploy Primr to Azure as a shared MCP server for your team or organization. This guide gets you from zero to a running deployment in under 10 minutes.
 
-> **Primr is CLI-first, local-first.** The cloud deployment is an optional scaling path for teams that need shared access, agent platform integration, or always-on availability. If you're a solo user, `primr` on your laptop is the primary experience — you don't need any of this.
+> **Primr is CLI-first, local-first.** The cloud deployment is an optional scaling path for teams that need shared access, agent platform integration, or always-on availability. If you're a solo user, `primr` on your laptop is the primary experience - you don't need any of this.
 
 ## Prerequisites
 
@@ -108,18 +108,18 @@ For Foundry Agent Service integration, see [Foundry Agent Guide](FOUNDRY_AGENT_G
 
 ## Part C: Upgrade to Organization Tier
 
-When your team grows or you need Entra ID auth, per-user budget tracking, and full observability — upgrade to the organization tier.
+When your team grows or you need Entra ID auth, per-user budget tracking, and full observability - upgrade to the organization tier.
 
 ### What changes
 
 | Capability | Team | Organization |
 |---|---|---|
 | Authentication | API keys only | API keys + Entra ID |
-| Budget tracking | — | Per-user/team limits |
-| Observability | — | Application Insights + alerts |
+| Budget tracking | - | Per-user/team limits |
+| Observability | - | Application Insights + alerts |
 | Job queue | Direct trigger | Service Bus + dead-letter |
-| Reconciler | — | Azure Function (timer) |
-| Copilot Cowork | — | M365 Agent Store publishing |
+| Reconciler | - | Azure Function (timer) |
+| Copilot Cowork | - | M365 Agent Store publishing |
 | Estimated idle cost | < $5/month | < $15/month |
 
 ### Deploy organization tier
@@ -210,8 +210,8 @@ curl https://{primr-fqdn}/usage/{api-key-hash} \
 
 ## Related Guides
 
-- [Foundry Agent Service Guide](FOUNDRY_AGENT_GUIDE.md) — Connect Primr as a tool in Foundry prompt agents
-- [Copilot Studio Guide](COPILOT_STUDIO_GUIDE.md) — Create a Power Platform connector for Copilot Studio
-- [Copilot Cowork Guide](COPILOT_COWORK_GUIDE.md) — Publish to M365 Agent Store for Copilot Cowork
-- [Cloud Deployment Guide](CLOUD_DEPLOYMENT.md) — General cloud deployment reference (AWS, Azure, GCP)
-- [API Reference](API.md) — MCP server and control plane API documentation
+- [Foundry Agent Service Guide](FOUNDRY_AGENT_GUIDE.md) - Connect Primr as a tool in Foundry prompt agents
+- [Copilot Studio Guide](COPILOT_STUDIO_GUIDE.md) - Create a Power Platform connector for Copilot Studio
+- [Copilot Cowork Guide](COPILOT_COWORK_GUIDE.md) - Publish to M365 Agent Store for Copilot Cowork
+- [Cloud Deployment Guide](CLOUD_DEPLOYMENT.md) - General cloud deployment reference (AWS, Azure, GCP)
+- [API Reference](API.md) - MCP server and control plane API documentation

@@ -23,7 +23,7 @@ What just landed: a separate markdown / DOCX at `output/<company>/<Company>_AI_S
 Proactive offers:
 
 - **Vendor positioning brief**: "Want me to extract the vendor-specific recommendations into a one-page positioning brief for your account team?"
-- **Initiative ROI write-up**: "The top three initiatives in this strategy — want me to draft the ROI / business case for each?"
+- **Initiative ROI write-up**: "The top three initiatives in this strategy - want me to draft the ROI / business case for each?"
 - **Discovery questions specifically about AI**: "Want me to pull out the AI-specific discovery questions for your next conversation?"
 - **Cross-platform comparison**: if multiple `--platform` runs exist for this company, offer to diff them ("Want me to compare the Azure AI Strategy and the AWS AI Strategy side-by-side?").
 
@@ -45,18 +45,18 @@ What just landed (silently, unless the user asked): new hypotheses added to `log
 Proactive offers when the run finishes:
 
 - "primr saved N new hypotheses on Acme. Want me to list the top 5 by confidence?"
-- "Of the new hypotheses, M are `untested` — these are the ones to validate in your discovery call. Want them?"
+- "Of the new hypotheses, M are `untested` - these are the ones to validate in your discovery call. Want them?"
 - After a customer conversation: "Want to update the hypothesis memory with what you learned? I can promote `untested` ones to `validated` or `invalidated` based on what they said."
 
-When a user updates a hypothesis from a conversation, use `save_hypothesis` (MCP) or write directly to the memory file (CLI). Always include the evidence string — a one-line citation of where the new confidence level came from.
+When a user updates a hypothesis from a conversation, use `save_hypothesis` (MCP) or write directly to the memory file (CLI). Always include the evidence string - a one-line citation of where the new confidence level came from.
 
 ## Pipeline intermediates (mostly ignore unless asked)
 
-`scraped_content.txt`, `insights.json`, `dossier.json`, `run_manifest.json` — these exist for debugging and re-runs, not for direct user consumption. Don't proactively offer to read them. If the user asks "how did primr arrive at X claim," the answer is in `run_manifest.json` (audit trail) plus the citation appendix in the main report.
+`scraped_content.txt`, `insights.json`, `dossier.json`, `run_manifest.json` - these exist for debugging and re-runs, not for direct user consumption. Don't proactively offer to read them. If the user asks "how did primr arrive at X claim," the answer is in `run_manifest.json` (audit trail) plus the citation appendix in the main report.
 
 ## What NOT to do after a run
 
 - **Do not re-run primr to "verify" findings.** The cost gate forbids this without a fresh estimate and approval, and the report's confidence annotations already convey uncertainty.
 - **Do not paste the full markdown into the conversation.** It's 21k words; the conversation will OOM or the user will scroll past everything important. Always summarize.
-- **Do not strip confidence annotations** when summarizing. "(Hypothesis)" is load-bearing — readers learn to trust the parts marked `(Confirmed)` / `(Reported)` more than the parts marked `(Estimated)` / `(Hypothesis)`.
-- **Do not promise updates.** primr is a snapshot tool. If the user asks "will this update when news happens," the answer is no — they'd need to re-run periodically (and that's a fresh estimate + approval each time).
+- **Do not strip confidence annotations** when summarizing. "(Hypothesis)" is load-bearing - readers learn to trust the parts marked `(Confirmed)` / `(Reported)` more than the parts marked `(Estimated)` / `(Hypothesis)`.
+- **Do not promise updates.** primr is a snapshot tool. If the user asks "will this update when news happens," the answer is no - they'd need to re-run periodically (and that's a fresh estimate + approval each time).

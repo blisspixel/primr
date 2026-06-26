@@ -1,4 +1,4 @@
-# v1.24.0 Cross-Provider Eval — Decision Plan
+# v1.24.0 Cross-Provider Eval - Decision Plan
 
 > **Status:** matrix registered, eval not yet executed.
 > **Author:** Primr maintainer
@@ -9,7 +9,7 @@ This document records the decision criteria for the v1.24.0 cross-provider eval 
 
 The hard goal is one sentence: **the default `primr` command produces an excellent strategic-analysis report for under $1.**
 
-If no candidate clears the bar, v1.24.0 doesn't ship a new default — we keep the current ~$4.27 Grok 4.3 hybrid and document why. "Failed eval" is a valid outcome.
+If no candidate clears the bar, v1.24.0 doesn't ship a new default - we keep the current ~$4.27 Grok 4.3 hybrid and document why. "Failed eval" is a valid outcome.
 
 ---
 
@@ -28,9 +28,9 @@ If no candidate clears the bar, v1.24.0 doesn't ship a new default — we keep t
 | `all-gemini` | Gemini 3.1 Pro | Gemini 3.1 Flash-Lite | Gemini 3 Flash | ~$0.95 | yes |
 | `o4mini-flashlite` | o4-mini | Gemini 3.1 Flash-Lite | Gemini 3 Flash | ~$0.55 | **deferred** |
 
-The expected winner is `grok43-flashlite` — Grok 4.3's $0.20 cached input is the cheapest reasoning rate in the lineup, and Gemini 3.1 Flash-Lite at $0.25/$1.50 is the cheapest Gemini-3-era writer. But the eval is what decides, not the prediction.
+The expected winner is `grok43-flashlite` - Grok 4.3's $0.20 cached input is the cheapest reasoning rate in the lineup, and Gemini 3.1 Flash-Lite at $0.25/$1.50 is the cheapest Gemini-3-era writer. But the eval is what decides, not the prediction.
 
-> **Stage 1 deferral note (2026-05-08):** `o4mini-flashlite` is the only candidate that needs cross-provider *reasoning* (not just writing). primr's reasoning stages currently call `grok_client.grok_llm` directly — an xAI-specific path that doesn't honor the recipe override. Wiring cross-provider reasoning is a larger refactor than v1.24.0 stage 1 should absorb. The slot stays registered; it runs in stage 2 alongside the local cells once the wiring lands. The other 5 candidates use Grok 4.3 for reasoning and only differ in their writing/utility models, which the writing-tier recipe override does cover.
+> **Stage 1 deferral note (2026-05-08):** `o4mini-flashlite` is the only candidate that needs cross-provider *reasoning* (not just writing). primr's reasoning stages currently call `grok_client.grok_llm` directly - an xAI-specific path that doesn't honor the recipe override. Wiring cross-provider reasoning is a larger refactor than v1.24.0 stage 1 should absorb. The slot stays registered; it runs in stage 2 alongside the local cells once the wiring lands. The other 5 candidates use Grok 4.3 for reasoning and only differ in their writing/utility models, which the writing-tier recipe override does cover.
 
 ### 1B. Quality-ceiling reference (over budget, scoring baseline)
 
@@ -48,7 +48,7 @@ Expected to fail the <$1 hard gate. Used as the upper bound for utility-per-doll
 | `local-qwen32b` | Qwen3 32B | Qwen3 32B | Qwen3 7B | $0.00 |
 | `hybrid-grok-local` | Grok 4.3 (cached) | Qwen3.6 35B-A3B | Qwen3 7B | ~$0.30 |
 
-Local cells trivially win utility-per-dollar (cost = 0 means infinity). The binding question is absolute quality — can free match cloud?
+Local cells trivially win utility-per-dollar (cost = 0 means infinity). The binding question is absolute quality - can free match cloud?
 
 > **Scheduling note (May 2026):** the local + hybrid cells are **deferred** from the v1.24.0 deciding eval. The RTX 4090 isn't available during the v1.24.0 window. The cloud cells (groups 1A + 1B) plus the current-default baseline (1D) are sufficient to pick a v1.24.0 default. The local cells remain registered in `eval_profiles.py` and run as `eval-2026-05-r2` when the GPU is free; that incremental run uses the same registered slots and only needs to score the new pairs (this is exactly what the dynamic profile-slot registration was built for). If the local matrix later produces a recipe that beats the v1.24.0 cloud winner, default flips in a v1.24.x patch.
 >
@@ -133,7 +133,7 @@ Local-only candidates ranking:
 - "Vendor relationships." Primr is provider-agnostic. The default is whatever wins the scorecard, not whichever vendor is most strategically convenient.
 - "Number of providers required." A multi-provider winner that needs 3 keys is fine; UX cost of extra setup is separate from the recipe pick.
 - Aesthetic preferences for any specific model family.
-- Pre-eval cost estimates (the numbers in `eval_profiles.py` are directional only — the *measured* cost from the eval run is what counts).
+- Pre-eval cost estimates (the numbers in `eval_profiles.py` are directional only - the *measured* cost from the eval run is what counts).
 
 ---
 
@@ -143,13 +143,13 @@ The corpus must cover diverse signal profiles so a recipe that's good at one sha
 
 | Slot | Profile | Why this profile |
 |---|---|---|
-| 1 | Rich-signal large public | Tests the dense-evidence ceiling — does the recipe make use of abundant data, or compress it? |
+| 1 | Rich-signal large public | Tests the dense-evidence ceiling - does the recipe make use of abundant data, or compress it? |
 | 2 | Mid-signal mid-market private | The default's most common workload. SaaS company with patchy public signal. |
 | 3 | Sparse-signal early-stage | Tests constrained-evidence reasoning. Recipes that hallucinate fail this. |
 | 4 | International / non-US | Different domain, different scrape patterns, different language signals in evidence. |
 | 5 | Government / nonprofit / education | Org-aware link selection should differ from commercial; recipes that assume SaaS structure fail. |
 
-Specific company picks are determined when the eval is set up — they should be:
+Specific company picks are determined when the eval is set up - they should be:
 - Not previously researched in primr (no cache contamination)
 - Publicly accessible (no paywalled or auth-gated content)
 - Stable (no major M&A or restructuring during the eval window)
@@ -163,7 +163,7 @@ Corpus picks are recorded in `output/evals/eval-2026-05-r1/manifest.json` as par
 ### 4A. Pre-flight (cloud eval, eval-2026-05-r1)
 
 1. Verify all four cloud provider keys are set: `XAI_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`.
-2. Run `primr doctor` — confirm "Providers" section lists all four cloud providers.
+2. Run `primr doctor` - confirm "Providers" section lists all four cloud providers.
 3. Confirm `primr eval --eval-id eval-2026-05-r1 --eval-profiles grok43-flashlite ...` accepts the new slot names without error.
 4. **Estimate the budget.** Each cloud slot costs ~$0.55-1.50 per company × 5 companies × 7 cloud slots = ~$25-50 cloud spend.
 
@@ -173,12 +173,12 @@ When the RTX 4090 is free:
 
 1. Verify Ollama is running and the target local models are pulled:
    - `ollama pull qwen3:32b qwen3.6:35b-a3b llama4:scout`
-2. Run `primr doctor --local` — confirms VRAM, Ollama health.
+2. Run `primr doctor --local` - confirms VRAM, Ollama health.
 3. Stage outputs to `output/evals/eval-2026-05-r2/<slot-name>/` and run the scorecard against the v1.24.0 winner only. Incremental scoring; no need to re-run cloud cells.
 
 ### 4B. Generation
 
-1. Run primr against each (slot, company) cell. The pipeline must use the slot's recipe — that wiring is in `pick_model_for_role` (task #5) which is the next step after this eval-design task.
+1. Run primr against each (slot, company) cell. The pipeline must use the slot's recipe - that wiring is in `pick_model_for_role` (task #5) which is the next step after this eval-design task.
 2. Output goes to `output/evals/eval-2026-05-r1/<slot-name>/<Company>_Strategic_Overview_<date>.{md,docx}`.
 3. Track wall-clock latency per cell.
 4. On any failure, retry once. If it fails again, mark the (slot, company) cell as missing and continue. The decision tree handles missing cells as DISQUALIFY for that slot (corpus coverage gate).
@@ -196,8 +196,8 @@ primr eval \
 ```
 
 This produces:
-- `output/evals/eval-2026-05-r1/scorecard.md` — primary deliverable
-- `output/evals/eval-2026-05-r1/scorecard.csv` — for spreadsheet analysis
+- `output/evals/eval-2026-05-r1/scorecard.md` - primary deliverable
+- `output/evals/eval-2026-05-r1/scorecard.csv` - for spreadsheet analysis
 
 Then run the LLM judge:
 
@@ -231,7 +231,7 @@ Google I/O may drop a Gemini 3.2 Flash. If so:
 2. Register the new model as an additional ProfileSlot in `eval_profiles.py`.
 3. Run primr against the eval corpus with the new slot only.
 4. Stage outputs to `output/evals/eval-2026-05-r2/<new-slot-name>/`.
-5. Run the scorecard against the v1.24.0 winner + the new slot only — incremental scoring, not a full re-do (this is what dynamic profile-slot registration unlocks).
+5. Run the scorecard against the v1.24.0 winner + the new slot only - incremental scoring, not a full re-do (this is what dynamic profile-slot registration unlocks).
 6. If the new slot beats the v1.24.0 winner on hard + soft gates, swap defaults in a v1.24.1 patch.
 
 ---
@@ -243,7 +243,7 @@ Google I/O may drop a Gemini 3.2 Flash. If so:
 | No candidate clears hard gates | v1.24.0 ships without a new default. Document why. Keep ~$4.27 default. |
 | Multiple cloud candidates are statistically tied | Pick the one with fewer required API keys (UX win). Document the tie. |
 | Local candidate beats all cloud on quality | Investigate cause. If real, ship a hybrid default (cloud reasoning, local writing) as v1.24.0; document the cost-savings argument explicitly. |
-| Specific company (e.g., sparse-signal) fails uniformly across recipes | The recipe isn't the problem — the pipeline is. Open a separate ROADMAP entry for sparse-signal handling. Pick the default recipe based on the other 4 corpus members. |
+| Specific company (e.g., sparse-signal) fails uniformly across recipes | The recipe isn't the problem - the pipeline is. Open a separate ROADMAP entry for sparse-signal handling. Pick the default recipe based on the other 4 corpus members. |
 | Cache hit rate doesn't materialize as expected | Grok 4.3 cost climbs above $1; `grok43-flashlite` may flip to disqualified. The all-Gemini and o4-mini recipes become more important as fallbacks. Document the cache assumption was wrong; revisit prompt-cache prep work in ROADMAP. |
 | Drift markers regress | Investigate which slot's writing model leaks template instructions. If it's a recipe-specific issue, eliminate that slot. If it's pipeline-wide, separate ROADMAP entry. |
 
@@ -264,6 +264,6 @@ These need answers before generation kicks off:
 
 Eval-driven default decisions are easy to compromise after the fact. "We were close on the trust gate, let's call it a pass." "The vendor we like came in second; the difference isn't statistically meaningful anyway." The pattern is to shift the goalposts to fit the winner you wanted.
 
-Writing the gates down before the run forecloses that. If `grok43-flashlite` doesn't clear the trust gate in actual measurement, it loses — even though I expect it to win. If `local-llama4scout` clears all gates with room to spare, it wins, even though a fully-local default would be a bigger architectural change than I'm planning for v1.24.0.
+Writing the gates down before the run forecloses that. If `grok43-flashlite` doesn't clear the trust gate in actual measurement, it loses - even though I expect it to win. If `local-llama4scout` clears all gates with room to spare, it wins, even though a fully-local default would be a bigger architectural change than I'm planning for v1.24.0.
 
 The point of writing this doc is to be bound by it. Read this back when the scorecard lands.

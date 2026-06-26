@@ -1,4 +1,4 @@
-# Copilot Studio — Primr MCP Integration
+# Copilot Studio - Primr MCP Integration
 
 Create a Copilot Studio agent that uses Primr's research tools via a Power Platform custom connector. This enables conversational company research directly in Microsoft 365 Copilot, Teams, and other Power Platform surfaces.
 
@@ -13,7 +13,7 @@ Create a Copilot Studio agent that uses Primr's research tools via a Power Platf
 
 ## How It Works
 
-Copilot Studio connects to Primr via a Power Platform custom connector created from the OpenAPI spec. The spec includes the `x-ms-agentic-protocol: mcp-streamable-1.0` extension, which tells Copilot Studio that this endpoint speaks MCP — enabling automatic tool discovery.
+Copilot Studio connects to Primr via a Power Platform custom connector created from the OpenAPI spec. The spec includes the `x-ms-agentic-protocol: mcp-streamable-1.0` extension, which tells Copilot Studio that this endpoint speaks MCP - enabling automatic tool discovery.
 
 ```
 Copilot Studio Agent → Custom Connector → https://{primr-fqdn}/mcp → Primr tools
@@ -114,7 +114,7 @@ When a user asks you to research a company:
 2. Call estimate_run to show the expected cost and duration
 3. Wait for the user to confirm before proceeding
 4. Call research_company to submit the research job
-5. Use check_jobs to monitor progress — research takes 35-50 minutes
+5. Use check_jobs to monitor progress - research takes 35-50 minutes
 6. When complete, share the key findings with the user
 
 Important:
@@ -183,6 +183,6 @@ Expected: The agent calls `doctor` and reports system status.
 - OpenAPI spec: [`deploy/azure/openapi.yaml`](../deploy/azure/openapi.yaml)
 - Bicep templates: [`deploy/azure/bicep/`](../deploy/azure/bicep/)
 - Deploy script: [`deploy/azure/deploy.sh`](../deploy/azure/deploy.sh)
-- [Azure Quickstart](AZURE_QUICKSTART.md) — Deploy Primr to Azure
-- [Foundry Agent Guide](FOUNDRY_AGENT_GUIDE.md) — Alternative: connect via Foundry Agent Service
-- [Copilot Cowork Guide](COPILOT_COWORK_GUIDE.md) — Publish this agent to M365 Agent Store
+- [Azure Quickstart](AZURE_QUICKSTART.md) - Deploy Primr to Azure
+- [Foundry Agent Guide](FOUNDRY_AGENT_GUIDE.md) - Alternative: connect via Foundry Agent Service
+- [Copilot Cowork Guide](COPILOT_COWORK_GUIDE.md) - Publish this agent to M365 Agent Store

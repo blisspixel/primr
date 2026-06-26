@@ -4,7 +4,7 @@ primr's built-in strategy types (`ai`, `customer_experience`, `modern_security_c
 
 ## Where to put them
 
-Run `primr keys path` to find the user's config directory. Custom strategies live alongside that file at `<config-dir>/strategies/<your-strategy>.yaml`. The directory is created on first write — `mkdir -p` it if missing.
+Run `primr keys path` to find the user's config directory. Custom strategies live alongside that file at `<config-dir>/strategies/<your-strategy>.yaml`. The directory is created on first write - `mkdir -p` it if missing.
 
 Do not edit the built-in YAMLs in place. They live inside the installed package and get overwritten on `pip install -U primr`.
 
@@ -53,7 +53,7 @@ prompt:
       title: Maturity Assessment
       description: |
         Score the org on the FinOps Foundation maturity model (Crawl/Walk/Run)
-        per capability area. Be hedged — this is from public signals only.
+        per capability area. Be hedged - this is from public signals only.
       min_words: 500
 
     - id: roadmap
@@ -71,10 +71,10 @@ output:
 
 ## Field reference
 
-- **meta.status**: `active` makes the strategy show up in `--list-strategies` and be selectable via `--strategy-type <name>`. `placeholder` keeps the file in the repo but hides it from the runtime — use this for drafts.
+- **meta.status**: `active` makes the strategy show up in `--list-strategies` and be selectable via `--strategy-type <name>`. `placeholder` keeps the file in the repo but hides it from the runtime - use this for drafts.
 - **meta.cli_description**: keep under 80 characters. The `--list-strategies` table truncates after that.
 - **inputs**: declares what the strategy expects. `corpus` and `external_sources` are produced by primr's pipeline; the strategy will receive them as text. `hypotheses` (if requested) comes from research memory.
-- **prompt.system**: the system prompt used when generating sections. Keep it stylistic — voice, audience, evidence rules. Don't put the section content here.
+- **prompt.system**: the system prompt used when generating sections. Keep it stylistic - voice, audience, evidence rules. Don't put the section content here.
 - **prompt.sections**: ordered list. Each section is a separate LLM call (parallelized when independent). `id` is used internally; `title` is the rendered heading; `description` is the per-section instruction; `min_words` is a soft target the writer aims for.
 - **output.filename_template**: supports `{company_slug}` (kebab-case company name), `{date}` (MM-DD-YYYY), and `{strategy_name}` (the file's stem).
 - **output.also_render**: list of additional formats. `docx` is the most common; `pdf` is supported on installs with the optional `[pdf]` extra.
@@ -95,7 +95,7 @@ The dry run validates the YAML, reports estimated cost (with the strategy's sect
 - One strategy = one deliverable. Don't try to combine FinOps + security + AI into one file; that produces 80-page reports nobody reads.
 - 4-7 sections is the sweet spot. Fewer feels thin, more dilutes signal.
 - Make at least one section explicitly *evidence* and at least one explicitly *recommendation*. Don't blur them into "analysis."
-- Build the prompt to encourage hedging. primr reports always say "appears to," "suggests," "consistent with" — your custom strategy should match that voice.
+- Build the prompt to encourage hedging. primr reports always say "appears to," "suggests," "consistent with" - your custom strategy should match that voice.
 - Test against a known company first. Pick someone you actually understand and check whether the output reads like an expert. If it reads like generic content marketing, tighten the section descriptions.
 
 ## When to ship it back

@@ -577,6 +577,32 @@ Validation status:
 
 Spend: `$0.00`.
 
+## 2026-06-26 README and Docs Front Door Refresh
+
+The documentation front door is now clearer and less overloaded.
+
+Current state:
+
+- `README.md` is a short entry point for purpose, installation, cost-aware first
+  run, common commands, evidence streams, outputs, configuration, agent entry
+  point, development gates, and the docs map.
+- Detailed mode, cost, strategy, platform, budget, output, and sample-run
+  material lives in `docs/RUN_MODES.md`.
+- MCP, A2A, host snippets, packaged skills, credential boundaries, and async
+  monitoring guidance live in `docs/AGENT_INTEGRATION.md`.
+- `docs/README.md` and `mkdocs.yml` include both new pages.
+- Tracked documentation and guidance files have no em dash characters, no
+  scanned emoji/symbol phase markers, and no scanned generated-attribution
+  phrase matches.
+
+Validation status:
+
+- MkDocs build passes with only existing non-strict link warnings.
+- Architecture/release integrity and brand-leak tests pass.
+- Diff whitespace check passes.
+
+Spend: `$0.00`.
+
 ## 2026-06-26 curl_cffi Validated-IP Pinning
 
 The curl_cffi scraper tier now closes its DNS-rebind check/connect split.

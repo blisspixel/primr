@@ -187,3 +187,13 @@
   TLS fingerprint impersonation, Host, and SNI semantics. Disable
   `trust_env` so environment proxies cannot replace the locally pinned
   connection path.
+
+## Documentation Front Door
+
+- Keep the root README as an entry point, not the full manual. It should answer
+  what the project is, how to install, what the first safe command is, what it
+  costs, where outputs go, and where deeper docs live.
+- Move long mode matrices, integration setup, subsystem internals, and advanced
+  workflows into focused docs that appear in `docs/README.md` and `mkdocs.yml`.
+- Run style scans for em dashes, emoji-like symbols, and generated-attribution
+  phrases before committing documentation refreshes.

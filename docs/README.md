@@ -17,6 +17,7 @@ understanding.
 |----------|-------------|
 | [API_KEYS](API_KEYS.md) | API key setup, security, and troubleshooting |
 | [CONFIG](CONFIG.md) | First-run configuration and the full settings reference |
+| [RUN_MODES](RUN_MODES.md) | Run modes, costs, strategy selection, and output locations |
 | [AZURE_QUICKSTART](AZURE_QUICKSTART.md) | Stand up the team/org Azure deployment end to end |
 
 ## How-to guides (task-oriented)
@@ -29,6 +30,7 @@ understanding.
 | [SKILL_PACK](SKILL_PACK.md) | `primr skills` end to end: planning, curation, artifacts, CLI/MCP |
 | [EVAL](EVAL.md) | Evaluate and compare models with the eval harness |
 | [MODEL_ONBOARDING](MODEL_ONBOARDING.md) | Register and validate a new model |
+| [AGENT_INTEGRATION](AGENT_INTEGRATION.md) | Operate Primr from MCP, A2A, skills, and agent hosts |
 | [OPENCLAW](OPENCLAW.md) | OpenClaw integration and governed workflows |
 | [COPILOT_COWORK_GUIDE](COPILOT_COWORK_GUIDE.md) | Sideload a skill pack into Microsoft 365 Copilot Cowork |
 | [COPILOT_STUDIO_GUIDE](COPILOT_STUDIO_GUIDE.md) | Use primr from Copilot Studio |

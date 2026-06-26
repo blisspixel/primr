@@ -1,12 +1,12 @@
 # Model Onboarding
 
-How to add a new model to primr — Grok, Gemini, Claude, OpenAI, or any future
-provider — without breaking the cost estimator, the pipeline circuit breakers,
+How to add a new model to primr - Grok, Gemini, Claude, OpenAI, or any future
+provider - without breaking the cost estimator, the pipeline circuit breakers,
 or the eval harness.
 
 The single source of truth for every model is `src/primr/config/models.py`.
-Everything downstream — pricing, fallback chains, dry-run estimates, eval
-profiles, doctor checks — derives from that file. If you only update one place,
+Everything downstream - pricing, fallback chains, dry-run estimates, eval
+profiles, doctor checks - derives from that file. If you only update one place,
 update the registry there and let the rest follow.
 
 This playbook is intentionally short. Each step is a checkbox you should be
@@ -38,26 +38,26 @@ curl "https://generativelanguage.googleapis.com/v1beta/models?key=$GEMINI_API_KE
 Capture: model ID string, context window, max output tokens, multimodal
 support, whether reasoning is always-on, and whether tiered or cached pricing
 is published. If pricing isn't surfaced via the API, take it from the
-provider's official docs page — never from third-party comparison sites.
+provider's official docs page - never from third-party comparison sites.
 
 ### 2. Register the model in `ModelRegistry`
 
 Add a `ModelConfig` entry alongside the existing siblings in
 `src/primr/config/models.py`. Required fields:
 
-- `name` — exact API ID returned by step 1
-- `display_name` — human-friendly label used in dry-run output
-- `provider` — `xai` / `google` / `anthropic` / `openai`
-- `cost_per_1m_input_tokens`, `cost_per_1m_output_tokens` — base pricing
+- `name` - exact API ID returned by step 1
+- `display_name` - human-friendly label used in dry-run output
+- `provider` - `xai` / `google` / `anthropic` / `openai`
+- `cost_per_1m_input_tokens`, `cost_per_1m_output_tokens` - base pricing
 - `max_input_tokens`, `max_output_tokens`
 - `supports_thinking`, `supports_tools`, `supports_multimodal`
 
-Optional fields (use them when the provider publishes them — leave `None`
+Optional fields (use them when the provider publishes them - leave `None`
 otherwise):
 
 - `cost_per_1m_input_tokens_high`, `cost_per_1m_output_tokens_high`,
-  `tier_threshold_tokens` — tiered pricing above a context threshold
-- `cost_per_1m_input_tokens_cached` — discount rate for prompt-cache hits
+  `tier_threshold_tokens` - tiered pricing above a context threshold
+- `cost_per_1m_input_tokens_cached` - discount rate for prompt-cache hits
 
 Add the new entry to `PrimrModels.ALL_MODELS` in the same file so
 `get_model_config`, `get_price`, and `calculate_cost` can find it.
@@ -65,7 +65,7 @@ Add the new entry to `PrimrModels.ALL_MODELS` in the same file so
 If the new model is meant to **replace** an existing default, add a new
 constant (e.g. `GROK_MODEL_43`) but keep the old constant
 (`GROK_MODEL_420`) as a back-compat alias pointing at the legacy registration.
-Don't delete the old registration — in-flight runs and resumed jobs read the
+Don't delete the old registration - in-flight runs and resumed jobs read the
 old model ID from `_run_state.json`.
 
 ### 3. Wire the model into the pipeline
@@ -73,13 +73,13 @@ old model ID from `_run_state.json`.
 Find every place the old model name is referenced and decide whether the new
 model should replace it. The three routing surfaces are:
 
-- `PrimrModels.get_grok_models(tier)` — returns `(reasoning_model, writing_model)`
+- `PrimrModels.get_grok_models(tier)` - returns `(reasoning_model, writing_model)`
   for `GrokTier.FAST` / `HYBRID` / `MAX`. Update this if the new model belongs
   in one of those tiers.
 - `src/primr/pipeline/model_breaker.py::ANALYSIS_FALLBACK_CHAIN` (and
-  `PREMIUM_FALLBACK_CHAIN`) — ordered tuples used by the model circuit breaker.
+  `PREMIUM_FALLBACK_CHAIN`) - ordered tuples used by the model circuit breaker.
   Newer flagships go at the front, older flagships drop to the next position.
-- **Utility-tier audit** — `src/primr/ai/llm.py::_get_model_for_type` resolves
+- **Utility-tier audit** - `src/primr/ai/llm.py::_get_model_for_type` resolves
   utility-tier calls (scraping summaries, link selection, generic "fast"
   tasks) based on which provider key is set. When you onboard a new
   flagship for the analysis tier, ask whether the new provider also has a
@@ -87,7 +87,7 @@ model should replace it. The three routing surfaces are:
   different provider. A standard pipeline that requires keys from multiple
   providers is fragile: a hang on the cheap utility call stalls the whole
   run even when the flagship is healthy. The April 2026 Grok 4.3 onboarding
-  surfaced exactly this — a stalled Gemini Flash link-selection call hung
+  surfaced exactly this - a stalled Gemini Flash link-selection call hung
   the rerun until utility-tier dispatch was rewired to use Grok 4.1 NR
   (cheaper than Gemini Flash anyway).
 
@@ -98,7 +98,7 @@ grep -rn "grok-4\.20\|GROK_MODEL_420" src/ tests/ docs/
 ```
 
 Decide for each hit whether it should switch. For test fixtures that just
-need *a* registered model, leave them alone — they're testing breaker logic,
+need *a* registered model, leave them alone - they're testing breaker logic,
 not naming conventions.
 
 ### 4. Add validation tests
@@ -140,7 +140,7 @@ primr "Acme Corp" https://acme.com --grok-tier max --output-dir eval_corpus/max
 primr eval --eval-root eval_corpus
 ```
 
-Decision criteria — write these down before you look at the scorecard:
+Decision criteria - write these down before you look at the scorecard:
 
 - Utility-per-dollar must be ≥ the current default
 - Hallucination rate (judge overlay) must be ≤ the current default
@@ -148,7 +148,7 @@ Decision criteria — write these down before you look at the scorecard:
 
 Only flip the default in step 3 (or `PrimrModels.GROK_MODEL_43` etc.) once
 those criteria pass. If they don't, leave the new model registered but not
-default — the eval result is the artifact, the model stays available behind
+default - the eval result is the artifact, the model stays available behind
 an explicit flag for users who want to opt in.
 
 ---
@@ -177,7 +177,7 @@ message schema. Onboarding is mostly registry edits, no new client class:
    /`"ollama"`/etc. and add the entry to `ALL_MODELS`.
 4. **Add a routing branch** in `primr.ai.routing.get_provider_for_model`
    that maps the new provider name to the right singleton accessor.
-5. **Decide role policy** in `pick_model_for_role` — should the utility
+5. **Decide role policy** in `pick_model_for_role` - should the utility
    tier prefer the new provider over Grok/Gemini when its key is set?
    This is where multi-provider preference order lives.
 
@@ -192,7 +192,7 @@ top-level, `cache_control` blocks, etc.). It needs its own provider class.
 2. **Implement `chat()`** to return a `ChatResponse`. Pass through
    provider-specific kwargs (`cache_control`, `extended_thinking_budget`)
    via `**provider_kwargs`. Don't try to flatten them into a generic
-   shape — the abstraction is intentionally permissive.
+   shape - the abstraction is intentionally permissive.
 3. **Raise `QuotaExhausted`** for daily-limit errors so callers can add
    UI without reaching into provider internals.
 4. **Wire into the registry** the same way as Case A: a `ProviderEntry`,
@@ -212,7 +212,7 @@ interface):
 - `is_available()` reports whether the env key is set
 - Per-model usage accounting via `get_usage_by_model()`
 
-Not normalized — passed through as `**provider_kwargs`, providers ignore
+Not normalized - passed through as `**provider_kwargs`, providers ignore
 what they don't recognize:
 
 - Gemini `thinking_level` (low/high)
@@ -230,11 +230,11 @@ care get a clean, uniform interface.
 When the default changes, update these in the same PR so the docs stay
 coherent with the code:
 
-- `README.md` — modes table cost figures, headline cost in the lede
-- `CLAUDE.md` — Quick Start cost line, agent-facing cost guidance
-- `ROADMAP.md` — strike through the "evaluate new model" entry, add a
+- `README.md` - modes table cost figures, headline cost in the lede
+- `CLAUDE.md` - Quick Start cost line, agent-facing cost guidance
+- `ROADMAP.md` - strike through the "evaluate new model" entry, add a
   `Changelog` line
-- `docs/ARCHITECTURE.md` — model-pricing table if present
+- `docs/ARCHITECTURE.md` - model-pricing table if present
 
 ---
 
@@ -244,28 +244,28 @@ xAI released `grok-4.3` on 2026-04-30 with always-on reasoning, $1.25/$2.50
 pricing, $0.20 cached input, 1M context, multimodal input. No `-fast` or
 non-reasoning variant.
 
-**Step 1 — verify**: `GET https://api.x.ai/v1/models` confirmed the API ID is
+**Step 1 - verify**: `GET https://api.x.ai/v1/models` confirmed the API ID is
 literally `grok-4.3`. The list contained no `grok-4.3-fast` or
 `grok-4.3-non-reasoning`, validating the always-on-reasoning claim.
 
-**Step 2 — register**: Added `GROK_4_3 = ModelConfig(...)` in
+**Step 2 - register**: Added `GROK_4_3 = ModelConfig(...)` in
 `src/primr/config/models.py`, including `cost_per_1m_input_tokens_cached=0.20`
 and a placeholder high-tier (>200k) at 2× base until xAI publishes confirmed
 rates. Added to `ALL_MODELS`. New constant `GROK_MODEL_43` introduced;
 `GROK_MODEL_420` kept as legacy alias.
 
-**Step 3 — wire**: `get_grok_models()` updated so `HYBRID = (4.3, 4.1-NR)` and
+**Step 3 - wire**: `get_grok_models()` updated so `HYBRID = (4.3, 4.1-NR)` and
 `MAX = (4.3, 4.3)`. `FAST` stays on 4.1. `ANALYSIS_FALLBACK_CHAIN` reordered
 to `(4.3 → 4.20 → 4.1 → Flash)`. Cost-estimator labels updated from
 "Grok 4.20 hybrid/max" to "Grok 4.3 hybrid/max".
 
-**Step 4 — tests**: `test_cost_estimator.py` got six new assertions
+**Step 4 - tests**: `test_cost_estimator.py` got six new assertions
 (`test_grok_43_pricing`, `_tiered_pricing`, `_always_on_reasoning`,
 `_in_all_models`, `_cache_discount`, plus updated tier-routing and
 cost-range tests). Existing 4.20 tests rewritten to assert legacy behavior
 (still registered, still works) rather than current default.
 
-**Step 5 — eval**: Pending. Default flipped to 4.3 on vendor recommendation +
+**Step 5 - eval**: Pending. Default flipped to 4.3 on vendor recommendation +
 mechanical wiring; eval sweep is the next ROADMAP item before treating the
 flip as confirmed. If the eval shows regression, revert the
 `get_grok_models()` change and leave the registration in place.
