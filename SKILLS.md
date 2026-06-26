@@ -187,6 +187,14 @@
   TLS fingerprint impersonation, Host, and SNI semantics. Disable
   `trust_env` so environment proxies cannot replace the locally pinned
   connection path.
+- For Chromium-backed browser tiers, preserve the logical URL and pass the
+  vetted initial-host address through `--host-resolver-rules`. Do not reuse a
+  cross-host shared browser process when a resolver rule is active because the
+  mapping is process launch state. Where Playwright-compatible routing exists,
+  install the route guard before page creation, block service workers, abort
+  unsafe HTTP(S) requests before continuation, and fail closed if validation
+  raises. Do not claim dynamic browser redirect-host IP pinning until a local
+  egress proxy or CDP controller owns post-launch host mapping.
 
 ## Documentation Front Door
 

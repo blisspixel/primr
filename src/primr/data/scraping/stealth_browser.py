@@ -31,6 +31,12 @@ from urllib.parse import urlparse
 
 from primr.config.config import PROJECT_ROOT
 
+from .browser_egress import (
+    BrowserEgressPlan,
+    browser_launch_args,
+    install_playwright_egress_guard,
+    plan_browser_egress,
+)
 from .headed_budget import (
     remaining_headed_budget,
     try_consume_headed_budget,
@@ -47,7 +53,7 @@ BROWSER_PROFILE_ROOT = Path(PROJECT_ROOT) / "logs" / "browser_profiles"
 # Settings that meaningfully reduce detection vs default Chromium launch.
 # Window position / size keeps the fallback popup out of the user's way when
 # it does launch. Chromium still steals focus on launch (OS-level), which we
-# can't fully suppress — but it sits in the corner instead of center-screen.
+# can't fully suppress, but it sits in the corner instead of center-screen.
 STEALTH_LAUNCH_ARGS = [
     "--disable-blink-features=AutomationControlled",
     "--no-first-run",
@@ -78,7 +84,7 @@ def _force_small_window_prefs(profile_dir: Path) -> None:
 
     We edit the prefs file in place before each launch to force a small,
     out-of-the-way window. This only touches ``browser.window_placement``
-    and ``profile.exit_type`` — cookies, storage, and Kasada clearance
+    and ``profile.exit_type``. Cookies, storage, and Kasada clearance
     cookies remain intact.
     """
     import json
@@ -232,7 +238,7 @@ def _ensure_patchright_browser() -> bool:
 
         with sync_playwright() as p:
             # executable_path resolves to the bundled browser binary; if it's
-            # missing patchright raises on launch — but checking without
+            # missing patchright raises on launch, but checking without
             # launching is the cheapest probe.
             browser_path = p.chromium.executable_path
             if browser_path and os.path.exists(browser_path):
@@ -284,9 +290,9 @@ def _looks_like_challenge_shell(html: str) -> bool:
     """Detect when Patchright returned a pure Kasada bootstrap page.
 
     The raw initial response from a Kasada site contains only KPSDK script
-    tags and an iframe shell — typically <2KB. A successfully cleared page
+    tags and an iframe shell, typically <2KB. A successfully cleared page
     still contains the KPSDK script tags (Kasada keeps monitoring) but also
-    has the full document tree with real content — typically 50KB+.
+    has the full document tree with real content, typically 50KB+.
     """
     if not html:
         return True
@@ -311,6 +317,7 @@ def _run_patchright(
     timeout: float,
     headless: bool,
     host: str,
+    egress_plan: BrowserEgressPlan | None,
     on_progress=None,
 ) -> tuple[str | None, str | None, int | None]:
     """Run a single Patchright fetch. Returns (html, body_text, status)."""
@@ -318,6 +325,7 @@ def _run_patchright(
 
     profile_dir = _profile_dir_for_host(host)
     timeout_ms = int(timeout * 1000)
+    launch_args = browser_launch_args(STEALTH_LAUNCH_ARGS, egress_plan)
 
     # For headed launches, overwrite the profile's saved window size so Chrome
     # doesn't pop up a near-maximized window stealing the primary monitor.
@@ -335,13 +343,15 @@ def _run_patchright(
                         user_data_dir=str(profile_dir),
                         channel=channel,
                         headless=headless,
-                        args=list(STEALTH_LAUNCH_ARGS),
+                        args=launch_args,
+                        service_workers="block",
                     )
                 else:
                     ctx = p.chromium.launch_persistent_context(
                         user_data_dir=str(profile_dir),
                         headless=headless,
-                        args=list(STEALTH_LAUNCH_ARGS),
+                        args=launch_args,
+                        service_workers="block",
                     )
                 logger.debug(
                     "Patchright launched with channel=%s headless=%s",
@@ -396,6 +406,7 @@ def _run_patchright(
                 except Exception as cdp_err:
                     logger.debug("CDP resize/minimize failed (non-fatal): %s", cdp_err)
 
+            install_playwright_egress_guard(ctx, "patchright")
             page = ctx.new_page()
             response = page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
             status = response.status if response else None
@@ -414,7 +425,7 @@ def _run_patchright(
                 safe_final, reason = True, None
             if not safe_final:
                 logger.info(
-                    "patchright: dropped %s — final URL %s blocked (%s)",
+                    "patchright: dropped %s - final URL %s blocked (%s)",
                     url,
                     page.url,
                     reason,
@@ -467,38 +478,32 @@ def scrape_with_patchright(
             url=url,
             success=False,
             error_type=ErrorType.NETWORK_ERROR,
-            error="patchright not installed — reinstall primr to pull it as a dependency",
+            error="patchright not installed - reinstall primr to pull it as a dependency",
             tier="patchright",
             elapsed_ms=0,
         )
 
-    # SSRF guard: scraping is reached from research jobs whose company_url
-    # was validated upstream, but discovered links and fallback fan-outs
-    # can route arbitrary URLs into the scraper. Refuse loopback / RFC1918
-    # / link-local / cloud metadata destinations before launching a browser.
-    from primr.utils.security import is_safe_url
-
-    safe, ssrf_reason = is_safe_url(url)
-    if not safe:
-        logger.info("patchright: blocked %s (%s)", url, ssrf_reason)
+    egress_plan, egress_error = plan_browser_egress(url)
+    if egress_error:
+        logger.info("patchright: blocked %s (%s)", url, egress_error)
         return ScrapeResult(
             url=url,
             success=False,
             error_type=ErrorType.SOFT_BLOCK,
-            error=f"URL blocked by SSRF guard: {ssrf_reason}",
+            error=f"URL blocked by SSRF guard: {egress_error}",
             tier="patchright",
             elapsed_ms=0,
             attempts=[
                 Attempt(
                     tier="patchright",
                     success=False,
-                    error=f"ssrf blocked: {ssrf_reason}",
+                    error=f"ssrf blocked: {egress_error}",
                     error_type=ErrorType.SOFT_BLOCK,
                 )
             ],
         )
 
-    # Short-circuit low-value URLs BEFORE spending any stealth-browser time.
+    # Short-circuit low-value URLs before spending any stealth-browser time.
     # Privacy pages, TOS, review aggregators, social profiles, etc. aren't
     # worth the popup cost even when Kasada blocks them. Fall through the
     # orchestrator instead.
@@ -540,7 +545,11 @@ def scrape_with_patchright(
     attempt_start = time.time()
     try:
         html, body_text, status = _run_patchright(
-            url, timeout=min(timeout, 45.0), headless=True, host=host
+            url,
+            timeout=min(timeout, 45.0),
+            headless=True,
+            host=host,
+            egress_plan=egress_plan,
         )
     except Exception as e:
         html, body_text, status = None, None, None
@@ -623,7 +632,7 @@ def scrape_with_patchright(
             )
         )
         logger.info(
-            "Skipping headed Patchright for %s — popup budget exhausted for this run",
+            "Skipping headed Patchright for %s - popup budget exhausted for this run",
             host,
         )
         return ScrapeResult(
@@ -641,15 +650,21 @@ def scrape_with_patchright(
 
         remaining = remaining_headed_budget()
         console.warn(
-            f"Headless stealth blocked — opening visible browser briefly "
+            f"Headless stealth blocked - opening visible browser briefly "
             f"({remaining} popup{'s' if remaining != 1 else ''} remaining this run)"
         )
     except Exception:
-        logger.info("Headless blocked — falling back to headed Patchright")
+        logger.info("Headless blocked - falling back to headed Patchright")
 
     attempt_start = time.time()
     try:
-        html, body_text, status = _run_patchright(url, timeout=timeout, headless=False, host=host)
+        html, body_text, status = _run_patchright(
+            url,
+            timeout=timeout,
+            headless=False,
+            host=host,
+            egress_plan=egress_plan,
+        )
     except Exception as e:
         attempts.append(
             Attempt(

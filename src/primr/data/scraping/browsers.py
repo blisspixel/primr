@@ -14,14 +14,18 @@ import time
 from abc import ABC, abstractmethod
 from urllib.parse import urlparse
 
-from primr.ai.genai_factory import default_genai_http_options
-
+from .browser_egress import (
+    BrowserEgressPlan,
+    browser_launch_args,
+    install_playwright_egress_guard,
+    plan_browser_egress,
+)
+from .chromium_config import BROWSER_LAUNCH_ARGS
 from .config import (
     DEFAULT_TIMEOUT_DRISSION,
     DEFAULT_TIMEOUT_DRISSION_STEALTH,
     DEFAULT_TIMEOUT_PLAYWRIGHT,
     DEFAULT_TIMEOUT_PLAYWRIGHT_AGGRESSIVE,
-    DEFAULT_TIMEOUT_VISION,
     PLAYWRIGHT_LAZY_SCROLL_MAX_STEPS,
     PLAYWRIGHT_LAZY_SCROLL_PAUSE_MS,
     PLAYWRIGHT_LAZY_SCROLL_SETTLE_ROUNDS,
@@ -34,6 +38,7 @@ from .profiles import (
     get_random_context_profile,
     get_stealth_script,
 )
+from .vision_browser import scrape_with_vision
 
 logger = logging.getLogger(__name__)
 
@@ -60,52 +65,6 @@ def _resolve_headless(headless: bool | None) -> bool:
     if os.getenv("PRIMR_BROWSER_HEADED", "").strip().lower() in {"1", "true", "yes"}:
         return False
     return True if headless is None else headless
-
-
-# =============================================================================
-# Shared Browser Launch Args
-# =============================================================================
-
-_SANDBOX_OPT_OUT = os.getenv("PRIMR_DISABLE_CHROMIUM_SANDBOX", "").strip().lower() in {
-    "1",
-    "true",
-    "yes",
-}
-
-# Primr renders arbitrary third-party company websites — i.e. attacker-
-# controlled JavaScript. The Chromium sandbox is the primary containment
-# boundary for renderer compromise, so the previous unconditional
-# --no-sandbox / --disable-setuid-sandbox flags removed our last line of
-# defense and were a regression. Sandbox is now ON by default and only
-# disabled when an operator explicitly opts in via
-# PRIMR_DISABLE_CHROMIUM_SANDBOX=1 (containers that genuinely cannot run
-# the SUID sandbox should set it knowingly, not by default).
-_SANDBOX_ARGS = ["--no-sandbox", "--disable-setuid-sandbox"] if _SANDBOX_OPT_OUT else []
-
-BROWSER_LAUNCH_ARGS = [
-    "--disable-blink-features=AutomationControlled",
-    "--disable-http2",
-    *_SANDBOX_ARGS,
-    "--disable-dev-shm-usage",
-    "--disable-infobars",
-    "--disable-background-networking",
-    "--disable-breakpad",
-    "--disable-component-update",
-    "--disable-domain-reliability",
-    "--disable-features=AudioServiceOutOfProcess,IsolateOrigins,site-per-process",
-    "--disable-hang-monitor",
-    "--disable-ipc-flooding-protection",
-    "--disable-popup-blocking",
-    "--disable-prompt-on-repost",
-    "--disable-renderer-backgrounding",
-    "--disable-sync",
-    "--force-color-profile=srgb",
-    "--metrics-recording-only",
-    "--no-first-run",
-    "--password-store=basic",
-    "--use-mock-keychain",
-    "--export-tagged-pdf",
-]
 
 
 # =============================================================================
@@ -200,6 +159,7 @@ class SharedBrowser:
             timezone_id=timezone_id,
             user_agent=user_agent,
             java_script_enabled=True,
+            service_workers="block",
             extra_http_headers={"Accept-Language": accept_language},
         )
         if stealth_script:
@@ -439,6 +399,8 @@ class PlaywrightSession(BrowserSession):
         reusable: bool = False,
         persistent_context: bool | None = None,
         context_host: str | None = None,
+        egress_plan: BrowserEgressPlan | None = None,
+        tier_name: str = "playwright",
     ):
         self._profile = profile or get_random_context_profile()
         self._headless = _resolve_headless(headless)
@@ -447,6 +409,9 @@ class PlaywrightSession(BrowserSession):
             _use_persistent_browser_context() if persistent_context is None else persistent_context
         )
         self._context_host = context_host
+        self._egress_plan = egress_plan
+        self._tier_name = tier_name
+        self._launch_args = browser_launch_args(BROWSER_LAUNCH_ARGS, egress_plan)
         self._browser = None
         self._context = None
         self._page = None
@@ -461,10 +426,13 @@ class PlaywrightSession(BrowserSession):
         try:
             self._owns_browser = False
             self._playwright = None
+            use_shared_browser = _can_use_shared_browser() and not (
+                self._egress_plan and self._egress_plan.launch_arg
+            )
 
             # Playwright sync API objects are thread-affine.
             # In worker threads, use an isolated browser instance per session.
-            if _can_use_shared_browser():
+            if use_shared_browser:
                 shared = SharedBrowser.get()
                 self._browser = shared.get_browser(headless=self._headless)
             else:
@@ -473,7 +441,7 @@ class PlaywrightSession(BrowserSession):
                 self._playwright = sync_playwright().start()
                 self._browser = self._playwright.chromium.launch(
                     headless=self._headless,
-                    args=BROWSER_LAUNCH_ARGS,
+                    args=self._launch_args,
                 )
                 self._owns_browser = True
 
@@ -488,7 +456,7 @@ class PlaywrightSession(BrowserSession):
                 platform_name=platform.system(),
             )
 
-            if self._persistent_context and _can_use_shared_browser() and self._context_host:
+            if self._persistent_context and use_shared_browser and self._context_host:
                 shared = SharedBrowser.get()
                 self._context = shared.get_context(
                     self._context_host,
@@ -505,8 +473,8 @@ class PlaywrightSession(BrowserSession):
                 )
             else:
                 # Create context with profile settings. bypass_csp /
-                # ignore_https_errors removed: see _SANDBOX_OPT_OUT comment
-                # — Primr scrapes untrusted sites and should not weaken
+                # ignore_https_errors removed: see chromium_config.
+                # Primr scrapes untrusted sites and should not weaken
                 # CSP or TLS validation by default.
                 self._context = self._browser.new_context(
                     viewport={
@@ -517,11 +485,13 @@ class PlaywrightSession(BrowserSession):
                     timezone_id=self._profile.timezone,
                     user_agent=http_profile.user_agent,
                     java_script_enabled=True,
+                    service_workers="block",
                     extra_http_headers={"Accept-Language": http_profile.accept_language},
                 )
                 if stealth_script:
                     self._context.add_init_script(stealth_script)
 
+            install_playwright_egress_guard(self._context, self._tier_name)
             self._page = self._context.new_page()
 
         except ImportError as e:
@@ -741,9 +711,11 @@ class DrissionPageSession(BrowserSession):
         self,
         profile: BrowserContextProfile | None = None,
         headless: bool = True,
+        egress_plan: BrowserEgressPlan | None = None,
     ):
         self._profile = profile or get_random_context_profile()
         self._headless = headless
+        self._egress_plan = egress_plan
         self._page = None
         self._original_url = None
 
@@ -766,6 +738,9 @@ class DrissionPageSession(BrowserSession):
             # Set timezone
             if self._profile.timezone:
                 options.set_argument(f"--timezone={self._profile.timezone}")
+
+            if self._egress_plan and self._egress_plan.launch_arg:
+                options.set_argument(self._egress_plan.launch_arg)
 
             self._page = ChromiumPage(options)
 
@@ -1024,6 +999,19 @@ def _scrape_with_playwright_impl(
     """Internal implementation of Playwright scraping - uses shared browser."""
     start_time = time.time()
     tier_name = "playwright"
+    egress_plan, egress_error = plan_browser_egress(url)
+    if egress_error:
+        return ScrapeResult(
+            url=url,
+            success=False,
+            error_type=ErrorType.NETWORK_ERROR,
+            error=f"Invalid URL: {egress_error}",
+            tier=tier_name,
+            elapsed_ms=0,
+            attempts=[],
+        )
+
+    launch_args = browser_launch_args(BROWSER_LAUNCH_ARGS, egress_plan)
     host = extract_host(url)
     headless = _resolve_headless(headless)
     browser = None
@@ -1039,7 +1027,7 @@ def _scrape_with_playwright_impl(
         # Playwright sync API objects are thread-affine.
         # Reuse shared browser only on main thread; workers use isolated instances.
         try:
-            if _can_use_shared_browser():
+            if _can_use_shared_browser() and not (egress_plan and egress_plan.launch_arg):
                 shared = SharedBrowser.get()
                 browser = shared.get_browser(headless=headless)
                 _using_shared = True
@@ -1049,11 +1037,11 @@ def _scrape_with_playwright_impl(
                 _fresh_pw = sync_playwright().start()
                 browser = _fresh_pw.chromium.launch(
                     headless=headless,
-                    args=BROWSER_LAUNCH_ARGS,
+                    args=launch_args,
                 )
                 _using_shared = False
         except ImportError:
-            raise  # Playwright not installed — let outer handler catch it
+            raise  # Playwright not installed; let outer handler catch it
         except Exception:
             logger.debug("SharedBrowser unavailable, launching fresh browser")
             from playwright.sync_api import sync_playwright
@@ -1061,7 +1049,7 @@ def _scrape_with_playwright_impl(
             _fresh_pw = sync_playwright().start()
             browser = _fresh_pw.chromium.launch(
                 headless=headless,
-                args=BROWSER_LAUNCH_ARGS,
+                args=launch_args,
             )
 
         http_profile = get_browser_compatible_http_profile(
@@ -1092,8 +1080,8 @@ def _scrape_with_playwright_impl(
             )
             _using_persistent_context = True
         else:
-            # bypass_csp / ignore_https_errors deliberately not set —
-            # see _SANDBOX_OPT_OUT comment at the top of the module.
+            # bypass_csp / ignore_https_errors deliberately not set:
+            # see chromium_config.
             context = browser.new_context(
                 viewport={
                     "width": ctx_profile.viewport_width,
@@ -1103,11 +1091,13 @@ def _scrape_with_playwright_impl(
                 timezone_id=ctx_profile.timezone,
                 user_agent=http_profile.user_agent,
                 java_script_enabled=True,
+                service_workers="block",
                 extra_http_headers={"Accept-Language": http_profile.accept_language},
             )
             if stealth_script:
                 context.add_init_script(stealth_script)
 
+        install_playwright_egress_guard(context, tier_name)
         page = context.new_page()
 
         # Navigate
@@ -1115,7 +1105,7 @@ def _scrape_with_playwright_impl(
         page.goto(url, timeout=timeout_ms, wait_until="domcontentloaded")
 
         # Wait for JS frameworks (React, Vue, Visual Composer) to hydrate.
-        # networkidle fires when no network requests for 500ms — ideal for
+        # networkidle fires when no network requests for 500ms, ideal for
         # SPA/page-builder sites that fetch data after DOMContentLoaded.
         # Best-effort with whatever time remains in the tier budget (min 2s).
         elapsed_so_far_ms = (time.time() - start_time) * 1000
@@ -1123,7 +1113,7 @@ def _scrape_with_playwright_impl(
         try:
             page.wait_for_load_state("networkidle", timeout=idle_budget_ms)
         except TimeoutError:
-            pass  # Timeout is expected — some sites never reach idle
+            pass  # Timeout is expected because some sites never reach idle
         except Exception as e:
             logger.debug(
                 "Unexpected error waiting for networkidle on %s: %s",
@@ -1285,6 +1275,18 @@ def scrape_with_playwright_aggressive(
         )
 
     url = normalized_url
+    egress_plan, egress_error = plan_browser_egress(url)
+    if egress_error:
+        return ScrapeResult(
+            url=url,
+            success=False,
+            error_type=ErrorType.NETWORK_ERROR,
+            error=f"Invalid URL: {egress_error}",
+            tier="playwright_aggressive",
+            elapsed_ms=0,
+            attempts=[],
+        )
+
     start_time = time.time()
     tier_name = "playwright_aggressive"
     session = None
@@ -1294,6 +1296,8 @@ def scrape_with_playwright_aggressive(
             profile=profile,
             headless=headless,
             context_host=extract_host(url),
+            egress_plan=egress_plan,
+            tier_name=tier_name,
         )
 
         # Navigate
@@ -1450,12 +1454,24 @@ def scrape_with_drissionpage(
         )
 
     url = normalized_url
+    egress_plan, egress_error = plan_browser_egress(url)
+    if egress_error:
+        return ScrapeResult(
+            url=url,
+            success=False,
+            error_type=ErrorType.NETWORK_ERROR,
+            error=f"Invalid URL: {egress_error}",
+            tier="drissionpage",
+            elapsed_ms=0,
+            attempts=[],
+        )
+
     start_time = time.time()
     tier_name = "drissionpage"
     session = None
 
     try:
-        session = DrissionPageSession(profile=profile, headless=headless)
+        session = DrissionPageSession(profile=profile, headless=headless, egress_plan=egress_plan)
 
         # Navigate
         timeout_ms = int(timeout * 1000)
@@ -1611,6 +1627,18 @@ def scrape_with_drissionpage_stealth(
         )
 
     url = normalized_url
+    egress_plan, egress_error = plan_browser_egress(url)
+    if egress_error:
+        return ScrapeResult(
+            url=url,
+            success=False,
+            error_type=ErrorType.NETWORK_ERROR,
+            error=f"Invalid URL: {egress_error}",
+            tier="drissionpage_stealth",
+            elapsed_ms=0,
+            attempts=[],
+        )
+
     tier_name = "drissionpage_stealth"
     start_time = time.time()
 
@@ -1625,7 +1653,11 @@ def scrape_with_drissionpage_stealth(
     def _do_scrape():
         session = None
         try:
-            session = DrissionPageSession(profile=profile, headless=headless)
+            session = DrissionPageSession(
+                profile=profile,
+                headless=headless,
+                egress_plan=egress_plan,
+            )
 
             # Navigate with timeout budget
             timeout_ms = int(timeout * 1000)
@@ -1813,214 +1845,6 @@ def scrape_with_drissionpage_stealth(
                     )
                 ],
             )
-
-
-def scrape_with_vision(
-    url: str,
-    timeout: float = DEFAULT_TIMEOUT_VISION,
-) -> ScrapeResult:
-    """
-    Scrape URL using vision model (screenshot + LLM extraction).
-
-    Tier 6: Vision fallback for image-heavy or heavily protected sites.
-    Takes a screenshot and uses Gemini to extract text content.
-
-    This is the nuclear option - costs ~$0.01-0.02 per page but works on
-    almost anything that renders in a browser.
-
-    Args:
-        url: URL to scrape
-        timeout: Timeout in seconds
-
-    Returns:
-        ScrapeResult with extracted_text from vision, raw_content=screenshot bytes
-    """
-    from primr.utils.validators import validate_url_for_request
-
-    # SSRF protection
-    is_valid, normalized_url, error = validate_url_for_request(url)
-    if not is_valid:
-        return ScrapeResult(
-            url=url,
-            success=False,
-            error_type=ErrorType.NETWORK_ERROR,
-            error=f"Invalid URL: {error}",
-            tier="vision",
-            elapsed_ms=0,
-            attempts=[],
-        )
-
-    url = normalized_url
-    tier_name = "vision"
-    start_time = time.time()
-
-    try:
-        import base64
-
-        from google import genai
-        from playwright.sync_api import sync_playwright
-
-        from primr.config.settings import get_settings
-
-        settings = get_settings()
-
-        # Check if we have Gemini API key
-        if not settings.api.gemini_key:
-            return ScrapeResult(
-                url=url,
-                success=False,
-                error_type=ErrorType.NETWORK_ERROR,
-                error="Vision tier requires GEMINI_API_KEY",
-                tier=tier_name,
-                attempts=[],
-            )
-
-        with sync_playwright() as p:
-            # Sandbox stays on unless PRIMR_DISABLE_CHROMIUM_SANDBOX=1
-            # is set — see _SANDBOX_OPT_OUT comment at the top of the
-            # module. Same rationale as the main scraper: vision tier
-            # renders attacker-controlled JS too.
-            browser = p.chromium.launch(
-                headless=True,
-                args=[
-                    "--disable-blink-features=AutomationControlled",
-                    "--disable-http2",
-                    *_SANDBOX_ARGS,
-                    "--disable-dev-shm-usage",
-                ],
-            )
-
-            from .profiles import get_stealth_script
-
-            context = browser.new_context(
-                viewport={"width": 1280, "height": 1024},
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-            )
-
-            # Apply stealth patches
-            stealth_script = get_stealth_script()
-            if stealth_script:
-                context.add_init_script(stealth_script)
-            page = context.new_page()
-
-            # Navigate and wait for content
-            page.goto(url, timeout=int(timeout * 1000), wait_until="networkidle")
-            page.wait_for_timeout(2000)  # Extra wait for JS rendering
-
-            # SSRF protection: Validate final URL after redirects
-            final_url = page.url
-            from primr.utils.security import validate_final_url_after_redirect
-
-            is_safe, ssrf_error = validate_final_url_after_redirect(final_url)
-            if not is_safe:
-                page.close()
-                context.close()
-                browser.close()
-                elapsed_ms = (time.time() - start_time) * 1000
-                return ScrapeResult(
-                    url=url,
-                    success=False,
-                    error_type=ErrorType.NETWORK_ERROR,
-                    error=f"Redirect SSRF blocked: {ssrf_error}",
-                    tier=tier_name,
-                    elapsed_ms=elapsed_ms,
-                    attempts=[
-                        Attempt(
-                            tier=tier_name,
-                            success=False,
-                            error=f"Redirect SSRF: {ssrf_error}",
-                            elapsed_ms=elapsed_ms,
-                        )
-                    ],
-                )
-
-            # Scroll to load lazy content
-            page.evaluate("window.scrollTo(0, document.body.scrollHeight / 2)")
-            page.wait_for_timeout(1000)
-
-            # Take full page screenshot
-            screenshot_bytes = page.screenshot(full_page=True, type="png")
-
-            browser.close()
-
-        # Use Gemini to extract text from screenshot
-        client = genai.Client(
-            api_key=settings.api.gemini_key, http_options=default_genai_http_options()
-        )
-
-        # Encode screenshot as base64
-        screenshot_b64 = base64.b64encode(screenshot_bytes).decode("utf-8")
-
-        prompt = """Extract all readable text content from this webpage screenshot.
-Focus on:
-- Main headings and titles
-- Body text and paragraphs
-- Key facts, numbers, and statistics
-- Product/service descriptions
-- Company information
-
-Ignore:
-- Navigation menus
-- Footer links
-- Cookie banners
-- Advertisements
-
-Return the extracted text in a clean, readable format with proper paragraph breaks."""
-
-        response = client.models.generate_content(
-            model=settings.ai.flash_model,
-            contents=[
-                {"text": prompt},
-                {"inline_data": {"mime_type": "image/png", "data": screenshot_b64}},
-            ],
-        )
-
-        extracted_text = response.text.strip() if response.text else ""
-        elapsed_ms = (time.time() - start_time) * 1000
-
-        if not extracted_text or len(extracted_text) < 100:
-            return ScrapeResult(
-                url=url,
-                success=False,
-                error_type=ErrorType.EMPTY_CONTENT,
-                error="Vision extraction returned insufficient content",
-                tier=tier_name,
-                raw_content=screenshot_bytes,
-                elapsed_ms=elapsed_ms,
-                attempts=[
-                    Attempt(
-                        tier=tier_name,
-                        success=False,
-                        error="Insufficient content",
-                        elapsed_ms=elapsed_ms,
-                    )
-                ],
-            )
-
-        return ScrapeResult(
-            url=url,
-            success=True,
-            raw_content=screenshot_bytes,
-            extracted_text=extracted_text,
-            tier=tier_name,
-            content_type="vision_text",
-            http_status=200,
-            elapsed_ms=elapsed_ms,
-            attempts=[Attempt(tier=tier_name, success=True, elapsed_ms=elapsed_ms)],
-        )
-
-    except Exception as e:
-        elapsed_ms = (time.time() - start_time) * 1000
-        logger.debug(f"Vision tier failed for {url}: {e}")
-        return ScrapeResult(
-            url=url,
-            success=False,
-            error_type=ErrorType.NETWORK_ERROR,
-            error=str(e),
-            tier=tier_name,
-            elapsed_ms=elapsed_ms,
-            attempts=[Attempt(tier=tier_name, success=False, error=str(e), elapsed_ms=elapsed_ms)],
-        )
 
 
 # =============================================================================

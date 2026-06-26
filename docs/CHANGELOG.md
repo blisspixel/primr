@@ -61,6 +61,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   URL for Host/SNI/TLS impersonation behavior, disables environment proxy
   trust, and preserves manual redirect validation plus raw-content result
   semantics.
+- Chromium-backed browser tiers now derive a browser egress plan from the
+  validated connection artifact. Playwright, Playwright aggressive, vision, and
+  Patchright launch with Chromium host-resolver rules for the validated initial
+  hostname, block service workers where supported, and abort unsafe browser
+  requests through a Playwright-compatible route guard. DrissionPage receives
+  the same initial-host resolver pin through Chromium startup args.
 
 ### Changed
 

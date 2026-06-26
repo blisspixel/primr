@@ -62,7 +62,18 @@ are architectural and worth a dedicated, well-tested cycle.
   once, passes the vetted address to libcurl with `CurlOpt.RESOLVE`, disables
   environment proxy trust, and keeps the logical URL so TLS impersonation,
   Host, SNI, cookies, redirects, and final URL reporting stay intact.
-  **Remaining:** add equivalent IP pinning to browser-backed fetch seams.
+  **Also done:** browser-backed Chromium seams now derive a browser egress plan
+  from `resolve_safe_url_for_connect()`. Playwright, Playwright aggressive,
+  vision, and Patchright launch Chromium with `--host-resolver-rules` for the
+  validated initial hostname, block service workers where the Playwright API
+  supports it, and install a route guard that aborts unsafe browser requests
+  before continuing them. DrissionPage receives the same initial-host Chromium
+  resolver pin.
+  **Remaining:** browser engines cannot add new Chromium host-resolver rules
+  after launch, so public redirect hosts and public subresource hosts discovered
+  after navigation are still checked by the route guard but not IP-pinned. A
+  fully equivalent browser solution would need a local egress proxy or a deeper
+  CDP fetch controller design.
 
 ## Flaky: cross-directory test pollution hits a browser import test
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
@@ -21,7 +22,7 @@ class PinnedHTTPAdapter(HTTPAdapter):
         self,
         request: PreparedRequest,
         verify: bool | str | None,
-        proxies: dict[str, str] | None = None,
+        proxies: Mapping[str, str] | None = None,
         cert: tuple[str, str] | str | None = None,
     ) -> HTTPConnectionPool:
         """Return a pool for the validated IP while preserving Host and SNI."""
@@ -36,7 +37,8 @@ class PinnedHTTPAdapter(HTTPAdapter):
         if resolution is None:
             raise ValueError(f"SSRF protection: {guard_error or 'URL blocked'}")
 
-        _, pool_kwargs = self.build_connection_pool_key_attributes(request, verify, cert)
+        _, raw_pool_kwargs = self.build_connection_pool_key_attributes(request, verify, cert)
+        pool_kwargs: dict[str, Any] = dict(raw_pool_kwargs)
         parsed_request_url = urlparse(resolution.request_url)
         scheme = parsed_request_url.scheme.lower()
         host = parsed_request_url.hostname

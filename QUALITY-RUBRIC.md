@@ -24,6 +24,29 @@ Use this rubric for every loop cycle before marking work done. A category scores
 
 ## Current Cycle Score
 
+2026-06-26 browser-backed initial-host DNS pinning:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: browser-backed Chromium tiers now derive a browser egress plan from
+the central validated connection artifact. Playwright, Playwright aggressive,
+vision, and Patchright launch with an initial-host Chromium resolver pin and a
+Playwright-compatible request route guard that aborts unsafe browser requests
+before continuing them. DrissionPage receives the initial-host resolver pin
+through Chromium startup args. The route guard fails closed if validation
+raises. The vision tier was split out of `browsers.py`, lowering the file below
+its architecture ceiling and ratcheting that ceiling down. Focused browser,
+SSRF, egress, pinned-requests, and HTTP-client tests pass; Ruff, format check,
+mypy, Bandit, pip-audit, MkDocs build, diff hygiene, touched-file style scans,
+and the CI-shaped coverage gate pass. Coverage: 85.26% branch. Spend: `$0.00`.
+
 2026-06-26 requests-family DNS-rebind IP pinning:
 
 | Category | Score |

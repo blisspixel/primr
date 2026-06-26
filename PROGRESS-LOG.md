@@ -2,6 +2,81 @@
 
 ## 2026-06-26
 
+### Loop cycle: Browser-backed initial-host DNS pinning
+
+Refresh: re-read ROADMAP, NOTES, `docs/SECURITY.md`,
+`docs/ARCHITECTURE.md`, browser-backed scraping tiers, the central URL security
+primitive, browser tests, current-state, and the quality rubric. Checked current
+browser API behavior against primary docs for Chromium host-resolver rules and
+Playwright request routing.
+
+Prioritize: selected browser-backed egress because safe HTTP, citation HEAD,
+httpx, requests-family, and curl_cffi pinning had already shipped. Browser
+tiers needed a transport-specific answer that preserves logical URLs and
+browser challenge behavior instead of forcing IP-literal navigation.
+
+Implemented:
+
+- Added `data.scraping.browser_egress` as the browser-specific translation
+  seam around `resolve_safe_url_for_connect()`.
+- Built Chromium `--host-resolver-rules` launch args for hostname URLs while
+  keeping IP-literal URLs as no-op resolver plans.
+- Playwright, Playwright aggressive, vision, and Patchright now launch with the
+  initial-host resolver pin, block service workers where the API supports it,
+  and install a Playwright-compatible route guard before page creation.
+- The route guard validates browser HTTP(S) requests before continuation,
+  aborts unsafe internal/cloud-metadata destinations, permits non-HTTP browser
+  schemes, and fails closed if validation raises.
+- Resolver-pinned Playwright sessions bypass the shared cross-host browser
+  process because Chromium resolver rules are process launch state.
+- DrissionPage sessions pass the same initial-host resolver pin through
+  Chromium startup args.
+- Updated NOTES, ROADMAP, `docs/SECURITY.md`, `docs/ARCHITECTURE.md`,
+  `docs/CHANGELOG.md`, current-state, the quality rubric, and SKILLS.
+
+Validation:
+
+- `pytest tests/test_data/test_scraping/test_browser_egress.py tests/test_data/test_scraping/test_browsers.py -q`
+  passed with 46 tests and 1 existing Google GenAI deprecation warning.
+- `ruff check src/primr/data/scraping/browser_egress.py src/primr/data/scraping/browsers.py src/primr/data/scraping/stealth_browser.py tests/test_data/test_scraping/test_browser_egress.py tests/test_data/test_scraping/test_browsers.py`
+  passed.
+- `ruff format --check src/primr/data/scraping/browser_egress.py src/primr/data/scraping/browsers.py src/primr/data/scraping/stealth_browser.py tests/test_data/test_scraping/test_browser_egress.py tests/test_data/test_scraping/test_browsers.py`
+  passed.
+- Splitting the vision tier lowered `data/scraping/browsers.py` from 2132
+  lines to 1860 lines, and the architecture ceiling was ratcheted down to
+  match.
+- `pytest tests/security/test_ssrf.py tests/security/test_egress_guardrails.py tests/test_data/test_scraping/test_browser_egress.py tests/test_data/test_scraping/test_browsers.py tests/test_data/test_pinned_requests.py tests/test_data/test_http_client.py tests/test_architecture.py tests/test_release_integrity.py -q`
+  passed with 141 tests and 2 skipped.
+- `ruff check src tests` passed.
+- `ruff format --check src tests` passed.
+- `mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude "src/primr/api/"`
+  passed.
+- `bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q`
+  passed with the existing `mcp_server/security.py` B108 nosec warnings.
+- `uv run --no-sync pip-audit --ignore-vuln PYSEC-2026-196` passed.
+- `uv run --no-project --with mkdocs-material --with pymdown-extensions mkdocs build --site-dir _site`
+  passed with the repo's existing non-strict docs link warnings; `_site` was
+  removed afterward.
+- The CI-shaped non-manual coverage gate passed with `10261 passed, 39
+  skipped, 5 deselected` and 85.26% branch coverage.
+- `git diff --check` passed.
+- Touched-file em dash scan passed.
+
+Maker-checker review:
+
+- Maker: the change keeps the browser tiers in place and translates the shared
+  validated connection artifact into browser-native controls.
+- Checker 1, security/performance: initial hostnames connect through Chromium's
+  validated resolver mapping, Playwright-compatible contexts fail closed on
+  unsafe route requests, and no paid validation was used. Residual risk remains
+  for public redirect/subresource hosts discovered after browser launch because
+  Chromium resolver rules are not dynamic.
+- Checker 2, maintainability/simplicity: one small helper owns browser egress
+  planning and route behavior; call sites only opt into launch args and guard
+  installation.
+
+Spend: `$0.00`.
+
 ### Loop cycle: Requests-family DNS-rebind IP pinning
 
 Refresh: re-read README, ROADMAP, `CLAUDE.md`,

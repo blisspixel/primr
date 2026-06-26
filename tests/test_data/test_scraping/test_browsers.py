@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from primr.data.scraping.browser_egress import BrowserEgressPlan
 from primr.data.scraping.browsers import (
     BROWSER_TIERS,
     CLICK_DENYLIST,
@@ -320,6 +321,54 @@ class TestPlaywrightBrowserMode:
         mock_page.close.assert_called_once()
         mock_context.close.assert_not_called()
 
+    def test_playwright_session_with_dns_pin_launches_isolated_browser(self):
+        """Resolver-pinned sessions must not reuse a cross-host browser process."""
+        plan = BrowserEgressPlan(
+            url="https://example.com",
+            hostname="example.com",
+            resolved_ip="93.184.216.34",
+            resolver_rule="MAP example.com 93.184.216.34",
+            launch_arg="--host-resolver-rules=MAP example.com 93.184.216.34",
+        )
+        mock_page = MagicMock()
+        mock_context = MagicMock()
+        mock_context.new_page.return_value = mock_page
+        mock_browser = MagicMock()
+        mock_browser.version = "123"
+        mock_browser.new_context.return_value = mock_context
+        mock_playwright = MagicMock()
+        mock_playwright.chromium.launch.return_value = mock_browser
+        sync_module = MagicMock()
+        sync_module.sync_playwright.return_value.start.return_value = mock_playwright
+        http_profile = MagicMock(user_agent="ua", accept_language="en-US")
+
+        with (
+            patch.dict(
+                sys.modules,
+                {
+                    "playwright": MagicMock(),
+                    "playwright.sync_api": sync_module,
+                },
+            ),
+            patch("primr.data.scraping.browsers._can_use_shared_browser", return_value=True),
+            patch("primr.data.scraping.browsers.SharedBrowser.get") as shared_get,
+            patch(
+                "primr.data.scraping.browsers.get_browser_compatible_http_profile",
+                return_value=http_profile,
+            ),
+            patch("primr.data.scraping.browsers.get_stealth_script", return_value=None),
+        ):
+            session = PlaywrightSession(egress_plan=plan)
+            try:
+                launch_args = mock_playwright.chromium.launch.call_args.kwargs["args"]
+                assert "--host-resolver-rules=MAP example.com 93.184.216.34" in launch_args
+                shared_get.assert_not_called()
+                mock_context.route.assert_called_once()
+            finally:
+                session.close()
+
+        mock_browser.close.assert_called_once()
+
 
 class TestScrapeWithPlaywrightAggressive:
     """Tests for scrape_with_playwright_aggressive function."""
@@ -372,6 +421,54 @@ class TestScrapeWithDrissionpage:
 
         assert result.success is False
         assert "drissionpage" in result.error.lower() or "not installed" in result.error.lower()
+
+    def test_drission_session_adds_dns_pin_launch_arg(self):
+        """DrissionPage sessions should pass resolver pins to Chromium."""
+        from primr.data.scraping.browsers import DrissionPageSession
+
+        plan = BrowserEgressPlan(
+            url="https://example.com",
+            hostname="example.com",
+            resolved_ip="93.184.216.34",
+            resolver_rule="MAP example.com 93.184.216.34",
+            launch_arg="--host-resolver-rules=MAP example.com 93.184.216.34",
+        )
+        options_seen = []
+
+        class FakeChromiumOptions:
+            def __init__(self):
+                self.args = []
+                options_seen.append(self)
+
+            def headless(self):
+                self.args.append("headless")
+
+            def set_argument(self, value):
+                self.args.append(value)
+
+        class FakeChromiumPage:
+            def __init__(self, options):
+                self.options = options
+
+            def run_cdp(self, *_args, **_kwargs):
+                return None
+
+            def quit(self):
+                return None
+
+        drission_module = MagicMock()
+        drission_module.ChromiumOptions = FakeChromiumOptions
+        drission_module.ChromiumPage = FakeChromiumPage
+
+        with (
+            patch.dict(sys.modules, {"DrissionPage": drission_module}),
+            patch("primr.data.scraping.browsers.get_stealth_script", return_value=None),
+        ):
+            session = DrissionPageSession(egress_plan=plan)
+            session.close()
+
+        assert options_seen
+        assert "--host-resolver-rules=MAP example.com 93.184.216.34" in options_seen[-1].args
 
 
 class TestScrapeWithDrissionpageStealth:

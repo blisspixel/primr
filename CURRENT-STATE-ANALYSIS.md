@@ -156,6 +156,44 @@ and the CI-shaped coverage gate (`10249 passed, 39 skipped, 5 deselected`,
 vertical-slice test mock still targeting module-level `requests.get`; it was
 updated to the pinned `requests.Session.get` seam and the full gate passed.
 
+## 2026-06-26 SSRF Slice: Browser-Backed Initial-Host Pinning
+
+Shipped in this slice:
+
+- Added `data.scraping.browser_egress`, a focused browser translation layer
+  around `resolve_safe_url_for_connect()`.
+- Chromium-backed browser tiers now preserve the logical URL while mapping the
+  initial hostname to the validated IP through `--host-resolver-rules`.
+- Playwright, Playwright aggressive, vision, and Patchright contexts block
+  service workers where the Playwright-compatible API supports it and install a
+  route guard that aborts unsafe browser requests before continuing them.
+- DrissionPage sessions receive the same initial-host resolver pin through
+  Chromium startup arguments.
+- Regression tests cover resolver-rule formatting, IPv6 bracket handling,
+  IP-literal no-op behavior, route continuation, unsafe aborts, fail-closed
+  route errors, Playwright shared-browser bypass for pinned sessions, and
+  DrissionPage launch-arg propagation.
+
+Current estimate:
+
+- DNS-rebind IP pinning is complete for safe HTTP, citation HEAD, tiered httpx,
+  pooled `HTTPClient`, tiered requests, curl_cffi, and the initial hostname of
+  Chromium-backed browser tiers.
+- Browser route guards now block unsafe browser redirect/subresource requests
+  before continuation where Playwright-compatible routing is available.
+- Remaining DNS-rebind hardening: browser-discovered public redirect hosts and
+  public subresource hosts cannot receive new Chromium host-resolver mappings
+  after launch. A fully equivalent browser answer needs a local egress proxy or
+  deeper CDP fetch controller design.
+
+Spend: `$0.00`. Validation passed: browser egress tests, browser tier tests,
+SSRF and egress-guardrail tests, pinned requests and HTTP client tests,
+architecture/release-integrity tests, Ruff, format check, mypy, Bandit,
+pip-audit, MkDocs build, diff hygiene, touched-file style scans, and the
+CI-shaped coverage gate (`10261 passed, 39 skipped, 5 deselected`, 85.26%
+branch coverage). `data/scraping/browsers.py` was split below its architecture
+ceiling, and the ceiling was ratcheted down from 2036 to 1860 lines.
+
 ## 2026-06-26 Control Plane Slice: MCP Runtime Budget Enforcement
 
 Shipped in this slice:

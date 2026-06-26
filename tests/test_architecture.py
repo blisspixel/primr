@@ -1,4 +1,4 @@
-"""Architectural fitness functions — enforce the anti-slop rules in CLAUDE.md.
+"""Architectural fitness functions: enforce the anti-slop rules in CLAUDE.md.
 
 These are deterministic, zero-network gates that fail CI when the codebase
 drifts away from its stated conventions. They are intentionally cheap and
@@ -10,10 +10,10 @@ Two rules enforced here:
    ceiling. New files must stay under ``NEW_FILE_MAX_LINES``; the existing
    large files are pinned at their current size in ``FILE_LINE_CEILINGS`` and
    may not exceed it. The fix for a failure is to *split the file*, not to bump
-   the ceiling — ceilings only ever ratchet **down** (and a deliberate
+   the ceiling; ceilings only ever ratchet **down** (and a deliberate
    reduction when a file shrinks is welcome).
 
-2. **One JSON library.** stdlib ``json`` only — no orjson/ujson/simplejson
+2. **One JSON library.** stdlib ``json`` only; no orjson/ujson/simplejson
    creeping in as a "faster" second way.
 
 See CLAUDE.md ("Use the one seam") and ROADMAP → Engineering Standards.
@@ -33,14 +33,14 @@ NEW_FILE_MAX_LINES = 1000
 
 # Rise-only ceilings for files that already exceed NEW_FILE_MAX_LINES. Pinned
 # at their measured size (via str.splitlines) at the time this gate landed.
-# A file here that grows past its ceiling fails the build — split it instead.
+# A file here that grows past its ceiling fails the build. Split it instead.
 # When a file is split and shrinks, lower its ceiling (or drop it once under
 # NEW_FILE_MAX_LINES). Never raise a ceiling to make a growing file pass.
 FILE_LINE_CEILINGS: dict[str, int] = {
     "core/research_agent.py": 5180,
     "core/cli.py": 3849,
     "ai/deep_research.py": 3892,
-    "data/scraping/browsers.py": 2036,
+    "data/scraping/browsers.py": 1860,
     "data/hiring_signals.py": 1909,
     "core/model_eval.py": 1846,
     "data/scrape.py": 1838,
@@ -90,16 +90,16 @@ def test_ceiling_list_has_no_stale_entries():
     for rel, ceiling in FILE_LINE_CEILINGS.items():
         path = SRC_ROOT / rel
         if not path.exists():
-            stale.append(f"{rel}: pinned but no longer exists — remove it.")
+            stale.append(f"{rel}: pinned but no longer exists; remove it.")
             continue
         lines = _line_count(path)
         if lines <= NEW_FILE_MAX_LINES:
             stale.append(
-                f"{rel}: now {lines} lines (<= {NEW_FILE_MAX_LINES}) — drop it from the dict."
+                f"{rel}: now {lines} lines (<= {NEW_FILE_MAX_LINES}); drop it from the dict."
             )
         elif lines < ceiling:
             stale.append(
-                f"{rel}: now {lines} lines, ceiling is {ceiling} — lower the ceiling to {lines}."
+                f"{rel}: now {lines} lines, ceiling is {ceiling}; lower the ceiling to {lines}."
             )
     assert not stale, "Stale ratchet entries (tighten them):\n" + "\n".join(stale)
 
@@ -111,7 +111,7 @@ _FORBIDDEN_JSON_IMPORT = re.compile(
 
 
 def test_single_json_library():
-    """stdlib json only — no second JSON library sneaking in as a 'faster' way."""
+    """stdlib json only; no second JSON library sneaking in as a 'faster' way."""
     offenders: list[str] = []
     for path in _src_py_files():
         if _FORBIDDEN_JSON_IMPORT.search(path.read_text(encoding="utf-8")):
