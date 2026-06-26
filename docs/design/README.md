@@ -1,6 +1,6 @@
 # Design Docs
 
-Breakdown documents for the [Version Plan](../../ROADMAP.md#version-plan-1x--20--30)
+Breakdown documents for the [Version Plan](https://github.com/blisspixel/primr/blob/main/ROADMAP.md#version-plan-1x--20--30)
 workstreams. The ROADMAP owns *what and in which order*; these docs own *how
 and why* at one level more detail. Keep them in lockstep: when a workstream's
 scope changes, update both.

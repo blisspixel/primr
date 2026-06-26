@@ -180,9 +180,9 @@ Expected: The agent calls `doctor` and reports system status.
 
 ## Reference
 
-- OpenAPI spec: [`deploy/azure/openapi.yaml`](../deploy/azure/openapi.yaml)
-- Bicep templates: [`deploy/azure/bicep/`](../deploy/azure/bicep/)
-- Deploy script: [`deploy/azure/deploy.sh`](../deploy/azure/deploy.sh)
+- OpenAPI spec: [`deploy/azure/openapi.yaml`](https://github.com/blisspixel/primr/blob/main/deploy/azure/openapi.yaml)
+- Bicep templates: [`deploy/azure/bicep/`](https://github.com/blisspixel/primr/tree/main/deploy/azure/bicep)
+- Deploy script: [`deploy/azure/deploy.sh`](https://github.com/blisspixel/primr/blob/main/deploy/azure/deploy.sh)
 - [Azure Quickstart](AZURE_QUICKSTART.md) - Deploy Primr to Azure
 - [Foundry Agent Guide](FOUNDRY_AGENT_GUIDE.md) - Alternative: connect via Foundry Agent Service
 - [Copilot Cowork Guide](COPILOT_COWORK_GUIDE.md) - Publish this agent to M365 Agent Store

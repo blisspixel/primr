@@ -66,6 +66,32 @@ This makes the next best local slice the MCP runtime budget propagation fix,
 not a new provider integration or paid eval. It closes a documented HIGH
 control-plane gap with deterministic code and local tests.
 
+## 2026-06-26 Docs Slice: Strict Documentation Build
+
+Shipped in this slice:
+
+- `mkdocs.yml` now enables `strict: true`, and the GitHub Pages workflow runs
+  `mkdocs build --strict`.
+- The previously orphaned `EVAL_V1_24_0.md`,
+  `design/1x-completion.md`, and `design/2.0-agent-control-plane.md` pages are
+  included in the curated nav.
+- Deep docs links that pointed outside `docs_dir` now use stable GitHub URLs
+  for root files and deploy assets.
+- ROADMAP, changelog, current-state, the quality rubric, and SKILLS record the
+  strict-docs invariant.
+
+Current estimate:
+
+- README and docs-site front-door cleanup is complete enough to fail fast on
+  link and nav drift.
+- Remaining docs-site enhancements are now optional platform improvements:
+  generated API reference via `mkdocstrings` and optional versioned docs.
+
+Spend: `$0.00`. Validation passed: relative root/deploy link scan, strict
+MkDocs build, architecture/release-integrity tests, Ruff, format check, diff
+hygiene, and style scans for em dashes, common emoji markers, and generated
+attribution phrases.
+
 ## 2026-06-26 SSRF Slice: Safe HTTP DNS-Rebind Pinning
 
 Shipped in this slice:

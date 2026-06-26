@@ -61,7 +61,8 @@ python -m pytest tests/ --cov=src/primr --cov-report=html
 ### Code Quality
 
 Before submitting a PR, ensure your code passes all checks (CI gates on all of
-these - see the [Engineering Standards & Toolchain](../ROADMAP.md#engineering-standards--toolchain)
+these - see the
+[Engineering Standards & Toolchain](https://github.com/blisspixel/primr/blob/main/ROADMAP.md#engineering-standards--toolchain)
 section of the ROADMAP for the full standards):
 
 ```bash
@@ -89,8 +90,10 @@ uv run pre-commit install
 
 The canonical development contract - the single seams to use, the
 no-new-giant-file rule, the verify-current-APIs rule, the CLI verb convention,
-and the pre-PR slop check - lives in [`CLAUDE.md`](../CLAUDE.md) at the repo
-root. Claude Code loads it automatically; for other tools, read it directly.
+and the pre-PR slop check - lives in
+[`CLAUDE.md`](https://github.com/blisspixel/primr/blob/main/CLAUDE.md) at the
+repo root. Claude Code loads it automatically; for other tools, read it
+directly.
 The essentials:
 
 - Follow PEP 8 guidelines

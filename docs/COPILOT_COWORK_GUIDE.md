@@ -137,5 +137,5 @@ I need a strategic analysis of ExampleCo
 - [Azure Quickstart](AZURE_QUICKSTART.md) - Deploy Primr to Azure
 - [Copilot Studio Guide](COPILOT_STUDIO_GUIDE.md) - Create the Copilot Studio agent (prerequisite)
 - [Foundry Agent Guide](FOUNDRY_AGENT_GUIDE.md) - Alternative: connect via Foundry Agent Service
-- OpenAPI spec: [`deploy/azure/openapi.yaml`](../deploy/azure/openapi.yaml)
-- Bicep templates: [`deploy/azure/bicep/`](../deploy/azure/bicep/)
+- OpenAPI spec: [`deploy/azure/openapi.yaml`](https://github.com/blisspixel/primr/blob/main/deploy/azure/openapi.yaml)
+- Bicep templates: [`deploy/azure/bicep/`](https://github.com/blisspixel/primr/tree/main/deploy/azure/bicep)

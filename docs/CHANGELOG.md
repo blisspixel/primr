@@ -79,6 +79,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mode, cost, agent-integration, and skill-pack details now link to focused docs
   so first-time users can install, estimate, and run without wading through
   advanced integration material.
+- The MkDocs site now builds in strict mode locally and in the GitHub Pages
+  workflow. Remaining root/deploy cross-links use stable GitHub URLs, and the
+  previously orphaned eval and design docs are included in the curated nav.
 - Raised the `requests` dependency floor to `>=2.34.0` because the
   DNS-rebind pinning adapter depends on the current Requests transport-adapter
   TLS hook.
@@ -1507,7 +1510,9 @@ After an n=3 paired-comparison pilot (rich/mid/sparse signal density, blind LLM 
 
 ## [1.16.0] - 2026-03-23
 
-This release consolidates all work from v1.7.0 through v1.16.0. See [ROADMAP.md](../ROADMAP.md) for the detailed changelog.
+This release consolidates all work from v1.7.0 through v1.16.0. See
+[ROADMAP.md](https://github.com/blisspixel/primr/blob/main/ROADMAP.md) for the
+detailed changelog.
 
 ### Added
 - **A2A Protocol Integration** - Agent-to-agent communication with AgentCard, executor, client, hooks, and 165 dedicated tests

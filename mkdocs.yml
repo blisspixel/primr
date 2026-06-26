@@ -7,6 +7,7 @@ edit_uri: edit/main/docs/
 copyright: Copyright &copy; 2025-2026 Nick Seal - Apache License 2.0
 
 docs_dir: docs
+strict: true
 
 theme:
   name: material
@@ -81,6 +82,7 @@ nav:
   - Reference:
       - MCP & A2A API: API.md
       - Strategy portfolio: STRATEGY_PORTFOLIO.md
+      - Eval v1.24 decision log: EVAL_V1_24_0.md
       - Changelog: CHANGELOG.md
       - Migration notes: MIGRATION.md
   - Explanation:
@@ -92,6 +94,7 @@ nav:
       - Security policy: SECURITY.md
   - Design notes:
       - Overview: design/README.md
+      - "1.x completion": design/1x-completion.md
       - Agentic balance: design/agentic-balance.md
       - Open Knowledge Format: design/open-knowledge-format.md
       - Engineering excellence: design/engineering-excellence.md
@@ -99,6 +102,7 @@ nav:
       - Eval plan: design/eval-plan.md
       - Provider expansion: design/provider-expansion.md
       - Orchestrator refactor map: design/23-orchestrator-refactor-map.md
+      - "2.0: agent control plane": design/2.0-agent-control-plane.md
       - "2.0: backend freedom": design/2.0-backend-freedom.md
       - "2.0: research memory": design/2.0-research-memory.md
       - "3.0: research frontier": design/3.0-research-frontier.md

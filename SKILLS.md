@@ -1,5 +1,12 @@
 # Engineering Learnings
 
+## Documentation Hygiene
+
+- Treat MkDocs strict mode as the docs drift gate once the site has a curated
+  nav. Keep root-level files and deploy assets linked with stable GitHub URLs
+  rather than relative paths outside `docs_dir`, and include intentional docs in
+  the nav instead of leaving orphaned pages to warning-only builds.
+
 ## MCP Control Plane
 
 - Enforce MCP authorization at the central `call_tool` dispatch boundary, before

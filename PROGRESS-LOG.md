@@ -2,6 +2,53 @@
 
 ## 2026-06-26
 
+### Loop cycle: Strict documentation build
+
+Refresh: re-read README, ROADMAP, `CLAUDE.md`, `NOTES.md`, current-state,
+recent progress, the docs workflow, `mkdocs.yml`, and the docs pages reported
+by the previous non-strict MkDocs build. Checked the approach against current
+MkDocs strict-build guidance and Diataxis-style navigation practice.
+
+Prioritize: selected the docs strictness follow-up because the README/docs
+front-door cleanup had already shipped, but the site still tolerated broken
+root/deploy links and orphaned pages as warnings. A docs site that is intended
+to be the user-facing manual should fail fast on that drift.
+
+Implemented:
+
+- Enabled `strict: true` in `mkdocs.yml`.
+- Made the GitHub Pages workflow run `mkdocs build --strict`.
+- Added `EVAL_V1_24_0.md`, `design/1x-completion.md`, and
+  `design/2.0-agent-control-plane.md` to the curated nav.
+- Converted remaining docs links that targeted root files or deploy assets to
+  stable GitHub URLs.
+- Updated ROADMAP, `docs/CHANGELOG.md`, current-state, the quality rubric, and
+  SKILLS with the strict-docs invariant.
+
+Validation:
+
+- `rg` scan for relative root/deploy links under `docs/` passed.
+- `uv run --no-project --with mkdocs-material --with pymdown-extensions mkdocs build --strict --site-dir _site`
+  passed with no MkDocs warnings.
+- `pytest tests/test_architecture.py tests/test_release_integrity.py -q`
+  passed with 13 tests.
+- `ruff check src tests` and `ruff format --check src tests` passed.
+- `git diff --check` passed.
+- Style scans for em dashes, common emoji markers, and generated attribution
+  phrases across docs and guidance files passed.
+- Generated `_site` output was removed before staging.
+
+Maker-checker review:
+
+- Maker: keep the docs site curated, but make broken links fail the build.
+- Checker 1, security/performance: no runtime code, no secret-handling surface,
+  no network calls beyond local package resolution already used by docs builds.
+- Checker 2, maintainability/simplicity: use MkDocs' native strict gate instead
+  of a bespoke link checker, and keep root/deploy targets as explicit GitHub
+  URLs because they intentionally live outside `docs_dir`.
+
+Spend: `$0.00`.
+
 ### Loop cycle: Browser dynamic egress proxy
 
 Refresh: re-read ROADMAP, NOTES, `docs/SECURITY.md`,

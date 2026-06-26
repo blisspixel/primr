@@ -2,7 +2,7 @@
 
 Status: ACTIVE - first enforcement shipped (CLAUDE.md contract, file-size
 ratchet, JSON single-library gate). Additive to the
-[Engineering Standards & Toolchain](../../ROADMAP.md#engineering-standards--toolchain)
+[Engineering Standards & Toolchain](https://github.com/blisspixel/primr/blob/main/ROADMAP.md#engineering-standards--toolchain)
 section. That section already owns the deep ratchets (mypy strict expansion,
 per-module coverage, parse-don't-validate, mutation testing, supply-chain
 hardening). This doc owns the **net-new, enforcement-and-currency** layer:

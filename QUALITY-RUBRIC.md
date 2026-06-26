@@ -24,6 +24,25 @@ Use this rubric for every loop cycle before marking work done. A category scores
 
 ## Current Cycle Score
 
+2026-06-26 strict documentation build:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: the docs site now treats link/nav drift as a failed build through
+MkDocs strict mode, with the GitHub Pages workflow using the same gate. The
+remaining root/deploy cross-links are stable GitHub URLs, and intentional eval
+and design pages are in the curated nav. This is a docs-only change with no
+runtime or secret-handling surface. Strict MkDocs and targeted link scans pass.
+Architecture/release-integrity tests, Ruff, format check, diff hygiene, and
+style scans also pass. Spend: `$0.00`.
+
 2026-06-26 browser dynamic egress proxy:
 
 | Category | Score |

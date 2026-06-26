@@ -206,7 +206,7 @@ docker run -e XAI_API_KEY -e GEMINI_API_KEY -e SEARCH_API_KEY -e SEARCH_ENGINE_I
 
 - [API.md](API.md)
 
-- [README.md](../README.md)
+- [README.md](https://github.com/blisspixel/primr/blob/main/README.md)
 
-- [openclaw.json](../openclaw/openclaw.json)
+- [openclaw.json](https://github.com/blisspixel/primr/blob/main/openclaw/openclaw.json)
 
