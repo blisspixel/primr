@@ -58,6 +58,10 @@
   a time. Preserve caller-specific headers, params, and return shape at the
   edge, but keep redirect following and per-hop SSRF validation in the shared
   helper so intermediate-redirect safety cannot drift across modules.
+- When a legacy fetch helper must keep returning a client-native response
+  object, preserve that shape and replace only redirect following: request with
+  `allow_redirects=False`, validate the next `Location`, resolve relative hops,
+  cap redirects, then issue the next request.
 
 ## Skill Pack Generation
 

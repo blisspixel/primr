@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Wayback CDX and replay fetches now delegate to the shared
   `data/safe_http.py` seam, so archived-content recovery validates every
   redirect hop before connecting instead of relying on final-url validation.
+- Discovery HTTP helpers (`data/scraping/net.py`) now follow redirects
+  manually and validate every hop before connecting while preserving their
+  `requests.Response` return contract for sitemap and URL-existence checks.
 
 ### Fixed
 

@@ -2,6 +2,9 @@
 
 from unittest.mock import Mock, patch
 
+import pytest
+import requests
+
 from primr.data.scraping.net import (
     extract_host,
     get_default_headers,
@@ -12,6 +15,16 @@ from primr.data.scraping.net import (
     normalize_url_for_request,
 )
 from primr.data.scraping.profiles import HttpHeaderProfile
+
+
+def _response(status_code: int, url: str, location: str | None = None) -> requests.Response:
+    response = requests.Response()
+    response.status_code = status_code
+    response.url = url
+    response._content = b"ok"
+    if location is not None:
+        response.headers["Location"] = location
+    return response
 
 
 class TestGetDefaultHeaders:
@@ -142,6 +155,30 @@ class TestMakeRequest:
             make_request("https://example.com", cookies=cookies)
 
         assert mock_req.call_args[1]["cookies"] == cookies
+
+    def test_follows_safe_relative_redirect(self):
+        redirect = _response(302, "https://example.com/start", "/next")
+        final = _response(200, "https://example.com/next")
+
+        with patch("requests.request", side_effect=[redirect, final]) as mock_req:
+            assert make_request("https://example.com/start") is final
+
+        assert mock_req.call_count == 2
+        assert mock_req.call_args_list[0].kwargs["url"] == "https://example.com/start"
+        assert mock_req.call_args_list[1].kwargs["url"] == "https://example.com/next"
+        assert mock_req.call_args_list[0].kwargs["allow_redirects"] is False
+        assert mock_req.call_args_list[1].kwargs["allow_redirects"] is False
+
+    def test_blocks_unsafe_redirect_before_second_request(self):
+        redirect = _response(302, "https://example.com/start", "http://127.0.0.1/admin")
+
+        with (
+            patch("requests.request", return_value=redirect) as mock_req,
+            pytest.raises(ValueError, match="Invalid URL"),
+        ):
+            make_request("https://example.com/start")
+
+        mock_req.assert_called_once()
 
 
 class TestHeadExists:

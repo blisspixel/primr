@@ -579,3 +579,32 @@ Validation status:
   5 deselected` and 85.24% branch coverage.
 
 Spend: `$0.00`.
+
+## 2026-06-26 Discovery Helper Per-Hop Redirect Guard
+
+Sitemap and URL-existence fetches now validate redirect hops before connecting.
+
+Current state:
+
+- `data/scraping/net.py:make_request()` follows redirects manually with
+  `allow_redirects=False`.
+- The initial URL and every redirect target run through
+  `validate_url_for_request()` before the next request is made.
+- Safe relative redirects still work; unsafe redirects are blocked before the
+  second request.
+- The helper preserves its `requests.Response` return shape for discovery
+  callers, so this slice does not change the sitemap or `head_exists()` API.
+- `NOTES.md` no longer lists `data/scraping/net.py` among the remaining
+  intermediate-redirect SSRF seams.
+
+Validation status:
+
+- Focused net, SSRF, egress-guardrail, and discovery tests pass with 156 tests.
+- Ruff check, Ruff format check, architecture/release-integrity tests, mypy,
+  Bandit, pip-audit, MkDocs build, and diff hygiene pass. MkDocs emitted only
+  the repo's existing non-strict link warnings, and the generated `_site`
+  directory was removed.
+- The CI-shaped non-manual coverage gate passed with `10226 passed, 39 skipped,
+  5 deselected` and 85.24% branch coverage.
+
+Spend: `$0.00`.

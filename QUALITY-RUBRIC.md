@@ -135,3 +135,24 @@ behavior. Focused Wayback, safe HTTP, and fallback-source tests pass with 99
 tests; Ruff, format check, architecture/release integrity, mypy, Bandit,
 pip-audit, MkDocs build, diff hygiene, and the CI-shaped coverage gate also
 pass. Coverage: 85.24% branch. Spend: `$0.00`.
+
+2026-06-26 discovery helper per-hop redirect guard:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: `data/scraping/net.py:make_request()` now preserves its
+`requests.Response` contract while following redirects manually and validating
+each hop before the next request. Regression tests prove safe relative redirects
+still work and unsafe internal redirects are blocked before a second request.
+Focused net, SSRF, egress-guardrail, and discovery tests pass with 156 tests.
+Ruff, format check, architecture/release integrity, mypy, Bandit, pip-audit,
+MkDocs build, diff hygiene, and the CI-shaped coverage gate also pass. Coverage:
+85.24% branch.
+Spend: `$0.00`.

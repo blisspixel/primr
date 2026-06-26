@@ -5,7 +5,8 @@ Provides consistent request handling, headers, and timeouts.
 """
 
 import logging
-from urllib.parse import urlparse
+from collections.abc import Mapping
+from urllib.parse import urljoin, urlparse
 
 import requests
 
@@ -13,6 +14,9 @@ from .config import DEFAULT_TIMEOUT_REQUESTS
 from .profiles import HttpHeaderProfile, get_random_http_profile
 
 logger = logging.getLogger(__name__)
+
+_REDIRECT_STATUSES = {301, 302, 303, 307, 308}
+_MAX_REDIRECTS = 10
 
 
 def get_default_headers(profile: HttpHeaderProfile | None = None) -> dict:
@@ -80,40 +84,50 @@ def make_request(
 
     Raises:
         requests.RequestException: On network errors
-        ValueError: If URL fails SSRF validation (initial or after redirect)
+        ValueError: If URL fails SSRF validation on the initial URL or any
+            redirect hop.
     """
     from primr.utils.validators import validate_url_for_request
 
-    # SSRF protection
-    is_valid, normalized_url, error = validate_url_for_request(url)
-    if not is_valid:
-        raise ValueError(f"Invalid URL: {error}")
-
-    url = normalized_url
     default_headers = get_default_headers(profile)
 
     if headers:
         default_headers.update(headers)
 
-    response = requests.request(
-        method=method,
-        url=url,
-        headers=default_headers,
-        timeout=timeout,
-        allow_redirects=allow_redirects,
-        cookies=cookies,
-    )
+    current_url = url
+    for redirect_count in range(_MAX_REDIRECTS + 1):
+        is_valid, normalized_url, error = validate_url_for_request(current_url)
+        if not is_valid:
+            raise ValueError(f"Invalid URL: {error}")
 
-    # SSRF protection: validate final URL after redirects
-    if allow_redirects:
-        from primr.utils.security import validate_final_url_after_redirect
+        response = requests.request(
+            method=method,
+            url=normalized_url,
+            headers=default_headers,
+            timeout=timeout,
+            allow_redirects=False,
+            cookies=cookies,
+        )
 
-        final_url = str(response.url)
-        is_safe, redirect_error = validate_final_url_after_redirect(final_url)
-        if not is_safe:
-            raise ValueError(f"SSRF protection: redirect to {final_url} blocked - {redirect_error}")
+        if not allow_redirects:
+            return response
 
-    return response
+        headers_obj = getattr(response, "headers", {}) or {}
+        location = None
+        if isinstance(headers_obj, Mapping):
+            location = headers_obj.get("Location") or headers_obj.get("location")
+
+        status_code = getattr(response, "status_code", None)
+        if status_code not in _REDIRECT_STATUSES or not isinstance(location, str) or not location:
+            return response
+
+        response_url = getattr(response, "url", normalized_url)
+        current_url = urljoin(str(response_url), location)
+
+        if redirect_count == _MAX_REDIRECTS:
+            raise requests.TooManyRedirects(f"Exceeded {_MAX_REDIRECTS} redirects for {url}")
+
+    raise requests.TooManyRedirects(f"Exceeded {_MAX_REDIRECTS} redirects for {url}")
 
 
 def head_exists(
