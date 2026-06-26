@@ -24,6 +24,26 @@ Use this rubric for every loop cycle before marking work done. A category scores
 
 ## Current Cycle Score
 
+2026-06-26 validation doctrine correction:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: the docs now explicitly reject fact-match and regex-style
+validation for free-form report quality. Deterministic code is limited to
+evidence assembly, structural checks, and irreversible-action guards; quality
+validation is defined as layered evaluation of support, contradiction, source
+quality, reasoning strength, uncertainty honesty, and business relevance.
+Docs style scan, `git diff --check`, Ruff, format check,
+architecture/release-integrity tests, and strict MkDocs pass. Docs-only change.
+Spend: `$0.00`.
+
 2026-06-26 next-steps documentation refresh:
 
 | Category | Score |

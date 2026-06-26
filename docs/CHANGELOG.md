@@ -99,9 +99,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so first-time users can install, estimate, and run without wading through
   advanced integration material.
 - README, the docs index, MkDocs navigation, ROADMAP, and the 1.x/2.0 design
-  notes now point to the same "what next and why" sequence: label calibration,
-  backend-freedom wiring, control-plane artifact resources and A2A parity,
-  research memory layer 1, and the continuing maintenance ratchet.
+  notes now point to the same "what next and why" sequence: evidence-grounded
+  validation, backend-freedom wiring, control-plane artifact resources and A2A
+  parity, research memory layer 1, and the continuing maintenance ratchet.
+- The next-steps plan now distinguishes evidence-grounded validation from
+  simplistic fact matching. Label traceability is documented as the first
+  measurable slice, while real validation must judge support, contradiction,
+  source independence, source authority, reasoning strength, and uncertainty
+  honesty through layered evals and agreement checks.
 - Existing user-facing docs and deployment docs in this pass were normalized
   away from em dashes and en dashes so the repository style rule is easier to
   enforce mechanically.

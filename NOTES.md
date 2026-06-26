@@ -10,6 +10,10 @@ it ships.
   why. Keep README as the front door, ROADMAP as the full queue, and design docs
   as detailed rationale. If the next-work order changes, update all four in the
   same patch rather than spreading new rationale through README prose.
+- Validation wording must not collapse into "fact checking" or "phrase match."
+  Label calibration is the first cheap slice only. The actual validation rubric
+  must cover support, contradiction, source quality, reasoning, uncertainty, and
+  decision usefulness.
 
 ## Deferred bug-hunt findings (2026-06-25 adversarial sweep)
 

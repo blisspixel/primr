@@ -188,6 +188,30 @@ architecture/release-integrity tests, `git diff --check`, strict MkDocs, and
 the full non-manual coverage gate (`10273 passed, 39 skipped, 4 deselected`,
 85.28% branch coverage).
 
+## 2026-06-26 Validation Doctrine Correction
+
+The next-steps wording has been corrected to avoid an agentic-balance failure
+pattern. Validation is not "does a fetched page contain the same phrase" and it
+is not "does a citation exist." Those are useful inputs and structural facts.
+Real report validation is layered substance review:
+
+- Does the cited evidence support the claim?
+- Is there stronger contradictory evidence?
+- Is the source independent and authoritative enough for the confidence label?
+- Is the inference warranted by the evidence rather than merely plausible?
+- Is uncertainty stated honestly?
+- Is the conclusion useful for the user's strategic decision?
+
+Current estimate:
+
+- Label traceability remains the cheapest first measurable slice because it can
+  be run over existing reports, but it is not the full quality bar.
+- Any future hard gate must come from agreement-validated evals over this
+  broader rubric, not regexes, string overlap, or citation-presence checks.
+
+Spend: `$0.00`. Validation passed: docs style scan, `git diff --check`, Ruff,
+format check, architecture/release-integrity tests, and strict MkDocs.
+
 ## 2026-06-26 Maintenance Security Review
 
 The latest bug-hunt/security pass found and fixed four redirect-control gaps

@@ -37,9 +37,11 @@ next and why"; this roadmap remains the full ordered backlog.
 
 Current priority order:
 
-1. **Evidence calibration and label honesty.** This is the measured quality gap:
-   labels must trace to cited evidence before Primr can trust its own claims,
-   eval gates, routing comparisons, or future memory.
+1. **Evidence-grounded validation and label honesty.** This is the measured
+   quality gap: report claims, conclusions, caveats, and confidence labels must
+   survive evidence, contradiction, source-quality, and reasoning review before
+   Primr can trust eval gates, routing comparisons, or future memory. Label
+   traceability is the first measurable slice, not the whole validation story.
 2. **Backend freedom production wiring.** Provider abstractions and pure routing
    foundations exist, but full-report execution still carries xAI/Gemini-era
    assumptions. Stage-by-stage routing is the next architecture unlock.
@@ -54,8 +56,9 @@ Current priority order:
    lane.
 
 Not next: expanding the README with roadmap detail, adding regex-like prose
-quality gates, promoting a backend from a one-off success, building memory
-before data-governance rules, or turning Primr into generic agent middleware.
+quality gates, treating phrase overlap as validation, promoting a backend from a
+one-off success, building memory before data-governance rules, or turning Primr
+into generic agent middleware.
 
 ---
 
@@ -227,11 +230,14 @@ per-module coverage ratchet unlocked by the refactor:
   brief shows the **prose is already consultant-grade**, and two evidence-plumbing
   levers (hypothesis-steered collection #4-tradecraft-Step-4, context curation)
   both **evaluated as washes**. The one *measured* quality gap is **epistemic
-  grounding** - `(Confirmed)/(Reported)` labels trace to their sources only ~0-8%
-  of the time. So the validated next quality work is the **label-honesty pass**
-  (verify each claim against its source, downgrade ungrounded labels - like
-  `--verify`), not more prose-prompt or collection tuning; it is also the cheapest
-  to iterate (calibration re-scores existing reports for ~$0)
+  grounding** - the artifact needs stronger evidence support, contradiction
+  handling, source-quality judgment, reasoning review, and uncertainty honesty.
+  `(Confirmed)/(Reported)` labels tracing to sources only ~0-8% is the first
+  measured symptom, not the whole disease. So the validated next quality work is
+  an **evidence-grounded validation slice**: calibrate labels as a cheap first
+  measure, but evaluate sampled report units against source support,
+  contradiction, independence, authority, reasoning strength, and uncertainty.
+  Do not reduce this to phrase matching or a deterministic content gate.
 - **#3 remainder** - page-access recovery extensions (host-level learning,
   blocked-site UX, premium-mode hiring signals)
 - **#23 orchestrator refactor**: `perform_fast_research` extraction is complete:
@@ -340,25 +346,26 @@ Each step unblocks the ones after it; items within a step are independent.
    measurement of claim quality first - otherwise improvements are vibes.
    **Done + measured (June 2026):** the calibration run found grounding
    systemically deficient (Confirmed ~8% / Reported ~0% traceability), which
-   *redefines* #4 below - the lever is grounding (label-honesty), not prose.
+   *redefines* #4 below - the lever is evidence-grounded validation, not prose
+   ornamentation.
 2. **Refactor the orchestrators** (#23) (1.x): splitting
    `perform_fast_research` unlocks unit coverage on the pipeline core, the
    complexity budget, and makes every later pipeline change (batch API,
    overlap, routing) reviewable. Do this *before* features that touch the
    monster, not after.
 3. **Consultant-grade writing** (#4) (1.x): now scoped by step 1's measurement to
-   the **label-honesty pass** (grounding), since the prose already grades well and
-   the evidence-plumbing levers washed - verify claims against sources + downgrade
-   ungrounded labels, iterated cheaply against calibration. (Prose-prompt and
-   collection tuning are parked as low-expected-value per the eval.) **Shipped
-   (opt-in, `PRIMR_LABEL_HONESTY=1`):** the runtime pass in `qa/label_honesty.py`
-   downgrades a `(Confirmed)`/`(Reported)` claim to `(Estimated)` when its cited
-   source is judged not to support it: model judgment decides, the downgrade is a
-   mechanical fail-safe rewrite (confidence only ever lowers; every other verdict
-   fails open), an audit sidecar is written, and shipping is never blocked.
-   Default-off until an agreement-validated calibration baseline justifies
-   promotion; arming a hard gate stays bound to step 1's instruments, never a
-   lone judge.
+   **evidence-grounded validation**. The prose already grades well and the
+   evidence-plumbing levers washed, so the next slice is not prettier writing or
+   a new regex gate. It is a layered evaluation of support, contradiction, source
+   independence, source authority, reasoning strength, and uncertainty honesty.
+   **Shipped (opt-in, `PRIMR_LABEL_HONESTY=1`):** the runtime pass in
+   `qa/label_honesty.py` downgrades a `(Confirmed)`/`(Reported)` claim to
+   `(Estimated)` when its cited source is judged not to support it. Model
+   judgment decides, the downgrade is a mechanical fail-safe rewrite, confidence
+   only ever lowers, every other verdict fails open, an audit sidecar is written,
+   and shipping is never blocked. Default-off until an agreement-validated
+   calibration baseline and broader validation rubric justify promotion; arming
+   a hard gate stays bound to step 1's instruments, never a lone judge.
 4. **Cost levers** (#9 batch API, #19 pipeline overlap) (1.x): mechanical
    after step 2; each validated with one cheap live run.
 5. **Control plane** (T8 + #21) (2.0): per-tool authz is now shipped for MCP

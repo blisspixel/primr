@@ -25,6 +25,12 @@ for Primr's shape:
 - Treat GenAI observability as structured telemetry: model calls, tool calls,
   token/cost metadata, outcome, and trace ids. Full prompt/output capture
   should stay opt-in and privacy-aware.
+- Treat validation as layered evidence and reasoning evaluation. Citation
+  parsing, source fetches, and sidecar schemas are deterministic input
+  assembly. They are not quality validation. Validation has to judge support,
+  contradiction, source independence, source authority, uncertainty honesty,
+  reasoning strength, and business relevance through pre-registered evals,
+  agreement checks, and human spot review where needed.
 
 Reference anchors:
 
@@ -39,17 +45,24 @@ Reference anchors:
 
 ## Ordered execution plan
 
-### 1. Evidence calibration and label honesty
+### 1. Evidence-grounded validation and label honesty
 
-Why next: the roadmap's measured quality gap is not prose polish. It is
-epistemic grounding: whether `(Confirmed)` and `(Reported)` claims actually
-trace to cited evidence. This work improves the core report, is cheap to
-validate on existing artifacts, and creates the measurement foundation needed
-before routing or memory can safely depend on prior claims.
+Why next: the roadmap's measured quality gap is not prose polish, and it is
+not a request for simplistic fact matching. It is epistemic grounding: whether
+the report's conclusions, labels, caveats, and strategic inferences are
+supported by the evidence they cite and honest about what remains uncertain.
+Label traceability is the first measurable slice because it is cheap to run on
+existing artifacts, but it is only one input to validation. The broader bar is
+whether the artifact's reasoning survives evidence review, contradiction
+review, and uncertainty review.
 
 Do next:
 
-- Run a multi-report calibration baseline over current-format reports.
+- Run a multi-report calibration baseline over current-format reports, but keep
+  the rubric broader than string overlap or isolated fact matching.
+- Score sampled report units across support, contradiction, source
+  independence, source authority, reasoning strength, uncertainty honesty, and
+  business relevance.
 - Compare local and cloud judges on the same sampled claims before trusting a
   local judge path.
 - Set `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` only from the measured floor of
@@ -59,10 +72,11 @@ Do next:
 
 Done when:
 
-- The eval scorecard carries stable label-calibration results.
+- The eval scorecard separates structural extraction, evidence support,
+  reasoning quality, contradiction handling, and uncertainty honesty.
 - The hard gate is either armed from a defensible baseline or deliberately left
   report-only with documented evidence.
-- No new deterministic prose-quality gate was added.
+- No new deterministic prose-quality or claim-quality gate was added.
 
 ### 2. Backend freedom production wiring
 
@@ -163,6 +177,8 @@ Done when:
 - Do not expand the README with roadmap detail. Link to this page and the
   design docs instead.
 - Do not add more regex-like prose gates for content quality.
+- Do not call validation complete because a cited page contains a matching
+  phrase. That is retrieval evidence, not reasoning validation.
 - Do not promote a new backend because it works once. Promote only after
   measured quality, cost, and failure behavior are recorded.
 - Do not build memory before deletion, retention, source attribution, and
@@ -174,5 +190,7 @@ Done when:
 
 Use free and local validation first: unit tests, strict docs build, static
 analysis, mocked evals, local judge comparison, and existing report sidecars.
-Any paid eval must have a pre-registered question, a cost cap, and explicit
-approval before it runs.
+Deterministic checks may prepare evidence, prove structure, and guard
+irreversible actions. They must not judge free-form content quality. Any paid
+eval must have a pre-registered question, a cost cap, explicit approval, and a
+rubric that measures substance rather than phrase matches.

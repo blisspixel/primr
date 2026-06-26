@@ -210,6 +210,14 @@ Two failure smells worth naming, because primr has shipped both:
   complete / on-topic" cannot exist - that is the Level-2 judgment work (Steps
   4-7), enforced by the calibration/verify instruments against ground truth, never
   a hand-written rule.
+- **Fact-match masquerading as validation.** A cited page existing, a citation
+  resolving, or a phrase appearing in fetched text is not validation. Those are
+  input-preparation and structural facts. Validation has to judge whether the
+  evidence actually supports the claim, whether stronger contradictory evidence
+  exists, whether the source is independent and authoritative enough for the
+  label, whether the inference is warranted, and whether the artifact is honest
+  about uncertainty. That is substance, so it belongs to layered eval and
+  agreement-validated judgment, not a regex or string-overlap threshold.
 
 What legitimately stays a rule is narrow: the irreversible-act guards (spend,
 egress, disk - Principle 3) and **referential/structural validity that does not

@@ -57,6 +57,40 @@ Maker-checker review:
 
 Spend: `$0.00`.
 
+### Correction: validation is layered substance review
+
+Feedback: the next-steps wording made the validation priority sound too much
+like simplistic fact matching or label-only calibration.
+
+Correction shipped:
+
+- Updated `docs/NEXT_STEPS.md` so evidence-grounded validation means support,
+  contradiction, source independence, source authority, reasoning strength,
+  uncertainty honesty, and business relevance.
+- Updated ROADMAP and `docs/design/1x-completion.md` so label traceability is
+  only the first measurable slice, not the whole validation story.
+- Updated `docs/design/agentic-balance.md` with the explicit anti-pattern:
+  fact-match masquerading as validation.
+- Updated design index and changelog wording to preserve the distinction.
+
+Decision: deterministic code may parse citations, fetch sources, assemble
+sidecars, and guard structure. It must not judge free-form content quality or
+claim quality through regexes, phrase overlap, or citation-presence checks.
+
+Validation:
+
+- Docs style scan passed for em dashes, en dashes, common emoji markers, and
+  generated-attribution phrases across docs-related markdown and YAML files.
+- `git diff --check` passed.
+- `uv run --no-sync ruff check .` passed.
+- `uv run --no-sync ruff format --check .` passed.
+- `uv run --no-sync pytest tests/test_architecture.py tests/test_release_integrity.py -q`
+  passed with 13 tests.
+- `uv run --no-project --with mkdocs-material --with pymdown-extensions mkdocs build --strict --site-dir _site`
+  passed; `_site` was removed after the build.
+
+Spend: `$0.00`.
+
 ### Maintenance sub-goal: bug hunt and security review
 
 Refresh: ran a targeted bug and security review over the current slice and the

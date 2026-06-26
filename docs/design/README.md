@@ -23,7 +23,7 @@ Conventions:
 | [eval-plan.md](eval-plan.md) | Pre-registered, cheapest-first plan for the pending paid evals (calibration baseline, framed-vs-unframed, content-depth): exact commands, instruments, acceptance criteria, cost | 1.x |
 | [agentic-balance.md](agentic-balance.md) | Rule vs judgment: when a primr component stays a deterministic workflow vs becomes a Level-2 model decision; the keep-list and budget couplings under the tradecraft work | cross-cutting |
 | [open-knowledge-format.md](open-knowledge-format.md) | Adopt OKF (markdown + YAML frontmatter + linked tree) as the one shape for the structured-findings layer (memory export, claim store, handoff manifest); the polished report stays unchanged | cross-cutting (2.0 / 3.0) |
-| [1x-completion.md](1x-completion.md) | Finishing the excellent single-shot brief; immediate slice is label-calibration baseline and report trust-summary surfacing | 1.x |
+| [1x-completion.md](1x-completion.md) | Finishing the excellent single-shot brief; immediate slice is evidence-grounded validation, with label calibration as the first measurable slice | 1.x |
 | [engineering-excellence.md](engineering-excellence.md) | Anti-slop enforcement layer: dev-facing CLAUDE.md contract, architectural fitness functions, file-size ratchet, CLI verb convention, toolchain currency | cross-cutting |
 | [23-orchestrator-refactor-map.md](23-orchestrator-refactor-map.md) | Working map for the #23 orchestrator refactor (stages, tangles, batch order) | 1.x |
 | [2.0-backend-freedom.md](2.0-backend-freedom.md) | Capability routing + local/hybrid inference; immediate slice is provider straggler cleanup, long-context pricing, then one routed utility stage | 2.0 |
