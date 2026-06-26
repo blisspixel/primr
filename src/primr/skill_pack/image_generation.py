@@ -330,24 +330,24 @@ def _resize_to(png_bytes: bytes, width: int, height: int) -> bytes:
 
 def _fetch_provider_image_url(url_value: str, timeout: float = 120.0) -> bytes:
     """Fetch provider-hosted image bytes with SSRF redirect validation."""
-    import httpx
 
-    from primr.utils.security import is_safe_url, validate_final_url_after_redirect
+    from primr.data.safe_http import safe_http_get
+    from primr.utils.security import is_safe_url
 
     is_safe, reason = is_safe_url(url_value)
     if not is_safe:
         raise RuntimeError(f"Image provider returned unsafe URL: {reason}")
 
-    with httpx.Client(timeout=timeout, follow_redirects=True) as client:
-        response = client.get(url_value)
-        response.raise_for_status()
-        final_url = str(response.url)
+    status_code, content, _final_url = safe_http_get(
+        url_value,
+        timeout=timeout,
+        log_prefix="skill-pack-image",
+    )
+    if status_code is None or content is None:
+        raise RuntimeError("Image provider URL was blocked or unreachable during guarded fetch")
+    if status_code >= 400:
+        raise RuntimeError(f"Image provider returned HTTP {status_code}")
 
-    final_safe, redirect_reason = validate_final_url_after_redirect(final_url)
-    if not final_safe:
-        raise RuntimeError(f"Image provider URL redirected to unsafe location: {redirect_reason}")
-
-    content = response.content
     if len(content) > MAX_PROVIDER_IMAGE_BYTES:
         raise RuntimeError(
             f"Image provider response exceeded {MAX_PROVIDER_IMAGE_BYTES} byte limit"

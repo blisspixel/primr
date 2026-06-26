@@ -269,6 +269,7 @@ markers = [
     "smoke: marks CLI smoke tests for quick validation",
     "resilience: marks API resilience and retry behavior tests",
     "manual: marks tests that require manual setup or real data files",
+    "timeout: marks tests with an explicit runtime ceiling when pytest-timeout is installed",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning:importlib._bootstrap:241",

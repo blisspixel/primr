@@ -27,7 +27,20 @@ from primr.utils.timeutils import utcnow_naive
 def monitor():
     """Create a fresh monitor for each test."""
     reset_company_monitor()
-    return CompanyMonitor()
+    monitor = CompanyMonitor()
+    try:
+        yield monitor
+    finally:
+        monitor.close()
+        reset_company_monitor()
+
+
+@pytest.fixture(autouse=True)
+def clean_global_monitor():
+    """Ensure global monitor state never leaks open connections between tests."""
+    reset_company_monitor()
+    yield
+    reset_company_monitor()
 
 
 @pytest.fixture

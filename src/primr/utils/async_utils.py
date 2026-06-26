@@ -31,10 +31,10 @@ import functools
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, ParamSpec, TypeVar
+from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import Awaitable, Callable, Coroutine
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +113,7 @@ def detach_running_workers(pool: ThreadPoolExecutor) -> None:
     try:
         import threading
         from concurrent.futures import thread as _cft
-        from typing import Any, cast
+        from typing import cast
 
         # WeakKeyDictionary at runtime; typeshed types as a generic Mapping.
         registry = cast("dict", _cft._threads_queues)  # type: ignore[attr-defined]
@@ -159,28 +159,16 @@ def run_sync(coro: Awaitable[T]) -> T:
         result = run_sync(fetch_data())
     """
     try:
-        # Check if we're already in an async context
-        loop = asyncio.get_running_loop()
-        # If we get here, we're in an async context - this is an error
-        raise RuntimeError(
-            "run_sync() cannot be called from within an async context. "
-            "Use 'await' directly instead."
-        )
-    except RuntimeError as e:
-        if "no running event loop" not in str(e).lower():
-            raise
-
-    # Not in async context - safe to create/use event loop
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_closed():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+        asyncio.get_running_loop()
     except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        return asyncio.run(cast("Coroutine[Any, Any, T]", coro))
 
-    return loop.run_until_complete(coro)
+    close = getattr(coro, "close", None)
+    if callable(close):
+        close()
+    raise RuntimeError(
+        "run_sync() cannot be called from within an async context. Use 'await' directly instead."
+    )
 
 
 def run_sync_new_loop(coro: Awaitable[T]) -> T:
@@ -383,6 +371,7 @@ def sync_context():
     finally:
         if created_loop and loop is not None:
             loop.close()
+            asyncio.set_event_loop(None)
 
 
 class AsyncBridge:

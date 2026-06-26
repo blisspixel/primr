@@ -18,10 +18,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   into the next job. Pinned by MCP tool-dispatch and runner regression tests.
 - Budget estimates now expose their runtime-enforcement semantics explicitly.
   CLI help, human dry-runs, `--dry-run --json`, and MCP `estimate_run` now
-  distinguish fast full-report runtime checkpoints from premium, deep, scrape,
-  and non-fast structured paths that are currently estimate-gated only. This
-  keeps agent approval prompts and operator expectations aligned with the
-  actual spend checkpoints.
+  distinguish fast full-report optional-stage checkpoints, non-fast optional
+  strategy checkpoints, and estimate-gated-only paths. This keeps agent
+  approval prompts and operator expectations aligned with the actual spend
+  checkpoints.
+- Non-fast Deep Research runs now consult the active run budget before and
+  between optional strategy documents. The required Deep Research task remains
+  estimate-gated once it starts, but premium, deep, complete, and hybrid paths
+  no longer continue into optional strategy spend after observed main-run cost
+  reaches the approved ceiling. Explicit `--strategy-type ai` and generic
+  strategy runs now also record the correct flat Deep Research task cost.
+- Provider-hosted skill-pack image downloads now use the shared
+  `safe_http_get()` seam, so every redirect hop is SSRF-validated before
+  connection instead of relying on final-URL validation after automatic
+  redirects.
+- Deep Research preflight website reachability checks now use
+  `async_safe_http_head()`, preserving unsafe-initial-URL and DNS-failure
+  behavior while validating redirects before any intermediate hop is connected.
+- Workday hiring-signal probes no longer auto-follow redirects for the JSON
+  POST endpoint. Redirect responses are dropped rather than followed unless a
+  future method-preserving per-hop redirect path is added.
+- `managed_http_client()` now disables automatic redirects by default, so new
+  utility callers cannot accidentally connect to unvalidated intermediate
+  redirect targets.
 - CLI dry-run and `--budget` pre-flight estimates now clamp enabled
   AI-strategy runs to at least one vendor, preventing internally constructed
   empty platform tuples from zeroing the strategy estimate.
@@ -79,6 +98,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mode, cost, agent-integration, and skill-pack details now link to focused docs
   so first-time users can install, estimate, and run without wading through
   advanced integration material.
+- README now makes command selection, agent-run approval flow, and budget scope
+  explicit while moving the detailed contributor gate checklist into
+  `docs/CONTRIBUTING.md`.
 - The MkDocs site now builds in strict mode locally and in the GitHub Pages
   workflow. Remaining root/deploy cross-links use stable GitHub URLs, and the
   previously orphaned eval and design docs are included in the curated nav.
@@ -95,6 +117,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `PinnedHTTPAdapter` now normalizes proxy mappings before calling
+  `requests.utils.select_proxy`, preserving runtime behavior while keeping the
+  full mypy gate clean on the Requests adapter boundary.
+- `reset_tenant_manager()` now closes the previous global SQLite connection
+  before replacing it, and tenancy tests close per-test managers. This removes
+  the resource leak surfaced by running tenancy tests with `ResourceWarning` as
+  an error.
+- `reset_knowledge_graph()` and `reset_company_monitor()` now close their
+  previous global SQLite connections before replacing them, and their tests
+  close per-test instances. Full non-manual coverage now passes with
+  `ResourceWarning` and pytest unraisable warnings promoted to errors.
+- `run_sync()` now uses `asyncio.run()` from synchronous code and closes
+  rejected coroutine objects when called from an async context. This prevents
+  sync/async bridge tests from leaving event-loop sockets to garbage collection.
+- The existing pytest `timeout` marker is now registered, removing the unknown
+  marker warning from the test suite.
 - `head_exists()` now returns `False` when a redirect target is blocked by SSRF
   validation instead of propagating a `ValueError` through discovery.
 - Final-report and strategy citation cleanup no longer deletes bracketed prose

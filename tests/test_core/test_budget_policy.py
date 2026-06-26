@@ -14,16 +14,16 @@ class TestBudgetPolicy:
         assert "strategy generation" in policy.checkpointed_stages
         assert "core workbook" in policy.runtime
 
-    def test_premium_runs_are_estimate_gated_only(self):
+    def test_premium_runs_checkpoint_optional_strategy_generation(self):
         policy = describe_budget_enforcement(
             mode="complete",
             fast_mode=False,
             premium_mode=True,
         )
 
-        assert policy.runtime_checkpoints is False
-        assert policy.checkpointed_stages == ()
-        assert "estimate-gated only" in policy.runtime
+        assert policy.runtime_checkpoints is True
+        assert policy.checkpointed_stages == ("optional strategy generation",)
+        assert "required Deep Research task cannot be stopped" in policy.runtime
 
     def test_scrape_runs_are_estimate_gated_only(self):
         policy = describe_budget_enforcement(

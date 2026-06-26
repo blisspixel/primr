@@ -60,24 +60,35 @@ python -m pytest tests/ --cov=src/primr --cov-report=html
 
 ### Code Quality
 
-Before submitting a PR, ensure your code passes all checks (CI gates on all of
-these - see the
-[Engineering Standards & Toolchain](https://github.com/blisspixel/primr/blob/main/ROADMAP.md#engineering-standards--toolchain)
-section of the ROADMAP for the full standards):
+Before submitting a PR, ensure your code passes the relevant local gates. CI is
+the authoritative gate, but these commands match the current shape closely for
+ordinary code changes:
 
 ```bash
 # Linting
-uv run ruff check src/primr/
+uv run ruff check .
 
-# Type checking (incremental strict ratchet - see ROADMAP)
-uv run mypy src/primr/ --ignore-missing-imports
+# Formatting
+uv run ruff format --check .
+
+# Type checking
+uv run --no-sync mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude "src/primr/api/"
+
+# Tests and branch coverage
+uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -m "not integration" -W error::ResourceWarning -W error::pytest.PytestUnknownMarkWarning -W error::pytest.PytestUnraisableExceptionWarning --cov=src/primr --cov-branch --cov-fail-under=81
 
 # Security scan (gated at medium severity in CI)
-uv run bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium
+uv run --no-sync bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium
 
 # Dependency vulnerability audit
-uv run pip-audit
+uv run --no-sync pip-audit
+
+# Documentation
+uv run --no-project --with mkdocs-material --with pymdown-extensions mkdocs build --strict --site-dir _site
 ```
+
+For narrow fixes, run the focused tests for the touched behavior first, then
+run the broader gates before opening the PR.
 
 Optionally install the pre-commit hooks so ruff + mypy run automatically on
 each commit (CI is still the authoritative gate):

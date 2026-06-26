@@ -93,8 +93,14 @@ class TestEstimateRun:
             )
         )
         premium_data = json.loads(premium_result.root.content[0].text)
-        assert premium_data["budget_enforcement"]["runtime_checkpoints"] is False
-        assert "estimate-gated only" in premium_data["budget_enforcement"]["runtime"]
+        assert premium_data["budget_enforcement"]["runtime_checkpoints"] is True
+        assert premium_data["budget_enforcement"]["checkpointed_stages"] == [
+            "optional strategy generation"
+        ]
+        assert (
+            "required Deep Research task cannot be stopped"
+            in premium_data["budget_enforcement"]["runtime"]
+        )
 
         monkeypatch.setenv("XAI_API_KEY", "x" * 30)
         full_result = await handler(

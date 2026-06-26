@@ -2,6 +2,151 @@
 
 ## 2026-06-26
 
+### Maintenance sub-goal: bug hunt and security review
+
+Refresh: ran a targeted bug and security review over the current slice and the
+surrounding egress/resource-management code. Scans covered subprocess/shell
+patterns, unsafe deserialization, HTTP redirect behavior, final-url-only SSRF
+validation, direct requests/httpx clients, and SQLite connection lifecycle.
+
+Findings and fixes:
+
+- Provider-hosted skill-pack image downloads used `httpx.Client(...,
+  follow_redirects=True)` plus final URL validation. Replaced with
+  `safe_http_get()` so every redirect hop is validated before connection.
+- Deep Research preflight website checks used `httpx.AsyncClient(...,
+  follow_redirects=True)` against user-supplied URLs. Replaced with
+  `async_safe_http_head()` while preserving unsafe initial URL and DNS failure
+  handling.
+- Workday hiring-signal probes used automatic redirects for the JSON POST API.
+  Changed the probe to `follow_redirects=False` and fail closed on redirect
+  responses.
+- The generic `managed_http_client()` utility defaulted to automatic redirects.
+  Changed it to `follow_redirects=False` and updated the helper docs and tests.
+- `reset_tenant_manager()` discarded the global tenant manager without closing
+  its SQLite connection. It now closes the old manager first, and tenancy tests
+  close per-test managers.
+
+Validation:
+
+- Focused maintenance tests: 207 passed across resources, preflight,
+  image-generation, tenancy, and hiring-signal suites.
+- Tenancy with `ResourceWarning` as an error: 53 passed.
+- Ruff check and format check passed.
+- mypy passed for 328 source files.
+- Bandit passed with zero medium or high findings.
+- pip-audit found no known vulnerabilities.
+- Remaining automatic redirect grep only reports the safe HTTP explanatory
+  docstring and the scraper wrapper that performs manual per-hop validation.
+
+Maker-checker review:
+
+- Maker: remove automatic redirect following at every externally influenced
+  helper found in the scan.
+- Checker 1, security/performance: redirected SSRF risk is reduced without
+  adding new network calls or paid validation.
+- Checker 2, maintainability/simplicity: reuse existing safe HTTP seams where
+  method semantics fit; for Workday POST, fail closed on redirects rather than
+  inventing a generic POST redirect engine.
+
+Spend: `$0.00`.
+
+## 2026-06-26 Maintenance: Resource Lifecycle Warning Cleanup
+
+The maintenance pass continued after the first full-suite run because warning
+output still showed resource lifecycle leaks. Fixed the following:
+
+- `reset_knowledge_graph()` now closes the previous global SQLite connection
+  before clearing the singleton.
+- `reset_company_monitor()` now closes the previous global SQLite connection
+  before clearing the singleton.
+- Knowledge graph and company-monitor test fixtures now close per-test
+  instances and reset global state in teardown.
+- `run_sync()` now uses `asyncio.run()` from synchronous code so event loops are
+  closed promptly, and closes rejected coroutine objects when called from an
+  async context.
+- Registered the existing pytest `timeout` marker so marker validation is clean.
+
+Validation status:
+
+- `uv run --no-sync pytest tests/test_data/test_knowledge_graph.py tests/mcp_server/test_job_store.py -q -W error::ResourceWarning -W error::pytest.PytestUnknownMarkWarning`
+  passed with 85 tests.
+- `uv run --no-sync pytest tests/test_data/test_monitoring.py tests/test_data/test_parallel_scraper.py -q -W error::ResourceWarning`
+  passed with 73 tests.
+- `uv run --no-sync pytest tests/test_utils/test_async_utils.py tests/test_core/test_deep_research_runner.py tests/test_core/test_recon_context.py tests/test_data/test_content_extractor.py tests/test_utils/test_banner.py -q -W error::pytest.PytestUnraisableExceptionWarning -W error::ResourceWarning`
+  passed with 105 tests.
+- `uv run --no-sync ruff check .` passed.
+- `uv run --no-sync ruff format --check .` passed.
+- `uv run --no-sync mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude "src/primr/api/"`
+  passed.
+- Final full coverage gate with warning escalation passed:
+  `uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q -m "not integration" -W error::ResourceWarning -W error::pytest.PytestUnknownMarkWarning -W error::pytest.PytestUnraisableExceptionWarning --cov=src/primr --cov-branch --cov-fail-under=81`
+  passed with `10273 passed, 39 skipped, 4 deselected`, 85.28% branch coverage,
+  and only the external Starlette/httpx2 deprecation warning.
+
+Spend: `$0.00`.
+
+### Loop cycle: README clarification and non-fast budget checkpoints
+
+Refresh: re-read README, ROADMAP, `CLAUDE.md`, `NOTES.md`, current-state,
+the strict-docs setup, budget-policy code, MCP estimate surfaces, and the
+Deep Research strategy loop. Checked current docs organization against
+Diataxis, GitHub README guidance, Keep a Changelog, and MkDocs strict mode.
+
+Prioritize: selected the README and cost-control clarification because the
+front door needed clearer user decisions, and the roadmap still carried a HIGH
+gap where non-fast Deep Research paths could continue into optional strategy
+spend after the approved budget had already been consumed by the required main
+task.
+
+Implemented:
+
+- Added `core.deep_budget` helpers for Deep Research flat-cost accounting,
+  optional strategy task classification, and the non-fast optional-strategy
+  budget checkpoint.
+- Added `core.strategy_loop` helpers for strategy phase counts, vendor loops,
+  display labels, and completion recording so `research_agent.py` stayed at
+  its pinned line ceiling.
+- Wired `perform_deep_research` to check the active run budget before and
+  between optional strategy documents, while honestly leaving required Deep
+  Research tasks estimate-gated once started.
+- Fixed explicit strategy cost accounting so `--strategy-type ai` and generic
+  strategy documents add their flat Deep Research task costs to usage history.
+- Clarified README command selection, agent-run approval flow, and budget
+  scope; moved detailed contributor gates from README into
+  `docs/CONTRIBUTING.md`.
+- Updated RUN_MODES, SECURITY, the control-plane design doc, ROADMAP, NOTES,
+  CHANGELOG, current-state, the quality rubric, and SKILLS.
+- Fixed the `PinnedHTTPAdapter` proxy-mapping type boundary found by mypy.
+
+Validation:
+
+- Focused budget and MCP estimate suites: 120 passed, then 133 passed with
+  architecture and release-integrity tests included.
+- Pinned requests and HTTP client tests: 38 passed, 2 skipped.
+- Ruff check and Ruff format check passed.
+- mypy passed for 328 source files.
+- Bandit passed with zero medium or high findings.
+- pip-audit found no known vulnerabilities.
+- Strict MkDocs build passed.
+- Style scan for em dashes, common emoji markers, and generated-attribution
+  phrases passed across docs and guidance files.
+- Full non-manual coverage gate passed: 10,269 passed, 39 skipped,
+  4 deselected, 85.27% branch coverage.
+
+Maker-checker review:
+
+- Maker: keep the README as a decision-oriented front door and put operational
+  depth in focused docs.
+- Checker 1, security/performance: non-fast optional strategy spend is now
+  bounded by observed completed spend, without claiming control over provider
+  tasks that cannot be interrupted mid-flight.
+- Checker 2, maintainability/simplicity: new helpers keep the large
+  coordinator at its ratcheted line ceiling and make task-cost accounting
+  testable without introducing a second budget mechanism.
+
+Cycle health: 5/5 | Simplicity: 5/5 | Est. spend: `$0.00` | New skill distilled: flat-cost provider checkpoints.
+
 ### Loop cycle: Strict documentation build
 
 Refresh: re-read README, ROADMAP, `CLAUDE.md`, `NOTES.md`, current-state,

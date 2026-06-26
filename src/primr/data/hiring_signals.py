@@ -19,6 +19,7 @@ from typing import Any
 from urllib.parse import urljoin, urlparse
 
 from primr.data.hiring_career_urls import discover_career_url_postings, normalize_career_urls
+from primr.data.hiring_redirects import post_json_no_redirect
 
 logger = logging.getLogger(__name__)
 
@@ -471,32 +472,21 @@ def _workday_fetch_one(triple: tuple[str, str, str]) -> list[Posting] | None:
     drop through rather than crash, matching the rest of the module's
     fail-open posture.
     """
-    import httpx
-
-    from primr.utils.security import is_safe_url, validate_final_url_after_redirect
-
     jobs_url, base_url = _workday_endpoints(triple)
-    safe, reason = is_safe_url(jobs_url)
-    if not safe:
-        logger.info("hiring-signals: blocked Workday request to %s (%s)", jobs_url, reason)
-        return None
-
     payload = {"appliedFacets": {}, "limit": 20, "offset": 0, "searchText": ""}
     headers = {
         "User-Agent": _USER_AGENT,
         "Accept": "application/json",
         "Content-Type": "application/json",
     }
-    try:
-        with httpx.Client(timeout=_ATS_TIMEOUT_S, follow_redirects=True, headers=headers) as client:
-            resp = client.post(jobs_url, json=payload)
-    except Exception as exc:
-        logger.debug("Workday POST failed for %s: %s", jobs_url, exc)
-        return None
-
-    safe_final, reason = validate_final_url_after_redirect(str(resp.url))
-    if not safe_final:
-        logger.info("hiring-signals: dropped Workday response — final URL blocked (%s)", reason)
+    resp = post_json_no_redirect(
+        jobs_url,
+        payload=payload,
+        headers=headers,
+        timeout=_ATS_TIMEOUT_S,
+        label="Workday",
+    )
+    if resp is None:
         return None
     if resp.status_code != 200:
         return None

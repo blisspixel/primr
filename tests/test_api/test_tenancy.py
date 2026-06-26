@@ -26,7 +26,12 @@ from primr.utils.timeutils import utcnow_naive
 def manager():
     """Create a fresh tenant manager for each test."""
     reset_tenant_manager()
-    return TenantManager()
+    manager = TenantManager()
+    try:
+        yield manager
+    finally:
+        manager.close()
+        reset_tenant_manager()
 
 
 @pytest.fixture

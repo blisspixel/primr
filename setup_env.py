@@ -394,7 +394,7 @@ def _write_env_file_securely(env_path: Path, contents: str) -> None:
 
     Using ``Path.write_text`` creates the file with the process umask, so
     on a typical 0022 umask the resulting ``.env`` is world-readable
-    (0644). API keys are sensitive material — open the file with O_CREAT |
+    (0644). API keys are sensitive material - open the file with O_CREAT |
     O_TRUNC | 0o600 in one syscall so there's no race window where another
     local user could read it. Windows relies on NTFS ACLs inherited from
     the user profile and ignores the chmod argument.
@@ -414,8 +414,7 @@ def _write_env_file_securely(env_path: Path, contents: str) -> None:
         env_path.write_bytes(data)
 
 
-def main_rich():
-    """Main setup flow with rich UI."""
+def _print_rich_header():
     console.print()
     console.print(
         Panel.fit(
@@ -426,95 +425,105 @@ def main_rich():
     )
     console.print()
 
-    # Python check
+
+def _print_python_install_guidance():
+    console.print()
+    console.print("  [yellow]Python 3.12 or newer is required[/yellow]")
+    console.print()
+    console.print("  [cyan]Download from:[/cyan] https://www.python.org/downloads/")
+    console.print()
+    console.print("  [dim]Or use a version manager:[/dim]")
+    console.print("  [dim]• Windows: winget install Python.Python.3.13[/dim]")
+    console.print("  [dim]• macOS: brew install python@3.13[/dim]")
+    console.print("  [dim]• Linux: pyenv install 3.13[/dim]")
+    console.print()
+    console.print("  [dim]After installing, try:[/dim]")
+    console.print("  [cyan]• Windows: py -3.13 setup_env.py[/cyan]")
+    console.print("  [cyan]• macOS/Linux: python3.13 setup_env.py[/cyan]")
+    console.print()
+
+
+def _restart_with_python_or_exit(better_python):
+    console.print(f"  [green]✓[/green] Found Python 3.12+ at: [cyan]{better_python}[/cyan]")
+    console.print()
+    console.print("  [yellow]Restarting with correct Python...[/yellow]")
+    console.print()
+
+    # On Windows, os.execv doesn't truly replace the process; it spawns a
+    # child and exits, leaving cmd.exe without a prompt after the child
+    # finishes. Use subprocess instead.
+    if sys.platform == "win32":
+        result = subprocess.run([better_python, *sys.argv])
+        sys.exit(result.returncode)
+    os.execv(better_python, [better_python, *sys.argv])
+
+
+def _ensure_supported_python_or_exit():
     v = sys.version_info
     current_python = sys.executable
 
-    if v.major < 3 or (v.major == 3 and v.minor < 11):
-        console.print(f"  [red]✗[/red] Python {v.major}.{v.minor} [dim]({current_python})[/dim]")
+    if v.major >= 3 and v.minor >= 11:
+        console.print(f"  [green]✓[/green] Python {v.major}.{v.minor}")
+        return
 
-        # Try to find a better Python
-        console.print()
-        console.print("  [yellow]Looking for Python 3.12+...[/yellow]")
-        better_python = find_best_python()
+    console.print(f"  [red]✗[/red] Python {v.major}.{v.minor} [dim]({current_python})[/dim]")
+    console.print()
+    console.print("  [yellow]Looking for Python 3.12+...[/yellow]")
 
-        if better_python:
-            console.print(f"  [green]✓[/green] Found Python 3.12+ at: [cyan]{better_python}[/cyan]")
-            console.print()
-            console.print("  [yellow]Restarting with correct Python...[/yellow]")
-            console.print()
+    better_python = find_best_python()
+    if better_python:
+        _restart_with_python_or_exit(better_python)
 
-            # Restart with the better Python
-            # On Windows, os.execv doesn't truly replace the process —
-            # it spawns a child and exits, leaving cmd.exe without a
-            # prompt after the child finishes.  Use subprocess instead.
-            if sys.platform == "win32":
-                result = subprocess.run([better_python, *sys.argv])
-                sys.exit(result.returncode)
-            else:
-                os.execv(better_python, [better_python, *sys.argv])
-        else:
-            console.print()
-            console.print("  [yellow]Python 3.12 or newer is required[/yellow]")
-            console.print()
-            console.print("  [cyan]Download from:[/cyan] https://www.python.org/downloads/")
-            console.print()
-            console.print("  [dim]Or use a version manager:[/dim]")
-            console.print("  [dim]• Windows: winget install Python.Python.3.13[/dim]")
-            console.print("  [dim]• macOS: brew install python@3.13[/dim]")
-            console.print("  [dim]• Linux: pyenv install 3.13[/dim]")
-            console.print()
-            console.print("  [dim]After installing, try:[/dim]")
-            console.print("  [cyan]• Windows: py -3.13 setup_env.py[/cyan]")
-            console.print("  [cyan]• macOS/Linux: python3.13 setup_env.py[/cyan]")
-            console.print()
-            sys.exit(1)
+    _print_python_install_guidance()
+    sys.exit(1)
 
-    console.print(f"  [green]✓[/green] Python {v.major}.{v.minor}")
 
-    # Install primr
+def _ensure_primr_installed_or_exit():
     primr_ready, installed_version, expected_version = install_status("primr")
     if primr_ready:
         version_suffix = f" [dim](v{installed_version})[/dim]" if installed_version else ""
         console.print(f"  [green]✓[/green] Primr installed{version_suffix}")
-    else:
-        if installed_version and expected_version:
-            console.print(
-                f"  [yellow]>[/yellow] Primr v{installed_version} installed, updating to v{expected_version}..."
-            )
-        if install_primr():
-            refreshed_version = get_installed_version("primr")
-            version_suffix = f" [dim](v{refreshed_version})[/dim]" if refreshed_version else ""
-            console.print(f"  [green]✓[/green] Primr installed{version_suffix}")
-        else:
-            console.print("  [red]✗[/red] Installation failed")
-            console.print()
-            console.print("  [yellow]This often happens on network/sync drives.[/yellow]")
-            console.print("  [dim]Try one of these:[/dim]")
-            console.print("  [dim]1. Copy the folder to a local drive (C:)[/dim]")
-            console.print("  [dim]2. Close VS Code and other programs using this folder[/dim]")
-            console.print("  [dim]3. Delete src/primr.egg-info folder manually[/dim]")
-            console.print("  [dim]4. Run: pip install . --user[/dim]")
-            sys.exit(1)
+        return
 
-    # Playwright
+    if installed_version and expected_version:
+        console.print(
+            f"  [yellow]>[/yellow] Primr v{installed_version} installed, updating to v{expected_version}..."
+        )
+
+    if install_primr():
+        refreshed_version = get_installed_version("primr")
+        version_suffix = f" [dim](v{refreshed_version})[/dim]" if refreshed_version else ""
+        console.print(f"  [green]✓[/green] Primr installed{version_suffix}")
+        return
+
+    console.print("  [red]✗[/red] Installation failed")
+    console.print()
+    console.print("  [yellow]This often happens on network/sync drives.[/yellow]")
+    console.print("  [dim]Try one of these:[/dim]")
+    console.print("  [dim]1. Copy the folder to a local drive (C:)[/dim]")
+    console.print("  [dim]2. Close VS Code and other programs using this folder[/dim]")
+    console.print("  [dim]3. Delete src/primr.egg-info folder manually[/dim]")
+    console.print("  [dim]4. Run: pip install . --user[/dim]")
+    sys.exit(1)
+
+
+def _ensure_playwright_ready():
+    if is_installed("playwright"):
+        console.print("  [green]✓[/green] Playwright ready")
+        return
+
+    run_with_status([sys.executable, "-m", "pip", "install", "playwright"], "Installing playwright")
+    run_with_status(
+        [sys.executable, "-m", "playwright", "install", "chromium"], "Downloading browser"
+    )
     if is_installed("playwright"):
         console.print("  [green]✓[/green] Playwright ready")
     else:
-        run_with_status(
-            [sys.executable, "-m", "pip", "install", "playwright"], "Installing playwright"
-        )
-        run_with_status(
-            [sys.executable, "-m", "playwright", "install", "chromium"], "Downloading browser"
-        )
-        if is_installed("playwright"):
-            console.print("  [green]✓[/green] Playwright ready")
-        else:
-            console.print("  [dim]›[/dim] Playwright skipped [dim](optional)[/dim]")
+        console.print("  [dim]›[/dim] Playwright skipped [dim](optional)[/dim]")
 
-    # API keys
+
+def _ensure_required_api_keys(current):
     required = ["GEMINI_API_KEY"]
-    current = get_env_keys()
     missing = []
 
     for key in required:
@@ -523,18 +532,39 @@ def main_rich():
         else:
             missing.append(key)
 
-    # Show XAI/Grok status
+    if not missing:
+        return
+
+    console.print(f"\n  [cyan]Need {len(missing)} API key(s)[/cyan]")
+
+    key_info = {
+        "GEMINI_API_KEY": (
+            "https://aistudio.google.com/apikey",
+            "Powers AI analysis (required)",
+        ),
+    }
+
+    for key in missing:
+        url, desc = key_info[key]
+        current[key] = get_key_interactive(key, url, desc)
+        console.print(f"  [green]✓[/green] {key}")
+
+    _write_env_file_securely(
+        Path(".env"),
+        "\n".join(f"{k}={v}" for k, v in current.items()) + "\n",
+    )
+
+
+def _show_optional_api_status(current):
     if "XAI_API_KEY" in current and key_looks_valid("XAI_API_KEY", current["XAI_API_KEY"]):
-        console.print("  [green]✓[/green] XAI_API_KEY [dim](Grok — default model)[/dim]")
+        console.print("  [green]✓[/green] XAI_API_KEY [dim](Grok - default model)[/dim]")
     else:
         console.print(
-            "  [dim]·[/dim] XAI_API_KEY [dim](optional — enables Grok default mode, ~$0.55/run)[/dim]"
+            "  [dim]·[/dim] XAI_API_KEY [dim](optional - enables Grok default mode, ~$0.55/run)[/dim]"
         )
 
-    # Show search provider status
     console.print("  [green]✓[/green] Search: DuckDuckGo [dim](no API key needed)[/dim]")
 
-    # Check optional Google keys
     has_google_keys = all(
         key in current and key_looks_valid(key, current[key])
         for key in ["SEARCH_API_KEY", "SEARCH_ENGINE_ID"]
@@ -542,50 +572,38 @@ def main_rich():
     if has_google_keys:
         console.print("  [green]✓[/green] Google Search [dim](optional, also configured)[/dim]")
 
-    if missing:
-        console.print(f"\n  [cyan]Need {len(missing)} API key(s)[/cyan]")
 
-        key_info = {
-            "GEMINI_API_KEY": (
-                "https://aistudio.google.com/apikey",
-                "Powers AI analysis (required)",
-            ),
-        }
+def _offer_xai_setup(current):
+    if "XAI_API_KEY" in current and key_looks_valid("XAI_API_KEY", current["XAI_API_KEY"]):
+        return
 
-        for key in missing:
-            url, desc = key_info[key]
-            current[key] = get_key_interactive(key, url, desc)
-            console.print(f"  [green]✓[/green] {key}")
-
-        _write_env_file_securely(
-            Path(".env"),
-            "\n".join(f"{k}={v}" for k, v in current.items()) + "\n",
-        )
-
-    # Offer to set up XAI key if not present
-    if "XAI_API_KEY" not in current or not key_looks_valid("XAI_API_KEY", current["XAI_API_KEY"]):
-        console.print()
-        if Confirm.ask(
-            "  Set up XAI_API_KEY for Grok? [dim](faster, cheaper default)[/dim]", default=False
-        ):
-            xai_key = get_key_interactive(
-                "XAI_API_KEY",
-                "https://console.x.ai/",
-                "Powers Grok analysis — default mode (~$0.55/run, ~30 min)",
-            )
-            current["XAI_API_KEY"] = xai_key
-            _write_env_file_securely(
-            Path(".env"),
-            "\n".join(f"{k}={v}" for k, v in current.items()) + "\n",
-        )
-            console.print("  [green]✓[/green] XAI_API_KEY")
-
-    # Verify
     console.print()
-    console.rule(style="dim")
-    console.print()
+    if not Confirm.ask(
+        "  Set up XAI_API_KEY for Grok? [dim](faster, cheaper default)[/dim]", default=False
+    ):
+        return
 
-    # Run doctor with fully captured output (only once!)
+    xai_key = get_key_interactive(
+        "XAI_API_KEY",
+        "https://console.x.ai/",
+        "Powers Grok analysis - default mode (~$0.55/run, ~30 min)",
+    )
+    current["XAI_API_KEY"] = xai_key
+    _write_env_file_securely(
+        Path(".env"),
+        "\n".join(f"{k}={v}" for k, v in current.items()) + "\n",
+    )
+    console.print("  [green]✓[/green] XAI_API_KEY")
+
+
+def _configure_api_keys():
+    current = get_env_keys()
+    _ensure_required_api_keys(current)
+    _show_optional_api_status(current)
+    _offer_xai_setup(current)
+
+
+def _run_doctor_or_exit():
     try:
         with console.status("Verifying setup...", spinner="dots"):
             result = subprocess.run(
@@ -602,70 +620,94 @@ def main_rich():
     except Exception as e:
         console.print(f"  [red]✗[/red] Verification failed: {e}")
         sys.exit(1)
+    return result
 
-    # Show doctor output (only once, clean)
+
+def _show_doctor_output(result):
     if result.returncode == 0:
-        # Parse and show just the summary
         lines = result.stdout.strip().split("\n") if result.stdout else []
         for line in lines:
             line = line.strip()
             if line and not line.startswith("Primr Doctor"):
                 console.print(f"  {line}")
-    else:
-        # Show errors
-        if result.stderr:
-            console.print("  [red]Errors:[/red]")
-            for line in result.stderr.strip().split("\n"):
-                if line.strip():
-                    console.print(f"    {line}")
+        return
 
+    if result.stderr:
+        console.print("  [red]Errors:[/red]")
+        for line in result.stderr.strip().split("\n"):
+            if line.strip():
+                console.print(f"    {line}")
+
+
+def _show_ready_panel():
+    cli_available = shutil.which("primr") is not None
+
+    if cli_available:
+        console.print(
+            Panel.fit(
+                "[green bold]Ready![/green bold]\n\n"
+                'Try: [cyan]primr "Acme Corp" https://acme.com[/cyan]',
+                border_style="green",
+                padding=(0, 2),
+            )
+        )
+        return
+
+    scripts_dir = get_user_scripts_dir()
+    path_fixed = False
+
+    if scripts_dir and sys.platform == "win32":
+        console.print("  [yellow]>[/yellow] Adding Python Scripts to PATH...")
+        path_fixed = add_to_user_path_windows(scripts_dir)
+        if path_fixed:
+            console.print("  [green]✓[/green] PATH updated")
+
+    if path_fixed:
+        console.print(
+            Panel.fit(
+                "[green bold]Ready![/green bold]\n\n"
+                "[yellow]Open a new terminal[/yellow], then:\n\n"
+                '  [cyan]primr "Acme Corp" https://acme.com[/cyan]',
+                border_style="green",
+                padding=(0, 2),
+            )
+        )
+        return
+
+    console.print(
+        Panel.fit(
+            "[green bold]Ready![/green bold]\n\n"
+            'Use: [cyan]python -m primr "Acme Corp" https://acme.com[/cyan]',
+            border_style="green",
+            padding=(0, 2),
+        )
+    )
+
+
+def _show_setup_result(result):
     console.print()
     if result.returncode == 0:
-        # Check if primr CLI is on PATH (Windows issue)
-        cli_available = shutil.which("primr") is not None
-
-        if cli_available:
-            console.print(
-                Panel.fit(
-                    "[green bold]Ready![/green bold]\n\n"
-                    'Try: [cyan]primr "Acme Corp" https://acme.com[/cyan]',
-                    border_style="green",
-                    padding=(0, 2),
-                )
-            )
-        else:
-            # CLI not on PATH - try to fix it automatically on Windows
-            scripts_dir = get_user_scripts_dir()
-            path_fixed = False
-
-            if scripts_dir and sys.platform == "win32":
-                console.print("  [yellow]>[/yellow] Adding Python Scripts to PATH...")
-                path_fixed = add_to_user_path_windows(scripts_dir)
-                if path_fixed:
-                    console.print("  [green]✓[/green] PATH updated")
-
-            if path_fixed:
-                console.print(
-                    Panel.fit(
-                        "[green bold]Ready![/green bold]\n\n"
-                        "[yellow]Open a new terminal[/yellow], then:\n\n"
-                        '  [cyan]primr "Acme Corp" https://acme.com[/cyan]',
-                        border_style="green",
-                        padding=(0, 2),
-                    )
-                )
-            else:
-                console.print(
-                    Panel.fit(
-                        "[green bold]Ready![/green bold]\n\n"
-                        'Use: [cyan]python -m primr "Acme Corp" https://acme.com[/cyan]',
-                        border_style="green",
-                        padding=(0, 2),
-                    )
-                )
+        _show_ready_panel()
     else:
         console.print("[yellow]Setup complete but doctor found issues above[/yellow]")
     console.print()
+
+
+def main_rich():
+    """Main setup flow with rich UI."""
+    _print_rich_header()
+    _ensure_supported_python_or_exit()
+    _ensure_primr_installed_or_exit()
+    _ensure_playwright_ready()
+    _configure_api_keys()
+
+    console.print()
+    console.rule(style="dim")
+    console.print()
+
+    result = _run_doctor_or_exit()
+    _show_doctor_output(result)
+    _show_setup_result(result)
     sys.exit(0)
 
 

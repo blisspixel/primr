@@ -78,7 +78,8 @@ Cost behavior:
 - Dry-run estimates the run before model calls.
 - `--budget` refuses to start if the estimate exceeds the cap.
 - Fast full-report runs also consult runtime budget checkpoints before optional stages.
-- Premium, deep, scrape, and non-fast structured paths are estimate-gated unless roadmap work adds runtime checkpoints.
+- Premium, deep, and non-fast complete or hybrid runs checkpoint before and between optional strategy documents after the required Deep Research task completes.
+- Required Deep Research tasks cannot be stopped mid-flight by `--budget`; scrape remains estimate-gated only.
 - MCP HTTP tools can enforce server-side cost caps and approval tokens.
 
 ## Output Locations

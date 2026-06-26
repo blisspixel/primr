@@ -24,6 +24,64 @@ Use this rubric for every loop cycle before marking work done. A category scores
 
 ## Current Cycle Score
 
+2026-06-26 maintenance bug hunt and security review:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: externally influenced HTTP helpers found in the review now validate
+redirect hops before connection or do not follow redirects at all. The tenancy
+global reset now closes its SQLite connection and tests pin resource cleanup.
+Focused maintenance tests, warning-as-error tenancy tests, Ruff, format check,
+mypy, Bandit, and pip-audit pass. Spend: `$0.00`.
+
+2026-06-26 README clarification and non-fast budget checkpoints:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: non-fast Deep Research runs now stop before optional strategy spend
+when completed main-run cost reaches the active budget, and explicit strategy
+Deep Research task costs are reflected in usage history. The README clarifies
+command selection and budget scope while detailed contributor gates live in
+`docs/CONTRIBUTING.md`. The implementation uses small helper modules instead
+of growing `research_agent.py` past its pinned ceiling. Focused and broad test
+gates pass, including the full non-manual coverage gate at 85.27% branch.
+Spend: `$0.00`.
+
+2026-06-26 resource lifecycle warning cleanup:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: SQLite-backed singleton resets now close previous global
+connections for tenant managers, knowledge graphs, and company monitors. The
+sync/async bridge now uses `asyncio.run()` from synchronous code and closes
+rejected coroutines when called from an async context, eliminating unclosed
+event-loop/socket cleanup warnings under the warning-escalated focused tests.
+The final CI-shaped non-manual coverage gate passes with `10273 passed, 39
+skipped, 4 deselected`, 85.28% branch coverage, and `ResourceWarning`,
+`PytestUnknownMarkWarning`, and `PytestUnraisableExceptionWarning` promoted to
+errors. Spend: `$0.00`.
+
 2026-06-26 strict documentation build:
 
 | Category | Score |

@@ -124,10 +124,14 @@ class TestWorkday:
         assert len(triples) == 20
         assert ("acme", "wd1", "External") in triples
 
-    def _make_workday_post(self, postings_payload, *, status=200, final_url=None):
+    def _make_workday_post(
+        self, postings_payload, *, status=200, final_url=None, headers=None, is_redirect=False
+    ):
         resp = MagicMock()
         resp.url = final_url or "https://acmecorp.wd5.myworkdayjobs.com/x"
         resp.status_code = status
+        resp.headers = headers or {}
+        resp.is_redirect = is_redirect
         resp.json.return_value = postings_payload
         client = MagicMock()
         client.post.return_value = resp
@@ -150,10 +154,6 @@ class TestWorkday:
         cm = self._make_workday_post(payload)
         with (
             patch("primr.utils.security.is_safe_url", return_value=(True, None)),
-            patch(
-                "primr.utils.security.validate_final_url_after_redirect",
-                return_value=(True, None),
-            ),
             patch("httpx.Client", return_value=cm),
         ):
             postings = _workday_fetch_one(("acmecorp", "wd5", "External"))
@@ -182,21 +182,21 @@ class TestWorkday:
         cm = self._make_workday_post({}, status=404)
         with (
             patch("primr.utils.security.is_safe_url", return_value=(True, None)),
-            patch(
-                "primr.utils.security.validate_final_url_after_redirect",
-                return_value=(True, None),
-            ),
             patch("httpx.Client", return_value=cm),
         ):
             assert _workday_fetch_one(("acme", "wd5", "External")) is None
 
-    def test_workday_fetch_one_final_url_blocked(self):
-        cm = self._make_workday_post({"jobPostings": [{"title": "x"}]})
+    def test_workday_fetch_one_drops_redirect_without_following(self):
+        cm = self._make_workday_post(
+            {"jobPostings": [{"title": "x"}]},
+            status=302,
+            headers={"location": "http://169.254.169.254/latest/meta-data"},
+            is_redirect=True,
+        )
         with (
-            patch("primr.utils.security.is_safe_url", return_value=(True, None)),
             patch(
-                "primr.utils.security.validate_final_url_after_redirect",
-                return_value=(False, "redirected-internal"),
+                "primr.utils.security.is_safe_url",
+                side_effect=[(True, None), (False, "redirected-internal")],
             ),
             patch("httpx.Client", return_value=cm),
         ):
@@ -206,10 +206,6 @@ class TestWorkday:
         cm = self._make_workday_post({"notJobPostings": []})
         with (
             patch("primr.utils.security.is_safe_url", return_value=(True, None)),
-            patch(
-                "primr.utils.security.validate_final_url_after_redirect",
-                return_value=(True, None),
-            ),
             patch("httpx.Client", return_value=cm),
         ):
             assert _workday_fetch_one(("acme", "wd5", "External")) is None

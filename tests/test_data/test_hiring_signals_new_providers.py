@@ -121,7 +121,6 @@ class TestWorkdayFetch:
             return True, ""
 
         monkeypatch.setattr("primr.utils.security.is_safe_url", _ok)
-        monkeypatch.setattr("primr.utils.security.validate_final_url_after_redirect", _ok)
 
         postings = _workday_fetch_one(("acmecorp", "wd1", "External"))
         assert postings is not None

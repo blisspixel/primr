@@ -2,10 +2,10 @@
 
 Activates the existing :class:`~primr.agentic.hooks.CostGuardHook` accounting
 for standard (non-orchestrated) runs. The CLI sets a budget before
-``perform_research`` starts; fast-mode full-report stages sync actual session
+``perform_research`` starts. Supported execution paths sync actual session
 spend into it at optional-stage checkpoints and skip those stages once the
-ceiling is reached. Other execution paths remain pre-flight estimate-gated
-until they grow equivalent runtime checkpoints.
+ceiling is reached. Required provider tasks that expose no mid-flight spend
+state remain pre-flight estimate-gated.
 
 The budget is process-global because a primr process runs one research job at
 a time (single-job model).
@@ -111,7 +111,7 @@ def skip_stage_if_over_budget(spent_usd: float, stage_label: str) -> bool:
 
     console.warn(
         f"Run budget ${budget.max_cost:.2f} reached "
-        f"(~${spent_usd:.2f} spent) — skipping {stage_label}"
+        f"(~${spent_usd:.2f} spent); skipping {stage_label}"
     )
     log_structured(
         "warning",

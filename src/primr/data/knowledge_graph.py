@@ -161,13 +161,17 @@ class KnowledgeGraph:
         self._db_path = db_path or ":memory:"
         self._lock = threading.RLock()
         # Always use persistent connection to avoid connection leaks
-        self._persistent_conn = sqlite3.connect(self._db_path, check_same_thread=False)
+        self._persistent_conn: sqlite3.Connection | None = sqlite3.connect(
+            self._db_path, check_same_thread=False
+        )
         self._persistent_conn.row_factory = sqlite3.Row
         self._init_db()
         self._id_counter = 0
 
     def _get_connection(self) -> sqlite3.Connection:
         """Get database connection."""
+        if self._persistent_conn is None:
+            raise RuntimeError("KnowledgeGraph connection is closed")
         return self._persistent_conn
 
     def close(self) -> None:
@@ -657,6 +661,8 @@ def reset_knowledge_graph() -> None:
     """Reset the global graph (for testing)."""
     global _graph
     with _graph_lock:
+        if _graph is not None:
+            _graph.close()
         _graph = None
 
 

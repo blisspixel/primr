@@ -92,6 +92,91 @@ MkDocs build, architecture/release-integrity tests, Ruff, format check, diff
 hygiene, and style scans for em dashes, common emoji markers, and generated
 attribution phrases.
 
+## 2026-06-26 README and Budget-Control Slice
+
+Current best-practice check:
+
+- Diataxis continues to support the docs split already in use: root README as
+  orientation and focused docs for how-to, reference, and explanation:
+  <https://diataxis.fr/>.
+- GitHub README guidance says the repository README should explain what the
+  project does, why it is useful, how to get started, and where to get help:
+  <https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes>.
+- Keep a Changelog keeps the `Unreleased` section and grouped change types as
+  the right human-facing change format:
+  <https://keepachangelog.com/en/1.1.0/>.
+- MkDocs strict mode turns warnings into build failures, which matches this
+  repo's docs drift gate:
+  <https://www.mkdocs.org/user-guide/configuration/#strict>.
+
+Shipped in this slice:
+
+- README now has an explicit command-selection table, an agent-run approval
+  sentence, and a short cost/safety contract. Detailed contributor gates moved
+  to `docs/CONTRIBUTING.md`.
+- `--budget` now has a non-fast Deep Research checkpoint before and between
+  optional strategy documents. Required Deep Research tasks remain
+  estimate-gated once they start because the provider exposes cost at task
+  completion, not as live spend.
+- Explicit `--strategy-type ai` and generic strategy documents now count their
+  flat Deep Research task costs in usage history.
+- `research_agent.py` remains at its pinned 5,180-line ceiling after extracting
+  budget and strategy-loop helpers.
+- The mypy-discovered `PinnedHTTPAdapter` proxy mapping mismatch is fixed
+  without changing runtime behavior.
+
+Current estimate:
+
+- README is now a clearer front door. The next docs follow-up, if chosen, is
+  not more root README text; it is generated API reference through
+  `mkdocstrings`, as already tracked in ROADMAP.
+- Budget enforcement is honest and materially stronger. Remaining limitations
+  are scrape-only estimate gating, non-interruptible required Deep Research
+  tasks, and structured fallback work that still lacks live cost checkpoints.
+
+Spend: `$0.00`. Validation passed: focused budget/MCP tests, pinned-request
+tests, architecture/release-integrity tests, Ruff, format check, mypy, Bandit,
+pip-audit, strict MkDocs, style scans, and the full non-manual coverage gate
+(85.27% branch coverage).
+
+## 2026-06-26 Maintenance Security Review
+
+The latest bug-hunt/security pass found and fixed four redirect-control gaps
+and several resource-lifecycle leaks:
+
+- Skill-pack provider image fetches now use `safe_http_get()` instead of
+  automatic redirects plus final URL validation.
+- Preflight website HEAD checks now use `async_safe_http_head()` instead of
+  automatic redirects against user-supplied URLs.
+- Workday hiring probes now drop redirect responses instead of following them
+  for the JSON POST endpoint.
+- `managed_http_client()` no longer follows redirects by default.
+- `reset_tenant_manager()` closes the previous SQLite connection before
+  replacing the global manager, and tests close per-test managers.
+- `reset_knowledge_graph()` and `reset_company_monitor()` now close previous
+  SQLite connections before replacing global instances, and tests close
+  per-test instances.
+- `run_sync()` now uses `asyncio.run()` from synchronous code and closes
+  rejected coroutine objects when called from an async context.
+- The existing pytest `timeout` marker is registered, so marker validation is
+  explicit.
+
+Current estimate:
+
+- SSRF posture is stronger because the remaining externally influenced HTTP
+  helpers either validate every redirect hop before connecting or do not follow
+  redirects at all.
+- The remaining external warning in the full suite is a Starlette deprecation
+  warning from the test client import, not a project resource leak.
+
+Spend: `$0.00`. Validation passed: focused maintenance tests, tenancy
+ResourceWarning-as-error tests, knowledge graph and monitor ResourceWarning
+tests, async bridge unraisable-warning tests, Ruff, format check, mypy, Bandit,
+pip-audit, strict MkDocs, style scans, diff hygiene, and the final full
+coverage gate with `ResourceWarning`, `PytestUnknownMarkWarning`, and
+`PytestUnraisableExceptionWarning` promoted to errors (`10273 passed, 39
+skipped, 4 deselected`, 85.28% branch coverage).
+
 ## 2026-06-26 SSRF Slice: Safe HTTP DNS-Rebind Pinning
 
 Shipped in this slice:

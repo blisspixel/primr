@@ -23,7 +23,20 @@ from primr.data.knowledge_graph import (
 def graph():
     """Create a fresh graph for each test."""
     reset_knowledge_graph()
-    return KnowledgeGraph()
+    graph = KnowledgeGraph()
+    try:
+        yield graph
+    finally:
+        graph.close()
+        reset_knowledge_graph()
+
+
+@pytest.fixture(autouse=True)
+def clean_global_graph():
+    """Ensure global graph state never leaks open connections between tests."""
+    reset_knowledge_graph()
+    yield
+    reset_knowledge_graph()
 
 
 @pytest.fixture

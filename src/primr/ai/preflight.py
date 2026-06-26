@@ -398,9 +398,8 @@ class PreflightValidator:
     ) -> None:
         """Check target website is reachable."""
         try:
-            import httpx
-
-            from primr.utils.security import is_safe_url, validate_final_url_after_redirect
+            from primr.data.safe_http import async_safe_http_head
+            from primr.utils.security import is_safe_url
 
             # Normalize URL
             if not website_url.startswith(("http://", "https://")):
@@ -424,34 +423,40 @@ class PreflightValidator:
                 }
                 return
 
-            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-                response = await client.head(website_url)
-
-                # SSRF protection: validate final URL after redirects
-                final_url = str(response.url)
-                is_safe, redirect_error = validate_final_url_after_redirect(final_url)
-                if not is_safe:
-                    errors.append(f"Website redirects to unsafe URL: {redirect_error}")
-                    checks["website"] = {
-                        "passed": False,
-                        "status": "unsafe_redirect",
-                        "detail": f"Redirects to blocked address: {final_url}",
-                    }
-                    return
-
-                if response.status_code < 400:
-                    checks["website"] = {
-                        "passed": True,
-                        "status": f"HTTP {response.status_code}",
-                        "detail": website_url,
-                    }
-                    progress("  ✓ Website reachable")
-                else:
-                    warnings.append(f"Website returned HTTP {response.status_code}")
-                    checks["website"] = {
-                        "passed": True,  # Warning, not error
-                        "status": f"HTTP {response.status_code}",
-                    }
+            status_code, final_url, blocked_by_guard = await async_safe_http_head(
+                website_url,
+                timeout=10.0,
+                log_prefix="preflight-website",
+            )
+            if blocked_by_guard:
+                errors.append("Website redirects to unsafe URL")
+                checks["website"] = {
+                    "passed": False,
+                    "status": "unsafe_redirect",
+                    "detail": f"Redirects to blocked address: {final_url or website_url}",
+                }
+                return
+            if status_code is None:
+                warnings.append("Could not reach website: no response")
+                checks["website"] = {
+                    "passed": False,
+                    "status": "unreachable",
+                    "detail": website_url,
+                }
+                return
+            if status_code < 400:
+                checks["website"] = {
+                    "passed": True,
+                    "status": f"HTTP {status_code}",
+                    "detail": final_url or website_url,
+                }
+                progress("  ✓ Website reachable")
+            else:
+                warnings.append(f"Website returned HTTP {status_code}")
+                checks["website"] = {
+                    "passed": True,  # Warning, not error
+                    "status": f"HTTP {status_code}",
+                }
 
         except Exception as e:
             warnings.append(f"Could not reach website: {e}")

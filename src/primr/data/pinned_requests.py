@@ -30,7 +30,8 @@ class PinnedHTTPAdapter(HTTPAdapter):
 
         if request.url is None:
             raise ValueError("URL must be set before sending a request")
-        if select_proxy(request.url, proxies):
+        request_proxies = dict(proxies) if proxies is not None else None
+        if select_proxy(request.url, request_proxies):
             raise ValueError("SSRF protection: pinned requests do not support proxies")
 
         resolution, guard_error = resolve_safe_url_for_connect(request.url)

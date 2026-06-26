@@ -1,9 +1,9 @@
 """User-facing budget enforcement descriptions.
 
 The runtime ``RunBudget`` primitive can be activated for any research run, but
-only fast-mode full-report stages currently consult it before optional spend.
-Keep that distinction in one pure helper so CLI, MCP, and docs tests do not
-drift into overpromising.
+only selected optional stages can consult it before spending. Keep that
+distinction in one pure helper so CLI, MCP, and docs tests do not drift into
+overpromising.
 """
 
 from __future__ import annotations
@@ -17,6 +17,8 @@ _FAST_CHECKPOINTED_STAGES = (
     "contradiction resolution",
     "strategy generation",
 )
+_NONFAST_STRATEGY_CHECKPOINT_MODES = frozenset({"deep-research", "complete", "hybrid"})
+_NONFAST_CHECKPOINTED_STAGES = ("optional strategy generation",)
 
 
 @dataclass(frozen=True)
@@ -52,6 +54,18 @@ def describe_budget_enforcement(
                 "core workbook and section-writing calls are not skipped after they start"
             ),
             checkpointed_stages=_FAST_CHECKPOINTED_STAGES,
+        )
+
+    if mode in _NONFAST_STRATEGY_CHECKPOINT_MODES:
+        return BudgetEnforcement(
+            preflight=preflight,
+            runtime_checkpoints=True,
+            runtime=(
+                "runtime checkpoint is active before and between optional "
+                "strategy documents after required Deep Research completes; "
+                "the required Deep Research task cannot be stopped mid-flight"
+            ),
+            checkpointed_stages=_NONFAST_CHECKPOINTED_STAGES,
         )
 
     return BudgetEnforcement(

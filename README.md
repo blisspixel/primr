@@ -29,6 +29,9 @@ Primr is built for:
 
 Primr is not a generic crawler, a SaaS collaboration app, a model-serving platform, or a tool for bypassing authentication, paywalls, or site restrictions.
 
+Use normal web search for a quick two-paragraph pre-call brief. Use Primr when
+you want the full evidence pipeline and durable artifacts.
+
 ## Quick Start
 
 Requirements:
@@ -89,33 +92,36 @@ Costs change with provider configuration, strategy count, cache hits, model pric
 
 See [Run Modes and Costs](docs/RUN_MODES.md) for the full mode matrix, platform selection, strategy types, premium modes, and output examples.
 
-## Common Commands
+## Choose a Command
 
-```bash
-# Standard research run
-primr "Company" https://company.com
+| Need | Command |
+|------|---------|
+| Estimate the next run | `primr "Company" https://company.com --dry-run` |
+| Standard Strategic Overview plus AI Strategy | `primr "Company" https://company.com` |
+| Strategic Overview only | `primr "Company" https://company.com --no-ai-strategy` |
+| Strategy aimed at Microsoft Azure plus private cloud | `primr "Company" https://company.com --platform ms` |
+| Site corpus and extracted insights only | `primr "Company" https://company.com --mode scrape` |
+| DNS intelligence only, no model keys required | `primr recon company.com` |
+| Agent Skills pack for downstream hosts | `primr skills "Company" https://company.com` |
+| Client-facing deliverables in a chosen folder | `primr "Company" https://company.com --output-dir "C:\Clients\Company"` |
 
-# Estimate cost before running
-primr "Company" https://company.com --dry-run
+For agent-host operation, the same lifecycle applies: estimate, show the cost
+and mode, get explicit approval, launch, monitor asynchronously, then read the
+output artifact before summarizing it. See [Agent Integration](docs/AGENT_INTEGRATION.md).
 
-# Base Strategic Overview only
-primr "Company" https://company.com --no-ai-strategy
+## Cost and Safety Contract
 
-# Strategy aimed at Microsoft Azure plus private cloud
-primr "Company" https://company.com --platform ms
+Primr treats spend and egress as explicit control surfaces:
 
-# Site corpus only
-primr "Company" https://company.com --mode scrape
-
-# DNS intelligence only, no model keys required
-primr recon company.com
-
-# Skill pack for agent hosts and Microsoft 365 Copilot Cowork
-primr skills "Company" https://company.com
-
-# Send customer-facing deliverables to a client folder
-primr "Company" https://company.com --output-dir "C:\Clients\Company"
-```
+- `--dry-run` is the source of truth for the next run estimate.
+- `--budget N` refuses to start when the estimate exceeds the cap.
+- Fast full-report runs checkpoint optional spend during the run.
+- Premium, deep, complete, and hybrid Deep Research paths checkpoint before
+  optional strategy documents after the required Deep Research task completes.
+- Required Deep Research tasks cannot be stopped mid-flight once started, and
+  scrape mode remains estimate-gated only.
+- Outbound URLs and redirects are guarded against internal-network and
+  cloud-metadata targets.
 
 ## What It Collects
 
@@ -178,17 +184,11 @@ Start with [Agent Integration](docs/AGENT_INTEGRATION.md). Programmatic MCP and 
 ## Development
 
 For source checkouts, see [Contributing](docs/CONTRIBUTING.md).
+The development contract is [CLAUDE.md](CLAUDE.md); it defines the code-quality
+bar, architecture seams, and verification gates for changing Primr itself.
 
-Common local gates:
-
-```bash
-uv run ruff check src/ tests/
-uv run ruff format --check src/ tests/
-uv run --no-sync mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'
-uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short --cov=src/primr --cov-branch --cov-fail-under=81
-```
-
-The repository has 10,000+ tests, branch coverage above the 80% CI floor, Ruff formatting, mypy checks, Bandit, pip-audit, and documentation builds.
+The repository has 10,000+ tests, branch coverage above the 80% CI floor, Ruff
+formatting, mypy checks, Bandit, pip-audit, and strict documentation builds.
 
 ## Documentation
 

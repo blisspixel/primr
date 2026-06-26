@@ -32,7 +32,8 @@ class TestManagedHttpClient:
         with patch("httpx.Client", return_value=fake_client) as ctor:
             with managed_http_client(timeout=5.0, max_connections=4, http2=False) as c:
                 assert c is fake_client
-            ctor.assert_called_once()
+            kwargs = ctor.call_args.kwargs
+            assert kwargs["follow_redirects"] is False
         fake_client.close.assert_called_once()
 
     def test_closes_on_exception(self):

@@ -299,18 +299,11 @@ class _AsyncCM:
 
 @pytest.mark.asyncio
 async def test_check_website_reachable(validator):
-    fake_client = MagicMock()
-
-    async def _head(url):
-        return SimpleNamespace(url="https://example.com", status_code=200)
-
-    fake_client.head = _head
     with (
         patch("primr.utils.security.is_safe_url", return_value=(True, None)),
-        patch("httpx.AsyncClient", return_value=_AsyncCM(fake_client)),
         patch(
-            "primr.utils.security.validate_final_url_after_redirect",
-            return_value=(True, None),
+            "primr.data.safe_http.async_safe_http_head",
+            return_value=(200, "https://example.com", False),
         ),
     ):
         errors, warnings, checks = [], [], {}
@@ -321,18 +314,11 @@ async def test_check_website_reachable(validator):
 
 @pytest.mark.asyncio
 async def test_check_website_unsafe_redirect(validator):
-    fake_client = MagicMock()
-
-    async def _head(url):
-        return SimpleNamespace(url="http://169.254.169.254/", status_code=200)
-
-    fake_client.head = _head
     with (
         patch("primr.utils.security.is_safe_url", return_value=(True, None)),
-        patch("httpx.AsyncClient", return_value=_AsyncCM(fake_client)),
         patch(
-            "primr.utils.security.validate_final_url_after_redirect",
-            return_value=(False, "blocked"),
+            "primr.data.safe_http.async_safe_http_head",
+            return_value=(None, None, True),
         ),
     ):
         errors, warnings, checks = [], [], {}
@@ -348,7 +334,7 @@ async def test_check_website_blocks_unsafe_initial_url_without_network(validator
             "primr.utils.security.is_safe_url",
             return_value=(False, "Private/reserved IP addresses are blocked"),
         ),
-        patch("httpx.AsyncClient") as async_client,
+        patch("primr.data.safe_http.async_safe_http_head") as safe_head,
     ):
         errors, warnings, checks = [], [], {}
         await validator._check_website("http://127.0.0.1/admin", errors, warnings, checks, _noop)
@@ -356,14 +342,14 @@ async def test_check_website_blocks_unsafe_initial_url_without_network(validator
     assert any("unsafe" in e.lower() for e in errors)
     assert checks["website"]["status"] == "unsafe_url"
     assert not warnings
-    async_client.assert_not_called()
+    safe_head.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_check_website_dns_failure_stays_reachability_warning(validator):
     with (
         patch("primr.utils.security.is_safe_url", return_value=(False, "DNS resolution failed")),
-        patch("httpx.AsyncClient") as async_client,
+        patch("primr.data.safe_http.async_safe_http_head") as safe_head,
     ):
         errors, warnings, checks = [], [], {}
         await validator._check_website("https://missing.example", errors, warnings, checks, _noop)
@@ -371,23 +357,16 @@ async def test_check_website_dns_failure_stays_reachability_warning(validator):
     assert not errors
     assert any("Could not reach website" in w for w in warnings)
     assert checks["website"]["status"] == "unreachable"
-    async_client.assert_not_called()
+    safe_head.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_check_website_http_error_status_warns(validator):
-    fake_client = MagicMock()
-
-    async def _head(url):
-        return SimpleNamespace(url="https://example.com", status_code=503)
-
-    fake_client.head = _head
     with (
         patch("primr.utils.security.is_safe_url", return_value=(True, None)),
-        patch("httpx.AsyncClient", return_value=_AsyncCM(fake_client)),
         patch(
-            "primr.utils.security.validate_final_url_after_redirect",
-            return_value=(True, None),
+            "primr.data.safe_http.async_safe_http_head",
+            return_value=(503, "https://example.com", False),
         ),
     ):
         errors, warnings, checks = [], [], {}
@@ -399,7 +378,10 @@ async def test_check_website_http_error_status_warns(validator):
 async def test_check_website_unreachable(validator):
     with (
         patch("primr.utils.security.is_safe_url", return_value=(True, None)),
-        patch("httpx.AsyncClient", side_effect=RuntimeError("dns fail")),
+        patch(
+            "primr.data.safe_http.async_safe_http_head",
+            side_effect=RuntimeError("dns fail"),
+        ),
     ):
         errors, warnings, checks = [], [], {}
         await validator._check_website("https://example.com", errors, warnings, checks, _noop)

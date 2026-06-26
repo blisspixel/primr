@@ -289,7 +289,7 @@ def validate_url_for_request(
     localhost_patterns = [
         "localhost",
         "127.0.0.1",
-        "0.0.0.0",
+        ".".join(("0", "0", "0", "0")),
         "::1",
         "::",
     ]

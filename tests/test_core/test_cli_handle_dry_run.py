@@ -99,13 +99,14 @@ class TestDryRunFlags:
         result = run_dry_run(_config(mode="scrape"))
         assert result == 0
 
-    def test_budget_policy_prints_estimate_only_for_premium(self, mocks, capsys):
+    def test_budget_policy_prints_optional_strategy_checkpoint_for_premium(self, mocks, capsys):
         result = run_dry_run(_config(mode="complete", premium_mode=True, budget_usd=2.0))
 
         assert result == 0
         out = capsys.readouterr().out
         assert "BUDGET POLICY" in out
-        assert "estimate-gated only" in out
+        assert "optional strategy generation" in out
+        assert "required Deep Research task cannot be stopped" in out
 
     def test_budget_policy_prints_checkpoints_for_fast(self, mocks, capsys):
         result = run_dry_run(_config(mode="complete", fast_mode=True, budget_usd=2.0))

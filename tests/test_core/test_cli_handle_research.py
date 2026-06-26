@@ -227,7 +227,9 @@ class TestBudgetGate:
         # ...and cleared afterwards
         assert get_run_budget() is None
 
-    def test_estimate_only_budget_warning_for_premium_path(self, passing_preflight, monkeypatch):
+    def test_budget_runtime_info_for_premium_strategy_checkpoint(
+        self, passing_preflight, monkeypatch
+    ):
         from types import SimpleNamespace
 
         monkeypatch.setattr(
@@ -243,7 +245,7 @@ class TestBudgetGate:
 
         assert _handle_research(_config(premium_mode=True, budget_usd=2.00)) == 0
 
-        assert any("estimate-gated only" in call.args[0] for call in warn.call_args_list)
+        assert warn.call_args_list == []
 
     def test_budget_cleared_even_when_research_raises(self, passing_preflight, monkeypatch):
         from types import SimpleNamespace

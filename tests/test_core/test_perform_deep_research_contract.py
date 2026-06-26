@@ -17,7 +17,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from primr.config.models import DEEP_RESEARCH_COST
 from primr.core import research_agent
+from primr.utils.run_budget import clear_run_budget
 
 
 def _read_state(folder: Path) -> dict:
@@ -97,6 +99,13 @@ def seams(monkeypatch, tmp_path):
         "job_log": job_log,
     }
     return captured
+
+
+@pytest.fixture(autouse=True)
+def _clear_budget():
+    clear_run_budget()
+    yield
+    clear_run_budget()
 
 
 def _run(seams, **overrides):
@@ -224,10 +233,37 @@ class TestStrategyLoop:
         vendors = [c.kwargs["platform"] for c in seams["strategy_gen"].call_args_list]
         assert vendors == ["aws", "azure"]
 
+    def test_explicit_ai_strategies_count_deep_research_task_cost(self, seams):
+        _run(seams, strategies=["ai"], platforms=("aws", "azure"))
+
+        kwargs = seams["tracker"].record_usage.call_args.kwargs
+        expected_tasks = 3  # main report + one explicit AI strategy per vendor
+        assert kwargs["deep_research_cost"] == pytest.approx(
+            expected_tasks * DEEP_RESEARCH_COST.standard_task_cost
+        )
+
     def test_legacy_ai_strategy_flag_maps_to_ai(self, seams):
         _run(seams, ai_strategy=True, platforms=("azure",))
         assert seams["strategy_gen"].call_count == 1
         assert seams["strategy_gen"].call_args.kwargs["strategy_name"] == "ai"
+
+    def test_budget_over_main_deep_research_spend_skips_optional_strategy(self, seams):
+        from primr.utils.run_budget import set_run_budget
+
+        set_run_budget(1.0)
+
+        result = _run(seams, strategies=["ai"], platforms=("azure",))
+
+        assert result == str(seams["out_dir"] / "deep.docx")
+        seams["strategy_gen"].assert_not_called()
+        state = _read_state(seams["folder"])
+        assert any(
+            event.get("phase") == "strategy_generation"
+            and event.get("status") == "skipped"
+            and event.get("extra", {}).get("strategy") == "ai"
+            and event.get("extra", {}).get("platform") == "azure"
+            for event in state["events"]
+        )
 
     def test_no_strategy_skips_loop(self, seams):
         _run(seams)

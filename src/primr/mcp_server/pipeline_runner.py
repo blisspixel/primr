@@ -82,18 +82,16 @@ class PipelineRunner:
             verify: Whether to run claim verification
             destination: Optional destination directory for output files
             budget_usd: Operator-approved per-run cost ceiling (the MCP cost
-                cap). When set, it activates the same mid-run budget checkpoints
-                the CLI ``--budget`` flag uses, so actual spend on the fast
-                pipeline is bounded, not just the pre-flight estimate. Without
-                it the run is estimate-gated only.
+                cap). When set, it activates the same optional-stage budget
+                checkpoints the CLI ``--budget`` flag uses. Without it the run
+                is governed by its pre-flight estimate only.
         """
         self._cancel_requested = False
 
-        # Bound actual mid-run spend to the operator-approved cap, mirroring the
-        # CLI --budget path (today only the fast pipeline consults this; premium
-        # / structured remain estimate-gated, tracked in NOTES). The budget is
-        # process-global and the MCP server runs one job at a time, so it is
-        # cleared in a finally below to never leak into the next job.
+        # Bound optional spend to the operator-approved cap, mirroring the CLI
+        # --budget path. The budget is process-global and the MCP server runs
+        # one job at a time, so it is cleared in a finally below to never leak
+        # into the next job.
         from primr.utils.run_budget import clear_run_budget, set_run_budget
 
         budget_active = False

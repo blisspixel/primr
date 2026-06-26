@@ -236,5 +236,11 @@ class TestJsonFlag:
 
         assert rc == 0
         payload = json.loads(capsys.readouterr().out)
-        assert payload["budget_enforcement"]["runtime_checkpoints"] is False
-        assert "estimate-gated only" in payload["budget_enforcement"]["runtime"]
+        assert payload["budget_enforcement"]["runtime_checkpoints"] is True
+        assert payload["budget_enforcement"]["checkpointed_stages"] == [
+            "optional strategy generation"
+        ]
+        assert (
+            "required Deep Research task cannot be stopped"
+            in payload["budget_enforcement"]["runtime"]
+        )

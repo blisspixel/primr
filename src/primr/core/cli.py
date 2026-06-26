@@ -1205,7 +1205,8 @@ def _create_parser() -> argparse.ArgumentParser:
         help=(
             "Per-run cost ceiling in USD. Refuses to start when the estimate "
             "exceeds it. Fast-mode full runs also checkpoint optional stages "
-            "against actual spend; other modes are estimate-gated only."
+            "against actual spend; non-fast Deep Research paths checkpoint "
+            "optional strategy documents after the required Deep Research task."
         ),
     )
     parser.add_argument("--roadmap", action="store_true", help="Show roadmap information")
@@ -2939,9 +2940,8 @@ def _handle_research(config: CLIConfig) -> int:
         os.environ.pop("PRIMR_BROWSER_HEADED", None)
 
     # --budget pre-flight gate: refuse to start a run whose estimate already
-    # exceeds the ceiling. Fast-mode full-report stages consult the active
-    # budget at optional spend checkpoints; other paths are estimate-gated only
-    # until they gain equivalent spend checkpoints.
+    # exceeds the ceiling. Runtime checkpoints exist only before optional spend
+    # stages where the provider path exposes enough completed-cost state.
     from primr.core.cli_budget import activate_run_budget
 
     budget_activation = activate_run_budget(

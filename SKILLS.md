@@ -6,6 +6,10 @@
   nav. Keep root-level files and deploy assets linked with stable GitHub URLs
   rather than relative paths outside `docs_dir`, and include intentional docs in
   the nav instead of leaving orphaned pages to warning-only builds.
+- Keep the root README decision-oriented: what the project does, when to use
+  it, how to start, which command to choose, and where deeper docs live. Move
+  contributor gates, mode matrices, and host-integration details to focused
+  docs.
 
 ## MCP Control Plane
 
@@ -39,6 +43,11 @@
   this run start"; `RunBudget` answers "should optional spend continue." Clear
   the process-global budget in a `finally` because the MCP server is single-job
   today but still long-lived.
+- For flat-cost async providers that expose spend only after task completion,
+  gate optional follow-on tasks after each completed task and between optional
+  documents. Do not claim mid-flight enforcement for the required provider task
+  unless the provider exposes live spend or cancellation semantics at that
+  boundary.
 
 ## Backend Routing and Availability
 
@@ -80,6 +89,16 @@
   Put only the bounded network primitive in the safe HTTP seam, return an
   explicit guard-block signal, and let ordinary network exceptions propagate to
   the caller's existing retry policy.
+- Never pair `follow_redirects=True` with after-the-fact final URL validation on
+  externally influenced URLs. Either use the shared safe HTTP seam that validates
+  each hop before connection, or set redirects off and fail closed.
+- For POST endpoints where the shared safe GET/HEAD seam does not fit, prefer
+  `follow_redirects=False` and drop redirect responses unless there is a
+  deliberate, method-aware, per-hop redirect implementation.
+- Reset helpers for process-global singletons must close the old object before
+  replacing it when the object owns files, sockets, database connections, or
+  background threads. Pin this with warning-as-error tests when Python can emit
+  `ResourceWarning`.
 
 ## Skill Pack Generation
 
@@ -218,3 +237,19 @@
   workflows into focused docs that appear in `docs/README.md` and `mkdocs.yml`.
 - Run style scans for em dashes, emoji-like symbols, and generated-attribution
   phrases before committing documentation refreshes.
+
+## Resource Lifecycle Hygiene
+
+- Any reset helper that discards a global object must call the object's close
+  method first when that object owns files, sockets, database connections, or
+  executors.
+- Test fixtures that return resource-owning objects should use `yield` and
+  close in `finally`; do not rely on garbage collection to clean up SQLite
+  connections or event loops.
+- For sync-to-async bridges, prefer `asyncio.run()` in synchronous code so the
+  event loop is closed promptly. If a bridge rejects use from an already running
+  loop, close the rejected coroutine object before raising to avoid unawaited
+  coroutine cleanup warnings.
+- Promote `ResourceWarning`, `PytestUnknownMarkWarning`, and
+  `PytestUnraisableExceptionWarning` to errors in focused bug-hunt tests. It
+  turns hidden lifecycle drift into a deterministic local gate.

@@ -798,6 +798,8 @@ def reset_tenant_manager() -> None:
     """Reset the global tenant manager (for testing)."""
     global _tenant_manager
     with _manager_lock:
+        if _tenant_manager is not None:
+            _tenant_manager.close()
         _tenant_manager = None
 
 

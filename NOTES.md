@@ -21,6 +21,20 @@ when the surrounding code is next touched.
   one stricter helper that only rewrites brackets beginning with `cite:` or
   `cites:`, preserving prose like `[we cite: revenue doubled]`.
 
+## Resource lifecycle warnings (2026-06-26 maintenance)
+
+- **FIXED in local Unreleased -- SQLite-backed singleton resets leaked
+  connections.** `reset_tenant_manager()`, `reset_knowledge_graph()`, and
+  `reset_company_monitor()` now close existing global instances before clearing
+  them. Their tests use yielding fixtures so per-test instances close in
+  teardown.
+- **FIXED in local Unreleased -- sync/async bridge left loop cleanup to GC.**
+  `run_sync()` now uses `asyncio.run()` from synchronous code and closes
+  rejected coroutine objects when called inside an async context. Focused tests
+  promote `ResourceWarning` and pytest unraisable warnings to errors.
+- The remaining full-suite warning is an external Starlette/httpx2 deprecation
+  emitted by FastAPI's `TestClient` import, not a local resource leak.
+
 ## SSRF: validated thing != connected thing (2026-06-25 security review)
 
 The per-URL filter (`utils/security.is_safe_url`, numeric-host backstop,
@@ -107,14 +121,16 @@ into only the CLI fast path. Triaged for upcoming cycles:
   `research_company` now passes the approved `max_estimated_cost_usd` into
   `PipelineRunner`, which activates `set_run_budget()` for the fast path and
   clears it in a `finally`.
-- **HIGH -- premium/deep/scrape/non-fast paths have no mid-run gate.**
-  PARTIALLY FIXED in local Unreleased. `--budget` is set for all modes but only
-  `perform_fast_research` consults it. `perform_deep_research` and the
-  structured fallback have zero budget refs. **Done:** CLI help, human dry-runs,
-  `--dry-run --json`, MCP `estimate_run`, README, ROADMAP, and SECURITY now say
-  fast full-report runs have runtime optional-stage checkpoints while premium,
-  deep, scrape, and non-fast structured paths are estimate-gated only.
-  **Remaining:** add actual runtime checkpoints to those non-fast paths.
+- **HIGH -- premium/deep/scrape/non-fast paths have limited mid-run gates.**
+  PARTIALLY FIXED in local Unreleased. `--budget` is set for all modes,
+  `perform_fast_research` consults it at optional fast stages, and
+  `perform_deep_research` now consults it before and between optional strategy
+  documents after the required Deep Research task completes. **Done:** CLI help,
+  human dry-runs, `--dry-run --json`, MCP `estimate_run`, README, ROADMAP, and
+  SECURITY state the selected runtime behavior without overclaiming mid-flight
+  control. **Remaining:** scrape is still estimate-gated only; required Deep
+  Research tasks and structured fallback work still cannot be stopped after
+  they start because no live cost state is exposed at that boundary.
 - **MEDIUM -- `CostGuardHook` is inert.** Nothing calls `record_cost` against a
   live hook and the orchestrator passes no `estimated_cost_usd`, so `spent`
   stays 0 and it never blocks. Either wire real per-subagent cost in or drop the

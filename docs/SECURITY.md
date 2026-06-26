@@ -26,7 +26,7 @@ MCP/A2A tool surfaces, and (4) provider secrets + the dependency supply chain.
 | T1 | Indirect prompt injection | Instructions embedded in scraped pages / postings / sitemaps | `sanitize_for_llm` (injection-pattern + control-char stripping) + `fence_untrusted` data-fencing at every external-content→prompt boundary ("data, never instructions") | Shipped |
 | T2 | SSRF / internal pivot | Attacker page or redirect points primr at loopback / RFC1918 / link-local / cloud-metadata | `is_safe_url` on every egress helper; IP-pinned per-hop redirect validation through `data/safe_http.py` for `fallback_sources._http_get`, `hiring_signals._http_get`, Wayback CDX/replay fetches, async citation-resolution HEAD requests, the tiered httpx scraper, pooled `HTTPClient` GET/HEAD calls, the tiered requests scraper, and the curl_cffi scraper; browser egress planning for Chromium-backed tiers with initial-host resolver pins, local loopback egress proxying for dynamic browser hosts, QUIC disabled, and Playwright/Patchright request route guards; manual per-hop validation in `data/scraping/net.py`; `SSRFGuardHook` on tool calls | Shipped |
 | T3 | Secret leakage | API key in a log line, prompt, or persisted artifact | `SecretMaskingFilter` on all log handlers; `mask_sensitive_data` (incl. xAI) applied in `chat_logger` before persist; hardcoded-secret CI gate | Shipped |
-| T4 | Cost / resource exhaustion | Runaway tool invocation | `CostGuardHook` budget; `estimate_run`-first; `PRIMR_ENFORCE_MCP_COST_CAPS`; server-issued approval tokens for MCP cost-cap-governed tools; explicit budget-enforcement payloads; MCP fast-path runtime budget propagation; single-job model; rate limiting | Shipped, with non-fast runtime checkpoints tracked |
+| T4 | Cost / resource exhaustion | Runaway tool invocation | `CostGuardHook` budget; `estimate_run`-first; `PRIMR_ENFORCE_MCP_COST_CAPS`; server-issued approval tokens for MCP cost-cap-governed tools; explicit budget-enforcement payloads; MCP runtime budget propagation for fast optional stages and non-fast optional strategy documents; single-job model; rate limiting | Shipped, with required Deep Research tasks still estimate-gated mid-flight |
 | T5 | Unauthorized tool access | Calling MCP/A2A tools without/with stale creds | JWT (HMAC-SHA256, constant-time, expiry/nbf/aud), admin-token hashing, loopback-only unauthenticated A2A | Shipped (all-or-nothing) |
 | T6 | Output egress / scope expansion | Injected instruction tries to widen URL/tool scope or exfiltrate | All fetches gated by T2; the LLM cannot register tools or bypass `is_safe_url` (tested invariant) | Shipped |
 | T7 | Supply-chain compromise | Vulnerable/malicious dep or tampered release | `pip-audit` + `bandit` gates; Dependabot; `uv.lock`; OIDC publishing; SLSA build-provenance | Shipped |
@@ -37,9 +37,12 @@ MCP/A2A tool surfaces, and (4) provider secrets + the dependency supply chain.
   set; the data-fence is the backstop, and an injection red-team eval is tracked.
 - **T2** has complete pre-request SSRF validation and per-hop redirect
   validation on the shared safe HTTP seam, async citation HEAD requests,
+  preflight website HEAD checks, provider-hosted skill-pack image fetches,
   discovery HTTP helpers, pooled HTTPClient GET/HEAD calls, and the tiered
-  requests/httpx/curl_cffi scrapers. The shared safe HTTP seam, tiered httpx
-  scraper, pooled HTTPClient, tiered requests scraper, and curl_cffi scraper now
+  requests/httpx/curl_cffi scrapers. Workday hiring-signal JSON POST probes
+  now drop redirects rather than following an unvalidated hop. The shared safe
+  HTTP seam, tiered httpx scraper, pooled HTTPClient, tiered requests scraper,
+  and curl_cffi scraper now
   resolve each hop once, validate every returned address, and pin the actual
   connection target while preserving the public hostname semantics each client
   needs for virtual hosting and TLS. Browser-backed Chromium tiers now pin the

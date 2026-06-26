@@ -3912,9 +3912,20 @@ def perform_deep_research(
                 # Legacy --ai-strategy flag (default behavior)
                 strategies_to_run = ["ai"]
 
-            # Generate strategies (uses Deep Research with company context)
             strategy_paths: dict[str, str] = {}
+            strategy_deep_research_tasks_started = 0
             if strategies_to_run:
+                from primr.core.deep_budget import (
+                    skip_optional_strategy_if_over_budget,
+                    strategy_uses_deep_research,
+                )
+                from primr.core.strategy_loop import (
+                    count_strategy_phases,
+                    record_strategy_completion,
+                    strategy_display_labels,
+                    strategy_vendors,
+                )
+
                 _update_run_state(
                     folder_path, current_phase="strategy_generation", status="running"
                 )
@@ -3926,35 +3937,27 @@ def perform_deep_research(
                     strategies=strategies_to_run,
                 )
                 base_phase = 3
-                # Count total phases: AI strategy runs once per vendor, others run once
-                total_phase_count = sum(
-                    len(platforms) if s == "ai" else 1 for s in strategies_to_run
-                )
+                total_phase_count = count_strategy_phases(strategies_to_run, platforms)
 
                 phase_offset = 0
+                skip_remaining_strategies = False
                 for strategy_name in strategies_to_run:
-                    # AI strategy iterates over each vendor; others run once
-                    vendors = list(platforms) if strategy_name == "ai" else ["agnostic"]
+                    for vendor in strategy_vendors(strategy_name, platforms):
+                        if skip_optional_strategy_if_over_budget(
+                            mode=mode,
+                            optional_strategy_tasks_started=strategy_deep_research_tasks_started,
+                            folder_path=folder_path,
+                            strategy_name=strategy_name,
+                            platform=vendor,
+                        ):
+                            skip_remaining_strategies = True
+                            break
 
-                    for vendor in vendors:
                         phase_num = base_phase + phase_offset
                         total_phases = base_phase + total_phase_count - 1
-
-                        # Get display name from registry
-                        from primr.prompts.registry import get_registry
-
-                        registry = get_registry()
-                        strategy_module = registry.get(strategy_name)
-                        display_strategy_name = (
-                            strategy_module.display_name
-                            if strategy_module
-                            else strategy_name.replace("_", " ").title()
+                        display_strategy_name, vendor_label = strategy_display_labels(
+                            strategy_name, vendor, platforms
                         )
-
-                        # Append vendor to display name for multi-vendor AI runs
-                        vendor_label = ""
-                        if strategy_name == "ai" and len(platforms) > 1:
-                            vendor_label = f" ({vendor.upper()})"
 
                         console.phase_banner(
                             phase_num,
@@ -3965,6 +3968,8 @@ def perform_deep_research(
                         )
 
                         # Generate the strategy
+                        if strategy_uses_deep_research(strategy_name, lite_strategy=lite_strategy):
+                            strategy_deep_research_tasks_started += 1
                         strategy_path = _generate_strategy_section(
                             strategy_name=strategy_name,
                             company_name=company_name or display_name,
@@ -3978,24 +3983,20 @@ def perform_deep_research(
                         )
 
                         if strategy_path:
-                            # Use compound key for multi-vendor AI strategies
-                            if strategy_name == "ai" and len(platforms) > 1:
-                                key = f"ai_{vendor}"
-                            else:
-                                key = strategy_name
-                            strategy_paths[key] = strategy_path
-                            console.phase_complete(
-                                f"{display_strategy_name}{vendor_label} Analysis"
-                            )
-                            _append_run_event(
-                                folder_path,
-                                "strategy_generation",
-                                "completed",
-                                f"{display_strategy_name}{vendor_label} completed",
-                                output=strategy_path,
+                            record_strategy_completion(
+                                strategy_paths=strategy_paths,
+                                strategy_name=strategy_name,
+                                vendor=vendor,
+                                platforms=platforms,
+                                output_path=strategy_path,
+                                folder_path=folder_path,
+                                display_strategy_name=display_strategy_name,
+                                vendor_label=vendor_label,
                             )
 
                         phase_offset += 1
+                    if skip_remaining_strategies:
+                        break
 
             # For backward compatibility
             strategy_paths.get("ai")
@@ -4043,7 +4044,10 @@ def perform_deep_research(
 
             # Get actual usage from AI client (per-model accurate cost)
             from primr.ai.client import get_client
-            from primr.config.models import DEEP_RESEARCH_COST
+            from primr.core.deep_budget import (
+                count_main_deep_research_tasks,
+                deep_research_flat_cost,
+            )
 
             client = get_client()
             usage = client.get_usage_summary()
@@ -4054,12 +4058,8 @@ def perform_deep_research(
             total_output = usage.get("total_output_tokens", 0)
 
             # Deep Research portion (flat per-task cost, API doesn't expose tokens)
-            dr_tasks = 0
-            if mode in ("deep-research", "complete", "hybrid"):
-                dr_tasks += 1  # Main research dossier
-            if ai_strategy and platforms and not lite_strategy:
-                dr_tasks += len(platforms)  # Each vendor triggers a DR task
-            dr_cost = dr_tasks * DEEP_RESEARCH_COST.standard_task_cost
+            dr_tasks = count_main_deep_research_tasks(mode) + strategy_deep_research_tasks_started
+            dr_cost = deep_research_flat_cost(dr_tasks)
 
             actual_cost = pipeline_cost + dr_cost
 
