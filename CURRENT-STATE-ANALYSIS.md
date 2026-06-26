@@ -89,11 +89,11 @@ Current estimate:
 
 - Intermediate-redirect SSRF migration: complete.
 - DNS-rebind IP pinning: complete for the shared safe HTTP seam used by
-  fallback, hiring, Wayback CDX/replay, citation HEAD fetches, and the tiered
-  httpx scraper.
-- Remaining DNS-rebind hardening: add equivalent IP pinning to pooled
-  `HTTPClient`, the requests/curl_cffi scraper tiers, and browser-backed fetch
-  seams.
+  fallback, hiring, Wayback CDX/replay, citation HEAD fetches, the tiered httpx
+  scraper, pooled `HTTPClient`, the tiered requests scraper, and the curl_cffi
+  scraper.
+- Remaining DNS-rebind hardening: add equivalent IP pinning to browser-backed
+  fetch seams.
 
 Spend: `$0.00`. Validation passed: focused SSRF/safe-HTTP/citation suites,
 caller suites for fallback/hiring/Wayback, Ruff, format check,
@@ -117,8 +117,8 @@ Shipped in this slice:
 Current estimate:
 
 - Tiered httpx DNS-rebind pinning: complete.
-- Remaining DNS-rebind hardening: pooled `HTTPClient`, requests/curl_cffi
-  scraper tiers, and browser-backed fetch seams.
+- Remaining DNS-rebind hardening after the follow-on requests-family and
+  curl_cffi slices: browser-backed fetch seams.
 
 Spend: `$0.00`. Validation passed: focused tiered HTTP scraper/security tests,
 Ruff, format check, architecture/release-integrity tests, mypy, Bandit,
@@ -145,8 +145,8 @@ Shipped in this slice:
 Current estimate:
 
 - DNS-rebind IP pinning: complete for safe HTTP, citation HEAD, tiered httpx,
-  pooled `HTTPClient`, and the tiered requests scraper.
-- Remaining DNS-rebind hardening: curl_cffi and browser-backed fetch seams.
+  pooled `HTTPClient`, the tiered requests scraper, and the curl_cffi scraper.
+- Remaining DNS-rebind hardening: browser-backed fetch seams.
 
 Spend: `$0.00`. Validation passed: focused pinned-adapter/HTTP-client/scraper
 security suites, vertical-slice scraper tests, Ruff, format check,
@@ -574,6 +574,35 @@ Validation status:
 - Full non-manual/non-integration suite timed out after 10 minutes twice in
   this workspace, once with global coverage and once without. No failing
   assertion output was produced and no Primr pytest workers remained running.
+
+Spend: `$0.00`.
+
+## 2026-06-26 curl_cffi Validated-IP Pinning
+
+The curl_cffi scraper tier now closes its DNS-rebind check/connect split.
+
+Current state:
+
+- `scrape_with_curl_cffi()` validates the initial URL through the existing URL
+  guard, then resolves and validates each hop immediately before connection.
+- The tier passes the vetted address to libcurl through `CurlOpt.RESOLVE`
+  instead of rewriting the request to an IP-literal URL. This preserves the
+  logical URL, browser TLS impersonation behavior, Host, SNI, cookies, and final
+  URL reporting.
+- Environment proxy trust is disabled on each curl_cffi session so the local
+  validated-address connection path cannot be replaced by an ambient proxy.
+- Redirects remain manual and per-hop validated before the next connection.
+- The only remaining DNS-rebind hardening item in this sweep is browser-backed
+  fetch seams.
+
+Validation status:
+
+- Focused curl_cffi and HTTP scraper tests pass with 33 tests.
+- Wider SSRF, egress-guardrail, safe HTTP, pinned requests, vertical scrape,
+  and pooled HTTP client tests pass with 139 tests and 2 skipped.
+- Repo-wide Ruff, format check, architecture/release-integrity tests, mypy,
+  Bandit, pip-audit, MkDocs build, and the CI-shaped coverage gate pass.
+  Coverage: `10256 passed, 39 skipped`, 85.26% branch.
 
 Spend: `$0.00`.
 

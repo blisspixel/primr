@@ -24,7 +24,7 @@ MCP/A2A tool surfaces, and (4) provider secrets + the dependency supply chain.
 | # | Threat | Vector | Control(s) | Status |
 |---|--------|--------|-----------|--------|
 | T1 | Indirect prompt injection | Instructions embedded in scraped pages / postings / sitemaps | `sanitize_for_llm` (injection-pattern + control-char stripping) + `fence_untrusted` data-fencing at every external-content→prompt boundary ("data, never instructions") | Shipped |
-| T2 | SSRF / internal pivot | Attacker page or redirect points primr at loopback / RFC1918 / link-local / cloud-metadata | `is_safe_url` on every egress helper; IP-pinned per-hop redirect validation through `data/safe_http.py` for `fallback_sources._http_get`, `hiring_signals._http_get`, Wayback CDX/replay fetches, async citation-resolution HEAD requests, the tiered httpx scraper, pooled `HTTPClient` GET/HEAD calls, and the tiered requests scraper; manual per-hop validation in `data/scraping/net.py` and the curl_cffi scraping tier; `SSRFGuardHook` on tool calls | Shipped baseline, DNS-rebind pinning continuing |
+| T2 | SSRF / internal pivot | Attacker page or redirect points primr at loopback / RFC1918 / link-local / cloud-metadata | `is_safe_url` on every egress helper; IP-pinned per-hop redirect validation through `data/safe_http.py` for `fallback_sources._http_get`, `hiring_signals._http_get`, Wayback CDX/replay fetches, async citation-resolution HEAD requests, the tiered httpx scraper, pooled `HTTPClient` GET/HEAD calls, the tiered requests scraper, and the curl_cffi scraper; manual per-hop validation in `data/scraping/net.py`; `SSRFGuardHook` on tool calls | Shipped baseline, browser pinning remaining |
 | T3 | Secret leakage | API key in a log line, prompt, or persisted artifact | `SecretMaskingFilter` on all log handlers; `mask_sensitive_data` (incl. xAI) applied in `chat_logger` before persist; hardcoded-secret CI gate | Shipped |
 | T4 | Cost / resource exhaustion | Runaway tool invocation | `CostGuardHook` budget; `estimate_run`-first; `PRIMR_ENFORCE_MCP_COST_CAPS`; server-issued approval tokens for MCP cost-cap-governed tools; explicit budget-enforcement payloads; MCP fast-path runtime budget propagation; single-job model; rate limiting | Shipped, with non-fast runtime checkpoints tracked |
 | T5 | Unauthorized tool access | Calling MCP/A2A tools without/with stale creds | JWT (HMAC-SHA256, constant-time, expiry/nbf/aud), admin-token hashing, loopback-only unauthenticated A2A | Shipped (all-or-nothing) |
@@ -39,11 +39,12 @@ MCP/A2A tool surfaces, and (4) provider secrets + the dependency supply chain.
   validation on the shared safe HTTP seam, async citation HEAD requests,
   discovery HTTP helpers, pooled HTTPClient GET/HEAD calls, and the tiered
   requests/httpx/curl_cffi scrapers. The shared safe HTTP seam, tiered httpx
-  scraper, pooled HTTPClient, and tiered requests scraper now resolve each hop
-  once, validate every returned address, and connect to the validated IP literal
-  while preserving original Host and HTTPS SNI. Residual SSRF risk remains in
-  curl_cffi and browser-backed transport families until they receive equivalent
-  connect-time IP pinning.
+  scraper, pooled HTTPClient, tiered requests scraper, and curl_cffi scraper now
+  resolve each hop once, validate every returned address, and pin the actual
+  connection target while preserving the public hostname semantics each client
+  needs for virtual hosting and TLS. Residual SSRF risk remains in
+  browser-backed transport families until they receive equivalent connect-time
+  IP pinning.
 - **T8 Stages 1-3** are shipped for MCP tool dispatch: per-tool scopes,
   server-issued approval tokens, and structured invocation audit events.
   Residual risk remains around A2A parity, richer job-scoped artifact
@@ -107,7 +108,7 @@ Out of scope:
 
 Primr implements several security controls:
 
-- **SSRF Protection**: All outbound URLs are validated against private IP ranges, cloud metadata endpoints, and DNS rebinding; migrated helpers also validate every redirect hop before connecting, and the shared safe HTTP and requests-family seams pin connections to the validated IP literal
+- **SSRF Protection**: All outbound URLs are validated against private IP ranges, cloud metadata endpoints, and DNS rebinding; migrated helpers also validate every redirect hop before connecting, and the shared safe HTTP, requests-family, httpx scraper, and curl_cffi scraper seams pin connections to the validated address
 - **Input Sanitization**: Company names and URLs sanitized against injection attacks
 - **JWT Authentication**: Signed token verification for MCP HTTP mode
 - **Rate Limiting**: Per-client request limits

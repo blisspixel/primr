@@ -8,7 +8,8 @@ Success signal check is applied by orchestrator (not here).
 import logging
 import time
 from collections.abc import Mapping
-from urllib.parse import urljoin
+from ipaddress import ip_address
+from urllib.parse import urljoin, urlparse
 
 from .config import (
     DEFAULT_TIMEOUT_CURL_CFFI,
@@ -133,6 +134,33 @@ def _extensions_for_pinned_request(sni_hostname: str | None) -> dict | None:
     if sni_hostname is None:
         return None
     return {"sni_hostname": sni_hostname}
+
+
+def _curl_resolve_address(address: str) -> str:
+    return f"[{address}]" if ":" in address and not address.startswith("[") else address
+
+
+def _default_port_for_scheme(scheme: str) -> int:
+    return 443 if scheme.lower() == "https" else 80
+
+
+def _is_ip_literal(hostname: str) -> bool:
+    try:
+        ip_address(hostname)
+    except ValueError:
+        return False
+    return True
+
+
+def _curl_resolve_options(curl_opt_resolve: object, url: str, resolved_ip: str) -> dict:
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+    if hostname is None or _is_ip_literal(hostname):
+        return {}
+
+    port = parsed.port or _default_port_for_scheme(parsed.scheme)
+    address = _curl_resolve_address(resolved_ip)
+    return {curl_opt_resolve: [f"+{hostname}:{port}:{address}"]}
 
 
 def scrape_with_requests(
@@ -535,6 +563,7 @@ def scrape_with_curl_cffi(
     url = normalized_url
 
     try:
+        from curl_cffi import CurlOpt
         from curl_cffi import requests as curl_requests
     except ImportError:
         return ScrapeResult(
@@ -545,6 +574,8 @@ def scrape_with_curl_cffi(
             tier="curl_cffi",
             attempts=[],
         )
+
+    from primr.utils.security import resolve_safe_url_for_connect
 
     start_time = time.time()
     tier_name = "curl_cffi"
@@ -560,14 +591,33 @@ def scrape_with_curl_cffi(
     try:
         current_url = url
         for redirect_count in range(_MAX_REDIRECTS + 1):
-            response = curl_requests.get(
+            resolution, guard_error = resolve_safe_url_for_connect(current_url)
+            if resolution is None:
+                return _blocked_redirect_result(
+                    url=url,
+                    tier_name=tier_name,
+                    start_time=start_time,
+                    redirect_url=current_url,
+                    error=guard_error,
+                )
+
+            curl_options = _curl_resolve_options(
+                CurlOpt.RESOLVE,
                 current_url,
-                headers=headers,
-                timeout=timeout,
-                allow_redirects=False,
-                cookies=cookies,
-                impersonate=impersonate,
+                resolution.resolved_ip,
             )
+            with curl_requests.Session(
+                curl_options=curl_options,
+                trust_env=False,
+            ) as session:
+                response = session.get(
+                    current_url,
+                    headers=headers,
+                    timeout=timeout,
+                    allow_redirects=False,
+                    cookies=cookies,
+                    impersonate=impersonate,
+                )
 
             location = _redirect_location(response)
             if response.status_code not in _REDIRECT_STATUSES or location is None:
@@ -576,9 +626,10 @@ def scrape_with_curl_cffi(
                     tier_name=tier_name,
                     start_time=start_time,
                     response=response,
+                    final_url=current_url,
                 )
 
-            redirect_url = urljoin(str(getattr(response, "url", current_url)), location)
+            redirect_url = urljoin(current_url, location)
             is_valid, normalized_redirect_url, redirect_error = validate_url_for_request(
                 redirect_url
             )

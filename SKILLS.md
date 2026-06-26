@@ -182,3 +182,8 @@
   validated IP literal, set `Host` plus `server_hostname` / `assert_hostname`,
   and fail closed on proxies because proxy resolution would bypass the pinned
   local transport.
+- For curl_cffi/libcurl, keep the logical URL and pass the vetted address with
+  `CurlOpt.RESOLVE` on a per-hop `Session(curl_options=...)`. That preserves
+  TLS fingerprint impersonation, Host, and SNI semantics. Disable
+  `trust_env` so environment proxies cannot replace the locally pinned
+  connection path.

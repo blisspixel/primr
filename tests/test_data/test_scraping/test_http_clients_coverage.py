@@ -8,6 +8,7 @@ HTTP/connect errors. Network is fully mocked.
 from __future__ import annotations
 
 import sys
+from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 from urllib.parse import urlparse
 
@@ -198,13 +199,17 @@ class TestHttpxErrors:
 
 class TestCurlCffi:
     def _make_module(self, response=None, side_effect=None):
-        """Build a fake curl_cffi module with a requests.get."""
-        mod = MagicMock()
+        """Build a fake curl_cffi module with a Session.get."""
+        session = MagicMock()
+        session.__enter__.return_value = session
+        session.__exit__.return_value = False
         if side_effect is not None:
-            mod.requests.get.side_effect = side_effect
+            session.get.side_effect = side_effect
         else:
-            mod.requests.get.return_value = response
-        return mod
+            session.get.return_value = response
+        requests = MagicMock()
+        requests.Session.return_value = session
+        return SimpleNamespace(CurlOpt=SimpleNamespace(RESOLVE="RESOLVE"), requests=requests)
 
     def test_success(self):
         mock_resp = MagicMock()
@@ -213,14 +218,14 @@ class TestCurlCffi:
         mock_resp.status_code = 200
         mock_resp.url = "https://example.com/"
 
-        fake_curl = MagicMock()
-        fake_curl.requests.get.return_value = mock_resp
+        fake_curl = self._make_module(response=mock_resp)
 
         with (
             patch(
                 "primr.utils.validators.validate_url_for_request",
                 return_value=(True, "https://example.com", None),
             ),
+            patch("primr.utils.security.resolve_safe_url_for_connect", _allow_all),
             patch.dict(sys.modules, {"curl_cffi": fake_curl}),
         ):
             result = scrape_with_curl_cffi("https://example.com")
@@ -229,14 +234,14 @@ class TestCurlCffi:
         assert result.tier == "curl_cffi"
 
     def test_timeout_classified(self):
-        fake_curl = MagicMock()
-        fake_curl.requests.get.side_effect = Exception("operation timeout reached")
+        fake_curl = self._make_module(side_effect=Exception("operation timeout reached"))
 
         with (
             patch(
                 "primr.utils.validators.validate_url_for_request",
                 return_value=(True, "https://example.com", None),
             ),
+            patch("primr.utils.security.resolve_safe_url_for_connect", _allow_all),
             patch.dict(sys.modules, {"curl_cffi": fake_curl}),
         ):
             result = scrape_with_curl_cffi("https://example.com")
@@ -244,14 +249,14 @@ class TestCurlCffi:
         assert result.error_type == ErrorType.TIMEOUT
 
     def test_generic_error_classified(self):
-        fake_curl = MagicMock()
-        fake_curl.requests.get.side_effect = Exception("TLS handshake failed")
+        fake_curl = self._make_module(side_effect=Exception("TLS handshake failed"))
 
         with (
             patch(
                 "primr.utils.validators.validate_url_for_request",
                 return_value=(True, "https://example.com", None),
             ),
+            patch("primr.utils.security.resolve_safe_url_for_connect", _allow_all),
             patch.dict(sys.modules, {"curl_cffi": fake_curl}),
         ):
             result = scrape_with_curl_cffi("https://example.com")
@@ -265,8 +270,7 @@ class TestCurlCffi:
         mock_resp.status_code = 302
         mock_resp.url = "https://example.com"
 
-        fake_curl = MagicMock()
-        fake_curl.requests.get.return_value = mock_resp
+        fake_curl = self._make_module(response=mock_resp)
 
         with (
             patch(
@@ -276,9 +280,10 @@ class TestCurlCffi:
                     (False, "http://127.0.0.1/", "loopback"),
                 ],
             ),
+            patch("primr.utils.security.resolve_safe_url_for_connect", _allow_all),
             patch.dict(sys.modules, {"curl_cffi": fake_curl}),
         ):
             result = scrape_with_curl_cffi("https://example.com")
         assert result.success is False
         assert "SSRF protection" in (result.error or "")
-        assert fake_curl.requests.get.call_count == 1
+        assert fake_curl.requests.Session.return_value.get.call_count == 1

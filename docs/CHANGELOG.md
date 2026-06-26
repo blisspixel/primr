@@ -56,6 +56,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mounts this adapter while keeping retries, pooling, stats, and native
   `requests.Response` semantics; the tiered requests scraper reuses it without
   changing its raw-content result contract.
+- The curl_cffi scraper tier now resolves and validates each hop once, passes
+  the vetted address to libcurl through `CurlOpt.RESOLVE`, keeps the logical
+  URL for Host/SNI/TLS impersonation behavior, disables environment proxy
+  trust, and preserves manual redirect validation plus raw-content result
+  semantics.
 
 ### Changed
 

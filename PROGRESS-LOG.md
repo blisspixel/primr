@@ -12,8 +12,9 @@ transport APIs in the local lock.
 
 Prioritize: selected requests-family IP pinning because it closes the next
 check/connect split without changing the scraper tier order or bypassing the
-existing pooled session/retry seam. curl_cffi and browser-backed pinning remain
-queued because they need transport-specific APIs.
+existing pooled session/retry seam. At selection time, curl_cffi and
+browser-backed pinning were still queued because they needed transport-specific
+APIs.
 
 Implemented:
 
@@ -1320,6 +1321,57 @@ Validation:
   `primr-1.32.8` wheel and sdist.
 - `uv run --with twine twine check dist-check/*` passed for both distributions.
 - Added-line scans found no em dash or AI/tool attribution phrases.
+
+Cost:
+
+- `$0.00`. No cloud or paid validation was used.
+
+### Cycle: curl_cffi Validated-IP Pinning
+
+Read and realigned against `README.md`, `ROADMAP.md`, `CLAUDE.md`,
+`docs/SECURITY.md`, `docs/ARCHITECTURE.md`, `docs/design/agentic-balance.md`,
+`NOTES.md`, `PROGRESS-LOG.md`, and `QUALITY-RUBRIC.md`. Verified the current
+curl_cffi 0.15.0 API locally and checked libcurl `CURLOPT_RESOLVE` behavior
+against the upstream curl documentation before changing the transport.
+
+Implemented:
+
+- Added per-hop curl_cffi DNS-rebind pinning for the TLS impersonation scraper
+  tier.
+- Each curl_cffi hop now calls `resolve_safe_url_for_connect()` before opening a
+  connection.
+- The tier keeps the logical URL and passes the vetted address through
+  `CurlOpt.RESOLVE`, preserving Host, SNI, TLS impersonation, cookies, redirect
+  handling, and logical final URL reporting.
+- The tier disables environment proxy trust for the curl_cffi session so proxy
+  configuration cannot bypass the locally pinned connection path.
+- Added regression tests for `CurlOpt.RESOLVE` options, safe relative
+  redirects, private-rebind blocking before connection, timeout/error
+  classification, and impersonation preservation.
+- Updated roadmap, security docs, architecture notes, changelog, scratch notes,
+  and reusable skills.
+
+Validation status:
+
+- `uv run --no-sync pytest tests/test_data/test_scraping/test_http_clients.py tests/test_data/test_scraping/test_http_clients_coverage.py -q`
+  passed with 33 tests.
+- `uv run ruff check src/primr/data/scraping/http_clients.py tests/test_data/test_scraping/test_http_clients.py tests/test_data/test_scraping/test_http_clients_coverage.py`
+  passed.
+- `uv run ruff format --check src/primr/data/scraping/http_clients.py tests/test_data/test_scraping/test_http_clients.py tests/test_data/test_scraping/test_http_clients_coverage.py`
+  passed.
+- `uv run --no-sync pytest tests/test_data/test_scraping/test_vertical_slice.py tests/security/test_ssrf.py tests/security/test_egress_guardrails.py tests/test_data/test_safe_http.py tests/test_data/test_pinned_requests.py -q`
+  passed with 73 tests.
+- `uv run --no-sync pytest tests/test_data/test_http_client.py tests/test_data/test_scraping/test_http_clients.py tests/test_data/test_scraping/test_http_clients_coverage.py -q`
+  passed with 66 tests and 2 skipped.
+- Full local gate passed: `uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q --cov=src/primr --cov-branch --cov-fail-under=81`
+  completed with `10256 passed, 39 skipped`, branch coverage `85.26%`.
+- Repo-wide `ruff check`, `ruff format --check`, architecture and release
+  integrity tests, mypy, Bandit, pip-audit, and MkDocs build also passed. MkDocs
+  emitted only the repo's existing non-strict link warnings, and `_site` was
+  removed.
+
+Cycle health: 5/5 | Simplicity: 5/5 | Est. spend: `$0.00` | New skill
+distilled: curl_cffi libcurl resolve pinning.
 
 Cost:
 

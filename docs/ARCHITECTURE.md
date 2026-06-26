@@ -885,8 +885,11 @@ original Host and HTTPS SNI. Requests-family egress uses
 `data.pinned_requests.PinnedHTTPAdapter`, which lets pooled `HTTPClient`
 requests and the tiered requests scraper connect through urllib3 to the
 validated IP literal while keeping the logical request URL, original Host, and
-HTTPS SNI. Equivalent IP pinning for the remaining curl_cffi and browser-backed
-transport families is tracked as the next SSRF hardening step.
+HTTPS SNI. The curl_cffi scraper tier passes the vetted per-hop address to
+libcurl with `CurlOpt.RESOLVE`, keeps the logical URL so TLS fingerprint
+impersonation, Host, and SNI stay aligned, and disables environment proxy trust.
+Equivalent IP pinning for browser-backed transport families is tracked as the
+next SSRF hardening step.
 
 **Protected Functions and Seams**:
 - `src/primr/data/safe_http.py`: `safe_http_get()` for fallback, hiring, and Wayback CDX/replay fetches; `async_safe_http_head()` for citation redirect resolution

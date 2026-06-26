@@ -1,5 +1,6 @@
 """Tests for HTTP client scrapers."""
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 from urllib.parse import urlparse
 
@@ -52,6 +53,20 @@ def _resolution(url: str, request_url: str | None = None) -> SafeUrlResolution:
 
 def _allow_all(url: str):
     return _resolution(url), None
+
+
+def _fake_curl_module(*, response=None, side_effect=None):
+    session = MagicMock()
+    session.__enter__.return_value = session
+    session.__exit__.return_value = False
+    if side_effect is not None:
+        session.get.side_effect = side_effect
+    else:
+        session.get.return_value = response
+
+    requests = MagicMock()
+    requests.Session.return_value = session
+    return SimpleNamespace(CurlOpt=SimpleNamespace(RESOLVE="RESOLVE"), requests=requests), session
 
 
 class TestScrapeWithRequests:
@@ -317,10 +332,12 @@ class TestScrapeWithCurlCffi:
         mock_response.status_code = 200
         mock_response.url = "https://example.com/"
 
-        mock_requests = Mock()
-        mock_requests.get.return_value = mock_response
+        fake_curl, _session = _fake_curl_module(response=mock_response)
 
-        with patch.dict("sys.modules", {"curl_cffi": Mock(requests=mock_requests)}):
+        with (
+            patch("primr.utils.security.resolve_safe_url_for_connect", _allow_all),
+            patch.dict("sys.modules", {"curl_cffi": fake_curl}),
+        ):
             # Need to reimport to pick up the mock
             from primr.data.scraping import http_clients
 
@@ -343,21 +360,76 @@ class TestScrapeWithCurlCffi:
             content=b"<html>final</html>",
         )
 
-        mock_requests = Mock()
-        mock_requests.get.side_effect = [redirect, final]
+        fake_curl, session = _fake_curl_module(side_effect=[redirect, final])
 
-        with patch.dict("sys.modules", {"curl_cffi": Mock(requests=mock_requests)}):
+        with (
+            patch("primr.utils.security.resolve_safe_url_for_connect", _allow_all),
+            patch.dict("sys.modules", {"curl_cffi": fake_curl}),
+        ):
             from primr.data.scraping import http_clients
 
             result = http_clients.scrape_with_curl_cffi("https://example.com/start")
 
         assert result.success is True
         assert result.final_url == "https://example.com/final"
-        assert mock_requests.get.call_count == 2
-        assert mock_requests.get.call_args_list[1].args[0] == "https://example.com/final"
-        assert all(
-            call.kwargs["allow_redirects"] is False for call in mock_requests.get.call_args_list
+        assert session.get.call_count == 2
+        assert session.get.call_args_list[1].args[0] == "https://example.com/final"
+        assert all(call.kwargs["allow_redirects"] is False for call in session.get.call_args_list)
+
+    def test_connects_to_pinned_ip_with_libcurl_resolve(self):
+        mock_response = Mock()
+        mock_response.content = b"<html><body>curl_cffi content</body></html>"
+        mock_response.headers = {"Content-Type": "text/html"}
+        mock_response.status_code = 200
+        mock_response.url = "https://example.com/page"
+        fake_curl, session = _fake_curl_module(response=mock_response)
+
+        def fake_resolve(url: str):
+            return (
+                SafeUrlResolution(
+                    original_url=url,
+                    request_url="https://93.184.216.34/page",
+                    host_header="example.com",
+                    sni_hostname="example.com",
+                    resolved_ip="93.184.216.34",
+                ),
+                None,
+            )
+
+        with (
+            patch("primr.utils.security.resolve_safe_url_for_connect", fake_resolve),
+            patch.dict("sys.modules", {"curl_cffi": fake_curl}),
+        ):
+            from primr.data.scraping import http_clients
+
+            result = http_clients.scrape_with_curl_cffi("https://example.com/page")
+
+        assert result.success is True
+        assert result.final_url == "https://example.com/page"
+        fake_curl.requests.Session.assert_called_once_with(
+            curl_options={"RESOLVE": ["+example.com:443:93.184.216.34"]},
+            trust_env=False,
         )
+        assert session.get.call_args.args[0] == "https://example.com/page"
+
+    def test_blocks_private_rebind_result_before_connect(self):
+        fake_curl, session = _fake_curl_module(response=Mock())
+
+        with (
+            patch(
+                "primr.utils.security.resolve_safe_url_for_connect",
+                return_value=(None, "Private/reserved IP addresses are blocked"),
+            ),
+            patch.dict("sys.modules", {"curl_cffi": fake_curl}),
+        ):
+            from primr.data.scraping import http_clients
+
+            result = http_clients.scrape_with_curl_cffi("https://example.com/page")
+
+        assert result.success is False
+        assert "SSRF protection" in (result.error or "")
+        fake_curl.requests.Session.assert_not_called()
+        session.get.assert_not_called()
 
     def test_uses_impersonation(self):
         """Should use browser impersonation."""
@@ -367,16 +439,18 @@ class TestScrapeWithCurlCffi:
         mock_response.status_code = 200
         mock_response.url = "https://example.com/"
 
-        mock_requests = Mock()
-        mock_requests.get.return_value = mock_response
+        fake_curl, session = _fake_curl_module(response=mock_response)
 
-        with patch.dict("sys.modules", {"curl_cffi": Mock(requests=mock_requests)}):
+        with (
+            patch("primr.utils.security.resolve_safe_url_for_connect", _allow_all),
+            patch.dict("sys.modules", {"curl_cffi": fake_curl}),
+        ):
             from primr.data.scraping import http_clients
 
             http_clients.scrape_with_curl_cffi("https://example.com", impersonate="chrome119")
 
         # Verify impersonate was passed
-        call_kwargs = mock_requests.get.call_args[1]
+        call_kwargs = session.get.call_args[1]
         assert call_kwargs.get("impersonate") == "chrome119"
 
 

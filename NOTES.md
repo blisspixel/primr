@@ -58,8 +58,11 @@ are architectural and worth a dedicated, well-tested cycle.
   `data.pinned_requests.PinnedHTTPAdapter`; pooled `HTTPClient` calls and the
   tiered requests scraper connect through urllib3 to the validated IP literal
   while preserving retries, pooling, Host, SNI, and response/result contracts.
-  **Remaining:** add equivalent IP pinning to the curl_cffi scraper tier and
-  browser-backed fetch seams.
+  **Also done:** the curl_cffi scraper tier now resolves and validates each hop
+  once, passes the vetted address to libcurl with `CurlOpt.RESOLVE`, disables
+  environment proxy trust, and keeps the logical URL so TLS impersonation,
+  Host, SNI, cookies, redirects, and final URL reporting stay intact.
+  **Remaining:** add equivalent IP pinning to browser-backed fetch seams.
 
 ## Flaky: cross-directory test pollution hits a browser import test
 

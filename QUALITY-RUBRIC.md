@@ -298,3 +298,27 @@ Focused safe HTTP, citation-resolution, and egress-guardrail tests pass with 76
 tests; Ruff, format check, architecture/release integrity, mypy, Bandit,
 pip-audit, MkDocs build, diff hygiene, and the CI-shaped coverage gate also
 pass. Coverage: 85.22% branch. Spend: `$0.00`.
+
+2026-06-26 curl_cffi validated-IP pinning:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: the curl_cffi tier now resolves and validates each logical hop once,
+pins libcurl to the vetted address with `CurlOpt.RESOLVE`, keeps the logical
+URL for Host/SNI/TLS impersonation behavior, disables environment proxy trust,
+and preserves manual redirect validation plus the raw-content `ScrapeResult`
+contract. Regression tests prove safe relative redirects still work, pinned
+resolve entries are passed to curl_cffi sessions, private rebinds are blocked
+before connection, and impersonation settings survive the new seam. Focused
+curl_cffi and HTTP scraper tests pass with 33 tests; wider SSRF, egress,
+safe HTTP, pinned requests, vertical scrape, and pooled HTTP client tests pass
+with 139 tests and 2 skipped. Repo-wide Ruff, format check, architecture and
+release-integrity tests, mypy, Bandit, pip-audit, MkDocs build, and the
+CI-shaped coverage gate also pass. Coverage: 85.26% branch. Spend: `$0.00`.
