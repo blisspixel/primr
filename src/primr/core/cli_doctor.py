@@ -14,6 +14,13 @@ import logging
 import os
 import sys
 
+from primr.ai.availability_sanitize import (
+    safe_code,
+    safe_code_or,
+    safe_count,
+    safe_display_label,
+    safe_env_label,
+)
 from primr.ai.genai_factory import default_genai_http_options
 from primr.ai.provider_availability import ProviderQuotaSnapshot, availability_decision
 from primr.ai.provider_availability_collectors import (
@@ -199,7 +206,7 @@ def _check_provider_availability(warnings_count: int) -> int:
     try:
         snapshots = collect_provider_availability_snapshots()
     except Exception as e:
-        console.warn(f"Provider availability collection failed: {_safe_status_code(str(e))}")
+        console.warn(f"Provider availability collection failed: {safe_code(str(e))}")
         return warnings_count + 1
 
     for snapshot in snapshots:
@@ -215,15 +222,15 @@ def _check_provider_availability(warnings_count: int) -> int:
 
 
 def _provider_availability_status(snapshot: ProviderQuotaSnapshot) -> tuple[str, str]:
-    provider_code = _safe_status_code(snapshot.provider) or "provider"
-    display_name = _safe_display_label(snapshot.display_name or snapshot.provider, provider_code)
+    provider_code = safe_code(snapshot.provider) or "provider"
+    display_name = safe_display_label(snapshot.display_name or snapshot.provider, provider_code)
     decision = availability_decision(snapshot)
-    error = _safe_status_code(snapshot.error)
-    quota_source = _safe_metadata_code(snapshot.metadata.get("quota_source"), "unknown")
+    error = safe_code(snapshot.error)
+    quota_source = safe_code_or(snapshot.metadata.get("quota_source"), "unknown")
 
     if snapshot.provider == LOCAL_OPENAI_COMPATIBLE_PROVIDER:
-        endpoint_source = _safe_metadata_code(snapshot.metadata.get("endpoint_source"), "unknown")
-        model_count = _safe_non_negative_int(snapshot.metadata.get("model_count", 0))
+        endpoint_source = safe_code_or(snapshot.metadata.get("endpoint_source"), "unknown")
+        model_count = safe_count(snapshot.metadata.get("model_count", 0))
         if decision.available:
             return (
                 "ok",
@@ -236,7 +243,7 @@ def _provider_availability_status(snapshot: ProviderQuotaSnapshot) -> tuple[str,
 
     configured = bool(snapshot.metadata.get("configured", snapshot.ok))
     if not configured and error == "missing_api_key":
-        api_key_env = _safe_env_label(snapshot.metadata.get("api_key_env"))
+        api_key_env = safe_env_label(snapshot.metadata.get("api_key_env"))
         return ("info", f"{display_name}: not configured ({api_key_env} unset)")
 
     if decision.available:
@@ -246,66 +253,6 @@ def _provider_availability_status(snapshot: ProviderQuotaSnapshot) -> tuple[str,
         return ("ok", f"{display_name}: configured ({detail})")
 
     return ("warn", f"{display_name}: unavailable ({error or 'availability_error'})")
-
-
-def _safe_display_label(value: str | None, fallback: str) -> str:
-    if not value:
-        return fallback
-    label = value.strip()
-    if not label or len(label) > 80:
-        return fallback
-    if any(marker in label for marker in ("://", "@", "\\", "/")):
-        return fallback
-    if "." in label and " " not in label:
-        return fallback
-    if not label.isprintable():
-        return fallback
-    return label
-
-
-def _safe_env_label(value: object) -> str:
-    if not isinstance(value, str):
-        return "provider key"
-    label = value.strip()
-    if not label or len(label) > 80:
-        return "provider key"
-    if not any(character.isalpha() for character in label):
-        return "provider key"
-    if all(
-        character.isascii() and (character.isupper() or character.isdigit() or character == "_")
-        for character in label
-    ):
-        return label
-    return "provider key"
-
-
-def _safe_metadata_code(value: object, fallback: str) -> str:
-    if value is None:
-        return fallback
-    return _safe_status_code(str(value)) or fallback
-
-
-def _safe_non_negative_int(value: object) -> int:
-    if isinstance(value, bool):
-        return 0
-    if not isinstance(value, (bytes, bytearray, float, int, str)):
-        return 0
-    try:
-        count = int(value or 0)
-    except (OverflowError, TypeError, ValueError):
-        return 0
-    return max(0, count)
-
-
-def _safe_status_code(value: str | None) -> str | None:
-    if not value:
-        return None
-    code = value.strip().lower().replace(" ", "_")
-    if len(code) > 80:
-        return "availability_error"
-    if all(character.isalnum() or character in {"_", "-"} for character in code):
-        return code
-    return "availability_error"
 
 
 def _check_dependencies(warnings_count: int) -> int:

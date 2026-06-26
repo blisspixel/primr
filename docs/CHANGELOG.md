@@ -39,6 +39,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   values and sanitizes host-like labels, unsafe env names, quota-source strings,
   and model-count values before they reach routing metadata or `primr doctor`.
 
+### Security
+
+- Hardened provider-availability sanitization after an adversarial review.
+  The duplicated sanitizer logic in `capability_routing.py` and `cli_doctor.py`
+  is now a single shared seam (`ai/availability_sanitize.py`), and three
+  bypasses are closed: a quota-window label is now sanitized before it can carry
+  a raw URL or account detail into routing metadata; code/error sanitization is
+  ASCII-only so homoglyph or accented host text can no longer survive
+  `str.isalnum()`; the display-label guard rejects a dotted host/IP even when
+  surrounded by spaces; and model counts are clamped so a crafted snapshot
+  cannot print a pathologically large integer. The invariant is pinned by a
+  dedicated sanitizer test suite plus a routing-metadata regression test.
+
 ## [1.33.4] - 2026-06-25
 
 ### Added

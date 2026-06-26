@@ -19,6 +19,7 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
+from primr.ai.availability_sanitize import safe_code, safe_code_or, safe_count
 from primr.ai.provider_availability import (
     ProviderQuotaSnapshot,
     availability_decision,
@@ -591,7 +592,7 @@ def _backend_with_missing_availability(backend: BackendCapabilities) -> BackendC
         _AVAILABILITY_METADATA_KEY: {
             "available": False,
             "error": "missing_availability_snapshot",
-            "provider": _safe_provider_label(_availability_provider_keys(backend)[0]),
+            "provider": safe_code_or(_availability_provider_keys(backend)[0], "provider"),
             "quota_source": "not_collected",
             "stale": False,
         },
@@ -604,20 +605,24 @@ def _sanitized_availability_metadata(
     now: datetime | None,
 ) -> dict[str, Any]:
     decision = availability_decision(snapshot, now)
-    quota_source = _safe_error_code(str(snapshot.metadata.get("quota_source", "unknown")))
+    quota_source = safe_code(str(snapshot.metadata.get("quota_source", "unknown")))
     metadata: dict[str, Any] = {
         "available": decision.available,
-        "provider": _safe_provider_label(snapshot.provider),
+        "provider": safe_code_or(snapshot.provider, "provider"),
         "quota_source": quota_source or "unknown",
         "stale": decision.stale,
     }
     if decision.headroom_percent is not None:
         metadata["headroom_percent"] = round(decision.headroom_percent, 3)
-    if decision.binding_window_label is not None:
-        metadata["binding_window_label"] = decision.binding_window_label
+    # The window label is collector-controlled (it comes from QuotaWindow.label),
+    # so it MUST be sanitized like any other code before it enters routing
+    # metadata -- a raw label could otherwise carry a URL or account detail.
+    window_label = safe_code(decision.binding_window_label)
+    if window_label is not None:
+        metadata["binding_window_label"] = window_label
     if decision.resets_at is not None:
         metadata["resets_at"] = decision.resets_at.isoformat()
-    error = _safe_error_code(decision.error)
+    error = safe_code(decision.error)
     if error is not None:
         metadata["error"] = error
     for key in _SAFE_SNAPSHOT_METADATA_KEYS:
@@ -632,32 +637,7 @@ def _safe_snapshot_metadata_value(key: str, value: Any) -> bool | int | str | No
     if key in _SAFE_BOOL_SNAPSHOT_METADATA_KEYS:
         return bool(value)
     if key == "model_count":
-        return _safe_non_negative_int(value)
+        return safe_count(value)
     if key in _SAFE_CODE_SNAPSHOT_METADATA_KEYS:
-        return _safe_error_code(str(value)) or "unknown"
+        return safe_code(str(value)) or "unknown"
     return None
-
-
-def _safe_non_negative_int(value: Any) -> int:
-    if isinstance(value, bool):
-        return 0
-    try:
-        count = int(value or 0)
-    except (OverflowError, TypeError, ValueError):
-        return 0
-    return max(0, count)
-
-
-def _safe_provider_label(value: str | None) -> str:
-    return _safe_error_code(value) or "provider"
-
-
-def _safe_error_code(error: str | None) -> str | None:
-    if not error:
-        return None
-    code = error.strip().lower().replace(" ", "_")
-    if len(code) > 80:
-        return "availability_error"
-    if all(character.isalnum() or character in {"_", "-"} for character in code):
-        return code
-    return "availability_error"

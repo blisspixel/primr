@@ -396,6 +396,26 @@ def test_provider_availability_sanitizes_error_metadata() -> None:
     assert "operator-host" not in str(annotated.metadata)
 
 
+def test_provider_availability_sanitizes_binding_window_label() -> None:
+    # A quota collector controls QuotaWindow.label; a raw label could carry a
+    # URL or account detail, so it must be sanitized before it becomes the
+    # routing metadata's binding_window_label.
+    backend = replace(
+        _cloud("xai-reasoning", roles=(Role.REASONING,)), metadata={"provider": "xai"}
+    )
+    snapshot = ProviderQuotaSnapshot(
+        provider="xai",
+        windows=(
+            QuotaWindow("quota at http://operator-host.example.invalid:9999/v1", used_percent=80),
+        ),
+    )
+
+    annotated = backend_with_availability(backend, (snapshot,))
+
+    assert annotated.metadata["availability"]["binding_window_label"] == "availability_error"
+    assert "operator-host" not in str(annotated.metadata)
+
+
 def test_provider_availability_sanitizes_allowlisted_snapshot_metadata() -> None:
     unsafe_provider = "operator-host.example.invalid"
     backend = replace(
