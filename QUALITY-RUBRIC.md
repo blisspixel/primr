@@ -115,3 +115,23 @@ of duplicating split logic, and report/strategy regressions cover the specific
 markers that previously corrupted examples. Focused cleanup/citation tests,
 architecture/release integrity, Ruff, format, mypy, Bandit, pip-audit, and diff
 hygiene pass. Spend: `$0.00`.
+
+2026-06-26 Wayback per-hop redirect guard:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: Wayback CDX and replay fetches now use the shared safe HTTP seam that
+validates every redirect hop before connecting, instead of carrying a local
+`follow_redirects=True` implementation with final-only validation. Tests pin the
+delegation contract, while the shared safe HTTP suite owns redirect-hop
+behavior. Focused Wayback, safe HTTP, and fallback-source tests pass with 99
+tests; Ruff, format check, architecture/release integrity, mypy, Bandit,
+pip-audit, MkDocs build, diff hygiene, and the CI-shaped coverage gate also
+pass. Coverage: 85.24% branch. Spend: `$0.00`.

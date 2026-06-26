@@ -23,7 +23,7 @@ import logging
 import time
 from urllib.parse import urlparse
 
-from primr.utils.security import validate_final_url_after_redirect
+from primr.data.safe_http import safe_http_get
 from primr.utils.validators import validate_url_for_request
 
 from .config import DEFAULT_TIMEOUT_HTTPX
@@ -41,33 +41,17 @@ MIN_USEFUL_CAPTURE_BYTES = 3_000
 def _fetch(
     url: str, timeout: float, params: dict | None = None
 ) -> tuple[int | None, bytes | None, str | None]:
-    """Tiny helper: plain HTTP GET, returns (status, body, final_url)."""
-    try:
-        import httpx
-
-        is_valid, normalized_url, error = validate_url_for_request(url)
-        if not is_valid:
-            logger.debug("Wayback fetch URL blocked: %s", error)
-            return None, None, None
-
-        with httpx.Client(
-            timeout=timeout,
-            follow_redirects=True,
-            headers={
-                "User-Agent": "Mozilla/5.0 (compatible; primr-wayback/1.0)",
-                "Accept": "text/html,application/json,*/*",
-            },
-        ) as client:
-            resp = client.get(normalized_url, params=params)
-            final_url = str(resp.url)
-            is_safe, redirect_error = validate_final_url_after_redirect(final_url)
-            if not is_safe:
-                logger.debug("Wayback fetch redirect blocked: %s", redirect_error)
-                return None, None, None
-            return resp.status_code, resp.content, final_url
-    except Exception as e:
-        logger.debug("Wayback fetch failed for %s: %s", url, e)
-        return None, None, None
+    """Fetch through the shared SSRF-safe HTTP seam."""
+    return safe_http_get(
+        url,
+        timeout=timeout,
+        params=params,
+        headers={
+            "User-Agent": "Mozilla/5.0 (compatible; primr-wayback/1.0)",
+            "Accept": "text/html,application/json,*/*",
+        },
+        log_prefix="wayback",
+    )
 
 
 def _make_replay_url(timestamp: str, original_url: str) -> str:

@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI dry-run and `--budget` pre-flight estimates now clamp enabled
   AI-strategy runs to at least one vendor, preventing internally constructed
   empty platform tuples from zeroing the strategy estimate.
+- Wayback CDX and replay fetches now delegate to the shared
+  `data/safe_http.py` seam, so archived-content recovery validates every
+  redirect hop before connecting instead of relying on final-url validation.
 
 ### Fixed
 

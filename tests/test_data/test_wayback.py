@@ -28,13 +28,7 @@ def _mock_url_guards():
     def _safe_url(url, *args, **kwargs):
         return True, url, None
 
-    with (
-        patch("primr.data.scraping.wayback.validate_url_for_request", side_effect=_safe_url),
-        patch(
-            "primr.data.scraping.wayback.validate_final_url_after_redirect",
-            return_value=(True, None),
-        ),
-    ):
+    with patch("primr.data.scraping.wayback.validate_url_for_request", side_effect=_safe_url):
         yield
 
 
@@ -281,62 +275,38 @@ class TestScrapeWithWayback:
 
 
 # ---------------------------------------------------------------------------
-# _fetch helper indirectly exercised by mocking
+# _fetch helper
 # ---------------------------------------------------------------------------
 
 
-class TestFetchHelperRaisesAreSwallowed:
-    def test_fetch_blocks_invalid_url_before_httpx_client(self):
+class TestFetchHelper:
+    def test_fetch_delegates_to_shared_safe_http(self):
         from primr.data.scraping.wayback import _fetch
 
-        with (
-            patch(
-                "primr.data.scraping.wayback.validate_url_for_request",
-                return_value=(False, None, "blocked host"),
-            ),
-            patch("httpx.Client") as client_cls,
-        ):
-            assert _fetch("http://127.0.0.1/", timeout=1.0) == (None, None, None)
-
-        client_cls.assert_not_called()
-
-    def test_fetch_blocks_unsafe_redirect(self):
-        from primr.data.scraping.wayback import _fetch
-
-        response = type(
-            "Response",
-            (),
-            {"status_code": 200, "content": b"<html>x</html>", "url": "http://127.0.0.1/"},
-        )()
-        client = type(
-            "Client",
-            (),
-            {
-                "__enter__": lambda self: self,
-                "__exit__": lambda self, *args: False,
-                "get": lambda self, url, params=None: response,
-            },
-        )()
-
-        with (
-            patch("httpx.Client", return_value=client),
-            patch(
-                "primr.data.scraping.wayback.validate_final_url_after_redirect",
-                return_value=(False, "loopback"),
-            ),
-        ):
-            assert _fetch("https://web.archive.org/web/1id_/https://example.com", 1.0) == (
-                None,
-                None,
-                None,
+        with patch(
+            "primr.data.scraping.wayback.safe_http_get",
+            return_value=(200, b"{}", "https://web.archive.org/cdx/search/cdx"),
+        ) as safe_get:
+            result = _fetch(
+                "https://web.archive.org/cdx/search/cdx",
+                timeout=2.5,
+                params={"url": "example.com"},
             )
 
-    def test_fetch_returns_none_on_exception(self):
+        assert result == (200, b"{}", "https://web.archive.org/cdx/search/cdx")
+        safe_get.assert_called_once()
+        args, kwargs = safe_get.call_args
+        assert args == ("https://web.archive.org/cdx/search/cdx",)
+        assert kwargs["timeout"] == 2.5
+        assert kwargs["params"] == {"url": "example.com"}
+        assert kwargs["log_prefix"] == "wayback"
+        assert kwargs["headers"]["User-Agent"] == "Mozilla/5.0 (compatible; primr-wayback/1.0)"
+        assert kwargs["headers"]["Accept"] == "text/html,application/json,*/*"
+
+    def test_fetch_returns_safe_http_failure_tuple(self):
         from primr.data.scraping.wayback import _fetch
 
-        # Patch httpx to raise; the helper should return (None, None, None)
-        # without propagating.
-        with patch("httpx.Client", side_effect=RuntimeError("net")):
+        with patch("primr.data.scraping.wayback.safe_http_get", return_value=(None, None, None)):
             assert _fetch("https://example.com", timeout=1.0) == (None, None, None)
 
 

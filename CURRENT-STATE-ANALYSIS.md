@@ -553,3 +553,29 @@ Validation status:
 - Ruff check passes on the touched source/test files.
 
 Spend: `$0.00`.
+
+## 2026-06-26 Wayback Per-Hop Redirect Guard
+
+Archived-content recovery now uses the shared SSRF-safe HTTP seam.
+
+Current state:
+
+- `data/scraping/wayback.py:_fetch()` delegates to `data.safe_http.safe_http_get()`.
+- Wayback CDX lookups and archived replay fetches now validate the initial URL
+  and every redirect hop before connecting.
+- Wayback keeps its existing target URL validation before it asks CDX for
+  snapshots.
+- `NOTES.md` no longer lists Wayback among the remaining intermediate-redirect
+  SSRF seams; older scraping clients and the async citation resolver remain.
+
+Validation status:
+
+- Focused Wayback, safe HTTP, and fallback-source tests pass with 99 tests.
+- Ruff check, Ruff format check, architecture/release-integrity tests, mypy,
+  Bandit, pip-audit, MkDocs build, and diff hygiene pass. MkDocs emitted only
+  the repo's existing non-strict link warnings, and the generated `_site`
+  directory was removed.
+- The CI-shaped non-manual coverage gate passed with `10224 passed, 39 skipped,
+  5 deselected` and 85.24% branch coverage.
+
+Spend: `$0.00`.

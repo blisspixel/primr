@@ -52,6 +52,13 @@
   keep exact model names out of persisted routing metadata unless a future
   operator-visible diagnostic explicitly asks for them.
 
+## Security and Egress
+
+- Migrate outbound HTTP helpers to `data.safe_http.safe_http_get()` one seam at
+  a time. Preserve caller-specific headers, params, and return shape at the
+  edge, but keep redirect following and per-hop SSRF validation in the shared
+  helper so intermediate-redirect safety cannot drift across modules.
+
 ## Skill Pack Generation
 
 - Do not ask the authoring model to produce the same role-level reference notes

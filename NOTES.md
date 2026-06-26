@@ -35,12 +35,12 @@ are architectural and worth a dedicated, well-tested cycle.
   follows redirects manually and runs `is_safe_url` on every hop before
   connecting; `fallback_sources._http_get` and `hiring_signals._http_get` (the
   two explicit mirror-duplicates, reachable from label-honesty / verifier /
-  fallback fan-out / hiring) now delegate to it. **Remaining seams to migrate to
+  fallback fan-out / hiring) now delegate to it; `data/scraping/wayback.py`
+  uses the same seam for CDX and replay fetches. **Remaining seams to migrate to
   the same helper:** `data/http_client.py`, `data/scraping/net.py`,
-  `data/scraping/http_clients.py`, `data/scraping/wayback.py` (each may need a
-  per-client variant), and `ai/citation_resolution.py` (async `HEAD`, narrowly
-  gated to `vertexaisearch.cloud.google.com` so low-risk; needs an async
-  variant of the helper).
+  `data/scraping/http_clients.py`, and `ai/citation_resolution.py` (async
+  `HEAD`, narrowly gated to `vertexaisearch.cloud.google.com` so low-risk;
+  needs an async variant of the helper).
 - **MED/HIGH -- DNS-rebind TOCTOU.** `is_safe_url` resolves + validates IPs but
   returns the hostname; the client re-resolves at connect time, so a low-TTL
   attacker domain can answer public to the check and internal to the connect.

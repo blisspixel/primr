@@ -2,6 +2,55 @@
 
 ## 2026-06-26
 
+### Loop cycle: Wayback per-hop redirect guard
+
+Refresh: re-read the SSRF findings in NOTES, the security posture in ROADMAP
+and `docs/SECURITY.md`, the architecture SSRF section, `data.safe_http`, the
+Wayback scraper, and the Wayback/safe-HTTP tests.
+
+Prioritize: selected `data/scraping/wayback.py` from the remaining
+intermediate-redirect SSRF migration list because its `_fetch()` helper was a
+small plain-GET seam that still used `follow_redirects=True` with final-only
+validation.
+
+Implemented:
+
+- Replaced Wayback's local httpx redirect-following implementation with a
+  delegation to `data.safe_http.safe_http_get()`.
+- Preserved Wayback-specific request headers and CDX query params.
+- Updated Wayback tests to pin the delegation contract while keeping detailed
+  redirect-hop safety tests in `test_safe_http.py`.
+- Updated NOTES, ROADMAP, `docs/SECURITY.md`, `docs/ARCHITECTURE.md`,
+  `docs/CHANGELOG.md`, current-state, and the quality rubric.
+
+Validation:
+
+- `uv run --no-sync pytest tests/test_data/test_wayback.py tests/test_data/test_safe_http.py tests/test_data/test_fallback_sources.py tests/test_data/test_fallback_sources_coverage.py -q`
+  passed with 99 tests.
+- `uv run ruff check src/primr/data/scraping/wayback.py tests/test_data/test_wayback.py`
+  passed.
+- `uv run ruff format --check src/ tests/` passed.
+- `uv run --no-sync pytest tests/test_architecture.py tests/test_release_integrity.py -q`
+  passed with 13 tests.
+- `uv run --no-sync mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'`
+  passed.
+- `uv run bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q`
+  passed with the existing `mcp_server/security.py` B108 nosec warnings.
+- `uv run --no-sync pip-audit --ignore-vuln PYSEC-2026-196` passed.
+- `uv run --no-project --with mkdocs-material --with pymdown-extensions mkdocs build --site-dir _site`
+  passed with the repo's existing non-strict link warnings; generated `_site`
+  was removed after validation.
+- `$env:GEMINI_API_KEY='fake-key-for-ci-tests'; uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q -k "not test_wait_times_out_when_no_change" -m "not integration" --cov=src/primr --cov-branch --cov-fail-under=81`
+  passed with `10224 passed, 39 skipped, 5 deselected`, branch coverage
+  `85.24%`.
+- `git diff --check` passed with only Windows line-ending notices.
+
+Rubric: Correctness 5/5, Security and Privacy 5/5, Simplicity 5/5,
+Maintainability 5/5, Performance and Cost 5/5, Verification 5/5.
+
+Cycle health: 5/5 | Simplicity: 5/5 | Est. spend: $0.00 | New skill distilled:
+shared safe HTTP migration.
+
 ### Loop cycle: Fenced-code artifact cleanup
 
 Refresh: re-read README, ROADMAP, `CLAUDE.md`,

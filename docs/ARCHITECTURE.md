@@ -869,7 +869,14 @@ def validate_url_for_request(url: str, allow_private_ips: bool = False) -> tuple
     """
 ```
 
-**Protected Functions** (10 total):
+The higher-level scraping tiers still call `validate_url_for_request()` before
+network access. Shared fail-open and archived-content recovery helpers use
+`src/primr/data/safe_http.py:safe_http_get()`, which follows redirects manually
+and revalidates each hop before connecting.
+
+**Protected Functions and Seams**:
+- `src/primr/data/safe_http.py`: `safe_http_get()` for fallback, hiring, and Wayback CDX/replay fetches
+- `src/primr/data/scraping/wayback.py`: `_fetch()` delegates to `safe_http_get()`
 - `src/primr/data/scraping/http_clients.py`: `scrape_with_requests()`, `scrape_with_httpx()`, `scrape_with_curl_cffi()`
 - `src/primr/data/scraping/net.py`: `make_request()`, `head_exists()`
 - `src/primr/data/scraping/browsers.py`: `scrape_with_playwright()`, `scrape_with_playwright_aggressive()`, `scrape_with_drissionpage()`, `scrape_with_drissionpage_stealth()`
