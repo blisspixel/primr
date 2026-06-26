@@ -850,7 +850,7 @@ Primr underwent comprehensive security review in January 2026. All critical vuln
 
 #### SSRF (Server-Side Request Forgery) Protection
 
-Location: `src/primr/utils/validators.py`
+Location: `src/primr/utils/validators.py` and `src/primr/utils/url_security.py`
 
 All HTTP requests are validated before execution to prevent internal network access:
 
@@ -873,12 +873,15 @@ The higher-level scraping tiers call `validate_url_for_request()` before
 network access. Shared fail-open and archived-content recovery helpers use
 `src/primr/data/safe_http.py:safe_http_get()`, while Google grounding citation
 resolution uses `async_safe_http_head()`. Both safe HTTP helpers follow
-redirects manually and revalidate each hop before connecting. Discovery helpers
-keep their `requests.Response` contract and manually revalidate each redirect
-hop. The pooled `HTTPClient` does the same for GET/HEAD while preserving
-session and retry behavior. The requests, httpx, and curl_cffi scraping tiers
-also follow redirects manually so each tier validates redirect targets before
-connecting while preserving its own transport behavior.
+redirects manually, resolve each hop once, validate every returned address, and
+connect to the validated IP literal while preserving the original Host header
+and HTTPS SNI. Discovery helpers keep their `requests.Response` contract and
+manually revalidate each redirect hop. The pooled `HTTPClient` does the same
+for GET/HEAD while preserving session and retry behavior. The requests, httpx,
+and curl_cffi scraping tiers also follow redirects manually so each tier
+validates redirect targets before connecting while preserving its own transport
+behavior; equivalent IP pinning for those transport families is tracked as the
+next SSRF hardening step.
 
 **Protected Functions and Seams**:
 - `src/primr/data/safe_http.py`: `safe_http_get()` for fallback, hiring, and Wayback CDX/replay fetches; `async_safe_http_head()` for citation redirect resolution

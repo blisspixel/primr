@@ -66,6 +66,40 @@ This makes the next best local slice the MCP runtime budget propagation fix,
 not a new provider integration or paid eval. It closes a documented HIGH
 control-plane gap with deterministic code and local tests.
 
+## 2026-06-26 SSRF Slice: Safe HTTP DNS-Rebind Pinning
+
+Shipped in this slice:
+
+- `utils.url_security` now owns the URL SSRF primitives that previously lived
+  inside `utils.security`; `utils.security` keeps compatibility re-exports.
+- `resolve_safe_url_for_connect()` resolves the URL once, validates every
+  returned IP, and returns a `SafeUrlResolution` artifact containing the
+  IP-literal request URL, original Host header, HTTPS SNI hostname, and
+  selected resolved IP.
+- `data.safe_http.safe_http_get()` and `async_safe_http_head()` now connect to
+  the validated IP literal for every hop while keeping logical URLs for
+  relative redirect resolution and final reporting.
+- Citation resolution tests now mock the safe HEAD seam directly, while
+  safe-http tests own Host/SNI and per-hop transport behavior.
+- The architecture line ceiling remains satisfied after extracting
+  `utils.url_security`; `utils/security.py` no longer carries the whole SSRF
+  section.
+
+Current estimate:
+
+- Intermediate-redirect SSRF migration: complete.
+- DNS-rebind IP pinning: complete for the shared safe HTTP seam used by
+  fallback, hiring, Wayback CDX/replay, and citation HEAD fetches.
+- Remaining DNS-rebind hardening: add equivalent IP pinning to pooled
+  `HTTPClient`, the requests/httpx/curl_cffi scraper tiers, and browser-backed
+  fetch seams.
+
+Spend: `$0.00`. Validation passed: focused SSRF/safe-HTTP/citation suites,
+caller suites for fallback/hiring/Wayback, Ruff, format check,
+architecture/release-integrity tests, mypy, Bandit, pip-audit, MkDocs build,
+diff hygiene, and the CI-shaped coverage gate (`10242 passed, 39 skipped, 5
+deselected`, 85.22% branch coverage).
+
 ## 2026-06-26 Control Plane Slice: MCP Runtime Budget Enforcement
 
 Shipped in this slice:

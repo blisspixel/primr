@@ -24,6 +24,28 @@ Use this rubric for every loop cycle before marking work done. A category scores
 
 ## Current Cycle Score
 
+2026-06-26 safe HTTP DNS-rebind IP pinning:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: the shared safe HTTP seam now derives a validated connection
+artifact from the same DNS answer it approves, connects to the validated
+IP-literal URL, and preserves the original Host header plus HTTPS SNI. Redirect
+logic still follows logical URLs, and the public `utils.security` import
+surface remains compatible after extracting `utils.url_security` to stay under
+the architecture file-size ratchet. Focused SSRF/safe-HTTP/citation tests,
+caller suites for fallback/hiring/Wayback, Ruff, format check,
+architecture/release-integrity tests, mypy, Bandit, pip-audit, MkDocs build,
+diff hygiene, and the CI-shaped coverage gate pass. Coverage: 85.22% branch.
+Spend: `$0.00`.
+
 2026-06-26 MCP runtime budget enforcement:
 
 | Category | Score |

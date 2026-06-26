@@ -2,6 +2,79 @@
 
 ## 2026-06-26
 
+### Loop cycle: Safe HTTP DNS-rebind IP pinning
+
+Refresh: re-read README, ROADMAP, NOTES, `docs/SECURITY.md`,
+`docs/ARCHITECTURE.md`, `data.safe_http`, the central URL security guard,
+citation-resolution tests, safe HTTP tests, current-state, and the quality
+rubric. Checked current SSRF guidance against the project threat model and the
+local HTTPX/httpcore implementation: redirects must stay manual, and validation
+must return the exact connection target so the client does not re-resolve a
+hostname after the guard passes.
+
+Prioritize: selected the shared `data.safe_http` seam because it serves
+fallback sources, hiring fetches, Wayback CDX/replay, and citation HEAD
+resolution. Browser and requests/curl transport families still need separate
+connection-level work, so this cycle intentionally shipped the reusable,
+httpx-backed slice without overclaiming full transport parity.
+
+Implemented:
+
+- Extracted URL SSRF validation into `utils.url_security` and kept
+  compatibility re-exports from `utils.security`.
+- Added `SafeUrlResolution` plus `resolve_safe_url_for_connect()`, which
+  resolves a URL once, validates every returned address, and returns an
+  IP-literal request URL with the original Host header and HTTPS SNI.
+- Updated `safe_http_get()` and `async_safe_http_head()` to connect to the
+  validated IP literal while resolving redirects against the logical URL.
+- Kept TLS verification intact by passing the public hostname as SNI instead
+  of disabling certificate checks.
+- Updated citation tests to mock the actual `async_safe_http_head()` seam.
+- Added resolver and safe HTTP tests for IP literal requests, original
+  Host/SNI preservation, private-IP DNS answers, IPv6 bracket handling, and
+  existing redirect blocking.
+- Updated NOTES, ROADMAP, `docs/SECURITY.md`, `docs/ARCHITECTURE.md`,
+  `docs/CHANGELOG.md`, current-state, quality rubric, and SKILLS.
+
+Validation:
+
+- `uv run --no-sync pytest tests/test_data/test_safe_http.py tests/test_utils/test_security_more_coverage.py tests/test_utils/test_numeric_host_ssrf.py tests/security/test_invariant_properties.py tests/security/test_egress_guardrails.py tests/test_ai/test_citation_resolution.py tests/test_ai/test_citation_resolution_extra.py tests/test_ai/test_citation_properties.py -q`
+  passed with 227 tests.
+- `uv run --no-sync pytest tests/test_data/test_safe_http.py tests/test_data/test_wayback.py tests/test_data/test_fallback_sources.py tests/test_data/test_fallback_sources_coverage.py tests/test_data/test_hiring_signals_more_coverage.py tests/test_data/test_hiring_signals_new_providers.py tests/test_ai/test_citation_resolution.py tests/test_ai/test_citation_resolution_extra.py tests/test_ai/test_citation_properties.py -q`
+  passed with 235 tests.
+- `uv run ruff check ...` over the touched source and test modules passed.
+- `uv run ruff format --check src/ tests/` passed.
+- `uv run --no-sync pytest tests/test_architecture.py tests/test_release_integrity.py -q`
+  passed with 13 tests.
+- `uv run --no-sync mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'`
+  passed.
+- `uv run bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q`
+  passed with the existing `mcp_server/security.py` B108 nosec warnings.
+- `uv run --no-sync pip-audit --ignore-vuln PYSEC-2026-196` passed.
+- `uv run --no-project --with mkdocs-material --with pymdown-extensions mkdocs build --site-dir _site`
+  passed with the repo's existing non-strict docs link warnings; `_site` was
+  removed afterward.
+- The CI-shaped non-manual coverage gate passed with `10242 passed, 39
+  skipped, 5 deselected` and 85.22% branch coverage.
+- `git diff --check` passed.
+- Added-line em dash scan passed.
+
+Maker-checker review:
+
+- Maker: the change uses one reusable URL resolution artifact and keeps the
+  existing safe HTTP redirect loop shape.
+- Checker 1, security/performance: the shared seam now connects to the same IP
+  that passed validation; TLS verification remains enabled; no paid or external
+  validation was used.
+- Checker 2, maintainability/simplicity: `utils/security.py` stayed below the
+  file-size ratchet by extracting URL security to a focused module, while
+  public imports remain compatible.
+
+Cycle health: 5/5 | Simplicity: 5/5 | Est. spend: $0.00 | New skill distilled:
+SSRF IP pinning.
+
+Spend: `$0.00`.
+
 ### Loop cycle: Async citation redirect per-hop guard
 
 Refresh: re-read README, ROADMAP, NOTES, `docs/SECURITY.md`,

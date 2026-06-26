@@ -9,7 +9,7 @@ graceful degradation on failure, and deduplication.
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -98,16 +98,10 @@ class TestGoogleRedirectResolution:
         redirect_url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/ABC123"
         final_url = "https://www.example.com/resolved"
 
-        mock_response = MagicMock()
-        mock_response.url = final_url
-
-        with patch.object(httpx, "AsyncClient") as mock_client:
-            mock_instance = AsyncMock()
-            mock_instance.head = AsyncMock(return_value=mock_response)
-            mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
-            mock_instance.__aexit__ = AsyncMock(return_value=None)
-            mock_client.return_value = mock_instance
-
+        with patch(
+            "primr.data.safe_http.async_safe_http_head",
+            new=AsyncMock(return_value=(200, final_url, False)),
+        ):
             result = await resolve_redirect_url(redirect_url)
             assert result == final_url
             assert "vertexaisearch.cloud.google.com" not in result

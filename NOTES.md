@@ -46,12 +46,14 @@ are architectural and worth a dedicated, well-tested cycle.
   grounding redirects through `data/safe_http.py:async_safe_http_head()`, which
   validates the initial URL and each redirect target before connecting. The
   intermediate-redirect migration is complete.
-- **MED/HIGH -- DNS-rebind TOCTOU.** `is_safe_url` resolves + validates IPs but
-  returns the hostname; the client re-resolves at connect time, so a low-TTL
-  attacker domain can answer public to the check and internal to the connect.
-  Fix: resolve once, validate, connect to the validated IP literal with the
-  hostname as SNI/Host (IP pinning). Harder (per-client transport work); after
-  the redirect fix.
+- **PARTIALLY FIXED in local Unreleased -- DNS-rebind TOCTOU.**
+  `is_safe_url` still returns only a boolean, but the shared safe HTTP seam now
+  uses `resolve_safe_url_for_connect()` to resolve each hop once, validate every
+  returned address, connect to the validated IP literal, and preserve the
+  original Host header plus HTTPS SNI. This closes the check/connect DNS split
+  for fallback, hiring, Wayback CDX/replay, and citation HEAD fetches.
+  **Remaining:** add equivalent IP pinning to `data/http_client.py`, the
+  requests/httpx/curl_cffi scraper tiers, and browser-backed fetch seams.
 
 ## Flaky: cross-directory test pollution hits a browser import test
 

@@ -164,3 +164,16 @@
 - For AI-strategy estimates, clamp empty platform tuples to one vendor. Empty
   `platforms=()` can occur through tests or internal callers even when CLI
   parsing normally supplies a default.
+
+## SSRF IP Pinning
+
+- Boolean URL validation is not enough when the client later resolves the same
+  hostname again. Return a connection artifact that contains the validated IP
+  literal, original Host header, and HTTPS SNI hostname, then make the fetch
+  seam use that artifact for the actual request.
+- Redirect loops should track the logical URL for relative `Location`
+  resolution and final reporting, while each hop derives a fresh pinned request
+  URL immediately before connecting.
+- Do not disable TLS verification to make IP pinning work. Use the HTTP
+  client's SNI extension or transport hook so certificate verification still
+  checks the public hostname.

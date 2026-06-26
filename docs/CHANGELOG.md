@@ -42,6 +42,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `data/safe_http.py:async_safe_http_head()`, so async HEAD resolution validates
   every redirect hop before connecting and returns the original citation URL
   instead of falling back when the SSRF guard blocks a hop.
+- The shared safe HTTP seam now resolves each validated hop once and connects
+  to that validated IP literal while preserving the original Host header and
+  HTTPS SNI. This closes the DNS-rebind check/connect split for fallback,
+  hiring, Wayback CDX/replay, and citation HEAD fetches without disabling TLS
+  verification.
 
 ### Fixed
 

@@ -1,13 +1,15 @@
 """SSRF-safe HTTP helpers with per-hop redirect validation.
 
 This is the fetch seam for primr helpers that do not need client-native
-response objects. A plain ``follow_redirects=True``
-client connects to every intermediate redirect target before any post-hoc
-check, so an attacker-controlled page can ``302`` through an internal address
-(loopback / RFC1918 / link-local / cloud metadata) that a final-only check
-never sees. This helper instead follows redirects MANUALLY and revalidates each
-hop's URL through the central SSRF guard (``utils.security.is_safe_url``) BEFORE
-connecting to it, so an internal hop is rejected before any request is made.
+response objects. A plain ``follow_redirects=True`` client connects to every
+intermediate redirect target before any post-hoc check, so an attacker-
+controlled page can ``302`` through an internal address (loopback / RFC1918 /
+link-local / cloud metadata) that a final-only check never sees. This helper
+instead follows redirects MANUALLY and resolves each hop through the central
+SSRF guard BEFORE connecting to it, so an internal hop is rejected before any
+request is made. Production requests connect to the validated IP literal while
+preserving the original Host header and HTTPS SNI, closing the DNS-rebind
+check/connect gap for this seam.
 
 Consolidating the previously-duplicated per-module ``_http_get`` helpers here
 also removes the "keep these two in sync" hazard the old mirror comments named.
@@ -20,7 +22,7 @@ from typing import Any
 from urllib.parse import urljoin
 
 from primr.utils.logging_config import get_logger
-from primr.utils.security import is_safe_url
+from primr.utils.security import SafeUrlResolution, resolve_safe_url_for_connect
 
 logger = get_logger("data.safe_http")
 
@@ -44,6 +46,18 @@ def _redirect_location(response: object) -> str | None:
     headers_obj = getattr(response, "headers", {}) or {}
     location = _header_value(headers_obj, "location") or _header_value(headers_obj, "Location")
     return location if isinstance(location, str) and location else None
+
+
+def _request_headers(base_headers: dict, resolution: SafeUrlResolution) -> dict:
+    headers = dict(base_headers)
+    headers["Host"] = resolution.host_header
+    return headers
+
+
+def _request_extensions(resolution: SafeUrlResolution) -> dict | None:
+    if resolution.sni_hostname is None:
+        return None
+    return {"sni_hostname": resolution.sni_hostname}
 
 
 def safe_http_get(
@@ -91,17 +105,22 @@ def safe_http_get(
             transport=transport,
         ) as client:
             for _hop in range(max_redirects + 1):
-                safe, reason = is_safe_url(current)
-                if not safe:
+                resolution, reason = resolve_safe_url_for_connect(current)
+                if resolution is None:
                     logger.info(
                         "%s: blocked outbound request to %s (%s)", log_prefix, current, reason
                     )
                     return None, None, None
                 # ``params`` belong to the caller's URL only; a redirect target
                 # carries its own query string, so they are not re-applied.
-                resp = client.get(current, params=params if current == url else None)
+                resp = client.get(
+                    resolution.request_url,
+                    params=params if current == url else None,
+                    headers=_request_headers(base_headers, resolution),
+                    extensions=_request_extensions(resolution),
+                )
                 if resp.is_redirect and "location" in resp.headers:
-                    current = str(resp.url.join(resp.headers["location"]))
+                    current = urljoin(current, resp.headers["location"])
                     continue
                 return resp.status_code, resp.content, current
         logger.info("%s: too many redirects starting from %s", log_prefix, url)
@@ -149,24 +168,26 @@ async def async_safe_http_head(
         transport=transport,
     ) as client:
         for _hop in range(max_redirects + 1):
-            safe, reason = is_safe_url(current)
-            if not safe:
+            resolution, reason = resolve_safe_url_for_connect(current)
+            if resolution is None:
                 logger.info("%s: blocked outbound HEAD to %s (%s)", log_prefix, current, reason)
                 return None, None, True
 
-            response = await client.head(current)
+            response = await client.head(
+                resolution.request_url,
+                headers=_request_headers(base_headers, resolution),
+                extensions=_request_extensions(resolution),
+            )
             location = _redirect_location(response)
             status_code = getattr(response, "status_code", None)
             is_redirect = (
                 getattr(response, "is_redirect", False) is True or status_code in _REDIRECT_STATUSES
             )
             if is_redirect and location is not None:
-                response_url = str(getattr(response, "url", current))
-                current = urljoin(response_url, location)
+                current = urljoin(current, location)
                 continue
 
-            final_url = str(getattr(response, "url", current))
-            return status_code, final_url, False
+            return status_code, current, False
 
     logger.info("%s: too many HEAD redirects starting from %s", log_prefix, url)
     return None, None, False

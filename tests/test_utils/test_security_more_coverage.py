@@ -27,6 +27,7 @@ from primr.utils.security import (
     get_secret_from_env,
     is_safe_url,
     mask_dict_values,
+    resolve_safe_url_for_connect,
     sanitize_company_name,
     sanitize_log_input,
     sanitize_url_input,
@@ -340,6 +341,55 @@ class TestIsSafeUrlResolution:
         safe, err = is_safe_url("http://example.com/secret-token")
         assert safe is False
         assert err == "Failed to parse URL"
+
+
+# ---------------------------------------------------------------------------
+# resolve_safe_url_for_connect: DNS-rebind pinning primitive
+# ---------------------------------------------------------------------------
+
+
+class TestResolveSafeUrlForConnect:
+    def test_returns_ip_literal_request_url_with_original_host_and_sni(self, resolve_to):
+        resolve_to("93.184.216.34")
+
+        resolution, err = resolve_safe_url_for_connect("https://example.com:8443/a?b=1")
+
+        assert err is None
+        assert resolution is not None
+        assert resolution.original_url == "https://example.com:8443/a?b=1"
+        assert resolution.request_url == "https://93.184.216.34:8443/a?b=1"
+        assert resolution.host_header == "example.com:8443"
+        assert resolution.sni_hostname == "example.com"
+        assert resolution.resolved_ip == "93.184.216.34"
+
+    def test_blocks_if_any_resolved_ip_is_private(self, resolve_to):
+        resolve_to("93.184.216.34", "10.0.0.2")
+
+        resolution, err = resolve_safe_url_for_connect("https://example.com/")
+
+        assert resolution is None
+        assert err is not None
+        assert "private" in err.lower() or "reserved" in err.lower()
+
+    def test_http_target_uses_host_header_without_sni(self, resolve_to):
+        resolve_to("93.184.216.34")
+
+        resolution, err = resolve_safe_url_for_connect("http://example.com/page")
+
+        assert err is None
+        assert resolution is not None
+        assert resolution.request_url == "http://93.184.216.34/page"
+        assert resolution.host_header == "example.com"
+        assert resolution.sni_hostname is None
+
+    def test_ipv6_target_is_bracketed(self, resolve_to):
+        resolve_to("2606:2800:220:1:248:1893:25c8:1946")
+
+        resolution, err = resolve_safe_url_for_connect("https://example.com/path")
+
+        assert err is None
+        assert resolution is not None
+        assert resolution.request_url == "https://[2606:2800:220:1:248:1893:25c8:1946]/path"
 
 
 # ---------------------------------------------------------------------------
