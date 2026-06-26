@@ -8,7 +8,7 @@ All HTTP, DNS, and LLM access is mocked — no network.
 from __future__ import annotations
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from primr.data.fallback_sources import (
     _http_get,
@@ -27,92 +27,26 @@ from primr.data.fallback_sources import (
 
 
 class TestHttpGet:
-    def test_blocks_unsafe_initial_url(self):
-        with patch("primr.utils.security.is_safe_url", return_value=(False, "loopback")):
-            status, body, final = _http_get("http://127.0.0.1/")
-        assert status is None
-        assert body is None
-        assert final is None
+    """``_http_get`` is now a thin delegator to the shared SSRF-safe seam
+    (`data/safe_http.py`, which validates every redirect hop before connecting).
+    The HTTP/redirect behavior is tested in ``test_safe_http.py``; here we pin
+    the delegation contract."""
 
-    def test_blocks_unsafe_final_url_after_redirect(self):
-        mock_resp = MagicMock()
-        mock_resp.url = "http://169.254.169.254/latest/meta-data"
-        mock_resp.status_code = 200
-        mock_resp.content = b"secret"
-        mock_client = MagicMock()
-        mock_client.get.return_value = mock_resp
-        mock_client.__enter__.return_value = mock_client
+    def test_delegates_to_safe_http_get(self):
+        with patch(
+            "primr.data.safe_http.safe_http_get",
+            return_value=(200, b"<html>ok</html>", "https://example.com/page"),
+        ) as mock_get:
+            result = _http_get("https://example.com/", headers={"X-Custom": "1"})
+        assert result == (200, b"<html>ok</html>", "https://example.com/page")
+        call = mock_get.call_args
+        assert call.args[0] == "https://example.com/"
+        assert call.kwargs["headers"] == {"X-Custom": "1"}
+        assert call.kwargs["log_prefix"] == "fallback"
 
-        with (
-            patch("primr.utils.security.is_safe_url", return_value=(True, "")),
-            patch(
-                "primr.utils.security.validate_final_url_after_redirect",
-                return_value=(False, "metadata endpoint"),
-            ),
-            patch("httpx.Client", return_value=mock_client),
-        ):
-            status, body, final = _http_get("https://example.com/")
-        assert status is None
-        assert body is None
-        assert final is None
-
-    def test_success_returns_status_body_final(self):
-        mock_resp = MagicMock()
-        mock_resp.url = "https://example.com/page"
-        mock_resp.status_code = 200
-        mock_resp.content = b"<html>ok</html>"
-        mock_client = MagicMock()
-        mock_client.get.return_value = mock_resp
-        mock_client.__enter__.return_value = mock_client
-
-        with (
-            patch("primr.utils.security.is_safe_url", return_value=(True, "")),
-            patch(
-                "primr.utils.security.validate_final_url_after_redirect",
-                return_value=(True, ""),
-            ),
-            patch("httpx.Client", return_value=mock_client),
-        ):
-            status, body, final = _http_get("https://example.com/")
-        assert status == 200
-        assert body == b"<html>ok</html>"
-        assert final == "https://example.com/page"
-
-    def test_custom_headers_merged(self):
-        captured = {}
-
-        mock_resp = MagicMock()
-        mock_resp.url = "https://example.com/"
-        mock_resp.status_code = 200
-        mock_resp.content = b"x"
-        mock_client = MagicMock()
-        mock_client.get.return_value = mock_resp
-        mock_client.__enter__.return_value = mock_client
-
-        def fake_client(**kwargs):
-            captured.update(kwargs)
-            return mock_client
-
-        with (
-            patch("primr.utils.security.is_safe_url", return_value=(True, "")),
-            patch(
-                "primr.utils.security.validate_final_url_after_redirect",
-                return_value=(True, ""),
-            ),
-            patch("httpx.Client", side_effect=fake_client),
-        ):
-            _http_get("https://example.com/", headers={"X-Custom": "1"})
-        assert captured["headers"]["X-Custom"] == "1"
-        # base User-Agent preserved
-        assert "User-Agent" in captured["headers"]
-
-    def test_exception_returns_none_tuple(self):
-        with (
-            patch("primr.utils.security.is_safe_url", return_value=(True, "")),
-            patch("httpx.Client", side_effect=RuntimeError("boom")),
-        ):
-            status, body, final = _http_get("https://example.com/")
-        assert (status, body, final) == (None, None, None)
+    def test_blocked_or_failed_propagates_none_triple(self):
+        with patch("primr.data.safe_http.safe_http_get", return_value=(None, None, None)):
+            assert _http_get("http://127.0.0.1/") == (None, None, None)
 
 
 # =============================================================================
