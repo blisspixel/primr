@@ -508,6 +508,31 @@ Validation status:
 
 Spend: `$0.00`.
 
+## 2026-06-26 Fenced-Code Artifact Cleanup
+
+Final artifact cleanup now respects Markdown fenced code blocks for the
+scaffolding cleanup path.
+
+Current state:
+
+- `core.report_cleanup` has one shared helper for applying transforms only
+  outside Markdown fenced code blocks.
+- Final report cleanup preserves literal code examples containing `[workbook]`,
+  `[cite: workbook]`, `[cross-ref ## ...]`, `[Analysis: ...]`,
+  `[External Sources]`, vendor-research filenames, and word-count markers.
+- Strategy cleanup inherits the same fence-aware behavior, including the
+  post-citation unresolved section cross-reference strip.
+- The same markers are still removed from prose, so shipping artifacts keep the
+  existing safety-net cleanup without silently corrupting examples.
+
+Validation status:
+
+- Focused cleanup/citation suites passed with 203 tests.
+- Architecture/release integrity, Ruff, format, mypy, Bandit, pip-audit, and
+  diff hygiene passed.
+
+Spend: `$0.00`.
+
 ## 2026-06-26 Empty-Platform Estimate Clamp
 
 CLI cost estimates now handle the internal empty-platform edge case without

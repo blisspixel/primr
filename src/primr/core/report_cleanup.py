@@ -9,8 +9,28 @@ tests that import from the original module continue to work.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 
 _INFORMAL_CITE_BRACKET_RE = re.compile(r"\[\s*((?:cites?)\s*:[^\]]+)\]", re.IGNORECASE)
+_FENCED_CODE_BLOCK_RE = re.compile(
+    r"(^[ \t]{0,3}(```|~~~)[^\n]*\n.*?^[ \t]{0,3}\2[ \t]*$)",
+    re.DOTALL | re.MULTILINE,
+)
+
+
+def _apply_outside_fenced_code(content: str, transform: Callable[[str], str]) -> str:
+    """Apply a text transform outside Markdown fenced code blocks."""
+    if not content or ("```" not in content and "~~~" not in content):
+        return transform(content)
+
+    parts: list[str] = []
+    cursor = 0
+    for match in _FENCED_CODE_BLOCK_RE.finditer(content):
+        parts.append(transform(content[cursor : match.start()]))
+        parts.append(match.group(0))
+        cursor = match.end()
+    parts.append(transform(content[cursor:]))
+    return "".join(parts)
 
 
 def _sanitize_numeric_cite_bracket(inner: str) -> str:
@@ -27,10 +47,55 @@ def _sanitize_numeric_cite_bracket(inner: str) -> str:
 
 def _normalize_informal_cite_brackets(content: str) -> str:
     """Normalize writer-emitted citation placeholders without touching prose."""
-    return _INFORMAL_CITE_BRACKET_RE.sub(
-        lambda match: _sanitize_numeric_cite_bracket(match.group(1)),
+    return _apply_outside_fenced_code(
         content,
+        lambda text: _INFORMAL_CITE_BRACKET_RE.sub(
+            lambda match: _sanitize_numeric_cite_bracket(match.group(1)),
+            text,
+        ),
     )
+
+
+def _strip_fast_report_scaffolding(content: str) -> str:
+    """Strip leaked writer scaffolding from prose while preserving code fences."""
+    content = _normalize_informal_cite_brackets(content)
+
+    # Inner scan length-bounded to prevent ReDoS on adversarial input.
+    content = re.sub(
+        r"\s*\[cross-ref(?:[\s:][^\]]{0,200})?\]",
+        "",
+        content,
+        flags=re.IGNORECASE,
+    )
+
+    content = re.sub(
+        r"\n?\[citation inventory[^\]]*\]\n?",
+        "\n",
+        content,
+        flags=re.IGNORECASE,
+    )
+
+    content = re.sub(
+        r"\s*\[workbook(?:[\s:§][^\]]{0,200})?\]",
+        "",
+        content,
+        flags=re.IGNORECASE,
+    )
+    content = re.sub(r"\[Analysis Workbook[^\]]*\]", "", content, flags=re.IGNORECASE)
+    content = re.sub(r"\[Analysis:[^\]]*\]", "", content, flags=re.IGNORECASE)
+    content = re.sub(r"\[External Sources\]", "", content, flags=re.IGNORECASE)
+    content = re.sub(r"vendor-research-[\w.-]+\.txt", "", content, flags=re.IGNORECASE)
+    # Leaked Title-Case workbook labels: matched CASE-SENSITIVELY so legitimate
+    # lowercase prose ("based on our internal analysis", "the analysis workbook
+    # process") is preserved rather than silently deleted. Stripping real content
+    # is the brittle trap in its worst form - silent corruption (agentic-balance:
+    # do not mangle content; only the exact leaked Title-Case label is removed).
+    content = re.sub(r"\bInternal ROI Model\b", "", content)
+    content = re.sub(r"\bInternal Analysis\b", "", content)
+    content = re.sub(r"\bAnalysis Workbook\b", "", content)
+
+    content = re.sub(r"\[Word count:\s*[\d,]+\]", "", content, flags=re.IGNORECASE)
+    return content
 
 
 def _rewrite_inline_confidence_citations(content: str) -> str:
@@ -83,55 +148,17 @@ def _clean_fast_report_output(report_content: str) -> str:
         report_content,
     )
 
-    report_content = _normalize_informal_cite_brackets(report_content)
-
-    # Inner scan length-bounded to prevent ReDoS on adversarial input.
-    report_content = re.sub(
-        r"\s*\[cross-ref(?:[\s:][^\]]{0,200})?\]",
-        "",
-        report_content,
-        flags=re.IGNORECASE,
-    )
-
-    report_content = re.sub(
-        r"\n?\[citation inventory[^\]]*\]\n?",
-        "\n",
-        report_content,
-        flags=re.IGNORECASE,
-    )
-
-    report_content = re.sub(
-        r"\s*\[workbook(?:[\s:§][^\]]{0,200})?\]",
-        "",
-        report_content,
-        flags=re.IGNORECASE,
-    )
-    report_content = re.sub(r"\[Analysis Workbook[^\]]*\]", "", report_content, flags=re.IGNORECASE)
-    report_content = re.sub(r"\[Analysis:[^\]]*\]", "", report_content, flags=re.IGNORECASE)
-    report_content = re.sub(r"\[External Sources\]", "", report_content, flags=re.IGNORECASE)
-    report_content = re.sub(
-        r"vendor-research-[\w.-]+\.txt", "", report_content, flags=re.IGNORECASE
-    )
-    # Leaked Title-Case workbook labels: matched CASE-SENSITIVELY so legitimate
-    # lowercase prose ("based on our internal analysis", "the analysis workbook
-    # process") is preserved rather than silently deleted. Stripping real content
-    # is the brittle trap in its worst form - silent corruption (agentic-balance:
-    # do not mangle content; only the exact leaked Title-Case label is removed).
-    report_content = re.sub(r"\bInternal ROI Model\b", "", report_content)
-    report_content = re.sub(r"\bInternal Analysis\b", "", report_content)
-    report_content = re.sub(r"\bAnalysis Workbook\b", "", report_content)
-
-    report_content = re.sub(r"\[Word count:\s*[\d,]+\]", "", report_content, flags=re.IGNORECASE)
+    report_content = _apply_outside_fenced_code(report_content, _strip_fast_report_scaffolding)
 
     # Collapse interior multi-space runs only. The old ``re.sub(r"  +", " ")``
     # also collapsed LEADING indentation, which flattened nested lists and broke
     # fenced/indented code blocks in the shipped report - silent structural
     # corruption (agentic-balance: never mangle real content). The lookbehind
     # preserves leading indentation; fenced code is skipped entirely.
-    _parts = re.split(r"(```.*?```)", report_content, flags=re.DOTALL)
-    for _i in range(0, len(_parts), 2):  # even indices are outside code fences
-        _parts[_i] = re.sub(r"(?<=\S) {2,}", " ", _parts[_i])
-    report_content = "".join(_parts)
+    report_content = _apply_outside_fenced_code(
+        report_content,
+        lambda text: re.sub(r"(?<=\S) {2,}", " ", text),
+    )
     # Collapse 3+ blank lines, tolerating CRLF: a plain ``\n{3,}`` misses runs of
     # ``\r\n`` and leaves excess whitespace in a CRLF-sourced report.
     report_content = re.sub(r"(?:\r?\n){3,}", "\n\n", report_content)
@@ -162,21 +189,29 @@ def _strip_internal_source_placeholders(content: str) -> str:
     if not content.strip():
         return content
 
-    confidence_bracket = re.compile(
-        r"\[(Confirmed|Reported|Estimated|Hypothesis):\s*([^\]]+)\]", re.IGNORECASE
-    )
+    def _strip_chunk(text: str) -> str:
+        confidence_bracket = re.compile(
+            r"\[(Confirmed|Reported|Estimated|Hypothesis):\s*([^\]]+)\]",
+            re.IGNORECASE,
+        )
 
-    def _drop_if_internal(match: re.Match[str]) -> str:
-        source_text = match.group(2).lower()
-        if any(term in source_text for term in _INTERNAL_REFERENCE_TERMS):
-            return ""
-        return match.group(0)
+        def _drop_if_internal(match: re.Match[str]) -> str:
+            source_text = match.group(2).lower()
+            if any(term in source_text for term in _INTERNAL_REFERENCE_TERMS):
+                return ""
+            return match.group(0)
 
-    cleaned = confidence_bracket.sub(_drop_if_internal, content)
-    cleaned = re.sub(
-        r"\[(?:Reported|Confirmed|Estimated|Hypothesis):\s*\]", "", cleaned, flags=re.IGNORECASE
-    )
-    cleaned = re.sub(r"\[citation inventory[^\]]*\]", "", cleaned, flags=re.IGNORECASE)
+        cleaned = confidence_bracket.sub(_drop_if_internal, text)
+        cleaned = re.sub(
+            r"\[(?:Reported|Confirmed|Estimated|Hypothesis):\s*\]",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+        cleaned = re.sub(r"\[citation inventory[^\]]*\]", "", cleaned, flags=re.IGNORECASE)
+        return cleaned
+
+    cleaned = _apply_outside_fenced_code(content, _strip_chunk)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned
 
@@ -186,18 +221,21 @@ def _strip_unresolved_section_cross_references(content: str) -> str:
     if not content.strip():
         return content
 
-    cleaned = re.sub(
-        r"\[\s*(?:see|cross-?ref|xref)\s+##\s+[^\]]+\]",
-        "",
-        content,
-        flags=re.IGNORECASE,
-    )
-    # Collapse only repeated horizontal whitespace left behind by the removed
-    # token. `\s{2,}` would also eat newlines (including the blank line after a
-    # heading), flattening "## Heading\n\n..." into "## Heading ..." and
-    # breaking downstream heading/section parsing. Restrict to spaces/tabs and
-    # let the following rule normalize any excess blank lines.
-    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    def _strip_chunk(text: str) -> str:
+        cleaned = re.sub(
+            r"\[\s*(?:see|cross-?ref|xref)\s+##\s+[^\]]+\]",
+            "",
+            text,
+            flags=re.IGNORECASE,
+        )
+        # Collapse only repeated horizontal whitespace left behind by the removed
+        # token. `\s{2,}` would also eat newlines (including the blank line after
+        # a heading), flattening "## Heading\n\n..." into "## Heading ..." and
+        # breaking downstream heading/section parsing. Restrict to spaces/tabs
+        # and let the following rule normalize any excess blank lines.
+        return re.sub(r"[ \t]{2,}", " ", cleaned)
+
+    cleaned = _apply_outside_fenced_code(content, _strip_chunk)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned
 

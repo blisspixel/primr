@@ -123,6 +123,10 @@
   scaffolding marker shape, not to a keyword anywhere inside a bracket. A
   bracket containing `cite:` can still be legitimate prose unless it starts
   with `cite:` or `cites:`.
+- Cleanup regexes that repair prose must not mutate fenced code examples.
+  Route marker stripping through a shared outside-fences helper so the same
+  token can be stripped from prose and preserved when the report is teaching or
+  documenting literal syntax.
 
 ## Budget Control Surfaces
 

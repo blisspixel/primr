@@ -96,3 +96,22 @@ of deleting arbitrary bracketed prose containing `cite:`. The report and
 strategy paths share one helper and both have regressions. Focused
 cleanup/citation tests, architecture/release integrity, Ruff, format, and mypy
 pass. Spend: `$0.00`.
+
+2026-06-26 fenced-code artifact cleanup:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: final report and strategy cleanup now preserve literal scaffolding
+examples inside Markdown fenced code while keeping the same stripping behavior
+for prose. The implementation uses one shared fence-aware transform seam instead
+of duplicating split logic, and report/strategy regressions cover the specific
+markers that previously corrupted examples. Focused cleanup/citation tests,
+architecture/release integrity, Ruff, format, mypy, Bandit, pip-audit, and diff
+hygiene pass. Spend: `$0.00`.

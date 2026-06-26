@@ -2,6 +2,52 @@
 
 ## 2026-06-26
 
+### Loop cycle: Fenced-code artifact cleanup
+
+Refresh: re-read README, ROADMAP, `CLAUDE.md`,
+`docs/design/agentic-balance.md`, `docs/ARTIFACTS.md`, NOTES, the quality
+rubric, and the report/strategy cleanup code.
+
+Prioritize: selected the remaining deferred artifact-cleanup bug because it
+was adjacent to the citation cleanup just shipped and represented another
+silent final-artifact mutation. The correct boundary is deterministic cleanup
+on prose plus preservation of literal code examples.
+
+Implemented:
+
+- Added a shared fenced-code transform helper in `core.report_cleanup`.
+- Routed writer-scaffolding cleanup, informal citation cleanup,
+  internal-source-placeholder cleanup, unresolved section cross-reference
+  cleanup, and interior-space collapse through the helper.
+- Preserved literal examples inside Markdown fenced code blocks while retaining
+  the same cleanup behavior in prose.
+- Added report and strategy regression tests covering `[workbook]`,
+  `[cite: workbook]`, `[cross-ref ## ...]`, `[Analysis: ...]`,
+  `[External Sources]`, vendor-research filenames, and word-count markers.
+
+Validation:
+
+- `uv run --no-sync pytest tests/test_core/test_report_cleanup.py tests/test_core/test_strategy_artifacts.py tests/test_core/test_fast_mode_citations.py tests/test_core/test_fast_mode_research.py -q`
+  passed with 203 tests.
+- `uv run ruff check src/primr/core/report_cleanup.py tests/test_core/test_report_cleanup.py tests/test_core/test_strategy_artifacts.py`
+  passed.
+- `uv run ruff format --check src/ tests/` passed.
+- `uv run --no-sync pytest tests/test_architecture.py tests/test_release_integrity.py -q`
+  passed with 13 tests.
+- `uv run --no-sync mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'`
+  passed.
+- `uv run bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q`
+  passed with the existing `mcp_server/security.py` B108 nosec warnings.
+- `uv run --no-sync pip-audit --ignore-vuln PYSEC-2026-196` passed.
+- `git diff --check` passed with only Windows line-ending notices.
+- Added-line em dash scan passed.
+
+Rubric: Correctness 5/5, Security and Privacy 5/5, Simplicity 5/5,
+Maintainability 5/5, Performance and Cost 5/5, Verification 5/5.
+
+Cycle health: 5/5 | Simplicity: 5/5 | Est. spend: $0.00 | New skill distilled:
+fence-aware cleanup.
+
 ### Loop cycle: MCP runtime budget enforcement
 
 Startup refresh: re-read README, ROADMAP, `CLAUDE.md`,

@@ -295,6 +295,26 @@ class TestCleanStrategyOutput:
         result = _clean_strategy_output("just text [Source: https://example.com/a]")
         assert result.endswith("\n")
 
+    def test_scaffolding_examples_inside_code_fences_are_preserved(self):
+        content = (
+            "Body [workbook] and [External Sources] are leaked markers.\n\n"
+            "```markdown\n"
+            "[workbook]\n"
+            "[cite: workbook]\n"
+            "[cross-ref ## Strategy]\n"
+            "[Analysis: 4]\n"
+            "[External Sources]\n"
+            "```\n"
+        )
+        result = _clean_strategy_output(content)
+        body = result.split("```markdown", 1)[0]
+        assert "[workbook]" not in body
+        assert "[External Sources]" not in body
+        assert "[workbook]\n[cite: workbook]" in result
+        assert "[cross-ref ## Strategy]" in result
+        assert "[Analysis: 4]" in result
+        assert "[External Sources]" in result
+
 
 class TestEnsureStrategySourceInventory:
     def test_empty_content_unchanged(self):

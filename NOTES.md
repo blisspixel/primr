@@ -10,14 +10,12 @@ These were verified by adversarial review but are narrow / off-contract, so they
 were deferred behind the HIGH/security fixes. They are real and should be fixed
 when the surrounding code is next touched.
 
-- **Scaffolding strips run inside fenced code blocks** (`core/report_cleanup.py`,
-  the `[workbook]` / informal-cite / `[Analysis: ...]` / `[External Sources]`
-  strips). The interior-space collapse is already fence-protected (it splits on
-  ```` ``` ```` fences), but the earlier marker strips run over the whole string,
-  so a literal scaffolding token shown *inside* a code-block example is silently
-  deleted. Fix: apply the same fence-split protection to the marker strips, or
-  run all strips through one fence-aware pass. Medium; only bites when a report
-  embeds those literal tokens in a code block.
+- **FIXED in local Unreleased -- scaffolding strips run inside fenced code
+  blocks.** Final report and strategy cleanup now run writer-scaffolding strips,
+  informal-cite cleanup, internal-source-placeholder cleanup, and unresolved
+  section cross-reference cleanup only outside Markdown fenced code blocks. A
+  literal marker shown inside a code example is preserved while the same marker
+  in prose is still removed.
 - **FIXED in local Unreleased -- informal-cite regex deletes bracketed prose
   containing `cite:`.** `report_cleanup.py` and `strategy_artifacts.py` now use
   one stricter helper that only rewrites brackets beginning with `cite:` or

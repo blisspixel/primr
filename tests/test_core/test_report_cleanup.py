@@ -188,6 +188,30 @@ class TestCleanFastReportOutput:
         result = _clean_fast_report_output(bad)
         assert isinstance(result, str)
 
+    def test_scaffolding_examples_inside_code_fences_are_preserved(self):
+        content = (
+            "Body [workbook] and [External Sources] are leaked markers.\n\n"
+            "```markdown\n"
+            "[workbook]\n"
+            "[cite: workbook]\n"
+            "[cross-ref ## Strategy]\n"
+            "[Analysis: 4]\n"
+            "[External Sources]\n"
+            "vendor-research-acme.txt\n"
+            "[Word count: 1,028]\n"
+            "```\n"
+        )
+        result = _clean_fast_report_output(content)
+        body = result.split("```markdown", 1)[0]
+        assert "[workbook]" not in body
+        assert "[External Sources]" not in body
+        assert "[workbook]\n[cite: workbook]" in result
+        assert "[cross-ref ## Strategy]" in result
+        assert "[Analysis: 4]" in result
+        assert "[External Sources]" in result
+        assert "vendor-research-acme.txt" in result
+        assert "[Word count: 1,028]" in result
+
 
 class TestStripInternalSourcePlaceholders:
     def test_drops_workbook_reference(self):

@@ -32,6 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   merely because it contains `cite:` inside the bracket. Informal citation
   cleanup now only rewrites brackets that begin with `cite:` or `cites:`, so
   prose such as `[we cite: revenue doubled]` is preserved.
+- Final-report and strategy cleanup no longer strips writer-scaffolding tokens
+  from Markdown fenced code examples. The same `[workbook]`, `[cite: label]`,
+  `[cross-ref ## ...]`, `[Analysis: ...]`, `[External Sources]`, vendor-research
+  filename, and word-count markers are still removed from prose, but examples
+  inside fenced blocks now survive.
 
 ## [1.34.1] - 2026-06-26
 
