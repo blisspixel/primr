@@ -130,58 +130,25 @@ def _http_get(
     headers: dict | None = None,
     params: dict | None = None,
 ) -> tuple[int | None, bytes | None, str | None]:
-    """Plain httpx GET with follow_redirects. Returns (status, body, final_url).
+    """SSRF-safe GET. Returns ``(status, body, final_url)``.
 
-    Mirrors the helper in ``fallback_sources.py`` so the two fail-open
-    fan-outs behave consistently. Errors are logged at debug and returned
-    as ``(None, None, None)`` — the caller decides what to do.
-
-    SSRF protection: validates the initial URL and the final URL after
-    redirects against the central SSRF blocklist (loopback / RFC1918 /
-    link-local / cloud metadata). An attacker-controlled careers page that
-    links to or redirects to internal infrastructure is dropped here, even
-    though the original company_url passed the MCP URL validator. The
-    fallback HTTP helper in ``fallback_sources.py`` applies the same
-    checks; keep them in sync if either is updated.
+    Delegates to the shared ``safe_http.safe_http_get`` seam, which validates
+    the initial URL AND every redirect hop through the central SSRF guard before
+    connecting. An attacker-controlled careers page that links or redirects to
+    internal infrastructure is dropped before it is fetched, even though the
+    original company_url passed the MCP URL validator. Errors return
+    ``(None, None, None)`` and the caller decides what to do.
     """
-    from primr.utils.security import is_safe_url, validate_final_url_after_redirect
+    from primr.data.safe_http import safe_http_get
 
-    safe, reason = is_safe_url(url)
-    if not safe:
-        logger.info("hiring-signals: blocked outbound request to %s (%s)", url, reason)
-        return None, None, None
-
-    try:
-        import httpx
-
-        base_headers = {
-            "User-Agent": _USER_AGENT,
-            "Accept": "text/html,application/xhtml+xml,application/json,*/*",
-            "Accept-Language": "en-US,en;q=0.9",
-        }
-        if headers:
-            base_headers.update(headers)
-
-        with httpx.Client(
-            timeout=timeout,
-            follow_redirects=True,
-            headers=base_headers,
-        ) as client:
-            resp = client.get(url, params=params)
-            final_url = str(resp.url)
-            safe_final, reason = validate_final_url_after_redirect(final_url)
-            if not safe_final:
-                logger.info(
-                    "hiring-signals: dropped response from %s — final URL %s blocked (%s)",
-                    url,
-                    final_url,
-                    reason,
-                )
-                return None, None, None
-            return resp.status_code, resp.content, final_url
-    except Exception as e:
-        logger.debug("hiring-signals HTTP GET failed for %s: %s", url, e)
-        return None, None, None
+    return safe_http_get(
+        url,
+        timeout=timeout,
+        headers=headers,
+        params=params,
+        user_agent=_USER_AGENT,
+        log_prefix="hiring-signals",
+    )
 
 
 # =============================================================================

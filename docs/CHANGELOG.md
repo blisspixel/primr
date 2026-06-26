@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.1] - 2026-06-26
+
+### Security
+
+- Closed an intermediate-redirect SSRF in the fail-open fetch fan-out. The
+  shared HTTP helpers previously followed redirects with `follow_redirects=True`
+  and validated only the final URL, so an attacker-controlled page could
+  `302` through an internal address (loopback / RFC1918 / link-local / cloud
+  metadata) that was connected before the post-hoc check ever ran. A new shared
+  seam `data/safe_http.py` now follows redirects manually and revalidates every
+  hop through the central SSRF guard before connecting; `fallback_sources` and
+  `hiring_signals` delegate to it, which also removes the duplicated
+  keep-in-sync helpers. Pinned by a hermetic test that asserts an internal
+  redirect target is validated and never connected to. Remaining fetch seams
+  (scrape-tier clients, the async citation resolver) are tracked for migration
+  to the same helper.
+
 ## [1.34.0] - 2026-06-25
 
 ### Added

@@ -27,6 +27,7 @@ from primr.data.hiring_career_urls import (
     normalize_career_urls,
 )
 from primr.data.hiring_signals import (
+    _USER_AGENT,
     Posting,
     _candidate_workday_triples,
     _careers_url_candidates,
@@ -66,69 +67,28 @@ _LONG_BODY_HTML = (
 
 
 class TestHttpGet:
-    def test_blocked_initial_url_returns_none_triple(self):
-        with patch("primr.utils.security.is_safe_url", return_value=(False, "loopback")):
+    """``_http_get`` is now a thin delegator to the shared SSRF-safe seam
+    (`data/safe_http.py`, which validates every redirect hop). The HTTP/redirect
+    behavior is tested in ``test_safe_http.py``; here we pin the delegation."""
+
+    def test_delegates_with_hiring_signals_identity(self):
+        with patch(
+            "primr.data.safe_http.safe_http_get",
+            return_value=(200, b"hello", "https://acme.example/jobs"),
+        ) as mock_get:
+            result = _http_get("https://acme.example/jobs", timeout=1.0, headers={"X-Test": "1"})
+        assert result == (200, b"hello", "https://acme.example/jobs")
+        call = mock_get.call_args
+        assert call.args[0] == "https://acme.example/jobs"
+        assert call.kwargs["timeout"] == 1.0
+        assert call.kwargs["headers"] == {"X-Test": "1"}
+        # Carries the hiring-signals user agent and log prefix through the seam.
+        assert call.kwargs["log_prefix"] == "hiring-signals"
+        assert call.kwargs["user_agent"] == _USER_AGENT
+
+    def test_blocked_or_failed_propagates_none_triple(self):
+        with patch("primr.data.safe_http.safe_http_get", return_value=(None, None, None)):
             assert _http_get("http://127.0.0.1/jobs", timeout=1.0) == (None, None, None)
-
-    def test_happy_path_returns_status_body_final_url(self):
-        resp = MagicMock()
-        resp.url = "https://acme.example/jobs"
-        resp.status_code = 200
-        resp.content = b"hello"
-        client = MagicMock()
-        client.get.return_value = resp
-        client_cm = MagicMock()
-        client_cm.__enter__.return_value = client
-        with (
-            patch("primr.utils.security.is_safe_url", return_value=(True, None)),
-            patch(
-                "primr.utils.security.validate_final_url_after_redirect",
-                return_value=(True, None),
-            ),
-            patch("httpx.Client", return_value=client_cm),
-        ):
-            status, body, final = _http_get(
-                "https://acme.example/jobs", timeout=1.0, headers={"X-Test": "1"}
-            )
-        assert status == 200
-        assert body == b"hello"
-        assert final == "https://acme.example/jobs"
-
-    def test_final_url_blocked_after_redirect_drops_response(self):
-        resp = MagicMock()
-        resp.url = "http://169.254.169.254/latest/meta-data"
-        resp.status_code = 200
-        resp.content = b"secrets"
-        client = MagicMock()
-        client.get.return_value = resp
-        client_cm = MagicMock()
-        client_cm.__enter__.return_value = client
-        with (
-            patch("primr.utils.security.is_safe_url", return_value=(True, None)),
-            patch(
-                "primr.utils.security.validate_final_url_after_redirect",
-                return_value=(False, "metadata"),
-            ),
-            patch("httpx.Client", return_value=client_cm),
-        ):
-            assert _http_get("https://acme.example/jobs", timeout=1.0) == (
-                None,
-                None,
-                None,
-            )
-
-    def test_request_exception_returns_none_triple(self):
-        client_cm = MagicMock()
-        client_cm.__enter__.side_effect = RuntimeError("boom")
-        with (
-            patch("primr.utils.security.is_safe_url", return_value=(True, None)),
-            patch("httpx.Client", return_value=client_cm),
-        ):
-            assert _http_get("https://acme.example/jobs", timeout=1.0) == (
-                None,
-                None,
-                None,
-            )
 
 
 # =============================================================================

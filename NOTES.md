@@ -33,18 +33,20 @@ The per-URL filter (`utils/security.is_safe_url`, numeric-host backstop,
 IPv6-mapped/ULA/link-local/metadata handling) is verified solid. The two gaps
 are architectural and worth a dedicated, well-tested cycle.
 
-- **HIGH, NEXT CYCLE -- intermediate-redirect SSRF (systemic).** Every fetch
-  seam sets `follow_redirects=True`/`allow_redirects=True` and validates only the
-  FINAL url. httpx/requests connect to each intermediate redirect target before
-  primr re-validates, so an attacker page can `302 -> http://127.0.0.1:...` (or
-  `169.254.169.254`) and the internal hop is connected even though the final url
-  is public. Confirmed by repro (loopback server recorded the internal hit).
-  Affected: `data/fallback_sources.py:_http_get`, `data/hiring_signals.py` (two
-  spots), `data/http_client.py`, `data/scraping/net.py`,
-  `data/scraping/http_clients.py`, `data/scraping/wayback.py`. Fix: a single
-  shared helper that disables auto-redirects and follows manually, calling
-  `is_safe_url` on each hop's `Location` before connecting (cap hops); migrate
-  the seams to it (one-seam, kills the "mirror changes in N files" comment).
+- **HIGH, intermediate-redirect SSRF (systemic). PARTIALLY FIXED in 1.34.1.**
+  Every fetch seam set `follow_redirects=True` and validated only the FINAL url,
+  so an attacker page could `302 -> http://127.0.0.1:...` (or `169.254.169.254`)
+  and the internal hop was connected even though the final url was public
+  (confirmed by repro). **Done:** new shared seam `data/safe_http.py:safe_http_get`
+  follows redirects manually and runs `is_safe_url` on every hop before
+  connecting; `fallback_sources._http_get` and `hiring_signals._http_get` (the
+  two explicit mirror-duplicates, reachable from label-honesty / verifier /
+  fallback fan-out / hiring) now delegate to it. **Remaining seams to migrate to
+  the same helper:** `data/http_client.py`, `data/scraping/net.py`,
+  `data/scraping/http_clients.py`, `data/scraping/wayback.py` (each may need a
+  per-client variant), and `ai/citation_resolution.py` (async `HEAD`, narrowly
+  gated to `vertexaisearch.cloud.google.com` so low-risk; needs an async
+  variant of the helper).
 - **MED/HIGH -- DNS-rebind TOCTOU.** `is_safe_url` resolves + validates IPs but
   returns the hostname; the client re-resolves at connect time, so a low-TTL
   attacker domain can answer public to the check and internal to the connect.

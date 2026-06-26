@@ -48,55 +48,20 @@ def _http_get(
     headers: dict | None = None,
     params: dict | None = None,
 ) -> tuple[int | None, bytes | None, str | None]:
-    """Plain httpx GET with follow_redirects. Returns (status, body, final_url).
+    """SSRF-safe GET. Returns ``(status, body, final_url)``.
 
-    SSRF protection: validates the initial URL and the final URL after
-    redirects against the central SSRF blocklist. The fallback fan-out
-    builds URLs from arbitrary subdomains of a user-supplied host, and the
-    raw response is later merged into scrape artifacts — without this
-    check, attacker-controlled DNS or HTTP redirects could read internal
-    services. Mirror any changes here in
-    ``hiring_signals.py::_http_get`` and
-    ``scraping/stealth_browser.py``.
+    Delegates to the shared ``safe_http.safe_http_get`` seam, which validates
+    the initial URL AND every redirect hop through the central SSRF guard before
+    connecting (not just the final URL). The fallback fan-out builds URLs from
+    arbitrary subdomains of a user-supplied host and merges the raw response
+    into scrape artifacts, so a redirect into internal infrastructure must be
+    rejected before it is fetched.
     """
-    from primr.utils.security import is_safe_url, validate_final_url_after_redirect
+    from primr.data.safe_http import safe_http_get
 
-    safe, reason = is_safe_url(url)
-    if not safe:
-        logger.info("fallback: blocked outbound request to %s (%s)", url, reason)
-        return None, None, None
-
-    try:
-        import httpx
-
-        base_headers = {
-            "User-Agent": "primr/1.0 (+https://github.com/blisspixel/primr; research fetcher)",
-            "Accept": "text/html,application/xhtml+xml,application/json,*/*",
-            "Accept-Language": "en-US,en;q=0.9",
-        }
-        if headers:
-            base_headers.update(headers)
-
-        with httpx.Client(
-            timeout=timeout,
-            follow_redirects=True,
-            headers=base_headers,
-        ) as client:
-            resp = client.get(url, params=params)
-            final_url = str(resp.url)
-            safe_final, reason = validate_final_url_after_redirect(final_url)
-            if not safe_final:
-                logger.info(
-                    "fallback: dropped response from %s — final URL %s blocked (%s)",
-                    url,
-                    final_url,
-                    reason,
-                )
-                return None, None, None
-            return resp.status_code, resp.content, final_url
-    except Exception as e:
-        logger.debug("fallback HTTP get failed for %s: %s", url, e)
-        return None, None, None
+    return safe_http_get(
+        url, timeout=timeout, headers=headers, params=params, log_prefix="fallback"
+    )
 
 
 # =============================================================================

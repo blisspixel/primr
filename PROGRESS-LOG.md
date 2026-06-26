@@ -1,5 +1,45 @@
 # Progress Log
 
+## 2026-06-26
+
+### Loop cycle: Redirect-SSRF hardening (1.34.1)
+
+After releasing 1.34.0, an adversarial review of the SSRF defense (the
+crown-jewel outbound control) confirmed the per-URL filter is solid but found a
+HIGH systemic gap: every fetch seam followed redirects internally and validated
+only the final URL, so an attacker page could 302 through an internal address
+that was connected before the post-hoc check (confirmed by a loopback repro).
+
+Implemented (TDD, hermetic):
+
+- New shared seam `data/safe_http.py:safe_http_get`: follows redirects MANUALLY
+  with `follow_redirects=False`, runs `is_safe_url` on the initial URL and every
+  redirect hop BEFORE connecting, caps hops, resolves relative `Location`. An
+  injected `transport` keeps the tests hermetic (httpx `MockTransport`, faked
+  guard). The key test asserts an internal redirect target is validated and
+  NEVER connected to.
+- `fallback_sources._http_get` and `hiring_signals._http_get` (the two explicit
+  mirror-duplicates, reachable from label-honesty / verifier / fallback fan-out
+  / hiring) now delegate to the seam, removing the "keep these two in sync"
+  hazard the old comments named.
+- Rewrote the hiring `_http_get` coverage tests (they pinned the old internal
+  httpx flow) to pin the delegation contract; the HTTP/redirect behavior is now
+  covered by `test_safe_http.py`.
+
+Scope held deliberately tight to the two broad attacker-influenceable fan-out
+helpers. Remaining seams (scrape-tier httpx clients, the async citation
+resolver) are recorded in `NOTES.md` for follow-up migration to the same helper.
+The DNS-rebind TOCTOU (connect-time IP pinning) also remains noted.
+
+Validation: `test_safe_http.py` (8) + the fallback/hiring suites (168) green;
+ruff + mypy clean on every touched file. Full CI-equivalent gate before push.
+Spend `$0.00`.
+
+Self-review: correctness Strong (per-hop validation proven by test, relative
+redirect + loop-cap + error paths covered), security Strong (closes the
+exploitable gap; one shared seam so it cannot drift), readability/maintainability
+Strong (duplication removed). Rubric all Strong.
+
 ## 2026-06-25
 
 ### Loop cycle: Bug-hunt + security harden (release cadence lane)
