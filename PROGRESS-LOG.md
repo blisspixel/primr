@@ -2,6 +2,77 @@
 
 ## 2026-06-26
 
+### Loop cycle: Browser dynamic egress proxy
+
+Refresh: re-read ROADMAP, NOTES, `docs/SECURITY.md`,
+`docs/ARCHITECTURE.md`, browser-backed scraping tiers, the central
+connect-time URL security primitive, browser egress tests, current-state, and
+the quality rubric. Checked current browser/proxy controls against primary
+sources: Chromium proxy launch controls, Playwright proxy/routing APIs, and
+RFC 9110 CONNECT semantics.
+
+Prioritize: selected dynamic browser egress because the prior browser slice
+pinned only the initial hostname. Chromium host-resolver rules are launch-time
+state, so browser-discovered redirect and subresource hosts needed a
+connection-level control outside Chromium DNS.
+
+Implemented:
+
+- Added `data.scraping.browser_proxy.BrowserEgressProxy`, a stdlib loopback
+  HTTP/CONNECT proxy for Chromium-backed scraper tiers.
+- The proxy validates each HTTP request URL or HTTPS CONNECT authority through
+  `resolve_safe_url_for_connect()`, dials the validated IP literal, and tunnels
+  bytes without terminating TLS.
+- HTTP proxy-form requests are rewritten to origin-form for the upstream server
+  while proxy-only headers are stripped.
+- Chromium proxy launch args now include the local proxy, disable loopback
+  proxy bypass with `<-loopback>`, and disable QUIC so traffic stays on the TCP
+  proxy path.
+- Playwright, Playwright aggressive, vision, Patchright, DrissionPage, and
+  DrissionPage stealth now run browser traffic through the proxy while keeping
+  the initial-host resolver rule and Playwright-compatible route guards as
+  defense-in-depth.
+- `data/scraping/browsers.py` stayed below its line ceiling after trimming
+  oversized local docstrings, and the ratchet was lowered from 1860 to 1835.
+- Updated NOTES, ROADMAP, `docs/SECURITY.md`, `docs/ARCHITECTURE.md`,
+  `docs/CHANGELOG.md`, current-state, the quality rubric, and SKILLS.
+
+Validation:
+
+- `pytest tests/test_data/test_scraping/test_browser_proxy.py tests/test_data/test_scraping/test_browser_egress.py tests/test_data/test_scraping/test_browsers.py tests/test_architecture.py tests/test_release_integrity.py -q`
+  passed with 64 tests and 1 existing Google GenAI deprecation warning.
+- `pytest tests/security/test_ssrf.py tests/security/test_egress_guardrails.py tests/test_data/test_scraping/test_browser_proxy.py tests/test_data/test_scraping/test_browser_egress.py tests/test_data/test_scraping/test_browsers.py tests/test_architecture.py tests/test_release_integrity.py -q`
+  passed with 108 tests and 1 existing Google GenAI deprecation warning.
+- `ruff check src tests` passed.
+- `ruff format --check src tests` passed.
+- `mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude "src/primr/api/"`
+  passed.
+- `bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q`
+  passed with the existing `mcp_server/security.py` B108 nosec warnings.
+- `uv run --no-sync pip-audit --ignore-vuln PYSEC-2026-196` passed.
+- `uv run --no-project --with mkdocs-material --with pymdown-extensions mkdocs build --site-dir _site`
+  passed with the repo's existing non-strict MkDocs warnings, and `_site` was
+  removed.
+- `uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q -k "not test_wait_times_out_when_no_change" -m "not integration" --cov=src/primr --cov-branch --cov-fail-under=81`
+  passed with `10266 passed, 39 skipped, 5 deselected`, branch coverage
+  `85.25%`.
+- `git diff --check` and the touched-file style scans for em dashes, common
+  emoji markers, and generated attribution phrases passed.
+
+Maker-checker review:
+
+- Maker: the proxy owns the dynamic connection target instead of trying to
+  mutate Chromium DNS state after launch.
+- Checker 1, security/performance: each browser-discovered host is resolved and
+  dialed by the same connect-time SSRF primitive used by non-browser fetchers;
+  TLS remains end-to-end; QUIC is disabled to avoid bypass; no paid validation
+  was used.
+- Checker 2, maintainability/simplicity: one focused stdlib proxy module owns
+  the new behavior, and browser tier call sites only manage proxy lifecycle and
+  launch args.
+
+Spend: `$0.00`.
+
 ### Loop cycle: Browser-backed initial-host DNS pinning
 
 Refresh: re-read ROADMAP, NOTES, `docs/SECURITY.md`,

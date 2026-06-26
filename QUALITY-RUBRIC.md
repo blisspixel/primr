@@ -24,6 +24,28 @@ Use this rubric for every loop cycle before marking work done. A category scores
 
 ## Current Cycle Score
 
+2026-06-26 browser dynamic egress proxy:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: Chromium-backed scraper tiers now launch through a local loopback
+HTTP/CONNECT proxy that validates each browser-discovered target with the
+central connect-time SSRF primitive and dials the validated IP literal. HTTPS
+remains end-to-end because the proxy tunnels CONNECT bytes without terminating
+TLS. Chromium launches disable loopback proxy bypass and QUIC so browser
+traffic stays on the proxy path. Focused proxy/browser tests, architecture and
+release-integrity tests, wider SSRF and egress-guardrail suites, Ruff, format
+check, mypy, Bandit, pip-audit, MkDocs build, diff hygiene, touched-file style
+scans, and the CI-shaped non-manual coverage gate pass. Coverage: 85.25%
+branch. Spend: `$0.00`.
+
 2026-06-26 browser-backed initial-host DNS pinning:
 
 | Category | Score |

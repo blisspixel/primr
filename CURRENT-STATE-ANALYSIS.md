@@ -179,12 +179,10 @@ Current estimate:
 - DNS-rebind IP pinning is complete for safe HTTP, citation HEAD, tiered httpx,
   pooled `HTTPClient`, tiered requests, curl_cffi, and the initial hostname of
   Chromium-backed browser tiers.
-- Browser route guards now block unsafe browser redirect/subresource requests
+- Browser route guards block unsafe browser redirect/subresource requests
   before continuation where Playwright-compatible routing is available.
-- Remaining DNS-rebind hardening: browser-discovered public redirect hosts and
-  public subresource hosts cannot receive new Chromium host-resolver mappings
-  after launch. A fully equivalent browser answer needs a local egress proxy or
-  deeper CDP fetch controller design.
+- Follow-on dynamic host pinning has now shipped in the browser egress proxy
+  slice below.
 
 Spend: `$0.00`. Validation passed: browser egress tests, browser tier tests,
 SSRF and egress-guardrail tests, pinned requests and HTTP client tests,
@@ -193,6 +191,43 @@ pip-audit, MkDocs build, diff hygiene, touched-file style scans, and the
 CI-shaped coverage gate (`10261 passed, 39 skipped, 5 deselected`, 85.26%
 branch coverage). `data/scraping/browsers.py` was split below its architecture
 ceiling, and the ceiling was ratcheted down from 2036 to 1860 lines.
+
+## 2026-06-26 SSRF Slice: Browser Dynamic Egress Proxy
+
+Shipped in this slice:
+
+- Added `data.scraping.browser_proxy.BrowserEgressProxy`, a stdlib loopback
+  HTTP/CONNECT proxy for Chromium-backed scraper tiers.
+- HTTPS browser requests use CONNECT through the local proxy. The proxy
+  validates the target authority with `resolve_safe_url_for_connect()`, dials
+  the validated IP literal, and then tunnels bytes without terminating TLS.
+- HTTP browser requests are validated the same way and rewritten from
+  proxy-form to origin-form before forwarding to the validated IP literal.
+- Chromium launch args now include the local proxy, disable loopback bypass
+  with `<-loopback>`, and disable QUIC so browser traffic stays on the TCP
+  proxy path.
+- Playwright, Playwright aggressive, vision, Patchright, DrissionPage, and
+  DrissionPage stealth all run browser traffic through the proxy. The earlier
+  initial-host resolver pin and Playwright-compatible route guards remain as
+  defense-in-depth.
+- Proxy tests cover absolute HTTP request rewriting, CONNECT tunneling to the
+  validated IP, unsafe CONNECT blocking before dialing, and launch-arg wiring.
+
+Current estimate:
+
+- DNS-rebind IP pinning is complete for the tracked scraper fetch paths:
+  shared safe HTTP, citation HEAD, tiered httpx, pooled `HTTPClient`, tiered
+  requests, curl_cffi, and Chromium-backed browser tiers including dynamic
+  redirect/subresource hosts.
+- Remaining hardening: no known DNS-rebind TOCTOU seam in these tracked paths.
+  Future browser protocol additions must preserve the local proxy/pinning
+  invariant or add an equivalent connect-time control.
+
+Spend: `$0.00`. Validation passed: focused proxy/browser tests, wider SSRF and
+egress-guardrail suites, architecture/release-integrity tests, Ruff, format
+check, mypy, Bandit, pip-audit, MkDocs build, diff hygiene, touched-file style
+scans, and the CI-shaped non-manual coverage gate (`10266 passed, 39 skipped,
+5 deselected`, 85.25% branch coverage).
 
 ## 2026-06-26 Control Plane Slice: MCP Runtime Budget Enforcement
 

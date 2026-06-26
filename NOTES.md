@@ -69,11 +69,16 @@ are architectural and worth a dedicated, well-tested cycle.
   supports it, and install a route guard that aborts unsafe browser requests
   before continuing them. DrissionPage receives the same initial-host Chromium
   resolver pin.
-  **Remaining:** browser engines cannot add new Chromium host-resolver rules
-  after launch, so public redirect hosts and public subresource hosts discovered
-  after navigation are still checked by the route guard but not IP-pinned. A
-  fully equivalent browser solution would need a local egress proxy or a deeper
-  CDP fetch controller design.
+  **Also done:** browser-backed Chromium tiers now launch through a local
+  loopback egress proxy. The proxy validates each HTTP request or HTTPS CONNECT
+  target with `resolve_safe_url_for_connect()`, dials the validated IP literal,
+  and tunnels TLS without terminating it, so browser-discovered public redirect
+  and subresource hosts are dynamically pinned too. Chromium is launched with a
+  proxy bypass rule that keeps loopback targets inside the proxy path and with
+  QUIC disabled to avoid UDP bypass.
+  **Remaining:** no known DNS-rebind TOCTOU seams in the tracked scraper fetch
+  paths. Future browser protocol additions must preserve the local proxy
+  invariant or add equivalent connect-time pinning.
 
 ## Flaky: cross-directory test pollution hits a browser import test
 

@@ -890,14 +890,15 @@ libcurl with `CurlOpt.RESOLVE`, keeps the logical URL so TLS fingerprint
 impersonation, Host, and SNI stay aligned, and disables environment proxy trust.
 Browser-backed Chromium tiers use `data.scraping.browser_egress` to translate
 the same validated connection artifact into Chromium host-resolver rules for
-the initial hostname. Playwright, Playwright aggressive, vision, and Patchright
-also install a request route guard before navigation so unsafe browser requests
-are aborted before Playwright or Patchright continues them. DrissionPage
-receives the initial-host resolver pin through Chromium startup args. The
-remaining browser-specific gap is dynamic IP pinning for public redirect hosts
-or public subresource hosts discovered after the browser has already launched;
-Chromium host-resolver rules are process startup state, so closing that last
-gap needs a local egress proxy or deeper CDP fetch controller design.
+the initial hostname. They also launch through `data.scraping.browser_proxy`, a
+loopback HTTP proxy that validates each browser-discovered HTTP request or HTTPS
+CONNECT target, dials the validated IP literal, and tunnels bytes without
+terminating TLS. Chromium is launched with loopback proxy bypass disabled and
+QUIC disabled so browser traffic stays on the TCP proxy path. Playwright,
+Playwright aggressive, vision, and Patchright also install a request route
+guard before navigation so unsafe browser requests are aborted before Playwright
+or Patchright continues them. DrissionPage receives the same proxy and
+initial-host resolver controls through Chromium startup args.
 
 **Protected Functions and Seams**:
 - `src/primr/data/safe_http.py`: `safe_http_get()` for fallback, hiring, and Wayback CDX/replay fetches; `async_safe_http_head()` for citation redirect resolution
@@ -907,6 +908,7 @@ gap needs a local egress proxy or deeper CDP fetch controller design.
 - `src/primr/data/scraping/net.py`: `make_request()` and `head_exists()` for sitemap and URL-existence checks
 - `src/primr/data/scraping/http_clients.py`: `scrape_with_requests()`, `scrape_with_httpx()`, `scrape_with_curl_cffi()`
 - `src/primr/data/scraping/browser_egress.py`: Chromium resolver-rule planning and Playwright-compatible request route guard
+- `src/primr/data/scraping/browser_proxy.py`: local loopback HTTP/CONNECT proxy for dynamic browser-discovered host pinning
 - `src/primr/data/scraping/browsers.py`: `scrape_with_playwright()`, `scrape_with_playwright_aggressive()`, `scrape_with_drissionpage()`, `scrape_with_drissionpage_stealth()`
 - `src/primr/data/scraping/vision_browser.py`: `scrape_with_vision()`
 - `src/primr/data/scraping/stealth_browser.py`: `scrape_with_patchright()` (Kasada / Akamai bypass tier)

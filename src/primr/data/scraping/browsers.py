@@ -20,6 +20,7 @@ from .browser_egress import (
     install_playwright_egress_guard,
     plan_browser_egress,
 )
+from .browser_proxy import BrowserEgressProxy
 from .chromium_config import BROWSER_LAUNCH_ARGS
 from .config import (
     DEFAULT_TIMEOUT_DRISSION,
@@ -400,6 +401,7 @@ class PlaywrightSession(BrowserSession):
         persistent_context: bool | None = None,
         context_host: str | None = None,
         egress_plan: BrowserEgressPlan | None = None,
+        egress_proxy: BrowserEgressProxy | None = None,
         tier_name: str = "playwright",
     ):
         self._profile = profile or get_random_context_profile()
@@ -410,8 +412,9 @@ class PlaywrightSession(BrowserSession):
         )
         self._context_host = context_host
         self._egress_plan = egress_plan
+        self._egress_proxy = egress_proxy
         self._tier_name = tier_name
-        self._launch_args = browser_launch_args(BROWSER_LAUNCH_ARGS, egress_plan)
+        self._launch_args = browser_launch_args(BROWSER_LAUNCH_ARGS, egress_plan, egress_proxy)
         self._browser = None
         self._context = None
         self._page = None
@@ -427,7 +430,7 @@ class PlaywrightSession(BrowserSession):
             self._owns_browser = False
             self._playwright = None
             use_shared_browser = _can_use_shared_browser() and not (
-                self._egress_plan and self._egress_plan.launch_arg
+                (self._egress_plan and self._egress_plan.launch_arg) or self._egress_proxy
             )
 
             # Playwright sync API objects are thread-affine.
@@ -712,10 +715,12 @@ class DrissionPageSession(BrowserSession):
         profile: BrowserContextProfile | None = None,
         headless: bool = True,
         egress_plan: BrowserEgressPlan | None = None,
+        egress_proxy: BrowserEgressProxy | None = None,
     ):
         self._profile = profile or get_random_context_profile()
         self._headless = headless
         self._egress_plan = egress_plan
+        self._egress_proxy = egress_proxy
         self._page = None
         self._original_url = None
 
@@ -741,6 +746,9 @@ class DrissionPageSession(BrowserSession):
 
             if self._egress_plan and self._egress_plan.launch_arg:
                 options.set_argument(self._egress_plan.launch_arg)
+            if self._egress_proxy:
+                for arg in browser_launch_args([], None, self._egress_proxy):
+                    options.set_argument(arg)
 
             self._page = ChromiumPage(options)
 
@@ -926,22 +934,7 @@ def scrape_with_playwright(
     headless: bool | None = True,
     reuse_browser: bool = False,  # Ignored - always creates fresh instance
 ) -> ScrapeResult:
-    """
-    Scrape URL using Playwright browser.
-
-    Tier 1: Full browser automation for JavaScript-heavy sites.
-    Creates a fresh browser instance for each call to avoid greenlet conflicts.
-
-    Args:
-        url: URL to scrape
-        timeout: Timeout in seconds
-        profile: Optional browser context profile
-        headless: Run browser in headless mode
-        reuse_browser: Ignored (kept for API compatibility)
-
-    Returns:
-        ScrapeResult with raw HTML bytes
-    """
+    """Scrape URL using Playwright browser automation."""
     from primr.utils.validators import validate_url_for_request
 
     # SSRF protection
@@ -1011,7 +1004,8 @@ def _scrape_with_playwright_impl(
             attempts=[],
         )
 
-    launch_args = browser_launch_args(BROWSER_LAUNCH_ARGS, egress_plan)
+    egress_proxy = None
+    launch_args = BROWSER_LAUNCH_ARGS
     host = extract_host(url)
     headless = _resolve_headless(headless)
     browser = None
@@ -1022,12 +1016,18 @@ def _scrape_with_playwright_impl(
     _fresh_pw = None  # Only set if we fall back to a fresh browser
 
     try:
+        egress_proxy = BrowserEgressProxy().start()
+        launch_args = browser_launch_args(BROWSER_LAUNCH_ARGS, egress_plan, egress_proxy)
         from .profiles import get_stealth_script
 
         # Playwright sync API objects are thread-affine.
         # Reuse shared browser only on main thread; workers use isolated instances.
         try:
-            if _can_use_shared_browser() and not (egress_plan and egress_plan.launch_arg):
+            if (
+                _can_use_shared_browser()
+                and not (egress_plan and egress_plan.launch_arg)
+                and not egress_proxy
+            ):
                 shared = SharedBrowser.get()
                 browser = shared.get_browser(headless=headless)
                 _using_shared = True
@@ -1235,6 +1235,8 @@ def _scrape_with_playwright_impl(
                     _fresh_pw.stop()
                 except Exception as e:
                     logger.debug(f"Error stopping playwright: {e}")
+        if egress_proxy:
+            egress_proxy.close()
 
 
 def scrape_with_playwright_aggressive(
@@ -1244,21 +1246,7 @@ def scrape_with_playwright_aggressive(
     headless: bool | None = True,
     max_expand_clicks: int = 20,
 ) -> ScrapeResult:
-    """
-    Scrape URL using Playwright with content expansion.
-
-    Tier 5: Aggressive browser automation that clicks "read more" buttons.
-
-    Args:
-        url: URL to scrape
-        timeout: Timeout in seconds
-        profile: Optional browser context profile
-        headless: Run browser in headless mode
-        max_expand_clicks: Maximum expand button clicks
-
-    Returns:
-        ScrapeResult with expanded HTML bytes
-    """
+    """Scrape URL using Playwright with content expansion."""
     from primr.utils.validators import validate_url_for_request
 
     # SSRF protection
@@ -1290,13 +1278,16 @@ def scrape_with_playwright_aggressive(
     start_time = time.time()
     tier_name = "playwright_aggressive"
     session = None
+    egress_proxy = None
 
     try:
+        egress_proxy = BrowserEgressProxy().start()
         session = PlaywrightSession(
             profile=profile,
             headless=headless,
             context_host=extract_host(url),
             egress_plan=egress_plan,
+            egress_proxy=egress_proxy,
             tier_name=tier_name,
         )
 
@@ -1416,6 +1407,8 @@ def scrape_with_playwright_aggressive(
         if session:
             with contextlib.suppress(Exception):
                 session.close()
+        if egress_proxy:
+            egress_proxy.close()
 
 
 def scrape_with_drissionpage(
@@ -1424,20 +1417,7 @@ def scrape_with_drissionpage(
     profile: BrowserContextProfile | None = None,
     headless: bool = True,
 ) -> ScrapeResult:
-    """
-    Scrape URL using DrissionPage (CDP-based, driverless).
-
-    Tier 6: Driverless browser automation using Chrome DevTools Protocol.
-
-    Args:
-        url: URL to scrape
-        timeout: Timeout in seconds
-        profile: Optional browser context profile
-        headless: Run browser in headless mode
-
-    Returns:
-        ScrapeResult with raw HTML bytes
-    """
+    """Scrape URL using DrissionPage driverless browser automation."""
     from primr.utils.validators import validate_url_for_request
 
     # SSRF protection
@@ -1469,9 +1449,16 @@ def scrape_with_drissionpage(
     start_time = time.time()
     tier_name = "drissionpage"
     session = None
+    egress_proxy = None
 
     try:
-        session = DrissionPageSession(profile=profile, headless=headless, egress_plan=egress_plan)
+        egress_proxy = BrowserEgressProxy().start()
+        session = DrissionPageSession(
+            profile=profile,
+            headless=headless,
+            egress_plan=egress_plan,
+            egress_proxy=egress_proxy,
+        )
 
         # Navigate
         timeout_ms = int(timeout * 1000)
@@ -1581,6 +1568,8 @@ def scrape_with_drissionpage(
         if session:
             with contextlib.suppress(Exception):
                 session.close()
+        if egress_proxy:
+            egress_proxy.close()
 
 
 def scrape_with_drissionpage_stealth(
@@ -1590,25 +1579,7 @@ def scrape_with_drissionpage_stealth(
     headless: bool = True,
     max_challenge_wait: int | None = None,
 ) -> ScrapeResult:
-    """
-    Scrape URL using DrissionPage with stealth mode and challenge solving.
-
-    Tier 7: Driverless browser with anti-detection and Cloudflare bypass.
-
-    CRITICAL: DrissionPage has poor timeout handling - its get() method often
-    ignores the timeout parameter. We wrap the entire execution in a hard
-    timeout using threading to enforce the limit.
-
-    Args:
-        url: URL to scrape
-        timeout: Timeout in seconds (HARD LIMIT - enforced via threading)
-        profile: Optional browser context profile
-        headless: Run browser in headless mode
-        max_challenge_wait: Max seconds to wait for challenge solving (default: 70% of timeout, max 30s)
-
-    Returns:
-        ScrapeResult with raw HTML bytes
-    """
+    """Scrape URL using DrissionPage stealth mode with a hard timeout."""
     import concurrent.futures
 
     from primr.utils.validators import validate_url_for_request
@@ -1641,6 +1612,7 @@ def scrape_with_drissionpage_stealth(
 
     tier_name = "drissionpage_stealth"
     start_time = time.time()
+    egress_proxy = BrowserEgressProxy().start()
 
     # Calculate challenge wait time from timeout budget
     # Use 70% of timeout for challenge wait, capped at 30s
@@ -1657,6 +1629,7 @@ def scrape_with_drissionpage_stealth(
                 profile=profile,
                 headless=headless,
                 egress_plan=egress_plan,
+                egress_proxy=egress_proxy,
             )
 
             # Navigate with timeout budget
@@ -1784,7 +1757,6 @@ def scrape_with_drissionpage_stealth(
                 tier=tier_name,
                 attempts=[],
             )
-
         except Exception as e:
             elapsed_ms = (time.time() - start_time) * 1000
             error_type = (
@@ -1816,35 +1788,38 @@ def scrape_with_drissionpage_stealth(
 
     # Execute with HARD timeout using ThreadPoolExecutor
     # This ensures we don't wait forever if DrissionPage hangs
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(_do_scrape)
-        try:
-            # Add 2s buffer to timeout for cleanup
-            result = future.result(timeout=timeout + 2)
-            return result
-        except concurrent.futures.TimeoutError:
-            # Hard timeout hit - DrissionPage is hanging
-            elapsed_ms = (time.time() - start_time) * 1000
-            logger.debug(
-                f"DrissionPage stealth HARD TIMEOUT after {elapsed_ms / 1000:.1f}s for {url}"
-            )
-            return ScrapeResult(
-                url=url,
-                success=False,
-                error_type=ErrorType.TIMEOUT,
-                error=f"Hard timeout after {timeout}s (DrissionPage hung)",
-                tier=tier_name,
-                elapsed_ms=elapsed_ms,
-                attempts=[
-                    Attempt(
-                        tier=tier_name,
-                        success=False,
-                        error="Hard timeout",
-                        error_type=ErrorType.TIMEOUT,
-                        elapsed_ms=elapsed_ms,
-                    )
-                ],
-            )
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_do_scrape)
+            try:
+                # Add 2s buffer to timeout for cleanup
+                result = future.result(timeout=timeout + 2)
+                return result
+            except concurrent.futures.TimeoutError:
+                # Hard timeout hit - DrissionPage is hanging
+                elapsed_ms = (time.time() - start_time) * 1000
+                logger.debug(
+                    f"DrissionPage stealth HARD TIMEOUT after {elapsed_ms / 1000:.1f}s for {url}"
+                )
+                return ScrapeResult(
+                    url=url,
+                    success=False,
+                    error_type=ErrorType.TIMEOUT,
+                    error=f"Hard timeout after {timeout}s (DrissionPage hung)",
+                    tier=tier_name,
+                    elapsed_ms=elapsed_ms,
+                    attempts=[
+                        Attempt(
+                            tier=tier_name,
+                            success=False,
+                            error="Hard timeout",
+                            error_type=ErrorType.TIMEOUT,
+                            elapsed_ms=elapsed_ms,
+                        )
+                    ],
+                )
+    finally:
+        egress_proxy.close()
 
 
 # =============================================================================

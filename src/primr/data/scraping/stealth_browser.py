@@ -37,6 +37,7 @@ from .browser_egress import (
     install_playwright_egress_guard,
     plan_browser_egress,
 )
+from .browser_proxy import BrowserEgressProxy
 from .headed_budget import (
     remaining_headed_budget,
     try_consume_headed_budget,
@@ -318,6 +319,7 @@ def _run_patchright(
     headless: bool,
     host: str,
     egress_plan: BrowserEgressPlan | None,
+    egress_proxy: BrowserEgressProxy | None,
     on_progress=None,
 ) -> tuple[str | None, str | None, int | None]:
     """Run a single Patchright fetch. Returns (html, body_text, status)."""
@@ -325,7 +327,7 @@ def _run_patchright(
 
     profile_dir = _profile_dir_for_host(host)
     timeout_ms = int(timeout * 1000)
-    launch_args = browser_launch_args(STEALTH_LAUNCH_ARGS, egress_plan)
+    launch_args = browser_launch_args(STEALTH_LAUNCH_ARGS, egress_plan, egress_proxy)
 
     # For headed launches, overwrite the profile's saved window size so Chrome
     # doesn't pop up a near-maximized window stealing the primary monitor.
@@ -540,6 +542,31 @@ def scrape_with_patchright(
     tier_name = "patchright"
     host = urlparse(url).netloc or "unknown"
     attempts: list[Attempt] = []
+    with BrowserEgressProxy().start() as egress_proxy:
+        return _scrape_with_patchright_attempts(
+            url=url,
+            timeout=timeout,
+            tier_name=tier_name,
+            host=host,
+            egress_plan=egress_plan,
+            egress_proxy=egress_proxy,
+            start_time=start_time,
+            attempts=attempts,
+        )
+
+
+def _scrape_with_patchright_attempts(
+    *,
+    url: str,
+    timeout: float,
+    tier_name: str,
+    host: str,
+    egress_plan: BrowserEgressPlan | None,
+    egress_proxy: BrowserEgressProxy,
+    start_time: float,
+    attempts: list[Attempt],
+) -> ScrapeResult:
+    """Run Patchright headless/headed attempts through an active egress proxy."""
 
     # Attempt 1: headless
     attempt_start = time.time()
@@ -550,6 +577,7 @@ def scrape_with_patchright(
             headless=True,
             host=host,
             egress_plan=egress_plan,
+            egress_proxy=egress_proxy,
         )
     except Exception as e:
         html, body_text, status = None, None, None
@@ -664,6 +692,7 @@ def scrape_with_patchright(
             headless=False,
             host=host,
             egress_plan=egress_plan,
+            egress_proxy=egress_proxy,
         )
     except Exception as e:
         attempts.append(

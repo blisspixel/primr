@@ -94,6 +94,18 @@ def test_browser_launch_args_appends_resolver_arg_for_hostname_plan():
     ]
 
 
+def test_browser_launch_args_appends_proxy_args():
+    proxy = MagicMock()
+    proxy.server_url = "http://127.0.0.1:12345"
+
+    assert browser_launch_args(["--base"], None, proxy) == [
+        "--base",
+        "--proxy-server=http://127.0.0.1:12345",
+        "--proxy-bypass-list=<-loopback>",
+        "--disable-quic",
+    ]
+
+
 def test_browser_request_allowed_skips_non_http_schemes():
     with patch("primr.data.scraping.browser_egress.is_safe_url") as safe_url:
         allowed, reason = browser_request_allowed("data:text/plain,ok")

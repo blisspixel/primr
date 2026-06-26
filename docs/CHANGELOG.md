@@ -67,6 +67,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hostname, block service workers where supported, and abort unsafe browser
   requests through a Playwright-compatible route guard. DrissionPage receives
   the same initial-host resolver pin through Chromium startup args.
+- Chromium-backed browser tiers now also launch through a local loopback egress
+  proxy that validates each browser-discovered HTTP request or HTTPS CONNECT
+  target, dials the validated IP literal, and tunnels TLS without terminating
+  it. Browser launches disable QUIC and loopback proxy bypass so dynamic
+  redirect and subresource hosts stay on the pinned TCP proxy path.
 
 ### Changed
 

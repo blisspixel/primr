@@ -14,6 +14,7 @@ from .browser_egress import (
     install_playwright_egress_guard,
     plan_browser_egress,
 )
+from .browser_proxy import BrowserEgressProxy
 from .chromium_config import SANDBOX_ARGS
 from .config import DEFAULT_TIMEOUT_VISION
 from .models import Attempt, ErrorType, ScrapeResult
@@ -70,8 +71,10 @@ def scrape_with_vision(
 
     tier_name = "vision"
     start_time = time.time()
+    egress_proxy = None
 
     try:
+        egress_proxy = BrowserEgressProxy().start()
         from google import genai
         from playwright.sync_api import sync_playwright
 
@@ -100,6 +103,7 @@ def scrape_with_vision(
                         "--disable-dev-shm-usage",
                     ],
                     egress_plan,
+                    egress_proxy,
                 ),
             )
 
@@ -232,3 +236,6 @@ Return the extracted text in a clean, readable format with proper paragraph brea
             elapsed_ms=elapsed_ms,
             attempts=[Attempt(tier=tier_name, success=False, error=str(e), elapsed_ms=elapsed_ms)],
         )
+    finally:
+        if egress_proxy:
+            egress_proxy.close()

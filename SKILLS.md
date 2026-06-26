@@ -195,6 +195,12 @@
   unsafe HTTP(S) requests before continuation, and fail closed if validation
   raises. Do not claim dynamic browser redirect-host IP pinning until a local
   egress proxy or CDP controller owns post-launch host mapping.
+- For dynamic browser-discovered hosts, prefer a local loopback HTTP/CONNECT
+  proxy over browser DNS hooks. The proxy can validate each HTTP request or
+  CONNECT authority, dial the validated IP literal, and leave TLS end-to-end so
+  the browser still verifies the public hostname. Launch Chromium with an
+  explicit proxy, disable loopback proxy bypass, and disable QUIC so traffic
+  cannot skip the TCP proxy path.
 
 ## Documentation Front Door
 

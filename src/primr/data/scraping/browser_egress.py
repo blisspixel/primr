@@ -10,6 +10,8 @@ from urllib.parse import urlparse
 
 from primr.utils.security import is_safe_url, resolve_safe_url_for_connect
 
+from .browser_proxy import BrowserEgressProxy, browser_proxy_launch_args
+
 logger = logging.getLogger(__name__)
 
 _GUARDED_CONTEXT_IDS: set[int] = set()
@@ -70,12 +72,17 @@ def plan_browser_egress(url: str) -> tuple[BrowserEgressPlan | None, str | None]
     )
 
 
-def browser_launch_args(base_args: list[str], plan: BrowserEgressPlan | None) -> list[str]:
+def browser_launch_args(
+    base_args: list[str],
+    plan: BrowserEgressPlan | None,
+    proxy: BrowserEgressProxy | None = None,
+) -> list[str]:
     """Return Chromium launch args with an optional DNS pin appended."""
 
     args = list(base_args)
     if plan and plan.launch_arg:
         args.append(plan.launch_arg)
+    args.extend(browser_proxy_launch_args(proxy))
     return args
 
 
