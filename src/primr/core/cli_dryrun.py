@@ -78,10 +78,12 @@ def run_dry_run(config: CLIConfig) -> int:
     else:
         mode_label = config.mode
 
+    from primr.core.cli_budget import estimate_vendor_count
+
     estimate = estimate_cost(
         config.mode,
         config.ai_strategy,
-        num_vendors=len(config.cloud_vendors),
+        num_vendors=estimate_vendor_count(config),
         lite_strategy=config.lite_strategy,
         fast_mode=use_fast_mode,
         premium_mode=use_premium_mode,

@@ -128,3 +128,6 @@
   safer than a fictional guardrail.
 - When moving behavior out of pinned files, lower the architecture line
   ceilings immediately. The ratchet should preserve every shrink.
+- For AI-strategy estimates, clamp empty platform tuples to one vendor. Empty
+  `platforms=()` can occur through tests or internal callers even when CLI
+  parsing normally supplies a default.

@@ -127,6 +127,16 @@ class TestDryRunCostEstimator:
         kwargs = est_mock.call_args.kwargs
         assert kwargs["num_vendors"] == 3
 
+    def test_clamps_empty_ai_strategy_platforms_to_one_vendor(self, mocks, monkeypatch):
+        est_mock = MagicMock()
+        monkeypatch.setattr(
+            "primr.utils.cost_estimator.estimate_cost",
+            est_mock,
+        )
+        run_dry_run(_config(mode="complete", platforms=()))
+        kwargs = est_mock.call_args.kwargs
+        assert kwargs["num_vendors"] == 1
+
     def test_passes_lite_strategy_flag(self, mocks, monkeypatch):
         est_mock = MagicMock()
         monkeypatch.setattr(

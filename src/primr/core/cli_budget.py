@@ -20,6 +20,13 @@ class BudgetActivation:
     active: bool
 
 
+def estimate_vendor_count(config: CLIConfig) -> int:
+    """Return the vendor count to feed research cost estimates."""
+    if not config.ai_strategy:
+        return 1
+    return max(len(config.cloud_vendors), 1)
+
+
 def activate_run_budget(
     config: CLIConfig, *, fast_mode: bool, premium_mode: bool
 ) -> BudgetActivation:
@@ -36,7 +43,7 @@ def activate_run_budget(
     estimate = estimate_cost(
         config.mode,
         config.ai_strategy,
-        num_vendors=len(config.cloud_vendors),
+        num_vendors=estimate_vendor_count(config),
         lite_strategy=config.lite_strategy,
         fast_mode=fast_mode,
         premium_mode=premium_mode,

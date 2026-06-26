@@ -63,3 +63,19 @@ modules pass at 89.17%. The full non-manual/non-integration suite timed out
 after 10 minutes twice in this workspace without failure output; that timeout
 is recorded in `PROGRESS-LOG.md` and `CURRENT-STATE-ANALYSIS.md` as the only
 residual verification limitation. Spend: `$0.00`.
+
+2026-06-26 empty-platform estimate clamp:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: AI-strategy estimates now clamp internally empty platform tuples to
+one vendor in the shared CLI estimate helper, matching MCP behavior and
+preventing a low-cost under-estimate edge case. Focused dry-run, budget, and
+budget-policy tests pass with Ruff on touched files. Spend: `$0.00`.

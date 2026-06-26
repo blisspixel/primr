@@ -486,3 +486,24 @@ Validation status:
   assertion output was produced and no Primr pytest workers remained running.
 
 Spend: `$0.00`.
+
+## 2026-06-26 Empty-Platform Estimate Clamp
+
+CLI cost estimates now handle the internal empty-platform edge case without
+under-pricing AI strategy work.
+
+Current state:
+
+- CLI parsing still normally resolves omitted platforms to recon/default
+  behavior.
+- If tests or internal callers construct `CLIConfig(platforms=())` while
+  AI strategy is enabled, dry-run and `--budget` pre-flight estimates now count
+  at least one vendor.
+- MCP estimates already had this clamp; CLI estimates now match.
+
+Validation status:
+
+- Focused dry-run, budget, and budget-policy tests pass with 40 tests.
+- Ruff check passes on the touched source/test files.
+
+Spend: `$0.00`.

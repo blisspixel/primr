@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and non-fast structured paths that are currently estimate-gated only. This
   keeps agent approval prompts and operator expectations aligned with the
   actual spend checkpoints.
+- CLI dry-run and `--budget` pre-flight estimates now clamp enabled
+  AI-strategy runs to at least one vendor, preventing internally constructed
+  empty platform tuples from zeroing the strategy estimate.
 
 ## [1.34.1] - 2026-06-26
 

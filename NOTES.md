@@ -97,9 +97,10 @@ into only the CLI fast path. Triaged for upcoming cycles:
   between the Phase-2 and Phase-5 gates, so `--budget` bounds only optional
   stages, not total spend. Partly by design (writing is the deliverable); at
   minimum document it honestly.
-- **LOW -- `num_vendors=0` zeroes AI-strategy cost** in the pre-flight estimate
-  (`cli.py` uses `len(config.cloud_vendors)`); clamp to >=1 when
-  `include_ai_strategy` so an empty-platform path cannot under-estimate.
+- **FIXED in local Unreleased -- `num_vendors=0` zeroes AI-strategy cost.**
+  CLI dry-run and `--budget` pre-flight estimates now clamp enabled AI-strategy
+  runs to at least one vendor, even when an internal caller constructs
+  `CLIConfig(platforms=())`.
 
 ## Multi-label-per-line (label_honesty / label_calibration)
 

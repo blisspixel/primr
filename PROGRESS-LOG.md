@@ -748,6 +748,34 @@ Cost:
 
 - `$0.00`. No cloud or paid validation was used.
 
+### Cycle: Empty-Platform Estimate Clamp
+
+Read and realigned against `README.md`, `ROADMAP.md`, `CLAUDE.md`, `NOTES.md`,
+`PROGRESS-LOG.md`, `SKILLS.md`, and the CLI budget/dry-run estimator code.
+
+Implemented:
+
+- Added `estimate_vendor_count()` to the shared CLI budget helper.
+- Reused the helper from human and JSON dry-run estimates and `--budget`
+  pre-flight estimates.
+- Clamped enabled AI-strategy estimates to at least one vendor when an internal
+  caller constructs `CLIConfig(platforms=())`.
+- Marked the low `num_vendors=0` finding fixed in NOTES and documented the
+  change in the changelog and skill memory.
+
+Validation:
+
+- `uv run --no-sync pytest tests/test_core/test_cli_handle_dry_run.py tests/test_core/test_cli_handle_research.py tests/test_core/test_budget_policy.py -q`
+  passed with 40 tests.
+- `uv run ruff check src/primr/core/cli_budget.py src/primr/core/cli_dryrun.py tests/test_core/test_cli_handle_dry_run.py`
+  passed.
+- `uv run ruff format src/primr/core/cli_budget.py src/primr/core/cli_dryrun.py tests/test_core/test_cli_handle_dry_run.py`
+  applied formatting cleanly.
+
+Cost:
+
+- `$0.00`. No cloud or paid validation was used.
+
 ### Cycle: Budget Policy Honesty
 
 Read and realigned against `README.md`, `ROADMAP.md`, `CLAUDE.md`,
