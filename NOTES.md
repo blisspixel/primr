@@ -18,14 +18,10 @@ when the surrounding code is next touched.
   deleted. Fix: apply the same fence-split protection to the marker strips, or
   run all strips through one fence-aware pass. Medium; only bites when a report
   embeds those literal tokens in a code block.
-- **Informal-cite regex deletes bracketed prose containing `cite:`**
-  (`report_cleanup.py` and the shared regex in `strategy_artifacts.py`):
-  `\[([^\]]*cites?:\s*[^\]]+)\]` matches any bracketed span containing the
-  substring `cite:`; when it has no digits, the whole bracket is removed, so
-  prose like `[we cite: revenue doubled]` is silently deleted. Fix: only treat a
-  bracket as an informal citation when it begins with a `cite`/`source` keyword,
-  not merely contains `cite:`. Low/medium; requires a literal `cite:` inside
-  prose brackets.
+- **FIXED in local Unreleased -- informal-cite regex deletes bracketed prose
+  containing `cite:`.** `report_cleanup.py` and `strategy_artifacts.py` now use
+  one stricter helper that only rewrites brackets beginning with `cite:` or
+  `cites:`, preserving prose like `[we cite: revenue doubled]`.
 
 ## SSRF: validated thing != connected thing (2026-06-25 security review)
 

@@ -100,6 +100,11 @@ class TestCleanFastReportOutput:
         result = _clean_fast_report_output(content)
         assert "[cite: workbook]" not in result
 
+    def test_preserves_bracketed_prose_that_contains_cite_word(self):
+        content = "Some context [we cite: revenue doubled] about growth."
+        result = _clean_fast_report_output(content)
+        assert "[we cite: revenue doubled]" in result
+
     def test_preserves_numeric_cites(self):
         content = "Some claim [cite: 1] about growth."
         result = _clean_fast_report_output(content)

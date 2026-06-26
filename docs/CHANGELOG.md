@@ -26,6 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   AI-strategy runs to at least one vendor, preventing internally constructed
   empty platform tuples from zeroing the strategy estimate.
 
+### Fixed
+
+- Final-report and strategy citation cleanup no longer deletes bracketed prose
+  merely because it contains `cite:` inside the bracket. Informal citation
+  cleanup now only rewrites brackets that begin with `cite:` or `cites:`, so
+  prose such as `[we cite: revenue doubled]` is preserved.
+
 ## [1.34.1] - 2026-06-26
 
 ### Security

@@ -79,3 +79,20 @@ Rationale: AI-strategy estimates now clamp internally empty platform tuples to
 one vendor in the shared CLI estimate helper, matching MCP behavior and
 preventing a low-cost under-estimate edge case. Focused dry-run, budget, and
 budget-policy tests pass with Ruff on touched files. Spend: `$0.00`.
+
+2026-06-26 informal citation cleanup precision:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: the cleanup regex now matches the actual scaffolding shape instead
+of deleting arbitrary bracketed prose containing `cite:`. The report and
+strategy paths share one helper and both have regressions. Focused
+cleanup/citation tests, architecture/release integrity, Ruff, format, and mypy
+pass. Spend: `$0.00`.

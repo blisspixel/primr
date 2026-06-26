@@ -229,6 +229,11 @@ class TestNormalizeFastCitations:
         result = _normalize_fast_citations(content)
         assert "[cite: 99]" not in result
 
+    def test_bracketed_prose_with_cite_word_is_preserved(self):
+        content = "Stat [we cite: revenue doubled] remains prose."
+        result = _normalize_fast_citations(content)
+        assert "[we cite: revenue doubled]" in result
+
     def test_bare_cite_resolved_from_supplied_list(self):
         content = "Claim [cite: 1] supported."
         result = _normalize_fast_citations(content, source_urls=["https://example.com/a"])

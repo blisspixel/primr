@@ -117,6 +117,13 @@
   `tests/test_release_integrity.py` be the release-preflight witness before
   tagging for PyPI.
 
+## Artifact Cleanup
+
+- Cleanup regexes that strip writer scaffolding must be anchored to the
+  scaffolding marker shape, not to a keyword anywhere inside a bracket. A
+  bracket containing `cite:` can still be legitimate prose unless it starts
+  with `cite:` or `cites:`.
+
 ## Budget Control Surfaces
 
 - Keep budget semantics in one pure, machine-readable helper instead of

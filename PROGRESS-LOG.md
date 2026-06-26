@@ -748,6 +748,40 @@ Cost:
 
 - `$0.00`. No cloud or paid validation was used.
 
+### Cycle: Informal Citation Cleanup Precision
+
+Read and realigned against `README.md`, `ROADMAP.md`, `CLAUDE.md`, `NOTES.md`,
+`docs/CHANGELOG.md`, `PROGRESS-LOG.md`, and the artifact cleanup/citation
+normalization helpers.
+
+Implemented:
+
+- Added one shared `_normalize_informal_cite_brackets()` helper in
+  `core.report_cleanup`.
+- Replaced the permissive report and strategy regexes that matched any
+  bracketed span containing `cite:` with a stricter pattern that only rewrites
+  brackets beginning with `cite:` or `cites:`.
+- Added report-cleanup and strategy-normalization regressions proving
+  `[we cite: revenue doubled]` remains prose.
+- Marked the deferred NOTES bug fixed and updated ROADMAP, changelog, and skill
+  memory.
+
+Validation:
+
+- `uv run --no-sync pytest tests/test_core/test_report_cleanup.py tests/test_core/test_strategy_artifacts.py tests/test_core/test_fast_mode_citations.py tests/test_core/test_fast_mode_research.py -q`
+  passed with 201 tests.
+- `uv run --no-sync pytest tests/test_architecture.py tests/test_release_integrity.py -q`
+  passed with 13 tests.
+- `uv run ruff check src/primr/core/report_cleanup.py src/primr/core/strategy_artifacts.py tests/test_core/test_report_cleanup.py tests/test_core/test_strategy_artifacts.py`
+  passed.
+- `uv run ruff format --check src/ tests/` passed.
+- `uv run --no-sync mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'`
+  passed.
+
+Cost:
+
+- `$0.00`. No cloud or paid validation was used.
+
 ### Cycle: Empty-Platform Estimate Clamp
 
 Read and realigned against `README.md`, `ROADMAP.md`, `CLAUDE.md`, `NOTES.md`,

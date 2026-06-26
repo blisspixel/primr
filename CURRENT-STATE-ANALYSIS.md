@@ -487,6 +487,27 @@ Validation status:
 
 Spend: `$0.00`.
 
+## 2026-06-26 Informal Citation Cleanup Precision
+
+Artifact cleanup no longer treats every bracket containing `cite:` as an
+informal citation marker.
+
+Current state:
+
+- Report cleanup and strategy citation normalization share
+  `_normalize_informal_cite_brackets()`.
+- The helper only rewrites brackets that begin with `cite:` or `cites:`.
+- Bracketed prose such as `[we cite: revenue doubled]` is preserved.
+- Writer scaffolding such as `[cite: workbook]` is still stripped or normalized
+  through the existing citation cleanup flow.
+
+Validation status:
+
+- Focused cleanup/citation suites passed with 201 tests.
+- Architecture/release integrity, Ruff, format, and mypy passed.
+
+Spend: `$0.00`.
+
 ## 2026-06-26 Empty-Platform Estimate Clamp
 
 CLI cost estimates now handle the internal empty-platform edge case without

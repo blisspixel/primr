@@ -17,8 +17,8 @@ from urllib.parse import urlparse
 from primr.core.report_cleanup import (
     _INTERNAL_REFERENCE_TERMS,
     _clean_fast_report_output,
+    _normalize_informal_cite_brackets,
     _rewrite_cite_from_url_tags,
-    _sanitize_numeric_cite_bracket,
     _strip_internal_source_placeholders,
     _strip_unresolved_section_cross_references,
 )
@@ -195,12 +195,7 @@ def _compute_strategy_qa_metrics(strategy_content: str) -> dict[str, int | float
 def _normalize_fast_citations(report_content: str, source_urls: list[str] | None = None) -> str:
     """Normalize fast-mode citations to the deterministic analyzer format."""
     report_content = _rewrite_cite_from_url_tags(report_content)
-    report_content = re.sub(
-        r"\[([^\]]*cites?:\s*[^\]]+)\]",
-        lambda m: _sanitize_numeric_cite_bracket(m.group(1)),
-        report_content,
-        flags=re.IGNORECASE,
-    )
+    report_content = _normalize_informal_cite_brackets(report_content)
 
     existing_cite_def = re.compile(r"\[cite:\s*(\d+)\]\s*(https?://\S+)", re.IGNORECASE)
     num_to_url: dict[int, str] = {}

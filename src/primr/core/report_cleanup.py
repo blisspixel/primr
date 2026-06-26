@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import re
 
+_INFORMAL_CITE_BRACKET_RE = re.compile(r"\[\s*((?:cites?)\s*:[^\]]+)\]", re.IGNORECASE)
+
 
 def _sanitize_numeric_cite_bracket(inner: str) -> str:
     """Keep only numeric cite ids from a mixed citation bracket."""
@@ -21,6 +23,14 @@ def _sanitize_numeric_cite_bracket(inner: str) -> str:
     if not nums:
         return ""
     return "[cite: " + ", ".join(nums) + "]"
+
+
+def _normalize_informal_cite_brackets(content: str) -> str:
+    """Normalize writer-emitted citation placeholders without touching prose."""
+    return _INFORMAL_CITE_BRACKET_RE.sub(
+        lambda match: _sanitize_numeric_cite_bracket(match.group(1)),
+        content,
+    )
 
 
 def _rewrite_inline_confidence_citations(content: str) -> str:
@@ -73,15 +83,7 @@ def _clean_fast_report_output(report_content: str) -> str:
         report_content,
     )
 
-    def _strip_informal_cites(match: re.Match[str]) -> str:
-        return _sanitize_numeric_cite_bracket(match.group(1))
-
-    report_content = re.sub(
-        r"\[([^\]]*cites?:\s*[^\]]+)\]",
-        _strip_informal_cites,
-        report_content,
-        flags=re.IGNORECASE,
-    )
+    report_content = _normalize_informal_cite_brackets(report_content)
 
     # Inner scan length-bounded to prevent ReDoS on adversarial input.
     report_content = re.sub(
