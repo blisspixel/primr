@@ -167,6 +167,11 @@ class TestCleanFastReportOutput:
         result = _clean_fast_report_output("a\n\n\n\n\nb")
         assert "\n\n\n" not in result
 
+    def test_collapses_excess_blank_lines_with_crlf(self):
+        # A CRLF-sourced report must also collapse: a plain \n{3,} misses \r\n runs.
+        result = _clean_fast_report_output("a\r\n\r\n\r\n\r\n\r\nb")
+        assert "\n\n\n" not in result.replace("\r", "")
+
     def test_trailing_newline_added(self):
         result = _clean_fast_report_output("just text")
         assert result.endswith("\n")

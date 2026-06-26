@@ -390,3 +390,31 @@ def test_normalize_citations_replaces_real_sources_appendix():
     assert "## Overview" in result
     assert "Claim" in result
     assert result.count("## Sources") == 1
+
+
+def test_normalize_citations_no_duplicate_sources_with_stray_appendix_line():
+    """A real appendix carrying a non-citation line (an access-date note, a
+    titled entry) must still be replaced, not left in place beside the rebuilt
+    one -- otherwise the report ships two ## Sources sections."""
+    content = (
+        "## Findings\n\nClaim [Source: https://example.com/a].\n\n"
+        "## Sources\n\n"
+        "[cite: 1] https://example.com/a\n"
+        "Note: all URLs accessed June 2026.\n"
+    )
+    result = _normalize_fast_citations(content)
+    assert result.count("## Sources") == 1
+    assert "Note: all URLs accessed June 2026." not in result
+
+
+def test_normalize_citations_preserves_section_after_sources_like_heading():
+    """A sources-style heading with a real section after it must not swallow that
+    section (no content loss past the heading)."""
+    content = (
+        "## Overview\n\nClaim [Source: https://acme.example/a].\n\n"
+        "## References\n\n[cite: 9] https://acme.example/old\n\n"
+        "## Appendix B\n\nImportant trailing content.\n"
+    )
+    result = _normalize_fast_citations(content)
+    assert "## Appendix B" in result
+    assert "Important trailing content." in result

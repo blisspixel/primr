@@ -38,6 +38,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Provider availability metadata handling now tolerates malformed collector
   values and sanitizes host-like labels, unsafe env names, quota-source strings,
   and model-count values before they reach routing metadata or `primr doctor`.
+- Citation normalization no longer emits a duplicate `## Sources` section when
+  the existing appendix carries a stray non-citation line (an access-date note,
+  a titled entry). The appendix is now replaced whenever it runs to the end of
+  the document, while a sources-style heading followed by a real section is left
+  untouched so no trailing content is lost.
+- Final-cleanup blank-line collapsing now tolerates CRLF, so a CRLF-sourced
+  report no longer ships runs of excess blank lines.
 
 ### Security
 

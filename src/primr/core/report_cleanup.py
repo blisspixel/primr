@@ -130,7 +130,9 @@ def _clean_fast_report_output(report_content: str) -> str:
     for _i in range(0, len(_parts), 2):  # even indices are outside code fences
         _parts[_i] = re.sub(r"(?<=\S) {2,}", " ", _parts[_i])
     report_content = "".join(_parts)
-    report_content = re.sub(r"\n{3,}", "\n\n", report_content)
+    # Collapse 3+ blank lines, tolerating CRLF: a plain ``\n{3,}`` misses runs of
+    # ``\r\n`` and leaves excess whitespace in a CRLF-sourced report.
+    report_content = re.sub(r"(?:\r?\n){3,}", "\n\n", report_content)
 
     return report_content.strip() + "\n"
 

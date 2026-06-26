@@ -269,17 +269,17 @@ def _normalize_fast_citations(report_content: str, source_urls: list[str] | None
     heading_lines = [i for i, line in enumerate(lines) if sources_heading.match(line.strip())]
     if heading_lines:
         # Strip the existing sources appendix so the rebuilt one (below) replaces
-        # it, but ONLY at the LAST sources-style heading whose body is purely a
-        # citation appendix (cite/url lines). A body section merely TITLED
-        # "References"/"Citations"/"Sources" must not delete everything after it
-        # (that was silent total content loss).
-        _cite_like = re.compile(
-            r"^\s*(?:\[cite:\s*\d|\[\d+\]\s|\d+\.\s+https?://|https?://|[-*]\s+https?://)",
-            re.IGNORECASE,
-        )
+        # it, but ONLY at a sources-style heading whose tail runs to the END of
+        # the document (no later "## " section heading). That tail IS the
+        # appendix we are rebuilding. A heading with a real body section after it
+        # (e.g. a mid-document "## References") keeps everything that follows, so
+        # content past the appendix is never deleted -- while a real appendix
+        # that happens to carry a stray non-citation line (an access-date note, a
+        # titled entry) is still stripped instead of leaving a DUPLICATE
+        # "## Sources" behind the rebuilt one.
         for idx in reversed(heading_lines):
             tail = lines[idx + 1 :]
-            if all((not ln.strip()) or _cite_like.match(ln) for ln in tail):
+            if not any(re.match(r"##\s", ln.strip()) for ln in tail):
                 normalized = "\n".join(lines[:idx]).rstrip()
                 break
 
@@ -341,7 +341,7 @@ def _clean_strategy_output(strategy_content: str) -> str:
     cleaned = _normalize_fast_citations(cleaned)
     cleaned = _strip_internal_source_placeholders(cleaned)
     cleaned = _strip_unresolved_section_cross_references(cleaned)
-    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    cleaned = re.sub(r"(?:\r?\n){3,}", "\n\n", cleaned)
     return cleaned.strip() + "\n"
 
 
