@@ -738,6 +738,11 @@ Shipped:
   duration, and outcome. `primr://agent/audit/recent` exposes recent events to
   local stdio callers and admin-scoped HTTP callers without storing raw
   arguments, raw results, or approval tokens.
+- MCP runtime budget propagation for `research_company` fast-path runs. The
+  approved `max_estimated_cost_usd` now reaches `PipelineRunner` as an active
+  `RunBudget`, so the same mid-run checkpoints used by CLI `--budget` apply to
+  the MCP networked surface. The process-global budget is cleared in a
+  `finally` after success, cancellation, or failure.
 
 Planned:
 - Expand job-scoped resources for artifact consumption (`qa_summary`, source appendix, trace summary) so clients do not need large report bodies in context by default
@@ -913,7 +918,7 @@ Already shipped: SSRF guard on every outbound URL (`primr.utils.security`), cont
 - **Output / egress guardrails** — SHIPPED. `is_safe_url` + post-redirect validation enforced on every egress helper (`HTTPClient.get`, `fallback_sources._http_get`, `hiring_signals._http_get`); the "no fetch bypasses the SSRF guard" invariant is locked by `tests/security/test_egress_guardrails.py`.
 - **Secret / log redaction** — SHIPPED. `SecretMaskingFilter` on all log handlers (sink-level, not opt-in) + `mask_sensitive_data` (incl. xAI) applied in `chat_logger` before persist, with atomic writes. Provider patterns: xAI/Google/OpenAI/Anthropic/GitHub/AWS/Slack/JWT. Note: `usage_history.json` and `_run_state.json` are metadata-only (no secrets) — verified, no change needed.
 - **Scoped threat model** — SHIPPED. `docs/SECURITY.md` documents the client/scraper/agent threat model (ATLAS-style table T1-T8), shipped controls, residual-risk acceptance, and coordinated disclosure.
-- **Agentic trust boundaries (MCP/A2A)** - MCP Stage 1 SHIPPED (T8). MCP now enforces per-tool scopes at dispatch (`read`, `research`, `delegate`, `admin`) and honors OAuth `scope` plus Entra `scp` JWT claims while keeping legacy `write` tokens compatible. MCP Stage 2 token approval is shipped for cost-cap-governed execution tools: estimate tools mint short-lived single-use tokens, and execution requires a matching token when server-side cost enforcement is active. MCP structured invocation audit is shipped for tool calls with hashed payloads and admin-readable recent events. Remaining control-plane work: A2A parity and richer job-scoped artifact resources. Folds into Active Queue #11 (constrained agent permissions) and #21 (agent control-plane hardening).
+- **Agentic trust boundaries (MCP/A2A)** - MCP Stage 1 SHIPPED (T8). MCP now enforces per-tool scopes at dispatch (`read`, `research`, `delegate`, `admin`) and honors OAuth `scope` plus Entra `scp` JWT claims while keeping legacy `write` tokens compatible. MCP Stage 2 token approval is shipped for cost-cap-governed execution tools: estimate tools mint short-lived single-use tokens, and execution requires a matching token when server-side cost enforcement is active. MCP structured invocation audit is shipped for tool calls with hashed payloads and admin-readable recent events. MCP `research_company` fast-path execution now also activates the approved cap as a runtime `RunBudget`, so pre-flight approval and mid-run optional-spend checkpoints agree on the networked surface. Remaining control-plane work: A2A parity, richer job-scoped artifact resources, and non-fast runtime budget checkpoints. Folds into Active Queue #11 (constrained agent permissions) and #21 (agent control-plane hardening).
 
 Decision principle: secure the surface primr actually has — untrusted input, agent tool use, secrets, supply chain — and explicitly decline model-training/serving security primr will never own.
 

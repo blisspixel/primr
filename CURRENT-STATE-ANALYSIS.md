@@ -29,6 +29,77 @@ to generate useful, grounded Agent Skills with clean frontmatter, substantive
 workflow bodies, concrete output formats, role evidence, and safe bundled
 resources.
 
+## 2026-06-26 Startup Alignment and External Research
+
+The current startup review re-read `README.md`, `ROADMAP.md`, `CLAUDE.md`,
+`docs/design/agentic-balance.md`, `docs/design/engineering-excellence.md`,
+`docs/design/2.0-agent-control-plane.md`, `docs/design/2.0-backend-freedom.md`,
+`docs/design/1x-completion.md`, `docs/SECURITY.md`, `docs/ARCHITECTURE.md`,
+`docs/EVAL.md`, `docs/CONTRIBUTING.md`, `docs/CHANGELOG.md`,
+`PROGRESS-LOG.md`, `SKILLS.md`, `NOTES.md`, and the touched MCP/runtime budget
+code.
+
+Current external best-practice check confirms the repo's control-plane order:
+
+- MCP's authorization guide recommends authorization when a server exposes
+  sensitive resources, needs per-user audit, requires user consent, or supports
+  enterprise access control:
+  <https://modelcontextprotocol.io/docs/tutorials/security/authorization>.
+- MCP security guidance and current specifications emphasize user consent,
+  tool safety, authorization, and scope-aware protected resources:
+  <https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices>
+  and <https://modelcontextprotocol.io/specification/2025-11-25>.
+- OWASP's agentic AI guidance and Microsoft Zero Trust AI threat modeling both
+  point to least-privilege tools, explicit confirmation for high-risk actions,
+  and logging/audit for tool use:
+  <https://genai.owasp.org/resource/agentic-ai-threats-and-mitigations/>
+  and <https://learn.microsoft.com/en-us/security/zero-trust/sfi/threat-modeling-ai>.
+- OpenTelemetry's 2026 GenAI guidance treats model calls, token usage, and
+  tool calls as observable operations while making full content capture opt-in:
+  <https://opentelemetry.io/blog/2026/genai-observability/>.
+- Anthropic's long-running-agent guidance reinforces the local loop pattern:
+  use persistent artifacts, verify completion externally, and keep the harness
+  simple instead of trusting self-declared done:
+  <https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents>.
+
+This makes the next best local slice the MCP runtime budget propagation fix,
+not a new provider integration or paid eval. It closes a documented HIGH
+control-plane gap with deterministic code and local tests.
+
+## 2026-06-26 Control Plane Slice: MCP Runtime Budget Enforcement
+
+Shipped in this slice:
+
+- `research_company` now passes the approved `max_estimated_cost_usd` into the
+  background `PipelineRunner` as `budget_usd` after the existing cost-cap and
+  approval-token checks succeed.
+- `PipelineRunner.run_research` activates `utils.run_budget.set_run_budget()`
+  for approved caps, so the MCP fast path consults the same mid-run budget
+  checkpoints as the CLI `--budget` path.
+- Uncapped MCP runs clear any stale process budget before starting, so a
+  previous failed or older-process leak cannot accidentally constrain a new
+  no-cap run.
+- The runner clears the process-global run budget in a `finally`, so a
+  completed, cancelled, or failed MCP job cannot leak budget state into the next
+  job.
+- Regression tests prove the cap reaches the runner, the fast path sees the
+  active budget, and exception paths clear it.
+
+Current estimate:
+
+- 2.0 control-plane pillar: about 72% complete. MCP scopes, approval tokens,
+  invocation audit, and fast-path runtime budget propagation are now shipped.
+  A2A parity, richer job-scoped artifact resources, and non-fast runtime budget
+  checkpoints remain.
+- Full 2.0 release: still about 35% complete. Backend freedom and durable
+  research memory remain the larger release blockers.
+
+Spend: `$0.00`. Validation passed: focused MCP runner/tool/approval/cost-cap
+tests, full MCP suite, Ruff check, Ruff format check, mypy on `src/primr`,
+Bandit, pip-audit, MkDocs build, architecture/release-integrity tests, and the
+CI-shaped coverage gate (`10210 passed, 39 skipped, 5 deselected`, 85.22%
+branch coverage).
+
 ## 2026-06-25 Quality Slice: Label-Honesty Pass (1.x #4 / step 3)
 
 The roadmap's order of operations puts 1.x quality completion ahead of the 2.0

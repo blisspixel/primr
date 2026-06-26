@@ -77,12 +77,10 @@ The `RunBudget` primitive, the MCP pre-flight cap, and approval-token binding ar
 verified correct. The gap is that mid-run *actual-spend* enforcement is wired
 into only the CLI fast path. Triaged for upcoming cycles:
 
-- **HIGH -- MCP runner sets no run budget.** `mcp_server/pipeline_runner.py` calls
-  `perform_fast_research` without `set_run_budget`, so every
-  `skip_stage_if_over_budget` checkpoint is a no-op on the networked MCP surface;
-  `max_estimated_cost_usd` only gates the pre-flight estimate. Fix: have the MCP
-  runner activate a run budget from the approved cap so actual spend is bounded
-  on the fast path too. (Pairs with the SSRF/control-plane hardening.)
+- **FIXED in local Unreleased -- MCP runner sets no run budget.**
+  `research_company` now passes the approved `max_estimated_cost_usd` into
+  `PipelineRunner`, which activates `set_run_budget()` for the fast path and
+  clears it in a `finally`.
 - **HIGH -- premium/deep/scrape/non-fast paths have no mid-run gate.** `--budget`
   is set for all modes but only `perform_fast_research` consults it.
   `perform_deep_research` and the structured fallback have zero budget refs, and

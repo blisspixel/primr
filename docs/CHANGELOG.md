@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- MCP `research_company` now propagates the approved
+  `max_estimated_cost_usd` into the background pipeline runner as the active
+  run budget. The fast pipeline therefore consults the same mid-run budget
+  checkpoints as the CLI `--budget` path, rather than treating the MCP cap as a
+  pre-flight estimate check only. The runner clears the process-global budget in
+  a `finally` so a completed, cancelled, or failed job cannot leak budget state
+  into the next job. Pinned by MCP tool-dispatch and runner regression tests.
+
 ## [1.34.1] - 2026-06-26
 
 ### Security

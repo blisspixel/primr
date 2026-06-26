@@ -4,6 +4,7 @@ Tests for tool handlers.
 Task 9: Tool handlers
 """
 
+import asyncio
 import json
 import tempfile
 from pathlib import Path
@@ -387,6 +388,47 @@ class TestCostCaps:
         data = json.loads(result.root.content[0].text)
         assert data["error"] is True
         assert data["error_type"] == "cost_cap_required"
+
+    @pytest.mark.asyncio
+    async def test_research_company_passes_approved_cap_to_runner(self, monkeypatch):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            server = create_mcp_server(
+                journal_path=str(Path(tmpdir) / "test_journal.json"),
+                skip_background_tasks=False,
+            )
+            server.rate_limiter.reset()
+            seen = {}
+            done = asyncio.Event()
+
+            class FakeRunner:
+                def __init__(self, mcp_server):
+                    self.mcp_server = mcp_server
+
+                async def run_research(self, **kwargs):
+                    seen.update(kwargs)
+                    done.set()
+
+            monkeypatch.setattr("primr.mcp_server.pipeline_runner.PipelineRunner", FakeRunner)
+            handler = server.server.request_handlers[CallToolRequest]
+            result = await handler(
+                CallToolRequest(
+                    method="tools/call",
+                    params=CallToolRequestParams(
+                        name="research_company",
+                        arguments={
+                            "company_name": "Acme Corp",
+                            "company_url": "https://example.com",
+                            "mode": "full",
+                            "max_estimated_cost_usd": "100.00",
+                        },
+                    ),
+                )
+            )
+            data = json.loads(result.root.content[0].text)
+
+            assert data["accepted"] is True
+            await asyncio.wait_for(done.wait(), timeout=1)
+            assert seen["budget_usd"] == 100.0
 
 
 class TestCancelJob:

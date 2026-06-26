@@ -39,10 +39,7 @@ from primr.mcp_server.approval_tokens import (
 from primr.mcp_server.audit_log import audit_tool_calls
 from primr.mcp_server.job_store import JobInProgressError, ResearchJobState
 from primr.mcp_server.platforms import normalize_platform, normalize_platforms
-from primr.mcp_server.skill_pack_tools import (
-    handle_skill_pack_tool,
-    register_skill_pack_tools,
-)
+from primr.mcp_server.skill_pack_tools import handle_skill_pack_tool, register_skill_pack_tools
 from primr.mcp_server.tool_authz import authorize_tool_call, scope_denied_response
 from primr.mcp_server.types import MCPErrorCode, ResearchStage
 
@@ -839,6 +836,7 @@ async def _handle_research_company(
     )
     if approval_error is not None:
         return [TextContent(type="text", text=json.dumps(approval_error))]
+    budget_usd = float(max_estimated_cost_usd) if max_estimated_cost_usd is not None else None
 
     # Try to create job
     try:
@@ -878,6 +876,7 @@ async def _handle_research_company(
                 skip_qa=skip_qa,
                 verify=verify,
                 destination=destination,
+                budget_usd=budget_usd,
             )
         )
         # Track task for graceful shutdown

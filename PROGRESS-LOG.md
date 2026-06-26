@@ -2,6 +2,74 @@
 
 ## 2026-06-26
 
+### Loop cycle: MCP runtime budget enforcement
+
+Startup refresh: re-read README, ROADMAP, `CLAUDE.md`,
+`docs/design/agentic-balance.md`, `docs/design/engineering-excellence.md`,
+`docs/design/2.0-agent-control-plane.md`, `docs/design/2.0-backend-freedom.md`,
+`docs/design/1x-completion.md`, `docs/SECURITY.md`, `docs/ARCHITECTURE.md`,
+`docs/EVAL.md`, `docs/CONTRIBUTING.md`, current-state, progress, skills,
+notes, changelog, and the touched MCP budget code.
+
+External research checked current MCP and agentic best practices against the
+local priority: MCP authorization guidance recommends auth when user consent,
+per-user audit, enterprise control, or usage tracking matters; MCP security and
+spec docs emphasize tool safety and explicit consent; OWASP and Microsoft
+agentic guidance emphasize least-privilege tools, approval for high-impact
+actions, and audit logging; OpenTelemetry GenAI guidance treats tool calls and
+token usage as observable operations with full content capture opt-in; Anthropic
+long-running-agent harness guidance reinforces persistent artifacts and
+external verification over self-declared completion.
+
+Prioritize: selected the documented HIGH control-plane gap where MCP
+`max_estimated_cost_usd` gated only the pre-flight estimate while the fast
+pipeline's actual mid-run budget checkpoints saw no active `RunBudget`.
+
+Implemented:
+
+- `research_company` now converts the validated cap to `budget_usd` and passes
+  it into `PipelineRunner.run_research`.
+- `PipelineRunner.run_research` activates the shared `RunBudget` before
+  execution and clears it in a `finally` so success, cancellation, and failure
+  cannot leak budget state into the next job.
+- Tests prove the cap reaches the runner, the fast path sees the active
+  `RunBudget`, and exception paths clear it.
+- Added `QUALITY-RUBRIC.md` and scored the current cycle across six categories.
+- Updated current-state, roadmap, changelog, notes, and skills memory.
+
+Validation:
+
+- `uv run --no-sync pytest tests/mcp_server/test_pipeline_runner_coverage.py tests/mcp_server/test_tools.py tests/mcp_server/test_approval_tokens.py tests/mcp_server/test_cost_caps_policy.py -q`
+  passed with 66 tests.
+- `uv run --no-sync pytest tests/mcp_server -q` passed with 513 tests, 2
+  skipped.
+- `uv run ruff check src/primr/mcp_server/pipeline_runner.py src/primr/mcp_server/tools.py tests/mcp_server/test_pipeline_runner_coverage.py tests/mcp_server/test_tools.py`
+  passed.
+- `uv run ruff format --check src/primr/mcp_server/pipeline_runner.py src/primr/mcp_server/tools.py tests/mcp_server/test_pipeline_runner_coverage.py tests/mcp_server/test_tools.py`
+  passed.
+- `uv run ruff check src/primr/` passed.
+- `uv run ruff format --check src/ tests/` passed.
+- `uv run --no-sync mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'`
+  passed.
+- `uv run bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q`
+  passed with the existing `mcp_server/security.py` B108 nosec warnings.
+- `uv run --no-sync pip-audit --ignore-vuln PYSEC-2026-196` passed.
+- `uv run --no-project --with mkdocs-material --with pymdown-extensions mkdocs build --site-dir _site`
+  passed with the repo's existing non-strict link warnings; generated `_site`
+  was removed after validation.
+- `uv run --no-sync pytest tests/test_architecture.py tests/test_release_integrity.py -q`
+  passed with 13 tests after lowering the `mcp_server/tools.py` line ceiling to
+  the new smaller value.
+- `$env:GEMINI_API_KEY='fake-key-for-ci-tests'; uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q -k "not test_wait_times_out_when_no_change" -m "not integration" --cov=src/primr --cov-branch --cov-fail-under=81`
+  passed with `10210 passed, 39 skipped, 5 deselected`, branch coverage
+  `85.22%`.
+
+Rubric: Correctness 5/5, Security and Privacy 5/5, Simplicity 5/5,
+Maintainability 5/5, Performance and Cost 5/5, Verification 5/5.
+
+Cycle health: 5/5 | Simplicity: 5/5 | Est. spend: $0.00 | New skill distilled:
+MCP runtime budget propagation.
+
 ### Loop cycle: Redirect-SSRF hardening (1.34.1)
 
 After releasing 1.34.0, an adversarial review of the SSRF defense (the

@@ -238,6 +238,63 @@ class TestRunResearchFastMode:
         assert updated.get_status().value == "completed"
         assert (dest / "report.md").exists()
 
+    @pytest.mark.asyncio
+    async def test_fast_mode_activates_and_clears_run_budget(
+        self, server, runner, monkeypatch, tmp_path
+    ):
+        from primr.utils.run_budget import clear_run_budget, get_run_budget
+
+        monkeypatch.setenv("XAI_API_KEY", "fake-key")
+        clear_run_budget()
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="stdio")
+
+        report = tmp_path / "report.md"
+        report.write_text("done", encoding="utf-8")
+        seen = {}
+
+        def fake_fast_research(*_args, **_kwargs):
+            budget = get_run_budget()
+            seen["budget"] = budget
+            return str(report)
+
+        monkeypatch.setattr("primr.core.research_agent.perform_fast_research", fake_fast_research)
+
+        await runner.run_research(
+            job=job,
+            company_url="https://example.com",
+            mode="full",
+            budget_usd=2.5,
+        )
+
+        assert seen["budget"] is not None
+        assert seen["budget"].max_cost == 2.5
+        assert get_run_budget() is None
+
+    @pytest.mark.asyncio
+    async def test_fast_mode_without_cap_clears_stale_run_budget(
+        self, server, runner, monkeypatch, tmp_path
+    ):
+        from primr.utils.run_budget import get_run_budget, set_run_budget
+
+        monkeypatch.setenv("XAI_API_KEY", "fake-key")
+        set_run_budget(1.0)
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="stdio")
+
+        report = tmp_path / "report.md"
+        report.write_text("done", encoding="utf-8")
+        seen = {}
+
+        def fake_fast_research(*_args, **_kwargs):
+            seen["budget"] = get_run_budget()
+            return str(report)
+
+        monkeypatch.setattr("primr.core.research_agent.perform_fast_research", fake_fast_research)
+
+        await runner.run_research(job=job, company_url="https://example.com", mode="full")
+
+        assert seen["budget"] is None
+        assert get_run_budget() is None
+
 
 class TestRunResearchOrchestrator:
     @pytest.mark.asyncio
@@ -290,18 +347,27 @@ class TestRunResearchOrchestrator:
 
     @pytest.mark.asyncio
     async def test_pipeline_exception_records_failed(self, server, runner, monkeypatch):
+        from primr.utils.run_budget import clear_run_budget, get_run_budget
+
         monkeypatch.delenv("XAI_API_KEY", raising=False)
+        clear_run_budget()
         job = server.job_store.create("Acme Corp", "premium", owner_client_id="stdio")
 
         with patch(
             "primr.core.research_orchestrator.ResearchOrchestrator",
             side_effect=RuntimeError("init failed"),
         ):
-            await runner.run_research(job=job, company_url="https://example.com", mode="premium")
+            await runner.run_research(
+                job=job,
+                company_url="https://example.com",
+                mode="premium",
+                budget_usd=2.0,
+            )
         updated = server.job_store.get(job.job_id)
         assert updated.current_stage == ResearchStage.FAILED
         assert updated.error_type == "pipeline_error"
         assert "init failed" in updated.error_message
+        assert get_run_budget() is None
 
 
 class TestSaveReportAndManifest:

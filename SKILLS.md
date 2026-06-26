@@ -27,6 +27,11 @@
   raw client ids, or full approval tokens. Expose recent events as a local or
   admin-scoped resource so operators can investigate without broadening normal
   read-scope visibility.
+- When an MCP tool accepts an approved cost cap, bind that cap to the runtime
+  budget seam as well as the estimate check. Pre-flight approval answers "may
+  this run start"; `RunBudget` answers "should optional spend continue." Clear
+  the process-global budget in a `finally` because the MCP server is single-job
+  today but still long-lived.
 
 ## Backend Routing and Availability
 

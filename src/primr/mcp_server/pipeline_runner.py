@@ -65,6 +65,7 @@ class PipelineRunner:
         skip_qa: bool = False,
         verify: bool = False,
         destination: str | None = None,
+        budget_usd: float | None = None,
     ) -> None:
         """
         Run the research pipeline for a job.
@@ -80,8 +81,26 @@ class PipelineRunner:
             skip_qa: Whether to skip QA
             verify: Whether to run claim verification
             destination: Optional destination directory for output files
+            budget_usd: Operator-approved per-run cost ceiling (the MCP cost
+                cap). When set, it activates the same mid-run budget checkpoints
+                the CLI ``--budget`` flag uses, so actual spend on the fast
+                pipeline is bounded, not just the pre-flight estimate. Without
+                it the run is estimate-gated only.
         """
         self._cancel_requested = False
+
+        # Bound actual mid-run spend to the operator-approved cap, mirroring the
+        # CLI --budget path (today only the fast pipeline consults this; premium
+        # / structured remain estimate-gated, tracked in NOTES). The budget is
+        # process-global and the MCP server runs one job at a time, so it is
+        # cleared in a finally below to never leak into the next job.
+        from primr.utils.run_budget import clear_run_budget, set_run_budget
+
+        budget_active = False
+        clear_run_budget()
+        if budget_usd is not None and budget_usd > 0:
+            set_run_budget(budget_usd)
+            budget_active = True
 
         try:
             import os
@@ -248,6 +267,9 @@ class PipelineRunner:
             job.error_type = "pipeline_error"
             job.error_message = str(e)
             self.mcp_server.job_store.update(job)
+        finally:
+            if budget_active:
+                clear_run_budget()
 
     async def _heartbeat_loop(
         self,
