@@ -2,6 +2,10 @@
 
 ## Documentation Hygiene
 
+- When "what next and why" becomes scattered across README, ROADMAP, and design
+  docs, add a short execution brief in `docs/` and link to it from the front
+  door, docs index, site nav, and roadmap. Keep ROADMAP as the full queue and
+  README as orientation.
 - Treat MkDocs strict mode as the docs drift gate once the site has a curated
   nav. Keep root-level files and deploy assets linked with stable GitHub URLs
   rather than relative paths outside `docs_dir`, and include intentional docs in

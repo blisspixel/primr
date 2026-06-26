@@ -98,6 +98,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mode, cost, agent-integration, and skill-pack details now link to focused docs
   so first-time users can install, estimate, and run without wading through
   advanced integration material.
+- README, the docs index, MkDocs navigation, ROADMAP, and the 1.x/2.0 design
+  notes now point to the same "what next and why" sequence: label calibration,
+  backend-freedom wiring, control-plane artifact resources and A2A parity,
+  research memory layer 1, and the continuing maintenance ratchet.
+- Existing user-facing docs and deployment docs in this pass were normalized
+  away from em dashes and en dashes so the repository style rule is easier to
+  enforce mechanically.
 - README now makes command selection, agent-run approval flow, and budget scope
   explicit while moving the detailed contributor gate checklist into
   `docs/CONTRIBUTING.md`.
@@ -110,6 +117,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `docs/NEXT_STEPS.md`, a short execution brief explaining what should
+  happen next, why each item comes in that order, what is explicitly not next,
+  and which current best-practice sources informed the plan.
 - Added `docs/RUN_MODES.md` for the mode and cost matrix, strategy/platform
   selection, budget semantics, output locations, and sample run shape.
 - Added `docs/AGENT_INTEGRATION.md` for MCP, A2A, host snippets, packaged
@@ -1441,12 +1451,12 @@ We considered (and ruled out) shipping `primr install-skill` and `primr install-
 
 ## [1.20.4] - 2026-04-29
 
-### Critical: PyPI Wheels 1.20.1 – 1.20.3 Were Missing Data Files
+### Critical: PyPI Wheels 1.20.1 - 1.20.3 Were Missing Data Files
 
 PyPI installs of `primr` 1.20.1 through 1.20.3 crashed on the first research run with `FileNotFoundError: ... primr/config/prompts.json`. Source checkouts were unaffected. The wheel was packaging only `py.typed` because `[tool.setuptools.package-data]` in `pyproject.toml` did not include the JSON or YAML files that live inside the `primr` package.
 
 - **Fix in `pyproject.toml`** - `[tool.setuptools.package-data]` now ships `config/*.json`, `prompts/*.yaml`, `prompts/shared/*.yaml`, and `prompts/strategies/*.yaml` alongside `py.typed`. Local `python -m build` confirms 14 data files plus `py.typed` are present in the resulting wheel (vs. 1 file in the broken builds).
-- **Anyone on 1.20.1 – 1.20.3 from PyPI must upgrade**: `pip install -U primr`.
+- **Anyone on 1.20.1 - 1.20.3 from PyPI must upgrade**: `pip install -U primr`.
 
 ### `--version` Flag
 

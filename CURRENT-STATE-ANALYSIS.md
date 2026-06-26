@@ -139,6 +139,55 @@ tests, architecture/release-integrity tests, Ruff, format check, mypy, Bandit,
 pip-audit, strict MkDocs, style scans, and the full non-manual coverage gate
 (85.27% branch coverage).
 
+## 2026-06-26 Next-Steps Documentation Refresh
+
+Current best-practice check:
+
+- Diataxis and GitHub README guidance support keeping README focused on project
+  orientation, quick start, and links to deeper material:
+  <https://diataxis.fr/> and
+  <https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes>.
+- Keep a Changelog supports the existing `Unreleased` plus grouped-change
+  format:
+  <https://keepachangelog.com/en/1.1.0/>.
+- MkDocs strict mode supports treating docs warnings as build failures:
+  <https://www.mkdocs.org/user-guide/configuration/#strict>.
+- MCP security guidance, OWASP agentic AI guidance, and Microsoft Zero Trust AI
+  threat modeling all point toward least privilege, explicit consent for risky
+  actions, scoped resources, and audit logging:
+  <https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices>,
+  <https://genai.owasp.org/resource/agentic-ai-threats-and-mitigations/>,
+  and <https://learn.microsoft.com/en-us/security/zero-trust/sfi/threat-modeling-ai>.
+- OpenTelemetry GenAI semantic conventions support structured observability for
+  model calls, tool calls, token/cost metadata, and trace ids:
+  <https://opentelemetry.io/docs/specs/semconv/gen-ai/>.
+
+Current estimate:
+
+- The README should not absorb more roadmap detail. The better structure is a
+  dedicated execution brief in `docs/NEXT_STEPS.md`, linked from README,
+  `docs/README.md`, MkDocs nav, and ROADMAP.
+- The next execution order is label-calibration baseline first, backend-freedom
+  production wiring second, control-plane artifact resources and A2A parity
+  third, research memory layer 1 fourth, with coverage and maintenance running
+  continuously.
+- Memory remains important but should follow calibrated claims and scoped
+  artifact resources so prior-run context cannot be mistaken for fresh evidence.
+
+Shipped in this slice:
+
+- Added `docs/NEXT_STEPS.md`.
+- Updated README, docs index, MkDocs nav, ROADMAP, 1.x completion, backend
+  freedom, agent control plane, research memory, and design index docs.
+- Normalized docs-related em dash and en dash usage in the touched corpus.
+- Updated `docs/CHANGELOG.md`, `PROGRESS-LOG.md`, `QUALITY-RUBRIC.md`, and
+  `SKILLS.md`.
+
+Spend: `$0.00`. Validation passed: docs style scan, Ruff, format check,
+architecture/release-integrity tests, `git diff --check`, strict MkDocs, and
+the full non-manual coverage gate (`10273 passed, 39 skipped, 4 deselected`,
+85.28% branch coverage).
+
 ## 2026-06-26 Maintenance Security Review
 
 The latest bug-hunt/security pass found and fixed four redirect-control gaps

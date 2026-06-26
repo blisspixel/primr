@@ -14,6 +14,17 @@ places - *measured quality* (is the analysis actually good, are the labels
 actually true) and *core testability* (the pipeline heart is a ~1,900-line
 function the suite can only test around).
 
+## Immediate next slice
+
+The next 1.x slice is not broader prompt tuning. It is evidence calibration:
+run a multi-report label-calibration baseline, compare local and cloud judges
+on the same sampled claims, then set any hard `FAIL_CALIBRATION` threshold from
+the measured agreement-validated floor. In parallel, surface contradicted
+`--verify` claims in the report trust summary so the user sees the risk in the
+artifact, not only in sidecar JSON. This is the cheapest path to improve the
+core deliverable because it reuses existing reports and pins the one measured
+quality gap before more paid prompt work.
+
 ## Workstreams, in dependency order
 
 ### 1. Measure the epistemics - SHIPPED (post-1.30.0: PRs #27, #28, refine acceptance guard)
@@ -41,7 +52,7 @@ calibration harness; traceability degradation reverts the iteration).
   [What to validate] [(Label)]) now associate with their block's prose and
   citations instead of sampling bare label lines.
 - Run one calibration pass over recent current-format reports (measured by
-  dry-run: ~164 judge calls ≈ $0.07–0.15) to establish the per-label
+  dry-run: ~164 judge calls ≈ $0.07-0.15) to establish the per-label
   baseline; then set `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` to the
   measured floor and flip it to an armed-by-default HARD eval gate.
   The judge can also run on a local OpenAI-compatible server for $0
@@ -83,7 +94,7 @@ Original build spec (kept for reference):
   "Confirmed-claim traceability >= X%" as a HARD gate once a baseline exists
 
 Validation: the harness is free to build (mocked); one calibration pass over
-the standing eval corpus costs roughly one judge run (~$0.25–0.50).
+the standing eval corpus costs roughly one judge run (~$0.25-0.50).
 
 **Evidence-fetching `--verify`.** Today `_classify_results` judges claim
 support from search-result *titles*, and the claimed company's own domain can
@@ -105,7 +116,7 @@ the iteration when discipline rose but independent quality didn't.
 
 ### 2. Refactor the orchestrators (#23) - EXTRACTION COMPLETE
 
-Status: all ten stages of `perform_fast_research` extracted (Batches A–G,
+Status: all ten stages of `perform_fast_research` extracted (Batches A-G,
 ~1,600 lines into eleven stage modules with ~110 hermetic tests); the
 orchestrator is a ~295-line coordinator. Remaining: `FastRunContext`, the
 per-module coverage target, the C901 budget, and the
@@ -140,7 +151,7 @@ One focused prompt-and-eval cycle, judged by the step-1 instruments:
 - Target: sparse-company runs feel substantive; rich-company runs sharp
 
 Validation: this is inherently eval-judged. Budget one corpus pass per prompt
-iteration (~$4–5 for n=5 at the standard recipe); cap at 2–3 iterations per
+iteration (~$4-5 for n=5 at the standard recipe); cap at 2-3 iterations per
 cycle; pre-register acceptance criteria before the first run (the
 EVAL_V1_24_0 discipline).
 
@@ -151,7 +162,7 @@ graceful fallback to the executor path, batch pricing in `ModelConfig` so
 estimates stay honest. Overlap: start external search once the homepage is
 in; `asyncio.gather` with completion barriers; progress display shows
 concurrent phases. Validation: deterministic tests free; one live batch run
-to confirm the discount (~$0.50–0.80).
+to confirm the discount (~$0.50-0.80).
 
 ### Also in this band
 

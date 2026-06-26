@@ -23,7 +23,7 @@ recipe). Free local judges (`--judges "ollama:<model>"`) keep grading at $0.
 |---|------|-----------------|-------------|--------------|
 | 1 | Label-calibration baseline | Are `(Confirmed)/(Reported)` labels traceable to sources? Sets the gate threshold. | ~$0.10 | always run first |
 | 2 | Framed vs unframed (tradecraft Step 4) | Does framing + hypothesis-steered collection produce a better brief? | ~$1.58 / company | only if you want to validate Step 4 |
-| 3 | Content-depth prompt work (#4) | Do sharper section prompts (management choices, economics, scenarios, constrained-evidence) beat the current prompts? | ~$4–5 / company | only after #2 clears |
+| 3 | Content-depth prompt work (#4) | Do sharper section prompts (management choices, economics, scenarios, constrained-evidence) beat the current prompts? | ~$4-5 / company | only after #2 clears |
 
 Do **not** run #3 before #2 clears, and don't run #2 before you care to (Step 4 is
 opt-in and default-safe today). Run #1 any time - it's nearly free and arms a gate.
@@ -131,7 +131,7 @@ before re-judging quality.
 
 ---
 
-## Eval 3 - content-depth prompt work (#4, ~$4–5/company)
+## Eval 3 - content-depth prompt work (#4, ~$4-5/company)
 
 Only after Eval 2 clears. Same A/B shape: current section prompts (baseline) vs a
 candidate prompt revision (management choices, operating constraints, likely

@@ -80,6 +80,7 @@ nav:
       - Cloud deployment: CLOUD_DEPLOYMENT.md
       - Security operations: SECURITY_OPS.md
   - Reference:
+      - Next steps: NEXT_STEPS.md
       - MCP & A2A API: API.md
       - Strategy portfolio: STRATEGY_PORTFOLIO.md
       - Eval v1.24 decision log: EVAL_V1_24_0.md

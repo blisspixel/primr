@@ -44,6 +44,7 @@ understanding.
 |----------|-------------|
 | [API](API.md) | MCP server and A2A protocol, programmatic usage |
 | [STRATEGY_PORTFOLIO](STRATEGY_PORTFOLIO.md) | Strategy document types and selection |
+| [NEXT_STEPS](NEXT_STEPS.md) | What to build next, why it comes next, and what not to do yet |
 | [CHANGELOG](CHANGELOG.md) | Version history |
 | [MIGRATION](MIGRATION.md) | Error-hierarchy migration notes |
 | [ROADMAP](https://github.com/blisspixel/primr/blob/main/ROADMAP.md) | Ordered development queue and version plan |

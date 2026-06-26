@@ -13,7 +13,7 @@ servers:
     variables:
       primr-fqdn:
         default: primr.example.azurecontainerapps.io
-        description: FQDN of the deployed Container App — replaced during connector creation
+        description: FQDN of the deployed Container App - replaced during connector creation
 
 paths:
   /mcp:
@@ -103,7 +103,7 @@ components:
         jsonrpc:
           type: string
           const: "2.0"
-          description: JSON-RPC protocol version — always "2.0"
+          description: JSON-RPC protocol version - always "2.0"
         id:
           oneOf:
             - type: string
@@ -133,7 +133,7 @@ components:
         jsonrpc:
           type: string
           const: "2.0"
-          description: JSON-RPC protocol version — always "2.0"
+          description: JSON-RPC protocol version - always "2.0"
         id:
           oneOf:
             - type: string

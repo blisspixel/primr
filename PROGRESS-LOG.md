@@ -2,6 +2,61 @@
 
 ## 2026-06-26
 
+### Loop cycle: docs next-steps plan and roadmap alignment
+
+Refresh: re-read README, ROADMAP, docs index, strict MkDocs config,
+1.x completion, backend freedom, agent control plane, research memory, and the
+latest progress/rubric files. Rechecked current best-practice sources for
+documentation structure, changelog format, strict docs builds, MCP security,
+agentic AI threat controls, Zero Trust AI threat modeling, and GenAI
+observability.
+
+Prioritize: selected a docs-only planning slice because the current code
+roadmap was strong but the "what next and why" answer was spread across
+README, ROADMAP, and several design docs.
+
+Implemented:
+
+- Added `docs/NEXT_STEPS.md` with the ranked execution plan: evidence
+  calibration and label honesty, backend-freedom production wiring,
+  control-plane artifact resources and A2A parity, research memory layer 1, and
+  the continuous coverage/maintenance ratchet.
+- Linked the new plan from README, `docs/README.md`, and `mkdocs.yml`.
+- Added a top-level ROADMAP section summarizing the current next-work order and
+  the "not next" boundaries.
+- Updated 1.x completion, backend freedom, agent control plane, research
+  memory, and design index docs with immediate next slices.
+- Normalized existing docs and deployment docs touched in this pass away from
+  em dashes and en dashes.
+- Updated `docs/CHANGELOG.md` under Unreleased.
+
+Validation:
+
+- Docs style scan passed for em dashes, en dashes, common emoji markers, and
+  generated-attribution phrases across README, ROADMAP, root agent docs,
+  `docs/`, `clients/`, `claude-code/`, `skills/`, and `deploy/`.
+- `uv run --no-sync ruff check .` passed.
+- `uv run --no-sync ruff format --check .` passed.
+- `uv run --no-sync pytest tests/test_architecture.py tests/test_release_integrity.py -q`
+  passed with 13 tests.
+- `git diff --check` passed.
+- `uv run --no-project --with mkdocs-material --with pymdown-extensions mkdocs build --strict --site-dir _site`
+  passed; `_site` was removed after the build.
+- Full non-manual coverage gate passed after the commit:
+  `10273 passed, 39 skipped, 4 deselected`, 85.28% branch coverage, and one
+  external Starlette/httpx2 deprecation warning.
+
+Maker-checker review:
+
+- Maker: make the planning answer discoverable without bloating the root README.
+- Checker 1, security/performance: the next sequence preserves least privilege,
+  explicit approval, auditability, privacy-aware observability, and free/local
+  validation first.
+- Checker 2, maintainability/simplicity: one dedicated planning page plus short
+  cross-links avoids duplicating the roadmap across every doc.
+
+Spend: `$0.00`.
+
 ### Maintenance sub-goal: bug hunt and security review
 
 Refresh: ran a targeted bug and security review over the current slice and the

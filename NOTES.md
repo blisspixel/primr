@@ -4,6 +4,13 @@ Living scratchpad for findings worth fixing that are not yet scheduled. Keep
 each item concrete enough to act on without re-deriving it. Remove an item when
 it ships.
 
+## Planning hygiene (2026-06-26)
+
+- `docs/NEXT_STEPS.md` is now the short execution brief for what comes next and
+  why. Keep README as the front door, ROADMAP as the full queue, and design docs
+  as detailed rationale. If the next-work order changes, update all four in the
+  same patch rather than spreading new rationale through README prose.
+
 ## Deferred bug-hunt findings (2026-06-25 adversarial sweep)
 
 These were verified by adversarial review but are narrow / off-contract, so they

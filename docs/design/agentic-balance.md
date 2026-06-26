@@ -81,7 +81,7 @@ primr today is Level 1 where it should be Level 2. Its collection is a
 
 That is exactly the "open-ended problem hardcoded as a fixed path" the criterion
 warns against: *what to read about a company* cannot be enumerated in advance.
-Tradecraft Steps 4–7 are the Level-2 upgrades, each at a decision point the
+Tradecraft Steps 4-7 are the Level-2 upgrades, each at a decision point the
 harness still owns:
 
 | Tradecraft step | Decision handed to the model | Loop still owned by harness |
@@ -208,7 +208,7 @@ Two failure smells worth naming, because primr has shipped both:
   time the model rephrases, it has already failed.
 - **Quality-as-regex.** A deterministic gate on "is this analysis good / strong /
   complete / on-topic" cannot exist - that is the Level-2 judgment work (Steps
-  4–7), enforced by the calibration/verify instruments against ground truth, never
+  4-7), enforced by the calibration/verify instruments against ground truth, never
   a hand-written rule.
 
 What legitimately stays a rule is narrow: the irreversible-act guards (spend,
@@ -316,7 +316,7 @@ Then make sure "done" is judged by the artifact's substance, not a flag
 - Anthropic, [Building Effective Agents](https://www.anthropic.com/research/building-effective-agents) - the workflow-vs-agent definitions and decision criterion; "start simple."
 - Anthropic, [Effective Context Engineering for AI Agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) - hardcoded logic creates fragility; "less structure, more model."
 - Anthropic, [Effective Harnesses for Long-Running Agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) - self-declared completion is unreliable; verify against ground truth.
-- NVIDIA, [Agentic Autonomy Levels and Security](https://developer.nvidia.com/blog/agentic-autonomy-levels-and-security/) - risk lives in the tools/actions; Levels 0–3 taxonomy.
+- NVIDIA, [Agentic Autonomy Levels and Security](https://developer.nvidia.com/blog/agentic-autonomy-levels-and-security/) - risk lives in the tools/actions; Levels 0-3 taxonomy.
 - HuggingFace, [smolagents: Introduction to Agents](https://huggingface.co/docs/smolagents/en/conceptual_guides/intro_agents) - agency as a spectrum; regularize toward not-agentic when a fixed path fits.
 - Microsoft Security, [Updating the Taxonomy of Failure Modes in Agentic AI Systems](https://www.microsoft.com/en-us/security/blog/2026/06/04/updating-taxonomy-failure-modes-agentic-ai-systems-year-red-teaming-taught-us/) (Jun 2026) - a year of red-teaming: brittle harnesses fail; deterministic *structure* governs processes, not brittle *output* rules.
 - Adaline, [The Complete Guide to LLM & AI Agent Evaluation in 2026](https://www.adaline.ai/blog/complete-guide-llm-ai-agent-evaluation-2026) - layer deterministic format checks, heuristic scoring, LLM-as-judge, and human calibration; don't rely on regex gates for quality.

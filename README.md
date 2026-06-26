@@ -205,6 +205,7 @@ formatting, mypy checks, Bandit, pip-audit, and strict documentation builds.
 | Batch runs | [Batch Guide](docs/BATCH.md) |
 | Evaluation | [Evaluation Guide](docs/EVAL.md) |
 | Cloud deployment | [Cloud Deployment](docs/CLOUD_DEPLOYMENT.md) |
+| Next steps | [Next Steps](docs/NEXT_STEPS.md) |
 | Roadmap | [Roadmap](ROADMAP.md) |
 
 The docs site starts at [docs/README.md](docs/README.md).

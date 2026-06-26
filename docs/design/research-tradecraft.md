@@ -80,8 +80,8 @@ The pipeline is **DATA-FIRST-THEN-ANALYZE**, the opposite of the spine above.
 
 | Elite practice | Primr today | Evidence |
 |---|---|---|
-| Frame the engagement question | No first-class framing. `--discovery-notes`/`--context`/`--strategy-type` reach **only Phase 6 strategy**, never collection/analysis/writing | `fast_run_strategy.py` is the sole consumer; not threaded to Phases 1–4 |
-| Day-1 hypothesis tree from cheap signals | Hypotheses generated **after** full collection, inside the Phase-3 workbook, as a passive "3–5 hypotheses" list. The `agentic` `Hypothesis` model exists but is **unused** in fast mode | `fast_run_workbook.py`, `section_prompts.py` (workbook prompt); `agentic/models.py` Hypothesis unused by `perform_fast_research` |
+| Frame the engagement question | No first-class framing. `--discovery-notes`/`--context`/`--strategy-type` reach **only Phase 6 strategy**, never collection/analysis/writing | `fast_run_strategy.py` is the sole consumer; not threaded to Phases 1-4 |
+| Day-1 hypothesis tree from cheap signals | Hypotheses generated **after** full collection, inside the Phase-3 workbook, as a passive "3-5 hypotheses" list. The `agentic` `Hypothesis` model exists but is **unused** in fast mode | `fast_run_workbook.py`, `section_prompts.py` (workbook prompt); `agentic/models.py` Hypothesis unused by `perform_fast_research` |
 | Ghost deck / argument outline before evidence | Fixed **23-section template, always written**. "Adaptive" = word-count tuning + constrained-evidence mode, not section selection | `config` `company_overview.yaml` (23 hardcoded sections); `section_planning.py` groups, never drops |
 | Targeted, hypothesis-steered collection | **Blind broad scrape** (≈50 pages) + **reactive gap-fill** (search for missing *data*, not to test a *claim*) | `fast_run_collection.py` (no hypothesis filter); `fast_run_gaps.py` (data-gap queries) |
 | ACH / pre-mortem / refute | Cross-validation resolves *contradictions* and re-writes weak sections; `primr refine` optimizes the artifact-*discipline* score | `fast_run_validation.py`; `core/refine.py` |
@@ -219,7 +219,7 @@ What this step becomes instead: the agentic judgment that #4 needs lives in the
 **content within** the fixed structure, not in choosing sections. Pyramid-style
 discipline (each section laddering to an explicit "so what"), constrained-evidence
 reasoning, and depth/insight per section are *prompt* work, fed by the framing +
-hypothesis tree from Steps 1–4. Structure improvements happen by **editing the
+hypothesis tree from Steps 1-4. Structure improvements happen by **editing the
 YAML offline**, judged like any deliverable change - not by an agentic section
 picker.
 

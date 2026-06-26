@@ -24,6 +24,27 @@ Use this rubric for every loop cycle before marking work done. A category scores
 
 ## Current Cycle Score
 
+2026-06-26 next-steps documentation refresh:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: the docs now provide one clear "what next and why" execution brief
+without expanding the root README or duplicating the full roadmap. The planned
+sequence preserves the project doctrine: evidence calibration before memory,
+stage-by-stage backend routing before broad provider claims, scoped agent
+resources before broader autonomous consumption, and continuous maintenance
+checks. This is a docs-only change with no runtime or secret-handling surface.
+Docs style scan, Ruff, format check, architecture/release-integrity tests,
+`git diff --check`, strict MkDocs, and the full non-manual coverage gate pass.
+Coverage: 85.28% branch. Spend: `$0.00`.
+
 2026-06-26 maintenance bug hunt and security review:
 
 | Category | Score |
