@@ -2,6 +2,65 @@
 
 ## 2026-06-26
 
+### Loop cycle: Tiered httpx scraper DNS-rebind IP pinning
+
+Refresh: re-read ROADMAP, NOTES, `docs/SECURITY.md`,
+`docs/ARCHITECTURE.md`, `data.scraping.http_clients`, the safe URL resolution
+artifact, scraper tests, current-state, and the quality rubric.
+
+Prioritize: selected `scrape_with_httpx()` because it can reuse the same
+HTTPX/httpcore SNI extension path that already shipped in `data.safe_http`.
+Requests, curl_cffi, pooled `HTTPClient`, and browser-backed seams require
+separate transport-specific work and remain queued.
+
+Implemented:
+
+- `scrape_with_httpx()` now calls `resolve_safe_url_for_connect()` for each
+  hop before connecting.
+- The tier connects to the validated IP-literal request URL and passes the
+  original Host header plus HTTPS SNI.
+- The scraper keeps its HTTP/2 client setup, cookies, manual redirect loop,
+  and `ScrapeResult` contract.
+- Successful httpx results report the logical final URL rather than the
+  IP-literal transport URL.
+- Added tests for pinned IP requests, Host/SNI preservation, private rebind
+  blocking before connect, safe relative redirects, and existing error
+  branches.
+- Updated NOTES, ROADMAP, `docs/SECURITY.md`, `docs/ARCHITECTURE.md`,
+  `docs/CHANGELOG.md`, current-state, and the quality rubric.
+
+Validation:
+
+- `uv run --no-sync pytest tests/test_data/test_scraping/test_http_clients.py tests/test_data/test_scraping/test_http_clients_coverage.py tests/security/test_ssrf.py tests/security/test_egress_guardrails.py -q`
+  passed with 75 tests.
+- `uv run ruff check src/primr/data/scraping/http_clients.py tests/test_data/test_scraping/test_http_clients.py tests/test_data/test_scraping/test_http_clients_coverage.py`
+  passed.
+- `uv run ruff format --check src/ tests/` passed.
+- `uv run --no-sync pytest tests/test_architecture.py tests/test_release_integrity.py -q`
+  passed with 13 tests.
+- `uv run --no-sync mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'`
+  passed.
+- `uv run bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q`
+  passed with the existing `mcp_server/security.py` B108 nosec warnings.
+- `uv run --no-sync pip-audit --ignore-vuln PYSEC-2026-196` passed.
+- `uv run --no-project --with mkdocs-material --with pymdown-extensions mkdocs build --site-dir _site`
+  passed with the repo's existing non-strict docs link warnings; `_site` was
+  removed afterward.
+- The CI-shaped non-manual coverage gate passed with `10244 passed, 39
+  skipped, 5 deselected` and 85.22% branch coverage.
+
+Maker-checker review:
+
+- Maker: the httpx scraper uses the existing pinning primitive without changing
+  tier ordering or result shape.
+- Checker 1, security/performance: each hop connects to the IP that passed
+  validation; HTTP/2 and TLS verification remain enabled; no paid validation
+  was used.
+- Checker 2, maintainability/simplicity: requests/curl/browser pinning is not
+  overfit into the httpx slice, so the remaining work stays explicit.
+
+Spend: `$0.00`.
+
 ### Loop cycle: Safe HTTP DNS-rebind IP pinning
 
 Refresh: re-read README, ROADMAP, NOTES, `docs/SECURITY.md`,

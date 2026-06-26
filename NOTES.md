@@ -52,8 +52,10 @@ are architectural and worth a dedicated, well-tested cycle.
   returned address, connect to the validated IP literal, and preserve the
   original Host header plus HTTPS SNI. This closes the check/connect DNS split
   for fallback, hiring, Wayback CDX/replay, and citation HEAD fetches.
-  **Remaining:** add equivalent IP pinning to `data/http_client.py`, the
-  requests/httpx/curl_cffi scraper tiers, and browser-backed fetch seams.
+  **Also done:** `scrape_with_httpx()` now uses the same resolver artifact for
+  each hop, preserving HTTP/2, cookies, Host, HTTPS SNI, and the logical final
+  URL. **Remaining:** add equivalent IP pinning to `data/http_client.py`, the
+  requests/curl_cffi scraper tiers, and browser-backed fetch seams.
 
 ## Flaky: cross-directory test pollution hits a browser import test
 

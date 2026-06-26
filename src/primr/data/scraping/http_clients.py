@@ -96,6 +96,7 @@ def _successful_scrape_result(
     tier_name: str,
     start_time: float,
     response: object,
+    final_url: str | None = None,
 ) -> ScrapeResult:
     elapsed_ms = (time.time() - start_time) * 1000
     status_code = getattr(response, "status_code", None)
@@ -115,11 +116,23 @@ def _successful_scrape_result(
         raw_content=getattr(response, "content", b""),
         content_type=content_type,
         http_status=status_code,
-        final_url=str(getattr(response, "url", url)),
+        final_url=final_url or str(getattr(response, "url", url)),
         tier=tier_name,
         elapsed_ms=elapsed_ms,
         attempts=[attempt],
     )
+
+
+def _headers_for_pinned_request(headers: dict, host_header: str) -> dict:
+    request_headers = dict(headers)
+    request_headers["Host"] = host_header
+    return request_headers
+
+
+def _extensions_for_pinned_request(sni_hostname: str | None) -> dict | None:
+    if sni_hostname is None:
+        return None
+    return {"sni_hostname": sni_hostname}
 
 
 def scrape_with_requests(
@@ -298,6 +311,7 @@ def scrape_with_httpx(
     Returns:
         ScrapeResult with raw bytes on success
     """
+    from primr.utils.security import resolve_safe_url_for_connect
     from primr.utils.validators import validate_url_for_request
 
     # SSRF protection
@@ -343,10 +357,21 @@ def scrape_with_httpx(
             http2=True,
         ) as client:
             for redirect_count in range(_MAX_REDIRECTS + 1):
+                resolution, guard_error = resolve_safe_url_for_connect(current_url)
+                if resolution is None:
+                    return _blocked_redirect_result(
+                        url=url,
+                        tier_name=tier_name,
+                        start_time=start_time,
+                        redirect_url=current_url,
+                        error=guard_error,
+                    )
+
                 response = client.get(
-                    current_url,
-                    headers=headers,
+                    resolution.request_url,
+                    headers=_headers_for_pinned_request(headers, resolution.host_header),
                     cookies=cookies,
+                    extensions=_extensions_for_pinned_request(resolution.sni_hostname),
                 )
 
                 location = _redirect_location(response)
@@ -356,9 +381,10 @@ def scrape_with_httpx(
                         tier_name=tier_name,
                         start_time=start_time,
                         response=response,
+                        final_url=current_url,
                     )
 
-                redirect_url = urljoin(str(getattr(response, "url", current_url)), location)
+                redirect_url = urljoin(current_url, location)
                 is_valid, normalized_redirect_url, redirect_error = validate_url_for_request(
                     redirect_url
                 )

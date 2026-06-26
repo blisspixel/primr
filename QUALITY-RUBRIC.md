@@ -24,6 +24,26 @@ Use this rubric for every loop cycle before marking work done. A category scores
 
 ## Current Cycle Score
 
+2026-06-26 tiered httpx scraper DNS-rebind IP pinning:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: the httpx scraping tier now uses the shared validated connection
+artifact for each hop, connects to the validated IP-literal URL, preserves
+original Host and HTTPS SNI, keeps HTTP/2/cookie behavior, and reports the
+logical final URL. Tests cover pinned requests, private rebind blocking before
+connect, safe relative redirects, and existing error branches. Focused
+scraper/security tests, Ruff, format check, architecture/release-integrity
+tests, mypy, Bandit, pip-audit, MkDocs build, and the CI-shaped coverage gate
+pass. Coverage: 85.22% branch. Spend: `$0.00`.
+
 2026-06-26 safe HTTP DNS-rebind IP pinning:
 
 | Category | Score |

@@ -89,16 +89,41 @@ Current estimate:
 
 - Intermediate-redirect SSRF migration: complete.
 - DNS-rebind IP pinning: complete for the shared safe HTTP seam used by
-  fallback, hiring, Wayback CDX/replay, and citation HEAD fetches.
+  fallback, hiring, Wayback CDX/replay, citation HEAD fetches, and the tiered
+  httpx scraper.
 - Remaining DNS-rebind hardening: add equivalent IP pinning to pooled
-  `HTTPClient`, the requests/httpx/curl_cffi scraper tiers, and browser-backed
-  fetch seams.
+  `HTTPClient`, the requests/curl_cffi scraper tiers, and browser-backed fetch
+  seams.
 
 Spend: `$0.00`. Validation passed: focused SSRF/safe-HTTP/citation suites,
 caller suites for fallback/hiring/Wayback, Ruff, format check,
 architecture/release-integrity tests, mypy, Bandit, pip-audit, MkDocs build,
 diff hygiene, and the CI-shaped coverage gate (`10242 passed, 39 skipped, 5
 deselected`, 85.22% branch coverage).
+
+## 2026-06-26 SSRF Slice: Tiered Httpx Scraper IP Pinning
+
+Shipped in this slice:
+
+- `data.scraping.http_clients.scrape_with_httpx()` now resolves each logical
+  URL through `resolve_safe_url_for_connect()` before connecting.
+- The tier connects to the validated IP-literal URL while preserving original
+  Host, HTTPS SNI, HTTP/2 client setup, cookies, and manual redirect behavior.
+- Successful httpx scrape results report the logical final URL rather than the
+  IP-literal transport URL.
+- Regression tests pin Host/SNI preservation, private DNS-rebind blocking
+  before connect, relative redirects, and the existing httpx error branches.
+
+Current estimate:
+
+- Tiered httpx DNS-rebind pinning: complete.
+- Remaining DNS-rebind hardening: pooled `HTTPClient`, requests/curl_cffi
+  scraper tiers, and browser-backed fetch seams.
+
+Spend: `$0.00`. Validation passed: focused tiered HTTP scraper/security tests,
+Ruff, format check, architecture/release-integrity tests, mypy, Bandit,
+pip-audit, MkDocs build, and the CI-shaped coverage gate (`10244 passed, 39
+skipped, 5 deselected`, 85.22% branch coverage).
 
 ## 2026-06-26 Control Plane Slice: MCP Runtime Budget Enforcement
 

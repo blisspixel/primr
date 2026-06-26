@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sys
 from unittest.mock import MagicMock, Mock, patch
+from urllib.parse import urlparse
 
 from primr.data.scraping.http_clients import (
     scrape_with_curl_cffi,
@@ -16,6 +17,24 @@ from primr.data.scraping.http_clients import (
     scrape_with_requests,
 )
 from primr.data.scraping.models import ErrorType
+from primr.utils.security import SafeUrlResolution
+
+
+def _resolution(url: str) -> SafeUrlResolution:
+    parsed = urlparse(url)
+    hostname = parsed.hostname or "example.com"
+    return SafeUrlResolution(
+        original_url=url,
+        request_url=url,
+        host_header=hostname,
+        sni_hostname=hostname if parsed.scheme == "https" else None,
+        resolved_ip=hostname,
+    )
+
+
+def _allow_all(url: str):
+    return _resolution(url), None
+
 
 # =============================================================================
 # SSRF: invalid initial URL
@@ -99,6 +118,7 @@ class TestRedirectRejection:
                     (False, "http://127.0.0.1/admin", "loopback"),
                 ],
             ),
+            patch("primr.utils.security.resolve_safe_url_for_connect", _allow_all),
             patch("httpx.Client", return_value=mock_client),
         ):
             result = scrape_with_httpx("https://example.com")
@@ -121,6 +141,7 @@ class TestHttpxErrors:
                 "primr.utils.validators.validate_url_for_request",
                 return_value=(True, "https://example.com", None),
             ),
+            patch("primr.utils.security.resolve_safe_url_for_connect", _allow_all),
             patch("httpx.Client") as mock_client_cls,
         ):
             mock_client = MagicMock()
@@ -139,6 +160,7 @@ class TestHttpxErrors:
                 "primr.utils.validators.validate_url_for_request",
                 return_value=(True, "https://example.com", None),
             ),
+            patch("primr.utils.security.resolve_safe_url_for_connect", _allow_all),
             patch("httpx.Client") as mock_client_cls,
         ):
             mock_client = MagicMock()
@@ -157,6 +179,7 @@ class TestHttpxErrors:
                 "primr.utils.validators.validate_url_for_request",
                 return_value=(True, "https://example.com", None),
             ),
+            patch("primr.utils.security.resolve_safe_url_for_connect", _allow_all),
             patch("httpx.Client") as mock_client_cls,
         ):
             mock_client = MagicMock()

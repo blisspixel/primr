@@ -47,6 +47,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   HTTPS SNI. This closes the DNS-rebind check/connect split for fallback,
   hiring, Wayback CDX/replay, and citation HEAD fetches without disabling TLS
   verification.
+- The tiered httpx scraper now uses the same validated-IP connection artifact
+  for every hop while preserving HTTP/2 setup, cookies, original Host, HTTPS
+  SNI, and logical final URLs.
 
 ### Fixed
 

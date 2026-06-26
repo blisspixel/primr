@@ -1,6 +1,7 @@
 """Tests for HTTP client scrapers."""
 
 from unittest.mock import MagicMock, Mock, patch
+from urllib.parse import urlparse
 
 from primr.data.scraping.http_clients import (
     HTTP_TIERS,
@@ -8,6 +9,7 @@ from primr.data.scraping.http_clients import (
     scrape_with_requests,
 )
 from primr.data.scraping.models import ErrorType, ScrapeResult
+from primr.utils.security import SafeUrlResolution
 
 
 def _mock_response(
@@ -23,6 +25,33 @@ def _mock_response(
     response.status_code = status_code
     response.url = url
     return response
+
+
+def _host_header(url: str) -> str:
+    parsed = urlparse(url)
+    host = parsed.hostname or "example.com"
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    default_port = 443 if parsed.scheme == "https" else 80
+    if parsed.port and parsed.port != default_port:
+        return f"{host}:{parsed.port}"
+    return host
+
+
+def _resolution(url: str, request_url: str | None = None) -> SafeUrlResolution:
+    parsed = urlparse(url)
+    hostname = parsed.hostname or "example.com"
+    return SafeUrlResolution(
+        original_url=url,
+        request_url=request_url or url,
+        host_header=_host_header(url),
+        sni_hostname=hostname if parsed.scheme == "https" else None,
+        resolved_ip=hostname,
+    )
+
+
+def _allow_all(url: str):
+    return _resolution(url), None
 
 
 class TestScrapeWithRequests:
@@ -167,7 +196,10 @@ class TestScrapeWithHttpx:
         mock_client.__exit__ = Mock(return_value=False)
         mock_client.get.return_value = mock_response
 
-        with patch("httpx.Client", return_value=mock_client):
+        with (
+            patch("primr.utils.security.resolve_safe_url_for_connect", _allow_all),
+            patch("httpx.Client", return_value=mock_client),
+        ):
             result = scrape_with_httpx("https://example.com")
 
         assert isinstance(result, ScrapeResult)
@@ -194,7 +226,10 @@ class TestScrapeWithHttpx:
         mock_client.__exit__ = Mock(return_value=False)
         mock_client.get.side_effect = [redirect, final]
 
-        with patch("httpx.Client", return_value=mock_client) as mock_client_cls:
+        with (
+            patch("primr.utils.security.resolve_safe_url_for_connect", _allow_all),
+            patch("httpx.Client", return_value=mock_client) as mock_client_cls,
+        ):
             result = scrape_with_httpx("https://example.com/start")
 
         assert result.success is True
@@ -202,6 +237,52 @@ class TestScrapeWithHttpx:
         assert mock_client.get.call_count == 2
         assert mock_client.get.call_args_list[1].args[0] == "https://example.com/final"
         assert mock_client_cls.call_args.kwargs["follow_redirects"] is False
+
+    def test_connects_to_pinned_ip_with_original_host_and_sni(self):
+        mock_response = _mock_response(
+            url="https://93.184.216.34/page",
+            status_code=200,
+            headers={"Content-Type": "text/html"},
+            content=b"<html>ok</html>",
+        )
+        mock_client = MagicMock()
+        mock_client.__enter__ = Mock(return_value=mock_client)
+        mock_client.__exit__ = Mock(return_value=False)
+        mock_client.get.return_value = mock_response
+
+        def fake_resolve(url: str):
+            return _resolution(url, "https://93.184.216.34/page"), None
+
+        with (
+            patch("primr.utils.security.resolve_safe_url_for_connect", fake_resolve),
+            patch("httpx.Client", return_value=mock_client),
+        ):
+            result = scrape_with_httpx("https://example.com/page")
+
+        assert result.success is True
+        assert result.final_url == "https://example.com/page"
+        request = mock_client.get.call_args
+        assert request.args[0] == "https://93.184.216.34/page"
+        assert request.kwargs["headers"]["Host"] == "example.com"
+        assert request.kwargs["extensions"] == {"sni_hostname": "example.com"}
+
+    def test_blocks_private_rebind_result_before_connect(self):
+        mock_client = MagicMock()
+        mock_client.__enter__ = Mock(return_value=mock_client)
+        mock_client.__exit__ = Mock(return_value=False)
+
+        with (
+            patch(
+                "primr.utils.security.resolve_safe_url_for_connect",
+                return_value=(None, "Private/reserved IP addresses are blocked"),
+            ),
+            patch("httpx.Client", return_value=mock_client),
+        ):
+            result = scrape_with_httpx("https://example.com/page")
+
+        assert result.success is False
+        assert "SSRF protection" in (result.error or "")
+        mock_client.get.assert_not_called()
 
     def test_timeout_error(self):
         """Should handle timeout errors."""
@@ -212,7 +293,10 @@ class TestScrapeWithHttpx:
         mock_client.__exit__ = Mock(return_value=False)
         mock_client.get.side_effect = httpx.TimeoutException("Timeout")
 
-        with patch("httpx.Client", return_value=mock_client):
+        with (
+            patch("primr.utils.security.resolve_safe_url_for_connect", _allow_all),
+            patch("httpx.Client", return_value=mock_client),
+        ):
             result = scrape_with_httpx("https://example.com")
 
         assert result.success is False

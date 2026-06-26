@@ -880,8 +880,10 @@ manually revalidate each redirect hop. The pooled `HTTPClient` does the same
 for GET/HEAD while preserving session and retry behavior. The requests, httpx,
 and curl_cffi scraping tiers also follow redirects manually so each tier
 validates redirect targets before connecting while preserving its own transport
-behavior; equivalent IP pinning for those transport families is tracked as the
-next SSRF hardening step.
+behavior. The httpx scraping tier also connects to the validated IP literal
+with original Host and HTTPS SNI. Equivalent IP pinning for the remaining
+requests, curl_cffi, pooled HTTPClient, and browser-backed transport families
+is tracked as the next SSRF hardening step.
 
 **Protected Functions and Seams**:
 - `src/primr/data/safe_http.py`: `safe_http_get()` for fallback, hiring, and Wayback CDX/replay fetches; `async_safe_http_head()` for citation redirect resolution
