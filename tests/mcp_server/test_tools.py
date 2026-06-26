@@ -75,7 +75,40 @@ class TestEstimateRun:
         assert "estimated_cost_usd" in data
         assert "estimated_time_minutes" in data
         assert "planned_pages" in data
+        assert "budget_enforcement" in data
         assert data["mode"] == "full"
+
+    @pytest.mark.asyncio
+    async def test_estimate_run_budget_policy_tracks_execution_profile(self, server, monkeypatch):
+        handler = server.server.request_handlers[CallToolRequest]
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+
+        premium_result = await handler(
+            CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(
+                    name="estimate_run",
+                    arguments={"company_url": "https://example.com", "mode": "premium"},
+                ),
+            )
+        )
+        premium_data = json.loads(premium_result.root.content[0].text)
+        assert premium_data["budget_enforcement"]["runtime_checkpoints"] is False
+        assert "estimate-gated only" in premium_data["budget_enforcement"]["runtime"]
+
+        monkeypatch.setenv("XAI_API_KEY", "x" * 30)
+        full_result = await handler(
+            CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(
+                    name="estimate_run",
+                    arguments={"company_url": "https://example.com", "mode": "full"},
+                ),
+            )
+        )
+        full_data = json.loads(full_result.root.content[0].text)
+        assert full_data["budget_enforcement"]["runtime_checkpoints"] is True
+        assert "strategy generation" in full_data["budget_enforcement"]["checkpointed_stages"]
 
     @pytest.mark.asyncio
     async def test_estimate_run_invalid_url(self, server):

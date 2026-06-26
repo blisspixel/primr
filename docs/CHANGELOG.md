@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pre-flight estimate check only. The runner clears the process-global budget in
   a `finally` so a completed, cancelled, or failed job cannot leak budget state
   into the next job. Pinned by MCP tool-dispatch and runner regression tests.
+- Budget estimates now expose their runtime-enforcement semantics explicitly.
+  CLI help, human dry-runs, `--dry-run --json`, and MCP `estimate_run` now
+  distinguish fast full-report runtime checkpoints from premium, deep, scrape,
+  and non-fast structured paths that are currently estimate-gated only. This
+  keeps agent approval prompts and operator expectations aligned with the
+  actual spend checkpoints.
 
 ## [1.34.1] - 2026-06-26
 

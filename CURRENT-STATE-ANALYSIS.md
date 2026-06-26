@@ -441,3 +441,48 @@ implements the user's condensed takeaway for higher-leverage, higher-quality
 emitted skills. CURRENT-STATE now reflects the generator produces skills that
 are small, composable, trigger-clear, script-equipped, verifier-rich, Gotchas-
 living, and progressively disclosed.
+
+## 2026-06-26 Budget Policy Honesty
+
+The budget-control surface is now explicit about the distinction between
+estimate gates and runtime optional-stage checkpoints.
+
+Current state:
+
+- `--budget` always refuses to start when the pre-flight estimate exceeds the
+  approved ceiling.
+- Fast full-report runs have runtime checkpoints for optional spend:
+  research deepening, cross-validation enrichment, contradiction resolution,
+  and strategy generation.
+- Premium, deep, scrape, and non-fast structured paths are estimate-gated only
+  until their execution paths gain equivalent spend checkpoints.
+- CLI human output, CLI JSON output, and MCP `estimate_run` all expose this
+  distinction through one shared `core.budget_policy` helper.
+- `cli.py` no longer owns budget activation details; `core.cli_budget` keeps the
+  pinned CLI file smaller and easier to reason about.
+
+Alignment:
+
+- Matches current 2026 agent-control best practices: estimate first, bind
+  approval to explicit semantics, make high-impact spend behavior machine
+  readable, and avoid pretending a control exists where the runtime cannot yet
+  enforce it.
+- Preserves the local-first, single-job model and introduces no new provider
+  calls or paid validation.
+
+Remaining:
+
+- Add real runtime checkpoints to premium, deep, scrape, and non-fast
+  structured paths.
+- Decide whether the inert `CostGuardHook` orchestration path should receive
+  real spend accounting or be removed.
+
+Validation status:
+
+- Focused tests, full MCP suite, architecture/release integrity, Ruff, format,
+  mypy, Bandit, pip-audit, and focused budget-module coverage pass.
+- Full non-manual/non-integration suite timed out after 10 minutes twice in
+  this workspace, once with global coverage and once without. No failing
+  assertion output was produced and no Primr pytest workers remained running.
+
+Spend: `$0.00`.

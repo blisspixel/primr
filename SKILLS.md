@@ -116,3 +116,15 @@
   changelog row, `CITATION.cff`, and `primr.__version__` all agree. Let
   `tests/test_release_integrity.py` be the release-preflight witness before
   tagging for PyPI.
+
+## Budget Control Surfaces
+
+- Keep budget semantics in one pure, machine-readable helper instead of
+  repeating prose across CLI, MCP, and docs. Approval prompts need to know
+  whether a mode is pre-flight estimate-gated only or has runtime
+  optional-stage checkpoints.
+- Do not claim runtime spend enforcement until the execution path actually
+  consults `RunBudget` before optional spend. Honest estimate-only messaging is
+  safer than a fictional guardrail.
+- When moving behavior out of pinned files, lower the architecture line
+  ceilings immediately. The ratchet should preserve every shrink.

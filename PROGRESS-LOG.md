@@ -748,6 +748,58 @@ Cost:
 
 - `$0.00`. No cloud or paid validation was used.
 
+### Cycle: Budget Policy Honesty
+
+Read and realigned against `README.md`, `ROADMAP.md`, `CLAUDE.md`,
+`docs/SECURITY.md`, `docs/design/2.0-agent-control-plane.md`, `NOTES.md`,
+`QUALITY-RUBRIC.md`, and the current budget/cost-gate code paths.
+
+Implemented:
+
+- Added `core.budget_policy` as the single pure description of pre-flight and
+  runtime budget semantics for each execution profile.
+- Added `core.cli_budget` so `cli.py` no longer owns the full `--budget`
+  activation flow, shrinking the pinned CLI file instead of raising its
+  ceiling.
+- Updated CLI help, human dry-runs, `--dry-run --json`, and MCP `estimate_run`
+  to distinguish fast full-report runtime checkpoints from premium, deep,
+  scrape, and non-fast structured paths that are estimate-gated only today.
+- Tightened stale comments in `utils.run_budget` and `mcp_server/tools.py` so
+  internal docs match actual checkpoint coverage.
+- Updated README, ROADMAP, SECURITY, the 2.0 control-plane design doc,
+  changelog, and NOTES to reflect the shipped honesty fix and the remaining
+  non-fast runtime-checkpoint work.
+- Lowered file-size ratchets for `core/cli.py` and `mcp_server/tools.py` after
+  the helper extraction shrank both files.
+
+Validation:
+
+- `uv run --no-sync pytest tests/test_core/test_budget_policy.py tests/test_core/test_cli_handle_dry_run.py tests/test_core/test_cli_output.py tests/test_core/test_cli_parse_args.py tests/test_core/test_cli_handle_research.py tests/mcp_server/test_tools.py -q`
+  passed with 108 tests.
+- `uv run --no-sync pytest tests/mcp_server -q` passed with 514 tests and 2
+  skips.
+- `uv run --no-sync pytest tests/test_core/test_budget_policy.py tests/test_core/test_cli_handle_dry_run.py tests/test_core/test_cli_output.py tests/test_core/test_cli_parse_args.py tests/test_core/test_cli_handle_research.py tests/test_core/test_fast_run_gaps.py tests/test_core/test_fast_run_validation.py tests/test_core/test_fast_run_strategy.py tests/test_utils/test_run_budget.py -q`
+  passed with 146 tests.
+- `uv run --no-sync pytest tests/test_architecture.py tests/test_release_integrity.py -q`
+  passed with 13 tests.
+- `uv run ruff check src/primr/ ...` passed on source and touched tests.
+- `uv run ruff format --check src/ tests/` passed.
+- `uv run --no-sync mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'`
+  passed.
+- `uv run bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q`
+  passed with the existing `mcp_server/security.py` B108 nosec warnings.
+- `uv run --no-sync pip-audit --ignore-vuln PYSEC-2026-196` passed.
+- Focused coverage over the new/touched budget modules passed at 89.17%
+  branch coverage.
+- The full non-manual, non-integration suite and the same suite with global
+  coverage both timed out after 10 minutes in this workspace with no failing
+  assertion output and no Primr test workers left running afterward. Treat as
+  the remaining verification gap for this cycle.
+
+Cost:
+
+- `$0.00`. No cloud or paid validation was used.
+
 ## 2026-06-19
 
 ### Cycle: Business Role Archetypes For Draft Skills

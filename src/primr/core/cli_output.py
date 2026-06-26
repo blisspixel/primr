@@ -20,12 +20,18 @@ if TYPE_CHECKING:
 
 
 def cost_estimate_json(
-    estimate: CostEstimate, *, mode_label: str, ai_strategy: bool
+    estimate: CostEstimate,
+    *,
+    mode_label: str,
+    ai_strategy: bool,
+    budget_enforcement: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Structured cost estimate for ``--dry-run --json`` (estimate-first for agents)."""
     data: dict[str, object] = dataclasses.asdict(estimate)
     data["mode_label"] = mode_label
     data["includes_ai_strategy"] = ai_strategy
+    if budget_enforcement is not None:
+        data["budget_enforcement"] = budget_enforcement
     return data
 
 

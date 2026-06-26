@@ -41,6 +41,22 @@ class TestCostEstimateJson:
         d = cost_estimate_json(_estimate(), mode_label="x", ai_strategy=False)
         assert json.loads(json.dumps(d))["total_cost"] == 0.06
 
+    def test_includes_budget_enforcement_when_supplied(self):
+        budget = {
+            "preflight": "refuses to start",
+            "runtime_checkpoints": False,
+            "runtime": "estimate-gated only",
+            "checkpointed_stages": [],
+        }
+        d = cost_estimate_json(
+            _estimate(),
+            mode_label="x",
+            ai_strategy=False,
+            budget_enforcement=budget,
+        )
+
+        assert d["budget_enforcement"] == budget
+
 
 class TestResearchResultJson:
     def test_failed_when_no_path(self):

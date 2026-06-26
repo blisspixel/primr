@@ -506,6 +506,7 @@ def _build_research_estimate(arguments: dict[str, Any]) -> dict[str, Any]:
     verify = arguments.get("verify", False)
     premium_mode = mode == "premium"
     fast_mode = mode == "full" and bool(os.environ.get("XAI_API_KEY"))
+    from primr.core.budget_policy import describe_budget_enforcement
 
     # Strategy configuration
     no_ai_strategy = arguments.get("no_ai_strategy", False)
@@ -533,6 +534,11 @@ def _build_research_estimate(arguments: dict[str, Any]) -> dict[str, Any]:
         "estimated_time_range": cost_estimate.duration_minutes,
         "planned_pages": pages,
         "mode": mode,
+        "budget_enforcement": describe_budget_enforcement(
+            mode=estimator_mode,
+            fast_mode=fast_mode,
+            premium_mode=premium_mode,
+        ).as_dict(),
     }
     if include_ai_strategy:
         result["ai_strategy"] = True
@@ -742,9 +748,8 @@ async def _handle_research_company(
     max_estimated_cost_usd = arguments.get("max_estimated_cost_usd")
     destination = arguments.get("destination")
 
-    # Validate company name. The fast pipeline interpolates company_name into
-    # report filenames and into the working-folder path, so '../' / '/' /
-    # drive prefixes could otherwise write artifacts outside OUTPUT_DIR.
+    # The fast pipeline uses company_name in report and working-folder paths.
+    # Reject traversal and drive prefixes before artifacts are written.
     from primr.utils.validators import InputValidationError, validate_company_name
 
     try:
@@ -763,12 +768,8 @@ async def _handle_research_company(
             )
         ]
 
-    # Validate the optional destination directory. report_path (generate_strategy
-    # / run_qa) is path-validated, but destination was passed straight into
-    # mkdir()/copy2(), letting an authenticated HTTP client write report
-    # artifacts to an arbitrary path (e.g. /etc/cron.d) outside the managed
-    # output roots. Contain it the same way — the tool documents destination as
-    # an output directory under output/.
+    # destination is documented as output/-scoped, so validate it through the
+    # same path guard used for report_path tools before mkdir()/copy2().
     if destination is not None:
         dest_result = mcp_server.path_validator.validate(destination, client_id)
         if not dest_result.valid:
@@ -787,12 +788,8 @@ async def _handle_research_company(
             ]
         destination = str(dest_result.resolved_path)
 
-    # The estimator honors no_ai_strategy and lowers the priced cost when
-    # it is true. Production used to ignore the flag and still run strategy
-    # whenever platform was set, which bypassed max_estimated_cost_usd.
-    # Treat no_ai_strategy as authoritative for execution: when set, drop
-    # platform so the runner's `ai_strategy=platform is not None` check
-    # produces the same shape the cost cap was approved against.
+    # Keep execution shape aligned with the estimate: no_ai_strategy lowers the
+    # approved cost, so it must also suppress platform-driven strategy work.
     no_ai_strategy = bool(arguments.get("no_ai_strategy", False))
     if no_ai_strategy:
         platform = None

@@ -92,8 +92,22 @@ def run_dry_run(config: CLIConfig) -> int:
     if getattr(config, "json_output", False):
         from primr.core.cli_output import cost_estimate_json, emit_json
 
+        budget_enforcement = None
+        if config.budget_usd is not None:
+            from primr.core.budget_policy import describe_budget_enforcement
+
+            budget_enforcement = describe_budget_enforcement(
+                mode=config.mode,
+                fast_mode=use_fast_mode,
+                premium_mode=use_premium_mode,
+            ).as_dict()
         emit_json(
-            cost_estimate_json(estimate, mode_label=mode_label, ai_strategy=config.ai_strategy)
+            cost_estimate_json(
+                estimate,
+                mode_label=mode_label,
+                ai_strategy=config.ai_strategy,
+                budget_enforcement=budget_enforcement,
+            )
         )
         return 0
 
@@ -110,6 +124,23 @@ def run_dry_run(config: CLIConfig) -> int:
     print("=" * 60)
     print("")
     print(str(estimate))
+
+    if config.budget_usd is not None:
+        from primr.core.budget_policy import describe_budget_enforcement
+
+        budget_policy = describe_budget_enforcement(
+            mode=config.mode,
+            fast_mode=use_fast_mode,
+            premium_mode=use_premium_mode,
+        )
+        print("")
+        print("BUDGET POLICY")
+        print("-" * 40)
+        print(f"  Pre-flight: {budget_policy.preflight}.")
+        print(f"  Runtime: {budget_policy.runtime}.")
+        if budget_policy.checkpointed_stages:
+            stages = ", ".join(budget_policy.checkpointed_stages)
+            print(f"  Checkpointed stages: {stages}.")
 
     # Recon pre-flight step (DNS intelligence — no API cost)
     if not config.skip_recon:

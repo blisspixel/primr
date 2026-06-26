@@ -1203,9 +1203,9 @@ def _create_parser() -> argparse.ArgumentParser:
         "--budget",
         type=float,
         help=(
-            "Per-run cost ceiling in USD for standard research. Refuses to start "
-            "when the estimate exceeds it; skips optional stages (strategy "
-            "generation) once actual spend reaches it."
+            "Per-run cost ceiling in USD. Refuses to start when the estimate "
+            "exceeds it. Fast-mode full runs also checkpoint optional stages "
+            "against actual spend; other modes are estimate-gated only."
         ),
     )
     parser.add_argument("--roadmap", action="store_true", help="Show roadmap information")
@@ -2939,42 +2939,18 @@ def _handle_research(config: CLIConfig) -> int:
         os.environ.pop("PRIMR_BROWSER_HEADED", None)
 
     # --budget pre-flight gate: refuse to start a run whose estimate already
-    # exceeds the ceiling, then activate the run budget so the pipeline can
-    # skip optional stages once actual spend reaches it.
-    run_budget_active = False
-    if config.budget_usd is not None:
-        from primr.utils.cost_estimator import estimate_cost
-        from primr.utils.run_budget import set_run_budget
+    # exceeds the ceiling. Fast-mode full-report stages consult the active
+    # budget at optional spend checkpoints; other paths are estimate-gated only
+    # until they gain equivalent spend checkpoints.
+    from primr.core.cli_budget import activate_run_budget
 
-        if config.budget_usd <= 0:
-            console.error(f"--budget must be positive, got {config.budget_usd}")
-            return 1
-
-        budget_estimate = estimate_cost(
-            config.mode,
-            config.ai_strategy,
-            num_vendors=len(config.cloud_vendors),
-            lite_strategy=config.lite_strategy,
-            fast_mode=use_fast_mode,
-            premium_mode=use_premium_mode,
-            grok_tier=config.grok_tier,
-        )
-        if budget_estimate.total_cost > config.budget_usd:
-            console.error(
-                f"Estimated cost ${budget_estimate.total_cost:.2f} exceeds "
-                f"--budget ${config.budget_usd:.2f}. Not starting."
-            )
-            console.info(
-                "Raise --budget, or use a cheaper mode (--mode scrape ~$0.10, "
-                "--dry-run for the full breakdown)."
-            )
-            return 1
-
-        set_run_budget(config.budget_usd)
-        run_budget_active = True
-        console.info(
-            f"Run budget: ${config.budget_usd:.2f} (estimated ${budget_estimate.total_cost:.2f})"
-        )
+    budget_activation = activate_run_budget(
+        config,
+        fast_mode=use_fast_mode,
+        premium_mode=use_premium_mode,
+    )
+    if not budget_activation.ok:
+        return 1
 
     # Run research
     try:
@@ -3008,7 +2984,7 @@ def _handle_research(config: CLIConfig) -> int:
             continuous_reasoning=config.continuous_reasoning,
         )
     finally:
-        if run_budget_active:
+        if budget_activation.active:
             from primr.utils.run_budget import clear_run_budget
 
             clear_run_budget()

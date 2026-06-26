@@ -2,8 +2,10 @@
 
 Activates the existing :class:`~primr.agentic.hooks.CostGuardHook` accounting
 for standard (non-orchestrated) runs. The CLI sets a budget before
-``perform_research`` starts; the pipeline syncs actual session spend into it
-at stage checkpoints and skips optional stages once the ceiling is reached.
+``perform_research`` starts; fast-mode full-report stages sync actual session
+spend into it at optional-stage checkpoints and skip those stages once the
+ceiling is reached. Other execution paths remain pre-flight estimate-gated
+until they grow equivalent runtime checkpoints.
 
 The budget is process-global because a primr process runs one research job at
 a time (single-job model).
@@ -92,10 +94,10 @@ def clear_run_budget() -> None:
 def skip_stage_if_over_budget(spent_usd: float, stage_label: str) -> bool:
     """Sync absolute spend into the active budget and report whether to skip.
 
-    Shared checkpoint for the optional, expensive stages (AI strategy) across
-    both the fast and standard/premium pipelines. Returns True (and emits the
-    warn + structured log) when a budget is active and the ceiling is reached,
-    so the caller can skip the stage rather than overrun ``--budget``.
+    Shared checkpoint for optional, expensive fast-mode stages. Returns True
+    (and emits the warn + structured log) when a budget is active and the
+    ceiling is reached, so the caller can skip the stage rather than overrun
+    ``--budget``.
     """
     budget = get_run_budget()
     if budget is None:

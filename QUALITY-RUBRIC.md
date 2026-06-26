@@ -41,3 +41,25 @@ uncapped runs, and the budget is cleared in a `finally` on success,
 cancellation, or failure. Focused MCP tests, full MCP suite, Ruff, mypy,
 Bandit, pip-audit, MkDocs build, architecture/release-integrity tests, and the
 CI-shaped coverage gate pass. Coverage: 85.22% branch. Spend: `$0.00`.
+
+2026-06-26 budget policy honesty:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: budget enforcement semantics now have a single pure source of truth,
+and CLI/MCP estimate surfaces distinguish fast-path runtime checkpoints from
+estimate-only modes before an operator approves spend. The change shrinks
+pinned files and lowers their ratchets. Focused behavior tests, full MCP suite,
+fast-run budget tests, architecture/release-integrity tests, Ruff, format,
+mypy, Bandit, pip-audit, and focused coverage over the new/touched budget
+modules pass at 89.17%. The full non-manual/non-integration suite timed out
+after 10 minutes twice in this workspace without failure output; that timeout
+is recorded in `PROGRESS-LOG.md` and `CURRENT-STATE-ANALYSIS.md` as the only
+residual verification limitation. Spend: `$0.00`.

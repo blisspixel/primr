@@ -223,3 +223,18 @@ class TestJsonFlag:
         payload = json.loads(capsys.readouterr().out)  # stdout must be pure JSON
         assert "total_cost" in payload
         assert payload["mode_label"].startswith("standard")
+
+    def test_dry_run_json_includes_budget_policy_when_budget_is_set(self, capsys):
+        import json
+
+        from primr.core.cli_dryrun import run_dry_run
+
+        config = parse_args(
+            ["Acme", "https://acme.example", "--dry-run", "--json", "--premium", "--budget", "5"]
+        )
+        rc = run_dry_run(config)
+
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["budget_enforcement"]["runtime_checkpoints"] is False
+        assert "estimate-gated only" in payload["budget_enforcement"]["runtime"]

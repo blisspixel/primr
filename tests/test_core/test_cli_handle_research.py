@@ -227,6 +227,24 @@ class TestBudgetGate:
         # ...and cleared afterwards
         assert get_run_budget() is None
 
+    def test_estimate_only_budget_warning_for_premium_path(self, passing_preflight, monkeypatch):
+        from types import SimpleNamespace
+
+        monkeypatch.setattr(
+            "primr.utils.cost_estimator.estimate_cost",
+            MagicMock(return_value=SimpleNamespace(total_cost=0.79)),
+        )
+        monkeypatch.setattr(
+            "primr.core.research_agent.perform_research",
+            MagicMock(return_value="/fake/path/report.docx"),
+        )
+        warn = MagicMock()
+        monkeypatch.setattr("primr.core.cli_budget.console.warn", warn)
+
+        assert _handle_research(_config(premium_mode=True, budget_usd=2.00)) == 0
+
+        assert any("estimate-gated only" in call.args[0] for call in warn.call_args_list)
+
     def test_budget_cleared_even_when_research_raises(self, passing_preflight, monkeypatch):
         from types import SimpleNamespace
 

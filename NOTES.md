@@ -81,12 +81,14 @@ into only the CLI fast path. Triaged for upcoming cycles:
   `research_company` now passes the approved `max_estimated_cost_usd` into
   `PipelineRunner`, which activates `set_run_budget()` for the fast path and
   clears it in a `finally`.
-- **HIGH -- premium/deep/scrape/non-fast paths have no mid-run gate.** `--budget`
-  is set for all modes but only `perform_fast_research` consults it.
-  `perform_deep_research` and the structured fallback have zero budget refs, and
-  the `--budget` help implies enforcement that does not happen in premium mode.
-  Fix: either add checkpoints to those paths or make the help/pre-flight honest
-  that premium is estimate-gated only.
+- **HIGH -- premium/deep/scrape/non-fast paths have no mid-run gate.**
+  PARTIALLY FIXED in local Unreleased. `--budget` is set for all modes but only
+  `perform_fast_research` consults it. `perform_deep_research` and the
+  structured fallback have zero budget refs. **Done:** CLI help, human dry-runs,
+  `--dry-run --json`, MCP `estimate_run`, README, ROADMAP, and SECURITY now say
+  fast full-report runs have runtime optional-stage checkpoints while premium,
+  deep, scrape, and non-fast structured paths are estimate-gated only.
+  **Remaining:** add actual runtime checkpoints to those non-fast paths.
 - **MEDIUM -- `CostGuardHook` is inert.** Nothing calls `record_cost` against a
   live hook and the orchestrator passes no `estimated_cost_usd`, so `spent`
   stays 0 and it never blocks. Either wire real per-subagent cost in or drop the
