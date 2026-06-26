@@ -69,6 +69,36 @@ and make it hermetic (restore `sys.modules`/`__import__` in a `finally`, or use
 `monkeypatch`), then pin with a co-located ordering test. Until then it is a
 known intermittent.
 
+## Budget / cost-gate enforcement gaps (2026-06-25 review)
+
+The `RunBudget` primitive, the MCP pre-flight cap, and approval-token binding are
+verified correct. The gap is that mid-run *actual-spend* enforcement is wired
+into only the CLI fast path. Triaged for upcoming cycles:
+
+- **HIGH -- MCP runner sets no run budget.** `mcp_server/pipeline_runner.py` calls
+  `perform_fast_research` without `set_run_budget`, so every
+  `skip_stage_if_over_budget` checkpoint is a no-op on the networked MCP surface;
+  `max_estimated_cost_usd` only gates the pre-flight estimate. Fix: have the MCP
+  runner activate a run budget from the approved cap so actual spend is bounded
+  on the fast path too. (Pairs with the SSRF/control-plane hardening.)
+- **HIGH -- premium/deep/scrape/non-fast paths have no mid-run gate.** `--budget`
+  is set for all modes but only `perform_fast_research` consults it.
+  `perform_deep_research` and the structured fallback have zero budget refs, and
+  the `--budget` help implies enforcement that does not happen in premium mode.
+  Fix: either add checkpoints to those paths or make the help/pre-flight honest
+  that premium is estimate-gated only.
+- **MEDIUM -- `CostGuardHook` is inert.** Nothing calls `record_cost` against a
+  live hook and the orchestrator passes no `estimated_cost_usd`, so `spent`
+  stays 0 and it never blocks. Either wire real per-subagent cost in or drop the
+  dead hook.
+- **MEDIUM -- Phase 3/4 (workbook+writing, the biggest spend) has no checkpoint**
+  between the Phase-2 and Phase-5 gates, so `--budget` bounds only optional
+  stages, not total spend. Partly by design (writing is the deliverable); at
+  minimum document it honestly.
+- **LOW -- `num_vendors=0` zeroes AI-strategy cost** in the pre-flight estimate
+  (`cli.py` uses `len(config.cloud_vendors)`); clamp to >=1 when
+  `include_ai_strategy` so an empty-platform path cannot under-estimate.
+
 ## Multi-label-per-line (label_honesty / label_calibration)
 
 `extract_labeled_claims` uses `_LABEL_RE.search` (first label per line), so a
