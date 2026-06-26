@@ -2,6 +2,69 @@
 
 ## 2026-06-25
 
+### Loop cycle: Label-honesty pass (epistemic grounding, #4 / 1.x step 3)
+
+Refresh: re-read README, ROADMAP (order of operations, #4, changelog table),
+`CLAUDE.md`, `docs/design/agentic-balance.md`, `docs/design/1x-completion.md`,
+`docs/design/eval-plan.md`, `qa/label_calibration.py`, `core/fast_run_trust.py`,
+`PROGRESS-LOG.md`, and `CURRENT-STATE-ANALYSIS.md`. Researched current attribution
+/ citation-faithfulness literature (CiteEval, CiteGuard, atomic/fact-level
+calibration): the robust method is per-claim entailment judging against fetched
+source text, then downgrading confidence when the evidence does not support the
+claim; downgrade-only is the asymmetrically safe direction.
+
+Prioritize: selected the label-honesty pass because the June-2026 calibration
+eval pinned epistemic grounding as the one *measured* quality deficiency
+(`(Confirmed)` ~8% / `(Reported)` ~0% traceability) while prose graded
+consultant-grade and the two evidence-plumbing levers washed. It is the
+roadmap's highest-leverage, evidence-backed, cheapest-to-iterate quality lever,
+and the measurement half (`calibrate_claims`) already existed; only the
+mechanical downgrade was missing.
+
+Implemented:
+
+- Added `qa/label_honesty.py`: pure `plan_label_downgrades()` +
+  `apply_label_downgrades()` + orchestrating `apply_label_honesty()`. It reuses
+  the calibration harness's extract/fetch/judge seams, acts only on the
+  `untraceable` verdict (sources fetched + judged unsupported), downgrades
+  traceable-class labels to `(Estimated)`, and fails open on every other
+  verdict. Judgment decides; the rewrite is mechanical, no content regex.
+- Added a defaulted `label_span` to `LabeledClaim` so the exact label token can
+  be rewritten without re-scanning (backward-compatible; existing constructors
+  and tests unaffected).
+- Wired an opt-in `_maybe_apply_label_honesty()` into `polish_and_gate_fast_report`
+  behind `PRIMR_LABEL_HONESTY`. Default-off keeps the standard run
+  byte-identical; on change it recomputes QA metrics, logs a console line, and
+  writes a `_label_honesty.json` audit sidecar. Wrapped so a label audit can
+  never break shipping.
+- Updated README/CONFIG (new env flag, documented as fail-safe and not a gate),
+  ROADMAP (#4, order-of-operations step 3, changelog row, Current State),
+  CHANGELOG (1.34.0), `1x-completion.md`, and `eval-plan.md`.
+- Release bump to `1.34.0` (new opt-in feature) across pyproject, `__version__`,
+  CITATION.cff, ROADMAP, and `uv.lock`.
+
+Validation: `tests/test_qa/test_label_honesty.py` (19 new, mocked fetch/judge),
+`tests/test_core/test_fast_run_trust.py` (label-honesty seam: gating, audit
+sidecar, fail-safety, QA recompute), plus `tests/test_qa/` and
+`tests/test_architecture.py` regression (362 passed). Ruff format + check and
+CI-shaped mypy clean on every touched file. Full CI-equivalent gate run before
+push.
+
+Spend: `$0.00`. The pass is free to validate with injected seams; no paid run
+was launched (the live pass is opt-in and bounded).
+
+Self-review: correctness Strong (pure transform, exact-span rewrite refused on
+drift, idempotent); security Strong (reuses the SSRF-guarded fetch seam, no new
+egress, no secrets); performance Strong (fetches deduped, bounded per-label,
+default path untouched); readability Strong (small module, doctrine cited in the
+docstring); maintainability Strong (one seam, no monster growth, no content
+regex per agentic-balance). Residual: the agreement-validated calibration
+baseline that would justify promoting the pass toward default.
+
+This slice ships as `1.34.0` and folds in the previously local-only
+availability-to-backend bridge commit; both advance the top of the roadmap
+without any paid validation.
+
 ### Roadmap note: security/profile rules
 
 Reviewed an external secure-agent ruleset as research input only and kept it

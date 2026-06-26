@@ -49,7 +49,15 @@ opt-in and default-safe today). Run #1 any time — it's nearly free and arms a 
 > label-honesty change is validated without expensive prose A/Bs. Doctrine-clean
 > fix: judge whether each cited source supports the claim (model judgment + ground
 > truth, like the shipped `--verify`) and *downgrade* labels that don't trace —
-> judgment decides, the downgrade is mechanical; not a regex.
+> judgment decides, the downgrade is mechanical; not a regex. **SHIPPED opt-in**
+> (`PRIMR_LABEL_HONESTY=1`, `qa/label_honesty.py`): the pre-ship pass re-judges
+> each `(Confirmed)`/`(Reported)` claim against its cited source and rewrites the
+> untraceable ones to `(Estimated)`. Fail-safe by construction: confidence only
+> lowers, `no_source`/`unfetchable`/uncertain verdicts keep the label, and a
+> `_label_honesty.json` audit records every change. Default-off, never blocks
+> shipping; the open follow-up is the agreement-validated calibration baseline
+> that would justify promoting it toward default (a hard gate is never armed from
+> a single noisy judge).
 
 **Hypothesis:** the confidence labels primr emits are traceable to fetched source
 text often enough to be trustworthy; we can set `FAIL_CALIBRATION`'s threshold

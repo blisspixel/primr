@@ -81,6 +81,19 @@ Notes on continuous reasoning:
 - Quantified quality benefit: bare leaked-instruction lines in the final report drop from an average of 5.3 (fresh-call) to 1.0 (continuous) — about 81% fewer. Hard count, not LLM-judge opinion.
 - Env var precedence: `PRIMR_CONTINUOUS_REASONING` overrides the CLI flag if explicitly set, so you can disable across all runs on a machine without changing CLI invocations.
 
+### Confidence-Label Honesty
+
+A June-2026 calibration pass measured that primr's `(Confirmed)` / `(Reported)`
+labels traced to their cited source only ~0-8% of the time: the prose reads
+authoritative but the labels overclaim their grounding. The label-honesty pass
+closes that gap. It is opt-in, fail-safe, and **not a shipping gate**: it
+adjusts content (lowers a label) only on positive evidence of an overclaim, and
+never withholds a deliverable.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PRIMR_LABEL_HONESTY` | When set to `1` / `true` / `yes`, runs a pre-ship pass that re-judges each `(Confirmed)` / `(Reported)` claim against its cited source (reusing the calibration harness's fetch + judge seams) and downgrades the ones that do not trace to `(Estimated)`. The downgrade only ever lowers confidence; `no_source`, `unfetchable`, and uncertain verdicts keep the original label (fail open). A `_label_honesty.json` audit sidecar records every change, and any failure leaves the report untouched. Adds judge LLM calls + source fetches, so it is default-off and the standard run is byte-identical until enabled. | unset (off) |
+
 ### Artifact Shipping Gates
 
 Final reports and strategy documents pass through deterministic ship-time gates

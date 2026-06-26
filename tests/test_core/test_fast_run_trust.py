@@ -13,7 +13,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from primr.core.fast_run_trust import FastTrustResult, polish_and_gate_fast_report
+from primr.core.fast_run_trust import (
+    FastTrustResult,
+    _maybe_apply_label_honesty,
+    polish_and_gate_fast_report,
+)
+from primr.qa.label_honesty import LabelDowngrade, LabelHonestyResult
 
 CLEAN_QA = {
     "confidence_labels": 12,
@@ -152,3 +157,76 @@ class TestDiagnostics:
         result = seams["call"]()
         assert result.report_content  # run completed
         assert not (seams["tmp"] / "_shipping_repair.json").exists()
+
+
+def _downgrade_result(content: str, *, changed: bool) -> LabelHonestyResult:
+    downgrades = (
+        (
+            LabelDowngrade(
+                section="Overview",
+                original_label="Confirmed",
+                new_label="Estimated",
+                span=(0, 0),
+                sentence="a sourced claim its source did not support",
+            ),
+        )
+        if changed
+        else ()
+    )
+    return LabelHonestyResult(report_content=content, downgrades=downgrades)
+
+
+class TestLabelHonestyHelper:
+    """The opt-in label-honesty seam: gating, audit sidecar, fail-safety."""
+
+    def test_default_off_is_a_noop(self, monkeypatch, tmp_path):
+        monkeypatch.delenv("PRIMR_LABEL_HONESTY", raising=False)
+        called = MagicMock()
+        monkeypatch.setattr("primr.qa.label_honesty.apply_label_honesty", called)
+        out = _maybe_apply_label_honesty("## S\nbody", str(tmp_path))
+        assert out == "## S\nbody"
+        called.assert_not_called()
+        assert not (tmp_path / "_label_honesty.json").exists()
+
+    def test_flag_on_applies_downgrade_and_writes_sidecar(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("PRIMR_LABEL_HONESTY", "1")
+        monkeypatch.setattr(
+            "primr.qa.label_honesty.apply_label_honesty",
+            lambda content: _downgrade_result("## S\nbody (Estimated)", changed=True),
+        )
+        out = _maybe_apply_label_honesty("## S\nbody (Confirmed)", str(tmp_path))
+        assert out == "## S\nbody (Estimated)"
+        sidecar = json.loads((tmp_path / "_label_honesty.json").read_text(encoding="utf-8"))
+        assert sidecar["downgraded_count"] == 1
+
+    def test_flag_on_no_change_still_audits(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("PRIMR_LABEL_HONESTY", "true")
+        monkeypatch.setattr(
+            "primr.qa.label_honesty.apply_label_honesty",
+            lambda content: _downgrade_result(content, changed=False),
+        )
+        out = _maybe_apply_label_honesty("## S\nbody (Confirmed)", str(tmp_path))
+        assert out == "## S\nbody (Confirmed)"
+        # The audit sidecar is written even when nothing was downgraded.
+        sidecar = json.loads((tmp_path / "_label_honesty.json").read_text(encoding="utf-8"))
+        assert sidecar["downgraded_count"] == 0
+
+    def test_failure_never_breaks_shipping(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("PRIMR_LABEL_HONESTY", "yes")
+        monkeypatch.setattr(
+            "primr.qa.label_honesty.apply_label_honesty",
+            MagicMock(side_effect=RuntimeError("judge offline")),
+        )
+        out = _maybe_apply_label_honesty("## S\nbody (Confirmed)", str(tmp_path))
+        assert out == "## S\nbody (Confirmed)"  # original content preserved
+
+    def test_full_stage_recomputes_qa_after_downgrade(self, seams, monkeypatch):
+        monkeypatch.setenv("PRIMR_LABEL_HONESTY", "1")
+        monkeypatch.setattr(
+            "primr.qa.label_honesty.apply_label_honesty",
+            lambda content: _downgrade_result(content + "\n[honesty]", changed=True),
+        )
+        result = seams["call"]()
+        assert "[honesty]" in result.report_content
+        # QA recomputed once for the base report and again after the downgrade.
+        assert seams["qa"].call_count == 2

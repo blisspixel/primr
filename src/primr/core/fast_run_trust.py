@@ -28,6 +28,39 @@ from primr.utils.logging_config import get_logger
 
 logger = get_logger("core.fast_run_trust")
 
+_LABEL_HONESTY_ENV = "PRIMR_LABEL_HONESTY"
+_TRUTHY = frozenset({"1", "true", "yes"})
+
+
+def _maybe_apply_label_honesty(report_content: str, folder_path: str) -> str:
+    """Optionally downgrade ungrounded confidence labels (opt-in, fail-safe).
+
+    Closes the measured grounding gap (1.x step 3 / roadmap #4): a (Confirmed)
+    or (Reported) label whose cited source is judged not to support the claim
+    is rewritten to (Estimated). Gated by ``PRIMR_LABEL_HONESTY`` because it
+    adds judge LLM calls + source fetches; default-off keeps the standard run
+    byte-identical until eval validates the recipe. An audit sidecar is written
+    whenever the pass runs, and any failure leaves the report untouched -- a
+    label audit must never break shipping.
+    """
+    if os.getenv(_LABEL_HONESTY_ENV, "").strip().lower() not in _TRUTHY:
+        return report_content
+    try:
+        from primr.qa.label_honesty import apply_label_honesty
+
+        result = apply_label_honesty(report_content)
+        with open(os.path.join(folder_path, "_label_honesty.json"), "w", encoding="utf-8") as _lf:
+            json.dump(result.to_dict(), _lf, indent=2)
+        if result.changed:
+            console.info(
+                f"Label honesty: downgraded {len(result.downgrades)} "
+                "ungrounded label(s) to (Estimated)"
+            )
+            return result.report_content
+    except Exception as _honesty_err:
+        logger.debug("Label-honesty pass skipped: %s", _honesty_err)
+    return report_content
+
 
 @dataclass(frozen=True)
 class FastTrustResult:
@@ -104,6 +137,17 @@ def polish_and_gate_fast_report(
                 report_content,
                 unresolved_contradictions=unresolved_contradictions,
             )
+    # Opt-in label-honesty pass: downgrade confidence labels that don't trace to
+    # their cited source. Runs on the final, citation-repaired content so the
+    # labels are audited exactly as they ship. Default-off; recompute QA when it
+    # changes anything (a downgrade shifts the per-label distribution).
+    honest_content = _maybe_apply_label_honesty(report_content, folder_path)
+    if honest_content != report_content:
+        report_content = honest_content
+        qa_metrics = _compute_fast_report_qa_metrics(
+            report_content,
+            unresolved_contradictions=unresolved_contradictions,
+        )
     qa_parts = [
         f"labels={qa_metrics['confidence_labels']}",
         f"cites={qa_metrics['citations_used']}/{qa_metrics['citations_defined']}",

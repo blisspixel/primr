@@ -78,6 +78,10 @@ class LabeledClaim:
     section: str
     cite_numbers: tuple[int, ...]
     source_urls: tuple[str, ...]  # cite numbers resolved against the appendix
+    # Absolute (start, end) offsets of the label token in the report, so a
+    # consumer (the label-honesty pass) can rewrite this exact occurrence
+    # without re-scanning. (-1, -1) when the claim was built directly.
+    label_span: tuple[int, int] = (-1, -1)
 
 
 @dataclass(frozen=True)
@@ -251,9 +255,11 @@ def extract_labeled_claims(
         label = label_match.group(1)
         if per_label_counts.get(label, 0) >= max_per_label:
             continue
-        section = _section_at(line_matches[index].start())
+        line_start = line_matches[index].start()
+        section = _section_at(line_start)
         if section.lower() in ("sources", "references", "citations"):
             continue
+        label_span = (line_start + label_match.start(), line_start + label_match.end())
 
         if _STANDALONE_LABEL_RE.match(line):
             claim_text = _claim_block_above(lines, index)
@@ -274,6 +280,7 @@ def extract_labeled_claims(
                 section=section,
                 cite_numbers=tuple(cite_numbers),
                 source_urls=urls,
+                label_span=label_span,
             )
         )
         per_label_counts[label] = per_label_counts.get(label, 0) + 1

@@ -29,6 +29,33 @@ to generate useful, grounded Agent Skills with clean frontmatter, substantive
 workflow bodies, concrete output formats, role evidence, and safe bundled
 resources.
 
+## 2026-06-25 Quality Slice: Label-Honesty Pass (1.x #4 / step 3)
+
+The roadmap's order of operations puts 1.x quality completion ahead of the 2.0
+pillars, and the June-2026 calibration eval pinned a single *measured* quality
+deficiency: epistemic grounding. `(Confirmed)` labels traced to their cited
+source only ~8% of the time and `(Reported)` ~0%. The measurement half already
+existed (`qa/label_calibration.py`); this slice ships the mechanical fix.
+
+Shipped in this slice:
+
+- `qa/label_honesty.py`: a pure, injectable pass that re-judges each
+  traceable-class claim against its cited source and downgrades the untraceable
+  ones to `(Estimated)`. Judgment decides whether the source supports the claim;
+  the downgrade is mechanical and fail-safe (confidence only lowers, every other
+  verdict keeps the label). `LabeledClaim` gained a `label_span` so the exact
+  occurrence is rewritten without re-scanning.
+- Opt-in wiring into the trust stage behind `PRIMR_LABEL_HONESTY`; default-off,
+  byte-identical standard run, `_label_honesty.json` audit sidecar, never blocks
+  shipping.
+- Released as `1.34.0` (new opt-in feature).
+
+This is doctrine-clean per `agentic-balance.md`: determinism on the rewrite,
+judgment on whether the source supports the claim, quality measured by
+calibration, and no hard gate armed from a lone judge. The open follow-up is
+the agreement-validated calibration baseline that would justify promoting the
+pass toward default.
+
 ## Current Roadmap Focus
 
 Backend freedom is the active 2.0 unblocker. The completed local slices now

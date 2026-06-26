@@ -7,8 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.0] - 2026-06-25
+
 ### Added
 
+- **Label-honesty pass (`PRIMR_LABEL_HONESTY=1`).** A new opt-in pre-ship pass
+  that closes the measured epistemic-grounding gap: a `(Confirmed)` or
+  `(Reported)` claim whose cited source is judged not to substantively support
+  it is downgraded to `(Estimated)`. Model judgment decides whether the source
+  supports the claim (reusing the calibration harness's injectable judge); the
+  downgrade is a mechanical, fail-safe rewrite that only ever lowers confidence,
+  never a content regex. Every other verdict (`no_source`, `unfetchable`,
+  `traceable`, inference labels) fails open, so the pass changes a label only on
+  positive evidence of an overclaim. Default-off keeps the standard run
+  byte-identical; when enabled it writes a `_label_honesty.json` audit sidecar
+  and never blocks shipping. New `qa/label_honesty.py` module; `LabeledClaim`
+  now carries the label's source span so the exact occurrence can be rewritten.
 - Capability routing can now consume provider availability snapshots through
   `backend_with_availability()` and `backends_with_availability()`. The adapter
   marks backend rows unavailable from quota/configuration decisions and attaches

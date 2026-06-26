@@ -57,6 +57,17 @@ calibration harness; traceability degradation reverts the iteration).
   trust summary (today: JSON + console only)
 - v2 calibration check: Estimated/Hypothesis claims must NOT be
   verbatim-from-source (the mislabel in the other direction)
+- ~~Act on the measurement: downgrade ungrounded labels at ship time~~ -
+  DONE (opt-in): `qa/label_honesty.py` + `PRIMR_LABEL_HONESTY=1` wire a
+  pre-ship pass into the trust stage that re-judges each `(Confirmed)`/
+  `(Reported)` claim against its cited source (reusing the calibration
+  harness's extract/fetch/judge seams) and rewrites the ones that don't
+  trace to `(Estimated)`. The downgrade is mechanical and fail-safe
+  (confidence only lowers; `no_source`/`unfetchable`/uncertain verdicts keep
+  the label), writes a `_label_honesty.json` audit, and never blocks
+  shipping. Default-off keeps the standard run byte-identical until the
+  agreement-validated baseline above justifies promotion; a hard gate is
+  never armed from a lone judge.
 
 Original build spec (kept for reference):
 
