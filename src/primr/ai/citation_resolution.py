@@ -27,7 +27,7 @@ async def resolve_redirect_url(url: str, timeout: float = 10.0, retries: int = 2
     """
     import httpx
 
-    from primr.utils.security import is_safe_url, validate_final_url_after_redirect
+    from primr.data.safe_http import async_safe_http_head
 
     try:
         parsed = urlparse(url)
@@ -40,27 +40,19 @@ async def resolve_redirect_url(url: str, timeout: float = 10.0, retries: int = 2
     if parsed.scheme != "https":
         return url
 
-    # Defense in depth: SSRF check on the initial URL before chasing redirects.
-    safe_initial, initial_reason = is_safe_url(url)
-    if not safe_initial:
-        logger.info("Citation resolver: blocking %s (%s)", url, initial_reason)
-        return url
-
     for attempt in range(retries + 1):
         try:
-            async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
-                response = await client.head(url)
-                final_url = str(response.url)
-
-                is_safe, redirect_error = validate_final_url_after_redirect(final_url)
-                if not is_safe:
-                    logger.warning(
-                        f"Redirect to unsafe URL blocked: {final_url} - {redirect_error}"
-                    )
-                    return url
-
+            _status, final_url, blocked = await async_safe_http_head(
+                url,
+                timeout=timeout,
+                log_prefix="citation-resolver",
+            )
+            if blocked:
+                return url
+            if final_url:
                 logger.debug(f"Resolved URL: {url[:50]}... -> {final_url[:80]}...")
                 return final_url
+            return _extract_domain_from_redirect(url)
         except (TimeoutError, httpx.TimeoutException):
             if attempt < retries:
                 logger.debug(f"URL resolution timeout (attempt {attempt + 1}), retrying...")

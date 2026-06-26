@@ -69,6 +69,10 @@
   centralize only the redirect policy. Keep each transport in place, but make
   every tier use `allow_redirects=False`, validate each resolved `Location`
   before connecting, and pin tests that unsafe redirects are never fetched.
+- For async metadata resolvers, keep retry and fallback semantics in the caller.
+  Put only the bounded network primitive in the safe HTTP seam, return an
+  explicit guard-block signal, and let ordinary network exceptions propagate to
+  the caller's existing retry policy.
 
 ## Skill Pack Generation
 

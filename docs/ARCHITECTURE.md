@@ -871,16 +871,17 @@ def validate_url_for_request(url: str, allow_private_ips: bool = False) -> tuple
 
 The higher-level scraping tiers call `validate_url_for_request()` before
 network access. Shared fail-open and archived-content recovery helpers use
-`src/primr/data/safe_http.py:safe_http_get()`, which follows redirects manually
-and revalidates each hop before connecting. Discovery helpers keep their
-`requests.Response` contract and manually revalidate each redirect hop. The
-pooled `HTTPClient` does the same for GET/HEAD while preserving session and
-retry behavior. The requests, httpx, and curl_cffi scraping tiers also follow
-redirects manually so each tier validates redirect targets before connecting
-while preserving its own transport behavior.
+`src/primr/data/safe_http.py:safe_http_get()`, while Google grounding citation
+resolution uses `async_safe_http_head()`. Both safe HTTP helpers follow
+redirects manually and revalidate each hop before connecting. Discovery helpers
+keep their `requests.Response` contract and manually revalidate each redirect
+hop. The pooled `HTTPClient` does the same for GET/HEAD while preserving
+session and retry behavior. The requests, httpx, and curl_cffi scraping tiers
+also follow redirects manually so each tier validates redirect targets before
+connecting while preserving its own transport behavior.
 
 **Protected Functions and Seams**:
-- `src/primr/data/safe_http.py`: `safe_http_get()` for fallback, hiring, and Wayback CDX/replay fetches
+- `src/primr/data/safe_http.py`: `safe_http_get()` for fallback, hiring, and Wayback CDX/replay fetches; `async_safe_http_head()` for citation redirect resolution
 - `src/primr/data/http_client.py`: `HTTPClient.get()` and `HTTPClient.head()`
 - `src/primr/data/scraping/wayback.py`: `_fetch()` delegates to `safe_http_get()`
 - `src/primr/data/scraping/net.py`: `make_request()` and `head_exists()` for sitemap and URL-existence checks

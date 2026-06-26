@@ -27,7 +27,7 @@ The per-URL filter (`utils/security.is_safe_url`, numeric-host backstop,
 IPv6-mapped/ULA/link-local/metadata handling) is verified solid. The two gaps
 are architectural and worth a dedicated, well-tested cycle.
 
-- **HIGH, intermediate-redirect SSRF (systemic). PARTIALLY FIXED in 1.34.1.**
+- **FIXED in local Unreleased -- intermediate-redirect SSRF (systemic).**
   Every fetch seam set `follow_redirects=True` and validated only the FINAL url,
   so an attacker page could `302 -> http://127.0.0.1:...` (or `169.254.169.254`)
   and the internal hop was connected even though the final url was public
@@ -42,9 +42,10 @@ are architectural and worth a dedicated, well-tested cycle.
   GET/HEAD redirect hop manually while preserving its pooled `requests.Session`
   behavior; `data/scraping/http_clients.py` now validates every redirect hop
   manually for the requests, httpx, and curl_cffi tiers while preserving each
-  tier's transport behavior. **Remaining seam to migrate:** `ai/citation_resolution.py`
-  (async `HEAD`, narrowly gated to `vertexaisearch.cloud.google.com` so
-  low-risk; needs an async variant of the helper).
+  tier's transport behavior; `ai/citation_resolution.py` now resolves Google
+  grounding redirects through `data/safe_http.py:async_safe_http_head()`, which
+  validates the initial URL and each redirect target before connecting. The
+  intermediate-redirect migration is complete.
 - **MED/HIGH -- DNS-rebind TOCTOU.** `is_safe_url` resolves + validates IPs but
   returns the hostname; the client re-resolves at connect time, so a low-TTL
   attacker domain can answer public to the check and internal to the connect.

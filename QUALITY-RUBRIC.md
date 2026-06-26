@@ -215,3 +215,24 @@ request across all three tiers. Focused tiered scraper and SSRF tests pass with
 56 tests; Ruff, format check, architecture/release integrity, mypy, Bandit,
 pip-audit, MkDocs build, diff hygiene, and the CI-shaped coverage gate also
 pass. Coverage: 85.22% branch. Spend: `$0.00`.
+
+2026-06-26 async citation redirect per-hop guard:
+
+| Category | Score |
+|----------|------:|
+| Correctness | 5 |
+| Security and Privacy | 5 |
+| Simplicity | 5 |
+| Maintainability | 5 |
+| Performance and Cost | 5 |
+| Verification | 5 |
+
+Rationale: Google grounding citation resolution now uses a HEAD-only async safe
+HTTP helper that validates each redirect target before connecting while
+preserving the resolver's retry and decoded-domain fallback behavior. Tests
+prove safe relative redirects still work, unsafe internal redirects are blocked
+before a second request, and network failures still propagate to the caller.
+Focused safe HTTP, citation-resolution, and egress-guardrail tests pass with 76
+tests; Ruff, format check, architecture/release integrity, mypy, Bandit,
+pip-audit, MkDocs build, diff hygiene, and the CI-shaped coverage gate also
+pass. Coverage: 85.22% branch. Spend: `$0.00`.

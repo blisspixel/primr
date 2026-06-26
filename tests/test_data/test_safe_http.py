@@ -1,4 +1,4 @@
-"""Tests for the SSRF-safe HTTP GET helper.
+"""Tests for the SSRF-safe HTTP helpers.
 
 The security contract under test: redirects are followed MANUALLY and every hop
 (initial URL and each redirect target) is validated through the central SSRF
@@ -13,8 +13,9 @@ Tests are hermetic: httpx ``MockTransport`` provides responses (no network) and
 from __future__ import annotations
 
 import httpx
+import pytest
 
-from primr.data.safe_http import safe_http_get
+from primr.data.safe_http import async_safe_http_head, safe_http_get
 
 
 def _transport(handler):
@@ -142,3 +143,84 @@ def test_request_failure_returns_none(monkeypatch):
         None,
         None,
     )
+
+
+@pytest.mark.asyncio
+async def test_async_head_returns_final_url_on_safe_direct_response(monkeypatch):
+    monkeypatch.setattr("primr.data.safe_http.is_safe_url", lambda u: (True, None))
+
+    def handler(request):
+        return httpx.Response(200)
+
+    status, final, blocked = await async_safe_http_head(
+        "https://public.example/page", transport=_transport(handler)
+    )
+    assert status == 200
+    assert final == "https://public.example/page"
+    assert blocked is False
+
+
+@pytest.mark.asyncio
+async def test_async_head_follows_safe_relative_redirect(monkeypatch):
+    checked: list[str] = []
+
+    def fake_is_safe(url: str):
+        checked.append(url)
+        return (True, None)
+
+    monkeypatch.setattr("primr.data.safe_http.is_safe_url", fake_is_safe)
+
+    def handler(request):
+        if request.url.path == "/start":
+            return httpx.Response(302, headers={"location": "/final"})
+        return httpx.Response(204)
+
+    status, final, blocked = await async_safe_http_head(
+        "https://public.example/start", transport=_transport(handler)
+    )
+    assert status == 204
+    assert final == "https://public.example/final"
+    assert blocked is False
+    assert "https://public.example/final" in checked
+
+
+@pytest.mark.asyncio
+async def test_async_head_blocks_unsafe_redirect_before_connect(monkeypatch):
+    checked: list[str] = []
+
+    def fake_is_safe(url: str):
+        checked.append(url)
+        if "169.254.169.254" in url:
+            return (False, "metadata endpoint")
+        return (True, None)
+
+    monkeypatch.setattr("primr.data.safe_http.is_safe_url", fake_is_safe)
+
+    connected: list[str] = []
+
+    def handler(request):
+        connected.append(str(request.url))
+        if request.url.host == "public.example":
+            return httpx.Response(
+                302,
+                headers={"location": "http://169.254.169.254/latest/meta-data"},
+            )
+        return httpx.Response(200)
+
+    status, final, blocked = await async_safe_http_head(
+        "https://public.example/start", transport=_transport(handler)
+    )
+    assert (status, final, blocked) == (None, None, True)
+    assert any("169.254.169.254" in url for url in checked)
+    assert all("169.254.169.254" not in url for url in connected)
+
+
+@pytest.mark.asyncio
+async def test_async_head_network_failure_propagates(monkeypatch):
+    monkeypatch.setattr("primr.data.safe_http.is_safe_url", lambda u: (True, None))
+
+    def handler(request):
+        raise httpx.ConnectError("boom")
+
+    with pytest.raises(httpx.ConnectError):
+        await async_safe_http_head("https://public.example/x", transport=_transport(handler))

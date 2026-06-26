@@ -565,9 +565,9 @@ Current state:
   and every redirect hop before connecting.
 - Wayback keeps its existing target URL validation before it asks CDX for
   snapshots.
-- `NOTES.md` no longer lists Wayback among the remaining intermediate-redirect
-  SSRF seams; later cycles also migrated discovery, pooled HTTPClient, and
-  tiered HTTP scraper redirects. The async citation resolver remains.
+- `NOTES.md` records Wayback as migrated for intermediate-redirect SSRF;
+  later cycles also migrated discovery, pooled HTTPClient, tiered HTTP scraper
+  redirects, and async citation redirect resolution.
 
 Validation status:
 
@@ -680,8 +680,8 @@ Current state:
   preserved.
 - Requests headers/profiles, httpx HTTP/2 setup, cookies, and curl_cffi
   impersonation remain tier-specific.
-- `NOTES.md` now lists only `ai/citation_resolution.py` as a remaining
-  intermediate-redirect SSRF migration seam.
+- `NOTES.md` now records the tiered HTTP scrapers as migrated, with citation
+  resolution handled by a later async-safe HEAD slice.
 
 Validation status:
 
@@ -691,6 +691,42 @@ Validation status:
   the repo's existing non-strict link warnings, and the generated `_site`
   directory was removed.
 - The CI-shaped non-manual coverage gate passed with `10232 passed, 39 skipped,
+  5 deselected` and 85.22% branch coverage.
+
+Spend: `$0.00`.
+
+## 2026-06-26 Async Citation Redirect Per-Hop Guard
+
+Google grounding citation resolution now validates redirect hops before
+connecting.
+
+Current state:
+
+- `data.safe_http.async_safe_http_head()` provides an async HEAD variant of the
+  safe HTTP redirect policy.
+- The helper validates the initial URL and every resolved `Location` through
+  `is_safe_url()` before connecting.
+- Network failures still propagate to `ai.citation_resolution` so its existing
+  retry and decoded-domain fallback behavior remains intact.
+- SSRF blocks are returned as explicit guard blocks, so the citation resolver
+  preserves the original Google grounding URL instead of treating the block as
+  a transient fetch failure.
+- `NOTES.md`, ROADMAP, `docs/SECURITY.md`, and `docs/ARCHITECTURE.md` now
+  record the intermediate-redirect migration as complete. DNS-rebind IP pinning
+  remains the next SSRF hardening item.
+
+Validation status:
+
+- Focused safe HTTP, citation-resolution, and egress-guardrail tests pass with
+  76 tests.
+- Ruff check, Ruff format check, architecture/release-integrity tests, mypy,
+  Bandit, pip-audit, MkDocs build, and diff hygiene pass. MkDocs emitted only
+  the repo's existing non-strict link warnings, and the generated `_site`
+  directory was removed.
+- The first full coverage attempt hit the 15-minute tool timeout and left no
+  usable `.coverage` artifact after the orphaned pytest process exited, so it
+  was rerun with a longer timeout.
+- The CI-shaped non-manual coverage gate passed with `10236 passed, 39 skipped,
   5 deselected` and 85.22% branch coverage.
 
 Spend: `$0.00`.

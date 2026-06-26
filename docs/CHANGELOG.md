@@ -38,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `scrape_with_curl_cffi`) now follow redirects manually and validate every
   redirect target before connecting while preserving each tier's transport
   identity and raw-content result contract.
+- Google grounding citation resolution now uses
+  `data/safe_http.py:async_safe_http_head()`, so async HEAD resolution validates
+  every redirect hop before connecting and returns the original citation URL
+  instead of falling back when the SSRF guard blocks a hop.
 
 ### Fixed
 
@@ -66,9 +70,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hop through the central SSRF guard before connecting; `fallback_sources` and
   `hiring_signals` delegate to it, which also removes the duplicated
   keep-in-sync helpers. Pinned by a hermetic test that asserts an internal
-  redirect target is validated and never connected to. Remaining fetch seams
-  (scrape-tier clients, the async citation resolver) are tracked for migration
-  to the same helper.
+  redirect target is validated and never connected to. Later Unreleased
+  hardening extends the same per-hop policy to the remaining fetch seams.
 
 ## [1.34.0] - 2026-06-25
 

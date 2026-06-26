@@ -3,7 +3,7 @@
 primr builds outbound URLs from data the LLM and discovery influence — gap-query
 results, sister-subdomains, careers pages, fallback sources. The invariant is
 that *every* fetch entry point runs the SSRF guard (`is_safe_url`) on the URL
-(and the post-redirect final URL) before touching the network, so an
+(and each redirect target where redirects are followed) before touching the network, so an
 attacker-controlled page/redirect can't pivot primr into loopback / RFC1918 /
 link-local / cloud-metadata endpoints — even though the original company URL
 passed the MCP validator.

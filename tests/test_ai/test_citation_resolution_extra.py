@@ -47,30 +47,34 @@ class TestSafetyGates:
     async def test_ssrf_blocks_initial_url(self):
         url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc"
         with patch(
-            "primr.utils.security.is_safe_url",
+            "primr.data.safe_http.is_safe_url",
             return_value=(False, "private CIDR"),
         ):
             assert await resolve_redirect_url(url) == url
 
     @pytest.mark.asyncio
-    async def test_final_url_blocked_returns_original(self):
+    async def test_unsafe_redirect_hop_returns_original(self):
         url = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/abc"
-        response = MagicMock(url="http://internal.local/xyz")
+        response = MagicMock(
+            url=url,
+            status_code=302,
+            headers={"location": "http://internal.local/xyz"},
+        )
         async_client = MagicMock()
         async_client.head = AsyncMock(return_value=response)
         async_client.__aenter__ = AsyncMock(return_value=async_client)
         async_client.__aexit__ = AsyncMock(return_value=None)
 
         with (
-            patch("primr.utils.security.is_safe_url", return_value=(True, "")),
             patch(
-                "primr.utils.security.validate_final_url_after_redirect",
-                return_value=(False, "private network"),
+                "primr.data.safe_http.is_safe_url",
+                side_effect=[(True, ""), (False, "private network")],
             ),
             patch("httpx.AsyncClient", return_value=async_client),
         ):
             result = await resolve_redirect_url(url)
         assert result == url
+        assert async_client.head.call_count == 1
 
 
 # ---------------------------------------------------------------------------
@@ -174,7 +178,7 @@ class TestTimeoutFallback:
         async_client.__aexit__ = AsyncMock(return_value=None)
 
         with (
-            patch("primr.utils.security.is_safe_url", return_value=(True, "")),
+            patch("primr.data.safe_http.is_safe_url", return_value=(True, "")),
             patch("httpx.AsyncClient", return_value=async_client),
             patch("asyncio.sleep", new=AsyncMock(return_value=None)),
         ):
@@ -193,7 +197,7 @@ class TestTimeoutFallback:
         async_client.__aexit__ = AsyncMock(return_value=None)
 
         with (
-            patch("primr.utils.security.is_safe_url", return_value=(True, "")),
+            patch("primr.data.safe_http.is_safe_url", return_value=(True, "")),
             patch("httpx.AsyncClient", return_value=async_client),
             patch("asyncio.sleep", new=AsyncMock(return_value=None)),
         ):
@@ -242,11 +246,7 @@ async def test_happy_path_returns_resolved_url():
     async_client.__aexit__ = AsyncMock(return_value=None)
 
     with (
-        patch("primr.utils.security.is_safe_url", return_value=(True, "")),
-        patch(
-            "primr.utils.security.validate_final_url_after_redirect",
-            return_value=(True, ""),
-        ),
+        patch("primr.data.safe_http.is_safe_url", return_value=(True, "")),
         patch("httpx.AsyncClient", return_value=async_client),
     ):
         result = await resolve_redirect_url(url)

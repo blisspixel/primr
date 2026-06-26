@@ -2,6 +2,75 @@
 
 ## 2026-06-26
 
+### Loop cycle: Async citation redirect per-hop guard
+
+Refresh: re-read README, ROADMAP, NOTES, `docs/SECURITY.md`,
+`docs/ARCHITECTURE.md`, `data.safe_http`, `ai.citation_resolution`, citation
+tests, safe HTTP tests, current-state, and the quality rubric.
+
+Prioritize: selected `ai/citation_resolution.py`, the last tracked
+intermediate-redirect SSRF migration seam. It is a narrow async HEAD resolver
+for Google grounding redirects, so the right slice was an async HEAD helper
+that preserves citation fallback semantics while validating every redirect hop
+before connecting.
+
+Implemented:
+
+- Added `data.safe_http.async_safe_http_head()`.
+- The helper uses `httpx.AsyncClient(follow_redirects=False)`, validates the
+  initial URL and every resolved `Location` through `is_safe_url()`, resolves
+  relative redirects, and caps redirect depth.
+- The helper lets network exceptions propagate, preserving the citation
+  resolver's retry and decoded-domain fallback behavior.
+- SSRF guard blocks are explicit, so `resolve_redirect_url()` returns the
+  original Google grounding URL instead of treating a security block as a
+  transient fetch failure.
+- Added async safe-HEAD tests for direct responses, safe relative redirects,
+  blocked internal redirects that are never connected to, and propagated
+  network failures.
+- Updated citation resolver tests to assert blocked redirect hops are refused
+  before a second HEAD request.
+- Updated NOTES, ROADMAP, `docs/SECURITY.md`, `docs/ARCHITECTURE.md`,
+  `docs/CHANGELOG.md`, current-state, and the quality rubric.
+
+Validation:
+
+- `uv run --no-sync pytest tests/test_data/test_safe_http.py tests/test_ai/test_citation_resolution.py tests/test_ai/test_citation_resolution_extra.py tests/test_ai/test_citation_properties.py tests/security/test_egress_guardrails.py -q`
+  passed with 76 tests.
+- `uv run ruff check src/primr/data/safe_http.py src/primr/ai/citation_resolution.py tests/test_data/test_safe_http.py tests/test_ai/test_citation_resolution_extra.py tests/test_ai/test_citation_resolution.py tests/test_ai/test_citation_properties.py tests/security/test_egress_guardrails.py`
+  passed.
+- `uv run ruff format --check src/ tests/` passed.
+- `uv run --no-sync pytest tests/test_architecture.py tests/test_release_integrity.py -q`
+  passed with 13 tests.
+- `uv run --no-sync mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'`
+  passed.
+- `uv run bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q`
+  passed with the existing `mcp_server/security.py` B108 nosec warnings.
+- `uv run --no-sync pip-audit --ignore-vuln PYSEC-2026-196` passed.
+- `uv run --no-project --with mkdocs-material --with pymdown-extensions mkdocs build --site-dir _site`
+  passed with the repo's existing non-strict docs link warnings; `_site` was
+  removed afterward.
+- The first full coverage attempt hit the 15-minute tool timeout and left no
+  usable `.coverage` artifact after the orphaned pytest process exited, so it
+  was rerun with a longer timeout.
+- The CI-shaped non-manual coverage gate passed with `10236 passed, 39 skipped,
+  5 deselected` and 85.22% branch coverage.
+- `git diff --check` passed.
+- Added-line em dash scan passed.
+  passed.
+
+Maker-checker review:
+
+- Maker: the new helper is HEAD-only and keeps retry/fallback ownership in the
+  caller.
+- Checker 1, security/performance: unsafe redirect hops are refused before
+  connection; no paid or external validation was used.
+- Checker 2, maintainability/simplicity: the async helper mirrors the existing
+  safe HTTP policy and avoids embedding another local redirect loop in the AI
+  module.
+
+Spend: `$0.00`.
+
 ### Loop cycle: HTTP scraper tier per-hop redirect guard
 
 Refresh: re-read NOTES, ROADMAP, `docs/SECURITY.md`,
