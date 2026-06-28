@@ -140,6 +140,17 @@ class TestLiveRun:
         assert outcomes[1].error is None
         assert outcomes[1].sidecar_path is not None
 
+    def test_judge_failure_records_report_error_not_crash(self, tmp_path):
+        path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+
+        def fail(*args):
+            raise RuntimeError("judge unavailable")
+
+        (outcome,) = run_calibration([path], fetch_fn=lambda u: "text", judge_fn=fail)
+        assert outcome.error == "calibration_failed: judge unavailable"
+        assert outcome.sidecar_path is None
+        assert not sidecar_path_for(path).exists()
+
 
 class TestAggregation:
     def _outcome(self, per_label):
@@ -325,6 +336,16 @@ class TestLocalJudge:
         )
         assert judge("claim", "source") is True  # fallback verdict, not False
         assert counter == [1]
+
+    def test_local_failure_without_explicit_fallback_raises(self):
+        from primr.qa.calibration_runner import make_local_judge
+
+        def explode(*a, **k):
+            raise ConnectionError("server went away")
+
+        judge = make_local_judge("m:7b", complete_fn=explode)
+        with pytest.raises(RuntimeError, match="cloud fallback is disabled"):
+            judge("claim", "source")
 
 
 class TestJudgeProvenance:

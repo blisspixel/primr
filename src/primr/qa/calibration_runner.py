@@ -104,10 +104,9 @@ def make_local_judge(
     """A traceability judge backed by a local OpenAI-compatible model.
 
     Uses the exact same prompt as the cloud judge so verdicts never depend
-    on the backend. On a local-call failure each judgment falls back to
-    ``on_fallback`` (the cloud judge by default) rather than silently
-    returning False - a flaky local server must not masquerade as
-    untraceable claims.
+    on the backend. On a local-call failure each judgment raises unless the
+    caller explicitly provides ``on_fallback``. A flaky local server must not
+    silently spend through the cloud judge or masquerade as untraceable claims.
     """
 
     def _judge(claim_sentence: str, source_text: str) -> bool:
@@ -126,14 +125,17 @@ def make_local_judge(
             )
             return parse_judge_answer(result.text)
         except Exception as e:
-            logger.warning("Local judge call failed (%s); falling back to cloud: %s", model, e)
-            if fallback_counter is not None:
-                fallback_counter[0] += 1
             if on_fallback is not None:
+                logger.warning(
+                    "Local judge call failed (%s); using configured fallback: %s", model, e
+                )
+                if fallback_counter is not None:
+                    fallback_counter[0] += 1
                 return on_fallback(claim_sentence, source_text)
-            from primr.qa.label_calibration import _default_judge
-
-            return _default_judge(claim_sentence, source_text)
+            logger.warning("Local judge call failed (%s); cloud fallback is disabled: %s", model, e)
+            raise RuntimeError(
+                f"Local judge call failed for model {model!r}; cloud fallback is disabled"
+            ) from e
 
     return _judge
 
@@ -150,8 +152,8 @@ def resolve_judge(
 
     - ``cloud``: the harness default (fast-tier LLM). Always works.
     - ``local``: an explicit opt-in - raises with a clear message when no
-      local server or usable model is found, instead of silently going to
-      the cloud the user opted out of.
+      local server or usable model is found, and local call failures stay
+      local instead of spending through cloud fallback.
     - ``auto``: prefer local when a server with a usable model is
       reachable, otherwise cloud. Never errors.
 
@@ -318,9 +320,21 @@ def run_calibration(
             )
             continue
 
-        report = calibrate_claims(
-            claims, fetch_fn=fetch_fn, judge_fn=effective_judge, review_fn=review_fn
-        )
+        try:
+            report = calibrate_claims(
+                claims, fetch_fn=fetch_fn, judge_fn=effective_judge, review_fn=review_fn
+            )
+        except Exception as e:
+            outcomes.append(
+                ReportCalibrationOutcome(
+                    report_path=path,
+                    claims_sampled=len(claims),
+                    judgeable_claims=len(judgeable),
+                    estimated_judge_calls=judge_calls,
+                    error=f"calibration_failed: {e}",
+                )
+            )
+            continue
         payload = report.to_dict()
         payload["report_file"] = path.name
         payload["max_per_label"] = max_per_label

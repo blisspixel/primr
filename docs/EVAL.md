@@ -106,10 +106,22 @@ primr calibrate --baseline-from docs/.agent/calibration-pack.json --baseline-md 
 
 Design rules (these hold for any setup, not a particular machine):
 
-- **Cloud is the default judge.** Local is opt-in (`--judge local`) or preference-with-fallback (`--judge auto`). No local server means zero behavior change.
+- **Cloud is the default judge.** Local is opt-in (`--judge local`) or
+  preference-with-fallback (`--judge auto`). `--judge auto` can choose the
+  cloud judge at selection time when no local server is reachable; once a local
+  model is selected, per-call local failures fail closed instead of silently
+  spending through the cloud judge.
 - **Detection enumerates what you actually have** via the generic `/v1/models` endpoint and picks a judge-suitable model by family preference, falling back to whatever chat model is installed. Nothing is hardcoded; a single small model still works. Endpoint resolves via `LOCAL_LLM_BASE_URL` > `OLLAMA_BASE_URL` > `localhost:11434` - remote boxes, WSL, and containers are configuration, not code.
-- **Size is not auto-detected; pin a model that fits.** The picker chooses by family preference, not by memory footprint, so on a RAM-limited machine it can select a model too large to load. That call fails and falls back to the cloud judge (visible as a non-zero `cloud_fallbacks` in the sidecar plus a "fell back to cloud" warning), which quietly incurs cloud cost instead of staying $0. To keep local judging truly free, pin a model that fits with `--judge-model` (for example a 14B-class model on a 32 GB machine). Confirm it stuck by checking that `cloud_fallbacks` is 0 in the sidecar.
-- **Provenance is never ambiguous.** Every sidecar records `judge: {kind, model}` (plus a `cloud_fallbacks` count when a flaky local server forced per-call fallbacks), so a calibration number always says what judged it.
+- **Size is not auto-detected; pin a model that fits.** The picker chooses by
+  family preference, not by memory footprint, so on a RAM-limited machine it can
+  select a model too large to load. That call now records the affected report as
+  a calibration failure instead of falling back to paid cloud judging. To keep
+  local judging reliable, pin a model that fits with `--judge-model` (for
+  example a 14B-class model on a 32 GB machine).
+- **Provenance is never ambiguous.** Every sidecar records
+  `judge: {kind, model}` so a calibration number always says what judged it.
+  Local call failures produce no sidecar for that report and are reported as
+  calibration failures.
 - **Trust is measured, not assumed.** `--judge-compare` runs cloud and local over the same claims (cloud verdicts are the result of record and are billed exactly once) and reports the agreement rate. If your local model agrees ~90%+, future calibration runs can go local-first and recurring judge cost drops to zero.
 - The agreement rate is persisted in sidecars, so later `primr eval` scorecards
   can show whether a profile's calibration data came from an agreement-checked

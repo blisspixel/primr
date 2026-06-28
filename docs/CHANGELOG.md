@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Local calibration judging now fails closed when a selected local model call
+  fails, instead of silently falling back to the paid cloud judge. Affected
+  reports are recorded as calibration failures and no sidecar is written for
+  those reports.
 - `primr calibrate --baseline-from <pack.json>` now writes a zero-spend
   `primr.calibration_baseline.v1` readiness artifact from a frozen calibration
   pack manifest, with optional Markdown via `--baseline-md`. The artifact
