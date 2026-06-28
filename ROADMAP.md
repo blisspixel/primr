@@ -52,8 +52,10 @@ Current priority order:
    needed to make the pack baseline-ready. Readiness now requires every
    selected report to carry evidence-review dimensions and cloud-vs-local
    judge-agreement metadata, so partial sidecar coverage cannot make a pack
-   look ready by aggregate counts alone. The representative multi-report
-   baseline itself is still next.
+   look ready by aggregate counts alone. `primr calibrate --inspect-baseline`
+   prints the same blocker set as machine-readable JSON for operators and
+   agent control planes. The representative multi-report baseline itself is
+   still next.
 2. **Backend freedom production wiring.** Provider abstractions and pure routing
    foundations exist, but full-report execution still carries xAI/Gemini-era
    assumptions. Stage-by-stage routing is the next architecture unlock.

@@ -142,6 +142,8 @@ Do next:
   ready. The readiness check now requires every selected report to carry
   evidence-review dimensions and cloud-vs-local judge-agreement metadata, so
   partial coverage cannot satisfy the baseline by aggregate counts alone.
+  `primr calibrate --inspect-baseline <baseline.json>` exposes those blockers
+  as machine-readable JSON for operators and agent surfaces.
 - Set `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` only from the measured floor of
   that agreement-validated baseline.
 - Surface contradicted `--verify` claims in the report trust summary. First

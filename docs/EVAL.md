@@ -104,6 +104,8 @@ For a 24 GB RTX 4090 or comparable local box, start with `4090-report-race` befo
   hard calibration gate unset until the pack is ready. Its per-report summaries
   include evidence-review counts and judge-agreement compared-claim counts so
   operators can identify the exact selected artifacts still blocking readiness.
+  Run `primr calibrate --inspect-baseline path/to/baseline.json` to print the
+  same blockers as machine-readable JSON for agents or automation.
   This summarizes baseline readiness; it does not arm a quality gate.
 
 ### Local judge for calibration ($0 judge calls)
@@ -118,6 +120,7 @@ primr calibrate "Company" --judge-compare       # judge with BOTH, report agreem
 primr calibrate --calibrate-recent 10 --dry-run --pack-manifest docs/.agent/calibration-pack.json
 primr calibrate --pack-selection docs/.agent/calibration-selection.json --dry-run --pack-manifest docs/.agent/calibration-pack.json
 primr calibrate --baseline-from docs/.agent/calibration-pack.json --baseline-md docs/.agent/calibration-baseline.md
+primr calibrate --inspect-baseline docs/.agent/calibration-pack.baseline.json
 ```
 
 Minimal curated selection file:

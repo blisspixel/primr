@@ -9,6 +9,8 @@ from primr.qa.calibration_baseline import (
     build_calibration_baseline,
     default_baseline_json_path,
     default_baseline_markdown_path,
+    inspect_calibration_baseline,
+    read_calibration_baseline,
     write_calibration_baseline,
 )
 
@@ -326,6 +328,65 @@ def test_write_baseline_json_and_markdown(tmp_path: Path) -> None:
     assert "Representative coverage: 2 / 2 required tags" in markdown
     assert "--pack-selection docs/.agent/calibration-selection.json" in markdown
     assert "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY" in markdown
+
+
+def test_inspect_baseline_lists_report_level_blockers() -> None:
+    manifest = _manifest(
+        5,
+        required_tags=["clean", "blocked_origin"],
+        present_tags=["clean"],
+    )
+    reports = manifest["reports"]
+    assert isinstance(reports, list)
+    missing_sidecar = reports[0]
+    missing_evidence = reports[1]
+    missing_agreement = reports[2]
+    failed = reports[3]
+    assert isinstance(missing_sidecar, dict)
+    assert isinstance(missing_evidence, dict)
+    assert isinstance(missing_agreement, dict)
+    assert isinstance(failed, dict)
+    missing_sidecar["sidecar_exists"] = False
+    missing_sidecar.pop("sidecar")
+    missing_evidence["sidecar"] = _sidecar(include_evidence=False)
+    missing_agreement["sidecar"] = _sidecar(include_agreement=False)
+    failed["error"] = "calibration_failed: judge unavailable"
+    manifest["totals"]["sidecars_present"] = 4
+    manifest["totals"]["failures"] = 1
+
+    baseline = build_calibration_baseline(manifest, minimum_reports=5)
+    inspection = inspect_calibration_baseline(baseline)
+
+    assert inspection["inspection_format"] == "primr.calibration_readiness_inspection.v1"
+    assert inspection["ready"] is False
+    assert inspection["counts"] == {
+        "reports": 5,
+        "minimum_reports": 5,
+        "missing_reports": 0,
+        "missing_sidecars": 1,
+        "calibration_failures": 1,
+        "missing_evidence_review_reports": 2,
+        "missing_judge_agreement_reports": 2,
+        "missing_representative_tags": 1,
+    }
+    assert inspection["blockers"]["missing_sidecars"][0]["report_file"] == (
+        "Company0_Strategic_Overview.md"
+    )
+    assert inspection["blockers"]["missing_evidence_reviews"][0]["evidence_source_reviews"] == 0
+    assert inspection["blockers"]["missing_judge_agreement"][0]["judge_agreement_compared"] == 0
+    assert inspection["blockers"]["calibration_failures"][0]["error"] == (
+        "calibration_failed: judge unavailable"
+    )
+    assert inspection["blockers"]["missing_representative_tags"] == ["blocked_origin"]
+    assert "--dry-run" in inspection["commands"][0]["command"]
+
+
+def test_read_calibration_baseline_rejects_wrong_artifact(tmp_path: Path) -> None:
+    path = tmp_path / "baseline.json"
+    path.write_text(json.dumps({"baseline_format": "wrong"}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match=r"primr\.calibration_baseline\.v1"):
+        read_calibration_baseline(path)
 
 
 def test_rejects_wrong_manifest_format() -> None:

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Protocol
 
 from primr.qa.calibration_baseline import (
     default_baseline_json_path,
+    inspect_calibration_baseline,
+    read_calibration_baseline,
     write_calibration_baseline,
 )
 from primr.qa.calibration_runner import (
@@ -65,6 +68,9 @@ class CalibrateConfig(Protocol):
     @property
     def calibrate_baseline_min_reports(self) -> int: ...
 
+    @property
+    def calibrate_inspect_baseline(self) -> str | None: ...
+
 
 class ConsoleSink(Protocol):
     def banner(self, title: str) -> None: ...
@@ -83,6 +89,8 @@ def handle_calibrate(config: CalibrateConfig, console: ConsoleSink) -> int:
     if config.calibrate_baseline_min_reports < 1:
         console.error("--baseline-min-reports must be at least 1")
         return 1
+    if config.calibrate_inspect_baseline:
+        return _handle_inspect_baseline(config, console)
     if config.calibrate_baseline_from:
         return _handle_baseline_from_manifest(config, console)
     if (
@@ -224,6 +232,18 @@ def handle_calibrate(config: CalibrateConfig, console: ConsoleSink) -> int:
     if sidecars:
         console.ok(f"Calibration sidecars written: {len(sidecars)}")
     return 0 if not failures else 1
+
+
+def _handle_inspect_baseline(config: CalibrateConfig, console: ConsoleSink) -> int:
+    baseline_path = Path(config.calibrate_inspect_baseline or "")
+    try:
+        baseline = read_calibration_baseline(baseline_path)
+    except (OSError, ValueError) as exc:
+        console.error(str(exc))
+        return 1
+    inspection = inspect_calibration_baseline(baseline, baseline_path=baseline_path)
+    print(json.dumps(inspection, indent=2, ensure_ascii=False))
+    return 0
 
 
 def _load_selection_if_requested(config: CalibrateConfig) -> CalibrationPackSelection | None:

@@ -545,6 +545,13 @@ class TestCLIWiring:
         assert config.calibrate_baseline_md == "baseline.md"
         assert config.calibrate_baseline_min_reports == 7
 
+    def test_inspect_baseline_flag(self):
+        from primr.core.cli import parse_args
+
+        config = parse_args(["calibrate", "--inspect-baseline", "baseline.json"])
+
+        assert config.calibrate_inspect_baseline == "baseline.json"
+
     def test_invalid_judge_choice_rejected(self):
         from primr.core.cli import parse_args
 
@@ -568,3 +575,38 @@ class TestCLIWiring:
             calibrate_pack_selection="selection.json",
         )
         assert _handle_calibrate(config) == 1
+
+    def test_handler_prints_baseline_inspection_json(self, tmp_path, capsys):
+        from primr.core.cli import CLIConfig, Command, _handle_calibrate
+        from primr.qa.calibration_baseline import build_calibration_baseline
+
+        baseline = build_calibration_baseline(
+            {
+                "manifest_format": "primr.calibration_pack.v1",
+                "totals": {"reports": 1, "sidecars_present": 0, "failures": 0},
+                "reports": [
+                    {
+                        "report_path": "output/Acme_Strategic_Overview.md",
+                        "report_file": "Acme_Strategic_Overview.md",
+                        "sidecar_exists": False,
+                        "claims_sampled": 2,
+                        "judgeable_claims": 2,
+                    }
+                ],
+            },
+            minimum_reports=1,
+        )
+        baseline_path = tmp_path / "baseline.json"
+        baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+
+        config = CLIConfig(
+            command=Command.CALIBRATE,
+            calibrate_inspect_baseline=str(baseline_path),
+        )
+
+        assert _handle_calibrate(config) == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["inspection_format"] == "primr.calibration_readiness_inspection.v1"
+        assert payload["blockers"]["missing_sidecars"][0]["report_file"] == (
+            "Acme_Strategic_Overview.md"
+        )

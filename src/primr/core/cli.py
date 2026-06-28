@@ -298,9 +298,9 @@ class CLIConfig:
     calibrate_baseline_out: str | None = None
     calibrate_baseline_md: str | None = None
     calibrate_baseline_min_reports: int = 5
+    calibrate_inspect_baseline: str | None = None
     banner_mode: str = "auto"
     banner_explicit: bool = False
-    # Agentic architecture options
     memory_company: str | None = None
     memory_list: bool = False
     orchestrate_max_cost: float | None = None
@@ -546,6 +546,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         calibrate_baseline_out=getattr(parsed, "baseline_out", None),
         calibrate_baseline_md=getattr(parsed, "baseline_md", None),
         calibrate_baseline_min_reports=getattr(parsed, "baseline_min_reports", 5),
+        calibrate_inspect_baseline=getattr(parsed, "inspect_baseline", None),
         banner_mode=banner_mode,
         banner_explicit=banner_explicit,
         resume_latest=getattr(parsed, "resume_latest", False),
@@ -567,7 +568,6 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         skip_scrape_validation=getattr(parsed, "skip_scrape_validation", False),
         browser_headed=getattr(parsed, "browser_headed", False),
         browser_session_mode=getattr(parsed, "browser_session", "isolated"),
-        # Agentic architecture options
         memory_company=getattr(parsed, "memory", None),
         memory_list=getattr(parsed, "memory_list", False),
         orchestrate_max_cost=getattr(parsed, "max_cost", None),

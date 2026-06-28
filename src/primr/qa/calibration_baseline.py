@@ -10,6 +10,7 @@ from typing import Any
 from primr.core.eval_calibration import calibration_counts_from_payload, percent_or_dash
 
 BASELINE_FORMAT = "primr.calibration_baseline.v1"
+INSPECTION_FORMAT = "primr.calibration_readiness_inspection.v1"
 PACK_FORMAT = "primr.calibration_pack.v1"
 DEFAULT_MINIMUM_REPORTS = 5
 
@@ -61,6 +62,75 @@ def write_calibration_baseline(
         markdown_path.parent.mkdir(parents=True, exist_ok=True)
         markdown_path.write_text(render_calibration_baseline_markdown(baseline), encoding="utf-8")
     return baseline
+
+
+def read_calibration_baseline(path: Path) -> dict[str, Any]:
+    """Read and validate a calibration baseline readiness artifact."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ValueError(f"Calibration baseline not found: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Calibration baseline is not valid JSON: {path}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"Calibration baseline must be a JSON object: {path}")
+    if payload.get("baseline_format") != BASELINE_FORMAT:
+        raise ValueError(f"Expected {BASELINE_FORMAT} baseline")
+    return payload
+
+
+def inspect_calibration_baseline(
+    baseline: dict[str, Any],
+    *,
+    baseline_path: Path | None = None,
+) -> dict[str, Any]:
+    """Return a machine-readable blocker summary for a baseline artifact."""
+    if baseline.get("baseline_format") != BASELINE_FORMAT:
+        raise ValueError(f"Expected {BASELINE_FORMAT} baseline")
+
+    reports = _baseline_report_entries(baseline)
+    next_actions = _dict_value(baseline, "next_actions")
+    representation = _dict_value(baseline, "representation")
+    totals = _dict_value(baseline, "totals")
+
+    missing_sidecars = [report for report in reports if not report.get("sidecar_exists")]
+    calibration_failures = [report for report in reports if report.get("error")]
+    missing_evidence = [report for report in reports if not _has_evidence_reviews(report)]
+    missing_agreement = [report for report in reports if not _has_judge_agreement(report)]
+
+    return {
+        "inspection_format": INSPECTION_FORMAT,
+        "baseline_path": baseline_path.as_posix() if baseline_path is not None else None,
+        "ready": bool(baseline.get("ready")),
+        "status": baseline.get("status"),
+        "reasons": _string_list(baseline.get("reasons")),
+        "spend_preview_required": bool(next_actions.get("spend_preview_required")),
+        "gate_policy": next_actions.get("gate_policy"),
+        "counts": {
+            "reports": _safe_int(totals.get("reports"), default=len(reports)),
+            "minimum_reports": _safe_int(baseline.get("minimum_reports")),
+            "missing_reports": _safe_int(next_actions.get("missing_reports")),
+            "missing_sidecars": len(missing_sidecars),
+            "calibration_failures": len(calibration_failures),
+            "missing_evidence_review_reports": len(missing_evidence),
+            "missing_judge_agreement_reports": len(missing_agreement),
+            "missing_representative_tags": len(_string_list(representation.get("missing_tags"))),
+        },
+        "blockers": {
+            "missing_sidecars": [_report_blocker(report) for report in missing_sidecars],
+            "calibration_failures": [
+                _report_blocker(report, include_error=True) for report in calibration_failures
+            ],
+            "missing_evidence_reviews": [
+                _report_blocker(report, include_counts=True) for report in missing_evidence
+            ],
+            "missing_judge_agreement": [
+                _report_blocker(report, include_counts=True) for report in missing_agreement
+            ],
+            "missing_representative_tags": _string_list(representation.get("missing_tags")),
+        },
+        "commands": _command_items(next_actions),
+    }
 
 
 def build_calibration_baseline(
@@ -662,7 +732,9 @@ def _report_summary(report: dict[str, Any]) -> dict[str, Any]:
     return {
         "report_file": report.get("report_file"),
         "report_path": report.get("report_path"),
+        "sidecar_path": report.get("sidecar_path"),
         "sidecar_exists": bool(report.get("sidecar_exists")),
+        "error": report.get("error"),
         "claims_sampled": _safe_int(report.get("claims_sampled")),
         "judgeable_claims": _safe_int(report.get("judgeable_claims")),
         "evidence_source_reviews": evidence_source_reviews,
@@ -679,6 +751,56 @@ def _report_summary(report: dict[str, Any]) -> dict[str, Any]:
         ),
         "coverage_tags": _string_list(report.get("coverage_tags")),
     }
+
+
+def _baseline_report_entries(baseline: dict[str, Any]) -> list[dict[str, Any]]:
+    reports = baseline.get("reports", [])
+    if not isinstance(reports, list):
+        return []
+    return [report for report in reports if isinstance(report, dict)]
+
+
+def _has_evidence_reviews(report: dict[str, Any]) -> bool:
+    if "has_evidence_reviews" in report:
+        return bool(report.get("has_evidence_reviews"))
+    return _safe_int(report.get("evidence_source_reviews")) > 0
+
+
+def _has_judge_agreement(report: dict[str, Any]) -> bool:
+    if "has_judge_agreement" in report:
+        return bool(report.get("has_judge_agreement"))
+    return _safe_int(report.get("judge_agreement_compared")) > 0
+
+
+def _report_blocker(
+    report: dict[str, Any],
+    *,
+    include_counts: bool = False,
+    include_error: bool = False,
+) -> dict[str, Any]:
+    blocker = {
+        "report_file": report.get("report_file"),
+        "report_path": report.get("report_path"),
+        "sidecar_path": report.get("sidecar_path"),
+        "coverage_tags": _string_list(report.get("coverage_tags")),
+    }
+    if include_counts:
+        blocker["evidence_source_reviews"] = _safe_int(report.get("evidence_source_reviews"))
+        blocker["judge_agreement_compared"] = _safe_int(report.get("judge_agreement_compared"))
+    if include_error and report.get("error"):
+        blocker["error"] = str(report.get("error"))
+    return blocker
+
+
+def _command_items(next_actions: dict[str, Any]) -> list[dict[str, str]]:
+    commands = next_actions.get("commands", [])
+    if not isinstance(commands, list):
+        return []
+    return [
+        {"purpose": str(command.get("purpose", "")), "command": str(command.get("command", ""))}
+        for command in commands
+        if isinstance(command, dict)
+    ]
 
 
 def _rate(numerator: int, denominator: int) -> float | None:

@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Calibration baseline report summaries now include per-report evidence-review
   counts and judge-agreement compared-claim counts, so operators can identify
   the exact selected artifacts still blocking baseline readiness.
+- `primr calibrate --inspect-baseline <baseline.json>` now prints a
+  zero-spend, machine-readable readiness inspection with report-level blockers,
+  missing representative tags, gate policy, and suggested rebuild commands.
 
 ## [1.34.5] - 2026-06-28
 

@@ -93,3 +93,11 @@ def add_calibration_arguments(parser: argparse.ArgumentParser) -> None:
         metavar="N",
         help="With 'calibrate', minimum reports required for a baseline to be ready (default: 5)",
     )
+    parser.add_argument(
+        "--inspect-baseline",
+        metavar="PATH",
+        help=(
+            "With 'calibrate', print a zero-spend JSON inspection of an existing "
+            "baseline readiness artifact, including report-level blockers."
+        ),
+    )
