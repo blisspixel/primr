@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.34.3
+Current State: v1.34.4
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -1366,6 +1366,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.34.4 | Jun 2026 | **Skill-pack verifier cleanup and visible byline removal.** Generated skill-pack fallback verifier scripts now perform a real local structural artifact check instead of shipping placeholder verification code, fast-section future markers now use `[QUEUED]`, and Markdown, HTML, and plain-text report template renderers no longer add visible author or generator attribution lines. |
 | 1.34.3 | Jun 2026 | **Calibration baseline readiness and local judge cost safety.** `primr calibrate --baseline-from <pack.json>` writes a zero-spend readiness artifact from a frozen calibration pack, with optional Markdown via `--baseline-md`, explicit not-ready reasons, traceability, evidence-review coverage, judge agreement, and report summaries. Explicit local calibration judging now fails closed on selected-model call failures instead of silently falling back to paid cloud judging; affected reports are recorded as calibration failures and no sidecar is written. |
 | 1.34.2 | Jun 2026 | **Budget enforcement, redirect pinning completion, docs front door, and calibration baseline surfaces.** MCP `research_company` now propagates approved cost caps into the active run budget, non-fast Deep Research paths stop optional strategy spend once observed cost reaches the ceiling, and estimates explain runtime enforcement semantics. SSRF redirect hardening now reaches utility HTTP clients, tiered scrapers, curl_cffi, httpx, Google citation HEAD resolution, and browser tiers, including a loopback egress proxy for dynamic Chromium requests. Report validation now surfaces `--verify` contradictions in Report Trust, evidence-review calibration dimensions, cloud-vs-local judge agreement, and local `--pack-manifest` baseline selection. README/MkDocs were tightened into a strict docs front door, agent state moved under gitignored `docs/.agent/`, and resource-lifecycle fixes removed SQLite/event-loop warning leaks. |
 | 1.34.1 | Jun 2026 | **Redirect-SSRF hardening.** The fail-open fetch fan-out previously followed redirects and validated only the final URL, so an attacker page could `302` through an internal address (loopback / RFC1918 / link-local / cloud metadata) that was connected before the post-hoc check. A new shared seam `data/safe_http.py` follows redirects manually and revalidates every hop through the central SSRF guard before connecting; `fallback_sources`, `hiring_signals`, and Wayback CDX/replay fetches delegate to it (also removing the duplicated keep-in-sync helpers where they existed). Pinned by hermetic tests that an internal redirect target is validated and never connected to, plus Wayback delegation tests. |
