@@ -1511,7 +1511,10 @@ Most recent research output. Add `?full_content=true` for complete content.
 
 #### primr://output/artifacts
 
-Pipeline stage artifacts (scraped_content, insights, dossier, reports).
+Pipeline stage artifacts for the active job or latest terminal job. This
+legacy resource includes short previews and is useful for local interactive
+review. Prefer `primr://output/artifacts/by_job/{job_id}` for agent automation
+that only needs a compact inventory.
 
 ```json
 {
@@ -1526,6 +1529,77 @@ Pipeline stage artifacts (scraped_content, insights, dossier, reports).
       "content_hash": "sha256:abc123..."
     }
   ]
+}
+```
+
+#### primr://output/artifacts/by_job/{job_id}
+
+Compact, ownership-gated artifact metadata for one job. This resource returns
+file names, paths, sizes, hashes, timestamps, classifications, and missing-file
+state without report body content. Use it before requesting full report content
+or broad output previews.
+
+HTTP callers can read only jobs owned by the authenticated client. Missing jobs
+and unowned jobs return the same `job_not_found` shape so clients cannot probe
+for other job ids.
+
+```json
+{
+  "schema_version": "1.0",
+  "resource": "primr://output/artifacts/by_job",
+  "job_id": "job_abc123",
+  "status": "completed",
+  "company_name": "Acme Corp",
+  "artifact_count": 3,
+  "full_content_included": false,
+  "artifacts": [
+    {
+      "index": 0,
+      "artifact_type": "report_markdown",
+      "file_name": "Acme_Corp_Strategic_Overview_06-28-2026.md",
+      "file_path": "output/acme_corp/Acme_Corp_Strategic_Overview_06-28-2026.md",
+      "exists": true,
+      "size_bytes": 184320,
+      "modified_at": "2026-06-28T18:30:00+00:00",
+      "content_hash": "sha256:abc123..."
+    },
+    {
+      "index": 1,
+      "artifact_type": "run_manifest",
+      "file_name": "run_manifest.json",
+      "file_path": "output/acme_corp/run_manifest.json",
+      "exists": true,
+      "size_bytes": 4096,
+      "modified_at": "2026-06-28T18:30:01+00:00",
+      "content_hash": "sha256:def456..."
+    },
+    {
+      "index": 2,
+      "artifact_type": "report_docx",
+      "file_name": "Acme_Corp_Strategic_Overview_06-28-2026.docx",
+      "file_path": "output/acme_corp/Acme_Corp_Strategic_Overview_06-28-2026.docx",
+      "exists": false
+    }
+  ]
+}
+```
+
+Error responses:
+
+```json
+{
+  "error": "job_not_found",
+  "message": "No job found with ID: job_abc123",
+  "job_id": "job_abc123"
+}
+```
+
+```json
+{
+  "error": "no_artifacts",
+  "message": "Job job_abc123 has no output artifacts yet",
+  "job_id": "job_abc123",
+  "status": "running"
 }
 ```
 
@@ -1593,7 +1667,10 @@ List of available strategy types with metadata for Open Claw integration.
 
 #### primr://output/by_job/{job_id}
 
-Job-scoped artifact retrieval for provenance tracking. Ensures the returned report corresponds to a specific approved job.
+Job-scoped report preview retrieval for provenance tracking. Ensures the
+returned report preview corresponds to a specific approved job. Use
+`primr://output/artifacts/by_job/{job_id}` first when a client only needs
+artifact metadata and not report text.
 
 ```json
 {

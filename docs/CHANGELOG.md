@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.9] - 2026-06-28
+
+### Changed
+
+- Documentation now describes the job-scoped artifact metadata MCP resource
+  across API, agent integration, artifact pipeline, security, OpenClaw, README,
+  hosted-agent guides, bundled skills, and design surfaces.
+
 ## [1.34.8] - 2026-06-28
 
 ### Added

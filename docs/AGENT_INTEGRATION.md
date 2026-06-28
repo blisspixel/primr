@@ -32,6 +32,9 @@ Important MCP concepts:
 - `estimate_run` produces a structured cost and time estimate.
 - `research_company` launches approved research jobs.
 - Job resources expose status and output paths.
+- `primr://output/artifacts/by_job/{job_id}` exposes compact artifact metadata
+  for one owned job without report body content. Use it before requesting full
+  report previews or reading files directly.
 - HTTP mode can enforce server-side cost caps and approval tokens.
 - Audit resources record tool calls with hashed payloads for admin review.
 
@@ -120,6 +123,10 @@ Preferred patterns:
 4. On the next user turn, read job state before saying anything about completion.
 
 A job is complete only when the job state reports completion and the expected report artifact exists.
+For agent handoff, read `primr://output/artifacts/by_job/{job_id}` first to
+confirm which artifacts exist, their classifications, sizes, timestamps, and
+hashes. Request `primr://output/by_job/{job_id}` only when the agent needs a
+report preview for summarization.
 
 ## Related Docs
 

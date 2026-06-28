@@ -35,6 +35,12 @@ strict about formatting and structure in the final document pipeline.
   report/strategy fixtures that exercises the gates and renders the clean ones
   end-to-end to DOCX, so validator/renderer changes are tested against
   real-shaped output.
+- **Job-scoped artifact metadata for agents** through
+  `primr://output/artifacts/by_job/{job_id}`. The resource returns file names,
+  paths, sizes, SHA-256 hashes, timestamps, artifact classifications, and
+  missing-file state for one owned job without returning report body content.
+  This is the safe first read before an agent requests a report preview or
+  opens files directly.
 
 The writing and regeneration prompts carry an explicit prohibition against the
 internal-scaffolding markers the cleanup strips, sourced from a single shared

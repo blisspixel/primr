@@ -115,7 +115,11 @@ When a user asks you to research a company:
 3. Wait for the user to confirm before proceeding
 4. Call research_company to submit the research job
 5. Use check_jobs to monitor progress - research takes 35-50 minutes
-6. When complete, share the key findings with the user
+6. When complete, use MCP `resources/read` for
+   `primr://output/artifacts/by_job/{job_id}` if your connector exposes
+   resource reads, then request report content only when the user needs a
+   summary or downstream action
+7. Share the key findings with the user
 
 Important:
 - Always estimate costs before submitting a job (~$0.75 for standard research)

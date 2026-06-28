@@ -26,6 +26,8 @@ resources:
 
   - primr://output/latest
 
+  - primr://output/artifacts/by_job/{job_id}
+
 ---
 
 
@@ -56,7 +58,9 @@ Use this skill to start and monitor Primr research runs through MCP. Treat MCP a
 
 5. After starting a run, monitor with `wait_for_status_change` or `check_jobs` until terminal.
 
-6. Read `primr://output/latest` to present the result and next actions.
+6. Read `primr://output/artifacts/by_job/{job_id}` to inventory completed-job
+artifacts without report body content, then read `primr://output/latest` only
+when a report preview is needed to present the result and next actions.
 
 
 

@@ -76,7 +76,11 @@ You have access to Primr company research tools. When a user asks you to researc
 1. First call estimate_run to show the cost and duration estimate
 2. After user confirms, call research_company to submit the job
 3. Use check_jobs to monitor progress (jobs take 35-50 minutes)
-4. When the job completes, share the results with the user
+4. When the job completes, read `resources/list` and `resources/read` for
+   `primr://output/artifacts/by_job/{job_id}` if your Foundry MCP surface
+   exposes resource reads, then request report content only if the user needs
+   a summary or downstream action
+5. Share the results with the user
 
 Always estimate before submitting. Research jobs cost real money (~$0.75 for standard mode).
 Use show_usage to check remaining budget if the user asks about costs.
@@ -112,7 +116,9 @@ The agent should:
 1. Call `estimate_run` → show estimate
 2. Call `research_company` → get job_id
 3. Call `check_jobs` periodically → report progress
-4. Return results when the job completes
+4. Read `primr://output/artifacts/by_job/{job_id}` when resource reads are
+   available
+5. Return results when the job completes
 
 ## Private Endpoints (VNet Integration)
 

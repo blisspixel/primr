@@ -136,6 +136,11 @@ primr doctor
 
 - Use `primr://research/status`, `wait_for_status_change`, or `check_jobs` for monitoring.
 
+- After completion, read `primr://output/artifacts/by_job/{job_id}` before
+  requesting report previews. It returns compact artifact metadata for the
+  owned job without report body content, which keeps OpenClaw workflows from
+  loading large reports unless a downstream step explicitly needs them.
+
 
 
 ## Troubleshooting

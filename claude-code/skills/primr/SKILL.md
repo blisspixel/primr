@@ -69,7 +69,7 @@ The MCP server enforces this gate via `primr://agent/governance`; the CLI does n
 3. **Launch.** MCP: `research_company(company_name=..., company_url=..., mode=..., platform=..., destination=...)` → returns `job_id`. CLI: drop `--dry-run` and run the same command. Note the `job_id` or output directory.
 4. **Don't block.** Runs take 35-120 minutes. Tell the user the job is running and what file path will hold the report. Do not poll synchronously in a loop.
 5. **Resume on next turn.** When the user comes back ("is the Acme report done?"), check `primr://research/status` or `check_jobs` (MCP), or look for the markdown file at `output/<company>/<Company>_Strategic_Overview_<MM-DD-YYYY>.md` (CLI). If still running, report the stage and `stage_progress_percent`.
-6. **Confirm completion, then hand off.** Read the report path. Do NOT dump the full report into the conversation - it's ~21k words. Summarize the executive summary, list the section count, and offer downstream actions (see [references/downstream-handoff.md](references/downstream-handoff.md)).
+6. **Confirm completion, then hand off.** If using MCP, read `primr://output/artifacts/by_job/{job_id}` first to list the owned job's artifacts without loading report body content. Then read the report path or preview needed for the handoff. Do NOT dump the full report into the conversation - it's ~21k words. Summarize the executive summary, list the section count, and offer downstream actions (see [references/downstream-handoff.md](references/downstream-handoff.md)).
 
 ## Mode, tier, platform, strategy
 
@@ -115,7 +115,7 @@ Reports land in `output/<company_slug>/`:
 - `scraped_content.txt`, `insights.json`, `dossier.json` - pipeline intermediates
 - `run_manifest.json` - audit trail
 
-When the user asks "what did we get": list the artifacts, quote the executive summary, and note section count. Do not dump the full markdown unless they ask for the full text. Offer to convert to DOCX (`primr` writes both by default in `full` mode) or to feed it to a downstream consumer.
+When the user asks "what did we get": for MCP, prefer `primr://output/artifacts/by_job/{job_id}` as the first inventory read; it returns file names, paths, sizes, hashes, timestamps, classifications, and missing-file state without report body content. Then list the artifacts, quote the executive summary, and note section count. Do not dump the full markdown unless they ask for the full text. Offer to convert to DOCX (`primr` writes both by default in `full` mode) or to feed it to a downstream consumer.
 
 ## Downstream handoff
 

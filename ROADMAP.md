@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.34.8
+Current State: v1.34.9
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -1386,6 +1386,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.34.9 | Jun 2026 | **Artifact resource documentation refresh.** Agent, API, security, hosted-agent, OpenClaw, bundled skill, artifact pipeline, README, and design docs now consistently direct integrations to `primr://output/artifacts/by_job/{job_id}` as the metadata-first handoff path before report-body reads. |
 | 1.34.8 | Jun 2026 | **Job-scoped artifact metadata resource.** MCP now exposes `primr://output/artifacts/by_job/{job_id}` for compact, ownership-gated artifact metadata on completed jobs. It returns file names, paths, sizes, hashes, timestamps, classifications, and missing-file state without report body content, giving agents a safer first artifact-consumption resource. |
 | 1.34.7 | Jun 2026 | **Calibration selection inspection.** `primr calibrate --inspect-selection <selection.json>` prints a zero-spend machine-readable inspection of curated selection files before manifest or judge work. The payload reports selected report count, required tags, present tags, missing tags, per-report tags, and next actions, keeping representative coverage as explicit operator metadata. |
 | 1.34.6 | Jun 2026 | **Calibration selection templates.** `primr calibrate --pack-selection-template <selection.json>` writes a zero-spend curated selection starter from resolved reports, including the representative tag checklist while leaving report tags empty for operator curation. This makes representative baseline assembly explicit without inferring coverage from report prose. |
