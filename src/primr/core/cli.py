@@ -296,6 +296,7 @@ class CLIConfig:
     calibrate_judge: str = "cloud"  # cloud | local | auto
     calibrate_judge_model: str | None = None
     calibrate_judge_compare: bool = False
+    calibrate_pack_manifest: str | None = None
     banner_mode: str = "auto"
     banner_explicit: bool = False
     # Agentic architecture options
@@ -538,6 +539,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         calibrate_judge=getattr(parsed, "judge", "cloud"),
         calibrate_judge_model=getattr(parsed, "judge_model", None),
         calibrate_judge_compare=getattr(parsed, "judge_compare", False),
+        calibrate_pack_manifest=getattr(parsed, "pack_manifest", None),
         banner_mode=banner_mode,
         banner_explicit=banner_explicit,
         resume_latest=getattr(parsed, "resume_latest", False),
@@ -632,7 +634,7 @@ def _run_recon(args: list[str] | None) -> int:
         return 1
 
     argv = args if args is not None else sys.argv[1:]
-    # Strip the leading "recon" token — the Typer app doesn't expect it.
+    # Strip the leading "recon" token - the Typer app doesn't expect it.
     recon_argv = argv[1:]
 
     # Typer/Click reads from sys.argv by default. Temporarily replace it so
@@ -661,7 +663,7 @@ def main(args: list[str] | None = None) -> int:
     Returns:
         Exit code (0 for success, non-zero for failure)
     """
-    # Intercept "primr recon ..." before argparse — delegate to the recon Typer app.
+    # Intercept "primr recon ..." before argparse - delegate to the recon Typer app.
     if _is_recon_command(args):
         return _run_recon(args)
     if _is_keys_command(args):
@@ -1038,7 +1040,7 @@ def _create_parser() -> argparse.ArgumentParser:
         ),
     )
     # Research inputs + framing (discovery notes, context, strategy type,
-    # purpose/audience/decision/question) — grouped in cli_parser to keep cli.py
+    # purpose/audience/decision/question) - grouped in cli_parser to keep cli.py
     # under its line ceiling.
     add_research_input_arguments(parser)
     parser.add_argument("--dry-run", action="store_true", help="Show cost estimate only")
@@ -1155,6 +1157,14 @@ def _create_parser() -> argparse.ArgumentParser:
             "With 'calibrate', judge the same claims with BOTH cloud and local and report "
             "agreement, measuring whether your local model can be trusted as the judge. "
             "Sidecars are written from the cloud verdicts."
+        ),
+    )
+    parser.add_argument(
+        "--pack-manifest",
+        metavar="PATH",
+        help=(
+            "With 'calibrate', write a JSON manifest freezing the selected calibration "
+            "pack, sidecar state, estimates, and judge-agreement metadata."
         ),
     )
     # QA review
@@ -1397,7 +1407,7 @@ _POSITIONAL_COMMANDS: dict[str, Command] = {
     "calibrate": Command.CALIBRATE,
 }
 
-# (attr_name, command) — checked with getattr(args, attr, None) for truthiness
+# (attr_name, command) - checked with getattr(args, attr, None) for truthiness
 _FLAG_COMMANDS: list[tuple[str, Command]] = [
     ("memory", Command.MEMORY),
     ("memory_list", Command.MEMORY),
@@ -1751,118 +1761,15 @@ def _handle_refine(config: CLIConfig) -> int:
     if result.output_path:
         console.success_box("Refined output", result.output_path)
     else:
-        console.ok("No sections needed regeneration — report left unchanged")
+        console.ok("No sections needed regeneration - report left unchanged")
     return 0
 
 
 def _handle_calibrate(config: CLIConfig) -> int:
     """Handle the label-calibration audit: primr calibrate "Company"."""
-    from primr.qa.calibration_runner import (
-        aggregate_per_label,
-        aggregate_precision,
-        compare_judges,
-        estimate_cost_usd,
-        resolve_judge,
-        resolve_reports,
-        run_calibration,
-    )
+    from primr.qa.calibration_cli import handle_calibrate
 
-    try:
-        reports = resolve_reports(config.calibrate_target, recent=config.calibrate_recent)
-    except FileNotFoundError as e:
-        console.error(str(e))
-        console.info('Usage: primr calibrate "Company Name" [--dry-run] [--max-per-label 10]')
-        console.info("   or: primr calibrate path/to/report.md")
-        console.info("   or: primr calibrate --calibrate-recent 10")
-        return 1
-
-    console.banner("Label Calibration")
-    console.info(f"Reports: {len(reports)}")
-
-    if config.calibrate_judge_compare:
-        # Compare mode needs a working local judge alongside the cloud one.
-        try:
-            local_selection = resolve_judge("local", model=config.calibrate_judge_model)
-        except RuntimeError as e:
-            console.error(str(e))
-            return 1
-        console.info(f"Judges: cloud (fast-tier) vs local ({local_selection.model})")
-        if config.calibrate_dry_run:
-            outcomes = run_calibration(
-                reports, max_per_label=config.calibrate_max_per_label, dry_run=True
-            )
-            total_calls = sum(o.estimated_judge_calls for o in outcomes)
-            console.info(
-                f"Dry run: ~{total_calls} cloud judge calls (${estimate_cost_usd(total_calls):.2f})"
-                f" + ~{total_calls} local judge calls ($0.00)"
-            )
-            return 0
-        outcomes, agreement = compare_judges(
-            reports,
-            local_selection=local_selection,
-            max_per_label=config.calibrate_max_per_label,
-        )
-        if agreement.agreement is None:
-            console.warn("No claims were decidable by both judges — agreement not measurable")
-        else:
-            console.info(
-                f"Judge agreement: {agreement.agreement:.0%} "
-                f"({agreement.agreed}/{agreement.compared} decidable claims, "
-                f"local={agreement.local_model})"
-            )
-    else:
-        try:
-            judge_selection = resolve_judge(
-                config.calibrate_judge, model=config.calibrate_judge_model
-            )
-        except (RuntimeError, ValueError) as e:
-            console.error(str(e))
-            return 1
-        console.info(f"Judge: {judge_selection.kind} ({judge_selection.model})")
-        outcomes = run_calibration(
-            reports,
-            max_per_label=config.calibrate_max_per_label,
-            dry_run=config.calibrate_dry_run,
-            judge_selection=judge_selection,
-        )
-        if judge_selection.cloud_fallbacks:
-            console.warn(
-                f"Local judge fell back to cloud on {judge_selection.cloud_fallbacks} call(s)"
-            )
-
-    failures = [o for o in outcomes if o.error]
-    for outcome in failures:
-        console.warn(f"{outcome.report_path.name}: {outcome.error}")
-
-    if config.calibrate_dry_run:
-        total_calls = sum(o.estimated_judge_calls for o in outcomes)
-        for outcome in outcomes:
-            console.info(
-                f"  {outcome.report_path.name}: {outcome.claims_sampled} claims, "
-                f"{outcome.judgeable_claims} judgeable, "
-                f"~{outcome.estimated_judge_calls} judge calls"
-            )
-        console.info(
-            f"Dry run: ~{total_calls} judge calls, estimated ${estimate_cost_usd(total_calls):.2f}"
-        )
-        return 0
-
-    totals = aggregate_per_label(outcomes)
-    for label in ("Confirmed", "Reported"):
-        stats = totals.get(label)
-        if not stats:
-            continue
-        precision = aggregate_precision(totals, label)
-        shown = f"{precision:.0%}" if precision is not None else "n/a (no decidable claims)"
-        console.info(
-            f"  {label}: traceability {shown} "
-            f"(traceable {stats['traceable']}, untraceable {stats['untraceable']}, "
-            f"no-source {stats['no_source']}, unfetchable {stats['unfetchable']})"
-        )
-    sidecars = [o for o in outcomes if o.sidecar_path]
-    if sidecars:
-        console.ok(f"Calibration sidecars written: {len(sidecars)}")
-    return 0 if not failures else 1
+    return handle_calibrate(config, console)
 
 
 def _handle_qa(config: CLIConfig) -> int:
@@ -2337,7 +2244,7 @@ def _handle_eval(config: CLIConfig) -> int:
 
     # Validate every profile name is a registered slot. argparse no longer
     # restricts to the legacy three; cross-provider eval slots are accepted
-    # via runtime registration. See ROADMAP "v1.24.0 — Sub-$1 default eval".
+    # via runtime registration. See ROADMAP "v1.24.0 - Sub-$1 default eval".
     unknown_profiles = [p for p in config.eval_profiles if get_eval_profile(p) is None]
     if unknown_profiles:
         registered = ", ".join(list_eval_profile_names())
@@ -2429,7 +2336,7 @@ def _handle_eval(config: CLIConfig) -> int:
             to_run = current.missing_pairs[: config.eval_max_new_runs]
 
             def _profile_estimate(profile: str) -> float:
-                # Consult the slot registry first — registered slots may declare
+                # Consult the slot registry first - registered slots may declare
                 # an explicit estimated_cost_usd (v1.24.0 cross-provider slots).
                 slot = get_eval_profile(profile)
                 if slot is not None and slot.estimated_cost_usd is not None:
@@ -2493,7 +2400,7 @@ def _handle_eval(config: CLIConfig) -> int:
 
                 # Copy latest strategic overview artifact to eval profile folder.
                 # Match either underscored company names (Acme_Corp_Inc.) or
-                # space-preserving names (Acme Corp Inc.) — primr's actual
+                # space-preserving names (Acme Corp Inc.) - primr's actual
                 # output filenames preserve spaces, but historical patterns
                 # used underscores.
                 output_root = Path(OUTPUT_DIR)
@@ -3471,7 +3378,7 @@ def process_batch(
     # Show preview
     console.info(f"Companies to research: {total}")
     for i, (name, url, _ctx) in enumerate(companies[:10], 1):
-        console.info(f"  {i}. {name} — {url or '(website TBD)'}")
+        console.info(f"  {i}. {name} - {url or '(website TBD)'}")
     if total > 10:
         console.info(f"  ... and {total - 10} more")
 
@@ -3512,7 +3419,7 @@ def process_batch(
         for name in candidates:
             # glob.escape the company-name fragment so glob metacharacters in
             # the name (e.g. brackets in "Acme [Holdings]", "?", "*") are
-            # matched literally — without this, resume silently misses the
+            # matched literally - without this, resume silently misses the
             # existing report and re-runs the (paid) research.
             pattern = os.path.join(OUTPUT_DIR, f"{glob.escape(name)}*Overview*{today_str}*")
             matches = glob.glob(pattern)
@@ -3536,7 +3443,7 @@ def process_batch(
         existing = _find_existing_report(company_name)
         if existing:
             size_kb = os.path.getsize(existing) / 1024
-            console.info(f"[{i}/{total}] {company_name} — already done ({size_kb:.0f}KB), skipping")
+            console.info(f"[{i}/{total}] {company_name} - already done ({size_kb:.0f}KB), skipping")
             results.append(
                 {
                     "company": company_name,
@@ -3568,7 +3475,7 @@ def process_batch(
                 )
                 consecutive_failures += 1
                 if consecutive_failures >= max_consecutive_failures:
-                    console.error(f"  {max_consecutive_failures} consecutive failures — pausing")
+                    console.error(f"  {max_consecutive_failures} consecutive failures - pausing")
                     resp = input("  Continue? [y/N] ").strip().lower()
                     if resp not in ("y", "yes"):
                         console.info("  Batch stopped by user.")
@@ -3603,7 +3510,7 @@ def process_batch(
                         os.path.getsize(result_path) / 1024 if os.path.exists(result_path) else 0
                     )
                     if size_kb < min_report_size_kb:
-                        console.warn(f"  Report is only {size_kb:.1f}KB — may be incomplete")
+                        console.warn(f"  Report is only {size_kb:.1f}KB - may be incomplete")
                         results.append(
                             {
                                 "company": company_name,
@@ -3614,7 +3521,7 @@ def process_batch(
                             }
                         )
                     else:
-                        console.ok(f"  Done — {size_kb:.0f}KB")
+                        console.ok(f"  Done - {size_kb:.0f}KB")
                         results.append(
                             {
                                 "company": company_name,
@@ -3627,7 +3534,7 @@ def process_batch(
                     consecutive_failures = 0
                     break
                 else:
-                    # No report returned — not transient, don't retry
+                    # No report returned - not transient, don't retry
                     console.error(f"  No report generated for {company_name}")
                     results.append(
                         {
@@ -3644,7 +3551,7 @@ def process_batch(
             except Exception as e:
                 error_str = str(e).lower()
 
-                # Billing exhaustion — pause immediately, don't burn retries
+                # Billing exhaustion - pause immediately, don't burn retries
                 is_billing = any(
                     s in error_str
                     for s in (
@@ -3655,7 +3562,7 @@ def process_batch(
                     )
                 )
                 if is_billing:
-                    console.error("  xAI credits exhausted — add credits at https://console.x.ai/")
+                    console.error("  xAI credits exhausted - add credits at https://console.x.ai/")
                     if skip_confirm:
                         console.info(f"  Pausing {billing_wait_minutes}min then retrying...")
                         _time.sleep(billing_wait_minutes * 60)
@@ -3675,7 +3582,7 @@ def process_batch(
                                 "status": "failed",
                                 "path": None,
                                 "size_kb": 0,
-                                "error": "billing exhausted — stopped by user",
+                                "error": "billing exhausted - stopped by user",
                             }
                         )
                         break
@@ -3687,7 +3594,7 @@ def process_batch(
                 if is_quota and attempt < max_retries_per_company:
                     continue  # Will wait at top of next iteration
 
-                console.error(f"  Failed: {company_name} — {e}")
+                console.error(f"  Failed: {company_name} - {e}")
                 results.append(
                     {
                         "company": company_name,
@@ -3701,13 +3608,13 @@ def process_batch(
                 break
 
         # If the retry loop exited without recording any terminal result for
-        # this company — e.g. skip_confirm billing exhaustion kept `continue`-ing
-        # until the bounded attempts ran out — record a failure. Otherwise the
+        # this company - e.g. skip_confirm billing exhaustion kept `continue`-ing
+        # until the bounded attempts ran out - record a failure. Otherwise the
         # company is silently dropped and the batch summary can report success
         # (failed_count == 0) despite producing no report for it.
         if len(results) == results_len_before:
             console.error(
-                f"  {company_name}: exhausted retries without completing — recording failure"
+                f"  {company_name}: exhausted retries without completing - recording failure"
             )
             results.append(
                 {
@@ -3720,15 +3627,15 @@ def process_batch(
             )
             consecutive_failures += 1
 
-        # Billing stop — the inner loop broke because user chose to stop
+        # Billing stop - the inner loop broke because user chose to stop
         last_result = results[-1] if results else None
-        if last_result and last_result.get("error") == "billing exhausted — stopped by user":
+        if last_result and last_result.get("error") == "billing exhausted - stopped by user":
             break
 
-        # Consecutive failure handling — likely quota exhaustion
+        # Consecutive failure handling - likely quota exhaustion
         if consecutive_failures >= max_consecutive_failures:
             console.error(
-                f"\n  {max_consecutive_failures} consecutive failures — possible API quota exhaustion."
+                f"\n  {max_consecutive_failures} consecutive failures - possible API quota exhaustion."
             )
             if skip_confirm:
                 console.info(f"  Auto-waiting {billing_wait_minutes}min before continuing...")
@@ -3748,7 +3655,7 @@ def process_batch(
                     break
 
         # Check overall error rate (after at least 3 new attempts). Count all
-        # failures rather than slicing results[skipped_existing:] — resumed and
+        # failures rather than slicing results[skipped_existing:] - resumed and
         # freshly-processed companies interleave in company order, so the slice
         # miscounted. Resumed entries are always status "ok", so every "failed"
         # entry is a new attempt.

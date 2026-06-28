@@ -14,6 +14,7 @@ from primr.qa.calibration_runner import (
     resolve_reports,
     run_calibration,
     sidecar_path_for,
+    write_calibration_pack_manifest,
 )
 
 REPORT = """## Executive Summary
@@ -167,6 +168,74 @@ class TestAggregation:
         totals = aggregate_per_label([self._outcome({"Confirmed": {"unfetchable": 2}})])
         assert aggregate_precision(totals, "Confirmed") is None
         assert aggregate_precision(totals, "Reported") is None
+
+
+class TestPackManifest:
+    def test_dry_run_manifest_freezes_selected_reports(self, tmp_path):
+        path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        outcomes = run_calibration([path], dry_run=True)
+        manifest_path = tmp_path / "calibration-pack.json"
+
+        payload = write_calibration_pack_manifest(
+            manifest_path,
+            [path],
+            outcomes,
+            max_per_label=10,
+        )
+
+        persisted = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert persisted == payload
+        assert payload["manifest_format"] == "primr.calibration_pack.v1"
+        assert payload["totals"]["reports"] == 1
+        assert payload["totals"]["estimated_judge_calls"] == 2
+        assert payload["totals"]["sidecars_present"] == 0
+        assert payload["reports"][0]["report_file"] == path.name
+        assert payload["reports"][0]["sidecar_exists"] is False
+
+    def test_manifest_includes_existing_sidecar_summary(self, tmp_path):
+        path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        outcomes = run_calibration(
+            [path],
+            fetch_fn=lambda u: "source text",
+            judge_fn=lambda c, t: True,
+        )
+        manifest_path = tmp_path / "calibration-pack.json"
+
+        payload = write_calibration_pack_manifest(
+            manifest_path,
+            [path],
+            outcomes,
+            max_per_label=10,
+        )
+
+        report_entry = payload["reports"][0]
+        assert payload["totals"]["sidecars_present"] == 1
+        assert payload["existing_sidecar_per_label"]["Confirmed"]["traceable"] == 1
+        assert report_entry["sidecar_exists"] is True
+        assert report_entry["sidecar"]["judge"] == {"kind": "cloud", "model": "fast-tier"}
+        assert report_entry["sidecar"]["per_label"]["Confirmed"]["traceable"] == 1
+
+    def test_manifest_can_record_compare_judge_plan(self, tmp_path):
+        from primr.qa.calibration_runner import JudgeSelection
+
+        path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        outcomes = run_calibration([path], dry_run=True)
+        manifest_path = tmp_path / "calibration-pack.json"
+
+        payload = write_calibration_pack_manifest(
+            manifest_path,
+            [path],
+            outcomes,
+            max_per_label=10,
+            judge_metadata={
+                "kind": "compare",
+                "cloud": {"kind": "cloud", "model": "fast-tier"},
+                "local": JudgeSelection(kind="local", model="qwen2.5:14b").to_metadata(),
+            },
+        )
+
+        assert payload["judge"]["kind"] == "compare"
+        assert payload["judge"]["local"] == {"kind": "local", "model": "qwen2.5:14b"}
 
 
 class TestJudgeSelection:
@@ -395,6 +464,12 @@ class TestCLIWiring:
 
         config = parse_args(["calibrate", "Acme", "--judge-compare"])
         assert config.calibrate_judge_compare is True
+
+    def test_pack_manifest_flag(self):
+        from primr.core.cli import parse_args
+
+        config = parse_args(["calibrate", "Acme", "--pack-manifest", "pack.json"])
+        assert config.calibrate_pack_manifest == "pack.json"
 
     def test_invalid_judge_choice_rejected(self):
         from primr.core.cli import parse_args

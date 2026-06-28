@@ -78,6 +78,11 @@ For a 24 GB RTX 4090 or comparable local box, start with `4090-report-race` befo
   pools those counts into `## Judge Agreement` and CSV columns
   `judge_agreement_compared` / `judge_agreement_rate`. Agreement remains a
   baseline-readiness signal, not a quality gate.
+- Calibration pack manifest: add `--pack-manifest path/to/pack.json` to
+  `primr calibrate` or its `--dry-run` preview to freeze the selected reports,
+  sidecar state, sampled-claim counts, judge-call estimate, per-label totals,
+  evidence-review summary, and judge-agreement metadata before running a
+  multi-report baseline.
 
 ### Local judge for calibration ($0 judge calls)
 
@@ -88,6 +93,7 @@ primr calibrate "Company" --judge auto          # local when reachable, else clo
 primr calibrate "Company" --judge local         # explicit; errors if no server
 primr calibrate "Company" --judge local --judge-model qwen2.5:14b   # pin a model
 primr calibrate "Company" --judge-compare       # judge with BOTH, report agreement
+primr calibrate --calibrate-recent 10 --dry-run --pack-manifest docs/.agent/calibration-pack.json
 ```
 
 Design rules (these hold for any setup, not a particular machine):

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -484,6 +485,111 @@ def _stamp_judge_agreement(
             json.dumps(payload, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
+
+
+def _read_sidecar_payload(report_path: Path) -> dict[str, Any] | None:
+    sidecar = sidecar_path_for(report_path)
+    if not sidecar.exists():
+        return None
+    try:
+        payload = json.loads(sidecar.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def write_calibration_pack_manifest(
+    manifest_path: Path,
+    report_paths: list[Path],
+    outcomes: list[ReportCalibrationOutcome],
+    *,
+    max_per_label: int,
+    judge_selection: JudgeSelection | None = None,
+    judge_agreement: JudgeAgreement | None = None,
+    judge_metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Write a manifest freezing the selected calibration pack."""
+    by_report = {outcome.report_path: outcome for outcome in outcomes}
+    total_calls = sum(outcome.estimated_judge_calls for outcome in outcomes)
+    sidecar_per_label = _aggregate_existing_sidecar_per_label(report_paths)
+    if judge_metadata is not None:
+        judge_meta = judge_metadata
+    elif judge_selection is not None:
+        judge_meta = judge_selection.to_metadata()
+    else:
+        judge_meta = None
+    payload: dict[str, Any] = {
+        "manifest_format": "primr.calibration_pack.v1",
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "max_per_label": max_per_label,
+        "judge": judge_meta,
+        "totals": {
+            "reports": len(report_paths),
+            "claims_sampled": sum(outcome.claims_sampled for outcome in outcomes),
+            "judgeable_claims": sum(outcome.judgeable_claims for outcome in outcomes),
+            "estimated_judge_calls": total_calls,
+            "estimated_cloud_cost_usd": estimate_cost_usd(total_calls),
+            "failures": sum(1 for outcome in outcomes if outcome.error),
+            "sidecars_present": sum(1 for path in report_paths if sidecar_path_for(path).exists()),
+        },
+        "per_label": aggregate_per_label(outcomes),
+        "existing_sidecar_per_label": sidecar_per_label,
+        "judge_agreement": (
+            {
+                "local_model": judge_agreement.local_model,
+                "compared": judge_agreement.compared,
+                "agreed": judge_agreement.agreed,
+                "agreement": judge_agreement.agreement,
+            }
+            if judge_agreement is not None
+            else None
+        ),
+        "reports": [],
+    }
+
+    for report_path in report_paths:
+        outcome = by_report.get(report_path)
+        sidecar = sidecar_path_for(report_path)
+        sidecar_payload = _read_sidecar_payload(report_path)
+        entry: dict[str, Any] = {
+            "report_path": report_path.as_posix(),
+            "report_file": report_path.name,
+            "sidecar_path": sidecar.as_posix(),
+            "sidecar_exists": sidecar.exists(),
+            "claims_sampled": outcome.claims_sampled if outcome else 0,
+            "judgeable_claims": outcome.judgeable_claims if outcome else 0,
+            "estimated_judge_calls": outcome.estimated_judge_calls if outcome else 0,
+            "error": outcome.error if outcome else None,
+        }
+        if sidecar_payload is not None:
+            entry["sidecar"] = {
+                "judge": sidecar_payload.get("judge"),
+                "judge_agreement": sidecar_payload.get("judge_agreement"),
+                "per_label": sidecar_payload.get("per_label", {}),
+                "validation_rubric": sidecar_payload.get("validation_rubric", {}),
+            }
+        payload["reports"].append(entry)
+
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    return payload
+
+
+def _aggregate_existing_sidecar_per_label(report_paths: list[Path]) -> dict[str, dict[str, int]]:
+    totals: dict[str, dict[str, int]] = {}
+    keys = ("sampled", "traceable", "untraceable", "no_source", "unfetchable", "exempt")
+    for report_path in report_paths:
+        payload = _read_sidecar_payload(report_path)
+        per_label = payload.get("per_label", {}) if payload else {}
+        if not isinstance(per_label, dict):
+            continue
+        for label, stats in per_label.items():
+            if not isinstance(stats, dict):
+                continue
+            bucket = totals.setdefault(label, dict.fromkeys(keys, 0))
+            for key in keys:
+                bucket[key] += int(stats.get(key, 0) or 0)
+    return totals
 
 
 def aggregate_per_label(outcomes: list[ReportCalibrationOutcome]) -> dict[str, dict[str, int]]:

@@ -109,6 +109,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the pooled agreement counts and rate in a new `## Judge Agreement` section
   and CSV columns, keeping judge substitution measurable before any gate is
   considered.
+- `primr calibrate --pack-manifest <path>` writes a local JSON manifest of the
+  selected calibration pack, including report paths, sidecar state, estimates,
+  per-label totals, evidence-review summary, and judge-agreement metadata. It
+  also works with `--dry-run` so baseline candidates can be frozen without
+  provider spend.
 - Local agent working files moved to gitignored `docs/.agent/`, keeping
   persistent engineering memory out of the project root and tracked docs.
 - README is now a concise project front door instead of the full manual. Run

@@ -122,7 +122,8 @@ review, and uncertainty review.
 Do next:
 
 - Freeze a representative calibration pack of current-format reports, sidecars,
-  source appendices, and `--verify` outputs. Include clean, blocked-origin,
+  source appendices, and `--verify` outputs with
+  `primr calibrate --pack-manifest`. Include clean, blocked-origin,
   weak-citation, strategy-module, and high-hiring-signal examples.
 - Run a multi-report calibration baseline over that pack, but keep the rubric
   broader than string overlap or isolated fact matching.
@@ -135,7 +136,7 @@ Do next:
   judge agreement, contradicted-claim counts, and abstention or uncertainty
   rates without blocking runs. Shipped slices now cover evidence-review rates,
   standard verification contradiction counts, and sidecar-backed judge
-  agreement rates.
+  agreement rates, plus a local-only calibration-pack manifest.
 - Set `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` only from the measured floor of
   that agreement-validated baseline.
 - Surface contradicted `--verify` claims in the report trust summary. First
@@ -149,7 +150,7 @@ Done when:
 - The eval scorecard separates structural extraction, evidence support,
   reasoning quality, contradiction handling, uncertainty honesty, and judge
   agreement. The sidecar and scorecard slices are shipped; the multi-report
-  baseline is still pending.
+  pack-manifest slice is shipped; the multi-report baseline is still pending.
 - The hard gate is either armed from a defensible baseline or deliberately left
   report-only with documented evidence.
 - Contradicted claims are visible in the human-facing report trust surface for
