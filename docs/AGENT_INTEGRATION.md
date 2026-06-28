@@ -38,6 +38,9 @@ Important MCP concepts:
 - `primr://output/qa_summary/by_job/{job_id}` exposes compact QA score/status
   and count metadata for attached QA JSON sidecars and text QA reports without
   detailed QA or report body content.
+- `primr://output/usage_summary/by_job/{job_id}` exposes compact cost, timing,
+  approval, execution, and artifact-count metadata from owned-job run manifests
+  without full manifest content.
 - HTTP mode can enforce server-side cost caps and approval tokens.
 - Audit resources record tool calls with hashed payloads for admin review.
 
@@ -131,6 +134,8 @@ confirm which artifacts exist, their classifications, sizes, timestamps, and
 hashes. Request `primr://output/by_job/{job_id}` only when the agent needs a
 report preview for summarization. If QA artifacts are attached, read
 `primr://output/qa_summary/by_job/{job_id}` before loading any QA body text.
+Read `primr://output/usage_summary/by_job/{job_id}` when the handoff needs
+run cost, timing, approval, execution, or artifact-count metadata.
 
 ## Related Docs
 

@@ -1516,7 +1516,8 @@ legacy resource includes short previews and is useful for local interactive
 review. Prefer `primr://output/artifacts/by_job/{job_id}` for agent automation
 that only needs a compact inventory, and
 `primr://output/qa_summary/by_job/{job_id}` when the client only needs QA
-metadata.
+metadata, and `primr://output/usage_summary/by_job/{job_id}` when the client
+only needs cost, timing, approval, or artifact-count metadata.
 
 ```json
 {
@@ -1667,6 +1668,79 @@ No QA summary response:
 }
 ```
 
+#### primr://output/usage_summary/by_job/{job_id}
+
+Compact, ownership-gated usage and cost summary for one job. This resource
+reads `run_manifest.json` files adjacent to the owned job's output artifacts
+and returns cost, timing, approval, execution, parse, hash, timestamp, and
+artifact-count metadata without returning company URL, approval token, the
+manifest artifact list, or full manifest content.
+
+HTTP callers can read only jobs owned by the authenticated client. Missing jobs
+and unowned jobs return the same `job_not_found` shape so clients cannot probe
+for other job ids. Malformed manifests return metadata plus `parse_error`
+without echoing the malformed body.
+
+```json
+{
+  "schema_version": "1.0",
+  "resource": "primr://output/usage_summary/by_job",
+  "job_id": "job_abc123",
+  "status": "completed",
+  "company_name": "Acme Corp",
+  "summary_count": 1,
+  "full_content_included": false,
+  "summaries": [
+    {
+      "index": 0,
+      "artifact_type": "run_manifest",
+      "file_name": "run_manifest.json",
+      "file_path": "output/acme_corp/run_manifest.json",
+      "exists": true,
+      "size_bytes": 4096,
+      "modified_at": "2026-06-28T20:30:00+00:00",
+      "content_hash": "sha256:abc123...",
+      "parsed": true,
+      "full_content_included": false,
+      "manifest_schema_version": "1.0",
+      "mode": "full",
+      "estimate": {
+        "cost_usd": 0.76,
+        "time_minutes": 42,
+        "estimated_at": "2026-06-28T19:00:00Z"
+      },
+      "approval": {
+        "approved": true,
+        "approved_at": "2026-06-28T19:01:00Z",
+        "bound_to_estimate": true,
+        "approved_by_present": true,
+        "token_present": false
+      },
+      "execution": {
+        "started_at": "2026-06-28T19:02:00Z",
+        "completed_at": "2026-06-28T19:44:00Z",
+        "status": "completed",
+        "actual_cost_usd": 0.72,
+        "actual_time_minutes": 42
+      },
+      "artifact_count": 3
+    }
+  ]
+}
+```
+
+No manifest response:
+
+```json
+{
+  "error": "usage_summary_not_found",
+  "message": "Job job_abc123 has no run manifest available",
+  "job_id": "job_abc123",
+  "status": "completed",
+  "summary_count": 0
+}
+```
+
 #### primr://config
 
 Current configuration (no secrets exposed).
@@ -1736,7 +1810,8 @@ returned report preview corresponds to a specific approved job. Use
 `primr://output/artifacts/by_job/{job_id}` first when a client only needs
 artifact metadata and not report text. Use
 `primr://output/qa_summary/by_job/{job_id}` first when a client only needs QA
-outcome metadata.
+outcome metadata. Use `primr://output/usage_summary/by_job/{job_id}` first
+when a client only needs run cost, timing, approval, or artifact-count metadata.
 
 ```json
 {

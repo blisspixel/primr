@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 ARTIFACT_METADATA_BY_JOB_URI = "primr://output/artifacts/by_job"
 QA_SUMMARY_BY_JOB_URI = "primr://output/qa_summary/by_job"
+USAGE_SUMMARY_BY_JOB_URI = "primr://output/usage_summary/by_job"
 ARTIFACT_METADATA_BY_JOB_RESOURCE = Resource(
     uri=AnyUrl(f"{ARTIFACT_METADATA_BY_JOB_URI}/{{job_id}}"),
     name="Artifact Metadata by Job ID",
@@ -33,6 +34,15 @@ QA_SUMMARY_BY_JOB_RESOURCE = Resource(
     description=(
         "Compact QA result summary for one owned job. Returns score, status, "
         "count, and metadata fields without detailed report body content."
+    ),
+    mimeType="application/json",
+)
+USAGE_SUMMARY_BY_JOB_RESOURCE = Resource(
+    uri=AnyUrl(f"{USAGE_SUMMARY_BY_JOB_URI}/{{job_id}}"),
+    name="Usage and Cost Summary by Job ID",
+    description=(
+        "Compact usage, cost, timing, and approval metadata for one owned job. "
+        "Reads run_manifest.json without returning full manifest contents."
     ),
     mimeType="application/json",
 )
@@ -123,6 +133,52 @@ def read_qa_summary_by_job_resource(
     )
 
 
+def read_usage_summary_by_job_resource(
+    mcp_server: PrimrMCPServer,
+    uri: str,
+    *,
+    client_id: str,
+) -> list[ReadResourceContents]:
+    """Read compact usage and cost summaries for one job, with ownership gating."""
+    match = re.match(rf"{re.escape(USAGE_SUMMARY_BY_JOB_URI)}/([^/?]+)", uri)
+    if not match:
+        raise ValueError(f"Invalid usage summary URI: {uri}")
+
+    job_id = match.group(1)
+    job = _owned_job(mcp_server, job_id, client_id)
+    if job is None:
+        return _job_not_found(job_id)
+
+    if not job.output_paths:
+        return _no_artifacts(job_id, job.get_status().value)
+
+    manifest_paths = _job_manifest_paths(job.output_paths)
+    summaries = [_usage_manifest_summary(index, path) for index, path in enumerate(manifest_paths)]
+    if not summaries:
+        return _json_resource(
+            {
+                "error": "usage_summary_not_found",
+                "message": f"Job {job_id} has no run manifest available",
+                "job_id": job_id,
+                "status": job.get_status().value,
+                "summary_count": 0,
+            }
+        )
+
+    return _json_resource(
+        {
+            "schema_version": "1.0",
+            "resource": USAGE_SUMMARY_BY_JOB_URI,
+            "job_id": job.job_id,
+            "status": job.get_status().value,
+            "company_name": job.company_name,
+            "summary_count": len(summaries),
+            "full_content_included": False,
+            "summaries": summaries,
+        }
+    )
+
+
 def _artifact_metadata(index: int, path: Path) -> dict[str, Any]:
     exists = path.exists() and path.is_file()
     data: dict[str, Any] = {
@@ -144,6 +200,79 @@ def _artifact_metadata(index: int, path: Path) -> dict[str, Any]:
         }
     )
     return data
+
+
+def _job_manifest_paths(output_paths: list[str]) -> list[Path]:
+    paths: list[Path] = []
+    seen: set[Path] = set()
+    for output_path in output_paths:
+        manifest_path = Path(output_path).parent / "run_manifest.json"
+        normalized = manifest_path.resolve(strict=False)
+        if normalized in seen or not manifest_path.exists() or not manifest_path.is_file():
+            continue
+        seen.add(normalized)
+        paths.append(manifest_path)
+    return paths
+
+
+def _usage_manifest_summary(index: int, path: Path) -> dict[str, Any]:
+    metadata = _artifact_metadata(index, path)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {
+            **metadata,
+            "parsed": False,
+            "parse_error": "invalid_json",
+            "full_content_included": False,
+        }
+    except OSError:
+        return {
+            **metadata,
+            "parsed": False,
+            "parse_error": "read_failed",
+            "full_content_included": False,
+        }
+
+    if not isinstance(payload, dict):
+        return {
+            **metadata,
+            "parsed": False,
+            "parse_error": "non_object_json",
+            "full_content_included": False,
+        }
+
+    estimate = _dict_payload(payload.get("estimate"))
+    approval = _dict_payload(payload.get("approval"))
+    execution = _dict_payload(payload.get("execution"))
+    artifacts = payload.get("artifacts")
+    return {
+        **metadata,
+        "parsed": True,
+        "full_content_included": False,
+        "manifest_schema_version": payload.get("schema_version"),
+        "mode": payload.get("mode"),
+        "estimate": {
+            "cost_usd": _number_or_none(estimate.get("cost_usd")),
+            "time_minutes": _number_or_none(estimate.get("time_minutes")),
+            "estimated_at": _scalar_or_none(estimate.get("estimated_at")),
+        },
+        "approval": {
+            "approved": bool(approval.get("approved_at") or approval.get("bound_to_estimate")),
+            "approved_at": _scalar_or_none(approval.get("approved_at")),
+            "bound_to_estimate": bool(approval.get("bound_to_estimate")),
+            "approved_by_present": bool(approval.get("approved_by")),
+            "token_present": bool(approval.get("token")),
+        },
+        "execution": {
+            "started_at": _scalar_or_none(execution.get("started_at")),
+            "completed_at": _scalar_or_none(execution.get("completed_at")),
+            "status": _scalar_or_none(execution.get("status")),
+            "actual_cost_usd": _number_or_none(execution.get("actual_cost_usd")),
+            "actual_time_minutes": _number_or_none(execution.get("actual_time_minutes")),
+        },
+        "artifact_count": len(artifacts) if isinstance(artifacts, list) else None,
+    }
 
 
 def _qa_artifact_summary(index: int, path: Path) -> dict[str, Any]:
@@ -330,6 +459,22 @@ def _count_fields_from_text(text: str) -> dict[str, int]:
 def _parse_number(value: str) -> int | float:
     number = float(value)
     return int(number) if number.is_integer() else number
+
+
+def _dict_payload(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _number_or_none(value: Any) -> int | float | None:
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        return value
+    return None
+
+
+def _scalar_or_none(value: Any) -> str | int | float | bool | None:
+    if isinstance(value, str | int | float | bool):
+        return value
+    return None
 
 
 def _owned_job(mcp_server: PrimrMCPServer, job_id: str, client_id: str) -> Any | None:

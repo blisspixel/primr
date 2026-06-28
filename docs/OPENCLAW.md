@@ -143,6 +143,9 @@ primr doctor
 - If QA artifacts are attached, read
   `primr://output/qa_summary/by_job/{job_id}` for compact score/status/count
   metadata without loading detailed QA text.
+- When OpenClaw needs cost, timing, approval, or artifact-count metadata, read
+  `primr://output/usage_summary/by_job/{job_id}` instead of loading the full
+  run manifest.
 
 
 

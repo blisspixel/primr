@@ -46,6 +46,7 @@ class TestResourceListing:
         assert "primr://output/artifacts" in uris
         assert "primr://output/artifacts/by_job/%7Bjob_id%7D" in uris
         assert "primr://output/qa_summary/by_job/%7Bjob_id%7D" in uris
+        assert "primr://output/usage_summary/by_job/%7Bjob_id%7D" in uris
         assert "primr://calibration/baseline/inspection?path={baseline_path}" in uris
         assert "primr://config" in uris
 
@@ -477,6 +478,176 @@ class TestQASummaryByJobResource:
                 method="resources/read",
                 params=ReadResourceRequestParams(
                     uri=f"primr://output/qa_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        assert data["error"] == "job_not_found"
+        assert data["job_id"] == job.job_id
+
+
+class TestUsageSummaryByJobResource:
+    """Tests for primr://output/usage_summary/by_job/{job_id}."""
+
+    @pytest.fixture
+    def server(self, tmp_path):
+        return create_mcp_server(journal_path=str(tmp_path / "test_journal.json"))
+
+    @pytest.mark.asyncio
+    async def test_reads_owned_job_usage_summary_without_manifest_body(self, server, tmp_path):
+        report = tmp_path / "report.md"
+        report.write_text("# Report body", encoding="utf-8")
+        manifest = tmp_path / "run_manifest.json"
+        manifest.write_text(
+            json.dumps(
+                {
+                    "schema_version": "1.0",
+                    "job_id": "job-secret-body",
+                    "company_name": "Acme Corp",
+                    "company_url": "https://secret.example",
+                    "mode": "full",
+                    "estimate": {
+                        "cost_usd": 0.76,
+                        "time_minutes": 42,
+                        "estimated_at": "2026-06-28T19:00:00Z",
+                    },
+                    "approval": {
+                        "token": "secret approval token",
+                        "approved_at": "2026-06-28T19:01:00Z",
+                        "approved_by": "client-secret",
+                        "bound_to_estimate": True,
+                    },
+                    "execution": {
+                        "started_at": "2026-06-28T19:02:00Z",
+                        "completed_at": "2026-06-28T19:44:00Z",
+                        "status": "completed",
+                        "actual_cost_usd": 0.72,
+                        "actual_time_minutes": 42,
+                    },
+                    "artifacts": [str(report), "secret artifact path"],
+                }
+            ),
+            encoding="utf-8",
+        )
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(report)]
+        job.advance_stage(ResearchStage.COMPLETED)
+        server.job_store.update(job)
+        server._auth_context = SimpleNamespace(client_id="client-a", scopes=["read"])
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/usage_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        text = result.root.contents[0].text
+        data = json.loads(text)
+        assert data["schema_version"] == "1.0"
+        assert data["job_id"] == job.job_id
+        assert data["summary_count"] == 1
+        assert data["full_content_included"] is False
+        assert "secret approval token" not in text
+        assert "client-secret" not in text
+        assert "https://secret.example" not in text
+        assert "secret artifact path" not in text
+        summary = data["summaries"][0]
+        assert summary["artifact_type"] == "run_manifest"
+        assert summary["parsed"] is True
+        assert summary["mode"] == "full"
+        assert summary["estimate"] == {
+            "cost_usd": 0.76,
+            "estimated_at": "2026-06-28T19:00:00Z",
+            "time_minutes": 42,
+        }
+        assert summary["approval"] == {
+            "approved": True,
+            "approved_at": "2026-06-28T19:01:00Z",
+            "approved_by_present": True,
+            "bound_to_estimate": True,
+            "token_present": True,
+        }
+        assert summary["execution"] == {
+            "actual_cost_usd": 0.72,
+            "actual_time_minutes": 42,
+            "completed_at": "2026-06-28T19:44:00Z",
+            "started_at": "2026-06-28T19:02:00Z",
+            "status": "completed",
+        }
+        assert summary["artifact_count"] == 2
+
+    @pytest.mark.asyncio
+    async def test_returns_not_found_when_manifest_missing(self, server, tmp_path):
+        report = tmp_path / "report.md"
+        report.write_text("# Report", encoding="utf-8")
+        job = server.job_store.create("Acme Corp", "full")
+        job.output_paths = [str(report)]
+        server.job_store.update(job)
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/usage_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        assert data["error"] == "usage_summary_not_found"
+        assert data["summary_count"] == 0
+        assert data["job_id"] == job.job_id
+
+    @pytest.mark.asyncio
+    async def test_malformed_manifest_returns_metadata_without_body(self, server, tmp_path):
+        report = tmp_path / "report.md"
+        report.write_text("# Report", encoding="utf-8")
+        manifest = tmp_path / "run_manifest.json"
+        manifest.write_text('{"estimate": {"token": "secret"', encoding="utf-8")
+        job = server.job_store.create("Acme Corp", "full")
+        job.output_paths = [str(report)]
+        server.job_store.update(job)
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/usage_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        text = result.root.contents[0].text
+        data = json.loads(text)
+        assert "secret" not in text
+        assert data["summaries"][0]["parsed"] is False
+        assert data["summaries"][0]["parse_error"] == "invalid_json"
+        assert data["summaries"][0]["content_hash"].startswith("sha256:")
+
+    @pytest.mark.asyncio
+    async def test_rejects_unowned_http_job_like_missing(self, server, tmp_path):
+        report = tmp_path / "report.md"
+        report.write_text("# Report", encoding="utf-8")
+        manifest = tmp_path / "run_manifest.json"
+        manifest.write_text('{"schema_version": "1.0"}', encoding="utf-8")
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(report)]
+        server.job_store.update(job)
+        server._auth_context = SimpleNamespace(client_id="client-b", scopes=["read"])
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/usage_summary/by_job/{job.job_id}"
                 ),
             )
         )

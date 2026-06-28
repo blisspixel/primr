@@ -154,6 +154,8 @@ missing-file state without returning report body content.
 They can inspect attached QA outcomes with
 `primr://output/qa_summary/by_job/{job_id}`, which returns compact
 score/status/count metadata without detailed QA or report body text.
+They can inspect run cost, timing, approval, and artifact counts with
+`primr://output/usage_summary/by_job/{job_id}` without loading full manifests.
 
 With `--output-dir`, Primr writes customer-facing Markdown and DOCX deliverables to that folder while keeping TXT mirrors and validation diagnostics in the run diagnostics directory.
 

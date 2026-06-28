@@ -79,8 +79,10 @@ You have access to Primr company research tools. When a user asks you to researc
 4. When the job completes, read `resources/list` and `resources/read` for
    `primr://output/artifacts/by_job/{job_id}` if your Foundry MCP surface
    exposes resource reads. If QA artifacts are attached, read
-   `primr://output/qa_summary/by_job/{job_id}` for compact QA metadata. Request
-   report content only if the user needs a summary or downstream action
+   `primr://output/qa_summary/by_job/{job_id}` for compact QA metadata. Read
+   `primr://output/usage_summary/by_job/{job_id}` when the user needs cost,
+   timing, approval, or artifact-count metadata. Request report content only if
+   the user needs a summary or downstream action
 5. Share the results with the user
 
 Always estimate before submitting. Research jobs cost real money (~$0.75 for standard mode).
@@ -121,7 +123,9 @@ The agent should:
    available
 5. Read `primr://output/qa_summary/by_job/{job_id}` when QA artifacts are
    attached and resource reads are available
-6. Return results when the job completes
+6. Read `primr://output/usage_summary/by_job/{job_id}` when run cost, timing,
+   approval, or artifact-count metadata is needed
+7. Return results when the job completes
 
 ## Private Endpoints (VNet Integration)
 

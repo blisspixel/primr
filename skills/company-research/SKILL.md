@@ -30,6 +30,8 @@ resources:
 
   - primr://output/qa_summary/by_job/{job_id}
 
+  - primr://output/usage_summary/by_job/{job_id}
+
 ---
 
 
@@ -64,7 +66,9 @@ Use this skill to start and monitor Primr research runs through MCP. Treat MCP a
 artifacts without report body content, then read `primr://output/latest` only
 when a report preview is needed to present the result and next actions. Read
 `primr://output/qa_summary/by_job/{job_id}` when QA artifacts are attached and
-the user needs QA outcome metadata.
+the user needs QA outcome metadata. Read
+`primr://output/usage_summary/by_job/{job_id}` when the user needs cost,
+timing, approval, or artifact-count metadata.
 
 
 

@@ -118,8 +118,10 @@ When a user asks you to research a company:
 6. When complete, use MCP `resources/read` for
    `primr://output/artifacts/by_job/{job_id}` if your connector exposes
    resource reads. If QA artifacts are attached, read
-   `primr://output/qa_summary/by_job/{job_id}` for compact QA metadata. Request
-   report content only when the user needs a summary or downstream action
+   `primr://output/qa_summary/by_job/{job_id}` for compact QA metadata. Read
+   `primr://output/usage_summary/by_job/{job_id}` when the user needs cost,
+   timing, approval, or artifact-count metadata. Request report content only
+   when the user needs a summary or downstream action
 7. Share the key findings with the user
 
 Important:

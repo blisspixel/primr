@@ -233,13 +233,16 @@ least-privilege and approval semantics as MCP.
 
 Do next:
 
-- Add job-scoped resources for source appendix, trace summary, usage/cost
-  summary, verification summary, calibration summary, and selected artifact
-  metadata. The first two slices shipped:
+- Add job-scoped resources for source appendix, trace summary, verification
+  summary, calibration summary, and selected artifact metadata. The first
+  three slices shipped:
   `primr://output/artifacts/by_job/{job_id}` returns ownership-gated file names,
   paths, sizes, hashes, timestamps, and missing-file state for one job, and
   `primr://output/qa_summary/by_job/{job_id}` returns compact QA score/status
-  and count metadata. Neither returns report body content.
+  and count metadata, and
+  `primr://output/usage_summary/by_job/{job_id}` returns compact cost, timing,
+  approval, execution, and artifact-count metadata. None returns report body
+  content.
 - Define the scope matrix before implementation: monitor can read status and
   compact summaries; artifact read can read compact resources; report read can
   request full report content; research can estimate; execution still requires

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.11] - 2026-06-28
+
+### Added
+
+- MCP now lists and serves `primr://output/usage_summary/by_job/{job_id}` as
+  an ownership-gated, compact run manifest summary resource for one job. It
+  returns cost, timing, approval, execution, parse, hash, timestamp, and
+  artifact-count metadata without returning company URLs, approval tokens,
+  manifest artifact lists, or full manifest content.
+
 ## [1.34.10] - 2026-06-28
 
 ### Added
