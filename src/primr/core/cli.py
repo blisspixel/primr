@@ -186,11 +186,6 @@ def _resolve_local_judge_models(config: "CLIConfig") -> tuple[list[str], list[st
     return available, missing
 
 
-# =============================================================================
-# ENUMS
-# =============================================================================
-
-
 class Command(Enum):
     """CLI commands."""
 
@@ -294,6 +289,7 @@ class CLIConfig:
     calibrate_judge_compare: bool = False
     calibrate_pack_manifest: str | None = None
     calibrate_pack_selection: str | None = None
+    calibrate_pack_selection_template: str | None = None
     calibrate_baseline_from: str | None = None
     calibrate_baseline_out: str | None = None
     calibrate_baseline_md: str | None = None
@@ -359,11 +355,6 @@ class CLIConfig:
         return bool(self.company_name or self.website)
 
 
-# =============================================================================
-# PROTOCOLS
-# =============================================================================
-
-
 class CLIRunner(Protocol):
     """Protocol for CLI command runners."""
 
@@ -371,10 +362,6 @@ class CLIRunner(Protocol):
         """Run the command and return exit code."""
         ...
 
-
-# =============================================================================
-# MODE MAPPING
-# =============================================================================
 
 # Mode name mapping (new -> old internal names)
 MODE_MAP = {
@@ -390,11 +377,6 @@ MODE_MAP = {
     "hybrid": "hybrid",
     "scrape-only": "scrape-only",
 }
-
-
-# =============================================================================
-# PUBLIC INTERFACE
-# =============================================================================
 
 
 def parse_args(args: list[str] | None = None) -> CLIConfig:
@@ -542,6 +524,11 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         calibrate_judge_compare=getattr(parsed, "judge_compare", False),
         calibrate_pack_manifest=getattr(parsed, "pack_manifest", None),
         calibrate_pack_selection=getattr(parsed, "pack_selection", None),
+        calibrate_pack_selection_template=getattr(
+            parsed,
+            "pack_selection_template",
+            None,
+        ),
         calibrate_baseline_from=getattr(parsed, "baseline_from", None),
         calibrate_baseline_out=getattr(parsed, "baseline_out", None),
         calibrate_baseline_md=getattr(parsed, "baseline_md", None),

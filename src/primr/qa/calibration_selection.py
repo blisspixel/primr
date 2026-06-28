@@ -10,6 +10,13 @@ from pathlib import Path
 from typing import Any
 
 SELECTION_FORMAT = "primr.calibration_pack_selection.v1"
+DEFAULT_REPRESENTATIVE_TAGS = (
+    "clean",
+    "blocked_origin",
+    "weak_citation",
+    "strategy_module",
+    "high_hiring_signal",
+)
 
 _TAG_PATTERN = re.compile(r"^[a-z0-9_]+$")
 
@@ -89,6 +96,34 @@ def load_calibration_pack_selection(selection_path: Path) -> CalibrationPackSele
     )
 
 
+def write_calibration_pack_selection_template(
+    selection_path: Path,
+    report_paths: list[Path],
+    *,
+    required_tags: tuple[str, ...] = DEFAULT_REPRESENTATIVE_TAGS,
+) -> dict[str, Any]:
+    """Write an operator-curated selection template without inferring tags."""
+    if not report_paths:
+        raise ValueError("Calibration pack selection template requires at least one report")
+
+    base_dir = selection_path.parent.resolve(strict=False)
+    payload: dict[str, Any] = {
+        "selection_format": SELECTION_FORMAT,
+        "base_dir": ".",
+        "required_tags": list(required_tags),
+        "reports": [
+            {
+                "path": _template_report_path(report_path, base_dir),
+                "tags": [],
+            }
+            for report_path in report_paths
+        ],
+    }
+    selection_path.parent.mkdir(parents=True, exist_ok=True)
+    selection_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    return payload
+
+
 def _read_selection_payload(selection_path: Path) -> dict[str, Any]:
     try:
         payload = json.loads(selection_path.read_text(encoding="utf-8"))
@@ -154,3 +189,11 @@ def _parse_tags(raw_tags: Any, *, field: str) -> tuple[str, ...]:
 
 def _path_key(path: Path) -> str:
     return str(path.resolve(strict=False))
+
+
+def _template_report_path(report_path: Path, base_dir: Path) -> str:
+    resolved = report_path.resolve(strict=False)
+    try:
+        return resolved.relative_to(base_dir).as_posix()
+    except ValueError:
+        return resolved.as_posix()

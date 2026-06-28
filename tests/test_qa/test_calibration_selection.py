@@ -6,8 +6,10 @@ from pathlib import Path
 import pytest
 
 from primr.qa.calibration_selection import (
+    DEFAULT_REPRESENTATIVE_TAGS,
     SELECTION_FORMAT,
     load_calibration_pack_selection,
+    write_calibration_pack_selection_template,
 )
 
 
@@ -137,3 +139,22 @@ def test_load_selection_rejects_invalid_tag(tmp_path: Path):
 
     with pytest.raises(ValueError, match="invalid tag"):
         load_calibration_pack_selection(selection_path)
+
+
+def test_write_selection_template_leaves_tags_empty(tmp_path: Path):
+    reports_dir = tmp_path / "reports"
+    reports_dir.mkdir()
+    report = _report(reports_dir)
+    selection_path = tmp_path / "selection.json"
+
+    payload = write_calibration_pack_selection_template(selection_path, [report])
+
+    assert json.loads(selection_path.read_text(encoding="utf-8")) == payload
+    assert payload["selection_format"] == SELECTION_FORMAT
+    assert payload["required_tags"] == list(DEFAULT_REPRESENTATIVE_TAGS)
+    assert payload["reports"] == [
+        {
+            "path": "reports/Acme_Strategic_Overview_01-01-2026.md",
+            "tags": [],
+        }
+    ]

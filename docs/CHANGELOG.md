@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `primr calibrate --pack-selection-template <selection.json>` now writes a
+  zero-spend curated selection starter from resolved reports, including the
+  default representative tag checklist while leaving each report's tags empty
+  for operator curation.
 - `primr calibrate --pack-selection <selection.json>` now accepts curated
   calibration-pack selection files that list exact report paths and
   operator-supplied representative coverage tags. Pack manifests persist the

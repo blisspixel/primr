@@ -524,6 +524,14 @@ class TestCLIWiring:
         config = parse_args(["calibrate", "--pack-selection", "selection.json"])
         assert config.calibrate_pack_selection == "selection.json"
 
+    def test_pack_selection_template_flag(self):
+        from primr.core.cli import parse_args
+
+        config = parse_args(["calibrate", "Acme", "--pack-selection-template", "selection.json"])
+
+        assert config.calibrate_target == "Acme"
+        assert config.calibrate_pack_selection_template == "selection.json"
+
     def test_baseline_flags(self):
         from primr.core.cli import parse_args
 
@@ -610,3 +618,35 @@ class TestCLIWiring:
         assert payload["blockers"]["missing_sidecars"][0]["report_file"] == (
             "Acme_Strategic_Overview.md"
         )
+
+    def test_handler_writes_selection_template_without_calibration(self, tmp_path):
+        from primr.core.cli import CLIConfig, Command, _handle_calibrate
+
+        report = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        selection_path = tmp_path / "selection.json"
+
+        config = CLIConfig(
+            command=Command.CALIBRATE,
+            calibrate_target=str(report),
+            calibrate_pack_selection_template=str(selection_path),
+        )
+
+        assert _handle_calibrate(config) == 0
+        payload = json.loads(selection_path.read_text(encoding="utf-8"))
+        assert payload["selection_format"] == "primr.calibration_pack_selection.v1"
+        assert payload["reports"][0]["tags"] == []
+        assert payload["reports"][0]["path"] == report.name
+
+    def test_selection_template_rejects_baseline_mode_conflict(self, tmp_path):
+        from primr.core.cli import CLIConfig, Command, _handle_calibrate
+
+        report = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+
+        config = CLIConfig(
+            command=Command.CALIBRATE,
+            calibrate_target=str(report),
+            calibrate_pack_selection_template=str(tmp_path / "selection.json"),
+            calibrate_baseline_from=str(tmp_path / "pack.json"),
+        )
+
+        assert _handle_calibrate(config) == 1

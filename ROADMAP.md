@@ -45,9 +45,11 @@ Current priority order:
    The standard `--verify` path now surfaces contradicted claims in the final
    Report Trust summary; calibration scorecards now include evidence-review and
    judge-agreement signals; `primr calibrate --pack-manifest` freezes baseline
-   candidates locally; curated `--pack-selection` inputs make representative
-   coverage explicit; and `primr calibrate --baseline-from` writes a zero-spend
-   readiness artifact that refuses to mark small, unvalidated, or
+   candidates locally; `--pack-selection-template` writes a zero-spend starter
+   selection for manual representative tagging; curated `--pack-selection`
+   inputs make representative coverage explicit; and
+   `primr calibrate --baseline-from` writes a zero-spend readiness artifact
+   that refuses to mark small, unvalidated, or
    under-representative packs as ready while naming the exact next actions
    needed to make the pack baseline-ready. Readiness now requires every
    selected report to carry evidence-review dimensions and cloud-vs-local
@@ -1381,6 +1383,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.34.6 | Jun 2026 | **Calibration selection templates.** `primr calibrate --pack-selection-template <selection.json>` writes a zero-spend curated selection starter from resolved reports, including the representative tag checklist while leaving report tags empty for operator curation. This makes representative baseline assembly explicit without inferring coverage from report prose. |
 | 1.34.5 | Jun 2026 | **Calibration baseline remediation guidance.** `primr.calibration_baseline.v1` artifacts now include structured `next_actions` with missing report and sidecar counts, reason-specific remediation, suggested calibration commands, and an explicit policy to keep `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` unset until the pack is ready and the measured floor has been reviewed. Markdown baseline summaries render the same next-action and command guidance for operators. |
 | 1.34.4 | Jun 2026 | **Skill-pack verifier cleanup and visible byline removal.** Generated skill-pack fallback verifier scripts now perform a real local structural artifact check instead of shipping placeholder verification code, fast-section future markers now use `[QUEUED]`, and Markdown, HTML, and plain-text report template renderers no longer add visible author or generator attribution lines. |
 | 1.34.3 | Jun 2026 | **Calibration baseline readiness and local judge cost safety.** `primr calibrate --baseline-from <pack.json>` writes a zero-spend readiness artifact from a frozen calibration pack, with optional Markdown via `--baseline-md`, explicit not-ready reasons, traceability, evidence-review coverage, judge agreement, and report summaries. Explicit local calibration judging now fails closed on selected-model call failures instead of silently falling back to paid cloud judging; affected reports are recorded as calibration failures and no sidecar is written. |

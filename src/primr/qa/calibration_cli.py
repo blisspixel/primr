@@ -25,7 +25,11 @@ from primr.qa.calibration_runner import (
     run_calibration,
     write_calibration_pack_manifest,
 )
-from primr.qa.calibration_selection import CalibrationPackSelection, load_calibration_pack_selection
+from primr.qa.calibration_selection import (
+    CalibrationPackSelection,
+    load_calibration_pack_selection,
+    write_calibration_pack_selection_template,
+)
 
 
 class CalibrateConfig(Protocol):
@@ -55,6 +59,9 @@ class CalibrateConfig(Protocol):
 
     @property
     def calibrate_pack_selection(self) -> str | None: ...
+
+    @property
+    def calibrate_pack_selection_template(self) -> str | None: ...
 
     @property
     def calibrate_baseline_from(self) -> str | None: ...
@@ -89,6 +96,8 @@ def handle_calibrate(config: CalibrateConfig, console: ConsoleSink) -> int:
     if config.calibrate_baseline_min_reports < 1:
         console.error("--baseline-min-reports must be at least 1")
         return 1
+    if config.calibrate_pack_selection_template:
+        return _handle_selection_template(config, console)
     if config.calibrate_inspect_baseline:
         return _handle_inspect_baseline(config, console)
     if config.calibrate_baseline_from:
@@ -243,6 +252,42 @@ def _handle_inspect_baseline(config: CalibrateConfig, console: ConsoleSink) -> i
         return 1
     inspection = inspect_calibration_baseline(baseline, baseline_path=baseline_path)
     print(json.dumps(inspection, indent=2, ensure_ascii=False))
+    return 0
+
+
+def _handle_selection_template(config: CalibrateConfig, console: ConsoleSink) -> int:
+    if config.calibrate_pack_selection:
+        console.error("--pack-selection-template cannot be combined with --pack-selection")
+        return 1
+    if (
+        config.calibrate_inspect_baseline
+        or config.calibrate_baseline_from
+        or config.calibrate_pack_manifest
+        or config.calibrate_baseline_out
+        or config.calibrate_baseline_md
+    ):
+        console.error(
+            "--pack-selection-template cannot be combined with baseline inspection, "
+            "baseline output, or pack manifest output"
+        )
+        return 1
+    try:
+        reports = resolve_reports(config.calibrate_target, recent=config.calibrate_recent)
+        payload = write_calibration_pack_selection_template(
+            Path(config.calibrate_pack_selection_template or ""),
+            reports,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        console.error(str(exc))
+        return 1
+    console.ok(
+        f"Calibration pack selection template written: {config.calibrate_pack_selection_template}"
+    )
+    console.info(
+        "Coverage tags were left empty for operator curation; Primr does not infer "
+        "representativeness from report prose."
+    )
+    console.info(f"Reports: {len(payload['reports'])}")
     return 0
 
 

@@ -63,6 +63,14 @@ def add_calibration_arguments(parser: argparse.ArgumentParser) -> None:
         ),
     )
     parser.add_argument(
+        "--pack-selection-template",
+        metavar="PATH",
+        help=(
+            "With 'calibrate', write a zero-spend curated selection template from "
+            "the resolved reports. Tags are left empty for operator curation."
+        ),
+    )
+    parser.add_argument(
         "--baseline-from",
         metavar="PATH",
         help=(
