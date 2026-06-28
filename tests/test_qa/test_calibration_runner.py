@@ -296,6 +296,13 @@ class TestJudgeComparison:
         payload = json.loads(sidecar_path_for(path).read_text(encoding="utf-8"))
         assert payload["judge"]["kind"] == "cloud"
         assert payload["per_label"]["Confirmed"]["traceable"] == 1
+        assert payload["judge_agreement"] == {
+            "scope": "report",
+            "local_model": "m:7b",
+            "compared": 2,
+            "agreed": 0,
+            "agreement": 0.0,
+        }
 
     def test_full_agreement(self, tmp_path):
         from primr.qa.calibration_runner import JudgeSelection, compare_judges
@@ -344,6 +351,9 @@ class TestJudgeComparison:
         )
         assert agreement.compared == 0
         assert agreement.agreement is None
+        payload = json.loads(sidecar_path_for(path).read_text(encoding="utf-8"))
+        assert payload["judge_agreement"]["compared"] == 0
+        assert payload["judge_agreement"]["agreement"] is None
 
 
 class TestCLIWiring:

@@ -162,6 +162,7 @@ def _write_calibration_sidecar(
     report_path: Path,
     per_label: dict,
     validation_rubric: dict | None = None,
+    judge_agreement: dict | None = None,
 ) -> None:
     """Persist a `primr calibrate` sidecar next to a staged report."""
     from primr.qa.calibration_runner import sidecar_path_for
@@ -171,6 +172,7 @@ def _write_calibration_sidecar(
             {
                 "per_label": per_label,
                 "validation_rubric": validation_rubric or {},
+                "judge_agreement": judge_agreement or {},
                 "claims": [],
             }
         ),
@@ -215,6 +217,7 @@ def test_eval_reads_calibration_sidecar(tmp_path: Path):
             },
             "business_relevance": {"high": 3, "medium": 2, "low": 0, "unknown": 0},
         },
+        {"scope": "report", "local_model": "qwen2.5:14b", "compared": 4, "agreed": 3},
     )
 
     result = _run_eval(tmp_path, "eval-calib-001")
@@ -226,19 +229,26 @@ def test_eval_reads_calibration_sidecar(tmp_path: Path):
     assert metric.traceability("Reported") == pytest.approx(1.0)
     assert metric.evidence_source_reviews == 5
     assert metric.evidence_rate(metric.evidence_supported_reviews) == pytest.approx(0.8)
+    assert metric.judge_agreement_compared == 4
+    assert metric.judge_agreement_agreed == 3
     summary = result.profile_summaries[0]
     assert summary.calibrated_report_count == 1
     assert summary.confirmed_traceability == pytest.approx(0.6)
     assert summary.evidence_support_rate == pytest.approx(0.8)
     assert summary.evidence_strong_reasoning_rate == pytest.approx(0.8)
+    assert summary.judge_agreement_compared == 4
+    assert summary.judge_agreement_rate == pytest.approx(0.75)
     md = result.scorecard_md.read_text(encoding="utf-8")
     assert "## Label Calibration" in md
     assert "## Evidence Review" in md
+    assert "## Judge Agreement" in md
     assert "60%" in md
     assert "80%" in md
+    assert "75%" in md
     header = result.scorecard_csv.read_text(encoding="utf-8").splitlines()[0]
     assert "confirmed_traceability" in header
     assert "evidence_support_rate" in header
+    assert "judge_agreement_rate" in header
 
 
 def test_eval_without_sidecar_reports_no_data(tmp_path: Path):

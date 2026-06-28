@@ -104,6 +104,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   counts. The offline eval scorecard surfaces those pooled dimensions in a new
   `## Evidence Review` section and CSV columns while keeping them report-only
   until a defensible baseline and judge-agreement record exist.
+- `primr calibrate --judge-compare` now stamps per-report cloud-vs-local judge
+  agreement metadata into calibration sidecars. Offline eval scorecards surface
+  the pooled agreement counts and rate in a new `## Judge Agreement` section
+  and CSV columns, keeping judge substitution measurable before any gate is
+  considered.
 - Local agent working files moved to gitignored `docs/.agent/`, keeping
   persistent engineering memory out of the project root and tracked docs.
 - README is now a concise project front door instead of the full manual. Run

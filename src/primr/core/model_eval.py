@@ -21,9 +21,10 @@ from typing import TYPE_CHECKING, Any
 from primr.config.models import PrimrModels
 from primr.core.eval_calibration import (
     append_calibration_sections,
+    calibration_csv_columns,
+    calibration_csv_values,
     calibration_gate_threshold,
     load_calibration_counts,
-    round_or_blank,
 )
 from primr.qa.report_analyzer import ReportAnalyzer
 from primr.utils.cost_estimator import estimate_cost
@@ -274,6 +275,8 @@ class ReportMetrics:
     evidence_strong_reasoning_reviews: int = 0
     evidence_honest_uncertainty_reviews: int = 0
     evidence_high_relevance_reviews: int = 0
+    judge_agreement_compared: int = 0
+    judge_agreement_agreed: int = 0
 
     def traceability(self, label: str) -> float | None:
         """Per-report traceability precision for Confirmed/Reported."""
@@ -322,6 +325,8 @@ class ProfileSummary:
     evidence_strong_reasoning_rate: float | None = None
     evidence_honest_uncertainty_rate: float | None = None
     evidence_high_relevance_rate: float | None = None
+    judge_agreement_compared: int = 0
+    judge_agreement_rate: float | None = None
 
 
 @dataclass(frozen=True)
@@ -573,6 +578,8 @@ def _find_profile_reports(profile_dir: Path, profile: str) -> list[ReportMetrics
                 evidence_high_relevance_reviews=(calibration or {}).get(
                     "evidence_high_relevance_reviews", 0
                 ),
+                judge_agreement_compared=(calibration or {}).get("judge_agreement_compared", 0),
+                judge_agreement_agreed=(calibration or {}).get("judge_agreement_agreed", 0),
             )
         )
 
@@ -644,6 +651,8 @@ def _summarize_profile(profile: str, metrics: list[ReportMetrics]) -> ProfileSum
     confirmed_decidable = sum(m.confirmed_decidable for m in calibrated)
     reported_decidable = sum(m.reported_decidable for m in calibrated)
     evidence_source_reviews = sum(m.evidence_source_reviews for m in calibrated)
+    judge_agreement_compared = sum(m.judge_agreement_compared for m in calibrated)
+    judge_agreement_agreed = sum(m.judge_agreement_agreed for m in calibrated)
 
     def _pooled_evidence_rate(attr: str) -> float | None:
         if not evidence_source_reviews:
@@ -688,6 +697,12 @@ def _summarize_profile(profile: str, metrics: list[ReportMetrics]) -> ProfileSum
             "evidence_honest_uncertainty_reviews"
         ),
         evidence_high_relevance_rate=_pooled_evidence_rate("evidence_high_relevance_reviews"),
+        judge_agreement_compared=judge_agreement_compared,
+        judge_agreement_rate=(
+            round(judge_agreement_agreed / judge_agreement_compared, 3)
+            if judge_agreement_compared
+            else None
+        ),
     )
 
 
@@ -1130,16 +1145,7 @@ def _write_scorecard_csv(path: Path, metrics: list[ReportMetrics]) -> None:
                 "confidence_labels",
                 "scaffolding_leaks",
                 "calibrated",
-                "confirmed_traceability",
-                "reported_traceability",
-                "evidence_source_reviews",
-                "evidence_support_rate",
-                "evidence_contradiction_rate",
-                "evidence_independence_rate",
-                "evidence_high_authority_rate",
-                "evidence_strong_reasoning_rate",
-                "evidence_honest_uncertainty_rate",
-                "evidence_high_relevance_rate",
+                *calibration_csv_columns(),
             ]
         )
         for m in metrics:
@@ -1163,16 +1169,7 @@ def _write_scorecard_csv(path: Path, metrics: list[ReportMetrics]) -> None:
                     m.confidence_labels,
                     m.scaffolding_leaks,
                     m.calibrated,
-                    round_or_blank(m.traceability("Confirmed")),
-                    round_or_blank(m.traceability("Reported")),
-                    m.evidence_source_reviews,
-                    round_or_blank(m.evidence_rate(m.evidence_supported_reviews)),
-                    round_or_blank(m.evidence_rate(m.evidence_contradicted_reviews)),
-                    round_or_blank(m.evidence_rate(m.evidence_independent_reviews)),
-                    round_or_blank(m.evidence_rate(m.evidence_high_authority_reviews)),
-                    round_or_blank(m.evidence_rate(m.evidence_strong_reasoning_reviews)),
-                    round_or_blank(m.evidence_rate(m.evidence_honest_uncertainty_reviews)),
-                    round_or_blank(m.evidence_rate(m.evidence_high_relevance_reviews)),
+                    *calibration_csv_values(m),
                 ]
             )
 

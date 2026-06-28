@@ -71,6 +71,12 @@ def load_calibration_counts(report_path: Path) -> dict[str, int] | None:
     counts["evidence_strong_reasoning_reviews"] = _count("reasoning_strength", "strong")
     counts["evidence_honest_uncertainty_reviews"] = _count("uncertainty_honesty", "honest")
     counts["evidence_high_relevance_reviews"] = _count("business_relevance", "high")
+
+    agreement = payload.get("judge_agreement", {})
+    if not isinstance(agreement, dict):
+        agreement = {}
+    counts["judge_agreement_compared"] = _safe_int(agreement.get("compared", 0))
+    counts["judge_agreement_agreed"] = _safe_int(agreement.get("agreed", 0))
     return counts
 
 
@@ -124,6 +130,47 @@ def round_or_blank(value: float | None) -> float | str:
     return round(value, 3) if value is not None else ""
 
 
+def calibration_csv_columns() -> list[str]:
+    """CSV columns owned by calibration sidecar metrics."""
+    return [
+        "confirmed_traceability",
+        "reported_traceability",
+        "evidence_source_reviews",
+        "evidence_support_rate",
+        "evidence_contradiction_rate",
+        "evidence_independence_rate",
+        "evidence_high_authority_rate",
+        "evidence_strong_reasoning_rate",
+        "evidence_honest_uncertainty_rate",
+        "evidence_high_relevance_rate",
+        "judge_agreement_compared",
+        "judge_agreement_rate",
+    ]
+
+
+def calibration_csv_values(metric: Any) -> list[object]:
+    """CSV row values owned by calibration sidecar metrics."""
+    judge_agreement_rate = (
+        metric.judge_agreement_agreed / metric.judge_agreement_compared
+        if metric.judge_agreement_compared
+        else None
+    )
+    return [
+        round_or_blank(metric.traceability("Confirmed")),
+        round_or_blank(metric.traceability("Reported")),
+        metric.evidence_source_reviews,
+        round_or_blank(metric.evidence_rate(metric.evidence_supported_reviews)),
+        round_or_blank(metric.evidence_rate(metric.evidence_contradicted_reviews)),
+        round_or_blank(metric.evidence_rate(metric.evidence_independent_reviews)),
+        round_or_blank(metric.evidence_rate(metric.evidence_high_authority_reviews)),
+        round_or_blank(metric.evidence_rate(metric.evidence_strong_reasoning_reviews)),
+        round_or_blank(metric.evidence_rate(metric.evidence_honest_uncertainty_reviews)),
+        round_or_blank(metric.evidence_rate(metric.evidence_high_relevance_reviews)),
+        metric.judge_agreement_compared,
+        round_or_blank(judge_agreement_rate),
+    ]
+
+
 def append_calibration_sections(lines: list[str], summaries: list[Any]) -> None:
     """Append calibration and evidence-review Markdown sections."""
     lines.append("")
@@ -175,4 +222,21 @@ def append_calibration_sections(lines: list[str], summaries: list[Any]) -> None:
             f"{percent_or_dash(summary.evidence_strong_reasoning_rate)} | "
             f"{percent_or_dash(summary.evidence_honest_uncertainty_rate)} | "
             f"{percent_or_dash(summary.evidence_high_relevance_rate)} |"
+        )
+
+    lines.append("")
+    lines.append("## Judge Agreement")
+    lines.append("")
+    lines.append(
+        "Cloud-vs-local agreement recorded by `primr calibrate --judge-compare`, "
+        "pooled across calibrated report sidecars. This is a baseline-readiness "
+        "signal, not a gate."
+    )
+    lines.append("")
+    lines.append("| Profile | Compared Claims | Agreement |")
+    lines.append("|---|---:|---:|")
+    for summary in summaries:
+        lines.append(
+            f"| {summary.profile} | {summary.judge_agreement_compared} | "
+            f"{percent_or_dash(summary.judge_agreement_rate)} |"
         )

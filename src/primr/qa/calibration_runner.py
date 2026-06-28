@@ -422,6 +422,7 @@ def compare_judges(
 
     compared = 0
     agreed = 0
+    per_report: dict[Path, JudgeAgreement] = {}
     for path in report_paths:
         try:
             content = path.read_text(encoding="utf-8")
@@ -432,17 +433,57 @@ def compare_judges(
         local_report = calibrate_claims(
             claims, fetch_fn=cached_fetch, judge_fn=local_selection.judge_fn
         )
+        report_compared = 0
+        report_agreed = 0
         for cloud_result, local_result in zip(
             cloud_report.results, local_report.results, strict=True
         ):
             if cloud_result.verdict in _DECIDED and local_result.verdict in _DECIDED:
                 compared += 1
+                report_compared += 1
                 if cloud_result.verdict == local_result.verdict:
                     agreed += 1
+                    report_agreed += 1
+        per_report[path] = JudgeAgreement(
+            compared=report_compared,
+            agreed=report_agreed,
+            local_model=local_selection.model,
+        )
 
-    return cloud_outcomes, JudgeAgreement(
-        compared=compared, agreed=agreed, local_model=local_selection.model
-    )
+    agreement = JudgeAgreement(compared=compared, agreed=agreed, local_model=local_selection.model)
+    _stamp_judge_agreement(cloud_outcomes, per_report)
+    return cloud_outcomes, agreement
+
+
+def _stamp_judge_agreement(
+    outcomes: list[ReportCalibrationOutcome],
+    per_report: dict[Path, JudgeAgreement],
+) -> None:
+    """Persist per-report cloud-vs-local agreement beside calibration verdicts."""
+    for outcome in outcomes:
+        if outcome.sidecar_path is None:
+            continue
+        agreement = per_report.get(outcome.report_path)
+        if agreement is None:
+            continue
+        try:
+            payload = json.loads(outcome.sidecar_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            logger.warning("Could not stamp judge agreement into %s", outcome.sidecar_path)
+            continue
+        if not isinstance(payload, dict):
+            continue
+        payload["judge_agreement"] = {
+            "scope": "report",
+            "local_model": agreement.local_model,
+            "compared": agreement.compared,
+            "agreed": agreement.agreed,
+            "agreement": agreement.agreement,
+        }
+        outcome.sidecar_path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
 
 
 def aggregate_per_label(outcomes: list[ReportCalibrationOutcome]) -> dict[str, dict[str, int]]:

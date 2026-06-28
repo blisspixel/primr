@@ -43,7 +43,8 @@ Current priority order:
    Primr can trust eval gates, routing comparisons, or future memory. Label
    traceability is the first measurable slice, not the whole validation story.
    The standard `--verify` path now surfaces contradicted claims in the final
-   Report Trust summary; calibration baselines and scorecards remain next.
+   Report Trust summary; calibration scorecards now include evidence-review and
+   judge-agreement signals, with the multi-report baseline still next.
 2. **Backend freedom production wiring.** Provider abstractions and pure routing
    foundations exist, but full-report execution still carries xAI/Gemini-era
    assumptions. Stage-by-stage routing is the next architecture unlock.
@@ -265,10 +266,13 @@ per-module coverage ratchet unlocked by the refactor:
   record support, contradiction, source independence, source authority,
   reasoning strength, uncertainty honesty, and business relevance dimensions,
   and the eval scorecard surfaces pooled `## Evidence Review` report-only
-  metrics plus CSV columns. Remaining: gather a multi-report,
-  agreement-validated baseline (cloud-vs-local concordance), then set the
-  threshold from those numbers; a single small run is too judge-noisy to arm a
-  hard gate on (judge variance is itself a documented failure mode, see
+  metrics plus CSV columns. `--judge-compare` also stamps per-report
+  cloud-vs-local agreement into calibration sidecars, and offline eval surfaces
+  pooled `## Judge Agreement` report-only metrics plus CSV columns. Remaining:
+  gather a multi-report, agreement-validated baseline (cloud-vs-local
+  concordance), then set the threshold from those numbers; a single small run
+  is too judge-noisy to arm a hard gate on (judge variance is itself a
+  documented failure mode, see
   [`docs/design/agentic-balance.md`](docs/design/agentic-balance.md)). See
   `docs/design/1x-completion.md` workstream 1
 

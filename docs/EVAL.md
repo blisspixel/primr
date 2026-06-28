@@ -73,6 +73,11 @@ For a 24 GB RTX 4090 or comparable local box, start with `4090-report-race` befo
   `evidence_contradiction_rate`, and `evidence_strong_reasoning_rate`. Treat
   these as calibration signals until a multi-report baseline and
   judge-agreement record justify gates.
+- Judge agreement: `primr calibrate --judge-compare` stamps per-report
+  cloud-vs-local agreement metadata into each calibration sidecar. Offline eval
+  pools those counts into `## Judge Agreement` and CSV columns
+  `judge_agreement_compared` / `judge_agreement_rate`. Agreement remains a
+  baseline-readiness signal, not a quality gate.
 
 ### Local judge for calibration ($0 judge calls)
 
@@ -92,6 +97,9 @@ Design rules (these hold for any setup, not a particular machine):
 - **Size is not auto-detected; pin a model that fits.** The picker chooses by family preference, not by memory footprint, so on a RAM-limited machine it can select a model too large to load. That call fails and falls back to the cloud judge (visible as a non-zero `cloud_fallbacks` in the sidecar plus a "fell back to cloud" warning), which quietly incurs cloud cost instead of staying $0. To keep local judging truly free, pin a model that fits with `--judge-model` (for example a 14B-class model on a 32 GB machine). Confirm it stuck by checking that `cloud_fallbacks` is 0 in the sidecar.
 - **Provenance is never ambiguous.** Every sidecar records `judge: {kind, model}` (plus a `cloud_fallbacks` count when a flaky local server forced per-call fallbacks), so a calibration number always says what judged it.
 - **Trust is measured, not assumed.** `--judge-compare` runs cloud and local over the same claims (cloud verdicts are the result of record and are billed exactly once) and reports the agreement rate. If your local model agrees ~90%+, future calibration runs can go local-first and recurring judge cost drops to zero.
+- The agreement rate is persisted in sidecars, so later `primr eval` scorecards
+  can show whether a profile's calibration data came from an agreement-checked
+  judge setup.
 
 These dimensions are aligned to the README goal: producing deep strategic analysis that gets humans and AI up to speed quickly and safely, not just producing long reports.
 
