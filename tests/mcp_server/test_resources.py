@@ -7,12 +7,15 @@ Task 7: Resource handlers
 import json
 import tempfile
 from pathlib import Path
+from urllib.parse import quote
 
 import pytest
 from mcp.types import ListResourcesRequest, ReadResourceRequest, ReadResourceRequestParams
 
+from primr.mcp_server.security import PathValidator
 from primr.mcp_server.server import create_mcp_server
 from primr.mcp_server.types import ResearchStage
+from primr.qa.calibration_baseline import build_calibration_baseline
 
 
 class TestResourceListing:
@@ -40,6 +43,7 @@ class TestResourceListing:
         assert "primr://research/modes" in uris
         assert "primr://output/latest" in uris
         assert "primr://output/artifacts" in uris
+        assert "primr://calibration/baseline/inspection?path={baseline_path}" in uris
         assert "primr://config" in uris
 
 
@@ -234,6 +238,85 @@ class TestAgentGovernanceResource:
         assert data["strategy_flow"]["cap_argument"] == "max_estimated_cost_usd"
         assert "35-45 minutes" in data["research_flow"]["expected_runtime"]
         assert data["research_flow"]["wait_tool"] == "wait_for_status_change"
+
+
+class TestCalibrationBaselineInspectionResource:
+    """Tests for primr://calibration/baseline/inspection."""
+
+    @pytest.fixture
+    def server(self, tmp_path):
+        server = create_mcp_server(journal_path=str(tmp_path / "test_journal.json"))
+        server.path_validator = PathValidator(allowed_roots=[str(tmp_path)])
+        return server
+
+    @pytest.mark.asyncio
+    async def test_reads_baseline_inspection_from_allowed_path(self, server, tmp_path):
+        baseline = build_calibration_baseline(
+            {
+                "manifest_format": "primr.calibration_pack.v1",
+                "totals": {"reports": 1, "sidecars_present": 0, "failures": 0},
+                "reports": [
+                    {
+                        "report_path": "output/Acme_Strategic_Overview.md",
+                        "report_file": "Acme_Strategic_Overview.md",
+                        "sidecar_exists": False,
+                        "claims_sampled": 2,
+                        "judgeable_claims": 2,
+                    }
+                ],
+            },
+            minimum_reports=1,
+        )
+        baseline_path = tmp_path / "baseline.json"
+        baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+        uri = (
+            "primr://calibration/baseline/inspection?path="
+            f"{quote(baseline_path.as_posix(), safe='')}"
+        )
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(uri=uri),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        assert data["inspection_format"] == "primr.calibration_readiness_inspection.v1"
+        assert data["counts"]["missing_sidecars"] == 1
+        assert data["blockers"]["missing_sidecars"][0]["report_file"] == (
+            "Acme_Strategic_Overview.md"
+        )
+
+    @pytest.mark.asyncio
+    async def test_rejects_path_outside_allowed_roots(self, server):
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri="primr://calibration/baseline/inspection?path=../secret.json"
+                ),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        assert data["error"] == "invalid_path"
+        assert data["error_type"] == "path_traversal_blocked"
+
+    @pytest.mark.asyncio
+    async def test_requires_path_query(self, server):
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(uri="primr://calibration/baseline/inspection"),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        assert data["error"] == "missing_path"
 
 
 class TestConfigResource:

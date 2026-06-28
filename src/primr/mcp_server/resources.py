@@ -5,6 +5,7 @@ This module provides read-only resources for state inspection:
 - primr://research/status - Current research job status
 - primr://output/latest - Most recent research output
 - primr://output/artifacts - Pipeline stage artifacts
+- primr://calibration/baseline/inspection?path=... - Calibration readiness blockers
 - primr://config - Configuration state
 
 Agentic resources (from agentic_resources.py):
@@ -27,6 +28,11 @@ from mcp.types import Resource
 
 from primr.mcp_server.agentic_resources import get_agentic_resources, read_agentic_resource
 from primr.mcp_server.audit_log import read_agent_audit_recent_resource
+from primr.mcp_server.calibration_resources import (
+    CALIBRATION_BASELINE_INSPECTION_RESOURCE,
+    CALIBRATION_BASELINE_INSPECTION_URI,
+    read_calibration_baseline_inspection_resource,
+)
 from primr.mcp_server.tool_authz import ADMIN_SCOPE
 from primr.mcp_server.types import (
     ArtifactInfo,
@@ -128,6 +134,7 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
                 description="Most recent run manifest (audit trail)",
                 mimeType="application/json",
             ),
+            CALIBRATION_BASELINE_INSPECTION_RESOURCE,
         ]
         # Include agentic resources
         return base_resources + agentic_resources
@@ -180,6 +187,14 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
             "primr://output/manifest/latest"
         ):
             return _read_manifest_latest(mcp_server)
+        elif uri_str == CALIBRATION_BASELINE_INSPECTION_URI or uri_str.startswith(
+            f"{CALIBRATION_BASELINE_INSPECTION_URI}?"
+        ):
+            return read_calibration_baseline_inspection_resource(
+                mcp_server,
+                uri_str,
+                client_id=_caller_client_id(mcp_server),
+            )
 
         raise ValueError(f"Unknown resource: {uri}")
 

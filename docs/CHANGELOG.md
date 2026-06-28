@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `primr calibrate --inspect-baseline <baseline.json>` now prints a
   zero-spend, machine-readable readiness inspection with report-level blockers,
   missing representative tags, gate policy, and suggested rebuild commands.
+- MCP clients can read
+  `primr://calibration/baseline/inspection?path=<baseline.json>` for the same
+  readiness inspection, with the path constrained by the existing MCP allowed
+  roots.
 
 ## [1.34.5] - 2026-06-28
 

@@ -54,8 +54,10 @@ Current priority order:
    judge-agreement metadata, so partial sidecar coverage cannot make a pack
    look ready by aggregate counts alone. `primr calibrate --inspect-baseline`
    prints the same blocker set as machine-readable JSON for operators and
-   agent control planes. The representative multi-report baseline itself is
-   still next.
+   agent control planes, and MCP exposes the same inspection through
+   `primr://calibration/baseline/inspection?path=<baseline.json>` under the
+   existing path-allowlist boundary. The representative multi-report baseline
+   itself is still next.
 2. **Backend freedom production wiring.** Provider abstractions and pure routing
    foundations exist, but full-report execution still carries xAI/Gemini-era
    assumptions. Stage-by-stage routing is the next architecture unlock.

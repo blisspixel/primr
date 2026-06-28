@@ -105,7 +105,9 @@ For a 24 GB RTX 4090 or comparable local box, start with `4090-report-race` befo
   include evidence-review counts and judge-agreement compared-claim counts so
   operators can identify the exact selected artifacts still blocking readiness.
   Run `primr calibrate --inspect-baseline path/to/baseline.json` to print the
-  same blockers as machine-readable JSON for agents or automation.
+  same blockers as machine-readable JSON for agents or automation. MCP clients
+  can read `primr://calibration/baseline/inspection?path=<baseline.json>` when
+  the baseline path is inside the MCP allowed roots.
   This summarizes baseline readiness; it does not arm a quality gate.
 
 ### Local judge for calibration ($0 judge calls)
