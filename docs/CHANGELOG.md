@@ -7,10 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.7] - 2026-06-28
+
 ### Changed
 
 - `primr calibrate --inspect-selection <selection.json>` now prints a
-  zero-spend, machine-readable inspection of curated selection files, including
+  zero-spend, machine-readable inspection of curated calibration selection files, including
   report count, required tags, present tags, missing tags, per-report tags, and
   operator next actions before any pack manifest or judge work runs.
 

@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.34.6
+Current State: v1.34.7
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -1384,6 +1384,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.34.7 | Jun 2026 | **Calibration selection inspection.** `primr calibrate --inspect-selection <selection.json>` prints a zero-spend machine-readable inspection of curated selection files before manifest or judge work. The payload reports selected report count, required tags, present tags, missing tags, per-report tags, and next actions, keeping representative coverage as explicit operator metadata. |
 | 1.34.6 | Jun 2026 | **Calibration selection templates.** `primr calibrate --pack-selection-template <selection.json>` writes a zero-spend curated selection starter from resolved reports, including the representative tag checklist while leaving report tags empty for operator curation. This makes representative baseline assembly explicit without inferring coverage from report prose. |
 | 1.34.5 | Jun 2026 | **Calibration baseline remediation guidance.** `primr.calibration_baseline.v1` artifacts now include structured `next_actions` with missing report and sidecar counts, reason-specific remediation, suggested calibration commands, and an explicit policy to keep `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` unset until the pack is ready and the measured floor has been reviewed. Markdown baseline summaries render the same next-action and command guidance for operators. |
 | 1.34.4 | Jun 2026 | **Skill-pack verifier cleanup and visible byline removal.** Generated skill-pack fallback verifier scripts now perform a real local structural artifact check instead of shipping placeholder verification code, fast-section future markers now use `[QUEUED]`, and Markdown, HTML, and plain-text report template renderers no longer add visible author or generator attribution lines. |
