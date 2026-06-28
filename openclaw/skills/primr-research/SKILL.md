@@ -56,6 +56,8 @@ resources:
 
   - primr://output/artifacts/by_job/{job_id}
 
+  - primr://output/qa_summary/by_job/{job_id}
+
 ---
 
 
@@ -138,7 +140,8 @@ research_company(company_name="ExampleCo", company_url="https://example.com", mo
 
 When the run completes, read `primr://output/artifacts/by_job/{job_id}` first
 to inventory artifacts without report body content. Read
-`primr://output/latest` only when the next step needs a report preview.
+`primr://output/qa_summary/by_job/{job_id}` when QA artifacts are attached.
+Read `primr://output/latest` only when the next step needs a report preview.
 
 
 

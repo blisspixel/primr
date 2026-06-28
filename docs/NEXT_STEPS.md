@@ -1,6 +1,6 @@
 # Next Steps
 
-Last research refresh: 2026-06-27.
+Last research refresh: 2026-06-28.
 
 This page answers the working question: what should Primr do next, and why?
 `ROADMAP.md` remains the ordered backlog. This page is the shorter execution
@@ -22,6 +22,16 @@ for Primr's shape:
   product, not as generic shell execution. MCP and current agent-security
   guidance converge on least privilege, explicit consent for high-impact
   actions, tool safety, scoped resources, and auditability.
+- For MCP resources, keep context surfaces compact and application-driven.
+  Parameterized job reads should move toward resource templates as client
+  support matures; the current implementation extends the repo's existing
+  URI-pattern resource listing for compatibility while preserving the same
+  body-free and ownership-gated contract.
+- For HTTP MCP auth, keep Primr as the protected resource server and enforce
+  internal scopes per operation. The latest MCP revision adds incremental
+  scope-consent semantics through `WWW-Authenticate`, which fits the existing
+  small `read`/`research`/`delegate`/`admin` vocabulary and should shape the
+  next HTTP parity slice.
 - Treat GenAI observability as structured telemetry: model calls, tool calls,
   token/cost metadata, outcome, and trace ids. Full prompt/output capture
   should stay opt-in and privacy-aware.
@@ -39,6 +49,14 @@ Reference anchors:
 - Keep a Changelog: <https://keepachangelog.com/en/1.1.0/>
 - MkDocs strict mode: <https://www.mkdocs.org/user-guide/configuration/#strict>
 - MCP security best practices: <https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices>
+- MCP specification, latest 2025-11-25 overview:
+  <https://modelcontextprotocol.io/specification/2025-11-25>
+- MCP resources, latest 2025-11-25 draft:
+  <https://modelcontextprotocol.io/specification/draft/server/resources>
+- MCP authorization, latest 2025-11-25:
+  <https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization>
+- MCP 2025-11-25 changelog:
+  <https://modelcontextprotocol.io/specification/2025-11-25/changelog>
 - OWASP Agentic AI Threats and Mitigations: <https://genai.owasp.org/resource/agentic-ai-threats-and-mitigations/>
 - Microsoft Zero Trust AI threat modeling: <https://learn.microsoft.com/en-us/security/zero-trust/sfi/threat-modeling-ai>
 - OpenTelemetry GenAI semantic conventions: <https://opentelemetry.io/docs/specs/semconv/gen-ai/>
@@ -215,12 +233,13 @@ least-privilege and approval semantics as MCP.
 
 Do next:
 
-- Add job-scoped resources for `qa_summary`, source appendix, trace summary,
-  usage/cost summary, verification summary, calibration summary, and selected
-  artifact metadata. First slice shipped:
+- Add job-scoped resources for source appendix, trace summary, usage/cost
+  summary, verification summary, calibration summary, and selected artifact
+  metadata. The first two slices shipped:
   `primr://output/artifacts/by_job/{job_id}` returns ownership-gated file names,
-  paths, sizes, hashes, timestamps, and missing-file state for one job without
-  returning report body content.
+  paths, sizes, hashes, timestamps, and missing-file state for one job, and
+  `primr://output/qa_summary/by_job/{job_id}` returns compact QA score/status
+  and count metadata. Neither returns report body content.
 - Define the scope matrix before implementation: monitor can read status and
   compact summaries; artifact read can read compact resources; report read can
   request full report content; research can estimate; execution still requires

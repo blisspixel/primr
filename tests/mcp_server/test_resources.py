@@ -45,6 +45,7 @@ class TestResourceListing:
         assert "primr://output/latest" in uris
         assert "primr://output/artifacts" in uris
         assert "primr://output/artifacts/by_job/%7Bjob_id%7D" in uris
+        assert "primr://output/qa_summary/by_job/%7Bjob_id%7D" in uris
         assert "primr://calibration/baseline/inspection?path={baseline_path}" in uris
         assert "primr://config" in uris
 
@@ -292,6 +293,190 @@ class TestArtifactMetadataByJobResource:
                 method="resources/read",
                 params=ReadResourceRequestParams(
                     uri=f"primr://output/artifacts/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        assert data["error"] == "job_not_found"
+        assert data["job_id"] == job.job_id
+
+
+class TestQASummaryByJobResource:
+    """Tests for primr://output/qa_summary/by_job/{job_id}."""
+
+    @pytest.fixture
+    def server(self, tmp_path):
+        return create_mcp_server(journal_path=str(tmp_path / "test_journal.json"))
+
+    @pytest.mark.asyncio
+    async def test_reads_owned_job_qa_summary_without_body(self, server, tmp_path):
+        qa_summary = tmp_path / "Acme_QA_Report.json"
+        qa_summary.write_text(
+            json.dumps(
+                {
+                    "overall_score": 91,
+                    "status": "passed",
+                    "ready_for_use": True,
+                    "issues": [{"description": "Secret issue body"}],
+                    "warnings": ["Secret warning body"],
+                    "recommendations": ["Secret recommendation body"],
+                    "secret_details": "Detailed narrative that must not be returned",
+                }
+            ),
+            encoding="utf-8",
+        )
+        report = tmp_path / "report.md"
+        report.write_text("# Report body", encoding="utf-8")
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(report), str(qa_summary)]
+        job.advance_stage(ResearchStage.COMPLETED)
+        server.job_store.update(job)
+        server._auth_context = SimpleNamespace(client_id="client-a", scopes=["read"])
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/qa_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        text = result.root.contents[0].text
+        data = json.loads(text)
+        assert data["schema_version"] == "1.0"
+        assert data["job_id"] == job.job_id
+        assert data["summary_count"] == 1
+        assert data["full_content_included"] is False
+        assert "Detailed narrative" not in text
+        assert "Secret issue body" not in text
+        summary = data["summaries"][0]
+        assert summary["artifact_type"] == "qa_summary"
+        assert summary["parsed"] is True
+        assert summary["score_fields"] == {"overall_score": 91}
+        assert summary["status_fields"] == {
+            "ready_for_use": True,
+            "status": "passed",
+        }
+        assert summary["count_fields"] == {
+            "issues_count": 1,
+            "recommendations_count": 1,
+            "warnings_count": 1,
+        }
+
+    @pytest.mark.asyncio
+    async def test_returns_not_found_when_job_has_no_qa_summary(self, server, tmp_path):
+        report = tmp_path / "report.md"
+        report.write_text("# Report", encoding="utf-8")
+        job = server.job_store.create("Acme Corp", "full")
+        job.output_paths = [str(report)]
+        server.job_store.update(job)
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/qa_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        assert data["error"] == "qa_summary_not_found"
+        assert data["summary_count"] == 0
+        assert data["job_id"] == job.job_id
+
+    @pytest.mark.asyncio
+    async def test_malformed_json_returns_metadata_without_body(self, server, tmp_path):
+        qa_summary = tmp_path / "Acme_QA_Report.json"
+        qa_summary.write_text('{"overall_score": 91, "secret": "not closed"', encoding="utf-8")
+        job = server.job_store.create("Acme Corp", "full")
+        job.output_paths = [str(qa_summary)]
+        server.job_store.update(job)
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/qa_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        text = result.root.contents[0].text
+        data = json.loads(text)
+        assert "not closed" not in text
+        assert data["summaries"][0]["parsed"] is False
+        assert data["summaries"][0]["parse_error"] == "invalid_json"
+        assert data["summaries"][0]["content_hash"].startswith("sha256:")
+
+    @pytest.mark.asyncio
+    async def test_summarizes_current_text_qa_report_without_body(self, server, tmp_path):
+        qa_report = tmp_path / "Acme_QA_Report_06-28-2026_10-30-00.txt"
+        qa_report.write_text(
+            "\n".join(
+                [
+                    "Quality Assessment Report for Acme",
+                    "OVERALL ASSESSMENT",
+                    "Ready for Use: Yes",
+                    "Confidence Level: High",
+                    "Grade: 88/100",
+                    "Quality Score: 88/100",
+                    "Citation Score: 81/100",
+                    "Total Citations: 12",
+                    "1. Secret detailed issue body",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        job = server.job_store.create("Acme Corp", "full")
+        job.output_paths = [str(qa_report)]
+        server.job_store.update(job)
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/qa_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        text = result.root.contents[0].text
+        data = json.loads(text)
+        assert "Secret detailed issue body" not in text
+        summary = data["summaries"][0]
+        assert summary["artifact_type"] == "qa_summary"
+        assert summary["source_format"] == "text"
+        assert summary["score_fields"]["grade"] == 88
+        assert summary["score_fields"]["quality_score"] == 88
+        assert summary["score_fields"]["citation_score"] == 81
+        assert summary["status_fields"] == {
+            "confidence_level": "High",
+            "ready_for_use": True,
+        }
+        assert summary["count_fields"] == {"total_citations": 12}
+
+    @pytest.mark.asyncio
+    async def test_rejects_unowned_http_job_like_missing(self, server, tmp_path):
+        qa_summary = tmp_path / "Acme_QA_Report.json"
+        qa_summary.write_text('{"overall_score": 91}', encoding="utf-8")
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(qa_summary)]
+        server.job_store.update(job)
+        server._auth_context = SimpleNamespace(client_id="client-b", scopes=["read"])
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/qa_summary/by_job/{job.job_id}"
                 ),
             )
         )

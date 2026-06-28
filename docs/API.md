@@ -1514,7 +1514,9 @@ Most recent research output. Add `?full_content=true` for complete content.
 Pipeline stage artifacts for the active job or latest terminal job. This
 legacy resource includes short previews and is useful for local interactive
 review. Prefer `primr://output/artifacts/by_job/{job_id}` for agent automation
-that only needs a compact inventory.
+that only needs a compact inventory, and
+`primr://output/qa_summary/by_job/{job_id}` when the client only needs QA
+metadata.
 
 ```json
 {
@@ -1603,6 +1605,68 @@ Error responses:
 }
 ```
 
+#### primr://output/qa_summary/by_job/{job_id}
+
+Compact, ownership-gated QA artifact summary for one job. This resource reads
+attached QA JSON sidecars and current text QA reports classified as
+`qa_summary`, then returns score, status, count, parse, hash, timestamp, and
+top-level-key metadata without returning detailed issue, recommendation, or
+report body text.
+
+HTTP callers can read only jobs owned by the authenticated client. Missing jobs
+and unowned jobs return the same `job_not_found` shape so clients cannot probe
+for other job ids. Malformed QA JSON returns metadata plus `parse_error`
+without echoing the malformed body.
+
+```json
+{
+  "schema_version": "1.0",
+  "resource": "primr://output/qa_summary/by_job",
+  "job_id": "job_abc123",
+  "status": "completed",
+  "company_name": "Acme Corp",
+  "summary_count": 1,
+  "full_content_included": false,
+  "summaries": [
+    {
+      "index": 2,
+      "artifact_type": "qa_summary",
+      "file_name": "Acme_Corp_QA_Report.json",
+      "file_path": "output/acme_corp/Acme_Corp_QA_Report.json",
+      "exists": true,
+      "size_bytes": 2048,
+      "modified_at": "2026-06-28T18:45:00+00:00",
+      "content_hash": "sha256:abc123...",
+      "parsed": true,
+      "full_content_included": false,
+      "top_level_keys": ["issues", "overall_score", "ready_for_use", "status"],
+      "status_fields": {
+        "ready_for_use": true,
+        "status": "passed"
+      },
+      "score_fields": {
+        "overall_score": 91
+      },
+      "count_fields": {
+        "issues_count": 0
+      }
+    }
+  ]
+}
+```
+
+No QA summary response:
+
+```json
+{
+  "error": "qa_summary_not_found",
+  "message": "Job job_abc123 has no attached QA summary artifact",
+  "job_id": "job_abc123",
+  "status": "completed",
+  "summary_count": 0
+}
+```
+
 #### primr://config
 
 Current configuration (no secrets exposed).
@@ -1670,7 +1734,9 @@ List of available strategy types with metadata for Open Claw integration.
 Job-scoped report preview retrieval for provenance tracking. Ensures the
 returned report preview corresponds to a specific approved job. Use
 `primr://output/artifacts/by_job/{job_id}` first when a client only needs
-artifact metadata and not report text.
+artifact metadata and not report text. Use
+`primr://output/qa_summary/by_job/{job_id}` first when a client only needs QA
+outcome metadata.
 
 ```json
 {

@@ -140,6 +140,9 @@ primr doctor
   requesting report previews. It returns compact artifact metadata for the
   owned job without report body content, which keeps OpenClaw workflows from
   loading large reports unless a downstream step explicitly needs them.
+- If QA artifacts are attached, read
+  `primr://output/qa_summary/by_job/{job_id}` for compact score/status/count
+  metadata without loading detailed QA text.
 
 
 

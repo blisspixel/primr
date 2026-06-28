@@ -298,6 +298,8 @@ class TestGracefulFallback:
             "text",
             "empty",
             "inline_header",
+            "table_row",
+            "table_separator",
         )
         assert isinstance(result.content, str)
         assert isinstance(result.level, int)
@@ -315,7 +317,7 @@ class TestGracefulFallback:
         # Should always return a list
         assert isinstance(blocks, list)
         for block in blocks:
-            assert block.type in ("heading", "paragraph", "bullet_list", "numbered_list")
+            assert block.type in ("heading", "paragraph", "bullet_list", "numbered_list", "table")
 
 
 class TestBoldMarkdownConversion:

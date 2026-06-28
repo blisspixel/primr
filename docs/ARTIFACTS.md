@@ -41,6 +41,11 @@ strict about formatting and structure in the final document pipeline.
   missing-file state for one owned job without returning report body content.
   This is the safe first read before an agent requests a report preview or
   opens files directly.
+- **Job-scoped QA summary metadata for agents** through
+  `primr://output/qa_summary/by_job/{job_id}`. The resource reads attached QA
+  JSON sidecars and current text QA reports, then returns score/status/count
+  metadata, parse state, hashes, timestamps, and top-level keys without
+  returning detailed QA or report body content.
 
 The writing and regeneration prompts carry an explicit prohibition against the
 internal-scaffolding markers the cleanup strips, sourced from a single shared

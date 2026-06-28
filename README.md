@@ -151,6 +151,9 @@ Agent hosts can inventory one completed job with
 `primr://output/artifacts/by_job/{job_id}` before requesting report content.
 That resource returns artifact paths, types, sizes, timestamps, hashes, and
 missing-file state without returning report body content.
+They can inspect attached QA outcomes with
+`primr://output/qa_summary/by_job/{job_id}`, which returns compact
+score/status/count metadata without detailed QA or report body text.
 
 With `--output-dir`, Primr writes customer-facing Markdown and DOCX deliverables to that folder while keeping TXT mirrors and validation diagnostics in the run diagnostics directory.
 

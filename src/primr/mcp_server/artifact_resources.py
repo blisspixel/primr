@@ -17,12 +17,22 @@ if TYPE_CHECKING:
     from primr.mcp_server.server import PrimrMCPServer
 
 ARTIFACT_METADATA_BY_JOB_URI = "primr://output/artifacts/by_job"
+QA_SUMMARY_BY_JOB_URI = "primr://output/qa_summary/by_job"
 ARTIFACT_METADATA_BY_JOB_RESOURCE = Resource(
     uri=AnyUrl(f"{ARTIFACT_METADATA_BY_JOB_URI}/{{job_id}}"),
     name="Artifact Metadata by Job ID",
     description=(
         "Compact metadata for output artifacts attached to one owned job. "
         "Returns paths, sizes, hashes, and timestamps without report body content."
+    ),
+    mimeType="application/json",
+)
+QA_SUMMARY_BY_JOB_RESOURCE = Resource(
+    uri=AnyUrl(f"{QA_SUMMARY_BY_JOB_URI}/{{job_id}}"),
+    name="QA Summary by Job ID",
+    description=(
+        "Compact QA result summary for one owned job. Returns score, status, "
+        "count, and metadata fields without detailed report body content."
     ),
     mimeType="application/json",
 )
@@ -40,25 +50,12 @@ def read_artifact_metadata_by_job_resource(
         raise ValueError(f"Invalid artifact metadata URI: {uri}")
 
     job_id = match.group(1)
-    job = mcp_server.job_store.get_by_id(job_id)
-    if job is None or not caller_owns_job_resource(job, client_id):
-        return _json_resource(
-            {
-                "error": "job_not_found",
-                "message": f"No job found with ID: {job_id}",
-                "job_id": job_id,
-            }
-        )
+    job = _owned_job(mcp_server, job_id, client_id)
+    if job is None:
+        return _job_not_found(job_id)
 
     if not job.output_paths:
-        return _json_resource(
-            {
-                "error": "no_artifacts",
-                "message": f"Job {job_id} has no output artifacts yet",
-                "job_id": job_id,
-                "status": job.get_status().value,
-            }
-        )
+        return _no_artifacts(job_id, job.get_status().value)
 
     artifacts = [
         _artifact_metadata(index, Path(path)) for index, path in enumerate(job.output_paths)
@@ -73,6 +70,55 @@ def read_artifact_metadata_by_job_resource(
             "artifact_count": len(artifacts),
             "full_content_included": False,
             "artifacts": artifacts,
+        }
+    )
+
+
+def read_qa_summary_by_job_resource(
+    mcp_server: PrimrMCPServer,
+    uri: str,
+    *,
+    client_id: str,
+) -> list[ReadResourceContents]:
+    """Read compact QA summary artifacts for one job, with ownership gating."""
+    match = re.match(rf"{re.escape(QA_SUMMARY_BY_JOB_URI)}/([^/?]+)", uri)
+    if not match:
+        raise ValueError(f"Invalid QA summary URI: {uri}")
+
+    job_id = match.group(1)
+    job = _owned_job(mcp_server, job_id, client_id)
+    if job is None:
+        return _job_not_found(job_id)
+
+    if not job.output_paths:
+        return _no_artifacts(job_id, job.get_status().value)
+
+    summaries = [
+        _qa_artifact_summary(index, Path(path))
+        for index, path in enumerate(job.output_paths)
+        if _classify_artifact(Path(path)) == "qa_summary"
+    ]
+    if not summaries:
+        return _json_resource(
+            {
+                "error": "qa_summary_not_found",
+                "message": f"Job {job_id} has no attached QA summary artifact",
+                "job_id": job_id,
+                "status": job.get_status().value,
+                "summary_count": 0,
+            }
+        )
+
+    return _json_resource(
+        {
+            "schema_version": "1.0",
+            "resource": QA_SUMMARY_BY_JOB_URI,
+            "job_id": job.job_id,
+            "status": job.get_status().value,
+            "company_name": job.company_name,
+            "summary_count": len(summaries),
+            "full_content_included": False,
+            "summaries": summaries,
         }
     )
 
@@ -100,6 +146,220 @@ def _artifact_metadata(index: int, path: Path) -> dict[str, Any]:
     return data
 
 
+def _qa_artifact_summary(index: int, path: Path) -> dict[str, Any]:
+    metadata = _artifact_metadata(index, path)
+    if not metadata["exists"]:
+        return {
+            **metadata,
+            "parsed": False,
+            "parse_error": "file_not_found",
+            "full_content_included": False,
+        }
+
+    if path.suffix.lower() != ".json":
+        return _qa_text_summary(metadata, path)
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {
+            **metadata,
+            "parsed": False,
+            "parse_error": "invalid_json",
+            "full_content_included": False,
+        }
+    except OSError:
+        return {
+            **metadata,
+            "parsed": False,
+            "parse_error": "read_failed",
+            "full_content_included": False,
+        }
+
+    if not isinstance(payload, dict):
+        return {
+            **metadata,
+            "parsed": False,
+            "parse_error": "non_object_json",
+            "full_content_included": False,
+        }
+
+    return {
+        **metadata,
+        "parsed": True,
+        "full_content_included": False,
+        "top_level_keys": sorted(str(key) for key in payload),
+        "status_fields": _scalar_fields(payload, _STATUS_FIELD_NAMES),
+        "score_fields": _numeric_fields(payload, _SCORE_FIELD_NAMES),
+        "count_fields": _count_fields(payload),
+    }
+
+
+def _qa_text_summary(metadata: dict[str, Any], path: Path) -> dict[str, Any]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return {
+            **metadata,
+            "parsed": False,
+            "parse_error": "read_failed",
+            "full_content_included": False,
+        }
+
+    status_fields = _status_fields_from_text(text)
+    score_fields = _score_fields_from_text(text)
+    count_fields = _count_fields_from_text(text)
+    if not status_fields and not score_fields and not count_fields:
+        return {
+            **metadata,
+            "parsed": False,
+            "parse_error": "summary_fields_not_found",
+            "full_content_included": False,
+        }
+
+    return {
+        **metadata,
+        "parsed": True,
+        "source_format": "text",
+        "full_content_included": False,
+        "status_fields": status_fields,
+        "score_fields": score_fields,
+        "count_fields": count_fields,
+    }
+
+
+_STATUS_FIELD_NAMES = frozenset(
+    {
+        "status",
+        "passed",
+        "ready_for_use",
+        "needs_attention",
+        "confidence_level",
+        "grade",
+    }
+)
+_SCORE_FIELD_NAMES = frozenset(
+    {
+        "overall_score",
+        "quality_score",
+        "total_score",
+        "grade",
+        "score",
+        "confidence",
+        "overall_confidence",
+    }
+)
+_COUNT_KEY_PARTS = ("issue", "finding", "warning", "error", "suggestion", "recommendation")
+_TEXT_SCORE_PATTERNS: tuple[tuple[str, str], ...] = (
+    ("overall_score", r"Overall Quality Score:\s*(\d+(?:\.\d+)?)\s*/\s*100"),
+    ("quality_score", r"Quality Score:\s*(\d+(?:\.\d+)?)\s*/\s*100"),
+    ("grade", r"Grade:\s*(\d+(?:\.\d+)?)\s*/\s*100"),
+    ("citation_score", r"Citation Score:\s*(\d+(?:\.\d+)?)\s*/\s*100"),
+    ("logic_score", r"Logic Score:\s*(\d+(?:\.\d+)?)\s*/\s*100"),
+    ("completeness_score", r"Completeness Score:\s*(\d+(?:\.\d+)?)\s*/\s*100"),
+)
+_TEXT_COUNT_PATTERNS: tuple[tuple[str, str], ...] = (
+    ("total_citations", r"Total Citations:\s*(\d+)"),
+    ("valid_citations", r"Valid Citations:\s*(\d+)"),
+)
+
+
+def _scalar_fields(payload: dict[str, Any], field_names: frozenset[str]) -> dict[str, Any]:
+    fields: dict[str, Any] = {}
+    for key, value in payload.items():
+        if key in field_names and isinstance(value, str | int | float | bool) and value is not None:
+            fields[key] = value
+    return fields
+
+
+def _numeric_fields(payload: dict[str, Any], field_names: frozenset[str]) -> dict[str, int | float]:
+    fields: dict[str, int | float] = {}
+    for key, value in payload.items():
+        if key in field_names and isinstance(value, int | float) and not isinstance(value, bool):
+            fields[key] = value
+    return fields
+
+
+def _count_fields(payload: dict[str, Any]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for key, value in payload.items():
+        key_text = str(key).lower()
+        if not any(part in key_text for part in _COUNT_KEY_PARTS):
+            continue
+        if isinstance(value, list | dict | tuple | set):
+            counts[f"{key}_count"] = len(value)
+        elif isinstance(value, int) and not isinstance(value, bool):
+            counts[key] = value
+    return counts
+
+
+def _score_fields_from_text(text: str) -> dict[str, int | float]:
+    scores: dict[str, int | float] = {}
+    for field_name, pattern in _TEXT_SCORE_PATTERNS:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            scores[field_name] = _parse_number(match.group(1))
+    return scores
+
+
+def _status_fields_from_text(text: str) -> dict[str, str | bool]:
+    fields: dict[str, str | bool] = {}
+    ready_match = re.search(r"Ready for Use:\s*(Yes|No)", text, flags=re.IGNORECASE)
+    if ready_match:
+        fields["ready_for_use"] = ready_match.group(1).lower() == "yes"
+
+    confidence_match = re.search(
+        r"Confidence Level:\s*([A-Za-z]+|\d+(?:\.\d+)?/100)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if confidence_match:
+        fields["confidence_level"] = confidence_match.group(1)
+    return fields
+
+
+def _count_fields_from_text(text: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for field_name, pattern in _TEXT_COUNT_PATTERNS:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            counts[field_name] = int(match.group(1))
+    return counts
+
+
+def _parse_number(value: str) -> int | float:
+    number = float(value)
+    return int(number) if number.is_integer() else number
+
+
+def _owned_job(mcp_server: PrimrMCPServer, job_id: str, client_id: str) -> Any | None:
+    job = mcp_server.job_store.get_by_id(job_id)
+    if job is None or not caller_owns_job_resource(job, client_id):
+        return None
+    return job
+
+
+def _job_not_found(job_id: str) -> list[ReadResourceContents]:
+    return _json_resource(
+        {
+            "error": "job_not_found",
+            "message": f"No job found with ID: {job_id}",
+            "job_id": job_id,
+        }
+    )
+
+
+def _no_artifacts(job_id: str, status: str) -> list[ReadResourceContents]:
+    return _json_resource(
+        {
+            "error": "no_artifacts",
+            "message": f"Job {job_id} has no output artifacts yet",
+            "job_id": job_id,
+            "status": status,
+        }
+    )
+
+
 def _classify_artifact(path: Path) -> str:
     name = path.name.lower()
     suffix = path.suffix.lower()
@@ -109,7 +369,9 @@ def _classify_artifact(path: Path) -> str:
         return "run_manifest"
     if name.endswith("_run_state.json"):
         return "run_state"
-    if name.endswith(("_qa.json", "_qa_report.json")):
+    if name.endswith(("_qa.json", "_qa_report.json")) or (
+        suffix == ".txt" and "_qa_report_" in name
+    ):
         return "qa_summary"
     if name.endswith(("_verify.json", "_verification.json")):
         return "verification_summary"

@@ -30,7 +30,10 @@ from primr.mcp_server.agentic_resources import get_agentic_resources, read_agent
 from primr.mcp_server.artifact_resources import (
     ARTIFACT_METADATA_BY_JOB_RESOURCE,
     ARTIFACT_METADATA_BY_JOB_URI,
+    QA_SUMMARY_BY_JOB_RESOURCE,
+    QA_SUMMARY_BY_JOB_URI,
     read_artifact_metadata_by_job_resource,
+    read_qa_summary_by_job_resource,
 )
 from primr.mcp_server.audit_log import read_agent_audit_recent_resource
 from primr.mcp_server.calibration_resources import (
@@ -120,6 +123,7 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
                 mimeType="application/json",
             ),
             ARTIFACT_METADATA_BY_JOB_RESOURCE,
+            QA_SUMMARY_BY_JOB_RESOURCE,
             Resource(
                 uri="primr://config",
                 name="Configuration",
@@ -183,6 +187,12 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
             return _read_latest_output(mcp_server, uri_str)
         elif uri_str.startswith(f"{ARTIFACT_METADATA_BY_JOB_URI}/"):
             return read_artifact_metadata_by_job_resource(
+                mcp_server,
+                uri_str,
+                client_id=caller_client_id(mcp_server),
+            )
+        elif uri_str.startswith(f"{QA_SUMMARY_BY_JOB_URI}/"):
+            return read_qa_summary_by_job_resource(
                 mcp_server,
                 uri_str,
                 client_id=caller_client_id(mcp_server),

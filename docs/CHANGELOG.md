@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.10] - 2026-06-28
+
+### Added
+
+- MCP now lists and serves `primr://output/qa_summary/by_job/{job_id}` as an
+  ownership-gated, compact QA summary resource for one job. It returns score,
+  status, count, parse, hash, timestamp, and top-level-key metadata without
+  returning detailed report or QA body content.
+
 ## [1.34.9] - 2026-06-28
 
 ### Changed
