@@ -471,6 +471,27 @@ class TestCLIWiring:
         config = parse_args(["calibrate", "Acme", "--pack-manifest", "pack.json"])
         assert config.calibrate_pack_manifest == "pack.json"
 
+    def test_baseline_flags(self):
+        from primr.core.cli import parse_args
+
+        config = parse_args(
+            [
+                "calibrate",
+                "--baseline-from",
+                "pack.json",
+                "--baseline-out",
+                "baseline.json",
+                "--baseline-md",
+                "baseline.md",
+                "--baseline-min-reports",
+                "7",
+            ]
+        )
+        assert config.calibrate_baseline_from == "pack.json"
+        assert config.calibrate_baseline_out == "baseline.json"
+        assert config.calibrate_baseline_md == "baseline.md"
+        assert config.calibrate_baseline_min_reports == 7
+
     def test_invalid_judge_choice_rejected(self):
         from primr.core.cli import parse_args
 

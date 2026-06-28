@@ -83,6 +83,13 @@ For a 24 GB RTX 4090 or comparable local box, start with `4090-report-race` befo
   sidecar state, sampled-claim counts, judge-call estimate, per-label totals,
   evidence-review summary, and judge-agreement metadata before running a
   multi-report baseline.
+- Calibration baseline artifact: add `--baseline-from path/to/pack.json` to
+  build a zero-spend readiness artifact from a frozen pack. It writes
+  `primr.calibration_baseline.v1` JSON, and optional Markdown via
+  `--baseline-md path/to/baseline.md`, with explicit not-ready reasons such as
+  `insufficient_reports`, `missing_evidence_reviews`, or
+  `missing_judge_agreement`. This summarizes baseline readiness; it does not
+  arm a quality gate.
 
 ### Local judge for calibration ($0 judge calls)
 
@@ -94,6 +101,7 @@ primr calibrate "Company" --judge local         # explicit; errors if no server
 primr calibrate "Company" --judge local --judge-model qwen2.5:14b   # pin a model
 primr calibrate "Company" --judge-compare       # judge with BOTH, report agreement
 primr calibrate --calibrate-recent 10 --dry-run --pack-manifest docs/.agent/calibration-pack.json
+primr calibrate --baseline-from docs/.agent/calibration-pack.json --baseline-md docs/.agent/calibration-baseline.md
 ```
 
 Design rules (these hold for any setup, not a particular machine):

@@ -44,8 +44,10 @@ Current priority order:
    traceability is the first measurable slice, not the whole validation story.
    The standard `--verify` path now surfaces contradicted claims in the final
    Report Trust summary; calibration scorecards now include evidence-review and
-   judge-agreement signals, and `primr calibrate --pack-manifest` freezes
-   baseline candidates locally. The multi-report baseline itself is still next.
+   judge-agreement signals; `primr calibrate --pack-manifest` freezes baseline
+   candidates locally; and `primr calibrate --baseline-from` writes a
+   zero-spend readiness artifact that refuses to mark small or unvalidated packs
+   as ready. The representative multi-report baseline itself is still next.
 2. **Backend freedom production wiring.** Provider abstractions and pure routing
    foundations exist, but full-report execution still carries xAI/Gemini-era
    assumptions. Stage-by-stage routing is the next architecture unlock.

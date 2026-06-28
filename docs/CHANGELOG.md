@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `primr calibrate --baseline-from <pack.json>` now writes a zero-spend
+  `primr.calibration_baseline.v1` readiness artifact from a frozen calibration
+  pack manifest, with optional Markdown via `--baseline-md`. The artifact
+  summarizes traceability, evidence-review coverage, judge agreement, and
+  explicit not-ready reasons without arming a quality gate.
+
 ## [1.34.2] - 2026-06-27
 
 ### Security

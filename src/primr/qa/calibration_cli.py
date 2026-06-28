@@ -5,6 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol
 
+from primr.qa.calibration_baseline import (
+    default_baseline_json_path,
+    write_calibration_baseline,
+)
 from primr.qa.calibration_runner import (
     JudgeAgreement,
     JudgeSelection,
@@ -45,6 +49,18 @@ class CalibrateConfig(Protocol):
     @property
     def calibrate_pack_manifest(self) -> str | None: ...
 
+    @property
+    def calibrate_baseline_from(self) -> str | None: ...
+
+    @property
+    def calibrate_baseline_out(self) -> str | None: ...
+
+    @property
+    def calibrate_baseline_md(self) -> str | None: ...
+
+    @property
+    def calibrate_baseline_min_reports(self) -> int: ...
+
 
 class ConsoleSink(Protocol):
     def banner(self, title: str) -> None: ...
@@ -60,6 +76,17 @@ class ConsoleSink(Protocol):
 
 def handle_calibrate(config: CalibrateConfig, console: ConsoleSink) -> int:
     """Handle the label-calibration audit command."""
+    if config.calibrate_baseline_min_reports < 1:
+        console.error("--baseline-min-reports must be at least 1")
+        return 1
+    if config.calibrate_baseline_from:
+        return _handle_baseline_from_manifest(config, console)
+    if (
+        config.calibrate_baseline_out or config.calibrate_baseline_md
+    ) and not config.calibrate_pack_manifest:
+        console.error("--baseline-out and --baseline-md require --baseline-from or --pack-manifest")
+        return 1
+
     try:
         reports = resolve_reports(config.calibrate_target, recent=config.calibrate_recent)
     except FileNotFoundError as exc:
@@ -191,8 +218,9 @@ def _write_pack_manifest_if_requested(
 ) -> None:
     if not config.calibrate_pack_manifest:
         return
+    manifest_path = Path(config.calibrate_pack_manifest)
     write_calibration_pack_manifest(
-        Path(config.calibrate_pack_manifest),
+        manifest_path,
         reports,
         outcomes,
         max_per_label=config.calibrate_max_per_label,
@@ -201,6 +229,58 @@ def _write_pack_manifest_if_requested(
         judge_metadata=judge_metadata,
     )
     console.ok(f"Calibration pack manifest written: {config.calibrate_pack_manifest}")
+    _write_baseline_from_manifest_if_requested(config, manifest_path, console)
+
+
+def _handle_baseline_from_manifest(config: CalibrateConfig, console: ConsoleSink) -> int:
+    manifest_path = Path(config.calibrate_baseline_from or "")
+    try:
+        _write_baseline_from_manifest(config, manifest_path, console, force=True)
+    except (OSError, ValueError) as exc:
+        console.error(str(exc))
+        return 1
+    return 0
+
+
+def _write_baseline_from_manifest_if_requested(
+    config: CalibrateConfig,
+    manifest_path: Path,
+    console: ConsoleSink,
+) -> None:
+    if not (config.calibrate_baseline_out or config.calibrate_baseline_md):
+        return
+    _write_baseline_from_manifest(config, manifest_path, console, force=False)
+
+
+def _write_baseline_from_manifest(
+    config: CalibrateConfig,
+    manifest_path: Path,
+    console: ConsoleSink,
+    *,
+    force: bool,
+) -> None:
+    output_path = (
+        Path(config.calibrate_baseline_out)
+        if config.calibrate_baseline_out
+        else default_baseline_json_path(manifest_path)
+    )
+    markdown_path = Path(config.calibrate_baseline_md) if config.calibrate_baseline_md else None
+    baseline = write_calibration_baseline(
+        output_path,
+        manifest_path,
+        markdown_path=markdown_path,
+        minimum_reports=config.calibrate_baseline_min_reports,
+    )
+    if baseline["ready"]:
+        console.ok(f"Calibration baseline ready: {output_path}")
+    elif force:
+        console.warn(f"Calibration baseline not ready ({baseline['status']}): {output_path}")
+    else:
+        console.warn(
+            f"Calibration baseline written but not ready ({baseline['status']}): {output_path}"
+        )
+    if markdown_path is not None:
+        console.ok(f"Calibration baseline summary written: {markdown_path}")
 
 
 def _judge_compare_metadata(local_selection: JudgeSelection) -> dict[str, object]:

@@ -32,7 +32,11 @@ def load_calibration_counts(report_path: Path) -> dict[str, int] | None:
         return None
     if not isinstance(payload, dict):
         return None
+    return calibration_counts_from_payload(payload)
 
+
+def calibration_counts_from_payload(payload: dict[str, Any]) -> dict[str, int]:
+    """Read calibration counts from an already-loaded sidecar payload."""
     per_label = payload.get("per_label", {})
     if not isinstance(per_label, dict):
         per_label = {}

@@ -49,6 +49,7 @@ from primr.core.cli_batch import (
 from primr.core.cli_batch import (
     _read_batch_file as _read_batch_file,
 )
+from primr.core.cli_calibration_args import add_calibration_arguments
 from primr.core.cli_dispatch import (
     is_mcp_command,
     is_skills_command,
@@ -297,6 +298,10 @@ class CLIConfig:
     calibrate_judge_model: str | None = None
     calibrate_judge_compare: bool = False
     calibrate_pack_manifest: str | None = None
+    calibrate_baseline_from: str | None = None
+    calibrate_baseline_out: str | None = None
+    calibrate_baseline_md: str | None = None
+    calibrate_baseline_min_reports: int = 5
     banner_mode: str = "auto"
     banner_explicit: bool = False
     # Agentic architecture options
@@ -540,6 +545,10 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         calibrate_judge_model=getattr(parsed, "judge_model", None),
         calibrate_judge_compare=getattr(parsed, "judge_compare", False),
         calibrate_pack_manifest=getattr(parsed, "pack_manifest", None),
+        calibrate_baseline_from=getattr(parsed, "baseline_from", None),
+        calibrate_baseline_out=getattr(parsed, "baseline_out", None),
+        calibrate_baseline_md=getattr(parsed, "baseline_md", None),
+        calibrate_baseline_min_reports=getattr(parsed, "baseline_min_reports", 5),
         banner_mode=banner_mode,
         banner_explicit=banner_explicit,
         resume_latest=getattr(parsed, "resume_latest", False),
@@ -1119,54 +1128,7 @@ def _create_parser() -> argparse.ArgumentParser:
         default=90.0,
         help="With 'refine', the QA grade to iterate toward (default: 90)",
     )
-    # Label calibration (primr calibrate)
-    parser.add_argument(
-        "--calibrate-recent",
-        type=int,
-        metavar="N",
-        help="With 'calibrate', audit the N most recent reports (one per company)",
-    )
-    parser.add_argument(
-        "--max-per-label",
-        type=int,
-        default=10,
-        metavar="N",
-        help="With 'calibrate', max claims sampled per confidence label (default: 10)",
-    )
-    parser.add_argument(
-        "--judge",
-        type=str,
-        choices=["cloud", "local", "auto"],
-        default="cloud",
-        help=(
-            "With 'calibrate', which LLM judges traceability: cloud (fast tier, default), "
-            "local (your OpenAI-compatible server, e.g. Ollama; errors if unavailable), "
-            "or auto (local when reachable, else cloud)"
-        ),
-    )
-    parser.add_argument(
-        "--judge-model",
-        type=str,
-        metavar="NAME",
-        help="With '--judge local/auto', pin a specific local model instead of auto-picking",
-    )
-    parser.add_argument(
-        "--judge-compare",
-        action="store_true",
-        help=(
-            "With 'calibrate', judge the same claims with BOTH cloud and local and report "
-            "agreement, measuring whether your local model can be trusted as the judge. "
-            "Sidecars are written from the cloud verdicts."
-        ),
-    )
-    parser.add_argument(
-        "--pack-manifest",
-        metavar="PATH",
-        help=(
-            "With 'calibrate', write a JSON manifest freezing the selected calibration "
-            "pack, sidecar state, estimates, and judge-agreement metadata."
-        ),
-    )
+    add_calibration_arguments(parser)
     # QA review
     parser.add_argument(
         "--qa",
