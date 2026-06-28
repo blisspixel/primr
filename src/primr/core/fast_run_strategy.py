@@ -173,7 +173,7 @@ def run_strategy_phase(
                             _strat_result.skip_reason or "Strategy recovery exhausted"
                         )
             except Exception as strat_err:
-                console.warn(f"AI Strategy{vendor_label} failed: {strat_err} — skipping")
+                console.warn(f"AI Strategy{vendor_label} failed: {strat_err} - skipping")
                 log_structured(
                     "warning",
                     "Fast mode strategy failed",
@@ -323,14 +323,14 @@ def run_strategy_phase(
             yaml_path = Path(__file__).parent.parent / "prompts" / "strategies" / f"{stype}.yaml"
 
             if not yaml_path.exists():
-                console.warn(f"Strategy YAML not found: {stype}.yaml — skipping")
+                console.warn(f"Strategy YAML not found: {stype}.yaml - skipping")
                 continue
 
             try:
                 with open(yaml_path, encoding="utf-8") as f:
                     strategy_config = _yaml.safe_load(f)
             except Exception as e:
-                console.warn(f"Failed to load {stype}.yaml: {e} — skipping")
+                console.warn(f"Failed to load {stype}.yaml: {e} - skipping")
                 continue
 
             meta = strategy_config.get("meta", {})
@@ -400,7 +400,7 @@ def run_strategy_phase(
                             _yaml_strat_result.skip_reason or "Strategy recovery exhausted"
                         )
             except Exception as strat_err:
-                console.warn(f"{display_name_strat} failed: {strat_err} — skipping")
+                console.warn(f"{display_name_strat} failed: {strat_err} - skipping")
                 log_structured(
                     "warning",
                     "Fast mode strategy failed",
@@ -505,8 +505,8 @@ def run_strategy_phase(
 
                 # Skills Ideation strategy: also emit per-role SKILL.md
                 # files in a sibling directory so the artifacts are
-                # drop-in loadable by Claude Code / Copilot Studio /
-                # any skill-aware agent host. Failure here never blocks
+                # compatible with Claude Code, Copilot Studio, and any
+                # skill-aware agent host. Failure here never blocks
                 # the strategy doc itself.
                 #
                 # DEPRECATION: This is the v1.23 inline path. The
@@ -537,7 +537,7 @@ def run_strategy_phase(
                         else:
                             console.warn(
                                 "Skills Ideation: no role blocks parsed from strategy "
-                                "content — per-role SKILL.md files not emitted"
+                                "content - per-role SKILL.md files not emitted"
                             )
                     except Exception as skill_err:
                         logger.warning("Skills Ideation per-role emission failed: %s", skill_err)
@@ -545,6 +545,6 @@ def run_strategy_phase(
     if strategy_paths:
         console.phase_complete("Strategy (Grok)")
     else:
-        console.warn("Strategy generation skipped — no strategies generated")
+        console.warn("Strategy generation skipped - no strategies generated")
 
     return StrategyPhaseResult(strategy_paths, strategy_trust_stats)

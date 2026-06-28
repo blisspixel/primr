@@ -19,6 +19,12 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from primr.config.models import PrimrModels
+from primr.core.eval_calibration import (
+    append_calibration_sections,
+    calibration_gate_threshold,
+    load_calibration_counts,
+    round_or_blank,
+)
 from primr.qa.report_analyzer import ReportAnalyzer
 from primr.utils.cost_estimator import estimate_cost
 
@@ -39,7 +45,7 @@ DEFAULT_BASELINE = "full"
 #
 # v1.24.0 prerequisite: cross-provider eval needs dynamic per-(provider x model
 # x role-recipe) profile slots, not the fixed 3-tuple ("full", "lite", "fast").
-# Registering a new slot lets the eval harness add cells incrementally — for
+# Registering a new slot lets the eval harness add cells incrementally - for
 # example, a post-I/O Gemini 3.2 Flash variant becomes:
 #
 #     register_eval_profile(EvalProfileSlot(
@@ -249,10 +255,10 @@ class ReportMetrics:
     utility_per_dollar: float
     # Artifact-drift signal: count of leaked internal-scaffolding markers
     # (bare [workbook]/[cross-ref], bold "What to validate:" lines, informal
-    # [cite: label]). Must stay 0 on shipped reports — see ROADMAP item #1.
+    # [cite: label]). Must stay 0 on shipped reports - see ROADMAP item #1.
     scaffolding_leaks: int = 0
     # Label-calibration signal, read from the report's `primr calibrate`
-    # sidecar when present (the eval itself stays offline — calibration is a
+    # sidecar when present (the eval itself stays offline - calibration is a
     # separate bounded paid step). Decidable = traceable + untraceable +
     # no_source; unfetchable claims are excluded (harness couldn't decide).
     calibrated: bool = False
@@ -260,6 +266,14 @@ class ReportMetrics:
     confirmed_decidable: int = 0
     reported_traceable: int = 0
     reported_decidable: int = 0
+    evidence_source_reviews: int = 0
+    evidence_supported_reviews: int = 0
+    evidence_contradicted_reviews: int = 0
+    evidence_independent_reviews: int = 0
+    evidence_high_authority_reviews: int = 0
+    evidence_strong_reasoning_reviews: int = 0
+    evidence_honest_uncertainty_reviews: int = 0
+    evidence_high_relevance_reviews: int = 0
 
     def traceability(self, label: str) -> float | None:
         """Per-report traceability precision for Confirmed/Reported."""
@@ -272,6 +286,12 @@ class ReportMetrics:
         if not decidable:
             return None
         return traceable / decidable
+
+    def evidence_rate(self, numerator: int) -> float | None:
+        """Per-report rate over source-level evidence reviews."""
+        if not self.evidence_source_reviews:
+            return None
+        return numerator / self.evidence_source_reviews
 
 
 @dataclass(frozen=True)
@@ -294,6 +314,14 @@ class ProfileSummary:
     calibrated_report_count: int = 0
     confirmed_traceability: float | None = None
     reported_traceability: float | None = None
+    evidence_source_reviews: int = 0
+    evidence_support_rate: float | None = None
+    evidence_contradiction_rate: float | None = None
+    evidence_independence_rate: float | None = None
+    evidence_high_authority_rate: float | None = None
+    evidence_strong_reasoning_rate: float | None = None
+    evidence_honest_uncertainty_rate: float | None = None
+    evidence_high_relevance_rate: float | None = None
 
 
 @dataclass(frozen=True)
@@ -392,32 +420,6 @@ def _company_similarity(a: str, b: str) -> float:
     return inter / union if union else 0.0
 
 
-def _load_calibration_counts(report_path: Path) -> dict[str, int] | None:
-    """Read traceability counts from a report's calibration sidecar, if any.
-
-    Written by ``primr calibrate`` (``qa.calibration_runner``). Returns None
-    when no sidecar exists or it is unreadable — calibration is optional and
-    its absence must never affect the offline eval.
-    """
-    from primr.qa.calibration_runner import sidecar_path_for
-
-    sidecar = sidecar_path_for(report_path)
-    if not sidecar.exists():
-        return None
-    try:
-        per_label = json.loads(sidecar.read_text(encoding="utf-8")).get("per_label", {})
-    except (OSError, json.JSONDecodeError, AttributeError):
-        return None
-    counts: dict[str, int] = {}
-    for label in ("Confirmed", "Reported"):
-        stats = per_label.get(label, {})
-        traceable = int(stats.get("traceable", 0))
-        decidable = traceable + int(stats.get("untraceable", 0)) + int(stats.get("no_source", 0))
-        counts[f"{label.lower()}_traceable"] = traceable
-        counts[f"{label.lower()}_decidable"] = decidable
-    return counts
-
-
 def _find_profile_reports(profile_dir: Path, profile: str) -> list[ReportMetrics]:
     if not profile_dir.exists():
         return []
@@ -448,7 +450,7 @@ def _find_profile_reports(profile_dir: Path, profile: str) -> list[ReportMetrics
         citation_density = analyzer.analyze_citation_density()
         hypothesis = analyzer.analyze_hypothesis_coverage()
         leakage = analyzer.analyze_scaffolding_leakage()
-        calibration = _load_calibration_counts(path)
+        calibration = load_calibration_counts(path)
 
         key_total = len(structure["key_sections_found"]) + len(structure["key_sections_missing"])
         key_found = len(structure["key_sections_found"])
@@ -551,6 +553,26 @@ def _find_profile_reports(profile_dir: Path, profile: str) -> list[ReportMetrics
                 confirmed_decidable=(calibration or {}).get("confirmed_decidable", 0),
                 reported_traceable=(calibration or {}).get("reported_traceable", 0),
                 reported_decidable=(calibration or {}).get("reported_decidable", 0),
+                evidence_source_reviews=(calibration or {}).get("evidence_source_reviews", 0),
+                evidence_supported_reviews=(calibration or {}).get("evidence_supported_reviews", 0),
+                evidence_contradicted_reviews=(calibration or {}).get(
+                    "evidence_contradicted_reviews", 0
+                ),
+                evidence_independent_reviews=(calibration or {}).get(
+                    "evidence_independent_reviews", 0
+                ),
+                evidence_high_authority_reviews=(calibration or {}).get(
+                    "evidence_high_authority_reviews", 0
+                ),
+                evidence_strong_reasoning_reviews=(calibration or {}).get(
+                    "evidence_strong_reasoning_reviews", 0
+                ),
+                evidence_honest_uncertainty_reviews=(calibration or {}).get(
+                    "evidence_honest_uncertainty_reviews", 0
+                ),
+                evidence_high_relevance_reviews=(calibration or {}).get(
+                    "evidence_high_relevance_reviews", 0
+                ),
             )
         )
 
@@ -564,7 +586,7 @@ def _estimated_profile_cost(profile: str) -> float:
       1. If the slot is registered with an explicit estimated_cost_usd, use it.
       2. Else if the slot has a recipe (cross-provider eval slot), compute cost
          from the recipe's role models. Today this returns a placeholder using
-         the recipe's writing model rate at default token volumes — sharpen
+         the recipe's writing model rate at default token volumes - sharpen
          once primr's per-role token estimates are exposed by the cost
          estimator (v1.24.0 follow-on).
       3. Else fall back to the legacy mode-based estimator using the well-known
@@ -611,7 +633,7 @@ def _summarize_profile(profile: str, metrics: list[ReportMetrics]) -> ProfileSum
     trust_pass_rate = round(sum(1 for m in metrics if m.trust_gate_passed) / count, 2)
 
     # backfill utility_per_dollar per-row with profile economics
-    # (dataclasses.replace keeps every other field — a hand-listed rebuild
+    # (dataclasses.replace keeps every other field - a hand-listed rebuild
     # here silently dropped new fields once already)
     for i, m in enumerate(metrics):
         metrics[i] = dataclasses.replace(
@@ -621,6 +643,15 @@ def _summarize_profile(profile: str, metrics: list[ReportMetrics]) -> ProfileSum
     calibrated = [m for m in metrics if m.calibrated]
     confirmed_decidable = sum(m.confirmed_decidable for m in calibrated)
     reported_decidable = sum(m.reported_decidable for m in calibrated)
+    evidence_source_reviews = sum(m.evidence_source_reviews for m in calibrated)
+
+    def _pooled_evidence_rate(attr: str) -> float | None:
+        if not evidence_source_reviews:
+            return None
+        return round(
+            sum(int(getattr(m, attr)) for m in calibrated) / evidence_source_reviews,
+            3,
+        )
 
     return ProfileSummary(
         profile=profile,
@@ -647,6 +678,16 @@ def _summarize_profile(profile: str, metrics: list[ReportMetrics]) -> ProfileSum
             if reported_decidable
             else None
         ),
+        evidence_source_reviews=evidence_source_reviews,
+        evidence_support_rate=_pooled_evidence_rate("evidence_supported_reviews"),
+        evidence_contradiction_rate=_pooled_evidence_rate("evidence_contradicted_reviews"),
+        evidence_independence_rate=_pooled_evidence_rate("evidence_independent_reviews"),
+        evidence_high_authority_rate=_pooled_evidence_rate("evidence_high_authority_reviews"),
+        evidence_strong_reasoning_rate=_pooled_evidence_rate("evidence_strong_reasoning_reviews"),
+        evidence_honest_uncertainty_rate=_pooled_evidence_rate(
+            "evidence_honest_uncertainty_reviews"
+        ),
+        evidence_high_relevance_rate=_pooled_evidence_rate("evidence_high_relevance_reviews"),
     )
 
 
@@ -858,7 +899,7 @@ def auto_stage_existing_reports(
             # profile dir even after path resolution.
             if not staged_path.resolve().is_relative_to(profile_dir.resolve()):
                 logger.warning(
-                    "Skipping staged copy for %r — resolved path escapes profile dir",
+                    "Skipping staged copy for %r - resolved path escapes profile dir",
                     target,
                 )
                 continue
@@ -905,7 +946,7 @@ def _decision_table(
                 f"(trust_pass_rate={summary.trust_pass_rate:.2f}; requires 1.00)"
             )
             continue
-        gate = _calibration_gate_threshold()
+        gate = calibration_gate_threshold()
         if (
             gate is not None
             and summary.confirmed_traceability is not None
@@ -1045,27 +1086,7 @@ def _write_scorecard_markdown(
         status = "clean" if s.total_scaffolding_leaks == 0 else "DRIFT"
         lines.append(f"| {s.profile} | {s.report_count} | {s.total_scaffolding_leaks} | {status} |")
 
-    lines.append("")
-    lines.append("## Label Calibration")
-    lines.append("")
-    lines.append(
-        "Traceability of (Confirmed)/(Reported) claims against the fetched text "
-        "of their cited sources, pooled from `primr calibrate` sidecars. "
-        f"Gate threshold: {_calibration_gate_description()}."
-    )
-    lines.append("")
-    lines.append("| Profile | Calibrated Reports | Confirmed | Reported | Status |")
-    lines.append("|---|---:|---:|---:|---|")
-    gate = _calibration_gate_threshold()
-    for s in summaries:
-        confirmed = (
-            f"{s.confirmed_traceability:.0%}" if s.confirmed_traceability is not None else "-"
-        )
-        reported = f"{s.reported_traceability:.0%}" if s.reported_traceability is not None else "-"
-        lines.append(
-            f"| {s.profile} | {s.calibrated_report_count} | {confirmed} | {reported} "
-            f"| {_calibration_status(s, gate)} |"
-        )
+    append_calibration_sections(lines, summaries)
 
     lines.append("")
     lines.append("## Decision")
@@ -1083,54 +1104,6 @@ def _write_scorecard_markdown(
             lines.append(f"- {company} -> {profile}")
 
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def _calibration_gate_threshold() -> float | None:
-    """The Confirmed-claim traceability hard-gate threshold, if armed.
-
-    ``PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY`` is a fraction in (0, 1]. Unset
-    (the default until a measured baseline exists) means report-only: the
-    scorecard shows the numbers but no profile fails on them. Once the
-    baseline lands, the default flips to the measured floor per the 1.x
-    design (docs/design/1x-completion.md, workstream 1).
-    """
-    import os
-
-    raw = os.environ.get("PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY", "").strip()
-    if not raw:
-        return None
-    try:
-        value = float(raw)
-    except ValueError:
-        logger.warning("Ignoring malformed PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=%r", raw)
-        return None
-    if not 0.0 < value <= 1.0:
-        logger.warning(
-            "Ignoring out-of-range PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=%r (need 0-1]", raw
-        )
-        return None
-    return value
-
-
-def _calibration_gate_description() -> str:
-    gate = _calibration_gate_threshold()
-    if gate is None:
-        return "not armed (PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY unset; report-only until a baseline exists)"
-    return f"Confirmed >= {gate:.0%} (PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY)"
-
-
-def _calibration_status(summary: ProfileSummary, gate: float | None) -> str:
-    if summary.calibrated_report_count == 0:
-        return "no data"
-    if summary.confirmed_traceability is None:
-        return "no decidable Confirmed claims"
-    if gate is not None and summary.confirmed_traceability < gate:
-        return "BELOW GATE"
-    return "ok"
-
-
-def _round_or_blank(value: float | None) -> float | str:
-    return round(value, 3) if value is not None else ""
 
 
 def _write_scorecard_csv(path: Path, metrics: list[ReportMetrics]) -> None:
@@ -1159,6 +1132,14 @@ def _write_scorecard_csv(path: Path, metrics: list[ReportMetrics]) -> None:
                 "calibrated",
                 "confirmed_traceability",
                 "reported_traceability",
+                "evidence_source_reviews",
+                "evidence_support_rate",
+                "evidence_contradiction_rate",
+                "evidence_independence_rate",
+                "evidence_high_authority_rate",
+                "evidence_strong_reasoning_rate",
+                "evidence_honest_uncertainty_rate",
+                "evidence_high_relevance_rate",
             ]
         )
         for m in metrics:
@@ -1182,8 +1163,16 @@ def _write_scorecard_csv(path: Path, metrics: list[ReportMetrics]) -> None:
                     m.confidence_labels,
                     m.scaffolding_leaks,
                     m.calibrated,
-                    _round_or_blank(m.traceability("Confirmed")),
-                    _round_or_blank(m.traceability("Reported")),
+                    round_or_blank(m.traceability("Confirmed")),
+                    round_or_blank(m.traceability("Reported")),
+                    m.evidence_source_reviews,
+                    round_or_blank(m.evidence_rate(m.evidence_supported_reviews)),
+                    round_or_blank(m.evidence_rate(m.evidence_contradicted_reviews)),
+                    round_or_blank(m.evidence_rate(m.evidence_independent_reviews)),
+                    round_or_blank(m.evidence_rate(m.evidence_high_authority_reviews)),
+                    round_or_blank(m.evidence_rate(m.evidence_strong_reasoning_reviews)),
+                    round_or_blank(m.evidence_rate(m.evidence_honest_uncertainty_reviews)),
+                    round_or_blank(m.evidence_rate(m.evidence_high_relevance_reviews)),
                 ]
             )
 

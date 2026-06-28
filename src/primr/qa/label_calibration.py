@@ -1,29 +1,27 @@
-"""Confidence-label calibration: measure whether labels are *true*, not just present.
+"""Confidence-label calibration: measure whether labels are true, not just present.
 
 The Confirmed/Reported/Estimated/Hypothesis regime is primr's core epistemic
-apparatus, and until now nothing measured whether a label is correctly
-assigned — the QA score counts occurrences (and says so honestly). This
-module converts the labels from style guide to measured quantity:
+apparatus, and the QA score only counts whether labels appear. This module
+turns the labels from style guide into measured evidence:
 
 - ``extract_labeled_claims`` deterministically samples labeled claims from a
-  report, resolving each claim's ``[cite: N]`` references against the
-  Sources appendix.
-- ``calibrate_claims`` checks traceability per label class: a ``(Confirmed)``
-  or ``(Reported)`` claim must be supported by the *fetched text* of a cited
-  source (judged by an injectable judge — LLM in production, deterministic in
-  tests). ``(Estimated)`` / ``(Hypothesis)`` are exempt from traceability by
-  design — they assert inference, not sourced fact.
-- ``CalibrationReport`` carries per-label precision for the eval scorecard;
-  once a baseline exists, "Confirmed-claim traceability >= X%" becomes a
-  HARD eval gate (see docs/design/1x-completion.md, workstream 1).
+  report, resolving each claim's ``[cite: N]`` references against the Sources
+  appendix.
+- ``calibrate_claims`` preserves the stable traceability verdicts used by
+  scorecards, while also allowing richer evidence reviews for each cited source.
+  Traceability is the first measurable slice. It is not the full validation
+  story.
+- ``CalibrationReport`` carries per-label precision plus optional evidence
+  dimensions: support, contradiction, source independence, source authority,
+  reasoning strength, uncertainty honesty, and business relevance.
 
-All effects (source fetching, support judging) are injectable seams; the
-module itself performs no network or LLM calls unless the default seams are
-used.
+All effects (source fetching and judging) are injectable seams. The module
+itself performs no network or LLM calls unless the default seams are used.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -35,8 +33,24 @@ from primr.utils.logging_config import get_logger
 
 logger = get_logger("qa.label_calibration")
 
+_REVIEW_DIMENSIONS = (
+    "contradiction",
+    "source_independence",
+    "source_authority",
+    "reasoning_strength",
+    "uncertainty_honesty",
+    "business_relevance",
+)
+_REVIEW_ALLOWED_VALUES = {
+    "contradiction": frozenset({"none", "partial", "direct", "unknown"}),
+    "source_independence": frozenset({"independent", "first_party", "unknown"}),
+    "source_authority": frozenset({"high", "medium", "low", "unknown"}),
+    "reasoning_strength": frozenset({"strong", "partial", "weak", "unknown"}),
+    "uncertainty_honesty": frozenset({"honest", "overstated", "understated", "unknown"}),
+    "business_relevance": frozenset({"high", "medium", "low", "unknown"}),
+}
 # Canonical label vocabulary (parenthesized, optional explanatory suffix
-# inside the parens — e.g. "(Estimated — triangulated from filings)").
+# inside the parens - e.g. "(Estimated - triangulated from filings)").
 _LABEL_RE = re.compile(
     r"\((Confirmed|Reported|Estimated|Hypothesis)\b[^)]*\)",
 )
@@ -48,12 +62,12 @@ _SOURCE_ENTRY_RE = re.compile(
     r"^\s*(?:\[cite:\s*(\d+)\]|\[(\d+)\]|(\d+)\.)\s+(https?://\S+)", re.MULTILINE
 )
 
-# A label alone on its line — the current writer renders block-scoped labels
+# A label alone on its line - the current writer renders block-scoped labels
 # this way: [claim paragraphs] [What to validate: ...] [(Reported)].
 _STANDALONE_LABEL_RE = re.compile(
     r"^\s*\((Confirmed|Reported|Estimated|Hypothesis)\b[^)]*\)\s*$",
 )
-# The discovery-question line inside a labeled block — a question to ask, not
+# The discovery-question line inside a labeled block - a question to ask, not
 # a claim, so it is excluded from the claim text the judge sees.
 _VALIDATE_LINE_RE = re.compile(r"^\s*\**\s*what to validate:", re.IGNORECASE)
 
@@ -85,19 +99,51 @@ class LabeledClaim:
 
 
 @dataclass(frozen=True)
+class EvidenceReview:
+    """A source-level evidence review for one claim.
+
+    ``supported`` preserves the existing traceability decision. The remaining
+    dimensions are report-only calibration signal until a measured baseline is
+    strong enough to justify gates.
+    """
+
+    supported: bool
+    contradiction: str = "unknown"
+    source_independence: str = "unknown"
+    source_authority: str = "unknown"
+    reasoning_strength: str = "unknown"
+    uncertainty_honesty: str = "unknown"
+    business_relevance: str = "unknown"
+    rationale: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "supported": self.supported,
+            "contradiction": self.contradiction,
+            "source_independence": self.source_independence,
+            "source_authority": self.source_authority,
+            "reasoning_strength": self.reasoning_strength,
+            "uncertainty_honesty": self.uncertainty_honesty,
+            "business_relevance": self.business_relevance,
+            "rationale": self.rationale[:500],
+        }
+
+
+@dataclass(frozen=True)
 class ClaimCalibration:
     """Calibration verdict for one claim."""
 
     claim: LabeledClaim
-    # traceable      — a cited source's fetched text supports the claim
-    # untraceable    — cited sources fetched but none support the claim
-    # no_source      — a traceable-class label with no resolvable citation
-    # unfetchable    — citations exist but no source content could be fetched
-    # exempt         — inference-class label, traceability not required
+    # traceable      - a cited source's fetched text supports the claim
+    # untraceable    - cited sources fetched but none support the claim
+    # no_source      - a traceable-class label with no resolvable citation
+    # unfetchable    - citations exist but no source content could be fetched
+    # exempt         - inference-class label, traceability not required
     verdict: str
+    evidence_reviews: tuple[EvidenceReview, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "label": self.claim.label,
             "section": self.claim.section,
             "sentence": self.claim.sentence[:300],
@@ -105,6 +151,9 @@ class ClaimCalibration:
             "source_urls": list(self.claim.source_urls),
             "verdict": self.verdict,
         }
+        if self.evidence_reviews:
+            payload["evidence_reviews"] = [review.to_dict() for review in self.evidence_reviews]
+        return payload
 
 
 @dataclass
@@ -120,7 +169,7 @@ class CalibrationReport:
         """Traceability precision for a label: traceable / decidable.
 
         ``unfetchable`` claims are excluded (the harness couldn't decide);
-        ``no_source`` counts AGAINST precision — a (Confirmed) claim with no
+        ``no_source`` counts AGAINST precision - a (Confirmed) claim with no
         citation is mislabeled by definition. Returns None when no claim of
         the label was decidable.
         """
@@ -131,6 +180,25 @@ class CalibrationReport:
             return None
         traceable = sum(1 for r in decidable if r.verdict == "traceable")
         return traceable / len(decidable)
+
+    def validation_rubric(self) -> dict[str, Any]:
+        """Aggregate optional evidence-review dimensions for reporting."""
+        reviews = [review for result in self.results for review in result.evidence_reviews]
+        rubric: dict[str, Any] = {
+            "claims_with_reviews": sum(1 for result in self.results if result.evidence_reviews),
+            "source_reviews": len(reviews),
+            "support": {
+                "supported": sum(1 for review in reviews if review.supported),
+                "unsupported": sum(1 for review in reviews if not review.supported),
+            },
+        }
+        for dimension in _REVIEW_DIMENSIONS:
+            counts: dict[str, int] = dict.fromkeys(sorted(_REVIEW_ALLOWED_VALUES[dimension]), 0)
+            for review in reviews:
+                value = getattr(review, dimension)
+                counts[value if value in counts else "unknown"] += 1
+            rubric[dimension] = counts
+        return rubric
 
     def to_dict(self) -> dict[str, Any]:
         labels = sorted({r.claim.label for r in self.results})
@@ -149,6 +217,7 @@ class CalibrationReport:
             }
         return {
             "per_label": per_label,
+            "validation_rubric": self.validation_rubric(),
             "claims": [r.to_dict() for r in self.results],
         }
 
@@ -310,11 +379,35 @@ def build_judge_prompt(claim_sentence: str, source_text: str) -> str:
     return (
         "You are auditing a research report's citation. Does the SOURCE TEXT "
         "substantively support the CLAIM? Supporting means the source contains "
-        "the claim's substance (figures, named facts, events) — topical "
+        "the claim's substance (figures, named facts, events) - topical "
         "relatedness is not support.\n\n"
         f"CLAIM:\n{claim_sentence[:600]}\n\n"
         f"SOURCE TEXT:\n{source_text[:4000]}\n\n"
         'Answer with exactly one word: "yes" or "no".'
+    )
+
+
+def build_evidence_review_prompt(claim_sentence: str, source_text: str) -> str:
+    """Prompt for a richer evidence review over one claim/source pair."""
+    schema = {
+        "supported": "boolean",
+        "contradiction": "none | partial | direct | unknown",
+        "source_independence": "independent | first_party | unknown",
+        "source_authority": "high | medium | low | unknown",
+        "reasoning_strength": "strong | partial | weak | unknown",
+        "uncertainty_honesty": "honest | overstated | understated | unknown",
+        "business_relevance": "high | medium | low | unknown",
+        "rationale": "one concise sentence",
+    }
+    return (
+        "You are auditing a research report's citation for evidence quality. "
+        "Evaluate only the SOURCE TEXT against the CLAIM. Do not use outside "
+        "knowledge. Topical relatedness is not support. Direct contradiction "
+        "means the source says the claim is false or materially different.\n\n"
+        f"CLAIM:\n{claim_sentence[:600]}\n\n"
+        f"SOURCE TEXT:\n{source_text[:4000]}\n\n"
+        "Return JSON only with this schema and allowed values:\n"
+        f"{json.dumps(schema, indent=2)}"
     )
 
 
@@ -326,7 +419,7 @@ def parse_judge_answer(raw: str) -> bool:
     blocks; if the answer *opens* with yes/no, that is the verdict (the
     model answered directly, anything after is elaboration); otherwise take
     the LAST yes/no token (reasoning-style answers conclude with the
-    verdict). Unparseable answers are ``False`` — an undecipherable
+    verdict). Unparseable answers are ``False`` - an undecipherable
     judgment must never count as support.
     """
     text = re.sub(r"<think>.*?</think>", " ", raw, flags=re.DOTALL | re.IGNORECASE).strip()
@@ -337,6 +430,68 @@ def parse_judge_answer(raw: str) -> bool:
     if not matches:
         return False
     return matches[-1].lower() == "yes"
+
+
+def _extract_json_object(raw: str) -> str | None:
+    text = re.sub(r"<think>.*?</think>", " ", raw, flags=re.DOTALL | re.IGNORECASE).strip()
+    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, flags=re.DOTALL)
+    if fenced:
+        return fenced.group(1)
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end <= start:
+        return None
+    return text[start : end + 1]
+
+
+def _normalize_review_value(dimension: str, value: Any) -> str:
+    raw = str(value or "unknown").strip().lower().replace("-", "_").replace(" ", "_")
+    allowed = _REVIEW_ALLOWED_VALUES[dimension]
+    return raw if raw in allowed else "unknown"
+
+
+def _coerce_supported(value: Any, fallback_text: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int | float):
+        return bool(value)
+    text = str(value or "").strip().lower()
+    if text in {"true", "yes", "supported", "support", "traceable"}:
+        return True
+    if text in {"false", "no", "unsupported", "untraceable"}:
+        return False
+    return parse_judge_answer(fallback_text)
+
+
+def parse_evidence_review(raw: str) -> EvidenceReview:
+    """Parse structured evidence-review output with conservative fallback."""
+    json_text = _extract_json_object(raw)
+    if json_text is None:
+        return EvidenceReview(supported=parse_judge_answer(raw), rationale=str(raw)[:500])
+
+    try:
+        parsed = json.loads(json_text)
+    except json.JSONDecodeError:
+        return EvidenceReview(supported=parse_judge_answer(raw), rationale=str(raw)[:500])
+
+    if not isinstance(parsed, dict):
+        return EvidenceReview(supported=parse_judge_answer(raw), rationale=str(raw)[:500])
+
+    supported = _coerce_supported(parsed.get("supported"), raw)
+    values = {
+        dimension: _normalize_review_value(dimension, parsed.get(dimension))
+        for dimension in _REVIEW_DIMENSIONS
+    }
+    return EvidenceReview(
+        supported=supported,
+        contradiction=values["contradiction"],
+        source_independence=values["source_independence"],
+        source_authority=values["source_authority"],
+        reasoning_strength=values["reasoning_strength"],
+        uncertainty_honesty=values["uncertainty_honesty"],
+        business_relevance=values["business_relevance"],
+        rationale=str(parsed.get("rationale") or "")[:500],
+    )
 
 
 def _default_judge(claim_sentence: str, source_text: str) -> bool:
@@ -353,21 +508,44 @@ def _default_judge(claim_sentence: str, source_text: str) -> bool:
         return False
 
 
+def _default_review(claim_sentence: str, source_text: str) -> EvidenceReview:
+    """LLM review: evaluate support and evidence dimensions for one source."""
+    from primr.ai.llm import llm
+
+    try:
+        response = llm(
+            build_evidence_review_prompt(claim_sentence, source_text),
+            model_type="fast",
+            temperature=0.0,
+        )
+        return parse_evidence_review(str(response))
+    except Exception as e:
+        logger.warning("Calibration evidence review failed: %s", e)
+        return EvidenceReview(supported=False, rationale="judge_error")
+
+
 def calibrate_claims(
     claims: list[LabeledClaim],
     *,
     fetch_fn: Callable[[str], str] | None = None,
     judge_fn: Callable[[str, str], bool] | None = None,
+    review_fn: Callable[[str, str], EvidenceReview] | None = None,
     max_sources_per_claim: int = 2,
 ) -> CalibrationReport:
-    """Run the traceability audit over sampled claims.
+    """Run the evidence audit over sampled claims.
 
     Traceable-class labels (Confirmed/Reported) are judged against the
     fetched text of their cited sources; inference-class labels are exempt.
     Fetches are deduped across claims.
     """
     fetch = fetch_fn or _default_fetch
-    judge = judge_fn or _default_judge
+
+    def review(claim_sentence: str, source_text: str) -> EvidenceReview:
+        if review_fn is not None:
+            return review_fn(claim_sentence, source_text)
+        if judge_fn is not None:
+            return EvidenceReview(supported=judge_fn(claim_sentence, source_text))
+        return _default_review(claim_sentence, source_text)
 
     fetched: dict[str, str] = {}
 
@@ -395,11 +573,13 @@ def calibrate_claims(
             results.append(ClaimCalibration(claim=claim, verdict="unfetchable"))
             continue
 
-        supported = any(judge(claim.sentence, text) for text in texts)
+        evidence_reviews = tuple(review(claim.sentence, text) for text in texts)
+        supported = any(item.supported for item in evidence_reviews)
         results.append(
             ClaimCalibration(
                 claim=claim,
                 verdict="traceable" if supported else "untraceable",
+                evidence_reviews=evidence_reviews,
             )
         )
 
@@ -412,10 +592,11 @@ def calibrate_report_file(
     max_per_label: int = DEFAULT_MAX_PER_LABEL,
     fetch_fn: Callable[[str], str] | None = None,
     judge_fn: Callable[[str, str], bool] | None = None,
+    review_fn: Callable[[str, str], EvidenceReview] | None = None,
 ) -> CalibrationReport:
     """Convenience entry: extract + calibrate a report file on disk."""
     from pathlib import Path
 
     content = Path(report_path).read_text(encoding="utf-8")
     claims = extract_labeled_claims(content, max_per_label=max_per_label)
-    return calibrate_claims(claims, fetch_fn=fetch_fn, judge_fn=judge_fn)
+    return calibrate_claims(claims, fetch_fn=fetch_fn, judge_fn=judge_fn, review_fn=review_fn)

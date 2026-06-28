@@ -555,7 +555,7 @@ def consolidate_working_folder(folder_path: str) -> str:
     if not txt_files:
         raise ValueError(f"No .txt files found in {folder_path}")
 
-    # Extract company name from folder — skip timestamped leaf dirs like 2026-03-04_1530
+    # Extract company name from folder - skip timestamped leaf dirs like 2026-03-04_1530
     basename = os.path.basename(folder_path)
     if re.match(r"^\d{4}-\d{2}-\d{2}", basename):
         # Timestamped run folder; company name is the parent
@@ -1211,7 +1211,7 @@ def _fast_coherence_pass(
     3. Ensure framework sections reference earlier analytical sections
     4. Fix terminology consistency
 
-    Guards against destructive compression — rejects output that loses
+    Guards against destructive compression - rejects output that loses
     too many words or sections.
     """
     from primr.pipeline.llm_failover import LLMRole, call_with_failover
@@ -1239,7 +1239,7 @@ Website: {website or "N/A"}
 
 CRITICAL: Output MUST be at least 98% of the original word count. You are NOT rewriting.
 
-YOUR THREE TASKS — nothing else:
+YOUR THREE TASKS - nothing else:
 1. TERMINOLOGY: If the company/product name varies (e.g. "Northgate" vs "Northgate Gonzalez"),
    pick one form and use it consistently. Fix obvious typos only.
 2. CROSS-REFERENCES: If the EXACT same sentence (same fact, same number) appears in two
@@ -1252,7 +1252,7 @@ ABSOLUTE PROHIBITIONS:
 - Do NOT delete ANY paragraph, bullet, subsection, or table
 - Do NOT remove or rename ## headings
 - Do NOT remove [cite: N], confidence labels, or "What to validate:" lines
-- Do NOT rewrite sentences for style — only fix terminology and add cross-references
+- Do NOT rewrite sentences for style - only fix terminology and add cross-references
 - Do NOT summarize, condense, or merge sections
 - Do NOT add new facts or analysis
 - Every paragraph in the input MUST appear in the output
@@ -1276,7 +1276,7 @@ Return the full markdown report. No preamble.
             system_prompt=(
                 "You are a meticulous editorial analyst improving coherence and flow "
                 "across a multi-section strategic report. Preserve ALL depth and evidence. "
-                "Make only surgical edits to duplicate sentences — never delete paragraphs."
+                "Make only surgical edits to duplicate sentences - never delete paragraphs."
             ),
         )
         if not polished or not polished.strip():
@@ -1957,10 +1957,10 @@ RULES:
 - Keep citations compact, usually at paragraph ends, and use [cite: N] references in the body
 - Reserve the densest source inventory for the final Sources appendix
 - Label claims: Confirmed, Reported, Estimated, Hypothesis
-- Stress-test the company narrative — separate claims from evidence
+- Stress-test the company narrative - separate claims from evidence
 - Keep roughly the same scope as the original section
 - End with a single "What to validate:" line followed by a concrete check question
-- Write that line as plain text — no bold, italics, or bullet prefix (it is prose, not a label)
+- Write that line as plain text - no bold, italics, or bullet prefix (it is prose, not a label)
 
 {SCAFFOLDING_PROHIBITION_GUIDANCE}"""
 
@@ -2154,7 +2154,7 @@ RULES:
 - Keep citations compact, usually at paragraph ends, and use [cite: N] references in the body
 - Keep roughly the same scope as the original section
 - Include concrete next steps or validation questions
-- If you end with a "What to validate:" line, write it as plain text — no bold, italics, or bullet prefix
+- If you end with a "What to validate:" line, write it as plain text - no bold, italics, or bullet prefix
 - Keep the densest supporting reference list in the final Sources appendix
 
 {SCAFFOLDING_PROHIBITION_GUIDANCE}"""
@@ -2236,8 +2236,8 @@ TASKS (in priority order):
 STRICT RULES:
 - Do NOT remove or rename ## section headings
 - Do NOT remove confidence labels or source citations
-- Do NOT add new strategic recommendations — only improve existing ones
-- Do NOT delete paragraphs — only edit individual sentences
+- Do NOT add new strategic recommendations - only improve existing ones
+- Do NOT delete paragraphs - only edit individual sentences
 - PRESERVE all depth and analysis
 - Output MUST contain at least 90% of the original word count
 
@@ -2339,7 +2339,7 @@ def _enrich_strategy_content(
 
     if cv_failed:
         console.warn(
-            f"Strategy cross-validation failed for {label}{vendor_label} — skipping enrichment"
+            f"Strategy cross-validation failed for {label}{vendor_label} - skipping enrichment"
         )
 
     if issues:
@@ -2364,7 +2364,7 @@ def _enrich_strategy_content(
                 continue
 
             section_title: str = heading_lookup.get(raw_title.lower(), raw_title)
-            console.info(f"Weak: {section_title} — {reason[:80]}")
+            console.info(f"Weak: {section_title} - {reason[:80]}")
 
             # Search for additional evidence
             new_evidence_parts: list[str] = []
@@ -2516,7 +2516,7 @@ def perform_fast_research(
 
     framing_block = framing.to_prompt_block() if framing is not None else ""
 
-    # Stage 0 (extracted: core/fast_run_setup.py — roadmap #23 Batch A):
+    # Stage 0 (extracted: core/fast_run_setup.py - roadmap #23 Batch A):
     # session reset, model resolution + routing + eval-recipe override,
     # continuous-reasoning flag, run identity, phase plan.
     setup = resolve_fast_run_setup(
@@ -2566,7 +2566,7 @@ def perform_fast_research(
         _recovery_executor = _collected.recovery_executor
 
         # =================================================================
-        # Hiring Signals — discover open postings, extract strategic signals.
+        # Hiring Signals - discover open postings, extract strategic signals.
         # Not numbered as a full phase so we avoid renumbering the five
         # downstream banners, but announced clearly. The resulting block is
         # threaded through BOTH the initial insights build and the Phase 2
@@ -2709,7 +2709,7 @@ def perform_fast_research(
 
         # Save report via existing output pipeline
         # Note: unresolved contradictions are surfaced as QA warnings above
-        # but do NOT block DOCX shipping — the contradictions are already
+        # but do NOT block DOCX shipping - the contradictions are already
         # noted inline and the user gets the full report.
         report_gate_issues = []
         if qa_metrics["citations_used"] == 0 or qa_metrics["citations_defined"] == 0:
@@ -2759,7 +2759,7 @@ def perform_fast_research(
         strategy_trust_stats = _strategy_result.strategy_trust_stats
 
         # =================================================================
-        # Summary (extracted: core/fast_run_summary.py — roadmap #23 Batch A)
+        # Summary (extracted: core/fast_run_summary.py - roadmap #23 Batch A)
         # =================================================================
         from primr.core.fast_run_summary import finalize_fast_run
 
@@ -3065,7 +3065,7 @@ def perform_research(
                 info, _recon_results = asyncio.run(
                     asyncio.wait_for(resolve_tenant(domain), timeout=15.0)
                 )
-                recon_info = info  # noqa: F841 — kept for future downstream use
+                recon_info = info  # noqa: F841 - kept for future downstream use
 
                 # Auto-detect platforms if user didn't specify
                 from primr.core.platform_mapper import DEFAULT_PLATFORM_FALLBACK, map_platforms
@@ -3113,7 +3113,7 @@ def perform_research(
                 )
 
             except Exception as exc:
-                console.warn(f"Recon: {exc} — continuing without domain intelligence")
+                console.warn(f"Recon: {exc} - continuing without domain intelligence")
                 _append_run_event(folder_path, "recon", "failed", str(exc))
                 # Keep existing platforms (user-specified or default)
 
@@ -3511,16 +3511,13 @@ def perform_research(
                         docx_path,
                     )
                     if verification_result:
-                        console.phase_complete(
-                            "Claim Verification",
-                            [
-                                ("Trust", f"{verification_result.trust_percentage}%"),
-                                (
-                                    "Verified",
-                                    f"{verification_result.verified_count}/{verification_result.total_claims}",
-                                ),
-                            ],
+                        from primr.core.verification_summary import (
+                            build_verification_display_stats,
                         )
+
+                        verification_stats = build_verification_display_stats(verification_result)
+                        console.phase_complete("Claim Verification", verification_stats.phase)
+                        console.trust_summary("Report Trust", verification_stats.trust_summary)
                     else:
                         console.phase_complete(
                             "Claim Verification", [("Status", "No claims found")]
@@ -3839,7 +3836,7 @@ def perform_deep_research(
             log_structured("info", "Deep research complete", sections=section_count)
 
             # Calculate word and page count from raw content. Round to nearest
-            # page and floor at 1 for any non-empty report — plain floor
+            # page and floor at 1 for any non-empty report - plain floor
             # division shows "~0 pages" for 1-499-word reports.
             word_count = len(result.raw_content.split()) if result.raw_content else 0
             page_count = max(1, round(word_count / 500)) if word_count else 0  # ~500 words/page
@@ -4200,9 +4197,9 @@ def _salvage_markdown_for_shipping(
     """Run one deterministic salvage pass before blocking artifact shipping.
 
     Three escalation levels:
-    1. Validate raw content — if clean, ship as-is.
-    2. Run kind-specific cleanup pipeline — if clean, ship salvaged.
-    3. Auto-strip ALL forbidden patterns (last resort) — if clean, ship.
+    1. Validate raw content - if clean, ship as-is.
+    2. Run kind-specific cleanup pipeline - if clean, ship salvaged.
+    3. Auto-strip ALL forbidden patterns (last resort) - if clean, ship.
 
     Level 3 ensures any new forbidden pattern added to the scanner is
     automatically cleaned without needing a matching cleanup rule.
@@ -5019,13 +5016,13 @@ def _run_verification(
 
     try:
         asyncio.get_running_loop()
-        # Already in an async context — run in a thread to avoid RuntimeError
+        # Already in an async context - run in a thread to avoid RuntimeError
         import concurrent.futures
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
             result = pool.submit(asyncio.run, verifier.execute()).result()
     except RuntimeError:
-        # No running loop — safe to use asyncio.run directly
+        # No running loop - safe to use asyncio.run directly
         result = asyncio.run(verifier.execute())
 
     if result.is_success and result.data:
@@ -5091,7 +5088,7 @@ def improve_output_file(
         )
 
     # Enforced write allowlist (roadmap #11): the agentic improve stage may
-    # only write the target artifact (or its _improved sibling) — never run
+    # only write the target artifact (or its _improved sibling) - never run
     # state, raw scrapes, or anything else. Architectural constraint, not a
     # trust-based policy.
     from primr.utils.write_guard import ArtifactWriteGuard, WriteGuardError
@@ -5153,7 +5150,7 @@ atexit.register(cleanup)
 def run_doctor():
     """Run system diagnostics.
 
-    Delegates to the maintained implementation in ``cli_doctor`` — the legacy
+    Delegates to the maintained implementation in ``cli_doctor`` - the legacy
     inline body this module carried (plus its private helpers
     ``_list_recent_outputs`` / ``_get_qa_grade_for_report`` /
     ``_check_api_quota`` / ``_list_strategies`` / ``_clean_temp_files`` /

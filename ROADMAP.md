@@ -42,6 +42,8 @@ Current priority order:
    survive evidence, contradiction, source-quality, and reasoning review before
    Primr can trust eval gates, routing comparisons, or future memory. Label
    traceability is the first measurable slice, not the whole validation story.
+   The standard `--verify` path now surfaces contradicted claims in the final
+   Report Trust summary; calibration baselines and scorecards remain next.
 2. **Backend freedom production wiring.** Provider abstractions and pure routing
    foundations exist, but full-report execution still carries xAI/Gemini-era
    assumptions. Stage-by-stage routing is the next architecture unlock.
@@ -252,17 +254,21 @@ per-module coverage ratchet unlocked by the refactor:
   v1.30 panel review) - converts the epistemic apparatus from style guide to
   measured quantity. Tooling COMPLETE: `primr calibrate` audits shipped
   reports (sidecar JSON, `--dry-run` cost preview), the eval scorecard reads
-  sidecars into a `## Label Calibration` section + CSV columns, and the
+  sidecars into a `## Label Calibration` section plus CSV columns, and the
   `FAIL_CALIBRATION` decision gate arms via
   `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY`. The judge also runs on any local
   OpenAI-compatible server (Ollama/LM Studio/vLLM) for $0 - `--judge
   auto|local`, auto-detected, cloud default, provenance stamped in sidecars,
   `--judge-compare` measures cloud-vs-local agreement (the first production
   slice of the 2.0 backend-freedom pattern: detect, opt in, validate by
-  agreement, fail open). Remaining: gather a multi-report, agreement-validated
-  baseline (cloud-vs-local concordance), then set the threshold from those
-  numbers; a single small run is too judge-noisy to arm a hard gate on (judge
-  variance is itself a documented failure mode, see
+  agreement, fail open). Evidence-review tooling is now also present: sidecars
+  record support, contradiction, source independence, source authority,
+  reasoning strength, uncertainty honesty, and business relevance dimensions,
+  and the eval scorecard surfaces pooled `## Evidence Review` report-only
+  metrics plus CSV columns. Remaining: gather a multi-report,
+  agreement-validated baseline (cloud-vs-local concordance), then set the
+  threshold from those numbers; a single small run is too judge-noisy to arm a
+  hard gate on (judge variance is itself a documented failure mode, see
   [`docs/design/agentic-balance.md`](docs/design/agentic-balance.md)). See
   `docs/design/1x-completion.md` workstream 1
 

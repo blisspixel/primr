@@ -8,6 +8,8 @@ copyright: Copyright &copy; 2025-2026 Nick Seal - Apache License 2.0
 
 docs_dir: docs
 strict: true
+exclude_docs: |
+  agent/**
 
 theme:
   name: material

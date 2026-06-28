@@ -3,18 +3,18 @@
 ``primr refine "Company"`` (roadmap Active Queue #10) takes an already-shipped
 report, identifies its weakest sections with the deterministic QA scorer,
 gathers fresh evidence for them, regenerates them section-by-section, and
-repeats until the report grades >= the target (default 90) — or the loop hits
+repeats until the report grades >= the target (default 90) or the loop hits
 diminishing returns.
 
 The loop follows the four-phase consolidation protocol:
 
-1. **Orient** — read the full report, the analysis workbook, and the source
+1. **Orient** - read the full report, the analysis workbook, and the source
    appendix; score the report and rank the weakest sections.
-2. **Gather** — targeted DDG searches for each weak section's gaps; scrape
+2. **Gather** - targeted DDG searches for each weak section's gaps; scrape
    and validate the new sources.
-3. **Consolidate** — regenerate the weak sections with the enriched context,
+3. **Consolidate** - regenerate the weak sections with the enriched context,
    preserving existing citations and confidence labels.
-4. **Prune** — deterministic cleanup (citation normalization, scaffolding
+4. **Prune** - deterministic cleanup (citation normalization, scaffolding
    strip), re-score, and check the stop conditions.
 
 Reading happens before writing (Orient/Gather vs Consolidate/Prune), which
@@ -120,7 +120,7 @@ def identify_weak_sections(
     cites nothing, or carries no confidence labels. Sections are ranked by
     how many signals fire (then by ascending length) and capped at
     ``max_sections`` per iteration so each loop pass stays bounded.
-    ``skip_titles`` excludes sections already regenerated in this run —
+    ``skip_titles`` excludes sections already regenerated in this run:
     re-regenerating the same section every iteration is how loops spin.
     """
     skip = {t.lower() for t in (skip_titles or set())}
@@ -273,7 +273,7 @@ def _default_acceptance(
     The loop's objective function is the artifact-discipline score, which
     counts exactly the tokens the regenerator can insert (citations,
     confidence labels). This check audits the regenerated sections with the
-    label-calibration harness — an instrument the discipline score cannot
+    label-calibration harness, an instrument the discipline score cannot
     see: per-label traceability precision on the rewritten sections must not
     drop below what those sections had before the rewrite. An iteration that
     raised the grade by inserting unsupported labels/citations is rejected
@@ -284,6 +284,7 @@ def _default_acceptance(
     """
     from primr.qa.label_calibration import (
         TRACEABLE_LABELS,
+        _default_judge,
         calibrate_claims,
         extract_labeled_claims,
     )
@@ -293,12 +294,12 @@ def _default_acceptance(
         claims_before = [c for c in extract_labeled_claims(before_content) if c.section in titles]
         claims_after = [c for c in extract_labeled_claims(after_content) if c.section in titles]
         if not any(c.label in TRACEABLE_LABELS for c in claims_after):
-            # Nothing traceable-class was added — nothing for this audit to
+            # Nothing traceable-class was added, so nothing for this audit to
             # judge; the discipline score governs the rest.
             return True
 
-        report_before = calibrate_claims(claims_before)
-        report_after = calibrate_claims(claims_after)
+        report_before = calibrate_claims(claims_before, judge_fn=_default_judge)
+        report_after = calibrate_claims(claims_after, judge_fn=_default_judge)
         for label in TRACEABLE_LABELS:
             precision_after = report_after.precision(label)
             precision_before = report_before.precision(label)
@@ -341,7 +342,7 @@ def refine_report(
 
     Stop conditions, in priority order: grade >= ``target_grade``; no weak
     sections left to work on; an iteration rejected by the independent
-    acceptance check (label-traceability must not degrade — anti-Goodhart;
+    acceptance check (label-traceability must not degrade; anti-Goodhart;
     the iteration is reverted); diminishing returns (two consecutive
     iterations each improving the grade by < 5% relative); or
     ``max_iterations``.

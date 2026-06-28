@@ -94,6 +94,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `--verify` results now feed the final Report Trust summary. Contradicted
+  claims surface as a WARN gate with explicit counts instead of appearing only
+  in `verification.json` or the transient verification phase line.
+- `primr calibrate` now records judge-reported source-level evidence review
+  signals in calibration sidecars, not only traceability verdicts. The sidecar
+  schema now includes support, contradiction, source independence, source
+  authority, reasoning strength, uncertainty honesty, and business relevance
+  counts. The offline eval scorecard surfaces those pooled dimensions in a new
+  `## Evidence Review` section and CSV columns while keeping them report-only
+  until a defensible baseline and judge-agreement record exist.
+- Local agent working files moved to gitignored `docs/.agent/`, keeping
+  persistent engineering memory out of the project root and tracked docs.
 - README is now a concise project front door instead of the full manual. Run
   mode, cost, agent-integration, and skill-pack details now link to focused docs
   so first-time users can install, estimate, and run without wading through

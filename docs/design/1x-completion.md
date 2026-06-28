@@ -17,15 +17,17 @@ function the suite can only test around).
 ## Immediate next slice
 
 The next 1.x slice is not broader prompt tuning, and it is not a simplistic
-fact-checker. It is evidence-grounded validation: run a multi-report
-label-calibration baseline as the cheap first measurable slice, compare local
-and cloud judges on the same sampled report units, and evaluate support,
+fact-checker. It is evidence-grounded validation: the calibration sidecar and
+eval scorecard now carry source-level review dimensions, and the next live
+slice is to run a multi-report baseline, compare local and cloud judges on the
+same sampled report units, and evaluate whether the measured support,
 contradiction, source independence, source authority, reasoning strength, and
-uncertainty honesty. In parallel, surface contradicted `--verify` claims in the
-report trust summary so the user sees the risk in the artifact, not only in
-sidecar JSON. Any hard `FAIL_CALIBRATION` threshold must come from the measured
-agreement-validated floor of that broader rubric, never from string overlap or
-an isolated citation-presence check.
+uncertainty honesty rates justify any hard gate. In parallel, surface
+contradicted `--verify` claims in the report trust summary so the user sees the
+risk in the artifact, not only in sidecar JSON. Any hard
+`FAIL_CALIBRATION` threshold must come from the measured agreement-validated
+floor of that broader rubric, never from string overlap or an isolated
+citation-presence check.
 
 ## Workstreams, in dependency order
 
@@ -56,10 +58,11 @@ calibration harness; traceability degradation reverts the iteration).
 - Run one calibration pass over recent current-format reports (measured by
   dry-run: ~164 judge calls ≈ $0.07-0.15) to establish the per-label
   baseline, but treat that as only the first slice of the validation rubric.
-  Before any default HARD eval gate, add agreement-validated scoring for support,
-  contradiction, source independence, source authority, reasoning strength, and
-  uncertainty honesty. Set `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` only from the
-  measured floor once the broader rubric says the threshold is meaningful.
+  Agreement-validated scoring fields for support, contradiction, source
+  independence, source authority, reasoning strength, uncertainty honesty, and
+  business relevance are now in the calibration sidecar and offline eval
+  scorecard. Set `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` only from the measured
+  floor once the broader rubric says the threshold is meaningful.
   The judge can also run on a local OpenAI-compatible server for $0
   (`--judge auto|local`, auto-detected via `/v1/models`, cloud default,
   sidecars stamp `judge: {kind, model}`); `--judge-compare` measures

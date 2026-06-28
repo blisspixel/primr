@@ -4,16 +4,18 @@ import json
 
 from primr.qa.label_calibration import (
     CalibrationReport,
+    EvidenceReview,
     LabeledClaim,
     calibrate_claims,
     extract_labeled_claims,
+    parse_evidence_review,
     parse_sources_appendix,
 )
 
 REPORT = """## Executive Summary
 Revenue reached $50M in 2025. (Confirmed) [cite: 1]
 Headcount grew to 500 across three offices. (Reported) [cite: 2, 3]
-Margins are likely compressing. (Estimated — triangulated from filings)
+Margins are likely compressing. (Estimated - triangulated from filings)
 An unannounced product line is in development. (Hypothesis)
 A claim with a label but no citation at all. (Confirmed)
 
@@ -115,7 +117,7 @@ class TestStandaloneLabelBlocks:
         # above it (a standalone-label boundary), so nothing to associate...
         estimated = [c for c in self._claims() if c.label == "Estimated"]
         # ...the inline (Reported) line above it is NOT a standalone label,
-        # so the block walk picks that prose up — assert the verdict-relevant
+        # so the block walk picks that prose up - assert the verdict-relevant
         # invariant instead: no empty-sentence claims are ever emitted.
         assert all(c.sentence.strip() for c in self._claims())
         assert all(c.sentence.strip() for c in estimated)
@@ -139,7 +141,7 @@ class TestExtraction:
         labels = [c.label for c in claims]
         assert labels.count("Confirmed") == 2
         assert labels.count("Reported") == 2
-        assert "Estimated" in labels  # suffix form "(Estimated — ...)" counted
+        assert "Estimated" in labels  # suffix form "(Estimated - ...)" counted
         assert "Hypothesis" in labels
 
     def test_citations_resolved(self):
@@ -201,6 +203,40 @@ class TestCalibration:
         )
         revenue = next(r for r in report.results if "Revenue" in r.claim.sentence)
         assert revenue.verdict == "untraceable"
+        assert revenue.evidence_reviews[0].supported is False
+
+    def test_review_fn_records_richer_evidence_dimensions(self):
+        claims = [
+            LabeledClaim(
+                "Confirmed",
+                "Revenue reached $50M. (Confirmed) [cite: 1]",
+                "Executive Summary",
+                (1,),
+                ("https://news.example.com/revenue",),
+            )
+        ]
+
+        report = calibrate_claims(
+            claims,
+            fetch_fn=lambda u: "Revenue reached $50M.",
+            review_fn=lambda c, t: EvidenceReview(
+                supported=True,
+                contradiction="none",
+                source_independence="independent",
+                source_authority="high",
+                reasoning_strength="strong",
+                uncertainty_honesty="honest",
+                business_relevance="high",
+                rationale="The source directly states the revenue figure.",
+            ),
+        )
+
+        payload = report.to_dict()
+        assert report.results[0].verdict == "traceable"
+        assert payload["claims"][0]["evidence_reviews"][0]["source_authority"] == "high"
+        assert payload["validation_rubric"]["source_reviews"] == 1
+        assert payload["validation_rubric"]["support"]["supported"] == 1
+        assert payload["validation_rubric"]["reasoning_strength"]["strong"] == 1
 
     def test_no_source_counts_against_precision(self):
         report = calibrate_claims(
@@ -243,7 +279,59 @@ class TestCalibration:
         encoded = json.loads(json.dumps(report.to_dict()))
         assert encoded["per_label"]["Confirmed"]["sampled"] == 2
         assert encoded["per_label"]["Estimated"]["exempt"] == 1
+        assert encoded["validation_rubric"]["source_reviews"] == 3
         assert isinstance(encoded["claims"], list)
+
+
+class TestParseEvidenceReview:
+    def test_parses_json_review(self):
+        raw = json.dumps(
+            {
+                "supported": True,
+                "contradiction": "none",
+                "source_independence": "independent",
+                "source_authority": "high",
+                "reasoning_strength": "strong",
+                "uncertainty_honesty": "honest",
+                "business_relevance": "high",
+                "rationale": "The cited source directly supports the claim.",
+            }
+        )
+        review = parse_evidence_review(raw)
+        assert review.supported is True
+        assert review.source_independence == "independent"
+        assert review.source_authority == "high"
+        assert review.reasoning_strength == "strong"
+        assert review.uncertainty_honesty == "honest"
+        assert review.business_relevance == "high"
+
+    def test_off_schema_review_values_stay_unknown(self):
+        review = parse_evidence_review(
+            json.dumps(
+                {
+                    "supported": True,
+                    "source_authority": "official",
+                    "reasoning_strength": "supported",
+                }
+            )
+        )
+        assert review.supported is True
+        assert review.source_authority == "unknown"
+        assert review.reasoning_strength == "unknown"
+
+    def test_parses_fenced_json_review(self):
+        review = parse_evidence_review(
+            """```json
+{"supported": false, "contradiction": "direct", "reasoning_strength": "weak"}
+```"""
+        )
+        assert review.supported is False
+        assert review.contradiction == "direct"
+        assert review.reasoning_strength == "weak"
+
+    def test_malformed_review_falls_back_to_yes_no(self):
+        assert parse_evidence_review("yes, supported").supported is True
+        assert parse_evidence_review("the source is merely related").supported is False
 
 
 class TestParseJudgeAnswer:
@@ -263,7 +351,7 @@ class TestParseJudgeAnswer:
 
     def test_direct_answer_wins_over_trailing_mentions(self):
         # The model answered first, then elaborated using the other word.
-        assert self._parse("Yes — though the source has no exact figure.") is True
+        assert self._parse("Yes - though the source has no exact figure.") is True
         assert self._parse("No, the claim says yes but the source does not.") is False
 
     def test_reasoning_answer_concludes_with_verdict(self):

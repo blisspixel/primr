@@ -1,8 +1,8 @@
 """Tests for the QA iteration loop (primr refine, roadmap #10).
 
-All LLM / network seams are injected, so the loop's control flow —
+All LLM / network seams are injected, so the loop's control flow:
 weak-section identification, regeneration splicing, stop conditions,
-write-guard output — is tested deterministically.
+write-guard output, is tested deterministically.
 """
 
 from __future__ import annotations
@@ -178,7 +178,7 @@ class TestRefineLoop:
             + _sources_section()
         )
         path = report_file(content)
-        # initial 70, then 70.5, 71 — both iterations < 5% relative gain
+        # initial 70, then 70.5, 71; both iterations < 5% relative gain
         result, _ = self._run(
             path,
             scores=[70.0, 70.5, 71.0],

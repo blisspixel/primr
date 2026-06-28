@@ -1,16 +1,17 @@
-"""Offline calibration runner: audit label traceability on shipped reports.
+"""Offline calibration runner: audit label evidence on shipped reports.
 
 The runner turns the label-calibration harness (``qa.label_calibration``)
-into a one-command audit over reports already on disk — no research run
+into a one-command audit over reports already on disk. No research run is
 required. Per report it samples labeled claims (free, deterministic),
-fetches cited sources, and judges traceability, persisting the result as a
-``<report>.calibration.json`` sidecar that the model_eval scorecard reads.
+fetches cited sources, and judges support plus optional evidence dimensions,
+persisting the result as a ``<report>.calibration.json`` sidecar that the
+model_eval scorecard reads.
 
-Cost profile: claim extraction is free; the paid part is bounded one-word
-judge calls (``max_per_label`` x 2 labels x ``max_sources_per_claim``), a
-fraction of a cent per report on the fast tier. ``dry_run=True`` stops
-after extraction and reports exactly how many judge calls a live pass
-would make.
+Cost profile: claim extraction is free; the paid part is bounded source-review
+calls (``max_per_label`` x 2 labels x ``max_sources_per_claim``), usually a
+small fraction of a dollar per report on the fast tier. ``dry_run=True`` stops
+after extraction and reports exactly how many judge calls a live pass would
+make.
 
 All effects (fetching, judging, sidecar writes) are injectable or
 switchable so tests stay offline.
@@ -25,6 +26,8 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from primr.qa.label_calibration import EvidenceReview
 
 from primr.qa.label_calibration import (
     DEFAULT_MAX_PER_LABEL,
@@ -73,7 +76,7 @@ class JudgeSelection:
     A calibration number is meaningless without knowing what judged it, so
     the selection travels into every sidecar as ``judge: {kind, model}``.
     ``cloud_fallbacks`` counts local-judge calls that had to fall back to
-    the cloud judge mid-run (flaky local server) — non-zero means the
+    the cloud judge mid-run (flaky local server) - non-zero means the
     sidecar's verdicts are mixed-provenance.
     """
 
@@ -102,7 +105,7 @@ def make_local_judge(
     Uses the exact same prompt as the cloud judge so verdicts never depend
     on the backend. On a local-call failure each judgment falls back to
     ``on_fallback`` (the cloud judge by default) rather than silently
-    returning False — a flaky local server must not masquerade as
+    returning False - a flaky local server must not masquerade as
     untraceable claims.
     """
 
@@ -145,7 +148,7 @@ def resolve_judge(
     """Resolve the judge for a calibration run.
 
     - ``cloud``: the harness default (fast-tier LLM). Always works.
-    - ``local``: an explicit opt-in — raises with a clear message when no
+    - ``local``: an explicit opt-in - raises with a clear message when no
       local server or usable model is found, instead of silently going to
       the cloud the user opted out of.
     - ``auto``: prefer local when a server with a usable model is
@@ -174,7 +177,7 @@ def resolve_judge(
             raise RuntimeError(
                 "No local inference server with a usable model was found "
                 "(checked the OpenAI-compatible /models endpoint at the "
-                "configured base URL — set LOCAL_LLM_BASE_URL or "
+                "configured base URL - set LOCAL_LLM_BASE_URL or "
                 "OLLAMA_BASE_URL if your server is not on localhost:11434). "
                 "Use --judge auto to fall back to the cloud judge instead."
             )
@@ -266,6 +269,7 @@ def run_calibration(
     write_sidecar: bool = True,
     fetch_fn: Callable[[str], str] | None = None,
     judge_fn: Callable[[str, str], bool] | None = None,
+    review_fn: Callable[[str, str], EvidenceReview] | None = None,
     judge_selection: JudgeSelection | None = None,
 ) -> list[ReportCalibrationOutcome]:
     """Calibrate each report, persisting a sidecar JSON per report.
@@ -313,7 +317,9 @@ def run_calibration(
             )
             continue
 
-        report = calibrate_claims(claims, fetch_fn=fetch_fn, judge_fn=effective_judge)
+        report = calibrate_claims(
+            claims, fetch_fn=fetch_fn, judge_fn=effective_judge, review_fn=review_fn
+        )
         payload = report.to_dict()
         payload["report_file"] = path.name
         payload["max_per_label"] = max_per_label
@@ -372,7 +378,7 @@ def compare_judges(
 ) -> tuple[list[ReportCalibrationOutcome], JudgeAgreement]:
     """Run cloud-judged calibration (the record), plus local on the same claims.
 
-    The cloud pass writes the sidecars — it is the result of record. The
+    The cloud pass writes the sidecars - it is the result of record. The
     local pass reuses the same fetched sources (one fetch per URL across
     both passes) and is compared verdict-by-verdict. Returns the cloud
     outcomes and the agreement summary.

@@ -13,7 +13,7 @@ Plus a human-readable <Company>_Skills_Pack_Report.md summarizing what was
 produced, what was dropped, and the validation scorecard.
 
 The UUID v5 for the manifest is deterministic on (namespace + company name),
-matching the Microsoft conversion script's behavior — re-running the
+matching the Microsoft conversion script's behavior - re-running the
 pipeline against the same company replaces the existing Cowork plugin on
 sideload rather than creating a parallel install.
 """
@@ -62,7 +62,7 @@ PACKAGE_VERSION = "1.0.0"
 PRIMR_SKILL_PACK_NAMESPACE = uuid.UUID("64a4d3ab-2cdb-5e8a-9b51-7ad11e3c4a6e")
 
 # Cowork accent color (sane default). Could be derived from company branding
-# in the future — see plan's "Out of Scope (v1)".
+# in the future - see plan's "Out of Scope (v1)".
 DEFAULT_ACCENT_COLOR = "#2B579A"
 
 # Microsoft 365 Copilot Cowork validation limits, refreshed from Microsoft
@@ -88,7 +88,7 @@ def _today_yyyymmdd() -> str:
 
 # How a consuming agent reaches primr to refresh or extend a generated skill.
 # primr exposes `generate_skill_pack` over MCP (mcp__primr__*) and an A2A
-# surface — this is the capability declaration, not a claim that the skill
+# surface - this is the capability declaration, not a claim that the skill
 # itself calls those tools. Stable string so SKILL.md output stays deterministic.
 _PRIMR_REFRESH_VIA = "mcp:primr/generate_skill_pack, a2a:primr"
 
@@ -96,7 +96,7 @@ _PRIMR_REFRESH_VIA = "mcp:primr/generate_skill_pack, a2a:primr"
 def _agent_metadata(skill: Skill, role: Role) -> dict[str, str]:
     """Build the primr-namespaced SKILL.md frontmatter metadata for one skill.
 
-    Grounded entirely in data primr already has — no fabrication:
+    Grounded entirely in data primr already has - no fabrication:
     - primr-role / primr-provenance / primr-confidence: how the role was
       discovered and how strongly it is grounded;
     - primr-context-tokens: an approximate context-load budget for the skill
@@ -122,7 +122,7 @@ def _format_skill_md(skill: Skill, metadata: dict[str, str] | None = None) -> st
 
     YAML frontmatter (name + description, plus an optional primr-namespaced
     `metadata` block) followed by the body. The body is expected to already
-    contain the required H2 sections — validator enforces that upstream. We
+    contain the required H2 sections - validator enforces that upstream. We
     escape double quotes in the YAML scalar values.
     """
     safe_name = skill.name.replace('"', '\\"')
@@ -197,8 +197,8 @@ def _build_manifest(
                 f"{len(skill_folders)} role-specific skills grounded in DNS "
                 "recon and hiring signals. Each skill is sideload-ready for "
                 "Microsoft 365 Copilot Cowork and byte-identical to the "
-                "Agent Skills format used by Claude Code, Cursor, and VS "
-                "Code Copilot."
+                "Agent Skills format compatible with Claude Code, Cursor, "
+                "and VS Code Copilot."
             )[:4000],
         },
         "icons": {
@@ -519,10 +519,10 @@ def _safe_bundled_files(skill: Skill) -> list[BundledFile]:
 
     Drops two classes of file defensively (the validator already recorded the
     matching finding upstream):
-      - unsafe PATH (traversal / wrong subdir / wrong ext) — SOFT BUNDLE-PATH;
+      - unsafe PATH (traversal / wrong subdir / wrong ext) - SOFT BUNDLE-PATH;
       - unsafe CONTENT (injection markers, hardcoded paths, or an executable
         Python helper that does process/network/eval/secret/destructive work)
-        — HARD SEC-BUNDLE.
+        - HARD SEC-BUNDLE.
 
     This is defense-in-depth: even if a role somehow ships with a HARD finding
     unresolved, no unreviewed executable or injected content reaches the

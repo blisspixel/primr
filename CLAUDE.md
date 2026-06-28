@@ -109,7 +109,7 @@ What NOT to do. These are gated or will fail review:
   side; do not add a background watcher to the core.
 - **NEVER put real company data** anywhere that ships (docs, fixtures, commit
   messages) - use `Acme Corp` / `ExampleCo` / `acme.example`. See CONTRIBUTING.
-- **NEVER add non-human authorship attribution** to commits, PR bodies, or
+- **NEVER add non-human authorship or provenance lines** to commits, PR bodies, or
   comments. Avoid coauthor trailers, AI-generation credits, or tool-credit
   language for any AI, bot, or automation tool. Every commit reads as a human
   engineer's work.

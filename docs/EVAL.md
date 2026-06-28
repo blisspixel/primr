@@ -65,6 +65,14 @@ For a 24 GB RTX 4090 or comparable local box, start with `4090-report-race` befo
 - Runtime: end-to-end duration per company
 - Artifact drift: per-report `scaffolding_leaks` count and a per-profile `total_scaffolding_leaks` aggregate (leaked internal scaffolding that should never reach a deliverable). Surfaced in the scorecard's `## Artifact Drift` section (clean/DRIFT per profile) and a `scaffolding_leaks` CSV column. Target: 0 - non-zero is a regression, tracked every eval run rather than via ad-hoc offline scans.
 - Label calibration: traceability of `(Confirmed)`/`(Reported)` claims against the *fetched text* of their cited sources, measured by `primr calibrate` (a separate, bounded paid step - pennies per report) and persisted as `<report>.calibration.json` sidecars next to the staged reports. The offline eval reads the sidecars into per-report traceability, a pooled `## Label Calibration` scorecard section, and `confirmed_traceability` / `reported_traceability` CSV columns. Set `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` (a fraction, e.g. `0.8`) to arm the hard gate: profiles below it get `FAIL_CALIBRATION` in the decision table. Preview the judge-call count and cost first with `primr calibrate --calibrate-recent 10 --dry-run` (free).
+- Evidence review: calibration sidecars also carry judge-reported, report-only
+  source-review signals for support, contradiction, source independence, source
+  authority, reasoning strength, uncertainty honesty, and business relevance.
+  Offline eval pools those into the scorecard's `## Evidence Review` section
+  and CSV columns such as `evidence_support_rate`,
+  `evidence_contradiction_rate`, and `evidence_strong_reasoning_rate`. Treat
+  these as calibration signals until a multi-report baseline and
+  judge-agreement record justify gates.
 
 ### Local judge for calibration ($0 judge calls)
 

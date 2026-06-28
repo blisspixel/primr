@@ -300,7 +300,7 @@ coverage.xml
 dist/
 build/
 
-# Claude Code local config (CLAUDE.md is committed — it's the dev contract)
+# Claude Code local config (CLAUDE.md is committed - it's the dev contract)
 /.claude
 
 # Windows reserved name artifacts
@@ -315,3 +315,4 @@ coverage_full.json
 
 # Loop-engineering working state (local agent progress log + state analysis)
 .loop/
+docs/.agent/

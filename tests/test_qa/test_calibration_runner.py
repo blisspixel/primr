@@ -114,6 +114,8 @@ class TestLiveRun:
         assert payload["per_label"]["Confirmed"]["no_source"] == 1
         assert payload["per_label"]["Reported"]["traceable"] == 1
         assert payload["per_label"]["Estimated"]["exempt"] == 1
+        assert payload["validation_rubric"]["source_reviews"] == 2
+        assert payload["claims"][0]["evidence_reviews"][0]["supported"] is True
 
     def test_write_sidecar_false_skips_persistence(self, tmp_path):
         path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")

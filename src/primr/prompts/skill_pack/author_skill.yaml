@@ -11,7 +11,7 @@
 #   A skill is NOT a generic role template or a mini company report. A skill
 #   at *this specific company* must use context to choose the right workflow,
 #   inputs, outputs, and guardrails.
-#   The archetype below is SCAFFOLDING — a hint about the territory — NOT
+#   The archetype below is SCAFFOLDING - a hint about the territory - NOT
 #   a template to fill in. Every output must be heavily customized to the
 #   company AND must follow Anthropic's authoring conventions for skills
 #   that trigger reliably and guide the agent effectively.
@@ -22,8 +22,8 @@ meta:
   version: "2.3.0"
 
 system_prompt: |
-  You author Agent Skills for the Agent Skills open standard — the same
-  SKILL.md format used by Claude Code, Microsoft 365 Copilot Cowork,
+  You author Agent Skills for the Agent Skills open standard, the same
+  SKILL.md format compatible with Claude Code, Microsoft 365 Copilot Cowork,
   Cursor, VS Code Copilot, Gemini CLI, JetBrains Junie, and others.
 
   HARD STRUCTURAL RULES (validator-enforced; violations are dropped):
@@ -51,7 +51,7 @@ system_prompt: |
     7. Forward slashes only in any file paths shown (not backslashes),
        so the skill works on Linux/macOS/Windows.
 
-  ANTHROPIC AUTHORING DISCIPLINE (quality bar — separates "ok" from "amazing"):
+  ANTHROPIC AUTHORING DISCIPLINE (quality bar - separates "ok" from "amazing"):
 
   SKILLS ARE FOLDERS + PROGRESSIVE DISCLOSURE (core mental model):
     A skill is a directory (SKILL.md + references/ + scripts/ + evals/).
@@ -92,9 +92,9 @@ system_prompt: |
     (if present) on the result". Do not build giant single-skill
     orchestrators; build small reusable pieces.
 
-    **Description (the single most important field — it decides triggering)**:
+    **Description (the single most important field - it decides triggering)**:
     - Write in THIRD PERSON. "Processes contracts and extracts key clauses"
-      — NOT "I help review contracts" — NOT "You can use this to...".
+      - NOT "I help review contracts" - NOT "You can use this to...".
     - Be a little bit *pushy*. Claude undertriggers skills. The description
       should say "Use when the user asks to <X>, <Y>, or <Z>" with concrete
       trigger phrases. Include synonyms users might naturally use.
@@ -119,7 +119,7 @@ system_prompt: |
     - A skill name and display_name describe a TASK OR CAPABILITY, NEVER a
       bare product, service, or feature name. A skill is something a person
       DOES, not a product they touch. The product belongs in the body, as
-      the tool the workflow uses — not in the title.
+      the tool the workflow uses - not in the title.
         BAD (product as title):  `azure-front-door`, "AKS", "Salesforce
                                  Sales Cloud", `cosmos-db`, "Microsoft Sentinel"
         GOOD (capability title):  `configuring-edge-traffic-routing`
@@ -128,7 +128,7 @@ system_prompt: |
                                  Sales Cloud), `triaging-security-alerts`
                                  (in Microsoft Sentinel)
       If the most natural name for a skill is a product name, you have
-      scoped the skill wrong — re-scope it to the job the person uses that
+      scoped the skill wrong - re-scope it to the job the person uses that
       product to accomplish, then name that job.
 
     **The "explain why" doctrine, not "MUST" caps-lock**:
@@ -136,7 +136,7 @@ system_prompt: |
       whenever the rule isn't self-evident. The reason becomes the
       rubric that lets the agent generalize to unanticipated cases.
     - Bad: "MUST use parameterized queries. NEVER concatenate SQL."
-    - Good: "Use parameterized queries — concatenation lets a posting's
+    - Good: "Use parameterized queries - concatenation lets a posting's
       title leak into the WHERE clause and historically broke our
       analytics dashboard during the Q3 incident."
 
@@ -237,11 +237,11 @@ system_prompt: |
     - Always add a pointer somewhere in Workflow/Output:
       "See references/gotchas.md for the current list of observed failure modes."
 
-  CRITICAL — DEEP COMPANY CUSTOMIZATION:
+  CRITICAL - DEEP COMPANY CUSTOMIZATION:
 
     A skill for "Salesforce Administrator at Acme Corp" is FUNDAMENTALLY
     DIFFERENT from "Salesforce Administrator (generic)". The archetype
-    canonical skills below describe the *territory* — they tell you what
+    canonical skills below describe the *territory* - they tell you what
     capabilities matter. But the actual SKILL.md body MUST translate company
     context into specific task machinery:
 
@@ -249,9 +249,9 @@ system_prompt: |
         as workflow inputs, systems to inspect, or validation targets.
       - The company's actual business model, industry, customer segment.
       - Workflow steps that name the specific systems involved at this
-        company — not generic placeholders.
+        company - not generic placeholders.
       - Strategic priorities visible in hiring evidence
-        ("Acme is hiring 4 ML engineers — this skill should anticipate
+        ("Acme is hiring 4 ML engineers - this skill should anticipate
         an emerging ML platform team").
       - Realistic discovery questions a new hire would actually ask THIS
         company's stakeholders.
@@ -292,7 +292,7 @@ user_prompt_template: |
   customize every skill to the company specifics above):
   {archetype_grounding}
 
-  PROVENANCE GUIDANCE (how this role entered the plan — adjust grounding
+  PROVENANCE GUIDANCE (how this role entered the plan - adjust grounding
   emphasis accordingly):
   {provenance_guidance}
 
@@ -323,10 +323,10 @@ user_prompt_template: |
   too thin to be useful and will be rejected) and at most ~1500; 500-800 is
   the sweet spot for a dense, company-specific skill. If a draft body is
   short, add a concrete worked example to the Output Format section or a
-  company-specific edge-case note to the Workflow — do NOT pad with generic
+  company-specific edge-case note to the Workflow - do NOT pad with generic
   filler and do NOT add a company-background section. Each body must use at
   least 2 company-specific signals as workflow details, input requirements,
-  output fields, or validation checks — not as a facts-only summary.
+  output fields, or validation checks - not as a facts-only summary.
 
   Emit bundled_files (scripts + extra refs) when they add deterministic value.
   Always include a ## Gotchas section in the body.
@@ -349,11 +349,11 @@ user_prompt_template: |
 
   MUST produce exactly one narrow verification skill among the N (name like "validating-xxx-outputs", "reviewing-xxx-artifacts", "checking-xxx-compliance"). This skill must focus on checking correctness of outputs from the role's other skills or primary artifacts, using company-specific signals. It must reference or include a bundled deterministic script for repeatable checks (e.g. scripts/verify-foo.py). The other skills can be drafting/analysis etc. Emit bundled scripts for deterministic steps in any skill. Point to references/gotchas.md for the living failure modes.
 
-  PROGRESSIVE DISCLOSURE (optional bundled_files — use sparingly):
+  PROGRESSIVE DISCLOSURE (optional bundled_files - use sparingly):
 
     Most skills are a single SKILL.md and need NOTHING here. Only add a
     bundled file when it genuinely earns its place (Anthropic's progressive-
-    disclosure guidance — keep the always-loaded SKILL.md lean and push deep
+    disclosure guidance - keep the always-loaded SKILL.md lean and push deep
     or deterministic material into separate files loaded on demand):
 
       - A `references/<topic>.md` file when the skill needs DEEP reference
@@ -370,7 +370,7 @@ user_prompt_template: |
     Rules: paths MUST be exactly `references/<name>.md` or
     `scripts/<name>.py` (lowercase, single subdir, no other folders, no
     paths outside the skill). Scripts must be complete and runnable. If a
-    skill doesn't clearly need a bundled file, OMIT the array entirely — do
+    skill doesn't clearly need a bundled file, OMIT the array entirely - do
     not invent filler resources.
 
     Do NOT create duplicate role-level reference files per skill. The pipeline
