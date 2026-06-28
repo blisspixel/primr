@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.6] - 2026-06-28
+
 ### Changed
 
 - `primr calibrate --pack-selection-template <selection.json>` now writes a
