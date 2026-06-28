@@ -539,7 +539,7 @@ OUTPUT CONTRACT (strict):
         elif idx == section_index:
             toc_parts.append(f"  [NOW]  {name}")
         else:
-            toc_parts.append(f"  [TODO] {name}")
+            toc_parts.append(f"  [QUEUED] {name}")
     toc_block = "## REPORT TABLE OF CONTENTS\n" + "\n".join(toc_parts)
 
     rolling_context = ""

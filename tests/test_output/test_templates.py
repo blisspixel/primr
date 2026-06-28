@@ -250,6 +250,15 @@ class TestRendering:
 
         assert "# " in output
 
+    def test_render_outputs_omit_visible_author_attribution(self, template, sample_report):
+        """Rendered reports should not add visible author bylines."""
+        generated_label = "Generated " + "by"
+        for output_format in (OutputFormat.MARKDOWN, OutputFormat.HTML, OutputFormat.TEXT):
+            output = template.render(sample_report, output_format)
+            assert generated_label not in output
+            assert "Author:" not in output
+            assert "<strong>Author:</strong>" not in output
+
 
 # =============================================================================
 # TABLE OF CONTENTS TESTS

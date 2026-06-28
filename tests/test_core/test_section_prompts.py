@@ -299,7 +299,7 @@ class TestBuildFastSectionPrompt:
         prompt = self._build(all_section_names=["A", "B", "C"], section_index=1)
         assert "[DONE] A" in prompt
         assert "[NOW]  B" in prompt
-        assert "[TODO] C" in prompt
+        assert "[QUEUED] C" in prompt
 
     def test_includes_scaffolding_prohibition(self):
         # Single-section writer carries the same prohibition as the batch writer.

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Generated skill-pack verifier scripts now perform real deterministic artifact
+  checks instead of shipping placeholder verification code. The fallback
+  `scripts/verify-artifact.py` checks that the artifact exists, is readable,
+  and has enough non-whitespace content to review.
+- Markdown, HTML, and plain-text report template renderers no longer add
+  visible author or generated-by attribution lines while retaining metadata
+  fields for compatibility.
+
 ## [1.34.3] - 2026-06-28
 
 ### Changed

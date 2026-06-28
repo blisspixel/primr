@@ -637,6 +637,9 @@ and [best-practices guide](https://platform.claude.com/docs/en/agents-and-tools/
 - **"Solve, don't punt" hardening - SHIPPED (Tier 3):** the authoring prompt
   instructs the model to ship the actual `scripts/<name>.py` when a workflow
   needs a deterministic helper, rather than telling the agent to write it.
+  Maintenance follow-up: the guaranteed fallback `scripts/verify-artifact.py`
+  now performs a real local structural check on generated artifacts instead of
+  shipping placeholder verification code.
 - **Skill-level evals with grader - SHIPPED (Tier 4, `--with-evals`):**
   per skill, generate task cases + assertions, run the task WITH vs WITHOUT
   the skill, grade both blind, report the pass-rate delta, and write
@@ -821,7 +824,7 @@ The Azure tiered deployment (team and organization) has its Bicep IaC, deploy sc
 - **Container App Job triggering**: The MCP server's `research_company` tool needs to trigger Container App Jobs in cloud mode instead of running the pipeline in-process. This is the queue integration that enables 20+ concurrent users.
 - **ACR build log streaming on Windows**: Azure CLI's `az acr build` crashes on Windows due to a Unicode encoding bug in colorama/cp1252. Workaround in place: poll `az acr task list-runs` for completion instead of streaming logs. Needs to be finalized in `deploy.ps1`.
 - **Structured logging for Application Insights**: Log fields (request_id, job_id, tool_name, duration_ms) are designed but not yet wired into the container runtime.
-- **VNet integration**: Documented as a production TODO. Private endpoints for Cosmos DB, Storage, Key Vault, and Service Bus are not yet configured.
+- **VNet integration**: Documented as planned production work. Private endpoints for Cosmos DB, Storage, Key Vault, and Service Bus are not yet configured.
 
 ### 23. Refactor Orchestrators for Unit-Test Coverage
 

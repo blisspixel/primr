@@ -1884,7 +1884,7 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
             platform=vendor,
             company_research_path=str(path),
             force_refresh_vendor=config.refresh_vendor_research,
-            discovery_notes_content=None,  # TODO: Add discovery notes support
+            discovery_notes_content=None,
             lite_strategy=config.lite_strategy,
             output_dir=config.output_dir,
             diagnostics_dir=diagnostics_dir,

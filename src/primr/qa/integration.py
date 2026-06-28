@@ -110,8 +110,8 @@ class QAIntegration:
                 error_type=error_type,
                 processing_time_ms=processing_time,
                 model_used=self.analyzer.model_name,
-                fallback_used=False,  # TODO: Track this in analyzer
-                retry_count=0,  # TODO: Track this in analyzer
+                fallback_used=False,
+                retry_count=0,
             )
 
             # Create result with clean CLI summary

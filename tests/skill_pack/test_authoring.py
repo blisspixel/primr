@@ -125,7 +125,7 @@ def test_role_family_reference_replaces_llm_duplicate():
     assert refs[0].content == reference.content
 
 
-def test_author_role_skills_attaches_role_family_reference(monkeypatch):
+def test_author_role_skills_attaches_role_family_reference(monkeypatch, tmp_path):
     body = _skill("drafting-models").body + "\n\n" + ("Detail. " * 220)
     payload = {
         "skills": [
@@ -181,4 +181,18 @@ def test_author_role_skills_attaches_role_family_reference(monkeypatch):
     v = verifiers[0]
     scripts = [bf for bf in v.bundled_files if bf.relpath.startswith("scripts/")]
     assert len(scripts) >= 1
-    assert "verify" in scripts[0].content.lower()
+    script = scripts[0].content
+    assert "verify" in script.lower()
+    assert ("TO" + "DO") not in script
+
+    namespace = {"__name__": "generated_verify"}
+    exec(script, namespace)
+    artifact = tmp_path / "artifact.md"
+    artifact.write_text(
+        "This artifact has enough content for a structural verification pass.", encoding="utf-8"
+    )
+    assert namespace["verify"](str(artifact)) is True
+
+    short_artifact = tmp_path / "short.md"
+    short_artifact.write_text("thin", encoding="utf-8")
+    assert namespace["verify"](str(short_artifact)) is False
