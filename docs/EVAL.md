@@ -90,7 +90,10 @@ For a 24 GB RTX 4090 or comparable local box, start with `4090-report-race` befo
   operator-supplied coverage tags. Primr treats those tags as audit metadata,
   not inferred content truth. Start with
   `primr calibrate --calibrate-recent 10 --pack-selection-template path/to/selection.json`
-  to write a zero-spend template, then fill each report's tags manually.
+  to write a zero-spend template, then fill each report's tags manually. Run
+  `primr calibrate --inspect-selection path/to/selection.json` to verify the
+  required, present, and missing representative tags before writing a pack
+  manifest.
 - Calibration baseline artifact: add `--baseline-from path/to/pack.json` to
   build a zero-spend readiness artifact from a frozen pack. It writes
   `primr.calibration_baseline.v1` JSON, and optional Markdown via
@@ -122,6 +125,7 @@ primr calibrate "Company" --judge local         # explicit; errors if no server
 primr calibrate "Company" --judge local --judge-model qwen2.5:14b   # pin a model
 primr calibrate "Company" --judge-compare       # judge with BOTH, report agreement
 primr calibrate --calibrate-recent 10 --pack-selection-template docs/.agent/calibration-selection.json
+primr calibrate --inspect-selection docs/.agent/calibration-selection.json
 primr calibrate --calibrate-recent 10 --dry-run --pack-manifest docs/.agent/calibration-pack.json
 primr calibrate --pack-selection docs/.agent/calibration-selection.json --dry-run --pack-manifest docs/.agent/calibration-pack.json
 primr calibrate --baseline-from docs/.agent/calibration-pack.json --baseline-md docs/.agent/calibration-baseline.md

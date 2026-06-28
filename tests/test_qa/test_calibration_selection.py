@@ -8,6 +8,8 @@ import pytest
 from primr.qa.calibration_selection import (
     DEFAULT_REPRESENTATIVE_TAGS,
     SELECTION_FORMAT,
+    SELECTION_INSPECTION_FORMAT,
+    inspect_calibration_pack_selection,
     load_calibration_pack_selection,
     write_calibration_pack_selection_template,
 )
@@ -68,6 +70,41 @@ def test_load_selection_reports_missing_required_tags(tmp_path: Path, monkeypatc
 
     assert selection.present_tags == ("clean",)
     assert selection.missing_tags == ("blocked_origin",)
+
+
+def test_inspect_selection_reports_representative_coverage(tmp_path: Path, monkeypatch):
+    report = _report(tmp_path)
+    selection_path = tmp_path / "selection.json"
+    selection_path.write_text(
+        json.dumps(
+            {
+                "selection_format": SELECTION_FORMAT,
+                "required_tags": ["clean", "blocked_origin"],
+                "reports": [{"path": report.name, "tags": ["clean"]}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    inspection = inspect_calibration_pack_selection(load_calibration_pack_selection(selection_path))
+
+    assert inspection["inspection_format"] == SELECTION_INSPECTION_FORMAT
+    assert inspection["representative_coverage_complete"] is False
+    assert inspection["counts"] == {
+        "reports": 1,
+        "required_tags": 2,
+        "present_tags": 1,
+        "missing_tags": 1,
+    }
+    assert inspection["missing_tags"] == ["blocked_origin"]
+    assert inspection["reports"] == [
+        {
+            "path": report.as_posix(),
+            "tags": ["clean"],
+        }
+    ]
+    assert inspection["next_actions"][0]["spend_preview_required"] is False
 
 
 def test_load_selection_honors_base_dir_relative_to_selection_file(tmp_path: Path):

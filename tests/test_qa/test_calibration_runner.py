@@ -532,6 +532,13 @@ class TestCLIWiring:
         assert config.calibrate_target == "Acme"
         assert config.calibrate_pack_selection_template == "selection.json"
 
+    def test_inspect_selection_flag(self):
+        from primr.core.cli import parse_args
+
+        config = parse_args(["calibrate", "--inspect-selection", "selection.json"])
+
+        assert config.calibrate_inspect_selection == "selection.json"
+
     def test_baseline_flags(self):
         from primr.core.cli import parse_args
 
@@ -619,6 +626,34 @@ class TestCLIWiring:
             "Acme_Strategic_Overview.md"
         )
 
+    def test_handler_prints_selection_inspection_json(self, tmp_path, capsys):
+        from primr.core.cli import CLIConfig, Command, _handle_calibrate
+
+        report = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        selection_path = tmp_path / "selection.json"
+        selection_path.write_text(
+            json.dumps(
+                {
+                    "selection_format": "primr.calibration_pack_selection.v1",
+                    "base_dir": ".",
+                    "required_tags": ["clean", "blocked_origin"],
+                    "reports": [{"path": report.name, "tags": ["clean"]}],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        config = CLIConfig(
+            command=Command.CALIBRATE,
+            calibrate_inspect_selection=str(selection_path),
+        )
+
+        assert _handle_calibrate(config) == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["inspection_format"] == ("primr.calibration_pack_selection_inspection.v1")
+        assert payload["counts"]["reports"] == 1
+        assert payload["missing_tags"] == ["blocked_origin"]
+
     def test_handler_writes_selection_template_without_calibration(self, tmp_path):
         from primr.core.cli import CLIConfig, Command, _handle_calibrate
 
@@ -647,6 +682,17 @@ class TestCLIWiring:
             calibrate_target=str(report),
             calibrate_pack_selection_template=str(tmp_path / "selection.json"),
             calibrate_baseline_from=str(tmp_path / "pack.json"),
+        )
+
+        assert _handle_calibrate(config) == 1
+
+    def test_selection_inspection_rejects_run_mode_conflict(self, tmp_path):
+        from primr.core.cli import CLIConfig, Command, _handle_calibrate
+
+        config = CLIConfig(
+            command=Command.CALIBRATE,
+            calibrate_target="Acme",
+            calibrate_inspect_selection=str(tmp_path / "selection.json"),
         )
 
         assert _handle_calibrate(config) == 1

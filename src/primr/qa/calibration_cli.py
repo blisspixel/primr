@@ -27,6 +27,7 @@ from primr.qa.calibration_runner import (
 )
 from primr.qa.calibration_selection import (
     CalibrationPackSelection,
+    inspect_calibration_pack_selection,
     load_calibration_pack_selection,
     write_calibration_pack_selection_template,
 )
@@ -64,6 +65,9 @@ class CalibrateConfig(Protocol):
     def calibrate_pack_selection_template(self) -> str | None: ...
 
     @property
+    def calibrate_inspect_selection(self) -> str | None: ...
+
+    @property
     def calibrate_baseline_from(self) -> str | None: ...
 
     @property
@@ -96,6 +100,8 @@ def handle_calibrate(config: CalibrateConfig, console: ConsoleSink) -> int:
     if config.calibrate_baseline_min_reports < 1:
         console.error("--baseline-min-reports must be at least 1")
         return 1
+    if config.calibrate_inspect_selection:
+        return _handle_inspect_selection(config, console)
     if config.calibrate_pack_selection_template:
         return _handle_selection_template(config, console)
     if config.calibrate_inspect_baseline:
@@ -251,6 +257,30 @@ def _handle_inspect_baseline(config: CalibrateConfig, console: ConsoleSink) -> i
         console.error(str(exc))
         return 1
     inspection = inspect_calibration_baseline(baseline, baseline_path=baseline_path)
+    print(json.dumps(inspection, indent=2, ensure_ascii=False))
+    return 0
+
+
+def _handle_inspect_selection(config: CalibrateConfig, console: ConsoleSink) -> int:
+    if (
+        config.calibrate_target
+        or config.calibrate_recent is not None
+        or config.calibrate_pack_selection
+        or config.calibrate_pack_selection_template
+        or config.calibrate_inspect_baseline
+        or config.calibrate_baseline_from
+        or config.calibrate_pack_manifest
+        or config.calibrate_baseline_out
+        or config.calibrate_baseline_md
+    ):
+        console.error("--inspect-selection cannot be combined with calibration run modes")
+        return 1
+    try:
+        selection = load_calibration_pack_selection(Path(config.calibrate_inspect_selection or ""))
+    except (OSError, ValueError) as exc:
+        console.error(str(exc))
+        return 1
+    inspection = inspect_calibration_pack_selection(selection)
     print(json.dumps(inspection, indent=2, ensure_ascii=False))
     return 0
 

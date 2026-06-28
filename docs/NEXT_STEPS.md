@@ -138,9 +138,11 @@ Do next:
   standard verification contradiction counts, and sidecar-backed judge
   agreement rates, plus a local-only calibration-pack manifest, a curated
   pack-selection template for manual representative tagging, a curated
-  pack-selection contract for explicit representative coverage tags, and a
-  zero-spend baseline readiness artifact that names exactly why a pack is not
-  ready. The readiness check now requires every selected report to carry
+  pack-selection contract for explicit representative coverage tags, a
+  zero-spend selection inspection that shows missing representative tags before
+  manifest generation, and a zero-spend baseline readiness artifact that names
+  exactly why a pack is not ready. The readiness check now requires every
+  selected report to carry
   evidence-review dimensions and cloud-vs-local judge-agreement metadata, so
   partial coverage cannot satisfy the baseline by aggregate counts alone.
   `primr calibrate --inspect-baseline <baseline.json>` exposes those blockers
@@ -160,9 +162,9 @@ Done when:
 - The eval scorecard separates structural extraction, evidence support,
   reasoning quality, contradiction handling, uncertainty honesty, and judge
   agreement. The sidecar and scorecard slices are shipped; the multi-report
-  pack-manifest, selection-template, curated selection, and baseline-readiness
-  artifact slices are shipped; the representative multi-report baseline itself
-  is still pending.
+  pack-manifest, selection-template, selection-inspection, curated selection,
+  and baseline-readiness artifact slices are shipped; the representative
+  multi-report baseline itself is still pending.
 - The hard gate is either armed from a defensible baseline or deliberately left
   report-only with documented evidence.
 - Contradicted claims are visible in the human-facing report trust surface for

@@ -290,6 +290,7 @@ class CLIConfig:
     calibrate_pack_manifest: str | None = None
     calibrate_pack_selection: str | None = None
     calibrate_pack_selection_template: str | None = None
+    calibrate_inspect_selection: str | None = None
     calibrate_baseline_from: str | None = None
     calibrate_baseline_out: str | None = None
     calibrate_baseline_md: str | None = None
@@ -392,14 +393,10 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
     parser = _create_parser()
     parsed = parser.parse_args(args)
 
-    # Determine command
     command = _determine_command(parsed)
 
-    # Map mode name
     mode = MODE_MAP.get(parsed.mode, parsed.mode)
 
-    # AI strategy is on by default for full modes, off for scrape-only
-    # --no-ai-strategy explicitly disables it
     if getattr(parsed, "no_ai_strategy", False):
         ai_strategy = False
     elif mode in ("scrape-only",):
@@ -529,6 +526,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
             "pack_selection_template",
             None,
         ),
+        calibrate_inspect_selection=getattr(parsed, "inspect_selection", None),
         calibrate_baseline_from=getattr(parsed, "baseline_from", None),
         calibrate_baseline_out=getattr(parsed, "baseline_out", None),
         calibrate_baseline_md=getattr(parsed, "baseline_md", None),

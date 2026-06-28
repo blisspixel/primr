@@ -47,7 +47,8 @@ Current priority order:
    judge-agreement signals; `primr calibrate --pack-manifest` freezes baseline
    candidates locally; `--pack-selection-template` writes a zero-spend starter
    selection for manual representative tagging; curated `--pack-selection`
-   inputs make representative coverage explicit; and
+   inputs make representative coverage explicit; `--inspect-selection` shows
+   missing representative tags before manifest generation; and
    `primr calibrate --baseline-from` writes a zero-spend readiness artifact
    that refuses to mark small, unvalidated, or
    under-representative packs as ready while naming the exact next actions

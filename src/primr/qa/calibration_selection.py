@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 SELECTION_FORMAT = "primr.calibration_pack_selection.v1"
+SELECTION_INSPECTION_FORMAT = "primr.calibration_pack_selection_inspection.v1"
 DEFAULT_REPRESENTATIVE_TAGS = (
     "clean",
     "blocked_origin",
@@ -94,6 +95,33 @@ def load_calibration_pack_selection(selection_path: Path) -> CalibrationPackSele
         required_tags=required_tags,
         tags_by_report=tags_by_report,
     )
+
+
+def inspect_calibration_pack_selection(selection: CalibrationPackSelection) -> dict[str, Any]:
+    """Summarize representative coverage in a curated selection file."""
+    return {
+        "inspection_format": SELECTION_INSPECTION_FORMAT,
+        "selection_path": selection.source_path.as_posix(),
+        "selection_format": SELECTION_FORMAT,
+        "representative_coverage_complete": not selection.missing_tags,
+        "counts": {
+            "reports": len(selection.report_paths),
+            "required_tags": len(selection.required_tags),
+            "present_tags": len(selection.present_tags),
+            "missing_tags": len(selection.missing_tags),
+        },
+        "required_tags": list(selection.required_tags),
+        "present_tags": list(selection.present_tags),
+        "missing_tags": list(selection.missing_tags),
+        "reports": [
+            {
+                "path": report_path.as_posix(),
+                "tags": list(selection.tags_for(report_path)),
+            }
+            for report_path in selection.report_paths
+        ],
+        "next_actions": _selection_next_actions(selection),
+    }
 
 
 def write_calibration_pack_selection_template(
@@ -189,6 +217,22 @@ def _parse_tags(raw_tags: Any, *, field: str) -> tuple[str, ...]:
 
 def _path_key(path: Path) -> str:
     return str(path.resolve(strict=False))
+
+
+def _selection_next_actions(selection: CalibrationPackSelection) -> list[dict[str, Any]]:
+    if not selection.missing_tags:
+        return []
+    return [
+        {
+            "reason": "missing_representative_coverage",
+            "missing_tags": list(selection.missing_tags),
+            "action": (
+                "Add selected reports with the missing representative tags, or curate "
+                "the existing report tags if they already cover those cases."
+            ),
+            "spend_preview_required": False,
+        }
+    ]
 
 
 def _template_report_path(report_path: Path, base_dir: Path) -> str:

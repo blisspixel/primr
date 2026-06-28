@@ -71,6 +71,14 @@ def add_calibration_arguments(parser: argparse.ArgumentParser) -> None:
         ),
     )
     parser.add_argument(
+        "--inspect-selection",
+        metavar="PATH",
+        help=(
+            "With 'calibrate', print a zero-spend JSON inspection of a curated "
+            "selection file and its representative coverage tags."
+        ),
+    )
+    parser.add_argument(
         "--baseline-from",
         metavar="PATH",
         help=(
