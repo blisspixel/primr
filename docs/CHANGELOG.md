@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.8] - 2026-06-28
+
 ### Added
 
 - MCP now lists and serves `primr://output/artifacts/by_job/{job_id}` as an
