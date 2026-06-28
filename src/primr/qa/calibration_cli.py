@@ -22,6 +22,7 @@ from primr.qa.calibration_runner import (
     run_calibration,
     write_calibration_pack_manifest,
 )
+from primr.qa.calibration_selection import CalibrationPackSelection, load_calibration_pack_selection
 
 
 class CalibrateConfig(Protocol):
@@ -48,6 +49,9 @@ class CalibrateConfig(Protocol):
 
     @property
     def calibrate_pack_manifest(self) -> str | None: ...
+
+    @property
+    def calibrate_pack_selection(self) -> str | None: ...
 
     @property
     def calibrate_baseline_from(self) -> str | None: ...
@@ -88,12 +92,18 @@ def handle_calibrate(config: CalibrateConfig, console: ConsoleSink) -> int:
         return 1
 
     try:
-        reports = resolve_reports(config.calibrate_target, recent=config.calibrate_recent)
-    except FileNotFoundError as exc:
+        selection = _load_selection_if_requested(config)
+        reports = (
+            list(selection.report_paths)
+            if selection is not None
+            else resolve_reports(config.calibrate_target, recent=config.calibrate_recent)
+        )
+    except (FileNotFoundError, ValueError) as exc:
         console.error(str(exc))
         console.info('Usage: primr calibrate "Company Name" [--dry-run] [--max-per-label 10]')
         console.info("   or: primr calibrate path/to/report.md")
         console.info("   or: primr calibrate --calibrate-recent 10")
+        console.info("   or: primr calibrate --pack-selection path/to/selection.json")
         return 1
 
     console.banner("Label Calibration")
@@ -125,6 +135,7 @@ def handle_calibrate(config: CalibrateConfig, console: ConsoleSink) -> int:
                 reports,
                 outcomes,
                 console,
+                selection=selection,
                 judge_metadata=judge_metadata,
             )
             return 0
@@ -176,7 +187,14 @@ def handle_calibrate(config: CalibrateConfig, console: ConsoleSink) -> int:
         console.info(
             f"Dry run: ~{total_calls} judge calls, estimated ${estimate_cost_usd(total_calls):.2f}"
         )
-        _write_pack_manifest_if_requested(config, reports, outcomes, console, judge_selection)
+        _write_pack_manifest_if_requested(
+            config,
+            reports,
+            outcomes,
+            console,
+            selection=selection,
+            judge_selection=judge_selection,
+        )
         return 0
 
     _write_pack_manifest_if_requested(
@@ -184,9 +202,10 @@ def handle_calibrate(config: CalibrateConfig, console: ConsoleSink) -> int:
         reports,
         outcomes,
         console,
-        judge_selection,
-        agreement,
-        judge_metadata,
+        selection=selection,
+        judge_selection=judge_selection,
+        judge_agreement=agreement,
+        judge_metadata=judge_metadata,
     )
 
     totals = aggregate_per_label(outcomes)
@@ -207,11 +226,20 @@ def handle_calibrate(config: CalibrateConfig, console: ConsoleSink) -> int:
     return 0 if not failures else 1
 
 
+def _load_selection_if_requested(config: CalibrateConfig) -> CalibrationPackSelection | None:
+    if not config.calibrate_pack_selection:
+        return None
+    if config.calibrate_target or config.calibrate_recent is not None:
+        raise ValueError("--pack-selection cannot be combined with a target or --calibrate-recent")
+    return load_calibration_pack_selection(Path(config.calibrate_pack_selection))
+
+
 def _write_pack_manifest_if_requested(
     config: CalibrateConfig,
     reports: list[Path],
     outcomes: list[ReportCalibrationOutcome],
     console: ConsoleSink,
+    selection: CalibrationPackSelection | None = None,
     judge_selection: JudgeSelection | None = None,
     judge_agreement: JudgeAgreement | None = None,
     judge_metadata: dict[str, object] | None = None,
@@ -227,6 +255,7 @@ def _write_pack_manifest_if_requested(
         judge_selection=judge_selection,
         judge_agreement=judge_agreement,
         judge_metadata=judge_metadata,
+        selection=selection,
     )
     console.ok(f"Calibration pack manifest written: {config.calibrate_pack_manifest}")
     _write_baseline_from_manifest_if_requested(config, manifest_path, console)

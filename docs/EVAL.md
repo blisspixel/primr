@@ -83,15 +83,24 @@ For a 24 GB RTX 4090 or comparable local box, start with `4090-report-race` befo
   sidecar state, sampled-claim counts, judge-call estimate, per-label totals,
   evidence-review summary, and judge-agreement metadata before running a
   multi-report baseline.
+- Curated pack selection: add `--pack-selection path/to/selection.json` when
+  the baseline needs explicit representative coverage instead of "latest N"
+  report selection. The selection file uses
+  `primr.calibration_pack_selection.v1`, lists exact report paths, and records
+  operator-supplied coverage tags. Primr treats those tags as audit metadata,
+  not inferred content truth.
 - Calibration baseline artifact: add `--baseline-from path/to/pack.json` to
   build a zero-spend readiness artifact from a frozen pack. It writes
   `primr.calibration_baseline.v1` JSON, and optional Markdown via
   `--baseline-md path/to/baseline.md`, with explicit not-ready reasons such as
   `insufficient_reports`, `missing_evidence_reviews`, or
-  `missing_judge_agreement`. The artifact also includes structured
-  `next_actions` with missing counts, remediation, suggested commands, and the
-  policy to keep the hard calibration gate unset until the pack is ready. This
-  summarizes baseline readiness; it does not arm a quality gate.
+  `missing_judge_agreement`. When the pack manifest declares required
+  representative tags, the artifact also reports
+  `missing_representative_coverage` until every required tag appears in the
+  selected pack. The artifact includes structured `next_actions` with missing
+  counts, remediation, suggested commands, and the policy to keep the hard
+  calibration gate unset until the pack is ready. This summarizes baseline
+  readiness; it does not arm a quality gate.
 
 ### Local judge for calibration ($0 judge calls)
 
@@ -103,7 +112,29 @@ primr calibrate "Company" --judge local         # explicit; errors if no server
 primr calibrate "Company" --judge local --judge-model qwen2.5:14b   # pin a model
 primr calibrate "Company" --judge-compare       # judge with BOTH, report agreement
 primr calibrate --calibrate-recent 10 --dry-run --pack-manifest docs/.agent/calibration-pack.json
+primr calibrate --pack-selection docs/.agent/calibration-selection.json --dry-run --pack-manifest docs/.agent/calibration-pack.json
 primr calibrate --baseline-from docs/.agent/calibration-pack.json --baseline-md docs/.agent/calibration-baseline.md
+```
+
+Minimal curated selection file:
+
+```json
+{
+  "selection_format": "primr.calibration_pack_selection.v1",
+  "required_tags": [
+    "clean",
+    "blocked_origin",
+    "weak_citation",
+    "strategy_module",
+    "high_hiring_signal"
+  ],
+  "reports": [
+    {
+      "path": "output/ExampleCo_Strategic_Overview_06-28-2026.md",
+      "tags": ["clean", "high_hiring_signal"]
+    }
+  ]
+}
 ```
 
 Design rules (these hold for any setup, not a particular machine):

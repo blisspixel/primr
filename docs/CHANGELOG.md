@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `primr calibrate --pack-selection <selection.json>` now accepts curated
+  calibration-pack selection files that list exact report paths and
+  operator-supplied representative coverage tags. Pack manifests persist the
+  declared required, present, and missing tags, and baseline readiness artifacts
+  report `missing_representative_coverage` when a declared required tag is not
+  represented.
+
 ## [1.34.5] - 2026-06-28
 
 ### Changed

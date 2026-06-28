@@ -69,7 +69,12 @@ def _manifest(
     include_agreement: bool = True,
     include_evidence: bool = True,
     include_sidecars: bool = True,
+    required_tags: list[str] | None = None,
+    present_tags: list[str] | None = None,
 ) -> dict[str, object]:
+    present = present_tags or []
+    required = required_tags or []
+    missing = [tag for tag in required if tag not in set(present)]
     reports = []
     for index in range(report_count):
         report: dict[str, object] = {
@@ -81,6 +86,7 @@ def _manifest(
             "judgeable_claims": 2,
             "estimated_judge_calls": 2,
             "error": None,
+            "coverage_tags": [present[index % len(present)]] if present else [],
         }
         if include_sidecars:
             report["sidecar"] = _sidecar(
@@ -123,6 +129,13 @@ def _manifest(
             },
         },
         "judge_agreement": None,
+        "representation": {
+            "selection_format": "primr.calibration_pack_selection.v1" if required else None,
+            "selection_path": "docs/.agent/calibration-selection.json" if required else None,
+            "required_tags": required,
+            "present_tags": present,
+            "missing_tags": missing,
+        },
         "reports": reports,
     }
 
@@ -193,9 +206,44 @@ def test_build_baseline_names_missing_sidecar_remediation() -> None:
     )
 
 
+def test_build_baseline_requires_declared_representative_coverage() -> None:
+    baseline = build_calibration_baseline(
+        _manifest(
+            5,
+            required_tags=["clean", "blocked_origin", "strategy_module"],
+            present_tags=["clean", "strategy_module"],
+        ),
+        minimum_reports=5,
+    )
+
+    assert baseline["ready"] is False
+    assert "missing_representative_coverage" in baseline["reasons"]
+    assert baseline["representation"]["missing_tags"] == ["blocked_origin"]
+    assert baseline["next_actions"]["spend_preview_required"] is False
+    assert baseline["next_actions"]["missing_representative_tags"] == ["blocked_origin"]
+    assert (
+        "--pack-selection docs/.agent/calibration-selection.json"
+        in baseline["next_actions"]["commands"][0]["command"]
+    )
+    assert any(
+        item["reason"] == "missing_representative_coverage"
+        and item["missing_tags"] == ["blocked_origin"]
+        for item in baseline["next_actions"]["items"]
+    )
+
+
 def test_write_baseline_json_and_markdown(tmp_path: Path) -> None:
     manifest_path = tmp_path / "pack.json"
-    manifest_path.write_text(json.dumps(_manifest(5)), encoding="utf-8")
+    manifest_path.write_text(
+        json.dumps(
+            _manifest(
+                5,
+                required_tags=["clean", "blocked_origin"],
+                present_tags=["clean", "blocked_origin"],
+            )
+        ),
+        encoding="utf-8",
+    )
     baseline_path = default_baseline_json_path(manifest_path)
     markdown_path = default_baseline_markdown_path(manifest_path)
 
@@ -210,9 +258,12 @@ def test_write_baseline_json_and_markdown(tmp_path: Path) -> None:
     markdown = markdown_path.read_text(encoding="utf-8")
     assert "Status: ready" in markdown
     assert "## Evidence Review" in markdown
+    assert "## Representative Coverage" in markdown
     assert "## Next Actions" in markdown
     assert "## Suggested Commands" in markdown
     assert "Judge agreement: 10 / 10 (100%)" in markdown
+    assert "Representative coverage: 2 / 2 required tags" in markdown
+    assert "--pack-selection docs/.agent/calibration-selection.json" in markdown
     assert "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY" in markdown
 
 

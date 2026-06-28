@@ -136,7 +136,8 @@ Do next:
   judge agreement, contradicted-claim counts, and abstention or uncertainty
   rates without blocking runs. Shipped slices now cover evidence-review rates,
   standard verification contradiction counts, and sidecar-backed judge
-  agreement rates, plus a local-only calibration-pack manifest and a
+  agreement rates, plus a local-only calibration-pack manifest, a curated
+  pack-selection contract for explicit representative coverage tags, and a
   zero-spend baseline readiness artifact that names exactly why a pack is not
   ready.
 - Set `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` only from the measured floor of
@@ -152,8 +153,8 @@ Done when:
 - The eval scorecard separates structural extraction, evidence support,
   reasoning quality, contradiction handling, uncertainty honesty, and judge
   agreement. The sidecar and scorecard slices are shipped; the multi-report
-  pack-manifest and baseline-readiness artifact slices are shipped; the
-  representative multi-report baseline is still pending.
+  pack-manifest, curated selection, and baseline-readiness artifact slices are
+  shipped; the representative multi-report baseline itself is still pending.
 - The hard gate is either armed from a defensible baseline or deliberately left
   report-only with documented evidence.
 - Contradicted claims are visible in the human-facing report trust surface for

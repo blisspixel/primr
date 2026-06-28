@@ -225,11 +225,6 @@ class Command(Enum):
     CALIBRATE = "calibrate"
 
 
-# =============================================================================
-# DATACLASSES
-# =============================================================================
-
-
 @dataclass(frozen=True)
 class CLIConfig:
     """Configuration parsed from CLI arguments."""
@@ -298,6 +293,7 @@ class CLIConfig:
     calibrate_judge_model: str | None = None
     calibrate_judge_compare: bool = False
     calibrate_pack_manifest: str | None = None
+    calibrate_pack_selection: str | None = None
     calibrate_baseline_from: str | None = None
     calibrate_baseline_out: str | None = None
     calibrate_baseline_md: str | None = None
@@ -545,6 +541,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         calibrate_judge_model=getattr(parsed, "judge_model", None),
         calibrate_judge_compare=getattr(parsed, "judge_compare", False),
         calibrate_pack_manifest=getattr(parsed, "pack_manifest", None),
+        calibrate_pack_selection=getattr(parsed, "pack_selection", None),
         calibrate_baseline_from=getattr(parsed, "baseline_from", None),
         calibrate_baseline_out=getattr(parsed, "baseline_out", None),
         calibrate_baseline_md=getattr(parsed, "baseline_md", None),

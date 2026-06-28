@@ -55,6 +55,14 @@ def add_calibration_arguments(parser: argparse.ArgumentParser) -> None:
         ),
     )
     parser.add_argument(
+        "--pack-selection",
+        metavar="PATH",
+        help=(
+            "With 'calibrate', read a curated calibration-pack selection JSON file "
+            "with explicit report paths and representative coverage tags."
+        ),
+    )
+    parser.add_argument(
         "--baseline-from",
         metavar="PATH",
         help=(

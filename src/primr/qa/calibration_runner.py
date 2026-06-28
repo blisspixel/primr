@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 
     from primr.qa.label_calibration import EvidenceReview
 
+from primr.qa.calibration_selection import CalibrationPackSelection
 from primr.qa.label_calibration import (
     DEFAULT_MAX_PER_LABEL,
     TRACEABLE_LABELS,
@@ -521,6 +522,7 @@ def write_calibration_pack_manifest(
     judge_selection: JudgeSelection | None = None,
     judge_agreement: JudgeAgreement | None = None,
     judge_metadata: dict[str, Any] | None = None,
+    selection: CalibrationPackSelection | None = None,
 ) -> dict[str, Any]:
     """Write a manifest freezing the selected calibration pack."""
     by_report = {outcome.report_path: outcome for outcome in outcomes}
@@ -558,6 +560,17 @@ def write_calibration_pack_manifest(
             if judge_agreement is not None
             else None
         ),
+        "representation": (
+            selection.to_manifest_representation()
+            if selection is not None
+            else {
+                "selection_format": None,
+                "selection_path": None,
+                "required_tags": [],
+                "present_tags": [],
+                "missing_tags": [],
+            }
+        ),
         "reports": [],
     }
 
@@ -574,6 +587,7 @@ def write_calibration_pack_manifest(
             "judgeable_claims": outcome.judgeable_claims if outcome else 0,
             "estimated_judge_calls": outcome.estimated_judge_calls if outcome else 0,
             "error": outcome.error if outcome else None,
+            "coverage_tags": list(selection.tags_for(report_path)) if selection else [],
         }
         if sidecar_payload is not None:
             entry["sidecar"] = {

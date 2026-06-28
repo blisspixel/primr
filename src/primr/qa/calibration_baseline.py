@@ -89,6 +89,7 @@ def build_calibration_baseline(
     label_summary = _label_summary(label_totals)
     evidence_summary = _evidence_summary(sidecar_counts)
     judge_agreement = _judge_agreement_summary(manifest, sidecar_counts)
+    representation = _representation_summary(manifest, reports)
     reasons = _readiness_reasons(
         report_count=report_count,
         minimum_reports=minimum_reports,
@@ -96,6 +97,7 @@ def build_calibration_baseline(
         failures=failures,
         evidence_source_reviews=evidence_summary["source_reviews"],
         judge_agreement_compared=judge_agreement["compared"],
+        representation_missing_tags=representation["missing_tags"],
     )
     next_actions = _next_actions(
         reasons=reasons,
@@ -106,6 +108,8 @@ def build_calibration_baseline(
         failures=failures,
         evidence_source_reviews=evidence_summary["source_reviews"],
         judge_agreement_compared=judge_agreement["compared"],
+        representation_missing_tags=representation["missing_tags"],
+        selection_path=representation.get("selection_path"),
     )
 
     return {
@@ -131,6 +135,7 @@ def build_calibration_baseline(
             "failures": failures,
         },
         "traceability": label_summary,
+        "representation": representation,
         "evidence_review": evidence_summary,
         "judge_agreement": judge_agreement,
         "reports": [_report_summary(report) for report in reports],
@@ -142,6 +147,7 @@ def render_calibration_baseline_markdown(baseline: dict[str, Any]) -> str:
     totals = _dict_value(baseline, "totals")
     evidence = _dict_value(baseline, "evidence_review")
     agreement = _dict_value(baseline, "judge_agreement")
+    representation = _dict_value(baseline, "representation")
     traceability = _dict_value(baseline, "traceability")
     reasons = baseline.get("reasons", [])
     reason_text = ", ".join(str(reason) for reason in reasons) if reasons else "none"
@@ -158,6 +164,11 @@ def render_calibration_baseline_markdown(baseline: dict[str, Any]) -> str:
         ),
         f"Evidence source reviews: {evidence.get('source_reviews', 0)}",
         (
+            "Representative coverage: "
+            f"{len(representation.get('present_tags', []))} / "
+            f"{len(representation.get('required_tags', []))} required tags"
+        ),
+        (
             "Judge agreement: "
             f"{agreement.get('agreed', 0)} / {agreement.get('compared', 0)} "
             f"({percent_or_dash(agreement.get('agreement_rate'))})"
@@ -173,6 +184,23 @@ def render_calibration_baseline_markdown(baseline: dict[str, Any]) -> str:
         lines.append(
             f"| {label} | {stats.get('traceable', 0)} | {stats.get('decidable', 0)} | "
             f"{percent_or_dash(stats.get('traceability_rate'))} |"
+        )
+
+    if representation.get("required_tags"):
+        missing_tags = ", ".join(str(tag) for tag in representation.get("missing_tags", []))
+        lines.extend(
+            [
+                "",
+                "## Representative Coverage",
+                "",
+                "| Required Tags | Present Tags | Missing Tags |",
+                "|---|---|---|",
+                (
+                    f"| {', '.join(str(tag) for tag in representation.get('required_tags', []))} | "
+                    f"{', '.join(str(tag) for tag in representation.get('present_tags', []))} | "
+                    f"{missing_tags or 'none'} |"
+                ),
+            ]
         )
 
     lines.extend(
@@ -241,17 +269,19 @@ def render_calibration_baseline_markdown(baseline: dict[str, Any]) -> str:
             "",
             "## Reports",
             "",
-            "| Report | Sidecar | Claims | Judgeable |",
-            "|---|---:|---:|---:|",
+            "| Report | Sidecar | Claims | Judgeable | Tags |",
+            "|---|---:|---:|---:|---|",
         ]
     )
     for report in baseline.get("reports", []):
         if not isinstance(report, dict):
             continue
+        tags = ", ".join(str(tag) for tag in report.get("coverage_tags", []))
         lines.append(
             f"| {report.get('report_file', '')} | "
             f"{'yes' if report.get('sidecar_exists') else 'no'} | "
-            f"{report.get('claims_sampled', 0)} | {report.get('judgeable_claims', 0)} |"
+            f"{report.get('claims_sampled', 0)} | {report.get('judgeable_claims', 0)} | "
+            f"{tags} |"
         )
     return "\n".join(lines) + "\n"
 
@@ -367,6 +397,32 @@ def _judge_agreement_summary(
     }
 
 
+def _representation_summary(
+    manifest: dict[str, Any],
+    reports: list[dict[str, Any]],
+) -> dict[str, Any]:
+    representation = manifest.get("representation")
+    if not isinstance(representation, dict):
+        representation = {}
+    required_tags = _string_list(representation.get("required_tags"))
+    present_tags = _string_list(representation.get("present_tags"))
+    if not present_tags:
+        present_tags = sorted(
+            {tag for report in reports for tag in _string_list(report.get("coverage_tags"))}
+        )
+    missing_tags = _string_list(representation.get("missing_tags"))
+    if required_tags and not missing_tags:
+        present = set(present_tags)
+        missing_tags = [tag for tag in required_tags if tag not in present]
+    return {
+        "selection_format": representation.get("selection_format"),
+        "selection_path": representation.get("selection_path"),
+        "required_tags": required_tags,
+        "present_tags": present_tags,
+        "missing_tags": missing_tags,
+    }
+
+
 def _readiness_reasons(
     *,
     report_count: int,
@@ -375,6 +431,7 @@ def _readiness_reasons(
     failures: int,
     evidence_source_reviews: int,
     judge_agreement_compared: int,
+    representation_missing_tags: list[str],
 ) -> list[str]:
     reasons: list[str] = []
     if report_count == 0:
@@ -389,6 +446,8 @@ def _readiness_reasons(
         reasons.append("missing_evidence_reviews")
     if judge_agreement_compared == 0:
         reasons.append("missing_judge_agreement")
+    if representation_missing_tags:
+        reasons.append("missing_representative_coverage")
     return reasons
 
 
@@ -402,12 +461,20 @@ def _next_actions(
     failures: int,
     evidence_source_reviews: int,
     judge_agreement_compared: int,
+    representation_missing_tags: list[str],
+    selection_path: Any,
 ) -> dict[str, Any]:
     manifest_ref = manifest_path.as_posix() if manifest_path is not None else "<pack-manifest.json>"
     baseline_md_ref = _default_markdown_ref(manifest_ref)
     target_report_count = max(report_count, minimum_reports)
     missing_reports = max(0, minimum_reports - report_count)
     missing_sidecars = max(0, report_count - reports_with_payloads)
+    selection_ref = selection_path if isinstance(selection_path, str) and selection_path else None
+    selection_command = (
+        f"--pack-selection {selection_ref}"
+        if selection_ref
+        else f"--calibrate-recent {target_report_count}"
+    )
     spend_preview_required = any(
         reason
         in {
@@ -485,6 +552,17 @@ def _next_actions(
                 ),
             }
         )
+    if "missing_representative_coverage" in reasons:
+        items.append(
+            {
+                "reason": "missing_representative_coverage",
+                "missing_tags": representation_missing_tags,
+                "action": (
+                    "Add selected reports tagged for the missing representative "
+                    "coverage dimensions, then rebuild the pack manifest."
+                ),
+            }
+        )
 
     if not items:
         items.append(
@@ -500,6 +578,7 @@ def _next_actions(
     return {
         "missing_reports": missing_reports,
         "missing_sidecars": missing_sidecars,
+        "missing_representative_tags": representation_missing_tags,
         "spend_preview_required": spend_preview_required,
         "gate_policy": (
             "Keep PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY unset until this artifact "
@@ -510,15 +589,14 @@ def _next_actions(
             {
                 "purpose": "Preview report selection and judge-call cost",
                 "command": (
-                    f"primr calibrate --calibrate-recent {target_report_count} "
-                    f"--dry-run --pack-manifest {manifest_ref}"
+                    f"primr calibrate {selection_command} --dry-run --pack-manifest {manifest_ref}"
                 ),
             },
             {
                 "purpose": "Build agreement-validated pack",
                 "command": (
-                    f"primr calibrate --calibrate-recent {target_report_count} "
-                    f"--judge-compare --pack-manifest {manifest_ref}"
+                    f"primr calibrate {selection_command} --judge-compare "
+                    f"--pack-manifest {manifest_ref}"
                 ),
             },
             {
@@ -556,6 +634,7 @@ def _report_summary(report: dict[str, Any]) -> dict[str, Any]:
             _safe_int(counts.get("reported_traceable")),
             _safe_int(counts.get("reported_decidable")),
         ),
+        "coverage_tags": _string_list(report.get("coverage_tags")),
     }
 
 
@@ -572,6 +651,12 @@ def _rate_row(evidence: dict[str, Any], label: str, count_key: str, rate_key: st
 def _dict_value(source: dict[str, Any], key: str) -> dict[str, Any]:
     value = source.get(key, {})
     return value if isinstance(value, dict) else {}
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if isinstance(item, str)]
 
 
 def _safe_int(value: Any, *, default: int = 0) -> int:

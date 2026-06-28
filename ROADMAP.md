@@ -45,11 +45,12 @@ Current priority order:
    The standard `--verify` path now surfaces contradicted claims in the final
    Report Trust summary; calibration scorecards now include evidence-review and
    judge-agreement signals; `primr calibrate --pack-manifest` freezes baseline
-   candidates locally; and `primr calibrate --baseline-from` writes a
-   zero-spend readiness artifact that refuses to mark small or unvalidated packs
-   as ready while naming the exact next actions needed to make the pack
-   baseline-ready. The representative multi-report baseline itself is still
-   next.
+   candidates locally; curated `--pack-selection` inputs make representative
+   coverage explicit; and `primr calibrate --baseline-from` writes a zero-spend
+   readiness artifact that refuses to mark small, unvalidated, or
+   under-representative packs as ready while naming the exact next actions
+   needed to make the pack baseline-ready. The representative multi-report
+   baseline itself is still next.
 2. **Backend freedom production wiring.** Provider abstractions and pure routing
    foundations exist, but full-report execution still carries xAI/Gemini-era
    assumptions. Stage-by-stage routing is the next architecture unlock.
@@ -276,12 +277,14 @@ per-module coverage ratchet unlocked by the refactor:
   pooled `## Judge Agreement` report-only metrics plus CSV columns.
   `--pack-manifest` writes a local JSON manifest of the selected reports,
   sidecar state, estimates, per-label totals, and judge-agreement metadata so a
-  representative pack can be frozen before any paid baseline. The readiness
-  artifact now computes missing report and sidecar counts, reason-specific
-  remediation, suggested commands, and the policy to keep the hard gate unset
-  for any not-ready pack. Remaining: gather a multi-report, agreement-validated
-  baseline (cloud-vs-local concordance), then set the threshold from those
-  numbers; a single small run is too
+  representative pack can be frozen before any paid baseline. Curated
+  `--pack-selection` inputs now record exact report paths and explicit
+  representative coverage tags in the manifest, and the readiness artifact
+  now computes missing report, sidecar, evidence-review, judge-agreement, and
+  coverage-tag gaps plus reason-specific remediation, suggested commands, and
+  the policy to keep the hard gate unset for any not-ready pack. Remaining:
+  gather a multi-report, agreement-validated baseline (cloud-vs-local
+  concordance), then set the threshold from those numbers; a single small run is too
   judge-noisy to arm a hard gate on (judge variance is itself a documented
   failure mode, see
   [`docs/design/agentic-balance.md`](docs/design/agentic-balance.md)). See

@@ -248,6 +248,32 @@ class TestPackManifest:
         assert payload["judge"]["kind"] == "compare"
         assert payload["judge"]["local"] == {"kind": "local", "model": "qwen2.5:14b"}
 
+    def test_manifest_includes_selection_representation(self, tmp_path):
+        from primr.qa.calibration_selection import CalibrationPackSelection
+
+        path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        outcomes = run_calibration([path], dry_run=True)
+        manifest_path = tmp_path / "calibration-pack.json"
+        selection = CalibrationPackSelection(
+            source_path=tmp_path / "selection.json",
+            report_paths=(path,),
+            required_tags=("clean", "blocked_origin"),
+            tags_by_report={str(path.resolve(strict=False)): ("clean",)},
+        )
+
+        payload = write_calibration_pack_manifest(
+            manifest_path,
+            [path],
+            outcomes,
+            max_per_label=10,
+            selection=selection,
+        )
+
+        assert payload["representation"]["required_tags"] == ["clean", "blocked_origin"]
+        assert payload["representation"]["present_tags"] == ["clean"]
+        assert payload["representation"]["missing_tags"] == ["blocked_origin"]
+        assert payload["reports"][0]["coverage_tags"] == ["clean"]
+
 
 class TestJudgeSelection:
     def test_cloud_mode_uses_harness_default(self):
@@ -492,6 +518,12 @@ class TestCLIWiring:
         config = parse_args(["calibrate", "Acme", "--pack-manifest", "pack.json"])
         assert config.calibrate_pack_manifest == "pack.json"
 
+    def test_pack_selection_flag(self):
+        from primr.core.cli import parse_args
+
+        config = parse_args(["calibrate", "--pack-selection", "selection.json"])
+        assert config.calibrate_pack_selection == "selection.json"
+
     def test_baseline_flags(self):
         from primr.core.cli import parse_args
 
@@ -524,4 +556,15 @@ class TestCLIWiring:
 
         monkeypatch.chdir(tmp_path)  # empty cwd: no output/ directory
         config = CLIConfig(command=Command.CALIBRATE, calibrate_target="NoSuchCo")
+        assert _handle_calibrate(config) == 1
+
+    def test_handler_errors_when_selection_conflicts_with_target(self, tmp_path, monkeypatch):
+        from primr.core.cli import CLIConfig, Command, _handle_calibrate
+
+        monkeypatch.chdir(tmp_path)
+        config = CLIConfig(
+            command=Command.CALIBRATE,
+            calibrate_target="Acme",
+            calibrate_pack_selection="selection.json",
+        )
         assert _handle_calibrate(config) == 1
