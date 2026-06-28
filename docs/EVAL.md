@@ -101,8 +101,10 @@ For a 24 GB RTX 4090 or comparable local box, start with `4090-report-race` befo
   reports `missing_representative_coverage` until every required tag appears in
   the selected pack. The artifact includes structured `next_actions` with
   missing counts, remediation, suggested commands, and the policy to keep the
-  hard calibration gate unset until the pack is ready. This summarizes baseline
-  readiness; it does not arm a quality gate.
+  hard calibration gate unset until the pack is ready. Its per-report summaries
+  include evidence-review counts and judge-agreement compared-claim counts so
+  operators can identify the exact selected artifacts still blocking readiness.
+  This summarizes baseline readiness; it does not arm a quality gate.
 
 ### Local judge for calibration ($0 judge calls)
 

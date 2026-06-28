@@ -279,17 +279,21 @@ def render_calibration_baseline_markdown(baseline: dict[str, Any]) -> str:
             "",
             "## Reports",
             "",
-            "| Report | Sidecar | Claims | Judgeable | Tags |",
-            "|---|---:|---:|---:|---|",
+            "| Report | Sidecar | Evidence Reviews | Judge Agreement | Claims | Judgeable | Tags |",
+            "|---|---:|---:|---:|---:|---:|---|",
         ]
     )
     for report in baseline.get("reports", []):
         if not isinstance(report, dict):
             continue
         tags = ", ".join(str(tag) for tag in report.get("coverage_tags", []))
+        evidence_reviews = _safe_int(report.get("evidence_source_reviews"))
+        agreement_compared = _safe_int(report.get("judge_agreement_compared"))
         lines.append(
             f"| {report.get('report_file', '')} | "
             f"{'yes' if report.get('sidecar_exists') else 'no'} | "
+            f"{evidence_reviews if evidence_reviews else 'missing'} | "
+            f"{agreement_compared if agreement_compared else 'missing'} | "
             f"{report.get('claims_sampled', 0)} | {report.get('judgeable_claims', 0)} | "
             f"{tags} |"
         )
@@ -653,12 +657,18 @@ def _report_summary(report: dict[str, Any]) -> dict[str, Any]:
     sidecar = report.get("sidecar")
     sidecar_payload = sidecar if isinstance(sidecar, dict) else {}
     counts = calibration_counts_from_payload(sidecar_payload) if sidecar_payload else {}
+    evidence_source_reviews = _safe_int(counts.get("evidence_source_reviews"))
+    judge_agreement_compared = _safe_int(counts.get("judge_agreement_compared"))
     return {
         "report_file": report.get("report_file"),
         "report_path": report.get("report_path"),
         "sidecar_exists": bool(report.get("sidecar_exists")),
         "claims_sampled": _safe_int(report.get("claims_sampled")),
         "judgeable_claims": _safe_int(report.get("judgeable_claims")),
+        "evidence_source_reviews": evidence_source_reviews,
+        "has_evidence_reviews": evidence_source_reviews > 0,
+        "judge_agreement_compared": judge_agreement_compared,
+        "has_judge_agreement": judge_agreement_compared > 0,
         "confirmed_traceability": _rate(
             _safe_int(counts.get("confirmed_traceable")),
             _safe_int(counts.get("confirmed_decidable")),

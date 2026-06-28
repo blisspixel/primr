@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   evidence-review dimensions and a cloud-vs-local judge-agreement record. A
   pack with only partial sidecar coverage remains not ready, and the JSON plus
   Markdown summaries show the missing report counts.
+- Calibration baseline report summaries now include per-report evidence-review
+  counts and judge-agreement compared-claim counts, so operators can identify
+  the exact selected artifacts still blocking baseline readiness.
 
 ## [1.34.5] - 2026-06-28
 

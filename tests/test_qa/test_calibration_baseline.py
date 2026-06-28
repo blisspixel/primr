@@ -181,6 +181,10 @@ def test_build_baseline_ready_when_pack_has_required_evidence() -> None:
     assert baseline["evidence_review"]["support_rate"] == 0.5
     assert baseline["judge_agreement"]["compared"] == 10
     assert baseline["judge_agreement"]["agreement_rate"] == 1.0
+    assert baseline["reports"][0]["evidence_source_reviews"] == 2
+    assert baseline["reports"][0]["has_evidence_reviews"] is True
+    assert baseline["reports"][0]["judge_agreement_compared"] == 2
+    assert baseline["reports"][0]["has_judge_agreement"] is True
     assert baseline["next_actions"]["spend_preview_required"] is False
     assert baseline["next_actions"]["items"] == [
         {
@@ -206,6 +210,8 @@ def test_build_baseline_requires_per_report_evidence_review_coverage() -> None:
     assert baseline["ready"] is False
     assert "missing_evidence_reviews" in baseline["reasons"]
     assert baseline["totals"]["reports_with_evidence_reviews"] == 4
+    assert baseline["reports"][0]["evidence_source_reviews"] == 0
+    assert baseline["reports"][0]["has_evidence_reviews"] is False
     assert baseline["next_actions"]["missing_evidence_review_reports"] == 1
     assert any(
         item["reason"] == "missing_evidence_reviews"
@@ -228,6 +234,8 @@ def test_build_baseline_requires_per_report_judge_agreement_coverage() -> None:
     assert baseline["ready"] is False
     assert "missing_judge_agreement" in baseline["reasons"]
     assert baseline["totals"]["reports_with_judge_agreement"] == 4
+    assert baseline["reports"][0]["judge_agreement_compared"] == 0
+    assert baseline["reports"][0]["has_judge_agreement"] is False
     assert baseline["next_actions"]["missing_judge_agreement_reports"] == 1
     assert any(
         item["reason"] == "missing_judge_agreement"
@@ -310,6 +318,11 @@ def test_write_baseline_json_and_markdown(tmp_path: Path) -> None:
     assert "Judge agreement: 10 / 10 (100%)" in markdown
     assert "Evidence-reviewed reports: 5 / 5" in markdown
     assert "Judge-agreement reports: 5 / 5" in markdown
+    assert (
+        "| Report | Sidecar | Evidence Reviews | Judge Agreement | Claims | Judgeable | Tags |"
+        in markdown
+    )
+    assert "| Company0_Strategic_Overview.md | yes | 2 | 2 | 2 | 2 | clean |" in markdown
     assert "Representative coverage: 2 / 2 required tags" in markdown
     assert "--pack-selection docs/.agent/calibration-selection.json" in markdown
     assert "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY" in markdown
