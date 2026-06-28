@@ -49,6 +49,11 @@ from primr.mcp_server.resource_auth import (
     caller_client_id,
     caller_owns_job_resource,
 )
+from primr.mcp_server.source_summary import (
+    SOURCE_SUMMARY_BY_JOB_RESOURCE,
+    SOURCE_SUMMARY_BY_JOB_URI,
+    read_source_summary_by_job_resource,
+)
 from primr.mcp_server.types import (
     ArtifactInfo,
     ArtifactsResponse,
@@ -71,6 +76,12 @@ ARTIFACT_FILES = {
     "insights": "insights.txt",
     "dossier": "dossier.txt",
 }
+
+
+def _json_contents(data: object) -> list[ReadResourceContents]:
+    import json
+
+    return [ReadResourceContents(content=json.dumps(data, indent=2), mime_type="application/json")]
 
 
 def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
@@ -128,6 +139,7 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
             ARTIFACT_METADATA_BY_JOB_RESOURCE,
             QA_SUMMARY_BY_JOB_RESOURCE,
             USAGE_SUMMARY_BY_JOB_RESOURCE,
+            SOURCE_SUMMARY_BY_JOB_RESOURCE,
             Resource(
                 uri="primr://config",
                 name="Configuration",
@@ -203,6 +215,12 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
             )
         elif uri_str.startswith(f"{USAGE_SUMMARY_BY_JOB_URI}/"):
             return read_usage_summary_by_job_resource(
+                mcp_server,
+                uri_str,
+                client_id=caller_client_id(mcp_server),
+            )
+        elif uri_str.startswith(f"{SOURCE_SUMMARY_BY_JOB_URI}/"):
+            return read_source_summary_by_job_resource(
                 mcp_server,
                 uri_str,
                 client_id=caller_client_id(mcp_server),
@@ -927,12 +945,7 @@ def _read_manifest_latest(mcp_server: "PrimrMCPServer") -> list[ReadResourceCont
             "error": "no_manifest",
             "message": "No run manifests available",
         }
-        return [
-            ReadResourceContents(
-                content=json.dumps(data, indent=2),
-                mime_type="application/json",
-            )
-        ]
+        return _json_contents(data)
 
     # HTTP clients are restricted to manifests under their own job's
     # output paths; if they have no recent owned job we return 404
@@ -940,15 +953,7 @@ def _read_manifest_latest(mcp_server: "PrimrMCPServer") -> list[ReadResourceCont
     if client_id != "stdio":
         owned = mcp_server.job_store.get_latest_terminal()
         if owned is None or not caller_owns_job_resource(owned, client_id):
-            return [
-                ReadResourceContents(
-                    content=json.dumps(
-                        {"error": "no_manifest", "message": "No manifests available"},
-                        indent=2,
-                    ),
-                    mime_type="application/json",
-                )
-            ]
+            return _json_contents({"error": "no_manifest", "message": "No manifests available"})
         # Limit the glob to directories that belong to the owned job.
         manifest_files: list[Path] = []
         for output_path in owned.output_paths or []:
@@ -962,12 +967,7 @@ def _read_manifest_latest(mcp_server: "PrimrMCPServer") -> list[ReadResourceCont
             "error": "no_manifest",
             "message": "No run manifests available",
         }
-        return [
-            ReadResourceContents(
-                content=json.dumps(data, indent=2),
-                mime_type="application/json",
-            )
-        ]
+        return _json_contents(data)
 
     # Get most recent by modification time
     latest_manifest = max(manifest_files, key=lambda p: p.stat().st_mtime)
@@ -982,16 +982,6 @@ def _read_manifest_latest(mcp_server: "PrimrMCPServer") -> list[ReadResourceCont
             "error": "read_error",
             "message": f"Failed to read manifest: {e}",
         }
-        return [
-            ReadResourceContents(
-                content=json.dumps(data, indent=2),
-                mime_type="application/json",
-            )
-        ]
+        return _json_contents(data)
 
-    return [
-        ReadResourceContents(
-            content=json.dumps(manifest_data, indent=2),
-            mime_type="application/json",
-        )
-    ]
+    return _json_contents(manifest_data)

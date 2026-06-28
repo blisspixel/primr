@@ -81,8 +81,10 @@ You have access to Primr company research tools. When a user asks you to researc
    exposes resource reads. If QA artifacts are attached, read
    `primr://output/qa_summary/by_job/{job_id}` for compact QA metadata. Read
    `primr://output/usage_summary/by_job/{job_id}` when the user needs cost,
-   timing, approval, or artifact-count metadata. Request report content only if
-   the user needs a summary or downstream action
+   timing, approval, or artifact-count metadata. Read
+   `primr://output/source_summary/by_job/{job_id}` when the user needs
+   citation/source appendix metadata. Request report content only if the user
+   needs a summary or downstream action
 5. Share the results with the user
 
 Always estimate before submitting. Research jobs cost real money (~$0.75 for standard mode).
@@ -125,7 +127,9 @@ The agent should:
    attached and resource reads are available
 6. Read `primr://output/usage_summary/by_job/{job_id}` when run cost, timing,
    approval, or artifact-count metadata is needed
-7. Return results when the job completes
+7. Read `primr://output/source_summary/by_job/{job_id}` when citation/source
+   appendix metadata is needed
+8. Return results when the job completes
 
 ## Private Endpoints (VNet Integration)
 

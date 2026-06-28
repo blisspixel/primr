@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.12] - 2026-06-28
+
+### Added
+
+- MCP now lists and serves `primr://output/source_summary/by_job/{job_id}` as
+  an ownership-gated, compact source appendix summary resource for one job. It
+  returns citation counts, source definition counts, missing and unused
+  citation numbers, duplicate URL counts, source domains, and source URLs
+  without returning report body content.
+
 ## [1.34.11] - 2026-06-28
 
 ### Added

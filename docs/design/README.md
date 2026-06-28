@@ -29,5 +29,5 @@ Conventions:
 | [2.0-backend-freedom.md](2.0-backend-freedom.md) | Capability routing + local/hybrid inference; immediate slice is provider straggler cleanup, long-context pricing, then one routed utility stage | 2.0 |
 | [provider-expansion.md](provider-expansion.md) | OpenAI/Anthropic recipes, Bedrock/Foundry gateways, $0 local profile (verified provider catalog, June 2026) | 1.x Phase A; 2.0 Phases B/C |
 | [2.0-research-memory.md](2.0-research-memory.md) | Cross-run memory, company tracking, delta mode; layer 1 waits for calibrated claims and artifact-resource boundaries | 2.0 |
-| [2.0-agent-control-plane.md](2.0-agent-control-plane.md) | Per-tool authz, approval tokens, audit log, job-scoped artifact metadata, QA summary, and usage/cost summary resources; next slice is source/trace resources and A2A parity | 2.0 |
+| [2.0-agent-control-plane.md](2.0-agent-control-plane.md) | Per-tool authz, approval tokens, audit log, job-scoped artifact metadata, QA summary, usage/cost summary, and source appendix summary resources; next slice is trace resources and A2A parity | 2.0 |
 | [3.0-research-frontier.md](3.0-research-frontier.md) | VLM extraction, knowledge compounding, artifact handoff | 3.0 |

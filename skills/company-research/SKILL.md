@@ -32,6 +32,8 @@ resources:
 
   - primr://output/usage_summary/by_job/{job_id}
 
+  - primr://output/source_summary/by_job/{job_id}
+
 ---
 
 
@@ -69,6 +71,8 @@ when a report preview is needed to present the result and next actions. Read
 the user needs QA outcome metadata. Read
 `primr://output/usage_summary/by_job/{job_id}` when the user needs cost,
 timing, approval, or artifact-count metadata.
+Read `primr://output/source_summary/by_job/{job_id}` when the user needs
+citation/source appendix metadata.
 
 
 

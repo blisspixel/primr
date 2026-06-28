@@ -120,8 +120,10 @@ When a user asks you to research a company:
    resource reads. If QA artifacts are attached, read
    `primr://output/qa_summary/by_job/{job_id}` for compact QA metadata. Read
    `primr://output/usage_summary/by_job/{job_id}` when the user needs cost,
-   timing, approval, or artifact-count metadata. Request report content only
-   when the user needs a summary or downstream action
+   timing, approval, or artifact-count metadata. Read
+   `primr://output/source_summary/by_job/{job_id}` when the user needs
+   citation/source appendix metadata. Request report content only when the user
+   needs a summary or downstream action
 7. Share the key findings with the user
 
 Important:

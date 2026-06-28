@@ -146,6 +146,9 @@ primr doctor
 - When OpenClaw needs cost, timing, approval, or artifact-count metadata, read
   `primr://output/usage_summary/by_job/{job_id}` instead of loading the full
   run manifest.
+- When OpenClaw needs citation/source appendix health, read
+  `primr://output/source_summary/by_job/{job_id}` instead of loading the full
+  report.
 
 
 

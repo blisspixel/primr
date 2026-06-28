@@ -47,6 +47,7 @@ class TestResourceListing:
         assert "primr://output/artifacts/by_job/%7Bjob_id%7D" in uris
         assert "primr://output/qa_summary/by_job/%7Bjob_id%7D" in uris
         assert "primr://output/usage_summary/by_job/%7Bjob_id%7D" in uris
+        assert "primr://output/source_summary/by_job/%7Bjob_id%7D" in uris
         assert "primr://calibration/baseline/inspection?path={baseline_path}" in uris
         assert "primr://config" in uris
 
@@ -648,6 +649,156 @@ class TestUsageSummaryByJobResource:
                 method="resources/read",
                 params=ReadResourceRequestParams(
                     uri=f"primr://output/usage_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        assert data["error"] == "job_not_found"
+        assert data["job_id"] == job.job_id
+
+
+class TestSourceSummaryByJobResource:
+    """Tests for primr://output/source_summary/by_job/{job_id}."""
+
+    @pytest.fixture
+    def server(self, tmp_path):
+        return create_mcp_server(journal_path=str(tmp_path / "test_journal.json"))
+
+    @pytest.mark.asyncio
+    async def test_reads_owned_job_source_summary_without_report_body(self, server, tmp_path):
+        report = tmp_path / "Acme_Strategic_Overview.md"
+        report.write_text(
+            "\n".join(
+                [
+                    "# Strategic Overview",
+                    "Secret body claim uses a source [cite: 1] and another [cite: 2].",
+                    "A bracket-style citation also appears [3].",
+                    "",
+                    "## Sources",
+                    "[cite: 1] Acme newsroom - https://www.acme.example/news?q=launch",
+                    "[cite: 2] https://investors.acme.example/q4",
+                    "[3] SEC filing",
+                    "    https://sec.gov/Archives/example",
+                    "[cite: 4] https://www.acme.example/news?q=launch",
+                    "[cite: 5] not-a-url",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(report)]
+        job.advance_stage(ResearchStage.COMPLETED)
+        server.job_store.update(job)
+        server._auth_context = SimpleNamespace(client_id="client-a", scopes=["read"])
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/source_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        text = result.root.contents[0].text
+        data = json.loads(text)
+        assert data["schema_version"] == "1.0"
+        assert data["job_id"] == job.job_id
+        assert data["summary_count"] == 1
+        assert data["full_content_included"] is False
+        assert "Secret body claim" not in text
+
+        summary = data["summaries"][0]
+        assert summary["artifact_type"] == "report_markdown"
+        assert summary["parsed"] is True
+        assert summary["source_section_present"] is True
+        assert summary["inline_reference_count"] == 3
+        assert summary["referenced_numbers"] == [1, 2, 3]
+        assert summary["definition_count"] == 4
+        assert summary["valid_source_count"] == 4
+        assert summary["invalid_source_count"] == 1
+        assert summary["duplicate_url_count"] == 1
+        assert summary["missing_definition_numbers"] == []
+        assert summary["unused_definition_numbers"] == [4]
+        assert summary["domains"] == [
+            {"count": 2, "domain": "acme.example"},
+            {"count": 1, "domain": "investors.acme.example"},
+            {"count": 1, "domain": "sec.gov"},
+        ]
+        assert summary["sources"][0] == {
+            "domain": "acme.example",
+            "reference": 1,
+            "title": "Acme newsroom",
+            "url": "https://www.acme.example/news?q=launch",
+        }
+
+    @pytest.mark.asyncio
+    async def test_reports_missing_definitions_when_appendix_absent(self, server, tmp_path):
+        report = tmp_path / "Acme_Report.md"
+        report.write_text("## Body\nClaim [cite: 7] without appendix.", encoding="utf-8")
+        job = server.job_store.create("Acme Corp", "full")
+        job.output_paths = [str(report)]
+        server.job_store.update(job)
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/source_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        summary = json.loads(result.root.contents[0].text)["summaries"][0]
+        assert summary["source_section_present"] is False
+        assert summary["referenced_numbers"] == [7]
+        assert summary["definition_count"] == 0
+        assert summary["missing_definition_numbers"] == [7]
+
+    @pytest.mark.asyncio
+    async def test_returns_not_found_when_no_report_artifact_exists(self, server, tmp_path):
+        manifest = tmp_path / "run_manifest.json"
+        manifest.write_text('{"schema_version": "1.0"}', encoding="utf-8")
+        job = server.job_store.create("Acme Corp", "full")
+        job.output_paths = [str(manifest)]
+        server.job_store.update(job)
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/source_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        assert data["error"] == "source_summary_not_found"
+        assert data["summary_count"] == 0
+        assert data["job_id"] == job.job_id
+
+    @pytest.mark.asyncio
+    async def test_rejects_unowned_http_job_like_missing(self, server, tmp_path):
+        report = tmp_path / "Acme_Report.md"
+        report.write_text(
+            "Claim [cite: 1]\n\n## Sources\n[cite: 1] https://a.example",
+            encoding="utf-8",
+        )
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(report)]
+        server.job_store.update(job)
+        server._auth_context = SimpleNamespace(client_id="client-b", scopes=["read"])
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/source_summary/by_job/{job.job_id}"
                 ),
             )
         )

@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.34.11
+Current State: v1.34.12
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -67,13 +67,14 @@ Current priority order:
 3. **Agent control-plane consumption resources and A2A parity.** MCP already has
    scopes, approval tokens, audit, and budget propagation. The next safety win
    is richer job-scoped artifact resources plus the same controls on A2A. The
-   first three resource slices shipped:
+   first four resource slices shipped:
    `primr://output/artifacts/by_job/{job_id}` returns owned-job artifact
    metadata, and `primr://output/qa_summary/by_job/{job_id}` returns compact QA
    score/status/count metadata, and
    `primr://output/usage_summary/by_job/{job_id}` returns compact cost, timing,
-   approval, execution, and artifact-count metadata, all without report body
-   content.
+   approval, execution, and artifact-count metadata, and
+   `primr://output/source_summary/by_job/{job_id}` returns compact citation and
+   source appendix metadata, all without report body content.
 4. **Research memory layer 1.** Memory comes after calibrated claims and safer
    artifact consumption so prior-run material can compound value without
    laundering weak claims into fresh findings.
@@ -336,7 +337,7 @@ The step-change that earns the major bump is three pillars landing together:
   to: per-tool capability-scoped authorization (T8, Stage 1 shipped),
   server-issued approval tokens for MCP cost-cap-governed tools (Stage 2 slice
   shipped), a structured invocation audit log, job-scoped artifact metadata and
-  QA summary resources,
+  QA, usage/cost, and source appendix summary resources,
   A2A output negotiation (#21). Design doc:
   [`docs/design/2.0-agent-control-plane.md`](docs/design/2.0-agent-control-plane.md).
 
@@ -414,9 +415,10 @@ Each step unblocks the ones after it; items within a step are independent.
    dispatch (`read`, `research`, `delegate`, `admin`; OAuth `scope` / Entra
    `scp` honored; legacy `write` remains a compatibility alias). Approval
    tokens are now shipped for MCP cost-cap-governed execution tools. Structured
-   MCP invocation audit is now shipped for tool calls, and the first two
-   job-scoped resource slices now cover artifact metadata and compact QA
-   summaries. A2A parity and richer source/trace/usage resources remain next.
+   MCP invocation audit is now shipped for tool calls, and the first four
+   job-scoped resource slices now cover artifact metadata, compact QA
+   summaries, compact usage/cost summaries, and compact source appendix
+   summaries. A2A parity and richer trace resources remain next.
    Independent of steps 1-4; can proceed in parallel.
 6. **Backend freedom** (#18 + provider expansion) (2.0):
    capability-requirement routing and provider-availability headroom first
@@ -834,7 +836,7 @@ Shipped:
   `finally` after success, cancellation, or failure.
 
 Planned:
-- Expand job-scoped resources for artifact consumption (source appendix, trace summary, verification summary, calibration summary) so clients do not need large report bodies in context by default. The artifact metadata, QA summary, and usage/cost summary slices are shipped.
+- Expand job-scoped resources for artifact consumption (trace summary, verification summary, calibration summary) so clients do not need large report bodies in context by default. The artifact metadata, QA summary, usage/cost summary, and source appendix summary slices are shipped.
 - Add integration eval suites for routing, approval, recovery, and recomputation avoidance
 - Expose a compact project security/profile resource for agent clients when
   useful, including always-on guardrails and context-selected guidance for
@@ -1007,7 +1009,7 @@ Already shipped: SSRF guard on every outbound URL (`primr.utils.security`), cont
 - **Output / egress guardrails** - SHIPPED baseline, hardening continuing. `is_safe_url` guards every egress helper; `data/safe_http.py` validates every redirect hop before connecting for `fallback_sources._http_get`, `hiring_signals._http_get`, Wayback CDX/replay fetches, and async citation-resolution HEAD requests; `data/scraping/net.py` validates every redirect hop manually for sitemap and URL-existence checks; `HTTPClient.get/head` does the same while preserving pooled sessions; and the requests, httpx, and curl_cffi scraping tiers validate redirect hops while preserving their tier-specific transports. The "no fetch bypasses the SSRF guard" invariant is locked by `tests/security/test_egress_guardrails.py`; intermediate-redirect migration is complete. The shared safe HTTP seam resolves each hop once and connects to the validated IP literal with the original Host header and HTTPS SNI, closing the DNS-rebind check/connect gap for fallback, hiring, Wayback, and citation HEAD fetches. The tiered httpx scraper uses the same pinned connection artifact while preserving HTTP/2 behavior. Requests-family egress has a shared `PinnedHTTPAdapter`, so pooled `HTTPClient` calls and the tiered requests scraper connect through urllib3 to the validated IP literal while preserving retries, pooling, Host, SNI, and response contracts. The curl_cffi tier now passes vetted per-hop addresses to libcurl through `CurlOpt.RESOLVE` while keeping the logical URL and disabling environment proxy trust. Browser-backed Chromium tiers now pin the initial hostname with Chromium resolver rules, route through a local loopback egress proxy that validates and dials every HTTP request or HTTPS CONNECT target, disable QUIC, and keep Playwright-compatible route guards as defense-in-depth. Remaining SSRF hardening: no known DNS-rebind TOCTOU seam in tracked scraper fetch paths; future browser protocol additions must preserve the proxy/pinning invariant.
 - **Secret / log redaction** - SHIPPED. `SecretMaskingFilter` on all log handlers (sink-level, not opt-in) + `mask_sensitive_data` (incl. xAI) applied in `chat_logger` before persist, with atomic writes. Provider patterns: xAI/Google/OpenAI/Anthropic/GitHub/AWS/Slack/JWT. Note: `usage_history.json` and `_run_state.json` are metadata-only (no secrets) - verified, no change needed.
 - **Scoped threat model** - SHIPPED. `docs/SECURITY.md` documents the client/scraper/agent threat model (ATLAS-style table T1-T8), shipped controls, residual-risk acceptance, and coordinated disclosure.
-- **Agentic trust boundaries (MCP/A2A)** - MCP Stage 1 SHIPPED (T8). MCP now enforces per-tool scopes at dispatch (`read`, `research`, `delegate`, `admin`) and honors OAuth `scope` plus Entra `scp` JWT claims while keeping legacy `write` tokens compatible. MCP Stage 2 token approval is shipped for cost-cap-governed execution tools: estimate tools mint short-lived single-use tokens, and execution requires a matching token when server-side cost enforcement is active. MCP structured invocation audit is shipped for tool calls with hashed payloads and admin-readable recent events. MCP `research_company` fast-path execution now also activates the approved cap as a runtime `RunBudget`, so pre-flight approval and mid-run optional-spend checkpoints agree on the networked surface. The first three job-scoped consumption resources now cover artifact metadata, compact QA summaries, and compact usage/cost summaries without report body content. Remaining control-plane work: A2A parity, richer source/trace resources, and non-fast runtime budget checkpoints. Folds into Active Queue #11 (constrained agent permissions) and #21 (agent control-plane hardening).
+- **Agentic trust boundaries (MCP/A2A)** - MCP Stage 1 SHIPPED (T8). MCP now enforces per-tool scopes at dispatch (`read`, `research`, `delegate`, `admin`) and honors OAuth `scope` plus Entra `scp` JWT claims while keeping legacy `write` tokens compatible. MCP Stage 2 token approval is shipped for cost-cap-governed execution tools: estimate tools mint short-lived single-use tokens, and execution requires a matching token when server-side cost enforcement is active. MCP structured invocation audit is shipped for tool calls with hashed payloads and admin-readable recent events. MCP `research_company` fast-path execution now also activates the approved cap as a runtime `RunBudget`, so pre-flight approval and mid-run optional-spend checkpoints agree on the networked surface. The first four job-scoped consumption resources now cover artifact metadata, compact QA summaries, compact usage/cost summaries, and compact source appendix summaries without report body content. Remaining control-plane work: A2A parity, richer trace resources, and non-fast runtime budget checkpoints. Folds into Active Queue #11 (constrained agent permissions) and #21 (agent control-plane hardening).
 
 Decision principle: secure the surface primr actually has - untrusted input, agent tool use, secrets, supply chain - and explicitly decline model-training/serving security primr will never own.
 
@@ -1393,6 +1395,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.34.12 | Jun 2026 | **Job-scoped source appendix summary resource.** MCP now exposes `primr://output/source_summary/by_job/{job_id}` for compact, ownership-gated source appendix inspection. It returns citation counts, source definition counts, missing and unused citation numbers, duplicate URL counts, domains, and source URLs without returning report body content. |
 | 1.34.11 | Jun 2026 | **Job-scoped usage summary resource.** MCP now exposes `primr://output/usage_summary/by_job/{job_id}` for compact, ownership-gated run manifest inspection. It returns cost, timing, approval, execution, parse, hash, timestamp, and artifact-count metadata without returning company URLs, approval tokens, manifest artifact lists, or full manifest content. |
 | 1.34.10 | Jun 2026 | **Job-scoped QA summary resource.** MCP now exposes `primr://output/qa_summary/by_job/{job_id}` for compact, ownership-gated QA artifact inspection. It returns score/status/count fields, parse state, hashes, timestamps, and top-level keys without including detailed report or QA body text. |
 | 1.34.9 | Jun 2026 | **Artifact resource documentation refresh.** Agent, API, security, hosted-agent, OpenClaw, bundled skill, artifact pipeline, README, and design docs now consistently direct integrations to `primr://output/artifacts/by_job/{job_id}` as the metadata-first handoff path before report-body reads. |

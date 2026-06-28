@@ -52,6 +52,11 @@ strict about formatting and structure in the final document pipeline.
   approval, execution, parse, hash, timestamp, and artifact-count metadata
   without returning company URLs, approval tokens, manifest artifact lists, or
   full manifest content.
+- **Job-scoped source appendix metadata for agents** through
+  `primr://output/source_summary/by_job/{job_id}`. The resource reads owned
+  markdown and text report artifacts, then returns citation counts, source
+  definition counts, missing and unused citation numbers, duplicate URL counts,
+  domains, and source URLs without returning report body content.
 
 The writing and regeneration prompts carry an explicit prohibition against the
 internal-scaffolding markers the cleanup strips, sourced from a single shared

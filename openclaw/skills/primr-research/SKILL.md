@@ -60,6 +60,8 @@ resources:
 
   - primr://output/usage_summary/by_job/{job_id}
 
+  - primr://output/source_summary/by_job/{job_id}
+
 ---
 
 
@@ -145,6 +147,8 @@ to inventory artifacts without report body content. Read
 `primr://output/qa_summary/by_job/{job_id}` when QA artifacts are attached.
 Read `primr://output/usage_summary/by_job/{job_id}` when cost, timing,
 approval, or artifact-count metadata is needed.
+Read `primr://output/source_summary/by_job/{job_id}` when citation/source
+appendix metadata is needed.
 Read `primr://output/latest` only when the next step needs a report preview.
 
 

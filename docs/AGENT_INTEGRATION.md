@@ -41,6 +41,9 @@ Important MCP concepts:
 - `primr://output/usage_summary/by_job/{job_id}` exposes compact cost, timing,
   approval, execution, and artifact-count metadata from owned-job run manifests
   without full manifest content.
+- `primr://output/source_summary/by_job/{job_id}` exposes compact
+  citation/source appendix counts, domains, missing citations, duplicate URL
+  counts, and source URLs without report body content.
 - HTTP mode can enforce server-side cost caps and approval tokens.
 - Audit resources record tool calls with hashed payloads for admin review.
 
@@ -136,6 +139,8 @@ report preview for summarization. If QA artifacts are attached, read
 `primr://output/qa_summary/by_job/{job_id}` before loading any QA body text.
 Read `primr://output/usage_summary/by_job/{job_id}` when the handoff needs
 run cost, timing, approval, execution, or artifact-count metadata.
+Read `primr://output/source_summary/by_job/{job_id}` when the handoff needs
+citation/source appendix health without report body content.
 
 ## Related Docs
 

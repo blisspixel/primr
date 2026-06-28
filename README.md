@@ -156,6 +156,9 @@ They can inspect attached QA outcomes with
 score/status/count metadata without detailed QA or report body text.
 They can inspect run cost, timing, approval, and artifact counts with
 `primr://output/usage_summary/by_job/{job_id}` without loading full manifests.
+They can inspect citation/source appendix health with
+`primr://output/source_summary/by_job/{job_id}` without loading report body
+content.
 
 With `--output-dir`, Primr writes customer-facing Markdown and DOCX deliverables to that folder while keeping TXT mirrors and validation diagnostics in the run diagnostics directory.
 

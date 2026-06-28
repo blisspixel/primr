@@ -1517,7 +1517,9 @@ review. Prefer `primr://output/artifacts/by_job/{job_id}` for agent automation
 that only needs a compact inventory, and
 `primr://output/qa_summary/by_job/{job_id}` when the client only needs QA
 metadata, and `primr://output/usage_summary/by_job/{job_id}` when the client
-only needs cost, timing, approval, or artifact-count metadata.
+only needs cost, timing, approval, or artifact-count metadata, and
+`primr://output/source_summary/by_job/{job_id}` when the client only needs
+citation/source appendix metadata.
 
 ```json
 {
@@ -1741,6 +1743,78 @@ No manifest response:
 }
 ```
 
+#### primr://output/source_summary/by_job/{job_id}
+
+Compact, ownership-gated source appendix summary for one job. This resource
+reads owned markdown and text report artifacts, parses the source appendix, and
+returns citation counts, source definition counts, missing and unused citation
+numbers, duplicate URL counts, source domains, and source URLs without
+returning report body content.
+
+HTTP callers can read only jobs owned by the authenticated client. Missing jobs
+and unowned jobs return the same `job_not_found` shape so clients cannot probe
+for other job ids.
+
+```json
+{
+  "schema_version": "1.0",
+  "resource": "primr://output/source_summary/by_job",
+  "job_id": "job_abc123",
+  "status": "completed",
+  "company_name": "Acme Corp",
+  "summary_count": 1,
+  "full_content_included": false,
+  "summaries": [
+    {
+      "index": 0,
+      "artifact_type": "report_markdown",
+      "file_name": "Acme_Corp_Strategic_Overview_06-28-2026.md",
+      "file_path": "output/acme_corp/Acme_Corp_Strategic_Overview_06-28-2026.md",
+      "exists": true,
+      "size_bytes": 184320,
+      "modified_at": "2026-06-28T20:30:00+00:00",
+      "content_hash": "sha256:abc123...",
+      "parsed": true,
+      "source_format": "markdown",
+      "source_section_present": true,
+      "full_content_included": false,
+      "inline_reference_count": 12,
+      "referenced_numbers": [1, 2, 3],
+      "definition_count": 3,
+      "valid_source_count": 3,
+      "invalid_source_count": 0,
+      "duplicate_url_count": 0,
+      "missing_definition_numbers": [],
+      "unused_definition_numbers": [],
+      "domains": [
+        {"domain": "acme.example", "count": 2},
+        {"domain": "sec.gov", "count": 1}
+      ],
+      "sources": [
+        {
+          "reference": 1,
+          "url": "https://acme.example/news",
+          "domain": "acme.example",
+          "title": "Acme newsroom"
+        }
+      ]
+    }
+  ]
+}
+```
+
+No report artifact response:
+
+```json
+{
+  "error": "source_summary_not_found",
+  "message": "Job job_abc123 has no report artifact available for source summary",
+  "job_id": "job_abc123",
+  "status": "completed",
+  "summary_count": 0
+}
+```
+
 #### primr://config
 
 Current configuration (no secrets exposed).
@@ -1812,6 +1886,8 @@ artifact metadata and not report text. Use
 `primr://output/qa_summary/by_job/{job_id}` first when a client only needs QA
 outcome metadata. Use `primr://output/usage_summary/by_job/{job_id}` first
 when a client only needs run cost, timing, approval, or artifact-count metadata.
+Use `primr://output/source_summary/by_job/{job_id}` first when a client only
+needs citation/source appendix metadata.
 
 ```json
 {
