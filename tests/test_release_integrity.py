@@ -109,6 +109,12 @@ def test_release_workflow_builds_on_supported_python_floor() -> None:
     assert "python-version: '3.11'" not in release_workflow
 
 
+def test_package_manifest_excludes_agent_working_files() -> None:
+    manifest = (REPO_ROOT / "MANIFEST.in").read_text(encoding="utf-8")
+
+    assert "prune docs/.agent" in manifest
+
+
 def test_cli_epilog_uses_current_default_cost_band() -> None:
     assert "~$0.89-$1.01" in CLI_EPILOG
     assert "~$6" not in CLI_EPILOG
