@@ -217,7 +217,10 @@ Do next:
 
 - Add job-scoped resources for `qa_summary`, source appendix, trace summary,
   usage/cost summary, verification summary, calibration summary, and selected
-  artifact metadata.
+  artifact metadata. First slice shipped:
+  `primr://output/artifacts/by_job/{job_id}` returns ownership-gated file names,
+  paths, sizes, hashes, timestamps, and missing-file state for one job without
+  returning report body content.
 - Define the scope matrix before implementation: monitor can read status and
   compact summaries; artifact read can read compact resources; report read can
   request full report content; research can estimate; execution still requires

@@ -27,13 +27,22 @@ from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.types import Resource
 
 from primr.mcp_server.agentic_resources import get_agentic_resources, read_agentic_resource
+from primr.mcp_server.artifact_resources import (
+    ARTIFACT_METADATA_BY_JOB_RESOURCE,
+    ARTIFACT_METADATA_BY_JOB_URI,
+    read_artifact_metadata_by_job_resource,
+)
 from primr.mcp_server.audit_log import read_agent_audit_recent_resource
 from primr.mcp_server.calibration_resources import (
     CALIBRATION_BASELINE_INSPECTION_RESOURCE,
     CALIBRATION_BASELINE_INSPECTION_URI,
     read_calibration_baseline_inspection_resource,
 )
-from primr.mcp_server.tool_authz import ADMIN_SCOPE
+from primr.mcp_server.resource_auth import (
+    caller_can_read_audit,
+    caller_client_id,
+    caller_owns_job_resource,
+)
 from primr.mcp_server.types import (
     ArtifactInfo,
     ArtifactsResponse,
@@ -110,6 +119,7 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
                 description="Intermediate pipeline stage outputs",
                 mimeType="application/json",
             ),
+            ARTIFACT_METADATA_BY_JOB_RESOURCE,
             Resource(
                 uri="primr://config",
                 name="Configuration",
@@ -165,12 +175,18 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
             return read_agent_audit_recent_resource(
                 mcp_server,
                 uri_str,
-                can_read=_caller_can_read_audit(mcp_server),
+                can_read=caller_can_read_audit(mcp_server),
             )
         elif uri_str == "primr://research/modes" or uri_str.startswith("primr://research/modes"):
             return _read_research_modes()
         elif uri_str == "primr://output/latest" or uri_str.startswith("primr://output/latest"):
             return _read_latest_output(mcp_server, uri_str)
+        elif uri_str.startswith(f"{ARTIFACT_METADATA_BY_JOB_URI}/"):
+            return read_artifact_metadata_by_job_resource(
+                mcp_server,
+                uri_str,
+                client_id=caller_client_id(mcp_server),
+            )
         elif uri_str == "primr://output/artifacts" or uri_str.startswith(
             "primr://output/artifacts"
         ):
@@ -193,7 +209,7 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
             return read_calibration_baseline_inspection_resource(
                 mcp_server,
                 uri_str,
-                client_id=_caller_client_id(mcp_server),
+                client_id=caller_client_id(mcp_server),
             )
 
         raise ValueError(f"Unknown resource: {uri}")
@@ -776,39 +792,6 @@ def _read_strategies_available() -> list[ReadResourceContents]:
     ]
 
 
-def _caller_client_id(mcp_server: "PrimrMCPServer") -> str:
-    """Resolve the calling client_id from the active auth context.
-
-    Matches the dispatcher in tools.py: stdio has implicit single-user
-    access, HTTP requests carry an auth_context.client_id set by middleware.
-    Only treats the auth context as present when client_id is a real
-    string — otherwise MagicMock-style placeholders in unit tests would
-    look like an HTTP caller and trip ownership checks.
-    """
-    ctx = getattr(mcp_server, "_auth_context", None)
-    if ctx is not None:
-        cid = getattr(ctx, "client_id", None)
-        if isinstance(cid, str) and cid:
-            return cid
-    return "stdio"
-
-
-def _caller_can_read_audit(mcp_server: "PrimrMCPServer") -> bool:
-    """Audit events are local-only by default and admin-only over HTTP."""
-    if _caller_client_id(mcp_server) == "stdio":
-        return True
-    ctx = getattr(mcp_server, "_auth_context", None)
-    scopes = getattr(ctx, "scopes", []) if ctx is not None else []
-    return ADMIN_SCOPE in {str(scope) for scope in scopes}
-
-
-def _caller_owns_job_resource(job, client_id: str) -> bool:
-    """Ownership gate for output/by_job/* and manifest-by-job resources."""
-    if client_id == "stdio":
-        return True
-    return job.owner_client_id is not None and job.owner_client_id == client_id
-
-
 def _read_output_by_job(mcp_server: "PrimrMCPServer", uri: str) -> list[ReadResourceContents]:
     """
     Read output for a specific job ID.
@@ -828,12 +811,12 @@ def _read_output_by_job(mcp_server: "PrimrMCPServer", uri: str) -> list[ReadReso
         raise ValueError(f"Invalid job ID in URI: {uri}")
 
     requested_job_id = match.group(1)
-    client_id = _caller_client_id(mcp_server)
+    client_id = caller_client_id(mcp_server)
 
     # Look up job in store
     job = mcp_server.job_store.get_by_id(requested_job_id)
 
-    if job is None or not _caller_owns_job_resource(job, client_id):
+    if job is None or not caller_owns_job_resource(job, client_id):
         # 404 for both missing and not-owned, identical body shape.
         data = {
             "error": "job_not_found",
@@ -915,7 +898,7 @@ def _read_manifest_latest(mcp_server: "PrimrMCPServer") -> list[ReadResourceCont
     """
     import json
 
-    client_id = _caller_client_id(mcp_server)
+    client_id = caller_client_id(mcp_server)
 
     # Find latest run_manifest.json in output directory
     output_dir = Path("output")
@@ -936,7 +919,7 @@ def _read_manifest_latest(mcp_server: "PrimrMCPServer") -> list[ReadResourceCont
     # rather than scanning the whole directory.
     if client_id != "stdio":
         owned = mcp_server.job_store.get_latest_terminal()
-        if owned is None or not _caller_owns_job_resource(owned, client_id):
+        if owned is None or not caller_owns_job_resource(owned, client_id):
             return [
                 ReadResourceContents(
                     content=json.dumps(

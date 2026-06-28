@@ -7,6 +7,7 @@ Task 7: Resource handlers
 import json
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import quote
 
 import pytest
@@ -43,6 +44,7 @@ class TestResourceListing:
         assert "primr://research/modes" in uris
         assert "primr://output/latest" in uris
         assert "primr://output/artifacts" in uris
+        assert "primr://output/artifacts/by_job/%7Bjob_id%7D" in uris
         assert "primr://calibration/baseline/inspection?path={baseline_path}" in uris
         assert "primr://config" in uris
 
@@ -212,6 +214,91 @@ class TestResearchNextActionsResource:
         data = json.loads(result.root.contents[0].text)
         assert data["recommended_action"] == "review_output"
         assert "output_paths" in data
+
+
+class TestArtifactMetadataByJobResource:
+    """Tests for primr://output/artifacts/by_job/{job_id}."""
+
+    @pytest.fixture
+    def server(self, tmp_path):
+        return create_mcp_server(journal_path=str(tmp_path / "test_journal.json"))
+
+    @pytest.mark.asyncio
+    async def test_reads_owned_job_artifact_metadata_without_body(self, server, tmp_path):
+        report = tmp_path / "report.md"
+        report.write_text("# Secret body that must not be returned", encoding="utf-8")
+        missing = tmp_path / "missing.docx"
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(report), str(missing)]
+        job.advance_stage(ResearchStage.COMPLETED)
+        server.job_store.update(job)
+        server._auth_context = SimpleNamespace(client_id="client-a", scopes=["read"])
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/artifacts/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        text = result.root.contents[0].text
+        data = json.loads(text)
+        assert data["schema_version"] == "1.0"
+        assert data["job_id"] == job.job_id
+        assert data["artifact_count"] == 2
+        assert data["full_content_included"] is False
+        assert "Secret body" not in text
+        first = data["artifacts"][0]
+        assert first["artifact_type"] == "report_markdown"
+        assert first["exists"] is True
+        assert first["size_bytes"] == report.stat().st_size
+        assert first["content_hash"].startswith("sha256:")
+        assert data["artifacts"][1]["exists"] is False
+
+    @pytest.mark.asyncio
+    async def test_returns_no_artifacts_for_job_without_outputs(self, server):
+        job = server.job_store.create("Acme Corp", "full")
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/artifacts/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        assert data["error"] == "no_artifacts"
+        assert data["job_id"] == job.job_id
+
+    @pytest.mark.asyncio
+    async def test_rejects_unowned_http_job_like_missing(self, server, tmp_path):
+        report = tmp_path / "report.md"
+        report.write_text("# Private", encoding="utf-8")
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(report)]
+        job.advance_stage(ResearchStage.COMPLETED)
+        server.job_store.update(job)
+        server._auth_context = SimpleNamespace(client_id="client-b", scopes=["read"])
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/artifacts/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        assert data["error"] == "job_not_found"
+        assert data["job_id"] == job.job_id
 
 
 class TestAgentGovernanceResource:

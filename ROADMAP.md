@@ -66,7 +66,9 @@ Current priority order:
    assumptions. Stage-by-stage routing is the next architecture unlock.
 3. **Agent control-plane consumption resources and A2A parity.** MCP already has
    scopes, approval tokens, audit, and budget propagation. The next safety win
-   is job-scoped artifact resources plus the same controls on A2A.
+   is job-scoped artifact resources plus the same controls on A2A. First
+   resource slice shipped: `primr://output/artifacts/by_job/{job_id}` returns
+   owned-job artifact metadata without report body content.
 4. **Research memory layer 1.** Memory comes after calibrated claims and safer
    artifact consumption so prior-run material can compound value without
    laundering weak claims into fresh findings.

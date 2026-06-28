@@ -1469,7 +1469,7 @@ async def _handle_cancel_job(
     # Fail closed for legacy jobs with no recorded owner: an HTTP client
     # could otherwise cancel any pre-owner-tracking job by id, which is
     # the same authorization shape we already deny in
-    # resources._caller_owns_job_resource and tools._caller_owns_job.
+    # resource_auth.caller_owns_job_resource and tools._caller_owns_job.
     is_owner = job.owner_client_id is not None and job.owner_client_id == client_id
     if client_id != "stdio" and not is_owner:
         return [

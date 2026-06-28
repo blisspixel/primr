@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- MCP now lists and serves `primr://output/artifacts/by_job/{job_id}` as an
+  ownership-gated, compact artifact metadata resource for one job. It returns
+  file names, paths, sizes, hashes, timestamps, and missing-file state without
+  report body content.
+
 ## [1.34.7] - 2026-06-28
 
 ### Changed
