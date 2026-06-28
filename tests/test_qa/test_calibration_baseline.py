@@ -138,6 +138,21 @@ def test_build_baseline_flags_small_unvalidated_pack() -> None:
     assert "insufficient_reports" in baseline["reasons"]
     assert "missing_evidence_reviews" in baseline["reasons"]
     assert "missing_judge_agreement" in baseline["reasons"]
+    actions = baseline["next_actions"]
+    assert actions["missing_reports"] == 4
+    assert actions["missing_sidecars"] == 0
+    assert actions["spend_preview_required"] is True
+    assert "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY" in actions["gate_policy"]
+    assert {item["reason"] for item in actions["items"]} == {
+        "insufficient_reports",
+        "missing_evidence_reviews",
+        "missing_judge_agreement",
+    }
+    assert actions["items"][0]["missing_reports"] == 4
+    assert actions["commands"][0]["command"].startswith(
+        "primr calibrate --calibrate-recent 5 --dry-run"
+    )
+    assert "--judge-compare" in actions["commands"][1]["command"]
 
 
 def test_build_baseline_ready_when_pack_has_required_evidence() -> None:
@@ -151,6 +166,31 @@ def test_build_baseline_ready_when_pack_has_required_evidence() -> None:
     assert baseline["evidence_review"]["support_rate"] == 0.5
     assert baseline["judge_agreement"]["compared"] == 10
     assert baseline["judge_agreement"]["agreement_rate"] == 1.0
+    assert baseline["next_actions"]["spend_preview_required"] is False
+    assert baseline["next_actions"]["items"] == [
+        {
+            "reason": "ready",
+            "action": (
+                "Review the measured floor with the pack context before selecting "
+                "any hard threshold."
+            ),
+        }
+    ]
+
+
+def test_build_baseline_names_missing_sidecar_remediation() -> None:
+    baseline = build_calibration_baseline(_manifest(5, include_sidecars=False), minimum_reports=5)
+
+    assert baseline["ready"] is False
+    assert "missing_calibration_sidecars" in baseline["reasons"]
+    assert baseline["next_actions"]["missing_sidecars"] == 5
+    assert baseline["next_actions"]["spend_preview_required"] is True
+    assert any(
+        item["reason"] == "missing_calibration_sidecars"
+        and item["missing_sidecars"] == 5
+        and "sidecar payload" in item["action"]
+        for item in baseline["next_actions"]["items"]
+    )
 
 
 def test_write_baseline_json_and_markdown(tmp_path: Path) -> None:
@@ -170,7 +210,10 @@ def test_write_baseline_json_and_markdown(tmp_path: Path) -> None:
     markdown = markdown_path.read_text(encoding="utf-8")
     assert "Status: ready" in markdown
     assert "## Evidence Review" in markdown
+    assert "## Next Actions" in markdown
+    assert "## Suggested Commands" in markdown
     assert "Judge agreement: 10 / 10 (100%)" in markdown
+    assert "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY" in markdown
 
 
 def test_rejects_wrong_manifest_format() -> None:

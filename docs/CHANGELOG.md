@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Calibration baseline readiness artifacts now include structured
+  `next_actions` with missing report and sidecar counts, reason-specific
+  remediation, suggested calibration commands, and an explicit gate policy that
+  keeps `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` unset until the pack is ready
+  and the measured floor has been reviewed.
+
 ## [1.34.4] - 2026-06-28
 
 ### Fixed

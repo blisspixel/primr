@@ -97,6 +97,16 @@ def build_calibration_baseline(
         evidence_source_reviews=evidence_summary["source_reviews"],
         judge_agreement_compared=judge_agreement["compared"],
     )
+    next_actions = _next_actions(
+        reasons=reasons,
+        manifest_path=manifest_path,
+        report_count=report_count,
+        minimum_reports=minimum_reports,
+        reports_with_payloads=reports_with_payloads,
+        failures=failures,
+        evidence_source_reviews=evidence_summary["source_reviews"],
+        judge_agreement_compared=judge_agreement["compared"],
+    )
 
     return {
         "baseline_format": BASELINE_FORMAT,
@@ -107,6 +117,7 @@ def build_calibration_baseline(
         "ready": not reasons,
         "status": "ready" if not reasons else reasons[0],
         "reasons": reasons,
+        "next_actions": next_actions,
         "judge": manifest.get("judge"),
         "max_per_label": manifest.get("max_per_label"),
         "totals": {
@@ -188,6 +199,45 @@ def render_calibration_baseline_markdown(baseline: dict[str, Any]) -> str:
                 "honest_uncertainty_rate",
             ),
             _rate_row(evidence, "High Relevance", "high_relevance_reviews", "high_relevance_rate"),
+            "",
+            "## Next Actions",
+            "",
+        ]
+    )
+    next_actions = baseline.get("next_actions", {})
+    if isinstance(next_actions, dict):
+        action_items = next_actions.get("items", [])
+        if isinstance(action_items, list) and action_items:
+            lines.extend(["| Reason | Action |", "|---|---|"])
+            for item in action_items:
+                if not isinstance(item, dict):
+                    continue
+                lines.append(f"| {item.get('reason', '')} | {item.get('action', '')} |")
+        gate_policy = next_actions.get("gate_policy")
+        if gate_policy:
+            lines.extend(["", f"Gate policy: {gate_policy}"])
+        commands = next_actions.get("commands", [])
+        if isinstance(commands, list) and commands:
+            lines.extend(
+                [
+                    "",
+                    "## Suggested Commands",
+                    "",
+                    "| Purpose | Command |",
+                    "|---|---|",
+                ]
+            )
+            for command in commands:
+                if not isinstance(command, dict):
+                    continue
+                lines.append(f"| {command.get('purpose', '')} | `{command.get('command', '')}` |")
+            if next_actions.get("spend_preview_required"):
+                lines.append(
+                    "| Cost control | Preview spend and get operator approval before live judge calls. |"
+                )
+
+    lines.extend(
+        [
             "",
             "## Reports",
             "",
@@ -340,6 +390,152 @@ def _readiness_reasons(
     if judge_agreement_compared == 0:
         reasons.append("missing_judge_agreement")
     return reasons
+
+
+def _next_actions(
+    *,
+    reasons: list[str],
+    manifest_path: Path | None,
+    report_count: int,
+    minimum_reports: int,
+    reports_with_payloads: int,
+    failures: int,
+    evidence_source_reviews: int,
+    judge_agreement_compared: int,
+) -> dict[str, Any]:
+    manifest_ref = manifest_path.as_posix() if manifest_path is not None else "<pack-manifest.json>"
+    baseline_md_ref = _default_markdown_ref(manifest_ref)
+    target_report_count = max(report_count, minimum_reports)
+    missing_reports = max(0, minimum_reports - report_count)
+    missing_sidecars = max(0, report_count - reports_with_payloads)
+    spend_preview_required = any(
+        reason
+        in {
+            "missing_calibration_sidecars",
+            "calibration_failures",
+            "missing_evidence_reviews",
+            "missing_judge_agreement",
+        }
+        for reason in reasons
+    )
+    items: list[dict[str, Any]] = []
+
+    if "empty_pack" in reasons:
+        items.append(
+            {
+                "reason": "empty_pack",
+                "action": (
+                    "Select current-format Strategic Overview reports before building a "
+                    "baseline pack."
+                ),
+            }
+        )
+    if "insufficient_reports" in reasons:
+        items.append(
+            {
+                "reason": "insufficient_reports",
+                "missing_reports": missing_reports,
+                "action": (
+                    f"Add {missing_reports} more current-format Strategic Overview "
+                    f"report(s) to reach the minimum of {minimum_reports}."
+                ),
+            }
+        )
+    if "missing_calibration_sidecars" in reasons:
+        items.append(
+            {
+                "reason": "missing_calibration_sidecars",
+                "missing_sidecars": missing_sidecars,
+                "action": (
+                    "Run calibration for every selected report so each pack entry has a "
+                    "sidecar payload."
+                ),
+            }
+        )
+    if "calibration_failures" in reasons:
+        items.append(
+            {
+                "reason": "calibration_failures",
+                "failures": failures,
+                "action": (
+                    "Fix each failed report or judge failure, then rebuild the pack "
+                    "without calibration errors."
+                ),
+            }
+        )
+    if "missing_evidence_reviews" in reasons:
+        items.append(
+            {
+                "reason": "missing_evidence_reviews",
+                "source_reviews": evidence_source_reviews,
+                "action": (
+                    "Regenerate calibration sidecars with evidence-review-capable "
+                    "judging so source review dimensions are present."
+                ),
+            }
+        )
+    if "missing_judge_agreement" in reasons:
+        items.append(
+            {
+                "reason": "missing_judge_agreement",
+                "compared_claims": judge_agreement_compared,
+                "action": (
+                    "Run cloud-vs-local judge comparison on the same sampled claims "
+                    "before trusting the baseline."
+                ),
+            }
+        )
+
+    if not items:
+        items.append(
+            {
+                "reason": "ready",
+                "action": (
+                    "Review the measured floor with the pack context before selecting "
+                    "any hard threshold."
+                ),
+            }
+        )
+
+    return {
+        "missing_reports": missing_reports,
+        "missing_sidecars": missing_sidecars,
+        "spend_preview_required": spend_preview_required,
+        "gate_policy": (
+            "Keep PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY unset until this artifact "
+            "is ready and the measured floor has been reviewed."
+        ),
+        "items": items,
+        "commands": [
+            {
+                "purpose": "Preview report selection and judge-call cost",
+                "command": (
+                    f"primr calibrate --calibrate-recent {target_report_count} "
+                    f"--dry-run --pack-manifest {manifest_ref}"
+                ),
+            },
+            {
+                "purpose": "Build agreement-validated pack",
+                "command": (
+                    f"primr calibrate --calibrate-recent {target_report_count} "
+                    f"--judge-compare --pack-manifest {manifest_ref}"
+                ),
+            },
+            {
+                "purpose": "Rebuild readiness summary",
+                "command": (
+                    f"primr calibrate --baseline-from {manifest_ref} "
+                    f"--baseline-md {baseline_md_ref}"
+                ),
+            },
+        ],
+    }
+
+
+def _default_markdown_ref(manifest_ref: str) -> str:
+    if manifest_ref == "<pack-manifest.json>":
+        return "<baseline.md>"
+    return str(default_baseline_markdown_path(Path(manifest_ref)).as_posix())
 
 
 def _report_summary(report: dict[str, Any]) -> dict[str, Any]:
