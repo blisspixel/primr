@@ -169,8 +169,24 @@ class PipelineRunner:
 
                 # Fast mode produces final output directly — collect all artifacts
                 # (report + strategy files) from the output directory
-                job.advance_stage(ResearchStage.COMPLETED)
                 all_artifacts = _collect_run_artifacts(result_path, job.company_name)
+
+                if verify:
+                    on_progress("Running claim verification...")
+                    try:
+                        from primr.core.research_agent import _run_verification
+
+                        await asyncio.to_thread(
+                            _run_verification,
+                            company_name=job.company_name,
+                            company_url=company_url,
+                            report_path=result_path,
+                        )
+                        all_artifacts = _with_verification_artifacts(all_artifacts)
+                    except Exception as e:
+                        logger.warning(f"Verification failed (non-blocking): {e}")
+
+                job.advance_stage(ResearchStage.COMPLETED)
 
                 # If a destination was specified, copy artifacts there
                 if destination:
@@ -226,6 +242,7 @@ class PipelineRunner:
                     job.qa_score = qa_result.get("overall_score")
 
             # Stage: Verification (optional, non-blocking)
+            verification_completed = False
             if verify and output_path:
                 on_progress("Running claim verification...")
                 try:
@@ -237,11 +254,14 @@ class PipelineRunner:
                         company_url=company_url,
                         report_path=output_path,
                     )
+                    verification_completed = True
                 except Exception as e:
                     logger.warning(f"Verification failed (non-blocking): {e}")
 
             # Complete
             job.advance_stage(ResearchStage.COMPLETED)
+            if verification_completed:
+                job.output_paths = _with_verification_artifacts(job.output_paths)
 
             # If a destination was specified, copy artifacts there
             if destination and job.output_paths:
@@ -488,6 +508,30 @@ def _with_trace_artifacts(
         seen.add(normalized)
         paths.append(trace_path)
     return paths
+
+
+def _with_verification_artifacts(artifact_paths: list[str]) -> list[str]:
+    """Append adjacent verification artifacts produced for the current run."""
+    paths = list(artifact_paths)
+    seen = {Path(path).resolve(strict=False) for path in paths}
+    for artifact_path in artifact_paths:
+        for candidate in _verification_artifact_candidates(Path(artifact_path)):
+            if not candidate.is_file():
+                continue
+            normalized = candidate.resolve(strict=False)
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+            paths.append(str(candidate))
+    return paths
+
+
+def _verification_artifact_candidates(path: Path) -> list[Path]:
+    return [
+        path.parent / "verification.json",
+        path.with_name(f"{path.stem}_verification.json"),
+        path.with_name(f"{path.stem}_verify.json"),
+    ]
 
 
 def _collect_trace_artifacts(job: ResearchJobState) -> list[str]:

@@ -30,7 +30,7 @@ MCP/A2A tool surfaces, and (4) provider secrets + the dependency supply chain.
 | T5 | Unauthorized tool access | Calling MCP/A2A tools without/with stale creds | JWT (HMAC-SHA256, constant-time, expiry/nbf/aud), admin-token hashing, loopback-only unauthenticated A2A | Shipped (all-or-nothing) |
 | T6 | Output egress / scope expansion | Injected instruction tries to widen URL/tool scope or exfiltrate | All fetches gated by T2; the LLM cannot register tools or bypass `is_safe_url` (tested invariant) | Shipped |
 | T7 | Supply-chain compromise | Vulnerable/malicious dep or tampered release | `pip-audit` + `bandit` gates; Dependabot; `uv.lock`; OIDC publishing; SLSA build-provenance | Shipped |
-| T8 | Per-tool privilege separation | Low-trust client invokes a high-cost/admin tool | Per-tool MCP scope policy (`read`, `research`, `delegate`, `admin`) enforced at dispatch; OAuth `scope` / Entra `scp` claims honored; legacy `write` tokens retained for compatibility; approval tokens required for cost-cap-governed execution when enforcement is active; privacy-preserving MCP invocation audit log with admin-readable recent events; ownership-gated job artifact metadata via `primr://output/artifacts/by_job/{job_id}`, QA summary metadata via `primr://output/qa_summary/by_job/{job_id}`, usage/cost summary metadata via `primr://output/usage_summary/by_job/{job_id}`, source appendix metadata via `primr://output/source_summary/by_job/{job_id}`, and scrape trace metadata via `primr://output/trace_summary/by_job/{job_id}` without report body content, URLs, raw trace entries, or page content | Shipped (MCP Stages 1-3 plus first five artifact-resource slices) |
+| T8 | Per-tool privilege separation | Low-trust client invokes a high-cost/admin tool | Per-tool MCP scope policy (`read`, `research`, `delegate`, `admin`) enforced at dispatch; OAuth `scope` / Entra `scp` claims honored; legacy `write` tokens retained for compatibility; approval tokens required for cost-cap-governed execution when enforcement is active; privacy-preserving MCP invocation audit log with admin-readable recent events; ownership-gated job artifact metadata via `primr://output/artifacts/by_job/{job_id}`, QA summary metadata via `primr://output/qa_summary/by_job/{job_id}`, usage/cost summary metadata via `primr://output/usage_summary/by_job/{job_id}`, source appendix metadata via `primr://output/source_summary/by_job/{job_id}`, scrape trace metadata via `primr://output/trace_summary/by_job/{job_id}`, and verification metadata via `primr://output/verification_summary/by_job/{job_id}` without report body content; trace summaries omit raw trace entries, URLs, and page content, and verification summaries omit raw claims, source URLs, search queries, and explanations | Shipped (MCP Stages 1-3 plus first six artifact-resource slices) |
 
 ### Residual risks (accepted)
 - **T1** is mitigated, not eliminated - a novel phrasing could evade the pattern
@@ -54,7 +54,7 @@ MCP/A2A tool surfaces, and (4) provider secrets + the dependency supply chain.
   traffic stays on the TCP proxy path.
 - **T8 Stages 1-3** are shipped for MCP tool dispatch: per-tool scopes,
   server-issued approval tokens, and structured invocation audit events. The
-  first five job-scoped artifact-resource slices are also shipped:
+  first six job-scoped artifact-resource slices are also shipped:
   `primr://output/artifacts/by_job/{job_id}` returns metadata only for an owned
   job, and `primr://output/qa_summary/by_job/{job_id}` returns compact QA
   score/status/count metadata without detailed QA body text, and
@@ -64,9 +64,13 @@ MCP/A2A tool surfaces, and (4) provider secrets + the dependency supply chain.
   content, and `primr://output/source_summary/by_job/{job_id}` returns compact
   citation/source appendix metadata without report body content, and
   `primr://output/trace_summary/by_job/{job_id}` returns compact scrape trace
-  metadata without URLs, final URLs, raw trace entries, or page content. All
-  hide unowned jobs behind the same response as missing jobs. Residual risk
-  remains around A2A parity, verification/calibration resources, and any
+  metadata without URLs, final URLs, raw trace entries, or page content, and
+  `primr://output/verification_summary/by_job/{job_id}` returns compact claim
+  verification trust score, claim counts, status counts, first-party downgrade
+  counts, and source-reference counts without raw claims, source URLs, search
+  queries, explanations, or report body content. All hide unowned jobs behind
+  the same response as missing jobs. Residual risk
+  remains around A2A parity, calibration resources, and any
   cost-incurring paths that do not yet have a matching estimate tool. Issue
   low-trust tokens with explicit `read` scopes rather than relying on legacy
   no-scope JWT defaults.

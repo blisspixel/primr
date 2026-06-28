@@ -49,6 +49,7 @@ class TestResourceListing:
         assert "primr://output/usage_summary/by_job/%7Bjob_id%7D" in uris
         assert "primr://output/source_summary/by_job/%7Bjob_id%7D" in uris
         assert "primr://output/trace_summary/by_job/%7Bjob_id%7D" in uris
+        assert "primr://output/verification_summary/by_job/%7Bjob_id%7D" in uris
         assert "primr://calibration/baseline/inspection?path={baseline_path}" in uris
         assert "primr://config" in uris
 
@@ -962,6 +963,143 @@ class TestTraceSummaryByJobResource:
                 method="resources/read",
                 params=ReadResourceRequestParams(
                     uri=f"primr://output/trace_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        assert data["error"] == "job_not_found"
+        assert data["job_id"] == job.job_id
+
+
+class TestVerificationSummaryByJobResource:
+    """Tests for primr://output/verification_summary/by_job/{job_id}."""
+
+    @pytest.fixture
+    def server(self, tmp_path):
+        return create_mcp_server(journal_path=str(tmp_path / "test_journal.json"))
+
+    def _write_verification(self, path: Path) -> None:
+        path.write_text(
+            json.dumps(
+                {
+                    "trust_score": 0.5,
+                    "trust_percentage": 50,
+                    "verified_count": 1,
+                    "unverified_count": 0,
+                    "contradicted_count": 1,
+                    "total_claims": 2,
+                    "duration_seconds": 12.4,
+                    "claim_results": [
+                        {
+                            "claim": "Secret claim text",
+                            "status": "verified",
+                            "supporting_sources": ["https://secret.example/source"],
+                            "evidence_sources": ["https://evidence.example/source"],
+                            "search_query": "secret acquisition query",
+                            "explanation": "Sensitive explanation",
+                            "first_party_downgrade": True,
+                        },
+                        {
+                            "claim": "Another secret claim",
+                            "status": "contradicted",
+                            "supporting_sources": ["https://secret.example/conflict"],
+                            "search_query": "secret contradiction query",
+                            "explanation": "Sensitive contradiction",
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    @pytest.mark.asyncio
+    async def test_reads_owned_job_verification_summary_without_raw_claims(self, server, tmp_path):
+        verification = tmp_path / "verification.json"
+        self._write_verification(verification)
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(verification)]
+        job.advance_stage(ResearchStage.COMPLETED)
+        server.job_store.update(job)
+        server._auth_context = SimpleNamespace(client_id="client-a", scopes=["read"])
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/verification_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        text = result.root.contents[0].text
+        data = json.loads(text)
+        assert data["schema_version"] == "1.0"
+        assert data["summary_count"] == 1
+        assert data["full_content_included"] is False
+        assert "Secret claim text" not in text
+        assert "secret.example" not in text
+        assert "secret acquisition query" not in text
+        assert "Sensitive explanation" not in text
+
+        summary = data["summaries"][0]
+        assert summary["artifact_type"] == "verification_summary"
+        assert summary["parsed"] is True
+        assert summary["raw_claim_results_included"] is False
+        assert summary["source_urls_included"] is False
+        assert summary["search_queries_included"] is False
+        assert summary["trust_score"] == 0.5
+        assert summary["trust_percentage"] == 50
+        assert summary["verification_gate"] == "WARN"
+        assert summary["total_claims"] == 2
+        assert summary["verified_count"] == 1
+        assert summary["contradicted_count"] == 1
+        assert summary["claim_result_count"] == 2
+        assert summary["first_party_downgrade_count"] == 1
+        assert summary["source_reference_count"] == 3
+        assert summary["claim_status_counts"] == [
+            {"count": 1, "value": "contradicted"},
+            {"count": 1, "value": "verified"},
+        ]
+
+    @pytest.mark.asyncio
+    async def test_returns_not_found_when_no_verification_artifact_exists(self, server, tmp_path):
+        report = tmp_path / "Acme_Report.md"
+        report.write_text("# Report", encoding="utf-8")
+        job = server.job_store.create("Acme Corp", "full")
+        job.output_paths = [str(report)]
+        server.job_store.update(job)
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/verification_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        assert data["error"] == "verification_summary_not_found"
+        assert data["summary_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_rejects_unowned_http_job_like_missing(self, server, tmp_path):
+        verification = tmp_path / "verification.json"
+        self._write_verification(verification)
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(verification)]
+        server.job_store.update(job)
+        server._auth_context = SimpleNamespace(client_id="client-b", scopes=["read"])
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/verification_summary/by_job/{job.job_id}"
                 ),
             )
         )

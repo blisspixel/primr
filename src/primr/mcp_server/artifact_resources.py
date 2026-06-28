@@ -520,7 +520,7 @@ def _classify_artifact(path: Path) -> str:
         suffix == ".txt" and "_qa_report_" in name
     ):
         return "qa_summary"
-    if name.endswith(("_verify.json", "_verification.json")):
+    if name == "verification.json" or name.endswith(("_verify.json", "_verification.json")):
         return "verification_summary"
     if suffix == ".md":
         return "report_markdown"

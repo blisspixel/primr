@@ -15,6 +15,7 @@ from primr.mcp_server.pipeline_runner import (
     PipelineRunner,
     _collect_trace_artifacts,
     _with_trace_artifacts,
+    _with_verification_artifacts,
     get_doctor_status,
 )
 from primr.mcp_server.server import create_mcp_server
@@ -99,6 +100,27 @@ class TestTraceArtifactCollection:
 
         expected = str(Path("logs") / "scrape_traces" / trace.name)
         assert _collect_trace_artifacts(job) == [expected]
+
+
+class TestVerificationArtifactCollection:
+    """Tests for same-run verification artifact attachment."""
+
+    def test_appends_adjacent_verification_artifact_once(self, tmp_path):
+        report = tmp_path / "report.md"
+        verification = tmp_path / "verification.json"
+        report.write_text("# Report", encoding="utf-8")
+        verification.write_text('{"trust_score": 1.0}', encoding="utf-8")
+
+        result = _with_verification_artifacts([str(report)])
+
+        assert result == [str(report), str(verification)]
+        assert _with_verification_artifacts(result) == result
+
+    def test_ignores_missing_verification_artifact(self, tmp_path):
+        report = tmp_path / "report.md"
+        report.write_text("# Report", encoding="utf-8")
+
+        assert _with_verification_artifacts([str(report)]) == [str(report)]
 
 
 class TestDoctorStatus:

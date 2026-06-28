@@ -58,6 +58,27 @@ class TestDispatch:
         assert result == "/path/to/fast_report.docx"
         fast_mock.assert_called_once()
 
+    def test_fast_mode_verify_runs_claim_verification(self, isolated_run, monkeypatch):
+        fast_mock = MagicMock(return_value="/path/to/fast_report.docx")
+        verify_mock = MagicMock()
+        monkeypatch.setattr("primr.core.research_agent.perform_fast_research", fast_mock)
+        monkeypatch.setattr(
+            "primr.core.research_agent._run_claim_verification_non_blocking", verify_mock
+        )
+
+        result = perform_research(
+            company_name="Acme",
+            website="https://acme.example",
+            fast_mode=True,
+            mode="complete",
+            skip_recon=True,
+            skip_confirm=True,
+            verify=True,
+        )
+
+        assert result == "/path/to/fast_report.docx"
+        verify_mock.assert_called_once_with("Acme", "https://acme.example", result)
+
     def test_dispatches_to_scrape_only_for_scrape_mode(self, isolated_run, monkeypatch):
         scrape_mock = MagicMock(return_value="/path/scrape_dir")
         monkeypatch.setattr("primr.core.research_agent.perform_scrape_only", scrape_mock)

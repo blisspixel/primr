@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.14] - 2026-06-28
+
+### Added
+
+- MCP now lists and serves `primr://output/verification_summary/by_job/{job_id}`
+  as an ownership-gated, compact claim verification summary resource for one
+  job. It returns trust score, claim counts, status counts, first-party
+  downgrade counts, and source-reference counts without returning raw claims,
+  source URLs, search queries, explanations, or report body content.
+- MCP verification runs now attach same-run `verification.json` artifacts to
+  job metadata, including fast-mode MCP runs, so destination copies and
+  job-scoped resource reads carry the verification artifact.
+
+### Fixed
+
+- CLI fast-mode research now honors `--verify` instead of returning before the
+  post-run claim verification step.
+
 ## [1.34.13] - 2026-06-28
 
 ### Added

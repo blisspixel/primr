@@ -106,7 +106,9 @@ Newer guidance has six practical implications for Primr:
   beyond "tools work" to "tool and resource access are bounded, consented, and
   reviewable." Primr's shipped control-plane resources now cover artifact
   inventory, QA summary, usage/cost metadata, source appendix metadata, and
-  scrape trace metadata without report body content or raw trace logs.
+  scrape trace metadata, and claim verification metadata without report body
+  content, raw trace logs, raw claims, source URLs, search queries, or
+  explanations.
 - GenAI observability should use structured spans, metrics, and events for
   model calls, tool calls, token and cost use, route choices, request ids, job
   ids, outcomes, and errors. Full prompt and report body capture should remain
@@ -236,8 +238,8 @@ least-privilege and approval semantics as MCP.
 
 Do next:
 
-- Add job-scoped resources for verification summary, calibration summary, and
-  selected artifact metadata. The first five slices shipped:
+- Add job-scoped resources for calibration summary and selected artifact
+  metadata. The first six slices shipped:
   `primr://output/artifacts/by_job/{job_id}` returns ownership-gated file names,
   paths, sizes, hashes, timestamps, and missing-file state for one job, and
   `primr://output/qa_summary/by_job/{job_id}` returns compact QA score/status
@@ -247,8 +249,12 @@ Do next:
   `primr://output/source_summary/by_job/{job_id}` returns compact citation and
   source appendix metadata, and
   `primr://output/trace_summary/by_job/{job_id}` returns compact scrape trace
-  health metadata. None returns report body content, URLs, raw trace entries,
-  or page content.
+  health metadata, and
+  `primr://output/verification_summary/by_job/{job_id}` returns compact claim
+  verification trust score, claim counts, status counts, first-party downgrade
+  counts, and source-reference counts. None returns report body content; trace
+  summaries omit raw trace entries and page content, and verification summaries
+  omit raw claims, source URLs, search queries, and explanations.
 - Define the scope matrix before implementation: monitor can read status and
   compact summaries; artifact read can read compact resources; report read can
   request full report content; research can estimate; execution still requires

@@ -63,6 +63,13 @@ strict about formatting and structure in the final document pipeline.
   attempts, success rates, latency summaries, block counts, HTTP status counts,
   and validation health without returning URLs, final URLs, raw trace entries,
   or page content.
+- **Job-scoped claim verification metadata for agents** through
+  `primr://output/verification_summary/by_job/{job_id}`. Same-run
+  `verification.json` files are attached to job metadata when MCP verification
+  runs, including fast-mode MCP runs, and the resource returns trust score,
+  claim counts, status counts, first-party downgrade counts, and
+  source-reference counts without returning raw claims, source URLs, search
+  queries, explanations, or report body content.
 
 The writing and regeneration prompts carry an explicit prohibition against the
 internal-scaffolding markers the cleanup strips, sourced from a single shared

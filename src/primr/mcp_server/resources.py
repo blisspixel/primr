@@ -69,6 +69,11 @@ from primr.mcp_server.types import (
     ResearchStatus,
     StrategyType,
 )
+from primr.mcp_server.verification_summary import (
+    VERIFICATION_SUMMARY_BY_JOB_RESOURCE,
+    VERIFICATION_SUMMARY_BY_JOB_URI,
+    read_verification_summary_by_job_resource,
+)
 
 if TYPE_CHECKING:
     from primr.mcp_server.server import PrimrMCPServer
@@ -146,6 +151,7 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
             USAGE_SUMMARY_BY_JOB_RESOURCE,
             SOURCE_SUMMARY_BY_JOB_RESOURCE,
             TRACE_SUMMARY_BY_JOB_RESOURCE,
+            VERIFICATION_SUMMARY_BY_JOB_RESOURCE,
             Resource(
                 uri="primr://config",
                 name="Configuration",
@@ -207,39 +213,17 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
             return _read_research_modes()
         elif uri_str == "primr://output/latest" or uri_str.startswith("primr://output/latest"):
             return _read_latest_output(mcp_server, uri_str)
-        elif uri_str.startswith(f"{ARTIFACT_METADATA_BY_JOB_URI}/"):
-            return read_artifact_metadata_by_job_resource(
-                mcp_server,
-                uri_str,
-                client_id=caller_client_id(mcp_server),
-            )
-        elif uri_str.startswith(f"{QA_SUMMARY_BY_JOB_URI}/"):
-            return read_qa_summary_by_job_resource(
-                mcp_server,
-                uri_str,
-                client_id=caller_client_id(mcp_server),
-            )
-        elif uri_str.startswith(f"{USAGE_SUMMARY_BY_JOB_URI}/"):
-            return read_usage_summary_by_job_resource(
-                mcp_server,
-                uri_str,
-                client_id=caller_client_id(mcp_server),
-            )
-        elif uri_str.startswith(f"{SOURCE_SUMMARY_BY_JOB_URI}/"):
-            return read_source_summary_by_job_resource(
-                mcp_server,
-                uri_str,
-                client_id=caller_client_id(mcp_server),
-            )
-        elif uri_str.startswith(f"{TRACE_SUMMARY_BY_JOB_URI}/"):
-            return read_trace_summary_by_job_resource(
-                mcp_server,
-                uri_str,
-                client_id=caller_client_id(mcp_server),
-            )
-        elif uri_str == "primr://output/artifacts" or uri_str.startswith(
-            "primr://output/artifacts"
+        for resource_uri, reader in (
+            (ARTIFACT_METADATA_BY_JOB_URI, read_artifact_metadata_by_job_resource),
+            (QA_SUMMARY_BY_JOB_URI, read_qa_summary_by_job_resource),
+            (USAGE_SUMMARY_BY_JOB_URI, read_usage_summary_by_job_resource),
+            (SOURCE_SUMMARY_BY_JOB_URI, read_source_summary_by_job_resource),
+            (TRACE_SUMMARY_BY_JOB_URI, read_trace_summary_by_job_resource),
+            (VERIFICATION_SUMMARY_BY_JOB_URI, read_verification_summary_by_job_resource),
         ):
+            if uri_str.startswith(f"{resource_uri}/"):
+                return reader(mcp_server, uri_str, client_id=caller_client_id(mcp_server))
+        if uri_str == "primr://output/artifacts" or uri_str.startswith("primr://output/artifacts"):
             return _read_artifacts(mcp_server)
         elif uri_str == "primr://config" or uri_str.startswith("primr://config"):
             return _read_config(mcp_server)

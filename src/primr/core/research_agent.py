@@ -3044,9 +3044,6 @@ def perform_research(
         _append_run_event(folder_path, "initializing", "failed", framing_error)
         return None
 
-    # =========================================================================
-    # Recon pre-flight: DNS intelligence on target domain
-    # =========================================================================
     recon_info = None  # TenantInfo | None
     recon_context_path: str | None = None
 
@@ -3117,13 +3114,11 @@ def perform_research(
                 _append_run_event(folder_path, "recon", "failed", str(exc))
                 # Keep existing platforms (user-specified or default)
 
-    # Inject recon context into context_files for strategy generation
     if recon_context_path and os.path.exists(recon_context_path):
         if context_files is None:
             context_files = []
         context_files.insert(0, recon_context_path)
 
-    # Show cost estimate and ask for confirmation
     if not skip_confirm:
         from primr.utils.cost_estimator import display_cost_estimate
 
@@ -3186,6 +3181,10 @@ def perform_research(
                 write_txt=write_public_txt,
             )
             if fast_path:
+                if verify:
+                    _run_claim_verification_non_blocking(
+                        company_name or display_name, website or "", fast_path
+                    )
                 _update_run_state(
                     folder_path,
                     status="completed",
@@ -3492,39 +3491,13 @@ def perform_research(
                 except Exception as e:
                     logger.warning(f"QA analysis failed: {e}")
 
-            # Run claim verification if --verify flag is set
-            verification_result = None
             if verify and docx_path:
-                try:
-                    verify_phase = 6 if ai_strategy else 5
-                    verify_total = verify_phase
-                    console.phase_banner(
-                        verify_phase,
-                        verify_total,
-                        "Claim Verification",
-                        "Verifying factual claims",
-                        "1-3 min",
-                    )
-                    verification_result = _run_verification(
-                        company_name or display_name,
-                        website or "",
-                        docx_path,
-                    )
-                    if verification_result:
-                        from primr.core.verification_summary import (
-                            build_verification_display_stats,
-                        )
-
-                        verification_stats = build_verification_display_stats(verification_result)
-                        console.phase_complete("Claim Verification", verification_stats.phase)
-                        console.trust_summary("Report Trust", verification_stats.trust_summary)
-                    else:
-                        console.phase_complete(
-                            "Claim Verification", [("Status", "No claims found")]
-                        )
-                except Exception as e:
-                    logger.warning(f"Claim verification failed: {e}")
-                    console.warn(f"Verification failed (non-blocking): {e}")
+                _run_claim_verification_non_blocking(
+                    company_name or display_name,
+                    website or "",
+                    docx_path,
+                    phase=6 if ai_strategy else 5,
+                )
 
             elapsed = time.time() - start_time
             mins = int(elapsed // 60)
@@ -4983,6 +4956,33 @@ def _build_ai_strategy_prompt(
         platform=platform,
         discovery_notes_content=discovery_notes_content,
     )
+
+
+def _run_claim_verification_non_blocking(
+    company_name: str,
+    company_url: str,
+    report_path: str,
+    *,
+    phase: int | None = None,
+) -> Any:
+    try:
+        if phase is not None:
+            console.phase_banner(
+                phase, phase, "Claim Verification", "Verifying factual claims", "1-3 min"
+            )
+        result = _run_verification(company_name, company_url, report_path)
+        if result:
+            from primr.core.verification_summary import build_verification_display_stats
+
+            stats = build_verification_display_stats(result)
+            console.phase_complete("Claim Verification", stats.phase)
+            console.trust_summary("Report Trust", stats.trust_summary)
+        elif phase is not None:
+            console.phase_complete("Claim Verification", [("Status", "No claims found")])
+        return result
+    except Exception as e:
+        logger.warning(f"Claim verification failed: {e}")
+        console.warn(f"Verification failed (non-blocking): {e}")
 
 
 def _run_verification(

@@ -151,6 +151,10 @@ primr doctor
   report.
 - When OpenClaw needs scrape trace health, read
   `primr://output/trace_summary/by_job/{job_id}` instead of loading trace logs.
+- When OpenClaw needs claim verification trust score, claim counts, status
+  counts, first-party downgrade counts, or source-reference counts, read
+  `primr://output/verification_summary/by_job/{job_id}` instead of loading raw
+  claims, source URLs, search queries, explanations, or report body content.
 
 
 

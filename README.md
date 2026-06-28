@@ -159,6 +159,9 @@ They can inspect run cost, timing, approval, and artifact counts with
 They can inspect citation/source appendix health with
 `primr://output/source_summary/by_job/{job_id}` without loading report body
 content.
+They can inspect claim verification outcomes with
+`primr://output/verification_summary/by_job/{job_id}` without loading raw
+claims, source URLs, search queries, or explanations.
 They can inspect scrape trace health with
 `primr://output/trace_summary/by_job/{job_id}` without loading URLs, raw trace
 entries, or page content.

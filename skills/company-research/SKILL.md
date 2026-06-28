@@ -36,6 +36,8 @@ resources:
 
   - primr://output/trace_summary/by_job/{job_id}
 
+  - primr://output/verification_summary/by_job/{job_id}
+
 ---
 
 
@@ -77,6 +79,10 @@ Read `primr://output/source_summary/by_job/{job_id}` when the user needs
 citation/source appendix metadata.
 Read `primr://output/trace_summary/by_job/{job_id}` when the user needs scrape
 trace health metadata.
+Read `primr://output/verification_summary/by_job/{job_id}` when the user needs
+claim verification trust score, claim counts, status counts, first-party
+downgrade counts, or source-reference counts without raw claims, source URLs,
+search queries, explanations, or report body content.
 
 
 

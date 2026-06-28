@@ -239,6 +239,43 @@ class TestRunResearchFastMode:
         assert (dest / "report.md").exists()
 
     @pytest.mark.asyncio
+    async def test_fast_mode_verify_copies_verification_artifact(
+        self, server, runner, monkeypatch, tmp_path
+    ):
+        monkeypatch.setenv("XAI_API_KEY", "fake-key")
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="stdio")
+
+        report = tmp_path / "report.md"
+        report.write_text("done", encoding="utf-8")
+        dest = tmp_path / "dest"
+
+        def fake_verify(*, report_path, **_kwargs):
+            verification = Path(report_path).parent / "verification.json"
+            verification.write_text('{"trust_score": 1.0}', encoding="utf-8")
+
+        monkeypatch.setattr(
+            "primr.core.research_agent.perform_fast_research",
+            lambda *a, **k: str(report),
+        )
+        monkeypatch.setattr("primr.core.research_agent._run_verification", fake_verify)
+
+        await runner.run_research(
+            job=job,
+            company_url="https://example.com",
+            mode="full",
+            verify=True,
+            destination=str(dest),
+        )
+
+        updated = server.job_store.get(job.job_id)
+        assert updated.get_status().value == "completed"
+        assert updated.output_paths == [
+            str(dest / "report.md"),
+            str(dest / "verification.json"),
+        ]
+        assert (dest / "verification.json").exists()
+
+    @pytest.mark.asyncio
     async def test_fast_mode_activates_and_clears_run_budget(
         self, server, runner, monkeypatch, tmp_path
     ):

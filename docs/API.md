@@ -1521,7 +1521,9 @@ only needs cost, timing, approval, or artifact-count metadata, and
 `primr://output/source_summary/by_job/{job_id}` when the client only needs
 citation/source appendix metadata, and
 `primr://output/trace_summary/by_job/{job_id}` when the client only needs
-scrape trace health metadata.
+scrape trace health metadata, and
+`primr://output/verification_summary/by_job/{job_id}` when the client only
+needs claim verification metadata.
 
 ```json
 {
@@ -1894,6 +1896,74 @@ No trace artifact response:
 }
 ```
 
+#### primr://output/verification_summary/by_job/{job_id}
+
+Compact, ownership-gated claim verification summary for one job. Same-run
+`verification.json` artifacts are attached to job metadata when MCP
+verification runs, including fast-mode MCP runs. This resource parses those
+verification artifacts and returns trust score, claim counts, status counts,
+first-party downgrade counts, and source-reference counts without returning
+raw claims, source URLs, search queries, explanations, or report body content.
+
+HTTP callers can read only jobs owned by the authenticated client. Missing jobs
+and unowned jobs return the same `job_not_found` shape so clients cannot probe
+for other job ids.
+
+```json
+{
+  "schema_version": "1.0",
+  "resource": "primr://output/verification_summary/by_job",
+  "job_id": "job_abc123",
+  "status": "completed",
+  "company_name": "Acme Corp",
+  "summary_count": 1,
+  "full_content_included": false,
+  "summaries": [
+    {
+      "index": 1,
+      "artifact_type": "verification_summary",
+      "file_name": "verification.json",
+      "file_path": "output/acme_corp/verification.json",
+      "exists": true,
+      "size_bytes": 4096,
+      "modified_at": "2026-06-28T21:45:00+00:00",
+      "content_hash": "sha256:abc123...",
+      "parsed": true,
+      "full_content_included": false,
+      "raw_claim_results_included": false,
+      "source_urls_included": false,
+      "search_queries_included": false,
+      "trust_score": 0.88,
+      "trust_percentage": 88,
+      "verification_gate": "PASS",
+      "total_claims": 25,
+      "verified_count": 22,
+      "unverified_count": 3,
+      "contradicted_count": 0,
+      "claim_result_count": 25,
+      "claim_status_counts": [
+        {"value": "verified", "count": 22},
+        {"value": "unverified", "count": 3}
+      ],
+      "first_party_downgrade_count": 1,
+      "source_reference_count": 47
+    }
+  ]
+}
+```
+
+No verification artifact response:
+
+```json
+{
+  "error": "verification_summary_not_found",
+  "message": "Job job_abc123 has no verification summary artifact available",
+  "job_id": "job_abc123",
+  "status": "completed",
+  "summary_count": 0
+}
+```
+
 #### primr://config
 
 Current configuration (no secrets exposed).
@@ -1970,6 +2040,9 @@ needs citation/source appendix metadata.
 Use `primr://output/trace_summary/by_job/{job_id}` first when a client only
 needs scrape trace health metadata without URLs, raw trace entries, or page
 content.
+Use `primr://output/verification_summary/by_job/{job_id}` first when a client
+only needs claim verification metadata without raw claims, source URLs, search
+queries, explanations, or report body content.
 
 ```json
 {

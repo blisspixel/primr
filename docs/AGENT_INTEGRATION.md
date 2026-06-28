@@ -47,6 +47,10 @@ Important MCP concepts:
 - `primr://output/trace_summary/by_job/{job_id}` exposes compact scrape trace
   counts, tier health, latency, block, HTTP status, and validation metadata
   without URLs, raw trace entries, or page content.
+- `primr://output/verification_summary/by_job/{job_id}` exposes compact claim
+  verification trust score, claim counts, status counts, first-party downgrade
+  counts, and source-reference counts without raw claims, source URLs, search
+  queries, explanations, or report body content.
 - HTTP mode can enforce server-side cost caps and approval tokens.
 - Audit resources record tool calls with hashed payloads for admin review.
 
@@ -146,6 +150,9 @@ Read `primr://output/source_summary/by_job/{job_id}` when the handoff needs
 citation/source appendix health without report body content.
 Read `primr://output/trace_summary/by_job/{job_id}` when the handoff needs
 scrape trace health without URLs, raw trace entries, or page content.
+Read `primr://output/verification_summary/by_job/{job_id}` when the handoff
+needs claim verification trust and count metadata without raw claims, source
+URLs, search queries, explanations, or report body content.
 
 ## Related Docs
 

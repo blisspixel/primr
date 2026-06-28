@@ -85,8 +85,11 @@ You have access to Primr company research tools. When a user asks you to researc
    `primr://output/source_summary/by_job/{job_id}` when the user needs
    citation/source appendix metadata. Read
    `primr://output/trace_summary/by_job/{job_id}` when the user needs scrape
-   trace health metadata. Request report content only if the user
-   needs a summary or downstream action
+   trace health metadata. Read
+   `primr://output/verification_summary/by_job/{job_id}` when the user needs
+   claim verification trust and count metadata without raw claims, source
+   URLs, search queries, explanations, or report body content. Request report
+   content only if the user needs a summary or downstream action
 5. Share the results with the user
 
 Always estimate before submitting. Research jobs cost real money (~$0.75 for standard mode).
@@ -133,7 +136,9 @@ The agent should:
    appendix metadata is needed
 8. Read `primr://output/trace_summary/by_job/{job_id}` when scrape trace health
    metadata is needed
-9. Return results when the job completes
+9. Read `primr://output/verification_summary/by_job/{job_id}` when claim
+   verification trust and count metadata is needed
+10. Return results when the job completes
 
 ## Private Endpoints (VNet Integration)
 
