@@ -48,6 +48,7 @@ class TestResourceListing:
         assert "primr://output/qa_summary/by_job/%7Bjob_id%7D" in uris
         assert "primr://output/usage_summary/by_job/%7Bjob_id%7D" in uris
         assert "primr://output/source_summary/by_job/%7Bjob_id%7D" in uris
+        assert "primr://output/trace_summary/by_job/%7Bjob_id%7D" in uris
         assert "primr://calibration/baseline/inspection?path={baseline_path}" in uris
         assert "primr://config" in uris
 
@@ -799,6 +800,168 @@ class TestSourceSummaryByJobResource:
                 method="resources/read",
                 params=ReadResourceRequestParams(
                     uri=f"primr://output/source_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        assert data["error"] == "job_not_found"
+        assert data["job_id"] == job.job_id
+
+
+class TestTraceSummaryByJobResource:
+    """Tests for primr://output/trace_summary/by_job/{job_id}."""
+
+    @pytest.fixture
+    def server(self, tmp_path):
+        return create_mcp_server(journal_path=str(tmp_path / "test_journal.json"))
+
+    def _write_trace(self, path: Path) -> None:
+        header = {
+            "schema_version": "1.1",
+            "run_id": "trace-run-1",
+            "company": "Acme_Corp",
+            "started_at": "2026-06-28T21:00:00",
+        }
+        base_entry = {
+            "run_id": "trace-run-1",
+            "url": "https://secret.example/page",
+            "timestamp": "2026-06-28T21:00:01",
+            "tier_attempts": [],
+            "success_tier": None,
+            "blocked": False,
+            "block_type": None,
+            "blocked_reason": None,
+            "http_status": None,
+            "content_type": None,
+            "final_url": "https://secret.example/final",
+            "elapsed_total_ms": 0.0,
+            "extracted_text_length": None,
+            "validation_result": None,
+            "access_assessment": None,
+        }
+        entries = [
+            {
+                **base_entry,
+                "tier_attempts": [
+                    {"tier": "requests", "success": False, "elapsed_ms": 100.0},
+                    {"tier": "playwright", "success": True, "elapsed_ms": 500.0},
+                ],
+                "success_tier": "playwright",
+                "http_status": 200,
+                "extracted_text_length": 1200,
+                "validation_result": {"valid": True},
+            },
+            {
+                **base_entry,
+                "tier_attempts": [
+                    {"tier": "requests", "success": False, "elapsed_ms": 250.0},
+                ],
+                "blocked": True,
+                "block_type": "hard_block",
+                "http_status": 403,
+                "extracted_text_length": 100,
+                "validation_result": {"valid": False},
+            },
+        ]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "\n".join(json.dumps(row) for row in [header, *entries]) + "\n",
+            encoding="utf-8",
+        )
+
+    @pytest.mark.asyncio
+    async def test_reads_owned_job_trace_summary_without_urls_or_raw_entries(
+        self, server, tmp_path
+    ):
+        trace_path = tmp_path / "logs" / "scrape_traces" / "Acme_Corp_20260628.jsonl"
+        self._write_trace(trace_path)
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(trace_path)]
+        job.advance_stage(ResearchStage.COMPLETED)
+        server.job_store.update(job)
+        server._auth_context = SimpleNamespace(client_id="client-a", scopes=["read"])
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/trace_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        text = result.root.contents[0].text
+        data = json.loads(text)
+        assert data["schema_version"] == "1.0"
+        assert data["summary_count"] == 1
+        assert data["full_content_included"] is False
+        assert "secret.example" not in text
+
+        summary = data["summaries"][0]
+        assert summary["artifact_type"] == "scrape_trace"
+        assert summary["parsed"] is True
+        assert summary["trace_schema_version"] == "1.1"
+        assert summary["raw_entries_included"] is False
+        assert summary["urls_included"] is False
+        assert summary["entry_count"] == 2
+        assert summary["success_count"] == 1
+        assert summary["failure_count"] == 1
+        assert summary["success_rate"] == 0.5
+        assert summary["blocked_count"] == 1
+        assert summary["block_type_counts"] == [{"count": 1, "value": "hard_block"}]
+        assert summary["http_status_counts"] == [
+            {"count": 1, "value": "200"},
+            {"count": 1, "value": "403"},
+        ]
+        assert summary["thin_page_count"] == 0
+        assert summary["validated_page_count"] == 2
+        assert summary["valid_page_count"] == 1
+        assert summary["content_valid_rate"] == 0.5
+        by_tier = {tier["tier"]: tier for tier in summary["tier_summaries"]}
+        assert by_tier["requests"]["attempts"] == 2
+        assert by_tier["requests"]["successes"] == 0
+        assert by_tier["playwright"]["success_rate"] == 1.0
+        assert by_tier["playwright"]["p95_latency_ms"] == 500.0
+
+    @pytest.mark.asyncio
+    async def test_returns_not_found_when_no_trace_artifact_exists(self, server, tmp_path):
+        report = tmp_path / "Acme_Report.md"
+        report.write_text("# Report", encoding="utf-8")
+        job = server.job_store.create("Acme Corp", "full")
+        job.output_paths = [str(report)]
+        server.job_store.update(job)
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/trace_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        assert data["error"] == "trace_summary_not_found"
+        assert data["summary_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_rejects_unowned_http_job_like_missing(self, server, tmp_path):
+        trace_path = tmp_path / "logs" / "scrape_traces" / "Acme_Corp_20260628.jsonl"
+        self._write_trace(trace_path)
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(trace_path)]
+        server.job_store.update(job)
+        server._auth_context = SimpleNamespace(client_id="client-b", scopes=["read"])
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/trace_summary/by_job/{job.job_id}"
                 ),
             )
         )

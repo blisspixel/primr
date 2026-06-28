@@ -54,6 +54,11 @@ from primr.mcp_server.source_summary import (
     SOURCE_SUMMARY_BY_JOB_URI,
     read_source_summary_by_job_resource,
 )
+from primr.mcp_server.trace_summary import (
+    TRACE_SUMMARY_BY_JOB_RESOURCE,
+    TRACE_SUMMARY_BY_JOB_URI,
+    read_trace_summary_by_job_resource,
+)
 from primr.mcp_server.types import (
     ArtifactInfo,
     ArtifactsResponse,
@@ -140,6 +145,7 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
             QA_SUMMARY_BY_JOB_RESOURCE,
             USAGE_SUMMARY_BY_JOB_RESOURCE,
             SOURCE_SUMMARY_BY_JOB_RESOURCE,
+            TRACE_SUMMARY_BY_JOB_RESOURCE,
             Resource(
                 uri="primr://config",
                 name="Configuration",
@@ -221,6 +227,12 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
             )
         elif uri_str.startswith(f"{SOURCE_SUMMARY_BY_JOB_URI}/"):
             return read_source_summary_by_job_resource(
+                mcp_server,
+                uri_str,
+                client_id=caller_client_id(mcp_server),
+            )
+        elif uri_str.startswith(f"{TRACE_SUMMARY_BY_JOB_URI}/"):
+            return read_trace_summary_by_job_resource(
                 mcp_server,
                 uri_str,
                 client_id=caller_client_id(mcp_server),

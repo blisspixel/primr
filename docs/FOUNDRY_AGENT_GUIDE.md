@@ -83,7 +83,9 @@ You have access to Primr company research tools. When a user asks you to researc
    `primr://output/usage_summary/by_job/{job_id}` when the user needs cost,
    timing, approval, or artifact-count metadata. Read
    `primr://output/source_summary/by_job/{job_id}` when the user needs
-   citation/source appendix metadata. Request report content only if the user
+   citation/source appendix metadata. Read
+   `primr://output/trace_summary/by_job/{job_id}` when the user needs scrape
+   trace health metadata. Request report content only if the user
    needs a summary or downstream action
 5. Share the results with the user
 
@@ -129,7 +131,9 @@ The agent should:
    approval, or artifact-count metadata is needed
 7. Read `primr://output/source_summary/by_job/{job_id}` when citation/source
    appendix metadata is needed
-8. Return results when the job completes
+8. Read `primr://output/trace_summary/by_job/{job_id}` when scrape trace health
+   metadata is needed
+9. Return results when the job completes
 
 ## Private Endpoints (VNet Integration)
 

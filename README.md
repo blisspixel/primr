@@ -159,6 +159,9 @@ They can inspect run cost, timing, approval, and artifact counts with
 They can inspect citation/source appendix health with
 `primr://output/source_summary/by_job/{job_id}` without loading report body
 content.
+They can inspect scrape trace health with
+`primr://output/trace_summary/by_job/{job_id}` without loading URLs, raw trace
+entries, or page content.
 
 With `--output-dir`, Primr writes customer-facing Markdown and DOCX deliverables to that folder while keeping TXT mirrors and validation diagnostics in the run diagnostics directory.
 

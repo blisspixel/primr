@@ -26,8 +26,8 @@ for Primr's shape:
   Parameterized job reads should move toward resource templates as client
   support matures; the current implementation extends the repo's existing
   URI-pattern resource listing for compatibility while preserving the same
-  body-free and ownership-gated contract for artifacts, QA, usage, and source
-  appendix metadata.
+  body-free and ownership-gated contract for artifacts, QA, usage, source
+  appendix, and scrape trace metadata.
 - For HTTP MCP auth, keep Primr as the protected resource server and enforce
   internal scopes per operation. The latest MCP revision adds incremental
   scope-consent semantics through `WWW-Authenticate`, which fits the existing
@@ -105,8 +105,8 @@ Newer guidance has six practical implications for Primr:
   access that can be audited. The 2026 MCP security guidance raises the bar
   beyond "tools work" to "tool and resource access are bounded, consented, and
   reviewable." Primr's shipped control-plane resources now cover artifact
-  inventory, QA summary, usage/cost metadata, and source appendix metadata
-  without report body content.
+  inventory, QA summary, usage/cost metadata, source appendix metadata, and
+  scrape trace metadata without report body content or raw trace logs.
 - GenAI observability should use structured spans, metrics, and events for
   model calls, tool calls, token and cost use, route choices, request ids, job
   ids, outcomes, and errors. Full prompt and report body capture should remain
@@ -236,8 +236,8 @@ least-privilege and approval semantics as MCP.
 
 Do next:
 
-- Add job-scoped resources for trace summary, verification summary, calibration
-  summary, and selected artifact metadata. The first four slices shipped:
+- Add job-scoped resources for verification summary, calibration summary, and
+  selected artifact metadata. The first five slices shipped:
   `primr://output/artifacts/by_job/{job_id}` returns ownership-gated file names,
   paths, sizes, hashes, timestamps, and missing-file state for one job, and
   `primr://output/qa_summary/by_job/{job_id}` returns compact QA score/status
@@ -245,7 +245,10 @@ Do next:
   `primr://output/usage_summary/by_job/{job_id}` returns compact cost, timing,
   approval, execution, and artifact-count metadata, and
   `primr://output/source_summary/by_job/{job_id}` returns compact citation and
-  source appendix metadata. None returns report body content.
+  source appendix metadata, and
+  `primr://output/trace_summary/by_job/{job_id}` returns compact scrape trace
+  health metadata. None returns report body content, URLs, raw trace entries,
+  or page content.
 - Define the scope matrix before implementation: monitor can read status and
   compact summaries; artifact read can read compact resources; report read can
   request full report content; research can estimate; execution still requires

@@ -34,6 +34,8 @@ resources:
 
   - primr://output/source_summary/by_job/{job_id}
 
+  - primr://output/trace_summary/by_job/{job_id}
+
 ---
 
 
@@ -73,6 +75,8 @@ the user needs QA outcome metadata. Read
 timing, approval, or artifact-count metadata.
 Read `primr://output/source_summary/by_job/{job_id}` when the user needs
 citation/source appendix metadata.
+Read `primr://output/trace_summary/by_job/{job_id}` when the user needs scrape
+trace health metadata.
 
 
 

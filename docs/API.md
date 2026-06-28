@@ -1519,7 +1519,9 @@ that only needs a compact inventory, and
 metadata, and `primr://output/usage_summary/by_job/{job_id}` when the client
 only needs cost, timing, approval, or artifact-count metadata, and
 `primr://output/source_summary/by_job/{job_id}` when the client only needs
-citation/source appendix metadata.
+citation/source appendix metadata, and
+`primr://output/trace_summary/by_job/{job_id}` when the client only needs
+scrape trace health metadata.
 
 ```json
 {
@@ -1815,6 +1817,83 @@ No report artifact response:
 }
 ```
 
+#### primr://output/trace_summary/by_job/{job_id}
+
+Compact, ownership-gated scrape trace summary for one job. Same-run trace JSONL
+files are attached to job metadata when present. This resource parses those
+trace artifacts and returns tier attempts, success rates, latency summaries,
+block counts, HTTP status counts, and validation health without returning URLs,
+final URLs, raw trace entries, or page content.
+
+HTTP callers can read only jobs owned by the authenticated client. Missing jobs
+and unowned jobs return the same `job_not_found` shape so clients cannot probe
+for other job ids.
+
+```json
+{
+  "schema_version": "1.0",
+  "resource": "primr://output/trace_summary/by_job",
+  "job_id": "job_abc123",
+  "status": "completed",
+  "company_name": "Acme Corp",
+  "summary_count": 1,
+  "full_content_included": false,
+  "summaries": [
+    {
+      "index": 0,
+      "artifact_type": "scrape_trace",
+      "file_name": "Acme_Corp_20260628_213000.jsonl",
+      "file_path": "logs/scrape_traces/Acme_Corp_20260628_213000.jsonl",
+      "exists": true,
+      "size_bytes": 8192,
+      "modified_at": "2026-06-28T21:30:00+00:00",
+      "content_hash": "sha256:abc123...",
+      "parsed": true,
+      "trace_schema_version": "1.1",
+      "trace_run_id": "trace-run-1",
+      "trace_started_at": "2026-06-28T21:00:00",
+      "full_content_included": false,
+      "raw_entries_included": false,
+      "urls_included": false,
+      "entry_count": 12,
+      "success_count": 10,
+      "failure_count": 2,
+      "success_rate": 0.8333333333333334,
+      "blocked_count": 1,
+      "block_type_counts": [{"value": "hard_block", "count": 1}],
+      "http_status_counts": [{"value": "200", "count": 10}],
+      "tier_summaries": [
+        {
+          "tier": "requests",
+          "attempts": 12,
+          "successes": 8,
+          "success_rate": 0.6666666666666666,
+          "avg_latency_ms": 125.0,
+          "p95_latency_ms": 250.0
+        }
+      ],
+      "avg_text_length": 4200.0,
+      "thin_page_count": 1,
+      "validated_page_count": 9,
+      "valid_page_count": 8,
+      "content_valid_rate": 0.8888888888888888
+    }
+  ]
+}
+```
+
+No trace artifact response:
+
+```json
+{
+  "error": "trace_summary_not_found",
+  "message": "Job job_abc123 has no scrape trace artifact available",
+  "job_id": "job_abc123",
+  "status": "completed",
+  "summary_count": 0
+}
+```
+
 #### primr://config
 
 Current configuration (no secrets exposed).
@@ -1888,6 +1967,9 @@ outcome metadata. Use `primr://output/usage_summary/by_job/{job_id}` first
 when a client only needs run cost, timing, approval, or artifact-count metadata.
 Use `primr://output/source_summary/by_job/{job_id}` first when a client only
 needs citation/source appendix metadata.
+Use `primr://output/trace_summary/by_job/{job_id}` first when a client only
+needs scrape trace health metadata without URLs, raw trace entries, or page
+content.
 
 ```json
 {

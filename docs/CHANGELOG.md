@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.13] - 2026-06-28
+
+### Added
+- MCP now lists and serves `primr://output/trace_summary/by_job/{job_id}` as
+  an ownership-gated, compact scrape trace summary resource for one job. It
+  returns tier attempts, success rates, latency summaries, block counts, HTTP
+  status counts, and validation health without returning URLs, final URLs, raw
+  trace entries, or page content.
+- Same-run scrape trace JSONL files are now attached to MCP job metadata when
+  present, bounded by the job's company slug and run window.
+
 ## [1.34.12] - 2026-06-28
 
 ### Added

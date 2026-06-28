@@ -57,6 +57,12 @@ strict about formatting and structure in the final document pipeline.
   markdown and text report artifacts, then returns citation counts, source
   definition counts, missing and unused citation numbers, duplicate URL counts,
   domains, and source URLs without returning report body content.
+- **Job-scoped scrape trace metadata for agents** through
+  `primr://output/trace_summary/by_job/{job_id}`. Same-run trace JSONL files
+  are attached to job metadata when present, and the resource returns tier
+  attempts, success rates, latency summaries, block counts, HTTP status counts,
+  and validation health without returning URLs, final URLs, raw trace entries,
+  or page content.
 
 The writing and regeneration prompts carry an explicit prohibition against the
 internal-scaffolding markers the cleanup strips, sourced from a single shared

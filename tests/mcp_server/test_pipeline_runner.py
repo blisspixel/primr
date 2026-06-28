@@ -4,6 +4,7 @@ Tests for pipeline runner.
 Task 19: Heartbeat updates and pipeline wiring.
 """
 
+import os
 import tempfile
 from pathlib import Path
 
@@ -12,6 +13,8 @@ import pytest
 from primr.mcp_server.pipeline_runner import (
     DIRECT_PROVIDER_KEY_ENV_VARS,
     PipelineRunner,
+    _collect_trace_artifacts,
+    _with_trace_artifacts,
     get_doctor_status,
 )
 from primr.mcp_server.server import create_mcp_server
@@ -44,6 +47,58 @@ class TestPipelineRunner:
         """Cancel can be requested."""
         runner.request_cancel()
         assert runner._cancel_requested is True
+
+
+class TestTraceArtifactCollection:
+    """Tests for same-run scrape trace attachment."""
+
+    @pytest.fixture
+    def server(self, tmp_path):
+        journal_path = str(tmp_path / "test_journal.json")
+        s = create_mcp_server(journal_path=journal_path, skip_background_tasks=True)
+        s.rate_limiter.reset()
+        return s
+
+    def test_collects_only_same_company_trace_files_in_job_window(
+        self, server, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        job = server.job_store.create("Test Corp", "full")
+        job.advance_stage(ResearchStage.COMPLETED)
+        trace_dir = tmp_path / "logs" / "scrape_traces"
+        trace_dir.mkdir(parents=True)
+
+        recent = trace_dir / "Test_Corp_20260628_120000.jsonl"
+        stale = trace_dir / "Test_Corp_20260627_120000.jsonl"
+        other = trace_dir / "Other_Corp_20260628_120000.jsonl"
+        for path in (recent, stale, other):
+            path.write_text('{"schema_version": "1.1"}\n', encoding="utf-8")
+
+        start_ts = job.start_time.timestamp()
+        os.utime(recent, (start_ts + 10, start_ts + 10))
+        os.utime(stale, (start_ts - 120, start_ts - 120))
+        os.utime(other, (start_ts + 10, start_ts + 10))
+
+        expected = str(Path("logs") / "scrape_traces" / recent.name)
+        assert _collect_trace_artifacts(job) == [expected]
+        assert _with_trace_artifacts(["report.md"], job) == ["report.md", expected]
+
+    def test_trace_company_slug_matches_trace_logger_filename_rules(
+        self, server, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        job = server.job_store.create("Test/Company\\Name", "full")
+        job.advance_stage(ResearchStage.COMPLETED)
+        trace_dir = tmp_path / "logs" / "scrape_traces"
+        trace_dir.mkdir(parents=True)
+        trace = trace_dir / "Test_Company_Name_20260628_120000.jsonl"
+        trace.write_text('{"schema_version": "1.1"}\n', encoding="utf-8")
+
+        start_ts = job.start_time.timestamp()
+        os.utime(trace, (start_ts + 10, start_ts + 10))
+
+        expected = str(Path("logs") / "scrape_traces" / trace.name)
+        assert _collect_trace_artifacts(job) == [expected]
 
 
 class TestDoctorStatus:

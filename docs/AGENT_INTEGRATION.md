@@ -44,6 +44,9 @@ Important MCP concepts:
 - `primr://output/source_summary/by_job/{job_id}` exposes compact
   citation/source appendix counts, domains, missing citations, duplicate URL
   counts, and source URLs without report body content.
+- `primr://output/trace_summary/by_job/{job_id}` exposes compact scrape trace
+  counts, tier health, latency, block, HTTP status, and validation metadata
+  without URLs, raw trace entries, or page content.
 - HTTP mode can enforce server-side cost caps and approval tokens.
 - Audit resources record tool calls with hashed payloads for admin review.
 
@@ -141,6 +144,8 @@ Read `primr://output/usage_summary/by_job/{job_id}` when the handoff needs
 run cost, timing, approval, execution, or artifact-count metadata.
 Read `primr://output/source_summary/by_job/{job_id}` when the handoff needs
 citation/source appendix health without report body content.
+Read `primr://output/trace_summary/by_job/{job_id}` when the handoff needs
+scrape trace health without URLs, raw trace entries, or page content.
 
 ## Related Docs
 

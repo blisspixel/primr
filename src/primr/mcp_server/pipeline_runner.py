@@ -11,6 +11,7 @@ import asyncio
 import contextlib
 import logging
 from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from primr.mcp_server.job_store import ResearchJobState
@@ -175,6 +176,7 @@ class PipelineRunner:
                 if destination:
                     all_artifacts = _copy_artifacts_to_destination(all_artifacts, destination)
 
+                all_artifacts = _with_trace_artifacts(all_artifacts, job)
                 job.output_paths = all_artifacts
                 self.mcp_server.job_store.update(job)
                 return
@@ -245,6 +247,7 @@ class PipelineRunner:
             if destination and job.output_paths:
                 job.output_paths = _copy_artifacts_to_destination(job.output_paths, destination)
 
+            job.output_paths = _with_trace_artifacts(job.output_paths, job)
             self.mcp_server.job_store.update(job)
 
             # Generate run manifest for audit trail (FR-7.1)
@@ -469,6 +472,47 @@ def _collect_run_artifacts(primary_path: str, company_name: str) -> list[str]:
                 artifacts.append(candidate_str)
 
     return artifacts
+
+
+def _with_trace_artifacts(
+    artifact_paths: list[str],
+    job: ResearchJobState,
+) -> list[str]:
+    """Append same-run scrape trace artifacts when tracing produced them."""
+    paths = list(artifact_paths)
+    seen = {Path(path).resolve(strict=False) for path in paths}
+    for trace_path in _collect_trace_artifacts(job):
+        normalized = Path(trace_path).resolve(strict=False)
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        paths.append(trace_path)
+    return paths
+
+
+def _collect_trace_artifacts(job: ResearchJobState) -> list[str]:
+    from datetime import datetime, timezone
+
+    trace_dir = Path("logs") / "scrape_traces"
+    if not trace_dir.is_dir():
+        return []
+
+    start_ts = job.start_time.timestamp() - 5
+    end = job.completion_time or job.last_heartbeat_time or datetime.now(timezone.utc)
+    end_ts = end.timestamp() + 60
+    safe_name = _trace_company_slug(job.company_name)
+
+    traces: list[Path] = []
+    for candidate in trace_dir.glob(f"{safe_name}_*.jsonl"):
+        modified = candidate.stat().st_mtime
+        if start_ts <= modified <= end_ts:
+            traces.append(candidate)
+    return [str(path) for path in sorted(traces, key=lambda path: path.stat().st_mtime)]
+
+
+def _trace_company_slug(company_name: str) -> str:
+    sanitized = company_name.replace(" ", "_").replace("/", "_").replace("\\", "_")
+    return "".join(char for char in sanitized if char.isalnum() or char in "_-")[:50]
 
 
 def _copy_artifacts_to_destination(artifact_paths: list[str], destination: str) -> list[str]:

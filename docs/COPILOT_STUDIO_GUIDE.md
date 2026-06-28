@@ -122,7 +122,9 @@ When a user asks you to research a company:
    `primr://output/usage_summary/by_job/{job_id}` when the user needs cost,
    timing, approval, or artifact-count metadata. Read
    `primr://output/source_summary/by_job/{job_id}` when the user needs
-   citation/source appendix metadata. Request report content only when the user
+   citation/source appendix metadata. Read
+   `primr://output/trace_summary/by_job/{job_id}` when the user needs scrape
+   trace health metadata. Request report content only when the user
    needs a summary or downstream action
 7. Share the key findings with the user
 

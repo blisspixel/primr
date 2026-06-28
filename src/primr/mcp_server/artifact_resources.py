@@ -514,6 +514,8 @@ def _classify_artifact(path: Path) -> str:
         return "run_manifest"
     if name.endswith("_run_state.json"):
         return "run_state"
+    if suffix == ".jsonl" and "scrape_trace" in str(path.parent).lower():
+        return "scrape_trace"
     if name.endswith(("_qa.json", "_qa_report.json")) or (
         suffix == ".txt" and "_qa_report_" in name
     ):
