@@ -139,7 +139,9 @@ Do next:
   agreement rates, plus a local-only calibration-pack manifest, a curated
   pack-selection contract for explicit representative coverage tags, and a
   zero-spend baseline readiness artifact that names exactly why a pack is not
-  ready.
+  ready. The readiness check now requires every selected report to carry
+  evidence-review dimensions and cloud-vs-local judge-agreement metadata, so
+  partial coverage cannot satisfy the baseline by aggregate counts alone.
 - Set `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` only from the measured floor of
   that agreement-validated baseline.
 - Surface contradicted `--verify` claims in the report trust summary. First

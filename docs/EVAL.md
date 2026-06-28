@@ -94,12 +94,14 @@ For a 24 GB RTX 4090 or comparable local box, start with `4090-report-race` befo
   `primr.calibration_baseline.v1` JSON, and optional Markdown via
   `--baseline-md path/to/baseline.md`, with explicit not-ready reasons such as
   `insufficient_reports`, `missing_evidence_reviews`, or
-  `missing_judge_agreement`. When the pack manifest declares required
-  representative tags, the artifact also reports
-  `missing_representative_coverage` until every required tag appears in the
-  selected pack. The artifact includes structured `next_actions` with missing
-  counts, remediation, suggested commands, and the policy to keep the hard
-  calibration gate unset until the pack is ready. This summarizes baseline
+  `missing_judge_agreement`. Evidence review and judge agreement are
+  per-report coverage requirements, not merely aggregate nonzero counts; a pack
+  with one reviewed report and four unreviewed reports remains not ready. When
+  the pack manifest declares required representative tags, the artifact also
+  reports `missing_representative_coverage` until every required tag appears in
+  the selected pack. The artifact includes structured `next_actions` with
+  missing counts, remediation, suggested commands, and the policy to keep the
+  hard calibration gate unset until the pack is ready. This summarizes baseline
   readiness; it does not arm a quality gate.
 
 ### Local judge for calibration ($0 judge calls)

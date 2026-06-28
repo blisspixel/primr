@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   declared required, present, and missing tags, and baseline readiness artifacts
   report `missing_representative_coverage` when a declared required tag is not
   represented.
+- Calibration baseline readiness now requires every selected report to have
+  evidence-review dimensions and a cloud-vs-local judge-agreement record. A
+  pack with only partial sidecar coverage remains not ready, and the JSON plus
+  Markdown summaries show the missing report counts.
 
 ## [1.34.5] - 2026-06-28
 

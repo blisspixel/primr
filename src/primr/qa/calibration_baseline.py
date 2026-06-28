@@ -85,6 +85,7 @@ def build_calibration_baseline(
     sidecars_present = _safe_int(totals.get("sidecars_present"), default=reports_with_payloads)
     failures = _safe_int(totals.get("failures"))
     sidecar_counts = _aggregate_sidecar_counts(reports)
+    coverage_counts = _sidecar_coverage_counts(reports)
     label_totals = _label_totals(manifest)
     label_summary = _label_summary(label_totals)
     evidence_summary = _evidence_summary(sidecar_counts)
@@ -95,8 +96,8 @@ def build_calibration_baseline(
         minimum_reports=minimum_reports,
         reports_with_payloads=reports_with_payloads,
         failures=failures,
-        evidence_source_reviews=evidence_summary["source_reviews"],
-        judge_agreement_compared=judge_agreement["compared"],
+        reports_with_evidence_reviews=coverage_counts["reports_with_evidence_reviews"],
+        reports_with_judge_agreement=coverage_counts["reports_with_judge_agreement"],
         representation_missing_tags=representation["missing_tags"],
     )
     next_actions = _next_actions(
@@ -106,8 +107,8 @@ def build_calibration_baseline(
         minimum_reports=minimum_reports,
         reports_with_payloads=reports_with_payloads,
         failures=failures,
-        evidence_source_reviews=evidence_summary["source_reviews"],
-        judge_agreement_compared=judge_agreement["compared"],
+        reports_with_evidence_reviews=coverage_counts["reports_with_evidence_reviews"],
+        reports_with_judge_agreement=coverage_counts["reports_with_judge_agreement"],
         representation_missing_tags=representation["missing_tags"],
         selection_path=representation.get("selection_path"),
     )
@@ -133,6 +134,7 @@ def build_calibration_baseline(
             "estimated_judge_calls": _safe_int(totals.get("estimated_judge_calls")),
             "estimated_cloud_cost_usd": _safe_float(totals.get("estimated_cloud_cost_usd")),
             "failures": failures,
+            **coverage_counts,
         },
         "traceability": label_summary,
         "representation": representation,
@@ -164,6 +166,10 @@ def render_calibration_baseline_markdown(baseline: dict[str, Any]) -> str:
         ),
         f"Evidence source reviews: {evidence.get('source_reviews', 0)}",
         (
+            "Evidence-reviewed reports: "
+            f"{totals.get('reports_with_evidence_reviews', 0)} / {totals.get('reports', 0)}"
+        ),
+        (
             "Representative coverage: "
             f"{len(representation.get('present_tags', []))} / "
             f"{len(representation.get('required_tags', []))} required tags"
@@ -172,6 +178,10 @@ def render_calibration_baseline_markdown(baseline: dict[str, Any]) -> str:
             "Judge agreement: "
             f"{agreement.get('agreed', 0)} / {agreement.get('compared', 0)} "
             f"({percent_or_dash(agreement.get('agreement_rate'))})"
+        ),
+        (
+            "Judge-agreement reports: "
+            f"{totals.get('reports_with_judge_agreement', 0)} / {totals.get('reports', 0)}"
         ),
         "",
         "## Traceability",
@@ -317,6 +327,24 @@ def _aggregate_sidecar_counts(reports: list[dict[str, Any]]) -> dict[str, int]:
     return totals
 
 
+def _sidecar_coverage_counts(reports: list[dict[str, Any]]) -> dict[str, int]:
+    reports_with_evidence = 0
+    reports_with_agreement = 0
+    for report in reports:
+        sidecar = report.get("sidecar")
+        if not isinstance(sidecar, dict):
+            continue
+        counts = calibration_counts_from_payload(sidecar)
+        if _safe_int(counts.get("evidence_source_reviews")) > 0:
+            reports_with_evidence += 1
+        if _safe_int(counts.get("judge_agreement_compared")) > 0:
+            reports_with_agreement += 1
+    return {
+        "reports_with_evidence_reviews": reports_with_evidence,
+        "reports_with_judge_agreement": reports_with_agreement,
+    }
+
+
 def _label_totals(manifest: dict[str, Any]) -> dict[str, dict[str, int]]:
     preferred = manifest.get("existing_sidecar_per_label")
     if not isinstance(preferred, dict) or not preferred:
@@ -429,8 +457,8 @@ def _readiness_reasons(
     minimum_reports: int,
     reports_with_payloads: int,
     failures: int,
-    evidence_source_reviews: int,
-    judge_agreement_compared: int,
+    reports_with_evidence_reviews: int,
+    reports_with_judge_agreement: int,
     representation_missing_tags: list[str],
 ) -> list[str]:
     reasons: list[str] = []
@@ -442,9 +470,9 @@ def _readiness_reasons(
         reasons.append("missing_calibration_sidecars")
     if failures:
         reasons.append("calibration_failures")
-    if evidence_source_reviews == 0:
+    if report_count > 0 and reports_with_evidence_reviews < report_count:
         reasons.append("missing_evidence_reviews")
-    if judge_agreement_compared == 0:
+    if report_count > 0 and reports_with_judge_agreement < report_count:
         reasons.append("missing_judge_agreement")
     if representation_missing_tags:
         reasons.append("missing_representative_coverage")
@@ -459,8 +487,8 @@ def _next_actions(
     minimum_reports: int,
     reports_with_payloads: int,
     failures: int,
-    evidence_source_reviews: int,
-    judge_agreement_compared: int,
+    reports_with_evidence_reviews: int,
+    reports_with_judge_agreement: int,
     representation_missing_tags: list[str],
     selection_path: Any,
 ) -> dict[str, Any]:
@@ -469,6 +497,8 @@ def _next_actions(
     target_report_count = max(report_count, minimum_reports)
     missing_reports = max(0, minimum_reports - report_count)
     missing_sidecars = max(0, report_count - reports_with_payloads)
+    missing_evidence_reviews = max(0, report_count - reports_with_evidence_reviews)
+    missing_judge_agreement = max(0, report_count - reports_with_judge_agreement)
     selection_ref = selection_path if isinstance(selection_path, str) and selection_path else None
     selection_command = (
         f"--pack-selection {selection_ref}"
@@ -534,10 +564,10 @@ def _next_actions(
         items.append(
             {
                 "reason": "missing_evidence_reviews",
-                "source_reviews": evidence_source_reviews,
+                "missing_reports": missing_evidence_reviews,
                 "action": (
                     "Regenerate calibration sidecars with evidence-review-capable "
-                    "judging so source review dimensions are present."
+                    "judging so every selected report has source review dimensions."
                 ),
             }
         )
@@ -545,10 +575,11 @@ def _next_actions(
         items.append(
             {
                 "reason": "missing_judge_agreement",
-                "compared_claims": judge_agreement_compared,
+                "missing_reports": missing_judge_agreement,
                 "action": (
                     "Run cloud-vs-local judge comparison on the same sampled claims "
-                    "before trusting the baseline."
+                    "so every selected report has an agreement record before trusting "
+                    "the baseline."
                 ),
             }
         )
@@ -578,6 +609,8 @@ def _next_actions(
     return {
         "missing_reports": missing_reports,
         "missing_sidecars": missing_sidecars,
+        "missing_evidence_review_reports": missing_evidence_reviews,
+        "missing_judge_agreement_reports": missing_judge_agreement,
         "missing_representative_tags": representation_missing_tags,
         "spend_preview_required": spend_preview_required,
         "gate_policy": (

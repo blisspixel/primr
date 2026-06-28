@@ -49,7 +49,10 @@ Current priority order:
    coverage explicit; and `primr calibrate --baseline-from` writes a zero-spend
    readiness artifact that refuses to mark small, unvalidated, or
    under-representative packs as ready while naming the exact next actions
-   needed to make the pack baseline-ready. The representative multi-report
+   needed to make the pack baseline-ready. Readiness now requires every
+   selected report to carry evidence-review dimensions and cloud-vs-local
+   judge-agreement metadata, so partial sidecar coverage cannot make a pack
+   look ready by aggregate counts alone. The representative multi-report
    baseline itself is still next.
 2. **Backend freedom production wiring.** Provider abstractions and pure routing
    foundations exist, but full-report execution still carries xAI/Gemini-era

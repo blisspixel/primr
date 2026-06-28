@@ -173,6 +173,8 @@ def test_build_baseline_ready_when_pack_has_required_evidence() -> None:
 
     assert baseline["ready"] is True
     assert baseline["status"] == "ready"
+    assert baseline["totals"]["reports_with_evidence_reviews"] == 5
+    assert baseline["totals"]["reports_with_judge_agreement"] == 5
     assert baseline["traceability"]["Confirmed"]["traceability_rate"] == 1.0
     assert baseline["traceability"]["Reported"]["traceability_rate"] == 0.0
     assert baseline["evidence_review"]["source_reviews"] == 10
@@ -189,6 +191,50 @@ def test_build_baseline_ready_when_pack_has_required_evidence() -> None:
             ),
         }
     ]
+
+
+def test_build_baseline_requires_per_report_evidence_review_coverage() -> None:
+    manifest = _manifest(5)
+    reports = manifest["reports"]
+    assert isinstance(reports, list)
+    first_report = reports[0]
+    assert isinstance(first_report, dict)
+    first_report["sidecar"] = _sidecar(include_evidence=False)
+
+    baseline = build_calibration_baseline(manifest, minimum_reports=5)
+
+    assert baseline["ready"] is False
+    assert "missing_evidence_reviews" in baseline["reasons"]
+    assert baseline["totals"]["reports_with_evidence_reviews"] == 4
+    assert baseline["next_actions"]["missing_evidence_review_reports"] == 1
+    assert any(
+        item["reason"] == "missing_evidence_reviews"
+        and item["missing_reports"] == 1
+        and "every selected report" in item["action"]
+        for item in baseline["next_actions"]["items"]
+    )
+
+
+def test_build_baseline_requires_per_report_judge_agreement_coverage() -> None:
+    manifest = _manifest(5)
+    reports = manifest["reports"]
+    assert isinstance(reports, list)
+    first_report = reports[0]
+    assert isinstance(first_report, dict)
+    first_report["sidecar"] = _sidecar(include_agreement=False)
+
+    baseline = build_calibration_baseline(manifest, minimum_reports=5)
+
+    assert baseline["ready"] is False
+    assert "missing_judge_agreement" in baseline["reasons"]
+    assert baseline["totals"]["reports_with_judge_agreement"] == 4
+    assert baseline["next_actions"]["missing_judge_agreement_reports"] == 1
+    assert any(
+        item["reason"] == "missing_judge_agreement"
+        and item["missing_reports"] == 1
+        and "every selected report" in item["action"]
+        for item in baseline["next_actions"]["items"]
+    )
 
 
 def test_build_baseline_names_missing_sidecar_remediation() -> None:
@@ -262,6 +308,8 @@ def test_write_baseline_json_and_markdown(tmp_path: Path) -> None:
     assert "## Next Actions" in markdown
     assert "## Suggested Commands" in markdown
     assert "Judge agreement: 10 / 10 (100%)" in markdown
+    assert "Evidence-reviewed reports: 5 / 5" in markdown
+    assert "Judge-agreement reports: 5 / 5" in markdown
     assert "Representative coverage: 2 / 2 required tags" in markdown
     assert "--pack-selection docs/.agent/calibration-selection.json" in markdown
     assert "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY" in markdown
