@@ -73,11 +73,11 @@ will route over.
   rows, profile-specific cloud/agent/hybrid/local ranking, host-runner opt-in
   checks, and API-credit handoff guards.
 - `ai/stage_routing.py` now provides the first runtime bridge from declared
-  production stages to the capability router. `fast.scrape_summary` and
-  `fast.source_relevance` use it behind `--inference cloud|hybrid`, append
-  capped body-free `stage_routes` records to `_run_state.json`, and still
-  execute through the existing `llm()` provider seam with the legacy utility
-  models preserved as fallback.
+  production stages to the capability router. `fast.scrape_summary`,
+  `fast.source_relevance`, and `fast.hiring_signals` use it behind
+  `--inference cloud|hybrid`, append capped body-free `stage_routes` records
+  to `_run_state.json`, and still execute through existing provider seams with
+  the legacy utility models preserved as fallback.
 - The typed host-account runner contract now exists in
   `ai/host_agent_runner.py`: bounded `HostAgentStagePacket`, billing policy,
   normalized result/provenance, and a prompt renderer that fences evidence with

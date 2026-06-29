@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.29] - 2026-06-29
+
+### Added
+
+- Routed `fast.hiring_signals` through the stage capability router behind
+  `--inference cloud|hybrid`, preserving fail-open behavior and the legacy
+  utility fallback path.
+- Added capped body-free `stage_routes` records for hiring-signal runs with
+  backend/profile/billing metadata, route/fallback reasons, expected token
+  budget, discovered role count, extracted role count, duration, outcome, and
+  failure class.
+
+### Changed
+
+- Hiring-signal LLM triage and extraction now receive the routed model from
+  `ai/stage_routing.py` without changing ATS discovery, careers-page egress,
+  prompt bodies, output artifacts, or fail-open behavior.
+- Extracted hiring-signal artifact rendering and persistence into
+  `data/hiring_signal_artifacts.py`, keeping `data/hiring_signals.py` below
+  its architecture line ceiling while preserving the existing public helpers.
+
 ## [1.34.28] - 2026-06-29
 
 ### Added

@@ -67,6 +67,23 @@ def test_scrape_summary_cloud_route_uses_stage_token_budget(monkeypatch) -> None
     assert "meets_context" in route.reasons
 
 
+def test_hiring_signals_cloud_route_uses_stage_token_budget(monkeypatch) -> None:
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+
+    route = resolve_stage_model(
+        "fast.hiring_signals",
+        legacy_model_type="fast",
+        profile="cloud",
+    )
+
+    assert route.routed is True
+    assert route.model_name == PrimrModels.FLASH_MODEL
+    assert route.expected_input_tokens == 45_000
+    assert route.expected_output_tokens == 4_000
+    assert "meets_context" in route.reasons
+
+
 def test_local_profile_records_rejection_and_preserves_legacy_model(monkeypatch) -> None:
     _clear_provider_env(monkeypatch)
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")

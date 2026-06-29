@@ -316,3 +316,4 @@ coverage_full.json
 # Loop-engineering working state (local agent progress log + state analysis)
 .loop/
 docs/.agent/
+.agent/

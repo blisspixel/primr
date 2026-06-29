@@ -47,7 +47,7 @@ stages separately from API-dollar stages.
 | `AI_REPORT_MODEL` | Legacy Gemini-backed report model override | `gemini-3-flash-preview` |
 | `VERBOSE` | Enable verbose output | `false` |
 | `DEBUG` | Enable debug mode | `false` |
-| `PRIMR_INFERENCE_PROFILE` | Runtime capability-routing profile for wired stages. `cloud` is the default; `hybrid` enables the current routed utility-stage pilots and records body-free `stage_routes` metadata in `_run_state.json`. Prefer the `--inference` CLI flag for normal use. | `cloud` |
+| `PRIMR_INFERENCE_PROFILE` | Runtime capability-routing profile for wired stages. `cloud` is the default; `hybrid` enables the current routed utility-stage pilots (`fast.scrape_summary`, `fast.source_relevance`, `fast.hiring_signals`) and records body-free `stage_routes` metadata in `_run_state.json`. Prefer the `--inference` CLI flag for normal use. | `cloud` |
 
 Note: Legacy Gemini model override variables are still supported for Gemini-backed stages. Provider-aware routing otherwise uses the model registry and configured provider keys. Current Gemini defaults:
 - `gemini-3-flash-preview` - Best balance of speed and cost for legacy Gemini paths

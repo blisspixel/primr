@@ -161,10 +161,10 @@ an explicit flag for users who want to opt in.
 For utility-stage backend-freedom work, route promotions should also flow
 through `ai/stage_routing.py` and the declared row in
 `core/stage_inventory.py`. The current runtime pilots are
-`fast.scrape_summary` and `fast.source_relevance` behind
-`--inference cloud|hybrid`; they record capped body-free `stage_routes`
-entries in `_run_state.json`. Do not add a stage-local provider dispatch path
-to test a new model, and do not infer
+`fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals`
+behind `--inference cloud|hybrid`; they record capped body-free
+`stage_routes` entries in `_run_state.json`. Do not add a stage-local provider
+dispatch path to test a new model, and do not infer
 actual token/cache/cost fields until provider usage seams expose stage-scoped
 counters.
 

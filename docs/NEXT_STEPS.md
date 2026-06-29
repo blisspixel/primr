@@ -247,14 +247,15 @@ Do next:
   fields, with observed historical cache hits included when available.
 - Wire cheap utility stages through capability routing behind an explicit
   inference/profile flag while preserving today's fallback chain. Shipped:
-  `fast.scrape_summary` and `fast.source_relevance` now consume
-  `route_stage()` behind `--inference cloud|hybrid`, log safe route metadata,
-  append capped body-free `stage_routes` records to `_run_state.json`, and
-  execute through the existing `llm()` provider seam with today's role defaults
-  preserved as fallback.
-- Wire `fast.hiring_signals` through the same bridge. Actual token, cache, and
-  cost fields should be added only after provider usage seams expose
-  stage-scoped counters.
+  `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals`
+  now consume `route_stage()` behind `--inference cloud|hybrid`, log safe route
+  metadata, append capped body-free `stage_routes` records to
+  `_run_state.json`, and execute through existing provider seams with today's
+  role defaults preserved as fallback.
+- Feed provider health and availability into the runtime bridge, then promote
+  one host/local candidate only after stage-scoped evals prove quality, cost,
+  latency, and failure behavior. Actual token, cache, and cost fields should be
+  added only after provider usage seams expose stage-scoped counters.
 - Promote one stage at a time. A provider path is supported only when report
   quality, cost, latency, and failure behavior are measured against the same
   calibration pack.
@@ -262,11 +263,12 @@ Do next:
 Done when:
 
 - The stage declares requirements; the router chooses candidates; execution
-  consumes the resulting chain. The declaration slice and two utility-stage
+  consumes the resulting chain. The declaration slice and three utility-stage
   runtime slices are shipped; broader production wiring is still pending.
 - Estimates and usage records name the backend and billing mode honestly. The
   route ledger records backend/profile/billing metadata for
-  `fast.scrape_summary` and `fast.source_relevance`; stage-scoped
+  `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals`;
+  stage-scoped
   token/cache/cost records remain pending.
 - Provider comparison artifacts exist for every promoted stage.
 - No hidden provider dependency remains in the full-report path for the wired

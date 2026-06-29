@@ -9,7 +9,8 @@ fallback branch.
 from __future__ import annotations
 
 import json
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -590,6 +591,96 @@ class TestGatherHiringSignalsE2E:
         assert signals is not None
         assert signals.source == "greenhouse"
         assert any("my-recon-slug" in url for url in probed)
+
+    def test_routed_model_is_passed_to_triage_and_extraction(self, tmp_path):
+        fixture_body = json.dumps(GREENHOUSE_FIXTURE).encode()
+        route = SimpleNamespace(
+            model_name="routed-hiring-model",
+            log_metadata=lambda: {
+                "stage_id": "fast.hiring_signals",
+                "inference_profile": "hybrid",
+                "backend_id": "routed-hiring-model",
+            },
+        )
+        llm_models: list[str | None] = []
+
+        def fake_http_get(url, timeout, headers=None, params=None):
+            if "greenhouse" in url:
+                return 200, fixture_body, None
+            return 404, b"", None
+
+        def fake_grok_llm(prompt, **kwargs):
+            llm_models.append(kwargs.get("model"))
+            if "Pick up to" in prompt:
+                return '{"selected": [0]}'
+            return json.dumps({"summary": "Data platform buildout."})
+
+        resolver = MagicMock(return_value=route)
+        with (
+            patch.object(hs, "_http_get", side_effect=fake_http_get),
+            patch("primr.ai.stage_routing.resolve_stage_model", resolver),
+            patch("primr.ai.grok_client.grok_llm", side_effect=fake_grok_llm),
+        ):
+            signals = gather_hiring_signals(
+                "Acme Corp",
+                "https://acme.com",
+                working_folder=str(tmp_path),
+            )
+
+        assert signals is not None
+        resolver.assert_called_once_with("fast.hiring_signals", legacy_model_type="fast")
+        assert llm_models == ["routed-hiring-model", "routed-hiring-model"]
+
+    def test_route_usage_metadata_is_recorded(self, tmp_path):
+        fixture_body = json.dumps(GREENHOUSE_FIXTURE).encode()
+        route = SimpleNamespace(
+            model_name="routed-hiring-model",
+            log_metadata=lambda: {
+                "stage_id": "fast.hiring_signals",
+                "inference_profile": "hybrid",
+                "backend_id": "routed-hiring-model",
+                "backend_kind": "cloud_api",
+                "billing_mode": "api_dollars",
+                "routed": True,
+                "route_reasons": ["meets_context"],
+                "expected_input_tokens": 45_000,
+                "expected_output_tokens": 4_000,
+            },
+        )
+
+        def fake_http_get(url, timeout, headers=None, params=None):
+            if "greenhouse" in url:
+                return 200, fixture_body, None
+            return 404, b"", None
+
+        def fake_grok_llm(prompt, **kwargs):
+            if "Pick up to" in prompt:
+                return '{"selected": [0]}'
+            return json.dumps({"summary": "Data platform buildout."})
+
+        with (
+            patch.object(hs, "_http_get", side_effect=fake_http_get),
+            patch("primr.ai.stage_routing.resolve_stage_model", return_value=route),
+            patch("primr.ai.grok_client.grok_llm", side_effect=fake_grok_llm),
+        ):
+            signals = gather_hiring_signals(
+                "Acme Corp",
+                "https://acme.com",
+                working_folder=str(tmp_path),
+            )
+
+        assert signals is not None
+        state = json.loads((tmp_path / "_run_state.json").read_text(encoding="utf-8"))
+        [record] = state["stage_routes"]
+        assert record["outcome"] == "selected"
+        assert record["stage_id"] == "fast.hiring_signals"
+        assert record["input_items"] == 2
+        assert record["output_items"] == 1
+        assert record["expected_input_tokens"] == 45_000
+        assert record["expected_output_tokens"] == 4_000
+        assert "prompt" not in record
+        assert "response" not in record
+        assert "url" not in record
 
 
 # =============================================================================

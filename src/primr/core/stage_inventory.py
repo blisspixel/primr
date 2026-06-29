@@ -185,7 +185,7 @@ PRODUCTION_STAGES: Final[tuple[ProductionStage, ...]] = (
         requires_external_egress=True,
         accepts_host_agent=True,
         accepts_local=True,
-        current_backend="hardcoded Grok calls inside data.hiring_signals",
+        current_backend="routed through ai.stage_routing with legacy fast fallback",
         promotion_gate=(
             "Can route after structured extraction preserves role, stack, and "
             "initiative signals against curated hiring fixtures."
