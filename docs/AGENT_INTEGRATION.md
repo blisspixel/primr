@@ -51,6 +51,10 @@ Important MCP concepts:
   verification trust score, claim counts, status counts, first-party downgrade
   counts, and source-reference counts without raw claims, source URLs, search
   queries, explanations, or report body content.
+- `primr://output/calibration_summary/by_job/{job_id}` exposes compact
+  label-calibration per-label counts, evidence-review count buckets, judge
+  provenance, and judge-agreement metadata without raw claims, source URLs,
+  evidence reviews, rationales, or report body content.
 - HTTP mode can enforce server-side cost caps and approval tokens.
 - Audit resources record tool calls with hashed payloads for admin review.
 
@@ -153,6 +157,9 @@ scrape trace health without URLs, raw trace entries, or page content.
 Read `primr://output/verification_summary/by_job/{job_id}` when the handoff
 needs claim verification trust and count metadata without raw claims, source
 URLs, search queries, explanations, or report body content.
+Read `primr://output/calibration_summary/by_job/{job_id}` when the handoff
+needs label-calibration counts or judge-agreement metadata without raw claims,
+source URLs, evidence reviews, rationales, or report body content.
 
 ## Related Docs
 

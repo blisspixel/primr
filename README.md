@@ -162,6 +162,9 @@ content.
 They can inspect claim verification outcomes with
 `primr://output/verification_summary/by_job/{job_id}` without loading raw
 claims, source URLs, search queries, or explanations.
+They can inspect label-calibration outcomes with
+`primr://output/calibration_summary/by_job/{job_id}` without loading raw
+claims, source URLs, evidence reviews, rationales, or report body content.
 They can inspect scrape trace health with
 `primr://output/trace_summary/by_job/{job_id}` without loading URLs, raw trace
 entries, or page content.

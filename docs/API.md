@@ -1523,7 +1523,9 @@ citation/source appendix metadata, and
 `primr://output/trace_summary/by_job/{job_id}` when the client only needs
 scrape trace health metadata, and
 `primr://output/verification_summary/by_job/{job_id}` when the client only
-needs claim verification metadata.
+needs claim verification metadata, and
+`primr://output/calibration_summary/by_job/{job_id}` when the client only
+needs label-calibration metadata.
 
 ```json
 {
@@ -1964,6 +1966,115 @@ No verification artifact response:
 }
 ```
 
+#### primr://output/calibration_summary/by_job/{job_id}
+
+Compact, ownership-gated label-calibration summary for one job. This resource
+summarizes attached `.calibration.json` artifacts, plus calibration sidecars
+adjacent to owned report artifacts using the standard
+`<report filename>.calibration.json` naming convention. It returns per-label
+traceability counts, evidence-review count buckets, judge provenance, and
+cloud-vs-local judge-agreement metadata without returning raw claims, source
+URLs, evidence reviews, rationales, or report body content.
+
+HTTP callers can read only jobs owned by the authenticated client. Missing jobs
+and unowned jobs return the same `job_not_found` shape so clients cannot probe
+for other job ids.
+
+```json
+{
+  "schema_version": "1.0",
+  "resource": "primr://output/calibration_summary/by_job",
+  "job_id": "job_abc123",
+  "status": "completed",
+  "company_name": "Acme Corp",
+  "summary_count": 1,
+  "full_content_included": false,
+  "summaries": [
+    {
+      "index": 0,
+      "artifact_type": "calibration_sidecar",
+      "file_name": "Acme_Corp_Strategic_Overview_06-28-2026.md.calibration.json",
+      "file_path": "output/acme_corp/Acme_Corp_Strategic_Overview_06-28-2026.md.calibration.json",
+      "exists": true,
+      "size_bytes": 6144,
+      "modified_at": "2026-06-28T22:00:00+00:00",
+      "content_hash": "sha256:abc123...",
+      "parsed": true,
+      "full_content_included": false,
+      "raw_claims_included": false,
+      "claim_text_included": false,
+      "source_urls_included": false,
+      "evidence_reviews_included": false,
+      "rationales_included": false,
+      "report_file": "Acme_Corp_Strategic_Overview_06-28-2026.md",
+      "max_per_label": 10,
+      "judge": {
+        "kind": "local",
+        "model": "qwen2.5:14b"
+      },
+      "judge_agreement": {
+        "scope": "report",
+        "local_model": "qwen2.5:14b",
+        "compared": 4,
+        "agreed": 3,
+        "agreement": 0.75
+      },
+      "label_count": 2,
+      "claim_result_count": 5,
+      "claims_sampled": 5,
+      "decidable_claims": 3,
+      "traceable_count": 2,
+      "untraceable_count": 1,
+      "no_source_count": 0,
+      "unfetchable_count": 0,
+      "exempt_count": 2,
+      "per_label": [
+        {
+          "label": "Confirmed",
+          "sampled": 3,
+          "traceable": 2,
+          "untraceable": 1,
+          "no_source": 0,
+          "unfetchable": 0,
+          "exempt": 0,
+          "decidable": 3,
+          "precision": 0.667
+        }
+      ],
+      "validation_rubric": {
+        "claims_with_reviews": 3,
+        "source_reviews": 5,
+        "support_counts": [
+          {"value": "supported", "count": 4},
+          {"value": "unsupported", "count": 1}
+        ],
+        "dimension_counts": [
+          {
+            "dimension": "reasoning_strength",
+            "counts": [
+              {"value": "strong", "count": 4},
+              {"value": "partial", "count": 1}
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+No calibration sidecar response:
+
+```json
+{
+  "error": "calibration_summary_not_found",
+  "message": "Job job_abc123 has no calibration sidecar available",
+  "job_id": "job_abc123",
+  "status": "completed",
+  "summary_count": 0
+}
+```
+
 #### primr://config
 
 Current configuration (no secrets exposed).
@@ -2043,6 +2154,9 @@ content.
 Use `primr://output/verification_summary/by_job/{job_id}` first when a client
 only needs claim verification metadata without raw claims, source URLs, search
 queries, explanations, or report body content.
+Use `primr://output/calibration_summary/by_job/{job_id}` first when a client
+only needs label-calibration metadata without raw claims, source URLs,
+evidence reviews, rationales, or report body content.
 
 ```json
 {

@@ -70,6 +70,13 @@ strict about formatting and structure in the final document pipeline.
   claim counts, status counts, first-party downgrade counts, and
   source-reference counts without returning raw claims, source URLs, search
   queries, explanations, or report body content.
+- **Job-scoped label-calibration metadata for agents** through
+  `primr://output/calibration_summary/by_job/{job_id}`. The resource
+  summarizes attached `.calibration.json` artifacts and standard sidecars
+  adjacent to owned report artifacts, then returns per-label traceability
+  counts, evidence-review count buckets, judge provenance, and judge-agreement
+  metadata without returning raw claims, source URLs, evidence reviews,
+  rationales, or report body content.
 
 The writing and regeneration prompts carry an explicit prohibition against the
 internal-scaffolding markers the cleanup strips, sourced from a single shared

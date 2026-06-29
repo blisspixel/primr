@@ -127,8 +127,11 @@ When a user asks you to research a company:
    trace health metadata. Read
    `primr://output/verification_summary/by_job/{job_id}` when the user needs
    claim verification trust and count metadata without raw claims, source
-   URLs, search queries, explanations, or report body content. Request report
-   content only when the user needs a summary or downstream action
+   URLs, search queries, explanations, or report body content. Read
+   `primr://output/calibration_summary/by_job/{job_id}` when the user needs
+   label-calibration counts or judge-agreement metadata without raw claims,
+   source URLs, evidence reviews, rationales, or report body content. Request
+   report content only when the user needs a summary or downstream action
 7. Share the key findings with the user
 
 Important:

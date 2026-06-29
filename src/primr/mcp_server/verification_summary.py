@@ -17,6 +17,7 @@ from primr.mcp_server.artifact_resources import (
     _no_artifacts,
     _owned_job,
 )
+from primr.mcp_server.resource_summary_utils import safe_float, safe_int, sorted_counts
 
 if TYPE_CHECKING:
     from mcp.server.lowlevel.helper_types import ReadResourceContents
@@ -101,10 +102,10 @@ def _verification_artifact_summary(index: int, path: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         return _parse_error_summary(metadata, "invalid_verification_payload")
 
-    verified = _safe_int(payload.get("verified_count"))
-    unverified = _safe_int(payload.get("unverified_count"))
-    contradicted = _safe_int(payload.get("contradicted_count"))
-    total = _safe_int(payload.get("total_claims")) or verified + unverified + contradicted
+    verified = safe_int(payload.get("verified_count"))
+    unverified = safe_int(payload.get("unverified_count"))
+    contradicted = safe_int(payload.get("contradicted_count"))
+    total = safe_int(payload.get("total_claims")) or verified + unverified + contradicted
     claim_results = payload.get("claim_results")
     status_counts, first_party_downgrades, source_ref_count = _claim_result_counts(claim_results)
 
@@ -115,14 +116,14 @@ def _verification_artifact_summary(index: int, path: Path) -> dict[str, Any]:
         "raw_claim_results_included": False,
         "source_urls_included": False,
         "search_queries_included": False,
-        "trust_score": _safe_float(payload.get("trust_score")),
-        "trust_percentage": _safe_int(payload.get("trust_percentage")),
+        "trust_score": safe_float(payload.get("trust_score")),
+        "trust_percentage": safe_int(payload.get("trust_percentage")),
         "verification_gate": "WARN" if contradicted else "PASS",
         "total_claims": total,
         "verified_count": verified,
         "unverified_count": unverified,
         "contradicted_count": contradicted,
-        "duration_seconds": _safe_float(payload.get("duration_seconds")),
+        "duration_seconds": safe_float(payload.get("duration_seconds")),
         "claim_result_count": _claim_result_count(claim_results),
         "claim_status_counts": status_counts,
         "first_party_downgrade_count": first_party_downgrades,
@@ -164,25 +165,4 @@ def _claim_result_counts(claim_results: Any) -> tuple[list[dict[str, int | str]]
             values = item.get(key)
             if isinstance(values, list):
                 source_ref_count += len(values)
-    return _sorted_counts(statuses), first_party_downgrades, source_ref_count
-
-
-def _sorted_counts(counts: dict[str, int]) -> list[dict[str, int | str]]:
-    return [
-        {"value": value, "count": count}
-        for value, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))
-    ]
-
-
-def _safe_int(value: Any) -> int:
-    try:
-        return max(0, int(value))
-    except (TypeError, ValueError):
-        return 0
-
-
-def _safe_float(value: Any) -> float | None:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
+    return sorted_counts(statuses), first_party_downgrades, source_ref_count

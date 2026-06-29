@@ -88,8 +88,11 @@ You have access to Primr company research tools. When a user asks you to researc
    trace health metadata. Read
    `primr://output/verification_summary/by_job/{job_id}` when the user needs
    claim verification trust and count metadata without raw claims, source
-   URLs, search queries, explanations, or report body content. Request report
-   content only if the user needs a summary or downstream action
+   URLs, search queries, explanations, or report body content. Read
+   `primr://output/calibration_summary/by_job/{job_id}` when the user needs
+   label-calibration counts or judge-agreement metadata without raw claims,
+   source URLs, evidence reviews, rationales, or report body content. Request
+   report content only if the user needs a summary or downstream action
 5. Share the results with the user
 
 Always estimate before submitting. Research jobs cost real money (~$0.75 for standard mode).
@@ -138,7 +141,9 @@ The agent should:
    metadata is needed
 9. Read `primr://output/verification_summary/by_job/{job_id}` when claim
    verification trust and count metadata is needed
-10. Return results when the job completes
+10. Read `primr://output/calibration_summary/by_job/{job_id}` when
+   label-calibration counts or judge-agreement metadata is needed
+11. Return results when the job completes
 
 ## Private Endpoints (VNet Integration)
 

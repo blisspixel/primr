@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.15] - 2026-06-28
+
+### Added
+
+- MCP now lists and serves `primr://output/calibration_summary/by_job/{job_id}`
+  as an ownership-gated, compact label-calibration summary resource for one
+  job. It summarizes attached `.calibration.json` artifacts and standard
+  calibration sidecars adjacent to owned report artifacts.
+- Calibration summaries return per-label traceability counts, evidence-review
+  count buckets, judge provenance, and judge-agreement metadata without
+  returning raw claims, source URLs, evidence reviews, rationales, or report
+  body content.
+
 ## [1.34.14] - 2026-06-28
 
 ### Added

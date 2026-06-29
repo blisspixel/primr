@@ -50,6 +50,7 @@ class TestResourceListing:
         assert "primr://output/source_summary/by_job/%7Bjob_id%7D" in uris
         assert "primr://output/trace_summary/by_job/%7Bjob_id%7D" in uris
         assert "primr://output/verification_summary/by_job/%7Bjob_id%7D" in uris
+        assert "primr://output/calibration_summary/by_job/%7Bjob_id%7D" in uris
         assert "primr://calibration/baseline/inspection?path={baseline_path}" in uris
         assert "primr://config" in uris
 
@@ -1133,6 +1134,252 @@ class TestAgentGovernanceResource:
         assert data["strategy_flow"]["cap_argument"] == "max_estimated_cost_usd"
         assert "35-45 minutes" in data["research_flow"]["expected_runtime"]
         assert data["research_flow"]["wait_tool"] == "wait_for_status_change"
+
+
+class TestCalibrationSummaryByJobResource:
+    """Tests for primr://output/calibration_summary/by_job/{job_id}."""
+
+    @pytest.fixture
+    def server(self, tmp_path):
+        return create_mcp_server(journal_path=str(tmp_path / "test_journal.json"))
+
+    def _write_calibration_sidecar(self, report_path: Path) -> Path:
+        sidecar = report_path.with_name(report_path.name + ".calibration.json")
+        sidecar.write_text(
+            json.dumps(
+                {
+                    "report_file": report_path.name,
+                    "max_per_label": 10,
+                    "judge": {
+                        "kind": "local",
+                        "model": "qwen2.5:14b",
+                        "cloud_fallbacks": 1,
+                    },
+                    "judge_agreement": {
+                        "scope": "report",
+                        "local_model": "qwen2.5:14b",
+                        "compared": 4,
+                        "agreed": 3,
+                        "agreement": 0.75,
+                    },
+                    "per_label": {
+                        "Confirmed": {
+                            "sampled": 3,
+                            "traceable": 1,
+                            "untraceable": 1,
+                            "no_source": 1,
+                            "unfetchable": 0,
+                            "exempt": 0,
+                            "precision": 0.333,
+                        },
+                        "Hypothesis": {
+                            "sampled": 2,
+                            "traceable": 0,
+                            "untraceable": 0,
+                            "no_source": 0,
+                            "unfetchable": 0,
+                            "exempt": 2,
+                            "precision": None,
+                        },
+                    },
+                    "validation_rubric": {
+                        "claims_with_reviews": 2,
+                        "source_reviews": 3,
+                        "support": {"supported": 2, "unsupported": 1},
+                        "contradiction": {
+                            "direct": 1,
+                            "none": 2,
+                            "partial": 0,
+                            "unknown": 0,
+                        },
+                        "source_independence": {
+                            "independent": 1,
+                            "first_party": 2,
+                            "unknown": 0,
+                        },
+                        "source_authority": {
+                            "high": 1,
+                            "medium": 1,
+                            "low": 1,
+                            "unknown": 0,
+                        },
+                        "reasoning_strength": {
+                            "strong": 2,
+                            "partial": 1,
+                            "weak": 0,
+                            "unknown": 0,
+                        },
+                        "uncertainty_honesty": {
+                            "honest": 2,
+                            "overstated": 1,
+                            "understated": 0,
+                            "unknown": 0,
+                        },
+                        "business_relevance": {
+                            "high": 2,
+                            "medium": 1,
+                            "low": 0,
+                            "unknown": 0,
+                        },
+                    },
+                    "claims": [
+                        {
+                            "label": "Confirmed",
+                            "section": "Secret Section",
+                            "sentence": "Secret calibrated claim text",
+                            "source_urls": ["https://secret.example/source"],
+                            "verdict": "traceable",
+                            "evidence_reviews": [
+                                {
+                                    "supported": True,
+                                    "rationale": "Sensitive evidence rationale",
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return sidecar
+
+    @pytest.mark.asyncio
+    async def test_reads_owned_job_calibration_summary_without_raw_claims(self, server, tmp_path):
+        report = tmp_path / "Acme_Report.md"
+        report.write_text("# Report", encoding="utf-8")
+        self._write_calibration_sidecar(report)
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(report)]
+        job.advance_stage(ResearchStage.COMPLETED)
+        server.job_store.update(job)
+        server._auth_context = SimpleNamespace(client_id="client-a", scopes=["read"])
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/calibration_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        text = result.root.contents[0].text
+        data = json.loads(text)
+        assert data["schema_version"] == "1.0"
+        assert data["summary_count"] == 1
+        assert data["full_content_included"] is False
+        assert "Secret calibrated claim text" not in text
+        assert "secret.example" not in text
+        assert "Sensitive evidence rationale" not in text
+
+        summary = data["summaries"][0]
+        assert summary["artifact_type"] == "calibration_sidecar"
+        assert summary["parsed"] is True
+        assert summary["raw_claims_included"] is False
+        assert summary["claim_text_included"] is False
+        assert summary["source_urls_included"] is False
+        assert summary["evidence_reviews_included"] is False
+        assert summary["rationales_included"] is False
+        assert summary["report_file"] == "Acme_Report.md"
+        assert summary["judge"] == {
+            "kind": "local",
+            "model": "qwen2.5:14b",
+            "cloud_fallbacks": 1,
+        }
+        assert summary["judge_agreement"] == {
+            "scope": "report",
+            "local_model": "qwen2.5:14b",
+            "compared": 4,
+            "agreed": 3,
+            "agreement": 0.75,
+        }
+        assert summary["claim_result_count"] == 1
+        assert summary["claims_sampled"] == 5
+        assert summary["decidable_claims"] == 3
+        assert summary["traceable_count"] == 1
+        assert summary["untraceable_count"] == 1
+        assert summary["no_source_count"] == 1
+        assert summary["exempt_count"] == 2
+        by_label = {item["label"]: item for item in summary["per_label"]}
+        assert by_label["Confirmed"]["precision"] == 0.333
+        assert by_label["Hypothesis"]["exempt"] == 2
+        rubric = summary["validation_rubric"]
+        assert rubric["claims_with_reviews"] == 2
+        assert rubric["source_reviews"] == 3
+        assert rubric["support_counts"] == [
+            {"count": 2, "value": "supported"},
+            {"count": 1, "value": "unsupported"},
+        ]
+
+    @pytest.mark.asyncio
+    async def test_reads_explicit_calibration_sidecar_artifact(self, server, tmp_path):
+        report = tmp_path / "Acme_Report.md"
+        report.write_text("# Report", encoding="utf-8")
+        sidecar = self._write_calibration_sidecar(report)
+        job = server.job_store.create("Acme Corp", "full")
+        job.output_paths = [str(sidecar)]
+        server.job_store.update(job)
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/calibration_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        assert data["summary_count"] == 1
+        assert data["summaries"][0]["parsed"] is True
+
+    @pytest.mark.asyncio
+    async def test_returns_not_found_when_no_calibration_sidecar_exists(self, server, tmp_path):
+        report = tmp_path / "Acme_Report.md"
+        report.write_text("# Report", encoding="utf-8")
+        job = server.job_store.create("Acme Corp", "full")
+        job.output_paths = [str(report)]
+        server.job_store.update(job)
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/calibration_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        assert data["error"] == "calibration_summary_not_found"
+        assert data["summary_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_rejects_unowned_http_job_like_missing(self, server, tmp_path):
+        report = tmp_path / "Acme_Report.md"
+        report.write_text("# Report", encoding="utf-8")
+        self._write_calibration_sidecar(report)
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(report)]
+        server.job_store.update(job)
+        server._auth_context = SimpleNamespace(client_id="client-b", scopes=["read"])
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/calibration_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        assert data["error"] == "job_not_found"
+        assert data["job_id"] == job.job_id
 
 
 class TestCalibrationBaselineInspectionResource:

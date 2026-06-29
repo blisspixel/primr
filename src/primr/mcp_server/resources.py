@@ -44,6 +44,11 @@ from primr.mcp_server.calibration_resources import (
     CALIBRATION_BASELINE_INSPECTION_URI,
     read_calibration_baseline_inspection_resource,
 )
+from primr.mcp_server.calibration_summary import (
+    CALIBRATION_SUMMARY_BY_JOB_RESOURCE,
+    CALIBRATION_SUMMARY_BY_JOB_URI,
+    read_calibration_summary_by_job_resource,
+)
 from primr.mcp_server.resource_auth import (
     caller_can_read_audit,
     caller_client_id,
@@ -152,6 +157,7 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
             SOURCE_SUMMARY_BY_JOB_RESOURCE,
             TRACE_SUMMARY_BY_JOB_RESOURCE,
             VERIFICATION_SUMMARY_BY_JOB_RESOURCE,
+            CALIBRATION_SUMMARY_BY_JOB_RESOURCE,
             Resource(
                 uri="primr://config",
                 name="Configuration",
@@ -220,6 +226,7 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
             (SOURCE_SUMMARY_BY_JOB_URI, read_source_summary_by_job_resource),
             (TRACE_SUMMARY_BY_JOB_URI, read_trace_summary_by_job_resource),
             (VERIFICATION_SUMMARY_BY_JOB_URI, read_verification_summary_by_job_resource),
+            (CALIBRATION_SUMMARY_BY_JOB_URI, read_calibration_summary_by_job_resource),
         ):
             if uri_str.startswith(f"{resource_uri}/"):
                 return reader(mcp_server, uri_str, client_id=caller_client_id(mcp_server))

@@ -238,8 +238,8 @@ least-privilege and approval semantics as MCP.
 
 Do next:
 
-- Add job-scoped resources for calibration summary and selected artifact
-  metadata. The first six slices shipped:
+- Extend A2A parity and resource-read auditing now that the first seven
+  compact job-scoped resource slices shipped:
   `primr://output/artifacts/by_job/{job_id}` returns ownership-gated file names,
   paths, sizes, hashes, timestamps, and missing-file state for one job, and
   `primr://output/qa_summary/by_job/{job_id}` returns compact QA score/status
@@ -252,9 +252,14 @@ Do next:
   health metadata, and
   `primr://output/verification_summary/by_job/{job_id}` returns compact claim
   verification trust score, claim counts, status counts, first-party downgrade
-  counts, and source-reference counts. None returns report body content; trace
-  summaries omit raw trace entries and page content, and verification summaries
-  omit raw claims, source URLs, search queries, and explanations.
+  counts, and source-reference counts, and
+  `primr://output/calibration_summary/by_job/{job_id}` returns compact
+  label-calibration per-label counts, evidence-review count buckets, judge
+  provenance, and judge-agreement metadata. None returns report body content;
+  trace summaries omit raw trace entries and page content, verification
+  summaries omit raw claims, source URLs, search queries, and explanations,
+  and calibration summaries omit raw claims, source URLs, evidence reviews,
+  and rationales.
 - Define the scope matrix before implementation: monitor can read status and
   compact summaries; artifact read can read compact resources; report read can
   request full report content; research can estimate; execution still requires

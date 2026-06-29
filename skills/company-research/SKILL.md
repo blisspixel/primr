@@ -38,6 +38,8 @@ resources:
 
   - primr://output/verification_summary/by_job/{job_id}
 
+  - primr://output/calibration_summary/by_job/{job_id}
+
 ---
 
 
@@ -83,6 +85,10 @@ Read `primr://output/verification_summary/by_job/{job_id}` when the user needs
 claim verification trust score, claim counts, status counts, first-party
 downgrade counts, or source-reference counts without raw claims, source URLs,
 search queries, explanations, or report body content.
+Read `primr://output/calibration_summary/by_job/{job_id}` when the user needs
+label-calibration counts, evidence-review count buckets, judge provenance, or
+judge-agreement metadata without raw claims, source URLs, evidence reviews,
+rationales, or report body content.
 
 
 
