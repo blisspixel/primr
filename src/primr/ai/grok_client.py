@@ -25,7 +25,7 @@ import random
 import re
 from typing import Any
 
-from primr.ai.providers import OpenAICompatibleProvider
+from primr.ai.providers import XAIProvider
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("grok_client")
@@ -43,7 +43,7 @@ def get_grok_session_usage() -> dict[str, int]:
     """Return cumulative token usage for the current session.
 
     ``cached_input_tokens`` is the subset of ``input_tokens`` served from the
-    provider's prompt cache — load-bearing on the sub-$1 default (Grok 4.3
+    provider's prompt cache. This is load-bearing on the sub-$1 default (Grok 4.3
     cached input at $0.20/M), so it is threaded through to usage records.
     """
     return {
@@ -140,19 +140,14 @@ def _get_grok_client():
 # xAI provider singleton (used by grok_llm; ContinuousReasoningSession also
 # delegates to it after Step 3 of the routing-layer migration)
 # ---------------------------------------------------------------------------
-_xai_provider: OpenAICompatibleProvider | None = None
+_xai_provider: XAIProvider | None = None
 
 
-def _get_provider() -> OpenAICompatibleProvider:
+def _get_provider() -> XAIProvider:
     """Lazy singleton for the xAI provider."""
     global _xai_provider
     if _xai_provider is None:
-        _xai_provider = OpenAICompatibleProvider(
-            name="xai",
-            base_url="https://api.x.ai/v1",
-            api_key_env="XAI_API_KEY",
-            billing_help_url="https://console.x.ai/",
-        )
+        _xai_provider = XAIProvider()
     return _xai_provider
 
 
@@ -165,7 +160,7 @@ _DEFAULT_MODEL = "grok-4.3"
 def _is_billing_exhausted(error: Exception) -> bool:
     """Return True when the error indicates credits/spending limit exhaustion.
 
-    These errors will never resolve on retry — the user must add credits.
+    These errors will never resolve on retry; the user must add credits.
     Checked before the retryable test so we don't waste time on backoff.
     """
     from primr.ai.error_policy import is_billing_exhausted
@@ -184,7 +179,7 @@ def _is_retryable_grok_error(error: Exception) -> bool:
     only sees persistent failures.  Candidate for future consolidation if the
     executor gains per-call retry support.
     """
-    # Billing exhaustion is never retryable — bail immediately
+    # Billing exhaustion is never retryable; bail immediately.
     if _is_billing_exhausted(error):
         return False
 
@@ -287,8 +282,8 @@ def grok_llm(
     messages.append({"role": "user", "content": prompt})
 
     # Cross-provider dispatch (v1.24.0). When the resolved model is not an xAI
-    # model — e.g. an eval recipe override has set writing="gemini-3.1-flash-lite"
-    # — route the call to that model's native provider instead of trying to
+    # model, e.g. an eval recipe override has set writing="gemini-3.1-flash-lite",
+    # route the call to that model's native provider instead of trying to
     # call xAI with a non-Grok model ID. The function name stays grok_llm for
     # back-compat but it now acts as a generic chat dispatcher when needed.
     # Production reasoning-tier calls without an override still hit the xAI
@@ -488,111 +483,23 @@ def grok_browse_and_summarize(
     failures.
 
     The caller should treat the returned text as **LLM synthesis with
-    citations**, not direct page scrape content — downstream pipelines should
+    citations**, not direct page scrape content; downstream pipelines should
     tag it as "grok-surrogate" so it isn't confused with first-party text.
     """
-    import os
-
-    import httpx
-
-    api_key = os.getenv("XAI_API_KEY")
-    if not api_key:
-        logger.debug("grok_browse_and_summarize skipped: XAI_API_KEY not set")
-        return None
-
-    context_block = f"\n\nAdditional context: {context}" if context else ""
-    prompt = (
-        f"Use your web search and browse tools to gather content from this URL: {url}\n\n"
-        "Summarize what the page says in 200-400 words. Focus on concrete facts — "
-        "dates, products, services, leadership, customers, financials, strategy. "
-        "If you cannot browse the page directly (e.g., it is behind bot protection), "
-        "synthesize an equivalent summary from public sources about the same company "
-        "or topic, and clearly cite where each fact came from. Do not invent details."
-        f"{context_block}"
-    )
-
-    try:
-        resp = httpx.post(
-            "https://api.x.ai/v1/responses",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": model,
-                "input": prompt,
-                "tools": [{"type": "web_search"}],
-                "max_output_tokens": max_tokens,
-            },
-            timeout=timeout,
-        )
-    except (httpx.TimeoutException, httpx.NetworkError) as e:
-        logger.warning("grok_browse_and_summarize: network error for %s: %s", url, e)
-        return None
-
-    if resp.status_code != 200:
-        logger.warning(
-            "grok_browse_and_summarize: status %s for %s — %s",
-            resp.status_code,
-            url,
-            (resp.text or "")[:200],
-        )
-        return None
-
-    try:
-        data = resp.json()
-    except ValueError:
-        logger.warning("grok_browse_and_summarize: non-JSON response for %s", url)
-        return None
-
-    # Walk the output list for the assistant message text
-    text = ""
-    citations: list[str] = []
-    tool_calls_made = 0
-    for item in data.get("output", []) or []:
-        item_type = item.get("type")
-        if item_type == "web_search_call":
-            tool_calls_made += 1
-            continue
-        if item_type == "message":
-            for block in item.get("content", []) or []:
-                if block.get("type") in ("output_text", "text"):
-                    text += block.get("text", "")
-                    for ann in block.get("annotations", []) or []:
-                        if ann.get("type") == "url_citation" and ann.get("url"):
-                            citations.append(ann["url"])
-
-    # Track token usage for cost accounting when available
-    usage = data.get("usage") or {}
-    inp = int(usage.get("input_tokens") or usage.get("prompt_tokens") or 0)
-    out = int(usage.get("output_tokens") or usage.get("completion_tokens") or 0)
-    cached = int(usage.get("cached_tokens") or 0)
-    if inp or out:
-        _mirror_session_usage(model, inp, out, cached_input_tokens=cached)
-
-    text = text.strip()
-    if not text:
-        logger.info("grok_browse_and_summarize: empty body for %s", url)
-        return None
-
-    # Deduplicate citations preserving order.
-    seen: set[str] = set()
-    unique_citations: list[str] = []
-    for c in citations:
-        if c not in seen:
-            seen.add(c)
-            unique_citations.append(c)
-
-    logger.info(
-        "grok_browse_and_summarize: %s — %d chars, %d tool calls, %d citations",
+    summary = _get_provider().browse_and_summarize(
         url,
-        len(text),
-        tool_calls_made,
-        len(unique_citations),
+        context=context,
+        model=model,
+        max_tokens=max_tokens,
+        timeout=timeout,
     )
-    return {
-        "text": text,
-        "citations": unique_citations,
-        "source_url": url,
-        "tool_calls": tool_calls_made,
-    }
+    if summary is None:
+        return None
+    if summary.input_tokens or summary.output_tokens:
+        _mirror_session_usage(
+            model,
+            summary.input_tokens,
+            summary.output_tokens,
+            cached_input_tokens=summary.cached_input_tokens,
+        )
+    return summary.to_public_dict()

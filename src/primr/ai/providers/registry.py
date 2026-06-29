@@ -1,5 +1,5 @@
 """
-Provider registry — auto-detect which providers are configured.
+Provider registry for auto-detecting which providers are configured.
 
 Reading the env keys directly from many places makes the codebase brittle
 when we add a fourth or fifth provider. This module is the single place
@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 from primr.ai.providers.gemini import GeminiProvider
 from primr.ai.providers.openai_compatible import OpenAICompatibleProvider
+from primr.ai.providers.xai import XAIProvider
 
 if TYPE_CHECKING:
     from primr.ai.providers.base import Provider
@@ -90,12 +91,7 @@ def get_available_providers() -> list[ProviderEntry]:
 def build_provider(entry: ProviderEntry) -> Provider:
     """Instantiate a provider for an entry. Used for doctor connectivity checks."""
     if entry.name == "xai":
-        return OpenAICompatibleProvider(
-            name="xai",
-            base_url="https://api.x.ai/v1",
-            api_key_env="XAI_API_KEY",
-            billing_help_url="https://console.x.ai/",
-        )
+        return XAIProvider()
     if entry.name == "gemini":
         return GeminiProvider()
     if entry.name == "openai":

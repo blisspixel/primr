@@ -225,8 +225,10 @@ Do next:
   promotion gates, budget checkpoints, and artifacts for the fast-mode and
   premium deep-research stages. The inventory is descriptive only; production
   execution still uses the legacy routing seams.
-- Move `grok_browse_and_summarize`, Gemini quota UI, and provider-specific
-  fallback messages into provider-owned seams.
+- Move provider-specific behavior into provider-owned seams. First slice
+  shipped: `XAIProvider` now owns the xAI Responses API browse/search surrogate
+  behind the legacy `grok_browse_and_summarize()` wrapper. Remaining: Gemini
+  quota UI and provider-specific fallback messages.
 - Add long-context surcharge fields and cache-token fields to estimates for
   models with tiered long-input or cache pricing.
 - Wire one cheap utility stage through capability routing behind an explicit

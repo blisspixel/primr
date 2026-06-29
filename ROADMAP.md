@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.34.22
+Current State: v1.34.23
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -69,9 +69,11 @@ Current priority order:
    foundations exist, and `core/stage_inventory.py` now records router-ready
    capability requirements and promotion gates for fast-mode and premium
    deep-research stages. Full-report execution still carries xAI/Gemini-era
-   assumptions. Moving provider-specific behavior into provider-owned seams,
-   adding long-context/cache-token cost honesty, and wiring the first cheap
-   utility stage through the router are the next architecture unlocks.
+   assumptions. The xAI browse surrogate now lives in provider-owned
+   `XAIProvider`; moving the remaining Gemini quota UI/fallback messaging into
+   provider-owned seams, adding long-context/cache-token cost honesty, and
+   wiring the first cheap utility stage through the router are the next
+   architecture unlocks.
 3. **Agent control-plane consumption resources and A2A parity.** MCP already has
    scopes, approval tokens, tool/resource-read audit events, and budget
    propagation. A2A now shares the HTTP bearer-token auth context and enforces
@@ -791,7 +793,10 @@ Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The firs
   and no paid keepalive workaround. If the first write is not expected to be
   reused inside the provider's supported window, do not cache.
 - Long-context surcharge modeling: populate `ModelConfig.tier_threshold_tokens` for OpenAI gpt-5.x family (>272K input: 2x input, 1.5x output) so cost estimates aren't silently wrong on long-input runs
-- Move `grok_browse_and_summarize` and Gemini quota UI into providers (two pieces of provider-specific behavior still living outside the abstraction)
+- Move provider-specific behavior into providers. `XAIProvider` now owns the
+  xAI Responses API browse/search surrogate behind the legacy
+  `grok_browse_and_summarize` compatibility wrapper. The remaining gap is
+  Gemini quota UI and fallback messaging.
 
 The requirements themselves come from observed eval cost/quality data per role, not a priori guessing.
 
@@ -1438,6 +1443,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.34.23 | Jun 2026 | **xAI provider-owned browse seam.** Added `XAIProvider`, which inherits OpenAI-compatible Grok chat behavior and owns the xAI Responses API browse/search surrogate. The legacy `grok_browse_and_summarize` wrapper is now thin compatibility glue that mirrors provider usage into existing run cost counters. |
 | 1.34.22 | Jun 2026 | **Production stage capability inventory.** Added `core/stage_inventory.py`, a typed backend-freedom inventory for fast-mode and premium deep-research stages with router-ready roles, reasoning/trust requirements, context and token estimates, accepted backend families, budget checkpoints, current backend ownership, promotion gates, and emitted artifacts. |
 | 1.34.21 | Jun 2026 | **Representative baseline selection contract.** Calibration baseline readiness now requires explicit `primr.calibration_pack_selection.v1` metadata with non-empty representative tag requirements before a pack can be marked ready; latest-N manifests report `missing_representative_selection`, and baseline Markdown/JSON inspections surface representative selection readiness directly. |
 | 1.34.20 | Jun 2026 | **A2A skill audit parity.** A2A skill invocations and task cancellation now append privacy-preserving audit events to the shared agent audit JSONL with transport, skill name, hashed arguments/results, hashed caller ids, granted scopes, duration, outcome, and job id when present, without storing raw message text, task ids, report paths, URLs, raw results, or caller ids. |

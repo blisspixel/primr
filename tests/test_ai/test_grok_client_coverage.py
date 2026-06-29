@@ -2,7 +2,7 @@
 
 Focus areas: cross-provider dispatch in grok_llm, billing-exhaustion classifier,
 retry-after fallback parsing, backoff math, approx_context_tokens, and the
-grok_browse_and_summarize HTTP/parse paths (all mocked — no network).
+grok_browse_and_summarize compatibility wrapper.
 """
 
 from __future__ import annotations

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.23] - 2026-06-29
+
+### Added
+
+- Added `XAIProvider`, a provider-owned xAI class that inherits the existing
+  OpenAI-compatible Grok chat behavior and owns the xAI Responses API
+  browse/search surrogate.
+
+### Changed
+
+- `grok_browse_and_summarize()` is now a thin compatibility wrapper around
+  `XAIProvider.browse_and_summarize()`. It preserves the public dictionary
+  shape and mirrors token usage into existing Grok session counters for cost
+  reporting.
+- Provider registry construction now returns `XAIProvider` for the xAI row, so
+  xAI chat and xAI-only browse/search behavior share one provider-owned seam.
+
 ## [1.34.22] - 2026-06-29
 
 ### Added
