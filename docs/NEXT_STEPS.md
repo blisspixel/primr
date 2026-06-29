@@ -245,15 +245,15 @@ Do next:
   models with tiered long-input or cache pricing. Shipped: estimates now carry
   live input, cached input, cached-input cost, and long-context surcharge
   fields, with observed historical cache hits included when available.
-- Wire one cheap utility stage through capability routing behind an explicit
-  inference/profile flag while preserving today's fallback chain. First slice
-  shipped: `fast.source_relevance` now consumes `route_stage()` behind
-  `--inference cloud|hybrid`, logs safe route metadata, appends capped
-  body-free `stage_routes` records to `_run_state.json`, and executes through
-  the existing `llm()` provider seam with today's role default preserved as
-  fallback.
-- Wire the next cheap utility stage through the same bridge. Actual token,
-  cache, and cost fields should be added only after provider usage seams expose
+- Wire cheap utility stages through capability routing behind an explicit
+  inference/profile flag while preserving today's fallback chain. Shipped:
+  `fast.scrape_summary` and `fast.source_relevance` now consume
+  `route_stage()` behind `--inference cloud|hybrid`, log safe route metadata,
+  append capped body-free `stage_routes` records to `_run_state.json`, and
+  execute through the existing `llm()` provider seam with today's role defaults
+  preserved as fallback.
+- Wire `fast.hiring_signals` through the same bridge. Actual token, cache, and
+  cost fields should be added only after provider usage seams expose
   stage-scoped counters.
 - Promote one stage at a time. A provider path is supported only when report
   quality, cost, latency, and failure behavior are measured against the same
@@ -262,11 +262,12 @@ Do next:
 Done when:
 
 - The stage declares requirements; the router chooses candidates; execution
-  consumes the resulting chain. The declaration slice and first utility-stage
-  runtime slice are shipped; broader production wiring is still pending.
+  consumes the resulting chain. The declaration slice and two utility-stage
+  runtime slices are shipped; broader production wiring is still pending.
 - Estimates and usage records name the backend and billing mode honestly. The
-  first route ledger records backend/profile/billing metadata for
-  `fast.source_relevance`; stage-scoped token/cache/cost records remain pending.
+  route ledger records backend/profile/billing metadata for
+  `fast.scrape_summary` and `fast.source_relevance`; stage-scoped
+  token/cache/cost records remain pending.
 - Provider comparison artifacts exist for every promoted stage.
 - No hidden provider dependency remains in the full-report path for the wired
   stage.

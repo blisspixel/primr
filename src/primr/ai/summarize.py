@@ -8,11 +8,13 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
+from primr.ai import stage_routing
 from primr.ai.llm import llm
 from primr.config.env import load_primr_env
 from primr.utils.content_sanitizer import sanitize_for_llm
 from primr.utils.formatting import deduplicate_content, get_deduplication_stats
 from primr.utils.logging_config import get_logger
+from primr.utils.observability import log_structured
 
 load_primr_env()
 
@@ -85,9 +87,46 @@ def _build_summary_batches(pages: list[tuple[str, str]]) -> list[list[tuple[str,
     return batches
 
 
-def _invoke_default_summary_model(prompt: str, _: int) -> str:
-    response = llm(prompt, model_type="scraping", thinking_level="low", streaming=False)
+def _invoke_summary_model(prompt: str, _: int, *, model: str | None = None) -> str:
+    response = llm(
+        prompt,
+        model_type="scraping",
+        thinking_level="low",
+        streaming=False,
+        model=model,
+    )
     return response.strip()
+
+
+def _invoke_default_summary_model(prompt: str, min_length: int) -> str:
+    return _invoke_summary_model(prompt, min_length)
+
+
+def _build_routed_summary_model(route: stage_routing.StageModelRoute) -> SummaryFn:
+    def _summarize(prompt: str, min_length: int) -> str:
+        return _invoke_summary_model(prompt, min_length, model=route.model_name)
+
+    return _summarize
+
+
+def _count_nonblank_pages(scraped_data: dict[str, str]) -> int:
+    return sum(1 for text in scraped_data.values() if text and text.strip())
+
+
+def _count_summary_outputs(summary_text: str) -> int:
+    stripped = summary_text.strip()
+    if not stripped:
+        return 0
+
+    batch_count = _count_markdown_header(stripped, "## Batch ")
+    if batch_count:
+        return batch_count + _count_markdown_header(stripped, "## Cross-Page Synthesis")
+
+    return max(1, _count_markdown_header(stripped, "### Source:"))
+
+
+def _count_markdown_header(text: str, header: str) -> int:
+    return int(text.startswith(header)) + text.count(f"\n{header}")
 
 
 def _summarize_with_callback(
@@ -301,13 +340,72 @@ def summarize_scraped_content(
     on_progress: Callable[[int, int, str], None] | None = None,
 ):
     """Summarizes key insights from scraped website data."""
-    return summarize_scraped_content_with_callback(
-        company_name,
-        company_website,
-        scraped_data,
+    start_time = time.monotonic()
+    route: stage_routing.StageModelRoute | None = None
+    summarize_fn: SummaryFn = _invoke_default_summary_model
+    try:
+        route = stage_routing.resolve_stage_model(
+            "fast.scrape_summary", legacy_model_type="scraping"
+        )
+        log_structured("info", "Scrape summary route selected", **route.log_metadata())
+        summarize_fn = _build_routed_summary_model(route)
+    except Exception as e:
+        logger.warning("Scrape summary route resolution failed: %s", e, exc_info=True)
+
+    try:
+        summary = summarize_scraped_content_with_callback(
+            company_name,
+            company_website,
+            scraped_data,
+            folder_path,
+            summarize_fn=summarize_fn,
+            on_progress=on_progress,
+        )
+    except Exception as e:
+        if route is not None:
+            _record_summary_route(
+                folder_path,
+                route,
+                outcome="fallback",
+                input_count=_count_nonblank_pages(scraped_data),
+                output_count=0,
+                duration_seconds=time.monotonic() - start_time,
+                failure_class=type(e).__name__,
+            )
+        raise
+
+    if route is not None:
+        output_count = _count_summary_outputs(summary)
+        _record_summary_route(
+            folder_path,
+            route,
+            outcome="selected" if output_count else "fallback",
+            input_count=_count_nonblank_pages(scraped_data),
+            output_count=output_count,
+            duration_seconds=time.monotonic() - start_time,
+            failure_class=None if output_count else "empty_summary",
+        )
+    return summary
+
+
+def _record_summary_route(
+    folder_path: str,
+    route: stage_routing.StageModelRoute,
+    *,
+    outcome: str,
+    input_count: int,
+    output_count: int,
+    duration_seconds: float,
+    failure_class: str | None = None,
+) -> None:
+    stage_routing.record_stage_route_usage(
         folder_path,
-        summarize_fn=_invoke_default_summary_model,
-        on_progress=on_progress,
+        route,
+        outcome=outcome,
+        input_items=input_count,
+        output_items=output_count,
+        duration_seconds=duration_seconds,
+        failure_class=failure_class,
     )
 
 

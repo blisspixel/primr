@@ -7,6 +7,8 @@ summarize_with_retries, and the local-backend variant. All LLM calls mocked.
 
 from __future__ import annotations
 
+import json
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -181,13 +183,68 @@ def test_summarize_scraped_content_skips_blank(tmp_path):
         "https://acme.example/a": "Real content about Acme.",
         "https://acme.example/b": "   ",  # blank -> skipped
     }
-    with patch(
-        "primr.ai.summarize._invoke_default_summary_model",
-        return_value="fact " * 60,
-    ) as mock_fn:
+    with patch("primr.ai.summarize._invoke_summary_model", return_value="fact " * 60) as mock_fn:
         summarize.summarize_scraped_content("Acme", "acme.example", data, str(tmp_path))
     # Only the non-blank page is summarized.
     assert mock_fn.call_count == 1
+
+
+def test_summarize_scraped_content_routes_model_to_llm(monkeypatch, tmp_path):
+    data = {"https://acme.example/a": "Real content about Acme."}
+    route = SimpleNamespace(
+        model_name="routed-scrape-summary-model",
+        log_metadata=lambda: {
+            "stage_id": "fast.scrape_summary",
+            "inference_profile": "hybrid",
+            "backend_id": "routed-scrape-summary-model",
+        },
+    )
+    resolver = patch("primr.ai.stage_routing.resolve_stage_model", return_value=route)
+    llm_calls = []
+
+    def _llm(*_args, **kwargs):
+        llm_calls.append(kwargs)
+        return "fact " * 60
+
+    monkeypatch.setattr("primr.ai.summarize.llm", _llm)
+    with resolver as mock_resolver:
+        summarize.summarize_scraped_content("Acme", "acme.example", data, str(tmp_path))
+
+    mock_resolver.assert_called_once_with("fast.scrape_summary", legacy_model_type="scraping")
+    assert llm_calls[0]["model"] == "routed-scrape-summary-model"
+
+
+def test_summarize_scraped_content_records_route_usage(monkeypatch, tmp_path):
+    data = {"https://acme.example/a": "Real content about Acme."}
+    route = SimpleNamespace(
+        model_name="routed-scrape-summary-model",
+        log_metadata=lambda: {
+            "stage_id": "fast.scrape_summary",
+            "inference_profile": "hybrid",
+            "backend_id": "routed-scrape-summary-model",
+            "backend_kind": "cloud_api",
+            "billing_mode": "api_dollars",
+            "routed": True,
+            "route_reasons": ["meets_context"],
+            "expected_input_tokens": 70_000,
+            "expected_output_tokens": 5_000,
+        },
+    )
+    monkeypatch.setattr("primr.ai.stage_routing.resolve_stage_model", lambda *_a, **_k: route)
+    monkeypatch.setattr("primr.ai.summarize.llm", lambda *_a, **_k: "fact " * 60)
+
+    summarize.summarize_scraped_content("Acme", "acme.example", data, str(tmp_path))
+
+    state = json.loads((tmp_path / "_run_state.json").read_text(encoding="utf-8"))
+    [record] = state["stage_routes"]
+    assert record["outcome"] == "selected"
+    assert record["stage_id"] == "fast.scrape_summary"
+    assert record["input_items"] == 1
+    assert record["output_items"] == 1
+    assert record["expected_input_tokens"] == 70_000
+    assert record["expected_output_tokens"] == 5_000
+    assert "prompt" not in record
+    assert "response" not in record
 
 
 # ---------------------------------------------------------------------------

@@ -136,7 +136,7 @@ PRODUCTION_STAGES: Final[tuple[ProductionStage, ...]] = (
         requires_external_egress=True,
         accepts_host_agent=True,
         accepts_local=True,
-        current_backend="summarize_scraped_content via legacy utility routing",
+        current_backend="routed through ai.stage_routing with legacy scraping fallback",
         promotion_gate=(
             "Can route to local or host only after summary fidelity and source "
             "retention match the cloud baseline on the standing eval corpus."
@@ -161,7 +161,7 @@ PRODUCTION_STAGES: Final[tuple[ProductionStage, ...]] = (
         requires_external_egress=True,
         accepts_host_agent=True,
         accepts_local=True,
-        current_backend="legacy utility routing through relevance filter helper",
+        current_backend="routed through ai.stage_routing with legacy fast fallback",
         promotion_gate=(
             "Can route after accepted/rejected source decisions agree with the "
             "cloud baseline on thin, blocked, and noisy-source cases."

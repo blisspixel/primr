@@ -40,10 +40,10 @@ OpenAI, Anthropic, and local OpenAI-compatible endpoints are wired into the prov
 ## Inference Profiles
 
 `--inference cloud` is the default and preserves the validated direct-provider
-path. `--inference hybrid` enables the first backend-freedom runtime pilot:
-the `fast.source_relevance` utility stage resolves its legacy utility model
-through the capability router, logs safe route metadata, appends body-free
-`stage_routes` entries to `_run_state.json`, and then executes through the
+path. `--inference hybrid` enables the backend-freedom utility-stage pilots:
+`fast.scrape_summary` and `fast.source_relevance` resolve their legacy utility
+models through the capability router, log safe route metadata, append body-free
+`stage_routes` entries to `_run_state.json`, and then execute through the
 existing `llm()` provider seam. Agent and local profiles are not
 exposed yet; they require official runners or local execution adapters plus
 stage evals before promotion.

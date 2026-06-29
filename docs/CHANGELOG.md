@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.28] - 2026-06-29
+
+### Added
+
+- Routed `fast.scrape_summary` through the stage capability router behind
+  `--inference cloud|hybrid`, preserving today's legacy scraping model as
+  fallback.
+- Added capped body-free `stage_routes` records for scrape summary runs with
+  backend/profile/billing metadata, route/fallback reasons, expected token
+  budget, input page count, output summary count, duration, outcome, and
+  failure class.
+
+### Changed
+
+- The website summarizer now passes the selected routed model into the existing
+  `llm()` seam without changing prompt bodies, output files, scraping egress,
+  or fallback behavior.
+
 ## [1.34.27] - 2026-06-29
 
 ### Added
