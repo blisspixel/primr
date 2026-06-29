@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.17] - 2026-06-29
+
+### Added
+
+- Label calibration now checks cited `(Estimated)` and `(Hypothesis)` claims
+  for deterministic source-copy leakage while keeping inference-class labels
+  exempt from traceability.
+- Calibration sidecars, offline eval scorecards, CSV exports, and calibration
+  baseline artifacts now surface `source_copied` and
+  `inference_source_copied` as report-only signals until a representative
+  baseline defines acceptable behavior.
+
 ## [1.34.16] - 2026-06-29
 
 ### Added

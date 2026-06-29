@@ -36,7 +36,8 @@ CALIBRATION_SUMMARY_BY_JOB_RESOURCE = Resource(
     name="Calibration Summary by Job ID",
     description=(
         "Compact label-calibration metadata for one owned job. Summarizes "
-        "calibration sidecars without returning raw claims, source URLs, or rationales."
+        "calibration sidecars and inference source-copy counts without returning "
+        "raw claims, source URLs, or rationales."
     ),
     mimeType="application/json",
 )
@@ -49,6 +50,7 @@ _VERDICT_FIELDS = (
     "no_source",
     "unfetchable",
     "exempt",
+    "source_copied",
 )
 _EVIDENCE_DIMENSIONS = (
     "contradiction",
@@ -174,6 +176,7 @@ def _calibration_artifact_summary(index: int, path: Path) -> dict[str, Any]:
         "no_source_count": totals["no_source"],
         "unfetchable_count": totals["unfetchable"],
         "exempt_count": totals["exempt"],
+        "source_copied_count": totals["source_copied"],
         "per_label": label_summaries,
         "validation_rubric": validation_rubric,
     }

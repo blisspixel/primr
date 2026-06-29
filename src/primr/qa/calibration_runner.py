@@ -605,7 +605,15 @@ def write_calibration_pack_manifest(
 
 def _aggregate_existing_sidecar_per_label(report_paths: list[Path]) -> dict[str, dict[str, int]]:
     totals: dict[str, dict[str, int]] = {}
-    keys = ("sampled", "traceable", "untraceable", "no_source", "unfetchable", "exempt")
+    keys = (
+        "sampled",
+        "traceable",
+        "untraceable",
+        "no_source",
+        "unfetchable",
+        "exempt",
+        "source_copied",
+    )
     for report_path in report_paths:
         payload = _read_sidecar_payload(report_path)
         per_label = payload.get("per_label", {}) if payload else {}
@@ -634,6 +642,7 @@ def aggregate_per_label(outcomes: list[ReportCalibrationOutcome]) -> dict[str, d
                     "no_source": 0,
                     "unfetchable": 0,
                     "exempt": 0,
+                    "source_copied": 0,
                 },
             )
             for key in bucket:

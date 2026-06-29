@@ -90,8 +90,9 @@ You have access to Primr company research tools. When a user asks you to researc
    claim verification trust and count metadata without raw claims, source
    URLs, search queries, explanations, or report body content. Read
    `primr://output/calibration_summary/by_job/{job_id}` when the user needs
-   label-calibration counts or judge-agreement metadata without raw claims,
-   source URLs, evidence reviews, rationales, or report body content. Request
+   label-calibration counts, inference source-copy counts, or judge-agreement
+   metadata without raw claims, source URLs, evidence reviews, rationales, or
+   report body content. Request
    report content only if the user needs a summary or downstream action
 5. Treat MCP resource reads as audited operations: Primr records normalized
    resource kind, hashed URI, hashed result body, job id when present, granted
@@ -146,7 +147,8 @@ The agent should:
 9. Read `primr://output/verification_summary/by_job/{job_id}` when claim
    verification trust and count metadata is needed
 10. Read `primr://output/calibration_summary/by_job/{job_id}` when
-   label-calibration counts or judge-agreement metadata is needed
+   label-calibration counts, inference source-copy counts, or judge-agreement
+   metadata is needed
 11. Remember that resource reads are audit-logged without raw URI query values
    or resource bodies
 12. Return results when the job completes

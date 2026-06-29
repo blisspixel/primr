@@ -201,6 +201,8 @@ def test_eval_reads_calibration_sidecar(tmp_path: Path):
         {
             "Confirmed": {"traceable": 3, "untraceable": 1, "no_source": 1, "unfetchable": 2},
             "Reported": {"traceable": 4, "untraceable": 0, "no_source": 0},
+            "Estimated": {"sampled": 2, "exempt": 1, "source_copied": 1},
+            "Hypothesis": {"sampled": 1, "exempt": 1, "source_copied": 0},
         },
         {
             "source_reviews": 5,
@@ -231,6 +233,7 @@ def test_eval_reads_calibration_sidecar(tmp_path: Path):
     assert metric.evidence_rate(metric.evidence_supported_reviews) == pytest.approx(0.8)
     assert metric.judge_agreement_compared == 4
     assert metric.judge_agreement_agreed == 3
+    assert metric.inference_source_copied == 1
     summary = result.profile_summaries[0]
     assert summary.calibrated_report_count == 1
     assert summary.confirmed_traceability == pytest.approx(0.6)
@@ -238,9 +241,11 @@ def test_eval_reads_calibration_sidecar(tmp_path: Path):
     assert summary.evidence_strong_reasoning_rate == pytest.approx(0.8)
     assert summary.judge_agreement_compared == 4
     assert summary.judge_agreement_rate == pytest.approx(0.75)
+    assert summary.inference_source_copied == 1
     md = result.scorecard_md.read_text(encoding="utf-8")
     assert "## Label Calibration" in md
     assert "## Evidence Review" in md
+    assert "## Inference Label Checks" in md
     assert "## Judge Agreement" in md
     assert "60%" in md
     assert "80%" in md
@@ -249,6 +254,7 @@ def test_eval_reads_calibration_sidecar(tmp_path: Path):
     assert "confirmed_traceability" in header
     assert "evidence_support_rate" in header
     assert "judge_agreement_rate" in header
+    assert "inference_source_copied" in header
 
 
 def test_eval_without_sidecar_reports_no_data(tmp_path: Path):

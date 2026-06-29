@@ -129,8 +129,9 @@ When a user asks you to research a company:
    claim verification trust and count metadata without raw claims, source
    URLs, search queries, explanations, or report body content. Read
    `primr://output/calibration_summary/by_job/{job_id}` when the user needs
-   label-calibration counts or judge-agreement metadata without raw claims,
-   source URLs, evidence reviews, rationales, or report body content. Request
+   label-calibration counts, inference source-copy counts, or judge-agreement
+   metadata without raw claims, source URLs, evidence reviews, rationales, or
+   report body content. Request
    report content only when the user needs a summary or downstream action
 7. Treat MCP resource reads as audited operations: Primr records normalized
    resource kind, hashed URI, hashed result body, job id when present, granted

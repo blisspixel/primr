@@ -162,9 +162,9 @@ verification trust score, claim counts, status counts, first-party downgrade
 counts, or source-reference counts are needed without raw claims, source URLs,
 search queries, explanations, or report body content.
 Read `primr://output/calibration_summary/by_job/{job_id}` when
-label-calibration counts, evidence-review count buckets, judge provenance, or
-judge-agreement metadata is needed without raw claims, source URLs, evidence
-reviews, rationales, or report body content.
+label-calibration counts, inference source-copy counts, evidence-review count
+buckets, judge provenance, or judge-agreement metadata is needed without raw
+claims, source URLs, evidence reviews, rationales, or report body content.
 MCP resource reads are audit-logged with hashed URI/result values and
 normalized resource kind, without raw URI query values or resource bodies.
 Read `primr://output/latest` only when the next step needs a report preview.

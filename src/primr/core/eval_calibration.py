@@ -54,6 +54,14 @@ def calibration_counts_from_payload(payload: dict[str, Any]) -> dict[str, int]:
         )
         counts[f"{label.lower()}_traceable"] = traceable
         counts[f"{label.lower()}_decidable"] = decidable
+    for label in ("Estimated", "Hypothesis"):
+        stats = per_label.get(label, {})
+        if not isinstance(stats, dict):
+            stats = {}
+        counts[f"{label.lower()}_source_copied"] = _safe_int(stats.get("source_copied", 0))
+    counts["inference_source_copied"] = (
+        counts["estimated_source_copied"] + counts["hypothesis_source_copied"]
+    )
 
     rubric = payload.get("validation_rubric", {})
     if not isinstance(rubric, dict):
@@ -149,6 +157,7 @@ def calibration_csv_columns() -> list[str]:
         "evidence_high_relevance_rate",
         "judge_agreement_compared",
         "judge_agreement_rate",
+        "inference_source_copied",
     ]
 
 
@@ -172,6 +181,7 @@ def calibration_csv_values(metric: Any) -> list[object]:
         round_or_blank(metric.evidence_rate(metric.evidence_high_relevance_reviews)),
         metric.judge_agreement_compared,
         round_or_blank(judge_agreement_rate),
+        metric.inference_source_copied,
     ]
 
 
@@ -227,6 +237,21 @@ def append_calibration_sections(lines: list[str], summaries: list[Any]) -> None:
             f"{percent_or_dash(summary.evidence_honest_uncertainty_rate)} | "
             f"{percent_or_dash(summary.evidence_high_relevance_rate)} |"
         )
+
+    lines.append("")
+    lines.append("## Inference Label Checks")
+    lines.append("")
+    lines.append(
+        "(Estimated)/(Hypothesis) claims are inference-class labels. They are "
+        "not required to trace to a source, but should not be copied verbatim "
+        "from cited source text. This is a report-only signal until a baseline "
+        "defines acceptable behavior."
+    )
+    lines.append("")
+    lines.append("| Profile | Source-Copied Inference Claims |")
+    lines.append("|---|---:|")
+    for summary in summaries:
+        lines.append(f"| {summary.profile} | {summary.inference_source_copied} |")
 
     lines.append("")
     lines.append("## Judge Agreement")

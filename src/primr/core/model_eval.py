@@ -254,14 +254,10 @@ class ReportMetrics:
     reuse_quality_score: float
     trust_gate_passed: bool
     utility_per_dollar: float
-    # Artifact-drift signal: count of leaked internal-scaffolding markers
-    # (bare [workbook]/[cross-ref], bold "What to validate:" lines, informal
-    # [cite: label]). Must stay 0 on shipped reports - see ROADMAP item #1.
+    # Artifact-drift signal: leaked internal-scaffolding markers; must stay 0.
     scaffolding_leaks: int = 0
-    # Label-calibration signal, read from the report's `primr calibrate`
-    # sidecar when present (the eval itself stays offline - calibration is a
-    # separate bounded paid step). Decidable = traceable + untraceable +
-    # no_source; unfetchable claims are excluded (harness couldn't decide).
+    # Label-calibration signal from `primr calibrate` sidecars when present.
+    # Decidable = traceable + untraceable + no_source; unfetchable is excluded.
     calibrated: bool = False
     confirmed_traceable: int = 0
     confirmed_decidable: int = 0
@@ -277,6 +273,7 @@ class ReportMetrics:
     evidence_high_relevance_reviews: int = 0
     judge_agreement_compared: int = 0
     judge_agreement_agreed: int = 0
+    inference_source_copied: int = 0
 
     def traceability(self, label: str) -> float | None:
         """Per-report traceability precision for Confirmed/Reported."""
@@ -327,6 +324,7 @@ class ProfileSummary:
     evidence_high_relevance_rate: float | None = None
     judge_agreement_compared: int = 0
     judge_agreement_rate: float | None = None
+    inference_source_copied: int = 0
 
 
 @dataclass(frozen=True)
@@ -580,6 +578,7 @@ def _find_profile_reports(profile_dir: Path, profile: str) -> list[ReportMetrics
                 ),
                 judge_agreement_compared=(calibration or {}).get("judge_agreement_compared", 0),
                 judge_agreement_agreed=(calibration or {}).get("judge_agreement_agreed", 0),
+                inference_source_copied=(calibration or {}).get("inference_source_copied", 0),
             )
         )
 
@@ -703,6 +702,7 @@ def _summarize_profile(profile: str, metrics: list[ReportMetrics]) -> ProfileSum
             if judge_agreement_compared
             else None
         ),
+        inference_source_copied=sum(m.inference_source_copied for m in calibrated),
     )
 
 

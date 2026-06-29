@@ -29,6 +29,9 @@ _COUNT_KEYS = (
     "evidence_high_relevance_reviews",
     "judge_agreement_compared",
     "judge_agreement_agreed",
+    "estimated_source_copied",
+    "hypothesis_source_copied",
+    "inference_source_copied",
 )
 
 
@@ -207,6 +210,7 @@ def build_calibration_baseline(
             **coverage_counts,
         },
         "traceability": label_summary,
+        "inference_label_checks": _inference_label_summary(label_totals, sidecar_counts),
         "representation": representation,
         "evidence_review": evidence_summary,
         "judge_agreement": judge_agreement,
@@ -265,6 +269,25 @@ def render_calibration_baseline_markdown(baseline: dict[str, Any]) -> str:
             f"| {label} | {stats.get('traceable', 0)} | {stats.get('decidable', 0)} | "
             f"{percent_or_dash(stats.get('traceability_rate'))} |"
         )
+
+    inference = _dict_value(baseline, "inference_label_checks")
+    lines.extend(
+        [
+            "",
+            "## Inference Label Checks",
+            "",
+            "| Label | Sampled | Source-Copied |",
+            "|---|---:|---:|",
+            (
+                f"| Estimated | {inference.get('estimated_sampled', 0)} | "
+                f"{inference.get('estimated_source_copied', 0)} |"
+            ),
+            (
+                f"| Hypothesis | {inference.get('hypothesis_sampled', 0)} | "
+                f"{inference.get('hypothesis_source_copied', 0)} |"
+            ),
+        ]
+    )
 
     if representation.get("required_tags"):
         missing_tags = ", ".join(str(tag) for tag in representation.get("missing_tags", []))
@@ -450,6 +473,21 @@ def _label_summary(label_totals: dict[str, dict[str, int]]) -> dict[str, dict[st
             "traceability_rate": _rate(traceable, decidable),
         }
     return summary
+
+
+def _inference_label_summary(
+    label_totals: dict[str, dict[str, int]],
+    counts: dict[str, int],
+) -> dict[str, int]:
+    estimated = label_totals.get("Estimated", {})
+    hypothesis = label_totals.get("Hypothesis", {})
+    return {
+        "estimated_sampled": _safe_int(estimated.get("sampled")),
+        "estimated_source_copied": _safe_int(counts.get("estimated_source_copied")),
+        "hypothesis_sampled": _safe_int(hypothesis.get("sampled")),
+        "hypothesis_source_copied": _safe_int(counts.get("hypothesis_source_copied")),
+        "total_source_copied": _safe_int(counts.get("inference_source_copied")),
+    }
 
 
 def _evidence_summary(counts: dict[str, int]) -> dict[str, Any]:
@@ -749,6 +787,7 @@ def _report_summary(report: dict[str, Any]) -> dict[str, Any]:
             _safe_int(counts.get("reported_traceable")),
             _safe_int(counts.get("reported_decidable")),
         ),
+        "inference_source_copied": _safe_int(counts.get("inference_source_copied")),
         "coverage_tags": _string_list(report.get("coverage_tags")),
     }
 

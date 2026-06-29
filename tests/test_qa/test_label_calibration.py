@@ -190,6 +190,51 @@ class TestCalibration:
         hypothesis = [r for r in report.results if r.claim.label == "Hypothesis"]
         assert all(r.verdict == "exempt" for r in estimated + hypothesis)
 
+    def test_inference_label_copied_from_cited_source_is_flagged(self):
+        claims = [
+            LabeledClaim(
+                "Estimated",
+                "Revenue will likely reach $50M in 2026 from enterprise subscriptions. "
+                "(Estimated) [cite: 1]",
+                "Executive Summary",
+                (1,),
+                ("https://news.example.com/revenue",),
+            )
+        ]
+
+        report = calibrate_claims(
+            claims,
+            fetch_fn=lambda u: (
+                "In its forecast, Revenue will likely reach $50M in 2026 "
+                "from enterprise subscriptions."
+            ),
+            judge_fn=lambda c, t: True,
+        )
+
+        assert report.results[0].verdict == "source_copied"
+        assert report.to_dict()["per_label"]["Estimated"]["source_copied"] == 1
+
+    def test_inference_label_not_copied_from_source_stays_exempt(self):
+        claims = [
+            LabeledClaim(
+                "Hypothesis",
+                "Expansion into Europe is plausible given recent partner hiring. (Hypothesis) "
+                "[cite: 1]",
+                "Executive Summary",
+                (1,),
+                ("https://news.example.com/hiring",),
+            )
+        ]
+
+        report = calibrate_claims(
+            claims,
+            fetch_fn=lambda u: "The company hired a new partner lead in Berlin.",
+            judge_fn=lambda c, t: True,
+        )
+
+        assert report.results[0].verdict == "exempt"
+        assert report.to_dict()["per_label"]["Hypothesis"]["source_copied"] == 0
+
     def test_traceable_when_judge_supports(self):
         report = calibrate_claims(
             self._claims(), fetch_fn=lambda u: "source text", judge_fn=lambda c, t: True

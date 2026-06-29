@@ -155,8 +155,9 @@ primr doctor
   counts, first-party downgrade counts, or source-reference counts, read
   `primr://output/verification_summary/by_job/{job_id}` instead of loading raw
   claims, source URLs, search queries, explanations, or report body content.
-- When OpenClaw needs label-calibration counts, evidence-review count buckets,
-  judge provenance, or judge-agreement metadata, read
+- When OpenClaw needs label-calibration counts, inference source-copy counts,
+  evidence-review count buckets, judge provenance, or judge-agreement metadata,
+  read
   `primr://output/calibration_summary/by_job/{job_id}` instead of loading raw
   claims, source URLs, evidence reviews, rationales, or report body content.
 - MCP resource reads are audit-logged with normalized resource kind, hashed URI,

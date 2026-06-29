@@ -1170,6 +1170,7 @@ class TestCalibrationSummaryByJobResource:
                             "no_source": 1,
                             "unfetchable": 0,
                             "exempt": 0,
+                            "source_copied": 0,
                             "precision": 0.333,
                         },
                         "Hypothesis": {
@@ -1178,7 +1179,8 @@ class TestCalibrationSummaryByJobResource:
                             "untraceable": 0,
                             "no_source": 0,
                             "unfetchable": 0,
-                            "exempt": 2,
+                            "exempt": 1,
+                            "source_copied": 1,
                             "precision": None,
                         },
                     },
@@ -1300,10 +1302,12 @@ class TestCalibrationSummaryByJobResource:
         assert summary["traceable_count"] == 1
         assert summary["untraceable_count"] == 1
         assert summary["no_source_count"] == 1
-        assert summary["exempt_count"] == 2
+        assert summary["exempt_count"] == 1
+        assert summary["source_copied_count"] == 1
         by_label = {item["label"]: item for item in summary["per_label"]}
         assert by_label["Confirmed"]["precision"] == 0.333
-        assert by_label["Hypothesis"]["exempt"] == 2
+        assert by_label["Hypothesis"]["exempt"] == 1
+        assert by_label["Hypothesis"]["source_copied"] == 1
         rubric = summary["validation_rubric"]
         assert rubric["claims_with_reviews"] == 2
         assert rubric["source_reviews"] == 3

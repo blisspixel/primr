@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.34.16
+Current State: v1.34.17
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -43,8 +43,9 @@ Current priority order:
    Primr can trust eval gates, routing comparisons, or future memory. Label
    traceability is the first measurable slice, not the whole validation story.
    The standard `--verify` path now surfaces contradicted claims in the final
-   Report Trust summary; calibration scorecards now include evidence-review and
-   judge-agreement signals; `primr calibrate --pack-manifest` freezes baseline
+   Report Trust summary; calibration scorecards now include evidence-review,
+   inference source-copy, and judge-agreement signals;
+   `primr calibrate --pack-manifest` freezes baseline
    candidates locally; `--pack-selection-template` writes a zero-spend starter
    selection for manual representative tagging; curated `--pack-selection`
    inputs make representative coverage explicit; `--inspect-selection` shows
@@ -79,7 +80,8 @@ Current priority order:
    metadata, and `primr://output/verification_summary/by_job/{job_id}` returns
    compact claim verification metadata, and
    `primr://output/calibration_summary/by_job/{job_id}` returns compact
-   label-calibration metadata. None returns report body content; trace
+   label-calibration metadata, including inference source-copy counts. None
+   returns report body content; trace
    summaries omit raw trace entries, verification summaries omit raw claims,
    source URLs, search queries, and explanations, and calibration summaries
    omit raw claims, source URLs, evidence reviews, and rationales. MCP resource
@@ -305,13 +307,16 @@ per-module coverage ratchet unlocked by the refactor:
   cloud-vs-local agreement into calibration sidecars, and offline eval surfaces
   pooled `## Judge Agreement` report-only metrics plus CSV columns.
   `--pack-manifest` writes a local JSON manifest of the selected reports,
-  sidecar state, estimates, per-label totals, and judge-agreement metadata so a
-  representative pack can be frozen before any paid baseline. Curated
+  sidecar state, estimates, per-label totals, inference source-copy counts,
+  and judge-agreement metadata so a representative pack can be frozen before
+  any paid baseline. Curated
   `--pack-selection` inputs now record exact report paths and explicit
   representative coverage tags in the manifest, and the readiness artifact
   now computes missing report, sidecar, evidence-review, judge-agreement, and
   coverage-tag gaps plus reason-specific remediation, suggested commands, and
-  the policy to keep the hard gate unset for any not-ready pack. Remaining:
+  the policy to keep the hard gate unset for any not-ready pack. Calibration
+  sidecars and eval/baseline summaries now also flag source-copied
+  `(Estimated)`/`(Hypothesis)` claims as a report-only signal. Remaining:
   gather a multi-report, agreement-validated baseline (cloud-vs-local
   concordance), then set the threshold from those numbers; a single small run is too
   judge-noisy to arm a hard gate on (judge variance is itself a documented
@@ -1417,6 +1422,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.34.17 | Jun 2026 | **Inference-label source-copy calibration.** Label calibration now checks cited `(Estimated)` and `(Hypothesis)` claims for deterministic source-copy leakage while keeping those labels exempt from traceability. Calibration sidecars, eval scorecards, CSV output, and baseline readiness artifacts now surface `source_copied` / `inference_source_copied` as report-only signals until a representative baseline defines acceptable behavior. |
 | 1.34.16 | Jun 2026 | **MCP resource-read audit logging.** MCP `resources/read` calls now append privacy-preserving audit events with event type, normalized resource kind, hashed resource URI, hashed result body, job id when present, granted scopes, duration, and outcome. `primr://agent/audit/recent` now reports tool-call and resource-read events to local stdio callers and admin-scoped HTTP callers without storing raw URI query values, resource bodies, raw arguments, raw results, raw caller ids, or approval tokens. |
 | 1.34.15 | Jun 2026 | **Job-scoped calibration summary resource.** MCP now exposes `primr://output/calibration_summary/by_job/{job_id}` for compact, ownership-gated label-calibration inspection. It summarizes attached `.calibration.json` artifacts and standard sidecars adjacent to owned report artifacts, returning per-label traceability counts, evidence-review count buckets, judge provenance, and judge-agreement metadata without returning raw claims, source URLs, evidence reviews, rationales, or report body content. |
 | 1.34.14 | Jun 2026 | **Job-scoped verification summary resource.** MCP now exposes `primr://output/verification_summary/by_job/{job_id}` for compact, ownership-gated claim verification inspection. MCP verification runs attach same-run `verification.json` artifacts to job metadata, including fast-mode runs, CLI fast-mode runs now honor `--verify`, and the resource returns trust score, claim counts, status counts, first-party downgrade counts, and source-reference counts without returning raw claims, source URLs, search queries, explanations, or report body content. |

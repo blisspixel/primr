@@ -1544,7 +1544,8 @@ scrape trace health metadata, and
 `primr://output/verification_summary/by_job/{job_id}` when the client only
 needs claim verification metadata, and
 `primr://output/calibration_summary/by_job/{job_id}` when the client only
-needs label-calibration metadata.
+needs label-calibration metadata, including report-only inference source-copy
+counts.
 
 ```json
 {
@@ -1991,9 +1992,10 @@ Compact, ownership-gated label-calibration summary for one job. This resource
 summarizes attached `.calibration.json` artifacts, plus calibration sidecars
 adjacent to owned report artifacts using the standard
 `<report filename>.calibration.json` naming convention. It returns per-label
-traceability counts, evidence-review count buckets, judge provenance, and
-cloud-vs-local judge-agreement metadata without returning raw claims, source
-URLs, evidence reviews, rationales, or report body content.
+traceability counts, report-only inference source-copy counts, evidence-review
+count buckets, judge provenance, and cloud-vs-local judge-agreement metadata
+without returning raw claims, source URLs, evidence reviews, rationales, or
+report body content.
 
 HTTP callers can read only jobs owned by the authenticated client. Missing jobs
 and unowned jobs return the same `job_not_found` shape so clients cannot probe
@@ -2046,7 +2048,8 @@ for other job ids.
       "untraceable_count": 1,
       "no_source_count": 0,
       "unfetchable_count": 0,
-      "exempt_count": 2,
+      "exempt_count": 1,
+      "source_copied_count": 1,
       "per_label": [
         {
           "label": "Confirmed",
@@ -2056,8 +2059,21 @@ for other job ids.
           "no_source": 0,
           "unfetchable": 0,
           "exempt": 0,
+          "source_copied": 0,
           "decidable": 3,
           "precision": 0.667
+        },
+        {
+          "label": "Hypothesis",
+          "sampled": 2,
+          "traceable": 0,
+          "untraceable": 0,
+          "no_source": 0,
+          "unfetchable": 0,
+          "exempt": 1,
+          "source_copied": 1,
+          "decidable": 0,
+          "precision": null
         }
       ],
       "validation_rubric": {
@@ -2174,8 +2190,9 @@ Use `primr://output/verification_summary/by_job/{job_id}` first when a client
 only needs claim verification metadata without raw claims, source URLs, search
 queries, explanations, or report body content.
 Use `primr://output/calibration_summary/by_job/{job_id}` first when a client
-only needs label-calibration metadata without raw claims, source URLs,
-evidence reviews, rationales, or report body content.
+only needs label-calibration metadata, including inference source-copy counts,
+without raw claims, source URLs, evidence reviews, rationales, or report body
+content.
 
 ```json
 {

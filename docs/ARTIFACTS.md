@@ -74,9 +74,9 @@ strict about formatting and structure in the final document pipeline.
   `primr://output/calibration_summary/by_job/{job_id}`. The resource
   summarizes attached `.calibration.json` artifacts and standard sidecars
   adjacent to owned report artifacts, then returns per-label traceability
-  counts, evidence-review count buckets, judge provenance, and judge-agreement
-  metadata without returning raw claims, source URLs, evidence reviews,
-  rationales, or report body content.
+  counts, report-only inference source-copy counts, evidence-review count
+  buckets, judge provenance, and judge-agreement metadata without returning raw
+  claims, source URLs, evidence reviews, rationales, or report body content.
 
 The writing and regeneration prompts carry an explicit prohibition against the
 internal-scaffolding markers the cleanup strips, sourced from a single shared

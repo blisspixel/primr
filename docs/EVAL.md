@@ -65,6 +65,13 @@ For a 24 GB RTX 4090 or comparable local box, start with `4090-report-race` befo
 - Runtime: end-to-end duration per company
 - Artifact drift: per-report `scaffolding_leaks` count and a per-profile `total_scaffolding_leaks` aggregate (leaked internal scaffolding that should never reach a deliverable). Surfaced in the scorecard's `## Artifact Drift` section (clean/DRIFT per profile) and a `scaffolding_leaks` CSV column. Target: 0 - non-zero is a regression, tracked every eval run rather than via ad-hoc offline scans.
 - Label calibration: traceability of `(Confirmed)`/`(Reported)` claims against the *fetched text* of their cited sources, measured by `primr calibrate` (a separate, bounded paid step - pennies per report) and persisted as `<report>.calibration.json` sidecars next to the staged reports. The offline eval reads the sidecars into per-report traceability, a pooled `## Label Calibration` scorecard section, and `confirmed_traceability` / `reported_traceability` CSV columns. Set `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` (a fraction, e.g. `0.8`) to arm the hard gate: profiles below it get `FAIL_CALIBRATION` in the decision table. Preview the judge-call count and cost first with `primr calibrate --calibrate-recent 10 --dry-run` (free).
+- Inference label source-copy: `(Estimated)` and `(Hypothesis)` claims remain
+  exempt from traceability, but cited inference-class claims are checked for
+  deterministic source-copy leakage against fetched source text. Sidecars carry
+  per-label `source_copied` counts, offline eval surfaces a report-only
+  `## Inference Label Checks` section, and CSV exports include
+  `inference_source_copied`. Do not gate on this signal until the representative
+  baseline defines acceptable behavior.
 - Evidence review: calibration sidecars also carry judge-reported, report-only
   source-review signals for support, contradiction, source independence, source
   authority, reasoning strength, uncertainty honesty, and business relevance.
@@ -81,8 +88,8 @@ For a 24 GB RTX 4090 or comparable local box, start with `4090-report-race` befo
 - Calibration pack manifest: add `--pack-manifest path/to/pack.json` to
   `primr calibrate` or its `--dry-run` preview to freeze the selected reports,
   sidecar state, sampled-claim counts, judge-call estimate, per-label totals,
-  evidence-review summary, and judge-agreement metadata before running a
-  multi-report baseline.
+  evidence-review summary, inference source-copy counts, and judge-agreement
+  metadata before running a multi-report baseline.
 - Curated pack selection: add `--pack-selection path/to/selection.json` when
   the baseline needs explicit representative coverage instead of "latest N"
   report selection. The selection file uses
@@ -107,8 +114,9 @@ For a 24 GB RTX 4090 or comparable local box, start with `4090-report-race` befo
   the selected pack. The artifact includes structured `next_actions` with
   missing counts, remediation, suggested commands, and the policy to keep the
   hard calibration gate unset until the pack is ready. Its per-report summaries
-  include evidence-review counts and judge-agreement compared-claim counts so
-  operators can identify the exact selected artifacts still blocking readiness.
+  include evidence-review counts, inference source-copy counts, and
+  judge-agreement compared-claim counts so operators can identify the exact
+  selected artifacts still blocking readiness.
   Run `primr calibrate --inspect-baseline path/to/baseline.json` to print the
   same blockers as machine-readable JSON for agents or automation. MCP clients
   can read `primr://calibration/baseline/inspection?path=<baseline.json>` when

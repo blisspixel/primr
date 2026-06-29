@@ -74,8 +74,10 @@ calibration harness; traceability degradation reverts the iteration).
   agreement, fail open to cloud - and is gated on these instruments.
 - Surface contradicted claims from `verification.json` in the report's
   trust summary (today: JSON + console only)
-- v2 calibration check: Estimated/Hypothesis claims must NOT be
-  verbatim-from-source (the mislabel in the other direction)
+- ~~v2 calibration check: Estimated/Hypothesis claims must NOT be
+  verbatim-from-source (the mislabel in the other direction)~~ - DONE:
+  calibration sidecars, eval scorecards, CSV exports, and baseline artifacts
+  now surface source-copied inference claims as report-only signals.
 - ~~Act on the measurement: downgrade ungrounded labels at ship time~~ -
   DONE (opt-in): `qa/label_honesty.py` + `PRIMR_LABEL_HONESTY=1` wire a
   pre-ship pass into the trust stage that re-judges each `(Confirmed)`/

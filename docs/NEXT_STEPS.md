@@ -168,6 +168,8 @@ Do next:
   selected report to carry
   evidence-review dimensions and cloud-vs-local judge-agreement metadata, so
   partial coverage cannot satisfy the baseline by aggregate counts alone.
+  Calibration sidecars and eval/baseline summaries now also flag source-copied
+  `(Estimated)` / `(Hypothesis)` claims as a report-only signal.
   `primr calibrate --inspect-baseline <baseline.json>` exposes those blockers
   as machine-readable JSON for operators, and MCP clients can read the same
   path-allowlisted payload through
@@ -184,9 +186,10 @@ Done when:
 
 - The eval scorecard separates structural extraction, evidence support,
   reasoning quality, contradiction handling, uncertainty honesty, and judge
-  agreement. The sidecar and scorecard slices are shipped; the multi-report
-  pack-manifest, selection-template, selection-inspection, curated selection,
-  and baseline-readiness artifact slices are shipped; the representative
+  agreement. The sidecar and scorecard slices are shipped, including the
+  report-only inference source-copy check; the multi-report pack-manifest,
+  selection-template, selection-inspection, curated selection, and
+  baseline-readiness artifact slices are shipped; the representative
   multi-report baseline itself is still pending.
 - The hard gate is either armed from a defensible baseline or deliberately left
   report-only with documented evidence.
@@ -254,8 +257,9 @@ Do next:
   verification trust score, claim counts, status counts, first-party downgrade
   counts, and source-reference counts, and
   `primr://output/calibration_summary/by_job/{job_id}` returns compact
-  label-calibration per-label counts, evidence-review count buckets, judge
-  provenance, and judge-agreement metadata. None returns report body content;
+  label-calibration per-label counts, inference source-copy counts,
+  evidence-review count buckets, judge provenance, and judge-agreement
+  metadata. None returns report body content;
   trace summaries omit raw trace entries and page content, verification
   summaries omit raw claims, source URLs, search queries, and explanations,
   and calibration summaries omit raw claims, source URLs, evidence reviews,

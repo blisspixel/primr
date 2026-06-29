@@ -30,6 +30,7 @@ def _sidecar(
                 "no_source": 0,
                 "unfetchable": 0,
                 "exempt": 0,
+                "source_copied": 0,
             },
             "Reported": {
                 "sampled": 1,
@@ -38,6 +39,16 @@ def _sidecar(
                 "no_source": 0,
                 "unfetchable": 0,
                 "exempt": 0,
+                "source_copied": 0,
+            },
+            "Estimated": {
+                "sampled": 1,
+                "traceable": 0,
+                "untraceable": 0,
+                "no_source": 0,
+                "unfetchable": 0,
+                "exempt": 0,
+                "source_copied": 1,
             },
         },
         "validation_rubric": {},
@@ -120,6 +131,7 @@ def _manifest(
                 "no_source": 0,
                 "unfetchable": 0,
                 "exempt": 0,
+                "source_copied": 0,
             },
             "Reported": {
                 "sampled": report_count,
@@ -128,6 +140,16 @@ def _manifest(
                 "no_source": 0,
                 "unfetchable": 0,
                 "exempt": 0,
+                "source_copied": 0,
+            },
+            "Estimated": {
+                "sampled": report_count,
+                "traceable": 0,
+                "untraceable": 0,
+                "no_source": 0,
+                "unfetchable": 0,
+                "exempt": 0,
+                "source_copied": report_count,
             },
         },
         "judge_agreement": None,
@@ -179,6 +201,8 @@ def test_build_baseline_ready_when_pack_has_required_evidence() -> None:
     assert baseline["totals"]["reports_with_judge_agreement"] == 5
     assert baseline["traceability"]["Confirmed"]["traceability_rate"] == 1.0
     assert baseline["traceability"]["Reported"]["traceability_rate"] == 0.0
+    assert baseline["inference_label_checks"]["estimated_source_copied"] == 5
+    assert baseline["inference_label_checks"]["total_source_copied"] == 5
     assert baseline["evidence_review"]["source_reviews"] == 10
     assert baseline["evidence_review"]["support_rate"] == 0.5
     assert baseline["judge_agreement"]["compared"] == 10
@@ -187,6 +211,7 @@ def test_build_baseline_ready_when_pack_has_required_evidence() -> None:
     assert baseline["reports"][0]["has_evidence_reviews"] is True
     assert baseline["reports"][0]["judge_agreement_compared"] == 2
     assert baseline["reports"][0]["has_judge_agreement"] is True
+    assert baseline["reports"][0]["inference_source_copied"] == 1
     assert baseline["next_actions"]["spend_preview_required"] is False
     assert baseline["next_actions"]["items"] == [
         {
@@ -314,6 +339,7 @@ def test_write_baseline_json_and_markdown(tmp_path: Path) -> None:
     markdown = markdown_path.read_text(encoding="utf-8")
     assert "Status: ready" in markdown
     assert "## Evidence Review" in markdown
+    assert "## Inference Label Checks" in markdown
     assert "## Representative Coverage" in markdown
     assert "## Next Actions" in markdown
     assert "## Suggested Commands" in markdown

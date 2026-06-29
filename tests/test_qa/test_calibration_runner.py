@@ -115,6 +115,7 @@ class TestLiveRun:
         assert payload["per_label"]["Confirmed"]["no_source"] == 1
         assert payload["per_label"]["Reported"]["traceable"] == 1
         assert payload["per_label"]["Estimated"]["exempt"] == 1
+        assert payload["per_label"]["Estimated"]["source_copied"] == 0
         assert payload["validation_rubric"]["source_reviews"] == 2
         assert payload["claims"][0]["evidence_reviews"][0]["supported"] is True
 
@@ -222,6 +223,7 @@ class TestPackManifest:
         report_entry = payload["reports"][0]
         assert payload["totals"]["sidecars_present"] == 1
         assert payload["existing_sidecar_per_label"]["Confirmed"]["traceable"] == 1
+        assert payload["existing_sidecar_per_label"]["Estimated"]["source_copied"] == 0
         assert report_entry["sidecar_exists"] is True
         assert report_entry["sidecar"]["judge"] == {"kind": "cloud", "model": "fast-tier"}
         assert report_entry["sidecar"]["per_label"]["Confirmed"]["traceable"] == 1

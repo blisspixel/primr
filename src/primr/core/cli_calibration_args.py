@@ -51,7 +51,8 @@ def add_calibration_arguments(parser: argparse.ArgumentParser) -> None:
         metavar="PATH",
         help=(
             "With 'calibrate', write a JSON manifest freezing the selected calibration "
-            "pack, sidecar state, estimates, and judge-agreement metadata."
+            "pack, sidecar state, estimates, inference source-copy counts, "
+            "and judge-agreement metadata."
         ),
     )
     parser.add_argument(

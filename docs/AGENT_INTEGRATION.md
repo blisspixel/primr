@@ -52,9 +52,10 @@ Important MCP concepts:
   counts, and source-reference counts without raw claims, source URLs, search
   queries, explanations, or report body content.
 - `primr://output/calibration_summary/by_job/{job_id}` exposes compact
-  label-calibration per-label counts, evidence-review count buckets, judge
-  provenance, and judge-agreement metadata without raw claims, source URLs,
-  evidence reviews, rationales, or report body content.
+  label-calibration per-label counts, inference source-copy counts,
+  evidence-review count buckets, judge provenance, and judge-agreement
+  metadata without raw claims, source URLs, evidence reviews, rationales, or
+  report body content.
 - HTTP mode can enforce server-side cost caps and approval tokens.
 - Audit resources record tool calls and resource reads with hashed payloads
   and normalized resource kinds for admin review.
@@ -159,8 +160,9 @@ Read `primr://output/verification_summary/by_job/{job_id}` when the handoff
 needs claim verification trust and count metadata without raw claims, source
 URLs, search queries, explanations, or report body content.
 Read `primr://output/calibration_summary/by_job/{job_id}` when the handoff
-needs label-calibration counts or judge-agreement metadata without raw claims,
-source URLs, evidence reviews, rationales, or report body content.
+needs label-calibration counts, inference source-copy counts, or
+judge-agreement metadata without raw claims, source URLs, evidence reviews,
+rationales, or report body content.
 Resource reads are audit-logged without raw URI query values or resource
 bodies, so prefer compact resources before requesting report previews or files.
 

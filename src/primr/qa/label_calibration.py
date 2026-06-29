@@ -77,6 +77,7 @@ TRACEABLE_LABELS = frozenset({"Confirmed", "Reported"})
 INFERENCE_LABELS = frozenset({"Estimated", "Hypothesis"})
 
 DEFAULT_MAX_PER_LABEL = 10
+_SOURCE_COPY_MIN_CHARS = 40
 # Bounds for the block a standalone label annotates: enough to carry the
 # claim's substance, small enough to keep the judge prompt focused.
 _BLOCK_MAX_PARAGRAPHS = 3
@@ -139,6 +140,7 @@ class ClaimCalibration:
     # no_source      - a traceable-class label with no resolvable citation
     # unfetchable    - citations exist but no source content could be fetched
     # exempt         - inference-class label, traceability not required
+    # source_copied  - inference-class label appears copied from a cited source
     verdict: str
     evidence_reviews: tuple[EvidenceReview, ...] = ()
 
@@ -213,6 +215,7 @@ class CalibrationReport:
                 "no_source": sum(1 for r in of_label if r.verdict == "no_source"),
                 "unfetchable": sum(1 for r in of_label if r.verdict == "unfetchable"),
                 "exempt": sum(1 for r in of_label if r.verdict == "exempt"),
+                "source_copied": sum(1 for r in of_label if r.verdict == "source_copied"),
                 "precision": round(precision, 3) if precision is not None else None,
             }
         return {
@@ -524,6 +527,29 @@ def _default_review(claim_sentence: str, source_text: str) -> EvidenceReview:
         return EvidenceReview(supported=False, rationale="judge_error")
 
 
+def _normalized_copy_text(text: str) -> str:
+    text = _LABEL_RE.sub(" ", text)
+    text = _CITE_RE.sub(" ", text)
+    text = re.sub(r"https?://\S+", " ", text)
+    text = re.sub(r"[^a-z0-9$%.]+", " ", text.lower())
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _source_copy_segments(claim_sentence: str) -> tuple[str, ...]:
+    cleaned = _LABEL_RE.sub(" ", claim_sentence)
+    cleaned = _CITE_RE.sub(" ", cleaned)
+    segments = re.split(r"[\n.!?;]+", cleaned)
+    normalized = [_normalized_copy_text(segment) for segment in segments]
+    return tuple(segment for segment in normalized if len(segment) >= _SOURCE_COPY_MIN_CHARS)
+
+
+def _is_source_copied(claim_sentence: str, source_text: str) -> bool:
+    source = _normalized_copy_text(source_text)
+    if len(source) < _SOURCE_COPY_MIN_CHARS:
+        return False
+    return any(segment in source for segment in _source_copy_segments(claim_sentence))
+
+
 def calibrate_claims(
     claims: list[LabeledClaim],
     *,
@@ -535,8 +561,11 @@ def calibrate_claims(
     """Run the evidence audit over sampled claims.
 
     Traceable-class labels (Confirmed/Reported) are judged against the
-    fetched text of their cited sources; inference-class labels are exempt.
-    Fetches are deduped across claims.
+    fetched text of their cited sources. Inference-class labels
+    (Estimated/Hypothesis) are exempt from traceability, but cited inference
+    claims are still checked for deterministic source-copy leakage: if the
+    claim text appears copied from a cited source, the verdict is
+    ``source_copied``. Fetches are deduped across claims.
     """
     fetch = fetch_fn or _default_fetch
 
@@ -557,7 +586,17 @@ def calibrate_claims(
     results: list[ClaimCalibration] = []
     for claim in claims:
         if claim.label in INFERENCE_LABELS:
-            results.append(ClaimCalibration(claim=claim, verdict="exempt"))
+            texts = [
+                text
+                for url in claim.source_urls[:max_sources_per_claim]
+                if (text := _get_source_text(url))
+            ]
+            verdict = (
+                "source_copied"
+                if any(_is_source_copied(claim.sentence, text) for text in texts)
+                else "exempt"
+            )
+            results.append(ClaimCalibration(claim=claim, verdict=verdict))
             continue
 
         if not claim.source_urls:
