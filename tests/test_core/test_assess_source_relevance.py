@@ -1,7 +1,8 @@
-"""Tests for _assess_source_relevance — LLM-based source filtering."""
+"""Tests for _assess_source_relevance - LLM-based source filtering."""
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from primr.core.research_agent import _assess_source_relevance
@@ -34,7 +35,7 @@ class TestAssessSourceRelevance:
 
     def test_llm_too_aggressive_falls_back_to_all(self, monkeypatch):
         sources = _ten_sources()
-        # LLM keeps only 2 — too aggressive, fallback returns originals
+        # LLM keeps only 2, which is too aggressive, so fallback returns originals.
         monkeypatch.setattr(
             "primr.core.research_agent.llm",
             MagicMock(return_value="[1, 2]"),
@@ -79,3 +80,24 @@ class TestAssessSourceRelevance:
         result = _assess_source_relevance("Acme", sources)
         # Only indices 1-3 are valid -> 3 sources; >= 3 threshold met
         assert len(result) == 3
+
+    def test_routed_model_is_passed_to_llm(self, monkeypatch):
+        sources = _ten_sources()
+        route = SimpleNamespace(
+            model_name="routed-utility-model",
+            log_metadata=lambda: {
+                "stage_id": "fast.source_relevance",
+                "inference_profile": "hybrid",
+                "backend_id": "routed-utility-model",
+            },
+        )
+        resolver = MagicMock(return_value=route)
+        llm_mock = MagicMock(return_value="[1, 2, 3]")
+        monkeypatch.setattr("primr.ai.stage_routing.resolve_stage_model", resolver)
+        monkeypatch.setattr("primr.core.research_agent.llm", llm_mock)
+
+        result = _assess_source_relevance("Acme", sources)
+
+        assert len(result) == 3
+        resolver.assert_called_once_with("fast.source_relevance", legacy_model_type="fast")
+        assert llm_mock.call_args.kwargs["model"] == "routed-utility-model"

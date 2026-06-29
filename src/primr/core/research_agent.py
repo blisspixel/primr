@@ -250,6 +250,7 @@ if TYPE_CHECKING:
     from primr.output.final_artifact import GeneratedSection
     from primr.prompts.loader import SectionConfig
 
+from primr.ai import stage_routing
 from primr.ai.grading_agent import grade_report
 from primr.ai.llm import llm
 from primr.ai.routing import Role, pick_model_for_role
@@ -1634,11 +1635,11 @@ Return ONLY a JSON array of the source NUMBERS to KEEP (e.g. [1, 3, 5, 8]).
 No prose, no explanation."""
 
     try:
-        response = llm(prompt, model_type="fast", streaming=False).strip()
-        # Parse the JSON array
+        route = stage_routing.resolve_stage_model("fast.source_relevance", legacy_model_type="fast")
+        log_structured("info", "Source relevance route selected", **route.log_metadata())
+        response = llm(prompt, model_type="fast", streaming=False, model=route.model_name).strip()
         import json as _json
 
-        # Strip markdown fencing if present
         text = response.strip()
         if text.startswith("```"):
             first_nl = text.find("\n")
@@ -1651,9 +1652,8 @@ No prose, no explanation."""
         if bracket_start != -1 and bracket_end > bracket_start:
             keep_indices = _json.loads(text[bracket_start : bracket_end + 1])
         else:
-            return external_data  # parse failed, keep all
+            return external_data
 
-        # Convert 1-indexed numbers to 0-indexed
         keep_set = {round(n) - 1 for n in keep_indices if isinstance(n, (int, float))}
         filtered = {
             url_list[i]: external_data[url_list[i]] for i in keep_set if 0 <= i < len(url_list)
@@ -1679,7 +1679,7 @@ No prose, no explanation."""
             error=str(e),
             source_count=len(external_data),
         )
-        return external_data  # on any error, keep all sources
+        return external_data
 
 
 def _fast_cross_validate(

@@ -28,9 +28,9 @@ auth only, no unofficial proxies or browser-session reuse.
 | `CODEX_ACCESS_TOKEN` | Optional Codex Enterprise/local automation token for trusted Codex CLI workflows; direct OpenAI API calls still use `OPENAI_API_KEY` | No |
 | `CLAUDE_CODE_OAUTH_TOKEN` | Optional Claude Code OAuth token from `claude setup-token` for subscription-backed Claude Code scripts; direct Anthropic API calls still use `ANTHROPIC_API_KEY` | No |
 
-When `--inference agent` lands, these credentials will identify host runners,
-not generic model providers. Dry-run output must show plan-backed stages
-separately from API-dollar stages.
+Future `--inference agent` support will use these credentials to identify host
+runners, not generic model providers. Dry-run output must show plan-backed
+stages separately from API-dollar stages.
 
 ### Optional Search Keys
 
@@ -47,6 +47,7 @@ separately from API-dollar stages.
 | `AI_REPORT_MODEL` | Legacy Gemini-backed report model override | `gemini-3-flash-preview` |
 | `VERBOSE` | Enable verbose output | `false` |
 | `DEBUG` | Enable debug mode | `false` |
+| `PRIMR_INFERENCE_PROFILE` | Runtime capability-routing profile for wired stages. `cloud` is the default; `hybrid` enables the current routed utility-stage pilot. Prefer the `--inference` CLI flag for normal use. | `cloud` |
 
 Note: Legacy Gemini model override variables are still supported for Gemini-backed stages. Provider-aware routing otherwise uses the model registry and configured provider keys. Current Gemini defaults:
 - `gemini-3-flash-preview` - Best balance of speed and cost for legacy Gemini paths

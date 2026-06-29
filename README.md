@@ -100,6 +100,7 @@ See [Run Modes and Costs](docs/RUN_MODES.md) for the full mode matrix, platform 
 | Standard Strategic Overview plus AI Strategy | `primr "Company" https://company.com` |
 | Strategic Overview only | `primr "Company" https://company.com --no-ai-strategy` |
 | Strategy aimed at Microsoft Azure plus private cloud | `primr "Company" https://company.com --platform ms` |
+| Enable routed utility-stage pilot | `primr "Company" https://company.com --inference hybrid` |
 | Site corpus and extracted insights only | `primr "Company" https://company.com --mode scrape` |
 | DNS intelligence only, no model keys required | `primr recon company.com` |
 | Agent Skills pack for downstream hosts | `primr skills "Company" https://company.com` |

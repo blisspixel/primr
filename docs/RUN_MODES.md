@@ -37,6 +37,16 @@ This measured recipe is much cheaper than the older xAI-only path while preservi
 
 OpenAI, Anthropic, and local OpenAI-compatible endpoints are wired into the provider layer for fallback, utility, evaluation, and planned backend-freedom routing. Full-report execution still uses the supported direct provider path described in [API Key Setup](API_KEYS.md).
 
+## Inference Profiles
+
+`--inference cloud` is the default and preserves the validated direct-provider
+path. `--inference hybrid` enables the first backend-freedom runtime pilot:
+the `fast.source_relevance` utility stage resolves its legacy utility model
+through the capability router, logs safe route metadata, and then executes
+through the existing `llm()` provider seam. Agent and local profiles are not
+exposed yet; they require official runners or local execution adapters plus
+stage evals before promotion.
+
 ## Strategy Generation
 
 The default command includes AI Strategy. Disable it when you only need the Strategic Overview:

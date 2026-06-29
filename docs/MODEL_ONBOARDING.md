@@ -158,6 +158,12 @@ those criteria pass. If they don't, leave the new model registered but not
 default - the eval result is the artifact, the model stays available behind
 an explicit flag for users who want to opt in.
 
+For utility-stage backend-freedom work, route promotions should also flow
+through `ai/stage_routing.py` and the declared row in
+`core/stage_inventory.py`. The current runtime pilot is
+`fast.source_relevance` behind `--inference cloud|hybrid`; do not add a
+stage-local provider dispatch path to test a new model.
+
 ---
 
 ## Adding a new provider (OpenAI, Ollama, Anthropic, …)

@@ -246,7 +246,11 @@ Do next:
   live input, cached input, cached-input cost, and long-context surcharge
   fields, with observed historical cache hits included when available.
 - Wire one cheap utility stage through capability routing behind an explicit
-  inference/profile flag while preserving today's fallback chain.
+  inference/profile flag while preserving today's fallback chain. First slice
+  shipped: `fast.source_relevance` now consumes `route_stage()` behind
+  `--inference cloud|hybrid`, logs safe route metadata, and executes through
+  the existing `llm()` provider seam with today's role default preserved as
+  fallback.
 - Record backend id, billing mode, route reason, fallback reason, token mix,
   cache use, cost, latency, and failure class in usage metadata.
 - Promote one stage at a time. A provider path is supported only when report

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.26] - 2026-06-29
+
+### Added
+
+- Added `--inference cloud|hybrid` as the first production capability-routing
+  profile switch.
+- Added `ai/stage_routing.py`, a runtime bridge that resolves declared
+  production stages through the pure capability router while preserving the
+  legacy model as fallback.
+
+### Changed
+
+- `fast.source_relevance` now consumes `route_stage()` before its LLM call,
+  logs safe route metadata, and passes the routed model into the existing
+  `llm()` provider seam.
+- `llm()` now accepts an explicit model override so stage-level routing can
+  select a model without adding another provider dispatch path.
+
 ## [1.34.25] - 2026-06-29
 
 ### Changed

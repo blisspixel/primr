@@ -127,7 +127,14 @@ def _print_quota_guidance(guidance) -> None:
     print(Fore.RED + "=" * 60 + "\n" + Style.RESET_ALL)
 
 
-def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", streaming=False):
+def llm(
+    prompt,
+    model_type="fast",
+    temperature=1.0,
+    thinking_level="high",
+    streaming=False,
+    model=None,
+):
     """
     Sends a prompt to the Gemini AI model and returns the response.
 
@@ -141,11 +148,12 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
                              "high" = deeper reasoning, slower
                              "low" = faster, less reasoning
         streaming (bool): If True, uses real-time response streaming.
+        model (str | None): Explicit routed model override for one stage.
 
     Returns:
         str: AI-generated response (cleaned text).
     """
-    model_name = _get_model_for_type(model_type)
+    model_name = model or _get_model_for_type(model_type)
     config = PrimrModels.get_model_config(model_name)
     if config is not None and config.provider == "xai":
         # Utility-tier dispatch: caller asked for a Flash-class task and the

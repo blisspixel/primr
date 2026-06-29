@@ -138,6 +138,19 @@ class TestSuccessPath:
         _handle_research(_config(premium_mode=True, open_after=True))
         open_mock.assert_called_once_with("/fake/path/report.docx")
 
+    def test_exports_inference_profile_for_routed_stages(
+        self, passing_preflight, perform_research_ok, monkeypatch
+    ):
+        monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda x: x)
+        monkeypatch.setattr("primr.utils.validators.validate_url", lambda x: x)
+        monkeypatch.delenv("PRIMR_INFERENCE_PROFILE", raising=False)
+
+        result = _handle_research(_config(premium_mode=True, inference_profile="hybrid"))
+
+        assert result == 0
+        assert perform_research_ok.called
+        assert __import__("os").environ["PRIMR_INFERENCE_PROFILE"] == "hybrid"
+
 
 class TestContextFiles:
     def test_invalid_context_file_returns_1(

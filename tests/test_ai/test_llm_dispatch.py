@@ -200,6 +200,22 @@ class TestLLMDispatch:
         assert kwargs["model"] == PrimrModels.GROK_MODEL_43
         mock_gemini_client.assert_not_called()
 
+    def test_explicit_model_override_wins_over_legacy_model_type(self) -> None:
+        with (
+            patch.dict("os.environ", {"XAI_API_KEY": "test-key"}, clear=False),
+            patch("primr.ai.grok_client.grok_llm", return_value="routed response") as mock_grok,
+            patch("primr.ai.llm._get_client") as mock_gemini_client,
+        ):
+            result = llm_module.llm(
+                "test prompt",
+                model_type="analysis",
+                model=PrimrModels.GROK_MODEL_WRITING,
+            )
+
+        assert result == "routed response"
+        assert mock_grok.call_args.kwargs["model"] == PrimrModels.GROK_MODEL_WRITING
+        mock_gemini_client.assert_not_called()
+
     def test_llm_renders_provider_owned_gemini_quota_guidance(self, capsys) -> None:
         """Gemini quota copy comes from the provider, while llm() only renders it."""
         from primr.ai.providers.gemini import GeminiProvider

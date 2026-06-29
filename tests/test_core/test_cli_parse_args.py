@@ -77,6 +77,16 @@ class TestContinuousReasoning:
         assert config.continuous_reasoning is False
 
 
+class TestInferenceProfile:
+    def test_default_is_cloud(self):
+        config = parse_args(["Acme", "https://acme.example"])
+        assert config.inference_profile == "cloud"
+
+    def test_hybrid_profile_parses(self):
+        config = parse_args(["Acme", "https://acme.example", "--inference", "hybrid"])
+        assert config.inference_profile == "hybrid"
+
+
 class TestSkipConfirm:
     def test_non_batch_skips_confirm_by_default(self):
         config = parse_args(["Acme", "https://acme.example"])

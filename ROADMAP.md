@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.34.25
+Current State: v1.34.26
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -70,9 +70,12 @@ Current priority order:
    capability requirements and promotion gates for fast-mode and premium
    deep-research stages. Full-report execution still carries xAI/Gemini-era
    assumptions. The xAI browse surrogate and Gemini quota guidance now live in
-   provider-owned seams, and estimates now expose live input, cached input,
-   cached-input cost, and long-context surcharge fields. Wiring the first cheap
-   utility stage through the router is the next architecture unlock.
+   provider-owned seams, estimates now expose live input, cached input,
+   cached-input cost, and long-context surcharge fields, and
+   `fast.source_relevance` now consumes the capability router behind the
+   `--inference cloud|hybrid` flag while executing through the existing LLM
+   seam. The next architecture unlock is recording route usage metadata and
+   wiring the next cheap utility stage.
 3. **Agent control-plane consumption resources and A2A parity.** MCP already has
    scopes, approval tokens, tool/resource-read audit events, and budget
    propagation. A2A now shares the HTTP bearer-token auth context and enforces
@@ -160,7 +163,7 @@ into generic agent middleware.
 - Five providers wired: xAI (Grok), Google (Gemini), OpenAI, Anthropic, Ollama (local)
 - Provider abstraction at `src/primr/ai/providers/` - `Provider` ABC, `OpenAICompatibleProvider` (xAI/OpenAI/Ollama/vLLM), `GeminiProvider`, `AnthropicProvider`
 - `pick_model_for_role` chooses the best model from configured providers; `primr doctor` shows what each key unlocks
-- Pure capability router foundation shipped in `src/primr/ai/capability_routing.py`: `StageRequirements`, backend capability rows, cloud/agent/hybrid/local profiles, billing-mode guards, ordered route plans, explicit rejection reasons, and pure availability-to-backend annotation. It is not yet wired into full-report execution.
+- Pure capability router foundation shipped in `src/primr/ai/capability_routing.py`: `StageRequirements`, backend capability rows, cloud/agent/hybrid/local profiles, billing-mode guards, ordered route plans, explicit rejection reasons, and pure availability-to-backend annotation. First runtime consumption is now wired for `fast.source_relevance` behind `--inference cloud|hybrid`.
 - Provider availability foundation shipped across `src/primr/ai/provider_availability.py` and `src/primr/ai/provider_availability_collectors.py`: normalized quota windows, binding headroom, elapsed-reset handling, stale last-known-good snapshots, deterministic provider ranking, non-secret cloud provider configuration snapshots, generic local OpenAI-compatible availability probes, sanitized routing metadata, and `primr doctor` visibility. Official live cloud quota/status collectors and production execution wiring remain planned.
 - Provider-aware fallback chain: WRITING/UTILITY prefer GEMINI > OPENAI > ANTHROPIC > XAI; REASONING prefers XAI (cached) > GEMINI > OPENAI > ANTHROPIC
 - Cross-provider dispatch in `grok_llm` and `llm()` so writing-tier calls reach the right provider when the resolved model is non-Grok
@@ -772,15 +775,16 @@ Reduce manual work when new model variants drop by automating the eval-and-compa
 
 ### 18. Capability-Requirement Routing Layer
 
-Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The first stage-requirements slice is now in place as a pure router; the remaining work is production wiring, health integration, and per-stage eval-backed tuning.
+Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The first stage-requirements slice is in place as a pure router, and `fast.source_relevance` now consumes it at runtime behind `--inference cloud|hybrid`; the remaining work is broader production wiring, health integration, route usage metadata, and per-stage eval-backed tuning.
 
 - **Shipped foundation:** `StageRequirements`, `BackendCapabilities`, `RoutingPolicy`, and `route_stage()` return ordered cloud/gateway/host-agent/local candidates with explicit rejection reasons and no live provider calls
 - **Shipped availability foundation:** `ProviderQuotaSnapshot`, `QuotaWindow`, `availability_decision()`, and `provider_with_most_headroom()` normalize provider quota windows and stale last-known-good service availability without live provider calls
 - **Shipped generic collectors:** `collect_provider_availability_snapshots()` reports non-secret provider configuration status and generic local OpenAI-compatible availability from the user's own runtime environment, without storing API key values, raw endpoint URLs, account ids, or installed model names
 - **Shipped router bridge:** `backend_with_availability()` and `backends_with_availability()` apply provider snapshots to backend capability rows and attach sanitized availability metadata before `route_stage()`
 - **Shipped doctor visibility:** `primr doctor` now shows sanitized provider availability from the same generic snapshots, without paid cloud probes or local endpoint leakage
-- Each production stage still needs to declare its requirements: minimum reasoning depth, trust sensitivity, required capabilities (web search, structured output, long context), and acceptable backend families
-- Router selection must be wired into execution and cost estimation stage by stage, keeping today's role defaults as fallback until eval data promotes a requirement profile
+- Production-stage requirements are declared in `core/stage_inventory.py`: minimum reasoning depth, trust sensitivity, required capabilities, token/context estimates, and acceptable backend families
+- First runtime bridge shipped in `ai/stage_routing.py`: `fast.source_relevance` resolves its legacy utility model through `route_stage()`, logs safe route metadata, and executes through the existing `llm()` provider seam with today's role default preserved as fallback
+- Router selection must continue to be wired into execution and cost estimation stage by stage, keeping today's role defaults as fallback until eval data promotes a requirement profile
 - Integrates with the circuit breaker - unhealthy models are skipped automatically
 - Official cloud quota/status collectors must translate supported provider surfaces into the availability shape, then feed the existing availability-to-backend adapter before routing
 - Integrates with effort-level routing for hybrid inference
@@ -1447,6 +1451,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.34.26 | Jun 2026 | **First routed utility stage.** Added `--inference cloud|hybrid`, `ai/stage_routing.py`, and runtime capability-router consumption for `fast.source_relevance`; the stage logs safe route metadata, passes the selected model into `llm()`, and preserves today's role default as fallback. |
 | 1.34.25 | Jun 2026 | **Long-context and cache-token estimate honesty.** Added detailed model cost breakdowns for live input, cached input, output, selected tier, and long-context surcharge; populated OpenAI GPT-5.x long-context tier metadata across mini/nano variants; surfaced cached-token estimate fields from historical usage while keeping pre-run cache savings at zero unless observed. |
 | 1.34.24 | Jun 2026 | **Gemini provider-owned quota guidance.** Moved terminal Gemini quota copy into `GeminiProvider` through a provider-owned guidance object; the legacy `llm()` path now renders that guidance generically while preserving current operator-facing output and error behavior. |
 | 1.34.23 | Jun 2026 | **xAI provider-owned browse seam.** Added `XAIProvider`, which inherits OpenAI-compatible Grok chat behavior and owns the xAI Responses API browse/search surrogate. The legacy `grok_browse_and_summarize` wrapper is now thin compatibility glue that mirrors provider usage into existing run cost counters. |

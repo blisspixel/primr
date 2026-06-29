@@ -266,6 +266,7 @@ class CLIConfig:
     fast_mode: bool = False  # Use Grok 4.1 for fast research (~12 min, ~$0.25)
     premium_mode: bool = False  # Force Gemini + Deep Research pipeline
     grok_tier: str = "hybrid"  # Grok model tier: fast, hybrid, max
+    inference_profile: str = "cloud"  # Capability-routing profile for wired stages
     continuous_reasoning: bool = (
         True  # Default-on after the n=3 pilot; --no-continuous-reasoning to disable
     )
@@ -538,14 +539,11 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         resume_local=getattr(parsed, "resume_local", False),
         lite_strategy=getattr(parsed, "lite_strategy", False),
         fast_mode=getattr(parsed, "fast_mode", False),
-        # `--mode premium` is documented (and MODE_MAP comments) as requesting
-        # the Gemini + Deep Research pipeline, but it maps to "complete" and
-        # would otherwise run the cheaper pipeline. Treat it as equivalent to
-        # the --premium flag so the requested (and dry-run-priced) pipeline runs.
         premium_mode=(
             getattr(parsed, "premium_mode", False) or getattr(parsed, "mode", None) == "premium"
         ),
         grok_tier=getattr(parsed, "grok_tier", "hybrid"),
+        inference_profile=getattr(parsed, "inference_profile", "cloud"),
         continuous_reasoning=continuous_reasoning,
         no_qa=getattr(parsed, "no_qa", False),
         verify=getattr(parsed, "verify", False),
@@ -1011,6 +1009,13 @@ def _create_parser() -> argparse.ArgumentParser:
         help="Grok model tier: fast (4.3 low-effort + 4.20-nr, ~$4.36 base), hybrid (4.3 + 4.20-nr, default), max (4.3 everywhere, ~$3.75)",
     )
     parser.add_argument(
+        "--inference",
+        choices=["cloud", "hybrid"],
+        default="cloud",
+        dest="inference_profile",
+        help="Inference profile for routed experimental stages",
+    )
+    parser.add_argument(
         "--continuous-reasoning",
         action="store_true",
         default=True,
@@ -1030,9 +1035,6 @@ def _create_parser() -> argparse.ArgumentParser:
             "(revert to the fresh-call topology used before the n=3 pilot)."
         ),
     )
-    # Research inputs + framing (discovery notes, context, strategy type,
-    # purpose/audience/decision/question) - grouped in cli_parser to keep cli.py
-    # under its line ceiling.
     add_research_input_arguments(parser)
     parser.add_argument("--dry-run", action="store_true", help="Show cost estimate only")
     parser.add_argument(
@@ -2785,14 +2787,12 @@ def _handle_research(config: CLIConfig) -> int:
         strategy_types = [config.strategy_type]
 
     os.environ["PRIMR_BROWSER_SESSION_MODE"] = config.browser_session_mode
+    os.environ["PRIMR_INFERENCE_PROFILE"] = config.inference_profile
     if config.browser_headed:
         os.environ["PRIMR_BROWSER_HEADED"] = "1"
     else:
         os.environ.pop("PRIMR_BROWSER_HEADED", None)
 
-    # --budget pre-flight gate: refuse to start a run whose estimate already
-    # exceeds the ceiling. Runtime checkpoints exist only before optional spend
-    # stages where the provider path exposes enough completed-cost state.
     from primr.core.cli_budget import activate_run_budget
 
     budget_activation = activate_run_budget(
@@ -2840,7 +2840,6 @@ def _handle_research(config: CLIConfig) -> int:
 
             clear_run_budget()
 
-    # Open report if requested
     if config.open_after and result_path:
         open_file(result_path)
 

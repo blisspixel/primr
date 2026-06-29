@@ -71,8 +71,11 @@ will route over.
 - `ai/capability_routing.py` now provides the first backend-freedom router
   slice: pure `StageRequirements` matching over supplied backend capability
   rows, profile-specific cloud/agent/hybrid/local ranking, host-runner opt-in
-  checks, and API-credit handoff guards. It is planning infrastructure only
-  until production stages are wired to it.
+  checks, and API-credit handoff guards.
+- `ai/stage_routing.py` now provides the first runtime bridge from declared
+  production stages to the capability router. `fast.source_relevance` uses it
+  behind `--inference cloud|hybrid` and still executes through the existing
+  `llm()` provider seam with the legacy utility model preserved as fallback.
 - The typed host-account runner contract now exists in
   `ai/host_agent_runner.py`: bounded `HostAgentStagePacket`, billing policy,
   normalized result/provenance, and a prompt renderer that fences evidence with
