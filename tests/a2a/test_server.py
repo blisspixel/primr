@@ -1,5 +1,7 @@
 """Tests for A2A server."""
 
+from types import SimpleNamespace
+
 import pytest
 
 a2a = pytest.importorskip("a2a")
@@ -61,3 +63,42 @@ class TestPrimrA2AServer:
     def test_shared_job_store(self, a2a_server, mcp_server):
         """A2A and MCP share the same job store."""
         assert a2a_server.task_store._job_store is mcp_server.job_store
+
+    @pytest.mark.asyncio
+    async def test_with_auth_context_bridges_scope_user(self, a2a_server, mcp_server):
+        """A2A requests expose the authenticated token through MCP contextvars."""
+        seen_contexts = []
+
+        async def app(_scope, _receive, _send):
+            seen_contexts.append(mcp_server._auth_context)
+
+        wrapped = a2a_server._with_auth_context(app)
+        scope = {
+            "type": "http",
+            "user": SimpleNamespace(
+                access_token=SimpleNamespace(
+                    client_id="client-1",
+                    scopes=["read"],
+                )
+            ),
+        }
+
+        await wrapped(scope, AsyncIteratorStub(), AsyncSenderStub())
+
+        assert seen_contexts[0].client_id == "client-1"
+        assert seen_contexts[0].scopes == ["read"]
+        assert mcp_server._auth_context is None
+
+
+class AsyncIteratorStub:
+    """Minimal ASGI receive stub."""
+
+    async def __call__(self):
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+
+class AsyncSenderStub:
+    """Minimal ASGI send stub."""
+
+    async def __call__(self, _message):
+        return None

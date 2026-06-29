@@ -19,6 +19,11 @@ from a2a.types import Message, TaskState, TaskStatus, TaskStatusUpdateEvent
 from a2a.utils import new_agent_text_message
 from typing_extensions import override  # noqa: UP035 - mypy resolves override here, not typing
 
+from primr.a2a.authz import (
+    A2ASkillAuthorizationDecision,
+    a2a_scope_denied_text,
+    authorize_a2a_skill,
+)
 from primr.a2a.types import A2ATaskMapping
 from primr.mcp_server.pipeline_runner import PipelineRunner, get_doctor_status, run_qa_analysis
 
@@ -87,6 +92,11 @@ class PrimrAgentExecutor(AgentExecutor):
         logger.info("A2A execute: skill=%s, text=%s", skill_id, text[:100] if text else "")
 
         try:
+            decision = authorize_a2a_skill(skill_id, getattr(self._mcp, "_auth_context", None))
+            if not decision.allowed:
+                await self._enqueue_scope_denial(skill_id, decision, context, event_queue)
+                return
+
             if skill_id == "estimate_research":
                 await self._handle_estimate(text, event_queue)
             elif skill_id == "research_company":
@@ -125,6 +135,11 @@ class PrimrAgentExecutor(AgentExecutor):
         event_queue: EventQueue,
     ) -> None:
         """Cancel a running research task."""
+        decision = authorize_a2a_skill("cancel_task", getattr(self._mcp, "_auth_context", None))
+        if not decision.allowed:
+            await self._enqueue_scope_denial("cancel_task", decision, context, event_queue)
+            return
+
         task_id = context.task_id
         if not task_id:
             await event_queue.enqueue_event(new_agent_text_message("No task ID to cancel"))
@@ -132,6 +147,13 @@ class PrimrAgentExecutor(AgentExecutor):
 
         job_id = self._task_store.get_job_id(task_id)
         if not job_id:
+            await event_queue.enqueue_event(
+                new_agent_text_message(f"No job found for task {task_id}")
+            )
+            return
+
+        job = self._mcp.job_store.get(job_id)
+        if job is None or not _caller_owns_job(job, _a2a_client_id(self._mcp)):
             await event_queue.enqueue_event(
                 new_agent_text_message(f"No job found for task {task_id}")
             )
@@ -152,6 +174,31 @@ class PrimrAgentExecutor(AgentExecutor):
                 final=True,
             )
         )
+
+    async def _enqueue_scope_denial(
+        self,
+        skill_id: str | None,
+        decision: A2ASkillAuthorizationDecision,
+        context: RequestContext,
+        event_queue: EventQueue,
+    ) -> None:
+        """Emit a terminal A2A denial without invoking the skill handler."""
+        text = a2a_scope_denied_text(skill_id, decision)
+        task_id = context.task_id
+        context_id = context.context_id or task_id
+        if task_id and context_id:
+            await event_queue.enqueue_event(
+                _status_update_event(
+                    state=TaskState.failed,
+                    text=text,
+                    task_id=task_id,
+                    context_id=context_id,
+                    final=True,
+                )
+            )
+            return
+
+        await event_queue.enqueue_event(new_agent_text_message(text))
 
     # -------------------------------------------------------------------------
     # Skill handlers
@@ -246,7 +293,7 @@ class PrimrAgentExecutor(AgentExecutor):
             job = self._mcp.job_store.create(
                 company_name=company_name,
                 mode=mode,
-                owner_client_id="a2a",
+                owner_client_id=_a2a_client_id(self._mcp),
             )
         except Exception:
             logger.exception("A2A job_store.create failed for %s", company_name)
@@ -363,15 +410,15 @@ class PrimrAgentExecutor(AgentExecutor):
     async def _handle_check_jobs(self, event_queue: EventQueue) -> None:
         """Handle check_jobs skill - synchronous.
 
-        Ownership: A2A jobs are created with owner_client_id="a2a" (see
-        _handle_research). Only return job metadata for jobs the caller owns;
-        otherwise report idle. Without this gate any authenticated A2A
-        client could enumerate other tenants' active research and harvest
-        output_paths from completed runs.
+        Only return job metadata for jobs the caller owns; otherwise report
+        idle. Without this gate any authenticated A2A client could enumerate
+        other tenants' active research and harvest output_paths from completed
+        runs.
         """
         active = self._mcp.job_store.get_active()
         result: dict[str, object]
-        if active and active.owner_client_id == "a2a":
+        owner_client_id = _a2a_client_id(self._mcp)
+        if active and _caller_owns_job(active, owner_client_id):
             progress = active.stage_progress_percent or 0
             result = {
                 "job_id": active.job_id,
@@ -382,7 +429,7 @@ class PrimrAgentExecutor(AgentExecutor):
             }
         else:
             terminal = self._mcp.job_store.get_latest_terminal()
-            if terminal and terminal.owner_client_id == "a2a":
+            if terminal and _caller_owns_job(terminal, owner_client_id):
                 stage = terminal.current_stage.value
                 result = {
                     "job_id": terminal.job_id,
@@ -404,11 +451,15 @@ class PrimrAgentExecutor(AgentExecutor):
         report_path = params.get("path", "")
 
         if not report_path:
-            # Try to find latest A2A-owned report from most recent job. Don't
+            # Try to find the caller's latest report from the most recent job. Don't
             # auto-target jobs created by stdio/MCP — leaking another tenant's
             # report path via A2A would defeat the by_job ownership gate.
             terminal = self._mcp.job_store.get_latest_terminal()
-            if terminal and terminal.owner_client_id == "a2a" and terminal.output_paths:
+            if (
+                terminal
+                and _caller_owns_job(terminal, _a2a_client_id(self._mcp))
+                and terminal.output_paths
+            ):
                 report_path = terminal.output_paths[0]
             else:
                 await event_queue.enqueue_event(
@@ -485,6 +536,21 @@ def _extract_text(message: Any) -> str:
         elif hasattr(part, "kind") and part.kind == "text":
             texts.append(getattr(part, "text", ""))
     return " ".join(texts)
+
+
+def _a2a_client_id(mcp_server: Any) -> str:
+    """Return the authenticated A2A client id, or the local A2A owner id."""
+    context = getattr(mcp_server, "_auth_context", None)
+    if context is not None and getattr(context, "is_authenticated", False):
+        client_id = getattr(context, "client_id", None)
+        if isinstance(client_id, str) and client_id:
+            return client_id
+    return "a2a"
+
+
+def _caller_owns_job(job: Any, client_id: str) -> bool:
+    """Return whether an A2A caller owns a job."""
+    return getattr(job, "owner_client_id", None) == client_id
 
 
 def _parse_research_params(text: str) -> dict[str, str]:

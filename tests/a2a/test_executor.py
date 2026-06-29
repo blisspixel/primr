@@ -9,6 +9,8 @@ a2a = pytest.importorskip("a2a")
 
 from primr.a2a.executor import (
     PrimrAgentExecutor,
+    _a2a_client_id,
+    _caller_owns_job,
     _extract_skill_id,
     _extract_text,
     _parse_research_params,
@@ -95,6 +97,29 @@ class TestParseResearchParams:
     def test_empty_text(self):
         params = _parse_research_params("")
         assert params == {}
+
+
+class TestA2AOwnershipHelpers:
+    """Tests for A2A caller ownership helpers."""
+
+    def test_local_owner_without_auth_context(self):
+        mcp_server = MagicMock()
+        mcp_server._auth_context = None
+        assert _a2a_client_id(mcp_server) == "a2a"
+
+    def test_authenticated_owner_uses_client_id(self):
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.client_id = "client-1"
+        mcp_server = MagicMock()
+        mcp_server._auth_context = auth_context
+        assert _a2a_client_id(mcp_server) == "client-1"
+
+    def test_caller_owns_job_by_exact_owner(self):
+        job = MagicMock()
+        job.owner_client_id = "client-1"
+        assert _caller_owns_job(job, "client-1")
+        assert not _caller_owns_job(job, "client-2")
 
 
 class TestPrimrAgentExecutor:
@@ -228,6 +253,87 @@ class TestPrimrAgentExecutor:
         event = event_queue.enqueue_event.call_args[0][0]
         text = _get_event_text(event)
         assert "URL" in text
+
+    @pytest.mark.asyncio
+    async def test_research_denied_for_read_only_token(self, executor, event_queue, context):
+        """research_company is blocked before handler execution without research scope."""
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["read"]
+        executor._mcp._auth_context = auth_context
+        context.message = {
+            "parts": [{"kind": "text", "text": "research something"}],
+            "metadata": {"skillId": "research_company"},
+        }
+
+        try:
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        assert data["error_type"] == "insufficient_scope"
+        assert data["missing_scopes"] == ["research"]
+
+    @pytest.mark.asyncio
+    async def test_research_create_uses_authenticated_client_owner(
+        self, executor, event_queue, context
+    ):
+        """research_company passes the caller client id into job creation."""
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["research"]
+        auth_context.client_id = "client-1"
+        executor._mcp._auth_context = auth_context
+        context.context_id = "ctx-1"
+        captured_kwargs = {}
+
+        def capture_create(**kwargs):
+            captured_kwargs.update(kwargs)
+            raise RuntimeError("stop before background stream")
+
+        context.message = {
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": '{"url": "https://example.com", "name": "Example"}',
+                }
+            ],
+            "metadata": {"skillId": "research_company"},
+        }
+
+        try:
+            with patch.object(executor._mcp.job_store, "create", side_effect=capture_create):
+                await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        assert captured_kwargs["owner_client_id"] == "client-1"
+
+    @pytest.mark.asyncio
+    async def test_check_jobs_hides_other_client_job(self, executor, event_queue, context):
+        """A2A check_jobs does not expose another authenticated client's job."""
+        executor._mcp.job_store.create(
+            company_name="Other",
+            mode="full",
+            owner_client_id="client-2",
+        )
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["read"]
+        auth_context.client_id = "client-1"
+        executor._mcp._auth_context = auth_context
+        context.message["metadata"] = {"skillId": "check_jobs"}
+
+        try:
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        assert data["status"] == "idle"
 
     @pytest.mark.asyncio
     async def test_qa_no_report(self, executor, event_queue, context):

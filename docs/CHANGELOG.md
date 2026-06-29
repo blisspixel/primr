@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.18] - 2026-06-29
+
+### Added
+
+- A2A authenticated requests now bind their bearer-token identity into the
+  shared MCP auth context before skill dispatch.
+- A2A skill dispatch now enforces the same `read` and `research` scope split
+  as MCP for `estimate_research`, `check_jobs`, `system_health`,
+  `research_company`, `run_qa`, and task cancellation, while preserving local
+  unauthenticated loopback behavior and legacy `write` compatibility.
+- Authenticated A2A jobs are now owned by the bearer token `client_id`, so
+  `check_jobs`, QA auto-targeting, and cancellation do not cross client
+  boundaries.
+
 ## [1.34.17] - 2026-06-29
 
 ### Added

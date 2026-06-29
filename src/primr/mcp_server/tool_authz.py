@@ -98,7 +98,7 @@ def authorize_tool_call(tool_name: str, auth_context: Any) -> ToolAuthorizationD
         )
 
     granted = tuple(str(scope) for scope in getattr(auth_context, "scopes", []) or [])
-    missing = tuple(scope for scope in required if not _scope_granted(scope, granted))
+    missing = tuple(scope for scope in required if not scope_granted(scope, granted))
     return ToolAuthorizationDecision(
         allowed=not missing,
         tool_name=tool_name,
@@ -134,7 +134,7 @@ def scope_denied_response(
     ]
 
 
-def _scope_granted(required_scope: str, granted_scopes: tuple[str, ...]) -> bool:
+def scope_granted(required_scope: str, granted_scopes: tuple[str, ...]) -> bool:
     """Return True when the granted scope set satisfies *required_scope*."""
     if ADMIN_SCOPE in granted_scopes:
         return True
@@ -147,3 +147,8 @@ def _scope_granted(required_scope: str, granted_scopes: tuple[str, ...]) -> bool
     return (
         required_scope in {RESEARCH_SCOPE, DELEGATE_SCOPE} and LEGACY_WRITE_SCOPE in granted_scopes
     )
+
+
+def _scope_granted(required_scope: str, granted_scopes: tuple[str, ...]) -> bool:
+    """Backward-compatible private alias for older internal imports."""
+    return scope_granted(required_scope, granted_scopes)

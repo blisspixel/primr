@@ -1,6 +1,6 @@
 # Next Steps
 
-Last research refresh: 2026-06-28.
+Last research refresh: 2026-06-29.
 
 This page answers the working question: what should Primr do next, and why?
 `ROADMAP.md` remains the ordered backlog. This page is the shorter execution
@@ -33,6 +33,10 @@ for Primr's shape:
   scope-consent semantics through `WWW-Authenticate`, which fits the existing
   small `read`/`research`/`delegate`/`admin` vocabulary and should shape the
   next HTTP parity slice.
+- For A2A, keep the Agent Card as a discovery contract and enforce actual
+  authorization at the server-side skill boundary. The protocol advertises
+  security schemes, but Primr-owned scope decisions must still happen before
+  handler dispatch so read-only agents cannot start paid work.
 - Treat GenAI observability as structured telemetry: model calls, tool calls,
   token/cost metadata, outcome, and trace ids. Full prompt/output capture
   should stay opt-in and privacy-aware.
@@ -58,6 +62,8 @@ Reference anchors:
   <https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization>
 - MCP 2025-11-25 changelog:
   <https://modelcontextprotocol.io/specification/2025-11-25/changelog>
+- A2A protocol specification, latest snapshot accessed 2026-06-29:
+  <https://a2a-protocol.org/latest/specification/>
 - OWASP Agentic AI Threats and Mitigations: <https://genai.owasp.org/resource/agentic-ai-threats-and-mitigations/>
 - Microsoft Zero Trust AI threat modeling: <https://learn.microsoft.com/en-us/security/zero-trust/sfi/threat-modeling-ai>
 - OpenTelemetry GenAI semantic conventions: <https://opentelemetry.io/docs/specs/semconv/gen-ai/>
@@ -241,7 +247,7 @@ least-privilege and approval semantics as MCP.
 
 Do next:
 
-- Extend A2A parity now that the first seven
+- Continue A2A parity now that the first seven
   compact job-scoped resource slices shipped:
   `primr://output/artifacts/by_job/{job_id}` returns ownership-gated file names,
   paths, sizes, hashes, timestamps, and missing-file state for one job, and
@@ -270,7 +276,15 @@ Do next:
   compact summaries; artifact read can read compact resources; report read can
   request full report content; research can estimate; execution still requires
   approval for paid work.
-- Extend the same scope, approval, budget, and audit decisions to A2A.
+- Shipped first A2A parity slice: authenticated A2A HTTP requests now bind the
+  bearer token into the shared MCP auth context, and A2A skill dispatch
+  enforces `read` for `estimate_research`, `check_jobs`, and `system_health`
+  and `research` for `research_company`, `run_qa`, and task cancellation.
+  Authenticated A2A jobs are owned by the token `client_id`. Local
+  unauthenticated loopback behavior remains permissive, and legacy `write`
+  still satisfies research-scope operations for compatibility.
+- Extend the remaining approval, budget, compact read-resource, and audit
+  decisions to A2A.
 - Carry request/job ids into OpenTelemetry-compatible spans and structured logs
   without storing raw report bodies by default.
 
@@ -282,8 +296,9 @@ Done when:
   scope.
 - Tool invocations and artifact-resource reads are auditable without raw
   argument, URI query, resource-body, or report-body persistence.
-- MCP and A2A enforce the same approval and read-scope semantics for equivalent
-  operations.
+- MCP and A2A enforce the same approval, audit, and compact read-resource
+  semantics for equivalent operations. The shared `read`/`research` skill
+  scope split is shipped; approval, audit, and compact resource parity remain.
 
 ### 4. Research memory layer 1
 

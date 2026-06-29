@@ -1355,15 +1355,21 @@ primr-mcp --http --a2a --a2a-port 9000
 curl http://localhost:9000/.well-known/agent.json
 ```
 
+Authenticated A2A requests use the same bearer-token identity and legacy
+scope compatibility as MCP HTTP. `read` can estimate, inspect job status, and
+check health. `research` is required to start paid work, run QA, or cancel an
+A2A research task. Legacy `write` tokens still satisfy `research` for
+compatibility.
+
 **Skills available via A2A:**
 
-| Skill ID | Description |
-|----------|-------------|
-| `estimate_research` | Cost/time estimate for a research run |
-| `research_company` | Start async research (SSE streaming progress) |
-| `check_jobs` | Current job status |
-| `run_qa` | Quality assessment on completed reports |
-| `system_health` | System diagnostics |
+| Skill ID | Required scope | Description |
+|----------|----------------|-------------|
+| `estimate_research` | `read` | Cost/time estimate for a research run |
+| `research_company` | `research` | Start async research (SSE streaming progress) |
+| `check_jobs` | `read` | Current job status |
+| `run_qa` | `research` | Quality assessment on completed reports |
+| `system_health` | `read` | System diagnostics |
 
 **Example A2A message:**
 ```json
@@ -1380,7 +1386,10 @@ curl http://localhost:9000/.well-known/agent.json
 }
 ```
 
-The A2A server shares the MCP server's `SingleJobStore`, rate limiter, and security middleware. The single-job model is enforced across both protocols.
+The A2A server shares the MCP server's `SingleJobStore`, rate limiter, auth
+context, and security middleware. The single-job model is enforced across both
+protocols. Authenticated A2A jobs are owned by the token `client_id`; local
+unauthenticated loopback jobs keep the legacy `a2a` owner id.
 
 ### Resources
 

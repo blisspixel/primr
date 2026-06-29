@@ -73,7 +73,14 @@ primr-a2a --host 127.0.0.1 --no-auth
 primr-mcp --http --a2a
 ```
 
-Use unauthenticated A2A only on loopback for local development. Networked deployments should use auth and the same cost controls as MCP HTTP mode.
+Use unauthenticated A2A only on loopback for local development. Networked
+deployments should use auth and the same cost controls as MCP HTTP mode. A2A
+bearer tokens use the same scope vocabulary as MCP: `read` can estimate, check
+job status, and run system health; `research` is required to start research,
+run QA, or cancel an A2A task. Legacy `write` tokens still satisfy
+research-scope A2A calls for compatibility. Authenticated A2A jobs are owned
+by the bearer token `client_id`; unauthenticated loopback jobs keep the legacy
+local `a2a` owner id.
 
 ## Host Configuration
 

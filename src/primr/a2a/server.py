@@ -9,7 +9,7 @@ Requires: pip install primr[a2a]
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from a2a.server.apps import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
@@ -86,6 +86,7 @@ class PrimrA2AServer:
         )
 
         app = a2a_app_builder.build()
+        app = self._with_auth_context(app)
 
         # Add auth middleware if required. Fail CLOSED: if auth setup raises
         # (e.g. AuthConfig.from_env() rejects a short/placeholder MCP_JWT_SECRET
@@ -106,6 +107,19 @@ class PrimrA2AServer:
             logger.info("A2A server: authentication enabled")
 
         return app
+
+    def _with_auth_context(self, app: Any) -> Any:
+        """Bridge authenticated A2A HTTP requests into shared tool context."""
+
+        async def _app(scope, receive, send):
+            auth_context = self._mcp._auth_context_from_scope(scope)
+            token = self._mcp._auth_context_var.set(auth_context)
+            try:
+                await app(scope, receive, send)
+            finally:
+                self._mcp._auth_context_var.reset(token)
+
+        return _app
 
     async def run(self) -> None:
         """Run the A2A server standalone with uvicorn."""
