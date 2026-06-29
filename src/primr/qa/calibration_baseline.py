@@ -827,8 +827,12 @@ def _report_summary(report: dict[str, Any]) -> dict[str, Any]:
     return {
         "report_file": report.get("report_file"),
         "report_path": report.get("report_path"),
+        "report_size_bytes": _optional_int(report.get("report_size_bytes")),
+        "report_content_hash": _optional_string(report.get("report_content_hash")),
         "sidecar_path": report.get("sidecar_path"),
         "sidecar_exists": bool(report.get("sidecar_exists")),
+        "sidecar_size_bytes": _optional_int(report.get("sidecar_size_bytes")),
+        "sidecar_content_hash": _optional_string(report.get("sidecar_content_hash")),
         "error": report.get("error"),
         "claims_sampled": _safe_int(report.get("claims_sampled")),
         "judgeable_claims": _safe_int(report.get("judgeable_claims")),
@@ -877,7 +881,11 @@ def _report_blocker(
     blocker = {
         "report_file": report.get("report_file"),
         "report_path": report.get("report_path"),
+        "report_size_bytes": _optional_int(report.get("report_size_bytes")),
+        "report_content_hash": _optional_string(report.get("report_content_hash")),
         "sidecar_path": report.get("sidecar_path"),
+        "sidecar_size_bytes": _optional_int(report.get("sidecar_size_bytes")),
+        "sidecar_content_hash": _optional_string(report.get("sidecar_content_hash")),
         "coverage_tags": _string_list(report.get("coverage_tags")),
     }
     if include_counts:
@@ -932,3 +940,16 @@ def _safe_float(value: Any) -> float:
         return float(value)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_string(value: Any) -> str | None:
+    return value if isinstance(value, str) else None

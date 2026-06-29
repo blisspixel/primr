@@ -123,8 +123,9 @@ For a 24 GB RTX 4090 or comparable local box, start with `4090-report-race` befo
 - Calibration pack manifest: add `--pack-manifest path/to/pack.json` to
   `primr calibrate` or its `--dry-run` preview to freeze the selected reports,
   sidecar state, sampled-claim counts, judge-call estimate, per-label totals,
-  evidence-review summary, inference source-copy counts, and judge-agreement
-  metadata before running a multi-report baseline.
+  evidence-review summary, inference source-copy counts, judge-agreement
+  metadata, and report/sidecar content fingerprints before running a
+  multi-report baseline.
 - Curated pack selection: add `--pack-selection path/to/selection.json` when
   the baseline needs explicit representative coverage instead of "latest N"
   report selection. The selection file uses

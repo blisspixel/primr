@@ -202,7 +202,11 @@ class TestPackManifest:
         assert payload["totals"]["estimated_judge_calls"] == 2
         assert payload["totals"]["sidecars_present"] == 0
         assert payload["reports"][0]["report_file"] == path.name
+        assert payload["reports"][0]["report_size_bytes"] == path.stat().st_size
+        assert payload["reports"][0]["report_content_hash"].startswith("sha256:")
         assert payload["reports"][0]["sidecar_exists"] is False
+        assert payload["reports"][0]["sidecar_size_bytes"] is None
+        assert payload["reports"][0]["sidecar_content_hash"] is None
 
     def test_manifest_includes_existing_sidecar_summary(self, tmp_path):
         path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
@@ -225,6 +229,8 @@ class TestPackManifest:
         assert payload["existing_sidecar_per_label"]["Confirmed"]["traceable"] == 1
         assert payload["existing_sidecar_per_label"]["Estimated"]["source_copied"] == 0
         assert report_entry["sidecar_exists"] is True
+        assert report_entry["sidecar_size_bytes"] == sidecar_path_for(path).stat().st_size
+        assert report_entry["sidecar_content_hash"].startswith("sha256:")
         assert report_entry["sidecar"]["judge"] == {"kind": "cloud", "model": "fast-tier"}
         assert report_entry["sidecar"]["per_label"]["Confirmed"]["traceable"] == 1
 

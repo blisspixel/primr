@@ -59,11 +59,13 @@ Current priority order:
    aggregate latest-N packs that have not been curated. It also requires every
    selected report to carry evidence-review dimensions and cloud-vs-local
    judge-agreement metadata, so partial sidecar coverage cannot make a pack
-   look ready by aggregate counts alone. `primr calibrate --inspect-baseline`
-   prints the same blocker set as machine-readable JSON for operators and
-   agent control planes, and MCP exposes the same inspection through
-   `primr://calibration/baseline/inspection?path=<baseline.json>` under the
-   existing path-allowlist boundary. The measured operator-curated
+   look ready by aggregate counts alone. Calibration pack manifests now carry
+   report and sidecar byte sizes plus SHA-256 content hashes so a baseline
+   candidate names the exact artifacts it measured. `primr calibrate
+   --inspect-baseline` prints the same blocker set as machine-readable JSON for
+   operators and agent control planes, and MCP exposes the same inspection
+   through `primr://calibration/baseline/inspection?path=<baseline.json>` under
+   the existing path-allowlist boundary. The measured operator-curated
    multi-report baseline itself is still next.
 2. **Backend freedom production wiring.** Provider abstractions and pure routing
    foundations exist, and `core/stage_inventory.py` now records router-ready

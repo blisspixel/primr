@@ -181,8 +181,9 @@ Do next:
   pack-selection template for manual representative tagging, a curated
   pack-selection contract for explicit representative coverage tags, a
   zero-spend selection inspection that shows missing representative tags before
-  manifest generation, and a zero-spend baseline readiness artifact that names
-  exactly why a pack is not ready. The readiness check now requires every
+  manifest generation, report/sidecar content fingerprints in pack manifests,
+  and a zero-spend baseline readiness artifact that names exactly why a pack is
+  not ready. The readiness check now requires every
   baseline candidate to come from an explicit curated pack-selection manifest
   with non-empty representative tag requirements; latest-N aggregate manifests
   report `missing_representative_selection` and remain report-only. It also

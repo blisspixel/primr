@@ -237,6 +237,35 @@ def test_build_baseline_ready_when_pack_has_required_evidence() -> None:
     ]
 
 
+def test_build_baseline_preserves_manifest_artifact_fingerprints() -> None:
+    manifest = _manifest(
+        5,
+        required_tags=["clean"],
+        present_tags=["clean"],
+    )
+    reports = manifest["reports"]
+    assert isinstance(reports, list)
+    first_report = reports[0]
+    assert isinstance(first_report, dict)
+    first_report.update(
+        {
+            "report_size_bytes": 123,
+            "report_content_hash": "sha256:report",
+            "sidecar_size_bytes": 456,
+            "sidecar_content_hash": "sha256:sidecar",
+        }
+    )
+
+    baseline = build_calibration_baseline(manifest, minimum_reports=5)
+    inspection = inspect_calibration_baseline(baseline)
+
+    assert baseline["reports"][0]["report_size_bytes"] == 123
+    assert baseline["reports"][0]["report_content_hash"] == "sha256:report"
+    assert baseline["reports"][0]["sidecar_size_bytes"] == 456
+    assert baseline["reports"][0]["sidecar_content_hash"] == "sha256:sidecar"
+    assert inspection["blockers"]["missing_sidecars"] == []
+
+
 def test_build_baseline_requires_explicit_representative_selection() -> None:
     baseline = build_calibration_baseline(_manifest(5), minimum_reports=5)
 

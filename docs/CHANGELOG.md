@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Calibration baseline next-action commands now write operator scratch files
   under the gitignored root `.agent/` directory instead of `docs/.agent/`.
+- Calibration pack manifests now include report and sidecar byte sizes plus
+  SHA-256 content hashes, and baseline readiness JSON carries those
+  fingerprints forward.
 - Source distributions now explicitly prune `.agent/` while retaining the
   legacy `docs/.agent/` prune rule.
 - Local `_site/` documentation build output is now gitignored.
