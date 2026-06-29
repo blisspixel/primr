@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import MagicMock
 
 from primr.ai.capability_routing import InferenceProfile
 from primr.ai.provider_availability import ProviderQuotaSnapshot, QuotaWindow
@@ -49,6 +50,10 @@ def test_source_relevance_cloud_route_uses_legacy_utility_model(monkeypatch) -> 
     assert route.expected_input_tokens == 18_000
     assert route.expected_output_tokens == 2_000
     assert "meets_context" in route.reasons
+    assert route.availability is not None
+    assert route.availability["available"] is True
+    assert route.availability["provider"] == "gemini"
+    assert route.availability["credential_source"] == "env"
 
 
 def test_scrape_summary_cloud_route_uses_stage_token_budget(monkeypatch) -> None:
@@ -136,6 +141,36 @@ def test_provider_availability_snapshot_marks_runtime_route_unavailable(monkeypa
         "credential_source": "env",
     }
     assert route.log_metadata()["availability"] == route.availability
+
+
+def test_default_availability_collection_skips_local_probe(monkeypatch) -> None:
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+    collector = MagicMock(
+        return_value=(
+            ProviderQuotaSnapshot(
+                provider="google",
+                metadata={
+                    "configured": True,
+                    "credential_source": "env",
+                    "quota_source": "not_collected",
+                },
+            ),
+        )
+    )
+    monkeypatch.setattr("primr.ai.stage_routing.collect_provider_availability_snapshots", collector)
+
+    route = resolve_stage_model(
+        "fast.source_relevance",
+        legacy_model_type="fast",
+        profile="cloud",
+    )
+
+    collector.assert_called_once_with(include_local=False)
+    assert route.routed is True
+    assert route.availability is not None
+    assert route.availability["configured"] is True
+    assert route.availability["quota_source"] == "not_collected"
 
 
 def test_record_stage_route_usage_appends_body_free_run_state(tmp_path, monkeypatch) -> None:

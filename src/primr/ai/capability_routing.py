@@ -578,7 +578,12 @@ def _availability_provider_keys(backend: BackendCapabilities) -> tuple[str, ...]
     keys: list[str] = []
     provider = backend.metadata.get("provider")
     if isinstance(provider, str) and provider.strip():
-        keys.append(provider.strip())
+        provider_key = provider.strip()
+        keys.append(provider_key)
+        if provider_key == "google":
+            keys.append("gemini")
+        elif provider_key == "gemini":
+            keys.append("google")
     if BackendKind(backend.kind) is BackendKind.LOCAL:
         keys.append(_LOCAL_OPENAI_COMPATIBLE_PROVIDER)
         keys.append("ollama")

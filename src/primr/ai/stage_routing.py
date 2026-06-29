@@ -19,14 +19,17 @@ from primr.ai.capability_routing import (
     backends_with_availability,
     route_stage,
 )
+from primr.ai.provider_availability_collectors import collect_provider_availability_snapshots
 from primr.ai.routing import Role, pick_model_for_legacy_type
 from primr.config.model_registry import ModelConfig
 from primr.config.models import PrimrModels
 from primr.core.stage_inventory import get_production_stage
+from primr.utils.logging_config import get_logger
 
 if TYPE_CHECKING:
     from primr.ai.provider_availability import ProviderQuotaSnapshot
 
+logger = get_logger(__name__)
 INFERENCE_PROFILE_ENV = "PRIMR_INFERENCE_PROFILE"
 DEFAULT_INFERENCE_PROFILE = InferenceProfile.CLOUD
 
@@ -117,10 +120,15 @@ def resolve_stage_model(
             reasons=("legacy_model_unregistered",),
             rejections=("legacy_model_unregistered",),
         )
-    if availability_snapshots is not None:
+    snapshots = (
+        tuple(availability_snapshots)
+        if availability_snapshots is not None
+        else _default_provider_availability_snapshots()
+    )
+    if snapshots:
         backend = backends_with_availability(
             (backend,),
-            availability_snapshots,
+            snapshots,
             require_snapshot=require_availability_snapshot,
         )[0]
 
@@ -224,6 +232,16 @@ def _availability_metadata(backend: BackendCapabilities) -> dict[str, Any] | Non
     if not isinstance(value, dict):
         return None
     return dict(value)
+
+
+def _default_provider_availability_snapshots() -> tuple[ProviderQuotaSnapshot, ...]:
+    """Collect default routing availability without live quota or local probes."""
+
+    try:
+        return tuple(collect_provider_availability_snapshots(include_local=False))
+    except Exception as exc:
+        logger.debug("Provider availability collection skipped: %s", exc, exc_info=True)
+        return ()
 
 
 def _coerce_profile(profile: InferenceProfile | str) -> InferenceProfile:

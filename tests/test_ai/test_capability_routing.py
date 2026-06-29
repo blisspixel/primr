@@ -323,6 +323,24 @@ def test_provider_availability_marks_missing_cloud_key_unavailable() -> None:
     assert plan.rejections[0].reasons == ("unavailable",)
 
 
+def test_provider_availability_matches_gemini_snapshot_to_google_model() -> None:
+    backend = replace(_cloud("gemini-flash"), metadata={"provider": "google"})
+    snapshot = ProviderQuotaSnapshot(
+        provider="gemini",
+        metadata={
+            "configured": True,
+            "credential_source": "env",
+            "quota_source": "not_collected",
+        },
+    )
+
+    annotated = backend_with_availability(backend, (snapshot,))
+
+    assert annotated.available is True
+    assert annotated.metadata["availability"]["provider"] == "gemini"
+    assert annotated.metadata["availability"]["configured"] is True
+
+
 def test_provider_availability_applies_generic_local_snapshot_to_local_backend() -> None:
     local = _local()
     snapshot = ProviderQuotaSnapshot(
