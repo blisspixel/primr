@@ -130,6 +130,15 @@ def test_chat_daily_quota_raises():
         p.chat([{"role": "user", "content": "x"}], model="gemini-3-flash", retries=0)
 
 
+def test_quota_guidance_is_provider_owned():
+    guidance = _provider().quota_guidance()
+
+    assert guidance.headline == "[QUOTA EXHAUSTED] Daily API limit reached."
+    assert "Gemini daily API quota exhausted" in guidance.log_message
+    assert "https://ai.google.dev" in guidance.options[1]
+    assert guidance.error_message == "[ERROR] Daily API quota exhausted. Cannot continue."
+
+
 def test_chat_rate_limited_retries_then_succeeds():
     p = _provider()
     fake = MagicMock()

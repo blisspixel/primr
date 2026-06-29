@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.24] - 2026-06-29
+
+### Changed
+
+- Gemini terminal quota guidance now lives in `GeminiProvider` as a
+  provider-owned guidance object. The legacy `llm()` path renders that guidance
+  generically, preserving the current colored CLI output and
+  `[ERROR] Daily API quota exhausted. Cannot continue.` failure message.
+- Backend-freedom docs now mark the xAI browse/search seam and Gemini quota UI
+  seam as provider-owned, leaving long-context/cache-token estimate honesty as
+  the next backend-freedom slice.
+
 ## [1.34.23] - 2026-06-29
 
 ### Added

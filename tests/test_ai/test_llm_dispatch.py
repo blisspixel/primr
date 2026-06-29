@@ -10,7 +10,7 @@ v1.24.0 split the legacy PRO role into WRITING and REASONING:
 - UTILITY (scraping, link_selection, fast): prefers Grok 4.20-NR when
   XAI_API_KEY is set, else Gemini Flash.
 
-The legacy assumption that "PRO tier always = Gemini" no longer holds — when
+The legacy assumption that "PRO tier always = Gemini" no longer holds. When
 XAI is configured, primr's reasoning and writing stages run on Grok, which
 matches v1.22.0+ production behavior in research_agent. This file pins the
 new role-based dispatch.
@@ -18,9 +18,12 @@ new role-based dispatch.
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 import primr.ai.llm as llm_module
+from primr.ai.providers import QuotaExhaustedError
 from primr.config.models import PrimrModels
 
 _PROVIDER_API_KEY_VARS = (
@@ -156,7 +159,7 @@ class TestLLMDispatch:
         mock_gemini_client.assert_not_called()
 
     def test_llm_uses_gemini_for_pro_tier_when_no_xai_key(self) -> None:
-        """Without XAI key, analysis falls back to Pro (Gemini) — provider stays Gemini."""
+        """Without XAI key, analysis falls back to Pro and the provider stays Gemini."""
         from primr.ai.providers import ChatResponse
 
         env = {k: v for k, v in __import__("os").environ.items() if k != "XAI_API_KEY"}
@@ -196,3 +199,24 @@ class TestLLMDispatch:
         kwargs = mock_grok.call_args.kwargs
         assert kwargs["model"] == PrimrModels.GROK_MODEL_43
         mock_gemini_client.assert_not_called()
+
+    def test_llm_renders_provider_owned_gemini_quota_guidance(self, capsys) -> None:
+        """Gemini quota copy comes from the provider, while llm() only renders it."""
+        from primr.ai.providers.gemini import GeminiProvider
+
+        env = _scrubbed_env()
+        provider = GeminiProvider()
+        provider.chat = MagicMock(side_effect=QuotaExhaustedError("quota"))
+
+        with (
+            patch.dict("os.environ", env, clear=True),
+            patch.object(llm_module, "_get_gemini_provider", return_value=provider),
+            patch.object(llm_module, "log_chat_interaction"),
+            pytest.raises(RuntimeError, match="Daily API quota exhausted"),
+        ):
+            llm_module.llm("test prompt", model_type="analysis")
+
+        output = capsys.readouterr().out
+        assert "[QUOTA EXHAUSTED] Daily API limit reached." in output
+        assert "Upgrade your API plan at https://ai.google.dev" in output
+        assert "Check quota: primr --check-quota" in output

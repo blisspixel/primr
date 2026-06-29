@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import os
 import time
+from dataclasses import dataclass
 from typing import Any
 
 from primr.ai.genai_factory import default_genai_http_options
@@ -40,8 +41,19 @@ from primr.utils.logging_config import get_logger
 logger = get_logger("ai.providers.gemini")
 
 
+@dataclass(frozen=True)
+class GeminiQuotaGuidance:
+    """Provider-owned user guidance for terminal Gemini quota exhaustion."""
+
+    log_message: str
+    headline: str
+    summary: str
+    options: tuple[str, ...]
+    error_message: str
+
+
 # ---------------------------------------------------------------------------
-# Lazy SDK import — keep the provider importable even when google.genai is
+# Lazy SDK import: keep the provider importable even when google.genai is
 # missing (e.g. minimal install). Construction succeeds; first call raises
 # ProviderUnavailableError.
 # ---------------------------------------------------------------------------
@@ -88,6 +100,21 @@ class GeminiProvider(Provider):
 
     DEFAULT_RETRIES: int = 5
     BACKOFF_CAP_SECONDS: float = 60.0
+    QUOTA_GUIDANCE = GeminiQuotaGuidance(
+        log_message=(
+            "Gemini daily API quota exhausted. Options: wait for reset, "
+            "upgrade plan, use different key, or run 'primr --check-quota'"
+        ),
+        headline="[QUOTA EXHAUSTED] Daily API limit reached.",
+        summary="Your Gemini API quota has been exhausted for today.",
+        options=(
+            "Wait until quota resets (usually midnight PT)",
+            "Upgrade your API plan at https://ai.google.dev",
+            "Use a different API key",
+            "Check quota: primr --check-quota",
+        ),
+        error_message="[ERROR] Daily API quota exhausted. Cannot continue.",
+    )
 
     def __init__(
         self,
@@ -105,6 +132,11 @@ class GeminiProvider(Provider):
 
     def is_available(self) -> bool:
         return bool(os.getenv(self._api_key_env)) and _GENAI_IMPORT_ERROR is None
+
+    def quota_guidance(self) -> GeminiQuotaGuidance:
+        """Return provider-specific terminal quota guidance for CLI callers."""
+
+        return self.QUOTA_GUIDANCE
 
     def _get_client(self) -> Any:
         if self._client is not None:
@@ -168,7 +200,7 @@ class GeminiProvider(Provider):
         """Run a Gemini generate_content call.
 
         ``max_tokens`` is accepted for interface symmetry but Gemini sets
-        the response cap server-side based on the model — passing it is
+        the response cap server-side based on the model; passing it is
         usually a no-op. Use ``thinking_level`` (low/high) and ``streaming``
         (bool) via ``provider_kwargs`` to control Gemini-specific behaviour.
         """
@@ -256,7 +288,7 @@ class GeminiProvider(Provider):
                         continue
                     break
 
-                # Generic transient error — short backoff
+                # Generic transient error: short backoff
                 if attempt < retries:
                     logger.warning(
                         "Gemini API call failed (attempt %d/%d): %s",

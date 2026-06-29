@@ -8,7 +8,7 @@ fast non-reasoning instead of Gemini Flash. Grok 4.1 NR is 2.5x cheaper on
 input and 6x cheaper on output than Gemini Flash, lives on the same key the
 user already needs for the standard pipeline, and removes a cross-provider
 dependency that previously could stall the run on a Gemini hang. Pro-tier
-calls (analysis, section writing) stay on Gemini regardless — those are
+calls (analysis, section writing) stay on Gemini regardless; those are
 provider-specific code paths.
 """
 
@@ -117,6 +117,16 @@ def _get_model_for_type(model_type: str) -> str:
     return pick_model_for_legacy_type(model_type)
 
 
+def _print_quota_guidance(guidance) -> None:
+    print(Fore.RED + "\n" + "=" * 60 + Style.RESET_ALL)
+    print(Fore.RED + guidance.headline + Style.RESET_ALL)
+    print(Fore.YELLOW + guidance.summary + Style.RESET_ALL)
+    print(Fore.YELLOW + "Options:" + Style.RESET_ALL)
+    for index, option in enumerate(guidance.options, start=1):
+        print(Fore.YELLOW + f"  {index}. {option}" + Style.RESET_ALL)
+    print(Fore.RED + "=" * 60 + "\n" + Style.RESET_ALL)
+
+
 def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", streaming=False):
     """
     Sends a prompt to the Gemini AI model and returns the response.
@@ -142,7 +152,7 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
         # resolver picked a Grok model because XAI_API_KEY is set. Route
         # through the circuit-breaker failover seam so a quota blip on the
         # routed model advances to the next provider in the utility chain
-        # instead of failing the run — thinking_level / streaming have no
+        # instead of failing the run; thinking_level / streaming have no
         # analogue on Grok 4.20-NR (it doesn't reason).
         from primr.pipeline.llm_failover import LLMRole, call_with_failover
 
@@ -172,7 +182,7 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
         )
         log_chat_interaction(prompt, cross_response.text)
         # Mirror usage into the session counters so cross-provider utility
-        # calls are counted by the run cost summary and the budget gate —
+        # calls are counted by the run cost summary and the budget gate;
         # parity with grok_llm's cross-provider branch.
         from primr.ai.grok_client import _mirror_session_usage
 
@@ -207,20 +217,10 @@ def llm(prompt, model_type="fast", temperature=1.0, thinking_level="high", strea
             streaming=streaming,
         )
     except QuotaExhaustedError as e:
-        logger.error(
-            "Gemini daily API quota exhausted. Options: wait for reset, "
-            "upgrade plan, use different key, or run 'primr --check-quota'"
-        )
-        print(Fore.RED + "\n" + "=" * 60 + Style.RESET_ALL)
-        print(Fore.RED + "[QUOTA EXHAUSTED] Daily API limit reached." + Style.RESET_ALL)
-        print(Fore.YELLOW + "Your Gemini API quota has been exhausted for today." + Style.RESET_ALL)
-        print(Fore.YELLOW + "Options:" + Style.RESET_ALL)
-        print(Fore.YELLOW + "  1. Wait until quota resets (usually midnight PT)" + Style.RESET_ALL)
-        print(Fore.YELLOW + "  2. Upgrade your API plan at https://ai.google.dev" + Style.RESET_ALL)
-        print(Fore.YELLOW + "  3. Use a different API key" + Style.RESET_ALL)
-        print(Fore.YELLOW + "  4. Check quota: primr --check-quota" + Style.RESET_ALL)
-        print(Fore.RED + "=" * 60 + "\n" + Style.RESET_ALL)
-        error_message = "[ERROR] Daily API quota exhausted. Cannot continue."
+        guidance = provider.quota_guidance()
+        logger.error(guidance.log_message)
+        _print_quota_guidance(guidance)
+        error_message = guidance.error_message
         log_chat_interaction(prompt, error_message)
         raise RuntimeError(error_message) from e
 
