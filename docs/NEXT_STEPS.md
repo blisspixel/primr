@@ -238,7 +238,7 @@ least-privilege and approval semantics as MCP.
 
 Do next:
 
-- Extend A2A parity and resource-read auditing now that the first seven
+- Extend A2A parity now that the first seven
   compact job-scoped resource slices shipped:
   `primr://output/artifacts/by_job/{job_id}` returns ownership-gated file names,
   paths, sizes, hashes, timestamps, and missing-file state for one job, and
@@ -259,14 +259,14 @@ Do next:
   trace summaries omit raw trace entries and page content, verification
   summaries omit raw claims, source URLs, search queries, and explanations,
   and calibration summaries omit raw claims, source URLs, evidence reviews,
-  and rationales.
+  and rationales. Resource reads are now audited with normalized resource kind,
+  hashed URI, hashed result body, job id when present, granted scopes,
+  duration, and outcome, without raw URI query values or resource bodies.
 - Define the scope matrix before implementation: monitor can read status and
   compact summaries; artifact read can read compact resources; report read can
   request full report content; research can estimate; execution still requires
   approval for paid work.
 - Extend the same scope, approval, budget, and audit decisions to A2A.
-- Audit resource reads as well as tool calls, with resource uri, job id,
-  subject, scope, and outcome.
 - Carry request/job ids into OpenTelemetry-compatible spans and structured logs
   without storing raw report bodies by default.
 
@@ -277,7 +277,7 @@ Done when:
 - A research credential still cannot delegate unless it also has the delegate
   scope.
 - Tool invocations and artifact-resource reads are auditable without raw
-  argument or report-body persistence.
+  argument, URI query, resource-body, or report-body persistence.
 - MCP and A2A enforce the same approval and read-scope semantics for equivalent
   operations.
 

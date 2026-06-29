@@ -132,7 +132,11 @@ When a user asks you to research a company:
    label-calibration counts or judge-agreement metadata without raw claims,
    source URLs, evidence reviews, rationales, or report body content. Request
    report content only when the user needs a summary or downstream action
-7. Share the key findings with the user
+7. Treat MCP resource reads as audited operations: Primr records normalized
+   resource kind, hashed URI, hashed result body, job id when present, granted
+   scopes, duration, and outcome without raw URI query values or resource
+   bodies.
+8. Share the key findings with the user
 
 Important:
 - Always estimate costs before submitting a job (~$0.75 for standard research)

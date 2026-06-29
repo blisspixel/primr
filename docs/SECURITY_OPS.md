@@ -70,7 +70,10 @@ print(f"Removed {cleaned} expired keys")
 
 ## Audit Log Storage
 
-Primr generates security audit logs that should be stored persistently for compliance and incident investigation. MCP tool invocations are appended to `output/.mcp_audit_log.jsonl` by default, or beside a custom MCP job journal when one is configured.
+Primr generates security audit logs that should be stored persistently for
+compliance and incident investigation. MCP tool invocations and resource reads
+are appended to `output/.mcp_audit_log.jsonl` by default, or beside a custom
+MCP job journal when one is configured.
 
 ### Log Format
 
@@ -79,6 +82,7 @@ Security events are logged with structured data:
 ```json
 {
   "schema_version": "1.0",
+  "event_type": "tool_call",
   "timestamp": "2026-06-25T12:00:00Z",
   "tool_name": "research_company",
   "status": "success",
@@ -92,7 +96,11 @@ Security events are logged with structured data:
 }
 ```
 
-Raw tool arguments, raw results, raw client ids, and full approval tokens are not persisted.
+Resource-read events use `event_type: "resource_read"` and
+`tool_name: "resources/read"`. They include `resource_kind`, `resource_uri_hash`,
+`result_hash`, `job_id` when present, scopes, duration, and outcome. Raw tool
+arguments, raw tool results, raw resource URI query values, raw resource
+bodies, raw client ids, and full approval tokens are not persisted.
 
 ### AWS S3 Storage
 

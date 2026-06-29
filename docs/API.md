@@ -1450,17 +1450,20 @@ Default governance contract for generic MCP clients.
 
 #### primr://agent/audit/recent
 
-Recent privacy-preserving MCP invocation audit events. Local stdio callers can
-read this directly; HTTP callers need `admin` scope. Events include hashes and
-metadata, not raw tool arguments, raw results, or approval tokens.
+Recent privacy-preserving MCP audit events for tool calls and resource reads.
+Local stdio callers can read this directly; HTTP callers need `admin` scope.
+Events include hashes and metadata, not raw tool arguments, raw tool results,
+raw resource URI query values, raw resource bodies, raw caller ids, or approval
+tokens.
 
 ```json
 {
   "schema_version": "1.0",
-  "event_count": 1,
+  "event_count": 2,
   "events": [
     {
       "schema_version": "1.0",
+      "event_type": "tool_call",
       "tool_name": "estimate_run",
       "status": "success",
       "transport": "stdio",
@@ -1472,6 +1475,22 @@ metadata, not raw tool arguments, raw results, or approval tokens.
       "approval_token_id": "tok_...",
       "estimated_cost_usd": 0.89,
       "duration_ms": 8
+    },
+    {
+      "schema_version": "1.0",
+      "event_type": "resource_read",
+      "tool_name": "resources/read",
+      "status": "success",
+      "transport": "http",
+      "actor": null,
+      "client_id_hash": "sha256:...",
+      "auth_scopes": ["read"],
+      "args_hash": "sha256:...",
+      "result_hash": "sha256:...",
+      "resource_kind": "primr://output/calibration_summary/by_job/{job_id}",
+      "resource_uri_hash": "sha256:...",
+      "job_id": "job_abc123",
+      "duration_ms": 4
     }
   ]
 }

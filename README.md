@@ -168,6 +168,10 @@ claims, source URLs, evidence reviews, rationales, or report body content.
 They can inspect scrape trace health with
 `primr://output/trace_summary/by_job/{job_id}` without loading URLs, raw trace
 entries, or page content.
+MCP `resources/read` calls are audited with hashed URI/result values,
+normalized resource kind, job id when present, granted scopes, duration, and
+outcome; raw URI query values and resource bodies are not persisted in the
+audit log.
 
 With `--output-dir`, Primr writes customer-facing Markdown and DOCX deliverables to that folder while keeping TXT mirrors and validation diagnostics in the run diagnostics directory.
 

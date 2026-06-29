@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.16] - 2026-06-29
+
+### Added
+
+- MCP `resources/read` calls now write privacy-preserving audit events with
+  `event_type`, normalized resource kind, hashed resource URI, hashed result
+  body, job id when present, granted scopes, duration, and outcome.
+- `primr://agent/audit/recent` now reports both tool-call and resource-read
+  events to local stdio callers and admin-scoped HTTP callers without storing
+  raw URI query values, resource bodies, raw arguments, raw results, raw caller
+  ids, or approval tokens.
+
 ## [1.34.15] - 2026-06-28
 
 ### Added

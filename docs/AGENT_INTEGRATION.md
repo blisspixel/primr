@@ -56,7 +56,8 @@ Important MCP concepts:
   provenance, and judge-agreement metadata without raw claims, source URLs,
   evidence reviews, rationales, or report body content.
 - HTTP mode can enforce server-side cost caps and approval tokens.
-- Audit resources record tool calls with hashed payloads for admin review.
+- Audit resources record tool calls and resource reads with hashed payloads
+  and normalized resource kinds for admin review.
 
 Full tool and resource details are in [MCP and A2A API](API.md).
 
@@ -160,6 +161,8 @@ URLs, search queries, explanations, or report body content.
 Read `primr://output/calibration_summary/by_job/{job_id}` when the handoff
 needs label-calibration counts or judge-agreement metadata without raw claims,
 source URLs, evidence reviews, rationales, or report body content.
+Resource reads are audit-logged without raw URI query values or resource
+bodies, so prefer compact resources before requesting report previews or files.
 
 ## Related Docs
 

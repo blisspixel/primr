@@ -8,6 +8,7 @@ import functools
 import hashlib
 import json
 import logging
+import re
 import time
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class MCPAuditEvent:
-    """One MCP tool invocation audit event."""
+    """One MCP governance audit event."""
 
     schema_version: str
     event_id: str
@@ -46,9 +47,12 @@ class MCPAuditEvent:
     authenticated: bool
     auth_scopes: list[str]
     args_hash: str
+    event_type: str = "tool_call"
     result_hash: str | None = None
     approval_token_id: str | None = None
     job_id: str | None = None
+    resource_kind: str | None = None
+    resource_uri_hash: str | None = None
     estimated_cost_usd: float | None = None
     max_estimated_cost_usd: float | None = None
     error_type: str | None = None
@@ -112,6 +116,46 @@ class MCPAuditLog:
         except Exception:
             logger.exception("Failed to write MCP audit event for tool %s", tool_name)
 
+    def record_resource_read(
+        self,
+        *,
+        uri: str,
+        result: Sequence[ReadResourceContents] | None,
+        auth_context: Any,
+        client_id: str,
+        transport: str,
+        started_at: float,
+        exception: BaseException | None = None,
+    ) -> None:
+        """Persist one resource-read audit event without raw URI values or contents."""
+        try:
+            duration_ms = max(0, int((time.perf_counter() - started_at) * 1000))
+            result_payload = _first_json_resource(result)
+            event = MCPAuditEvent(
+                schema_version="1.0",
+                event_id=str(uuid.uuid4()),
+                timestamp=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                transport=transport,
+                tool_name="resources/read",
+                status=_classify_resource_status(result_payload, exception),
+                duration_ms=duration_ms,
+                actor="stdio" if client_id == "stdio" else None,
+                client_id_hash=None if client_id == "stdio" else _hash_text(client_id),
+                authenticated=bool(getattr(auth_context, "is_authenticated", False)),
+                auth_scopes=sorted(str(s) for s in getattr(auth_context, "scopes", []) or []),
+                args_hash=_hash_json({"uri": uri}),
+                event_type="resource_read",
+                result_hash=_hash_resource_result(result),
+                job_id=_resource_job_id(uri, result_payload),
+                resource_kind=_resource_kind(uri),
+                resource_uri_hash=_hash_text(uri),
+                error_type=_resource_error_type(result_payload, exception),
+                error_code=_optional_error_code(result_payload.get("error_code")),
+            )
+            self._append(event)
+        except Exception:
+            logger.exception("Failed to write MCP audit event for resource read")
+
     def recent(self, limit: int = 50) -> list[dict[str, Any]]:
         """Return the most recent audit events in file order."""
         bounded_limit = max(1, min(int(limit), 200))
@@ -173,6 +217,52 @@ def audit_tool_calls(
             server.audit_log.record_tool_call(
                 tool_name=name,
                 arguments=arguments,
+                result=result,
+                auth_context=ctx,
+                client_id=client_id,
+                transport=server.transport,
+                started_at=started_at,
+            )
+            return result
+
+        return wrapped
+
+    return decorator
+
+
+def audit_resource_reads(
+    mcp_server_factory: Callable[[], PrimrMCPServer],
+) -> Callable[
+    [Callable[[str], Awaitable[list[ReadResourceContents]]]],
+    Callable[[str], Awaitable[list[ReadResourceContents]]],
+]:
+    """Decorate an MCP resource dispatcher with structured audit logging."""
+
+    def decorator(
+        handler: Callable[[str], Awaitable[list[ReadResourceContents]]],
+    ) -> Callable[[str], Awaitable[list[ReadResourceContents]]]:
+        @functools.wraps(handler)
+        async def wrapped(uri: str) -> list[ReadResourceContents]:
+            server = mcp_server_factory()
+            uri_text = str(uri)
+            ctx = getattr(server, "_auth_context", None)
+            client_id = _client_id(ctx)
+            started_at = time.perf_counter()
+            try:
+                result = await handler(uri_text)
+            except Exception as exc:
+                server.audit_log.record_resource_read(
+                    uri=uri_text,
+                    result=None,
+                    auth_context=ctx,
+                    client_id=client_id,
+                    transport=server.transport,
+                    started_at=started_at,
+                    exception=exc,
+                )
+                raise
+            server.audit_log.record_resource_read(
+                uri=uri_text,
                 result=result,
                 auth_context=ctx,
                 client_id=client_id,
@@ -269,10 +359,30 @@ def _hash_result(result: Sequence[TextContent] | None) -> str | None:
     return _hash_json(texts)
 
 
+def _hash_resource_result(result: Sequence[ReadResourceContents] | None) -> str | None:
+    if result is None:
+        return None
+    texts = [str(getattr(item, "content", "")) for item in result]
+    return _hash_json(texts)
+
+
 def _first_json_text(result: Sequence[TextContent] | None) -> dict[str, Any]:
     if not result:
         return {}
     text = getattr(result[0], "text", None)
+    if not isinstance(text, str):
+        return {}
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _first_json_resource(result: Sequence[ReadResourceContents] | None) -> dict[str, Any]:
+    if not result:
+        return {}
+    text = getattr(result[0], "content", None)
     if not isinstance(text, str):
         return {}
     try:
@@ -295,11 +405,52 @@ def _classify_status(payload: dict[str, Any], exception: BaseException | None) -
     return "error"
 
 
+def _classify_resource_status(
+    payload: dict[str, Any],
+    exception: BaseException | None,
+) -> str:
+    if exception is not None:
+        return "exception"
+    error = payload.get("error")
+    if error is None or error is False:
+        return "success"
+    if str(error) == "insufficient_scope":
+        return "scope_denied"
+    return "error"
+
+
 def _error_type(payload: dict[str, Any], exception: BaseException | None) -> str | None:
     if exception is not None:
         return exception.__class__.__name__
     value = payload.get("error_type")
     return str(value) if value is not None else None
+
+
+def _resource_error_type(
+    payload: dict[str, Any],
+    exception: BaseException | None,
+) -> str | None:
+    if exception is not None:
+        return exception.__class__.__name__
+    value = payload.get("error_type", payload.get("error"))
+    if isinstance(value, bool):
+        return None
+    return str(value) if value is not None else None
+
+
+def _resource_kind(uri: str) -> str:
+    parsed = urlparse(uri)
+    base = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+    base = re.sub(r"/by_job/[^/?]+", "/by_job/{job_id}", base)
+    return base
+
+
+def _resource_job_id(uri: str, payload: dict[str, Any]) -> str | None:
+    value = _optional_string(payload.get("job_id"))
+    if value is not None:
+        return value
+    match = re.search(r"/by_job/([^/?]+)", uri)
+    return match.group(1) if match else None
 
 
 def _optional_error_code(value: Any) -> int | str | None:

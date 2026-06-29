@@ -93,7 +93,11 @@ You have access to Primr company research tools. When a user asks you to researc
    label-calibration counts or judge-agreement metadata without raw claims,
    source URLs, evidence reviews, rationales, or report body content. Request
    report content only if the user needs a summary or downstream action
-5. Share the results with the user
+5. Treat MCP resource reads as audited operations: Primr records normalized
+   resource kind, hashed URI, hashed result body, job id when present, granted
+   scopes, duration, and outcome without raw URI query values or resource
+   bodies.
+6. Share the results with the user
 
 Always estimate before submitting. Research jobs cost real money (~$0.75 for standard mode).
 Use show_usage to check remaining budget if the user asks about costs.
@@ -143,7 +147,9 @@ The agent should:
    verification trust and count metadata is needed
 10. Read `primr://output/calibration_summary/by_job/{job_id}` when
    label-calibration counts or judge-agreement metadata is needed
-11. Return results when the job completes
+11. Remember that resource reads are audit-logged without raw URI query values
+   or resource bodies
+12. Return results when the job completes
 
 ## Private Endpoints (VNet Integration)
 

@@ -38,7 +38,7 @@ from primr.mcp_server.artifact_resources import (
     read_qa_summary_by_job_resource,
     read_usage_summary_by_job_resource,
 )
-from primr.mcp_server.audit_log import read_agent_audit_recent_resource
+from primr.mcp_server.audit_log import audit_resource_reads, read_agent_audit_recent_resource
 from primr.mcp_server.calibration_resources import (
     CALIBRATION_BASELINE_INSPECTION_RESOURCE,
     CALIBRATION_BASELINE_INSPECTION_URI,
@@ -188,6 +188,7 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
         return base_resources + agentic_resources
 
     @server.read_resource()
+    @audit_resource_reads(lambda: mcp_server)
     async def read_resource(uri: str) -> list[ReadResourceContents]:
         """Read a resource by URI."""
         uri_str = str(uri)

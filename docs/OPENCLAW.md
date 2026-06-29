@@ -159,6 +159,10 @@ primr doctor
   judge provenance, or judge-agreement metadata, read
   `primr://output/calibration_summary/by_job/{job_id}` instead of loading raw
   claims, source URLs, evidence reviews, rationales, or report body content.
+- MCP resource reads are audit-logged with normalized resource kind, hashed URI,
+  hashed result body, job id when present, granted scopes, duration, and
+  outcome. The audit log does not persist raw URI query values or resource
+  bodies.
 
 
 

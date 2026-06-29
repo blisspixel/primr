@@ -137,6 +137,46 @@ async def test_scope_denial_is_audited_without_raw_client_id(server):
 
 
 @pytest.mark.asyncio
+async def test_successful_resource_read_writes_hashed_audit_event(server):
+    await _read_resource(
+        server,
+        "primr://research/status?company_url=https://example.com/private&token=secret",
+    )
+
+    audit_text = server.audit_log.path.read_text(encoding="utf-8")
+    assert "example.com" not in audit_text
+    assert "private" not in audit_text
+    assert "secret" not in audit_text
+
+    event = _events(server)[0]
+    assert event["event_type"] == "resource_read"
+    assert event["tool_name"] == "resources/read"
+    assert event["resource_kind"] == "primr://research/status"
+    assert event["resource_uri_hash"].startswith("sha256:")
+    assert event["status"] == "success"
+    assert event["actor"] == "stdio"
+    assert event["args_hash"].startswith("sha256:")
+    assert event["result_hash"].startswith("sha256:")
+
+
+@pytest.mark.asyncio
+async def test_resource_scope_denial_is_audited_without_raw_client_id(server):
+    server._auth_context = _context(["read"], client_id="sensitive-client")
+
+    data = await _read_resource(server, "primr://agent/audit/recent")
+
+    assert data["error"] == "insufficient_scope"
+    event = _events(server)[0]
+    audit_text = server.audit_log.path.read_text(encoding="utf-8")
+    assert "sensitive-client" not in audit_text
+    assert event["event_type"] == "resource_read"
+    assert event["status"] == "scope_denied"
+    assert event["error_type"] == "insufficient_scope"
+    assert event["client_id_hash"].startswith("sha256:")
+    assert event["auth_scopes"] == ["read"]
+
+
+@pytest.mark.asyncio
 async def test_recent_audit_resource_is_local_or_admin_only(server):
     await _call(server, "estimate_run", {"company_url": "https://example.com"})
     await _call(server, "doctor", {})
@@ -153,5 +193,9 @@ async def test_recent_audit_resource_is_local_or_admin_only(server):
     assert denied["required_scopes"] == ["admin"]
 
     server._auth_context = _context(["admin"])
-    admin_data = await _read_resource(server, "primr://agent/audit/recent?limit=2")
-    assert admin_data["event_count"] == 2
+    admin_data = await _read_resource(server, "primr://agent/audit/recent?limit=10")
+    assert admin_data["event_count"] >= 4
+    event_types = [event["event_type"] for event in admin_data["events"]]
+    assert "tool_call" in event_types
+    assert "resource_read" in event_types
+    assert any(event["status"] == "scope_denied" for event in admin_data["events"])
