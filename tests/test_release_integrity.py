@@ -112,6 +112,7 @@ def test_release_workflow_builds_on_supported_python_floor() -> None:
 def test_package_manifest_excludes_agent_working_files() -> None:
     manifest = (REPO_ROOT / "MANIFEST.in").read_text(encoding="utf-8")
 
+    assert "prune .agent" in manifest
     assert "prune docs/.agent" in manifest
 
 

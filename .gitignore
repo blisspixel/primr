@@ -299,6 +299,7 @@ coverage.xml
 *.egg-info/
 dist/
 build/
+_site/
 
 # Claude Code local config (CLAUDE.md is committed - it's the dev contract)
 /.claude

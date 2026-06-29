@@ -14,6 +14,7 @@ INSPECTION_FORMAT = "primr.calibration_readiness_inspection.v1"
 PACK_FORMAT = "primr.calibration_pack.v1"
 SELECTION_FORMAT = "primr.calibration_pack_selection.v1"
 DEFAULT_MINIMUM_REPORTS = 5
+DEFAULT_AGENT_SELECTION_PATH = ".agent/calibration-selection.json"
 
 _COUNT_KEYS = (
     "confirmed_traceable",
@@ -765,7 +766,7 @@ def _next_actions(
                 "command": (
                     "primr calibrate "
                     f"--calibrate-recent {target_report_count} "
-                    "--pack-selection-template docs/.agent/calibration-selection.json"
+                    f"--pack-selection-template {DEFAULT_AGENT_SELECTION_PATH}"
                 ),
             }
         )

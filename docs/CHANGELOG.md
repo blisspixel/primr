@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Calibration baseline next-action commands now write operator scratch files
+  under the gitignored root `.agent/` directory instead of `docs/.agent/`.
+- Source distributions now explicitly prune `.agent/` while retaining the
+  legacy `docs/.agent/` prune rule.
+- Local `_site/` documentation build output is now gitignored.
+
 ## [1.34.29] - 2026-06-29
 
 ### Added

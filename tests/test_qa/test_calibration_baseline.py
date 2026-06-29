@@ -155,7 +155,7 @@ def _manifest(
         "judge_agreement": None,
         "representation": {
             "selection_format": "primr.calibration_pack_selection.v1" if required else None,
-            "selection_path": "docs/.agent/calibration-selection.json" if required else None,
+            "selection_path": ".agent/calibration-selection.json" if required else None,
             "required_tags": required,
             "present_tags": present,
             "missing_tags": missing,
@@ -250,7 +250,7 @@ def test_build_baseline_requires_explicit_representative_selection() -> None:
         for item in baseline["next_actions"]["items"]
     )
     assert (
-        "--pack-selection-template docs/.agent/calibration-selection.json"
+        "--pack-selection-template .agent/calibration-selection.json"
         in baseline["next_actions"]["commands"][0]["command"]
     )
 
@@ -334,7 +334,7 @@ def test_build_baseline_requires_declared_representative_coverage() -> None:
     assert baseline["next_actions"]["spend_preview_required"] is False
     assert baseline["next_actions"]["missing_representative_tags"] == ["blocked_origin"]
     assert (
-        "--pack-selection docs/.agent/calibration-selection.json"
+        "--pack-selection .agent/calibration-selection.json"
         in baseline["next_actions"]["commands"][0]["command"]
     )
     assert any(
@@ -384,7 +384,7 @@ def test_write_baseline_json_and_markdown(tmp_path: Path) -> None:
     )
     assert "| Company0_Strategic_Overview.md | yes | 2 | 2 | 2 | 2 | clean |" in markdown
     assert "Representative coverage: 2 / 2 required tags" in markdown
-    assert "--pack-selection docs/.agent/calibration-selection.json" in markdown
+    assert "--pack-selection .agent/calibration-selection.json" in markdown
     assert "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY" in markdown
 
 
