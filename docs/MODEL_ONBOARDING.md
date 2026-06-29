@@ -59,6 +59,13 @@ otherwise):
   `tier_threshold_tokens` - tiered pricing above a context threshold
 - `cost_per_1m_input_tokens_cached` - discount rate for prompt-cache hits
 
+The estimator consumes these fields through
+`PrimrModels.calculate_cost_breakdown()`. Keep the registry explicit: if a
+provider publishes long-context, cache-read, or cache-write economics, record
+the read and tier metadata before using the model in a default route. Do not
+assume prompt-cache savings in dry-run output unless historical usage records
+show cached input tokens for that mode.
+
 Add the new entry to `PrimrModels.ALL_MODELS` in the same file so
 `get_model_config`, `get_price`, and `calculate_cost` can find it.
 

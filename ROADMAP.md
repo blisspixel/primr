@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.34.24
+Current State: v1.34.25
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -70,9 +70,9 @@ Current priority order:
    capability requirements and promotion gates for fast-mode and premium
    deep-research stages. Full-report execution still carries xAI/Gemini-era
    assumptions. The xAI browse surrogate and Gemini quota guidance now live in
-   provider-owned seams. Adding long-context/cache-token cost honesty and
-   wiring the first cheap utility stage through the router are the next
-   architecture unlocks.
+   provider-owned seams, and estimates now expose live input, cached input,
+   cached-input cost, and long-context surcharge fields. Wiring the first cheap
+   utility stage through the router is the next architecture unlock.
 3. **Agent control-plane consumption resources and A2A parity.** MCP already has
    scopes, approval tokens, tool/resource-read audit events, and budget
    propagation. A2A now shares the HTTP bearer-token auth context and enforces
@@ -791,7 +791,12 @@ Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The firs
   default pre-warming, no background cache refresh jobs, no 1-hour TTL default,
   and no paid keepalive workaround. If the first write is not expected to be
   reused inside the provider's supported window, do not cache.
-- Long-context surcharge modeling: populate `ModelConfig.tier_threshold_tokens` for OpenAI gpt-5.x family (>272K input: 2x input, 1.5x output) so cost estimates aren't silently wrong on long-input runs
+- Long-context and cache-token estimate modeling - DONE: `ModelConfig` now
+  carries long-context tier metadata across the OpenAI GPT-5.x family
+  (>270K input: 2x input, 1.5x output), `PrimrModels.calculate_cost_breakdown()`
+  reports live input, cached input, cached-input cost, selected tier, and
+  long-context surcharge, `CostEstimate` surfaces those fields, and historical
+  cached-token averages feed estimates without assuming speculative cache hits.
 - Move provider-specific behavior into providers. `XAIProvider` now owns the
   xAI Responses API browse/search surrogate behind the legacy
   `grok_browse_and_summarize` compatibility wrapper, and `GeminiProvider` now
@@ -1442,6 +1447,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.34.25 | Jun 2026 | **Long-context and cache-token estimate honesty.** Added detailed model cost breakdowns for live input, cached input, output, selected tier, and long-context surcharge; populated OpenAI GPT-5.x long-context tier metadata across mini/nano variants; surfaced cached-token estimate fields from historical usage while keeping pre-run cache savings at zero unless observed. |
 | 1.34.24 | Jun 2026 | **Gemini provider-owned quota guidance.** Moved terminal Gemini quota copy into `GeminiProvider` through a provider-owned guidance object; the legacy `llm()` path now renders that guidance generically while preserving current operator-facing output and error behavior. |
 | 1.34.23 | Jun 2026 | **xAI provider-owned browse seam.** Added `XAIProvider`, which inherits OpenAI-compatible Grok chat behavior and owns the xAI Responses API browse/search surrogate. The legacy `grok_browse_and_summarize` wrapper is now thin compatibility glue that mirrors provider usage into existing run cost counters. |
 | 1.34.22 | Jun 2026 | **Production stage capability inventory.** Added `core/stage_inventory.py`, a typed backend-freedom inventory for fast-mode and premium deep-research stages with router-ready roles, reasoning/trust requirements, context and token estimates, accepted backend families, budget checkpoints, current backend ownership, promotion gates, and emitted artifacts. |

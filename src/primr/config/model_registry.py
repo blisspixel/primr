@@ -448,8 +448,8 @@ class ModelRegistry:
     # =========================================================================
     # OPENAI GPT-5.5 - Flagship reasoning + coding (released April 24, 2026)
     # $5.00 input / $30.00 output per 1M tokens, cached input $0.50
-    # Long-context surcharge: 2x input / 1.5x output above 272K input tokens
-    # Context: 1M tokens, Output: 100k tokens
+    # Long-context surcharge: 2x input / 1.5x output above 270K input tokens
+    # Context: 1M tokens, Output: 128k tokens
     # PRICING UPDATED: May 2026 audit — Feb 2026 registry had $2.00/$10.00 (wrong).
     # =========================================================================
     OPENAI_GPT_5_5 = ModelConfig(
@@ -464,16 +464,16 @@ class ModelRegistry:
         supports_tools=True,
         supports_multimodal=True,
         cost_per_1m_input_tokens_cached=0.50,
-        cost_per_1m_input_tokens_high=10.00,  # 2x base above 272K input
-        cost_per_1m_output_tokens_high=45.00,  # 1.5x base above 272K input
-        tier_threshold_tokens=272_000,
+        cost_per_1m_input_tokens_high=10.00,  # 2x base above 270K input
+        cost_per_1m_output_tokens_high=45.00,  # 1.5x base above 270K input
+        tier_threshold_tokens=270_000,
     )
 
     # =========================================================================
     # OPENAI GPT-5.4 - Affordable flagship
     # $2.50 input / $15.00 output per 1M tokens, cached input $0.25
-    # Long-context surcharge: 2x input / 1.5x output above 272K input tokens
-    # Context: 200k tokens, Output: 100k tokens
+    # Long-context surcharge: 2x input / 1.5x output above 270K input tokens
+    # Context: 1M tokens, Output: 128k tokens
     # PRICING UPDATED: May 2026 audit — output was $10.00, cached was $0.625.
     # =========================================================================
     OPENAI_GPT_5_4 = ModelConfig(
@@ -489,16 +489,17 @@ class ModelRegistry:
         supports_multimodal=True,
         cost_per_1m_input_tokens_cached=0.25,
         # June 2026 audit: context is ~1M (not 200K), so the gpt-5.x long-context
-        # surcharge (2x input / 1.5x output above 272K input) CAN trigger here.
-        cost_per_1m_input_tokens_high=5.00,  # 2x base above 272K input
-        cost_per_1m_output_tokens_high=22.50,  # 1.5x base above 272K input
-        tier_threshold_tokens=272_000,
+        # surcharge (2x input / 1.5x output above 270K input) CAN trigger here.
+        cost_per_1m_input_tokens_high=5.00,  # 2x base above 270K input
+        cost_per_1m_output_tokens_high=22.50,  # 1.5x base above 270K input
+        tier_threshold_tokens=270_000,
     )
 
     # =========================================================================
     # OPENAI GPT-5.4 MINI - Utility tier candidate
     # $0.75 input / $4.50 output per 1M tokens
-    # Context: 200k tokens, Output: 100k tokens
+    # Long-context surcharge: 2x input / 1.5x output above 270K input tokens
+    # Context: 400k tokens, Output: 128k tokens
     # PRICING UPDATED: May 2026 audit — was $0.40/$1.60 (wrong).
     # Cached rate not separately published — OpenAI's general 90%-off cache
     # rule would imply ~$0.075 cached input.
@@ -515,12 +516,16 @@ class ModelRegistry:
         supports_tools=True,
         supports_multimodal=True,
         cost_per_1m_input_tokens_cached=0.075,  # Confirmed June 2026 (docs)
+        cost_per_1m_input_tokens_high=1.50,
+        cost_per_1m_output_tokens_high=6.75,
+        tier_threshold_tokens=270_000,
     )
 
     # =========================================================================
     # OPENAI GPT-5.4 NANO - Ultra-cheap utility tier
     # $0.20 input / $1.25 output per 1M tokens
-    # Context: 200k tokens, Output: 16k tokens (output cap may force per-section sizing)
+    # Long-context surcharge: 2x input / 1.5x output above 270K input tokens
+    # Context: 400k tokens, Output: 128k tokens
     # PRICING UPDATED: May 2026 audit — was $0.10/$0.40 (wrong).
     # =========================================================================
     OPENAI_GPT_5_4_NANO = ModelConfig(
@@ -535,6 +540,9 @@ class ModelRegistry:
         supports_tools=True,
         supports_multimodal=True,
         cost_per_1m_input_tokens_cached=0.02,  # Confirmed June 2026 (docs)
+        cost_per_1m_input_tokens_high=0.40,
+        cost_per_1m_output_tokens_high=1.875,
+        tier_threshold_tokens=270_000,
     )
 
     # =========================================================================

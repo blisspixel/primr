@@ -1,6 +1,6 @@
 # Provider Expansion: OpenAI, Anthropic, Account-Capacity Agents, Gateways, and Local
 
-Status: PLANNED (provider research verified June 12, 2026; account-capacity
+Status: PLANNED (provider pricing refreshed June 29, 2026; account-capacity
 agent runner research refreshed June 17, 2026)
 ROADMAP anchor: Active Queue #26. Companion to
 [`2.0-backend-freedom.md`](2.0-backend-freedom.md) (routing architecture);
@@ -82,7 +82,7 @@ will route over.
   below is a stage runner, not a claim that subscription credentials are
   interchangeable with API keys.
 
-## Verified provider facts (June 12, 2026)
+## Verified provider facts (June 29, 2026)
 
 Full citations live in the research transcripts; key integration facts:
 
@@ -90,7 +90,9 @@ Full citations live in the research transcripts; key integration facts:
 
 - Models: `gpt-5.5` ($5/$30 per MTok, 1.05M ctx), `gpt-5.4` ($2.50/$15),
   `gpt-5.4-mini` ($0.75/$4.50), `gpt-5.4-nano` ($0.20/$1.25, 400K ctx).
-  Reasoning depth via `reasoning.effort` (none..xhigh).
+  Registered GPT-5.x entries now include the current >270K long-context tier
+  metadata so estimates can surface the surcharge. Reasoning depth via
+  `reasoning.effort` (none..xhigh).
 - Web search: `web_search` tool in the **Responses API**, $10 per 1k calls
   plus content tokens. Build new work on Responses; Chat Completions still
   supported, but the Assistants API retires 2026-08-26.

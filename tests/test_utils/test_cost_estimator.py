@@ -4,6 +4,8 @@ Tests for the cost estimator module.
 Verifies cost estimation calculations and display formatting.
 """
 
+import pytest
+
 from primr.config.models import (
     DEEP_RESEARCH_COST,
     SEARCH_COST_PER_QUERY,
@@ -66,6 +68,30 @@ class TestCostEstimate:
         result = str(estimate)
         assert "Deep Research" in result
         assert "approximate" in result
+
+    def test_cost_estimate_str_shows_cached_and_long_context_lines(self):
+        """CostEstimate shows cache and surcharge detail when present."""
+        estimate = CostEstimate(
+            mode="structured",
+            estimated_input_tokens=500_000,
+            estimated_output_tokens=20_000,
+            estimated_search_queries=0,
+            input_cost=1.00,
+            output_cost=0.50,
+            search_cost=0.0,
+            total_cost=1.50,
+            duration_minutes="20-25 min",
+            notes=[],
+            estimated_cached_input_tokens=125_000,
+            cached_input_cost=0.05,
+            long_context_surcharge_cost=0.25,
+        )
+
+        result = str(estimate)
+
+        assert "Cached input" in result
+        assert "125,000" in result
+        assert "Long-context surcharge" in result
 
 
 class TestEstimateCost:
@@ -159,6 +185,36 @@ class TestEstimateCost:
         scrape_estimate = estimate_cost("scrape-only")
 
         assert estimate.estimated_input_tokens == scrape_estimate.estimated_input_tokens
+
+    def test_historical_cached_tokens_are_reflected_in_estimate(self, monkeypatch):
+        """Historical cached-token averages populate estimate cache fields."""
+
+        class FakeTracker:
+            def get_average_by_mode(self, mode):
+                assert mode == "structured"
+                return {
+                    "mode": "structured",
+                    "sample_size": 3,
+                    "avg_input_tokens": 200_000,
+                    "avg_output_tokens": 20_000,
+                    "avg_cached_input_tokens": 50_000,
+                    "avg_search_queries": 10,
+                    "avg_cost": 0.5,
+                    "avg_duration_seconds": 1200,
+                }
+
+        monkeypatch.setattr("primr.utils.usage_tracker.get_usage_tracker", lambda: FakeTracker())
+
+        estimate = estimate_cost("structured", use_historical=True)
+
+        assert estimate.estimated_cached_input_tokens == 50_000
+        assert estimate.estimated_live_input_tokens == 150_000
+        assert estimate.cached_input_cost > 0
+        assert estimate.live_input_cost > 0
+        assert estimate.input_cost == pytest.approx(
+            estimate.live_input_cost + estimate.cached_input_cost
+        )
+        assert any("Historical cache hits included" in note for note in estimate.notes)
 
 
 class TestGetCostSummary:
@@ -261,6 +317,21 @@ class TestTieredPricing:
         """Gemini 3.1 Pro CustomTools should have tiered pricing."""
         assert ModelRegistry.GEMINI_3_1_PRO_CUSTOMTOOLS.has_tiered_pricing is True
 
+    def test_openai_gpt5_family_has_long_context_tiers(self):
+        """OpenAI GPT-5.x models should carry long-context surcharge metadata."""
+        expected = (
+            (ModelRegistry.OPENAI_GPT_5_5, 10.00, 45.00),
+            (ModelRegistry.OPENAI_GPT_5_4, 5.00, 22.50),
+            (ModelRegistry.OPENAI_GPT_5_4_MINI, 1.50, 6.75),
+            (ModelRegistry.OPENAI_GPT_5_4_NANO, 0.40, 1.875),
+        )
+
+        for model, input_high, output_high in expected:
+            assert model.has_tiered_pricing is True
+            assert model.tier_threshold_tokens == 270_000
+            assert model.cost_per_1m_input_tokens_high == input_high
+            assert model.cost_per_1m_output_tokens_high == output_high
+
     def test_no_tiered_pricing_on_3_0_pro(self):
         """Gemini 3.0 Pro should NOT have tiered pricing."""
         assert ModelRegistry.GEMINI_3_PRO.has_tiered_pricing is False
@@ -292,6 +363,24 @@ class TestTieredPricing:
         # High tier: $4/$18
         expected = (100_000 / 1_000_000) * 4.00 + (10_000 / 1_000_000) * 18.00
         assert abs(cost - expected) < 0.001
+
+    def test_calculate_cost_breakdown_reports_cache_and_surcharge(self):
+        """Detailed cost breakdown exposes cache cost and long-context surcharge."""
+        breakdown = PrimrModels.calculate_cost_breakdown(
+            ModelRegistry.OPENAI_GPT_5_4_MINI.name,
+            input_tokens=300_000,
+            output_tokens=20_000,
+            prompt_tokens=300_000,
+            cached_input_tokens=100_000,
+        )
+
+        assert breakdown.tier_applied is True
+        assert breakdown.tier_threshold_tokens == 270_000
+        assert breakdown.live_input_tokens == 200_000
+        assert breakdown.cached_input_tokens == 100_000
+        assert breakdown.cached_input_cost == pytest.approx(0.0075)
+        assert breakdown.long_context_surcharge_cost > 0
+        assert breakdown.total_cost == pytest.approx(breakdown.input_cost + breakdown.output_cost)
 
     def test_calculate_cost_no_prompt_tokens_uses_standard(self):
         """calculate_cost uses standard tier when prompt_tokens is None."""

@@ -79,10 +79,22 @@ Reference anchors:
   <https://developers.openai.com/api/docs/guides/evaluation-best-practices>
 - OpenAI evals guide:
   <https://developers.openai.com/api/docs/guides/evals>
+- OpenAI API pricing:
+  <https://openai.com/api/pricing/>
+- OpenAI prompt caching:
+  <https://developers.openai.com/api/docs/guides/prompt-caching>
 - Anthropic building effective agents:
   <https://www.anthropic.com/engineering/building-effective-agents>
 - Anthropic long-running agent harnesses:
   <https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents>
+- Anthropic prompt caching:
+  <https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching>
+- Gemini API pricing:
+  <https://ai.google.dev/gemini-api/docs/pricing>
+- Gemini context caching:
+  <https://ai.google.dev/gemini-api/docs/caching>
+- xAI API pricing:
+  <https://docs.x.ai/developers/pricing>
 - NSA MCP security design considerations:
   <https://media.defense.gov/2026/Jun/02/2003943289/-1/-1/0/CSI_MCP_SECURITY.PDF>
 
@@ -230,7 +242,9 @@ Do next:
   legacy `grok_browse_and_summarize()` wrapper, and `GeminiProvider` owns
   terminal quota guidance rendered by the legacy Gemini `llm()` path.
 - Add long-context surcharge fields and cache-token fields to estimates for
-  models with tiered long-input or cache pricing.
+  models with tiered long-input or cache pricing. Shipped: estimates now carry
+  live input, cached input, cached-input cost, and long-context surcharge
+  fields, with observed historical cache hits included when available.
 - Wire one cheap utility stage through capability routing behind an explicit
   inference/profile flag while preserving today's fallback chain.
 - Record backend id, billing mode, route reason, fallback reason, token mix,

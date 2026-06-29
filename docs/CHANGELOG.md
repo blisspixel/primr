@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.25] - 2026-06-29
+
+### Changed
+
+- Cost estimates now expose live input, cached input, cached-input cost, and
+  long-context surcharge fields through a shared token-cost breakdown.
+- OpenAI GPT-5.x registry entries now carry long-context tier metadata across
+  the mini and nano variants as well as the flagship entries.
+- Historical cached-token averages now feed cost estimates when present, while
+  pre-run estimates do not assume prompt-cache savings before a run observes
+  actual cache hits.
+
 ## [1.34.24] - 2026-06-29
 
 ### Changed

@@ -199,6 +199,7 @@ class TestUsageTracker:
                     input_tokens=100_000 + i * 10_000,
                     output_tokens=50_000 + i * 5_000,
                     search_queries=10 + i * 5,  # 10, 15, 20 -> avg 15
+                    cached_input_tokens=20_000 + i * 10_000,
                 )
             tracker.save()
 
@@ -210,6 +211,7 @@ class TestUsageTracker:
             assert avg["sample_size"] == 3
             assert avg["avg_input_tokens"] > 0
             assert avg["avg_search_queries"] == 15  # (10+15+20)/3
+            assert avg["avg_cached_input_tokens"] == 30_000  # (20k+30k+40k)/3
 
     def test_get_average_no_data(self):
         """Get average returns None when no data."""
@@ -648,6 +650,32 @@ class TestCachedInputTokens:
             pipeline_cost=0.1,
         )
         assert record.cached_input_tokens == 0
+
+    def test_token_pricing_fallback_uses_cached_input_discount(self, monkeypatch):
+        from primr.config.settings import reset_settings
+
+        monkeypatch.setenv("AI_REASONING_MODEL", "gemini-3.5-flash")
+        reset_settings()
+        try:
+            uncached = UsageRecord.create(
+                mode="structured",
+                company="TestCo",
+                input_tokens=200_000,
+                output_tokens=10_000,
+            )
+            cached = UsageRecord.create(
+                mode="structured",
+                company="TestCo",
+                input_tokens=200_000,
+                output_tokens=10_000,
+                cached_input_tokens=100_000,
+            )
+        finally:
+            monkeypatch.delenv("AI_REASONING_MODEL", raising=False)
+            reset_settings()
+
+        assert cached.total_cost < uncached.total_cost
+        assert cached.input_cost < uncached.input_cost
 
     def test_old_history_records_without_cached_field_display_fine(self):
         """Old-schema persisted records (no cached_input_tokens key) don't crash display."""

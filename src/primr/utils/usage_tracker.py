@@ -108,20 +108,15 @@ class UsageRecord:
         from primr.config.models import PrimrModels
 
         active_pro = PrimrModels.get_active_pro_model()
-
-        # For tiered models, use high-tier pricing (conservative)
-        if active_pro.has_tiered_pricing:
-            INPUT_PRICE = active_pro.cost_per_1m_input_tokens_high  # type: ignore[assignment]
-            OUTPUT_PRICE = active_pro.cost_per_1m_output_tokens_high  # type: ignore[assignment]
-        else:
-            INPUT_PRICE = active_pro.cost_per_1m_input_tokens
-            OUTPUT_PRICE = active_pro.cost_per_1m_output_tokens
-
-        # Guard against a model whose price field is None (the config field is
-        # Optional): fall back to 0.0 rather than raising TypeError on the
-        # multiply. In practice configured models always have a price.
-        input_cost = (input_tokens / 1_000_000) * (INPUT_PRICE or 0.0)
-        output_cost = (output_tokens / 1_000_000) * (OUTPUT_PRICE or 0.0)
+        cost = PrimrModels.calculate_cost_breakdown(
+            active_pro.name,
+            input_tokens,
+            output_tokens,
+            cached_input_tokens=cached_input_tokens,
+            force_high_tier=active_pro.has_tiered_pricing,
+        )
+        input_cost = cost.input_cost
+        output_cost = cost.output_cost
 
         return cls(
             timestamp=datetime.now().isoformat(),
@@ -328,12 +323,14 @@ class UsageTracker:
         avg_searches = sum(r.get("search_queries", 0) for r in mode_records) / count
         avg_cost = sum(r.get("total_cost", 0) for r in mode_records) / count
         avg_duration = sum(r.get("duration_seconds", 0) for r in mode_records) / count
+        avg_cached_input = sum(r.get("cached_input_tokens", 0) for r in mode_records) / count
 
         return {
             "mode": mode,
             "sample_size": count,
             "avg_input_tokens": avg_input,
             "avg_output_tokens": avg_output,
+            "avg_cached_input_tokens": avg_cached_input,
             "avg_search_queries": avg_searches,
             "avg_cost": avg_cost,
             "avg_duration_seconds": avg_duration,
@@ -355,6 +352,7 @@ class UsageTracker:
                 estimates[mode] = {
                     "input_tokens": avg["avg_input_tokens"],
                     "output_tokens": avg["avg_output_tokens"],
+                    "cached_input_tokens": avg["avg_cached_input_tokens"],
                     "estimated_cost": avg["avg_cost"],
                     "avg_duration_seconds": avg["avg_duration_seconds"],
                     "sample_size": avg["sample_size"],

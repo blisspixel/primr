@@ -5,15 +5,17 @@ Centralized Model Configuration for Primr
 THIS IS THE SINGLE SOURCE OF TRUTH FOR ALL AI MODELS.
 UPDATE HERE TO CHANGE MODELS GLOBALLY.
 
-Last audited: June 13, 2026 (refresh of the May 30 audit), checked against
+Last audited: June 29, 2026 (refresh of the June 13 audit), checked against
 current provider docs (developers.openai.com, ai.google.dev, docs.x.ai) and the
 Anthropic model catalog. Re-audit before each major eval — see ROADMAP "Model
 Adaptability".
 
-KEY CHANGES (June 13, 2026 audit):
+KEY CHANGES (June 29, 2026 audit):
 - OpenAI context/output corrected: gpt-5.4 is ~1M ctx (not 200K) and now carries
-  the >272K long-context surcharge; gpt-5.4-mini/-nano are 400K ctx; all gpt-5.x
+  the >270K long-context surcharge; gpt-5.4-mini/-nano are 400K ctx; all gpt-5.x
   max-output is 128k (gpt-5.4-nano's 16k cap was wrong). Prices unchanged.
+- GPT-5.4 mini/nano now carry the same >270K long-context surcharge metadata
+  as the flagship GPT-5.x entries so estimates surface the selected tier.
 - Gemini: gemini-2.5-pro is 1M ctx (the 2M figure belongs to the unreleased 3.5
   Pro); the whole Gemini 2.5 family is now deprecated (~Oct 16, 2026 shutdown);
   Deep Research slug refreshed to deep-research-preview-04-2026; cached-input
@@ -49,10 +51,10 @@ GOOGLE / GEMINI:
 OPENAI:
   gpt-5.5                    - Flagship, $5.00/$30.00 + $0.50 cached, 1M ctx
   gpt-5.4                    - Affordable flagship, $2.50/$15.00 + $0.25 cached, 200k ctx
-  gpt-5.4-mini               - Utility candidate, $0.75/$4.50, 200k ctx
-  gpt-5.4-nano               - Ultra-cheap, $0.20/$1.25, 200k ctx, 16k out cap
+  gpt-5.4-mini               - Utility candidate, $0.75/$4.50, 400k ctx
+  gpt-5.4-nano               - Ultra-cheap, $0.20/$1.25, 400k ctx, 128k out cap
   o4-mini                    - Reasoning, $1.10/$4.40, alternative to Grok 4.3
-  All gpt-5.x: 2x input / 1.5x output above 272K input tokens.
+  All gpt-5.x: 2x input / 1.5x output above 270K input tokens.
 
 ANTHROPIC:
   claude-opus-4-8            - Most capable (GA May 28, 2026), $5.00/$25.00 + $0.50 cached,
@@ -105,10 +107,32 @@ from primr.config.model_registry import (
 
 @dataclass
 class DeepResearchCost:
-    """Per-task cost estimates. API doesn't expose tokens — these are approximate."""
+    """Per-task cost estimates. API does not expose tokens; these are approximate."""
 
     standard_task_cost: float = 2.50  # $2-3 typical (midpoint)
     complex_task_cost: float = 4.00  # $3-5 typical (midpoint)
+
+
+@dataclass(frozen=True)
+class TokenCostBreakdown:
+    """Detailed token-cost math for one model call or estimate bucket."""
+
+    model_name: str
+    input_tokens: int
+    output_tokens: int
+    live_input_tokens: int
+    cached_input_tokens: int
+    input_cost: float
+    live_input_cost: float
+    cached_input_cost: float
+    output_cost: float
+    total_cost: float
+    input_rate_per_million: float
+    cached_input_rate_per_million: float
+    output_rate_per_million: float
+    tier_applied: bool
+    tier_threshold_tokens: int | None
+    long_context_surcharge_cost: float
 
 
 DEEP_RESEARCH_COST = DeepResearchCost()
@@ -316,54 +340,97 @@ class PrimrModels:
         prompt_tokens: int | None = None,
         cached_input_tokens: int = 0,
     ) -> float:
-        """Calculate cost in USD for given token counts using model pricing.
+        """Calculate cost in USD for given token counts using model pricing."""
+        return cls.calculate_cost_breakdown(
+            model_name,
+            input_tokens,
+            output_tokens,
+            prompt_tokens=prompt_tokens,
+            cached_input_tokens=cached_input_tokens,
+        ).total_cost
 
-        For tiered models, uses the high tier when prompt_tokens exceeds the
-        tier threshold. When prompt_tokens is None, uses standard (low) tier.
+    @classmethod
+    def calculate_cost_breakdown(
+        cls,
+        model_name: str,
+        input_tokens: int,
+        output_tokens: int,
+        prompt_tokens: int | None = None,
+        cached_input_tokens: int = 0,
+        force_high_tier: bool = False,
+    ) -> TokenCostBreakdown:
+        """Calculate detailed token costs for one model.
 
-        cached_input_tokens are billed at the model's cached rate when the
-        config exposes one; otherwise they fall through to the standard input
-        rate. Non-cached input is (input_tokens - cached_input_tokens).
+        For tiered models, the high tier applies when ``prompt_tokens`` exceeds
+        the model threshold or when ``force_high_tier`` is true. Cached input
+        tokens are billed at the model's cached rate when one is configured;
+        otherwise they fall through to the selected live-input rate.
 
-        All token counts are clamped to non-negative values defensively.
+        The long-context surcharge is reported as the delta between the
+        selected tier and the base tier for the same live-input, cached-input,
+        and output counts. It is zero for flat-priced models and for standard
+        tier calls.
         """
         config = cls.ALL_MODELS.get(model_name)
         if config is None:
             raise KeyError(f"Unknown model: {model_name}")
 
-        # Defensive: clamp all token counts to non-negative
         input_tokens = max(0, input_tokens)
         output_tokens = max(0, output_tokens)
         cached_input_tokens = max(0, min(cached_input_tokens, input_tokens))
+        live_input_tokens = input_tokens - cached_input_tokens
 
-        if (
+        tier_applied = (
             config.has_tiered_pricing
-            and prompt_tokens is not None
             and config.tier_threshold_tokens is not None
-            and prompt_tokens > config.tier_threshold_tokens
-        ):
-            inp_price = config.cost_per_1m_input_tokens_high
-            out_price = config.cost_per_1m_output_tokens_high
-            if inp_price is None or out_price is None:  # pragma: no cover
+            and (
+                force_high_tier
+                or (prompt_tokens is not None and prompt_tokens > config.tier_threshold_tokens)
+            )
+        )
+        if tier_applied:
+            input_rate = config.cost_per_1m_input_tokens_high
+            output_rate = config.cost_per_1m_output_tokens_high
+            if input_rate is None or output_rate is None:  # pragma: no cover
                 raise ValueError(
                     f"Model {model_name} has tiered pricing but missing high-tier rates"
                 )
         else:
-            inp_price = config.cost_per_1m_input_tokens
-            out_price = config.cost_per_1m_output_tokens
+            input_rate = config.cost_per_1m_input_tokens
+            output_rate = config.cost_per_1m_output_tokens
 
-        live_input_tokens = input_tokens - cached_input_tokens
-        cache_price = config.cost_per_1m_input_tokens_cached
-        cached_cost = (
-            (cached_input_tokens / 1_000_000) * cache_price
-            if cache_price is not None
-            else (cached_input_tokens / 1_000_000) * inp_price
+        cache_rate = config.cost_per_1m_input_tokens_cached
+        selected_cache_rate = cache_rate if cache_rate is not None else input_rate
+        live_input_cost = (live_input_tokens / 1_000_000) * input_rate
+        cached_input_cost = (cached_input_tokens / 1_000_000) * selected_cache_rate
+        output_cost = (output_tokens / 1_000_000) * output_rate
+        total_cost = live_input_cost + cached_input_cost + output_cost
+
+        base_cache_rate = cache_rate if cache_rate is not None else config.cost_per_1m_input_tokens
+        base_total = (
+            (live_input_tokens / 1_000_000) * config.cost_per_1m_input_tokens
+            + (cached_input_tokens / 1_000_000) * base_cache_rate
+            + (output_tokens / 1_000_000) * config.cost_per_1m_output_tokens
         )
+        surcharge = max(0.0, total_cost - base_total)
 
-        return (
-            (live_input_tokens / 1_000_000) * inp_price
-            + cached_cost
-            + (output_tokens / 1_000_000) * out_price
+        return TokenCostBreakdown(
+            model_name=model_name,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            live_input_tokens=live_input_tokens,
+            cached_input_tokens=cached_input_tokens,
+            input_cost=live_input_cost + cached_input_cost,
+            live_input_cost=live_input_cost,
+            cached_input_cost=cached_input_cost,
+            output_cost=output_cost,
+            total_cost=total_cost,
+            input_rate_per_million=input_rate,
+            cached_input_rate_per_million=selected_cache_rate,
+            output_rate_per_million=output_rate,
+            tier_applied=tier_applied,
+            tier_threshold_tokens=config.tier_threshold_tokens,
+            long_context_surcharge_cost=surcharge,
         )
 
     @classmethod
@@ -384,18 +451,12 @@ class PrimrModels:
         input_tokens = max(0, input_tokens)
         output_tokens = max(0, output_tokens)
 
-        if config.has_tiered_pricing:
-            inp_price = config.cost_per_1m_input_tokens_high
-            out_price = config.cost_per_1m_output_tokens_high
-            if inp_price is None or out_price is None:  # pragma: no cover
-                raise ValueError(
-                    f"Model {model_name} has tiered pricing but missing high-tier rates"
-                )
-        else:
-            inp_price = config.cost_per_1m_input_tokens
-            out_price = config.cost_per_1m_output_tokens
-
-        return (input_tokens / 1_000_000) * inp_price + (output_tokens / 1_000_000) * out_price
+        return cls.calculate_cost_breakdown(
+            model_name,
+            input_tokens,
+            output_tokens,
+            force_high_tier=config.has_tiered_pricing,
+        ).total_cost
 
     @classmethod
     def get_active_pro_model(cls) -> ModelConfig:

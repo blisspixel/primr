@@ -55,6 +55,11 @@ class CostEstimate:
     duration_minutes: str
     notes: list[str]
     deep_research_cost: float = 0.0
+    estimated_live_input_tokens: int = 0
+    estimated_cached_input_tokens: int = 0
+    live_input_cost: float = 0.0
+    cached_input_cost: float = 0.0
+    long_context_surcharge_cost: float = 0.0
 
     def __str__(self) -> str:
         """Format cost estimate for display."""
@@ -66,6 +71,16 @@ class CostEstimate:
             f"  Input:  ~{self.estimated_input_tokens:,} tokens (${self.input_cost:.4f})",
             f"  Output: ~{self.estimated_output_tokens:,} tokens (${self.output_cost:.4f})",
         ]
+
+        if self.estimated_cached_input_tokens > 0:
+            lines.append(
+                "  Cached input: "
+                f"~{self.estimated_cached_input_tokens:,} tokens "
+                f"(${self.cached_input_cost:.4f})"
+            )
+
+        if self.long_context_surcharge_cost > 0:
+            lines.append(f"  Long-context surcharge: ${self.long_context_surcharge_cost:.4f}")
 
         if self.estimated_search_queries > 0:
             lines.append(
@@ -114,6 +129,36 @@ def _provider_label_for_model(model_name: str) -> str:
         "anthropic": "Anthropic",
         "ollama": "Ollama",
     }.get(config.provider, config.provider.title())
+
+
+def _split_cached_tokens(
+    cached_input_tokens: int,
+    first_input_tokens: int,
+    second_input_tokens: int,
+) -> tuple[int, int]:
+    """Split cached tokens across two input buckets by their input-token share."""
+    total_input_tokens = max(0, first_input_tokens) + max(0, second_input_tokens)
+    cached_input_tokens = max(0, min(cached_input_tokens, total_input_tokens))
+    if cached_input_tokens == 0 or total_input_tokens == 0:
+        return (0, 0)
+
+    first_cached = min(
+        max(0, first_input_tokens),
+        round(cached_input_tokens * max(0, first_input_tokens) / total_input_tokens),
+    )
+    second_cached = cached_input_tokens - first_cached
+    second_cached = min(max(0, second_input_tokens), second_cached)
+    first_cached = cached_input_tokens - second_cached
+    return (first_cached, second_cached)
+
+
+def _supports_cached_input_pricing(*model_names: str) -> bool:
+    """Return true when any model has a published cached-input rate."""
+    return any(
+        (config := PrimrModels.get_model_config(model_name)) is not None
+        and config.cost_per_1m_input_tokens_cached is not None
+        for model_name in model_names
+    )
 
 
 # Estimated token usage by mode (based on actual runs, split by model)
@@ -261,6 +306,7 @@ def estimate_cost(
     flash_out = estimates["flash_output_tokens"]
     pro_in = estimates["pro_input_tokens"]
     pro_out = estimates["pro_output_tokens"]
+    cached_in = 0
     dr_tasks = estimates["deep_research_tasks"]
     search_queries = estimates["search_queries"]
     duration_min = estimates["duration_min"]
@@ -277,8 +323,9 @@ def estimate_cost(
 
         if hist and hist["sample_size"] >= 3:
             # Use historical averages — distribute across flash+pro
-            total_hist_in = hist["avg_input_tokens"]
-            total_hist_out = hist["avg_output_tokens"]
+            total_hist_in = round(hist["avg_input_tokens"])
+            total_hist_out = round(hist["avg_output_tokens"])
+            cached_in = round(hist.get("avg_cached_input_tokens", 0))
             # Preserve the flash/pro ratio from defaults
             default_total_in = flash_in + pro_in
             default_total_out = flash_out + pro_out
@@ -294,6 +341,7 @@ def estimate_cost(
             else:
                 flash_out = 0
                 pro_out = total_hist_out
+            cached_in = max(0, min(cached_in, flash_in + pro_in))
 
             # Calculate duration range from historical (avg +/- 20%)
             avg_mins = hist["avg_duration_seconds"] / 60
@@ -347,23 +395,31 @@ def estimate_cost(
     # Resolve the active Pro model (honours AI_REASONING_MODEL env var)
     active_pro = PrimrModels.get_active_pro_model()
 
-    # Calculate blended cost from Flash + active Pro model
-    flash_cost = PrimrModels.calculate_flash_cost(flash_in, flash_out)
-    # For estimates, use conservative (highest tier) pricing
-    pro_cost = PrimrModels.calculate_cost_conservative(active_pro.name, pro_in, pro_out)
+    flash_cached, pro_cached = _split_cached_tokens(cached_in, flash_in, pro_in)
+    flash_breakdown = PrimrModels.calculate_cost_breakdown(
+        PrimrModels.FLASH_MODEL,
+        flash_in,
+        flash_out,
+        cached_input_tokens=flash_cached,
+    )
+    # For estimates, use conservative (highest tier) pricing.
+    pro_breakdown = PrimrModels.calculate_cost_breakdown(
+        active_pro.name,
+        pro_in,
+        pro_out,
+        cached_input_tokens=pro_cached,
+        force_high_tier=active_pro.has_tiered_pricing,
+    )
 
-    # Per-component cost for display
-    flash_inp_price, flash_out_price = PrimrModels.get_price(PrimrModels.FLASH_MODEL)
-    if active_pro.has_tiered_pricing:
-        pro_inp_price = active_pro.cost_per_1m_input_tokens_high
-        pro_out_price = active_pro.cost_per_1m_output_tokens_high
-        assert pro_inp_price is not None
-        assert pro_out_price is not None
-    else:
-        pro_inp_price = active_pro.cost_per_1m_input_tokens
-        pro_out_price = active_pro.cost_per_1m_output_tokens
-    input_cost = (flash_in / 1_000_000) * flash_inp_price + (pro_in / 1_000_000) * pro_inp_price
-    output_cost = (flash_out / 1_000_000) * flash_out_price + (pro_out / 1_000_000) * pro_out_price
+    flash_cost = flash_breakdown.total_cost
+    pro_cost = pro_breakdown.total_cost
+    input_cost = flash_breakdown.input_cost + pro_breakdown.input_cost
+    output_cost = flash_breakdown.output_cost + pro_breakdown.output_cost
+    live_input_cost = flash_breakdown.live_input_cost + pro_breakdown.live_input_cost
+    cached_input_cost = flash_breakdown.cached_input_cost + pro_breakdown.cached_input_cost
+    long_context_surcharge_cost = (
+        flash_breakdown.long_context_surcharge_cost + pro_breakdown.long_context_surcharge_cost
+    )
 
     # Deep Research cost (flat per-task)
     deep_research_cost = dr_tasks * DEEP_RESEARCH_COST.standard_task_cost
@@ -380,6 +436,8 @@ def estimate_cost(
     notes: list[str] = []
     if historical_used and hist is not None:
         notes.append(f"Based on {hist['sample_size']} previous runs")
+        if cached_in > 0:
+            notes.append(f"Historical cache hits included: ~{cached_in:,} cached input tokens")
     if include_ai_strategy and lite_strategy:
         notes.append("AI Strategy using Pro model (lite mode)")
     elif include_ai_strategy and ai_strategy_hist and ai_strategy_hist["sample_size"] >= 3:
@@ -395,6 +453,11 @@ def estimate_cost(
             f"Using {active_pro.display_name} with tiered pricing. "
             f"Estimate uses conservative (>{threshold_k}k) tier. "
             "Actual cost may be lower."
+        )
+
+    if cached_in == 0 and _supports_cached_input_pricing(PrimrModels.FLASH_MODEL, active_pro.name):
+        notes.append(
+            "No pre-run prompt-cache savings assumed; actual cache hits are recorded in usage."
         )
 
     # Total tokens for backward compat display
@@ -413,6 +476,13 @@ def estimate_cost(
         duration_minutes=duration,
         notes=notes,
         deep_research_cost=deep_research_cost,
+        estimated_live_input_tokens=flash_breakdown.live_input_tokens
+        + pro_breakdown.live_input_tokens,
+        estimated_cached_input_tokens=flash_breakdown.cached_input_tokens
+        + pro_breakdown.cached_input_tokens,
+        live_input_cost=live_input_cost,
+        cached_input_cost=cached_input_cost,
+        long_context_surcharge_cost=long_context_surcharge_cost,
     )
 
 
@@ -478,31 +548,48 @@ def _estimate_fast_mode_cost(
         reasoning_model = pick_model_for_role(Role.REASONING)
         writing_model = pick_model_for_role(Role.WRITING)
 
-    # Costs — price each bucket using the resolved model
-    utility_cost = PrimrModels.calculate_cost(utility_model, flash_in, flash_out)
-    reasoning_cost = PrimrModels.calculate_cost(
+    # Costs: price each bucket using the resolved model. Pre-run estimates do
+    # not assume prompt-cache hits, but the returned fields expose zero cached
+    # input explicitly so downstream UIs can distinguish "not assumed" from
+    # "not supported."
+    utility_breakdown = PrimrModels.calculate_cost_breakdown(utility_model, flash_in, flash_out)
+    reasoning_breakdown = PrimrModels.calculate_cost_breakdown(
         reasoning_model, grok_reasoning_in, grok_reasoning_out
     )
-    writing_cost = PrimrModels.calculate_cost(writing_model, grok_writing_in, grok_writing_out)
+    writing_breakdown = PrimrModels.calculate_cost_breakdown(
+        writing_model, grok_writing_in, grok_writing_out
+    )
+    utility_cost = utility_breakdown.total_cost
+    reasoning_cost = reasoning_breakdown.total_cost
+    writing_cost = writing_breakdown.total_cost
     search_cost = 0.0 if search_free else PrimrModels.calculate_search_cost(search_queries)
 
     total_cost = utility_cost + reasoning_cost + writing_cost + search_cost
 
-    # Split for display
-    u_inp_price, u_out_price = PrimrModels.get_price(utility_model)
-    r_inp_price, r_out_price = PrimrModels.get_price(reasoning_model)
-    w_inp_price, w_out_price = PrimrModels.get_price(writing_model)
-    utility_input_cost = (flash_in / 1_000_000) * u_inp_price
-    utility_output_cost = (flash_out / 1_000_000) * u_out_price
-    grok_input_cost = (grok_reasoning_in / 1_000_000) * r_inp_price + (
-        grok_writing_in / 1_000_000
-    ) * w_inp_price
-    grok_output_cost = (grok_reasoning_out / 1_000_000) * r_out_price + (
-        grok_writing_out / 1_000_000
-    ) * w_out_price
-
-    total_input_cost = utility_input_cost + grok_input_cost
-    total_output_cost = utility_output_cost + grok_output_cost
+    # Split for display.
+    total_input_cost = (
+        utility_breakdown.input_cost + reasoning_breakdown.input_cost + writing_breakdown.input_cost
+    )
+    total_output_cost = (
+        utility_breakdown.output_cost
+        + reasoning_breakdown.output_cost
+        + writing_breakdown.output_cost
+    )
+    live_input_cost = (
+        utility_breakdown.live_input_cost
+        + reasoning_breakdown.live_input_cost
+        + writing_breakdown.live_input_cost
+    )
+    cached_input_cost = (
+        utility_breakdown.cached_input_cost
+        + reasoning_breakdown.cached_input_cost
+        + writing_breakdown.cached_input_cost
+    )
+    long_context_surcharge_cost = (
+        utility_breakdown.long_context_surcharge_cost
+        + reasoning_breakdown.long_context_surcharge_cost
+        + writing_breakdown.long_context_surcharge_cost
+    )
 
     grok_in_total = grok_reasoning_in + grok_writing_in
     grok_out_total = grok_reasoning_out + grok_writing_out
@@ -543,9 +630,23 @@ def _estimate_fast_mode_cost(
     notes.append(
         "Hiring signals via ATS / careers page (~$0.01, +1-2 min; skip with PRIMR_SKIP_HIRING_SIGNALS=1)"
     )
+    if _supports_cached_input_pricing(utility_model, reasoning_model, writing_model):
+        notes.append(
+            "No pre-run prompt-cache savings assumed; actual cache hits are recorded in usage."
+        )
 
     total_input_tokens = flash_in + grok_in_total
     total_output_tokens = flash_out + grok_out_total
+    total_live_input_tokens = (
+        utility_breakdown.live_input_tokens
+        + reasoning_breakdown.live_input_tokens
+        + writing_breakdown.live_input_tokens
+    )
+    total_cached_input_tokens = (
+        utility_breakdown.cached_input_tokens
+        + reasoning_breakdown.cached_input_tokens
+        + writing_breakdown.cached_input_tokens
+    )
 
     return CostEstimate(
         mode=estimate_mode,
@@ -559,6 +660,11 @@ def _estimate_fast_mode_cost(
         duration_minutes=duration,
         notes=notes,
         deep_research_cost=0.0,
+        estimated_live_input_tokens=total_live_input_tokens,
+        estimated_cached_input_tokens=total_cached_input_tokens,
+        live_input_cost=live_input_cost,
+        cached_input_cost=cached_input_cost,
+        long_context_surcharge_cost=long_context_surcharge_cost,
     )
 
 
