@@ -1390,6 +1390,11 @@ The A2A server shares the MCP server's `SingleJobStore`, rate limiter, auth
 context, and security middleware. The single-job model is enforced across both
 protocols. Authenticated A2A jobs are owned by the token `client_id`; local
 unauthenticated loopback jobs keep the legacy `a2a` owner id.
+Skill invocations and task cancellation write privacy-preserving audit events
+to the shared audit JSONL. Events include transport, skill name, outcome,
+hashed message/result payloads, hashed caller id, granted scopes, duration,
+and job id when present. They do not store raw A2A message text, task ids,
+company URLs, report paths, raw results, or caller ids.
 
 ### Resources
 
@@ -1459,11 +1464,12 @@ Default governance contract for generic MCP clients.
 
 #### primr://agent/audit/recent
 
-Recent privacy-preserving MCP audit events for tool calls and resource reads.
-Local stdio callers can read this directly; HTTP callers need `admin` scope.
-Events include hashes and metadata, not raw tool arguments, raw tool results,
-raw resource URI query values, raw resource bodies, raw caller ids, or approval
-tokens.
+Recent privacy-preserving agent audit events for MCP tool calls, MCP resource
+reads, and A2A skill calls. Local stdio callers can read this directly; HTTP
+callers need `admin` scope. Events include hashes and metadata, not raw tool
+arguments, raw tool results, raw A2A message text, task ids, raw resource URI
+query values, raw resource bodies, raw caller ids, report paths, URLs, or
+approval tokens.
 
 ```json
 {
@@ -1484,6 +1490,19 @@ tokens.
       "approval_token_id": "tok_...",
       "estimated_cost_usd": 0.89,
       "duration_ms": 8
+    },
+    {
+      "schema_version": "1.0",
+      "event_type": "tool_call",
+      "tool_name": "a2a/check_jobs",
+      "status": "success",
+      "transport": "a2a",
+      "actor": null,
+      "client_id_hash": "sha256:...",
+      "auth_scopes": ["read"],
+      "args_hash": "sha256:...",
+      "result_hash": "sha256:...",
+      "duration_ms": 3
     },
     {
       "schema_version": "1.0",

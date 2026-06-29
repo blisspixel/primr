@@ -57,8 +57,8 @@ Important MCP concepts:
   metadata without raw claims, source URLs, evidence reviews, rationales, or
   report body content.
 - HTTP mode can enforce server-side cost caps and approval tokens.
-- Audit resources record tool calls and resource reads with hashed payloads
-  and normalized resource kinds for admin review.
+- Audit resources record MCP tool calls, MCP resource reads, and A2A skill
+  calls with hashed payloads and normalized resource kinds for admin review.
 
 Full tool and resource details are in [MCP and A2A API](API.md).
 
@@ -81,6 +81,11 @@ run QA, or cancel an A2A task. Legacy `write` tokens still satisfy
 research-scope A2A calls for compatibility. Authenticated A2A jobs are owned
 by the bearer token `client_id`; unauthenticated loopback jobs keep the legacy
 local `a2a` owner id.
+A2A skill invocations and task cancellation append privacy-preserving audit
+events to the shared audit log. Events include hashed message/result payloads,
+hashed caller ids, granted scopes, outcome, duration, and job id when present,
+but not raw message text, task ids, URLs, report paths, raw results, or caller
+ids.
 
 ## Host Configuration
 
@@ -170,8 +175,9 @@ Read `primr://output/calibration_summary/by_job/{job_id}` when the handoff
 needs label-calibration counts, inference source-copy counts, or
 judge-agreement metadata without raw claims, source URLs, evidence reviews,
 rationales, or report body content.
-Resource reads are audit-logged without raw URI query values or resource
-bodies, so prefer compact resources before requesting report previews or files.
+Resource reads and A2A skill calls are audit-logged without raw URI query
+values, raw message text, raw result bodies, or caller ids, so prefer compact
+resources before requesting report previews or files.
 
 ## Related Docs
 

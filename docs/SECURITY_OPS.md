@@ -71,9 +71,9 @@ print(f"Removed {cleaned} expired keys")
 ## Audit Log Storage
 
 Primr generates security audit logs that should be stored persistently for
-compliance and incident investigation. MCP tool invocations and resource reads
-are appended to `output/.mcp_audit_log.jsonl` by default, or beside a custom
-MCP job journal when one is configured.
+compliance and incident investigation. MCP tool invocations, MCP resource
+reads, and A2A skill calls are appended to `output/.mcp_audit_log.jsonl` by
+default, or beside a custom MCP job journal when one is configured.
 
 ### Log Format
 
@@ -98,9 +98,12 @@ Security events are logged with structured data:
 
 Resource-read events use `event_type: "resource_read"` and
 `tool_name: "resources/read"`. They include `resource_kind`, `resource_uri_hash`,
-`result_hash`, `job_id` when present, scopes, duration, and outcome. Raw tool
-arguments, raw tool results, raw resource URI query values, raw resource
-bodies, raw client ids, and full approval tokens are not persisted.
+`result_hash`, `job_id` when present, scopes, duration, and outcome. A2A
+skill-call events use `transport: "a2a"` and `tool_name: "a2a/<skill>"` with
+hashed message/result payloads, hashed caller ids, granted scopes, duration,
+outcome, and job id when present. Raw tool arguments, raw tool results, raw A2A
+message text, task ids, raw resource URI query values, raw resource bodies,
+raw client ids, report paths, URLs, and full approval tokens are not persisted.
 
 ### AWS S3 Storage
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 import uuid
 from typing import TYPE_CHECKING, Any
 
@@ -88,28 +89,34 @@ class PrimrAgentExecutor(AgentExecutor):
         message = context.message
         skill_id = _extract_skill_id(message)
         text = _extract_text(message)
+        started_at = time.perf_counter()
+        audit_payload: dict[str, Any] | None = None
+        caught_exception: BaseException | None = None
 
         logger.info("A2A execute: skill=%s, text=%s", skill_id, text[:100] if text else "")
 
         try:
             decision = authorize_a2a_skill(skill_id, getattr(self._mcp, "_auth_context", None))
             if not decision.allowed:
+                audit_payload = _scope_denial_payload(skill_id, decision)
                 await self._enqueue_scope_denial(skill_id, decision, context, event_queue)
                 return
 
             if skill_id == "estimate_research":
-                await self._handle_estimate(text, event_queue)
+                audit_payload = await self._handle_estimate(text, event_queue)
             elif skill_id == "research_company":
-                await self._handle_research(text, context, event_queue)
+                audit_payload = await self._handle_research(text, context, event_queue)
             elif skill_id == "check_jobs":
-                await self._handle_check_jobs(event_queue)
+                audit_payload = await self._handle_check_jobs(event_queue)
             elif skill_id == "run_qa":
-                await self._handle_qa(text, event_queue)
+                audit_payload = await self._handle_qa(text, event_queue)
             elif skill_id == "system_health":
-                await self._handle_doctor(event_queue)
+                audit_payload = await self._handle_doctor(event_queue)
             else:
-                await self._handle_unknown(skill_id, text, event_queue)
-        except Exception:
+                audit_payload = await self._handle_unknown(skill_id, text, event_queue)
+        except Exception as exc:
+            caught_exception = exc
+            audit_payload = {"error": True, "error_type": exc.__class__.__name__}
             logger.exception("A2A executor error for skill=%s", skill_id)
             task_id = context.task_id
             context_id = context.context_id or task_id
@@ -127,6 +134,14 @@ class PrimrAgentExecutor(AgentExecutor):
                 await event_queue.enqueue_event(
                     new_agent_text_message("Internal error processing request")
                 )
+        finally:
+            self._record_a2a_skill_audit(
+                skill_id=skill_id,
+                arguments={"skill_id": skill_id, "text": text},
+                result_payload=audit_payload,
+                started_at=started_at,
+                exception=caught_exception,
+            )
 
     @override
     async def cancel(
@@ -135,44 +150,89 @@ class PrimrAgentExecutor(AgentExecutor):
         event_queue: EventQueue,
     ) -> None:
         """Cancel a running research task."""
-        decision = authorize_a2a_skill("cancel_task", getattr(self._mcp, "_auth_context", None))
-        if not decision.allowed:
-            await self._enqueue_scope_denial("cancel_task", decision, context, event_queue)
-            return
-
+        started_at = time.perf_counter()
+        audit_payload: dict[str, Any] | None = None
+        caught_exception: BaseException | None = None
         task_id = context.task_id
-        if not task_id:
-            await event_queue.enqueue_event(new_agent_text_message("No task ID to cancel"))
-            return
+        decision = authorize_a2a_skill("cancel_task", getattr(self._mcp, "_auth_context", None))
+        try:
+            if not decision.allowed:
+                audit_payload = _scope_denial_payload("cancel_task", decision)
+                await self._enqueue_scope_denial("cancel_task", decision, context, event_queue)
+                return
 
-        job_id = self._task_store.get_job_id(task_id)
-        if not job_id:
+            if not task_id:
+                audit_payload = {"error": True, "error_type": "missing_task_id"}
+                await event_queue.enqueue_event(new_agent_text_message("No task ID to cancel"))
+                return
+
+            job_id = self._task_store.get_job_id(task_id)
+            if not job_id:
+                audit_payload = {"error": True, "error_type": "job_not_found"}
+                await event_queue.enqueue_event(
+                    new_agent_text_message(f"No job found for task {task_id}")
+                )
+                return
+
+            job = self._mcp.job_store.get(job_id)
+            if job is None or not _caller_owns_job(job, _a2a_client_id(self._mcp)):
+                audit_payload = {
+                    "error": True,
+                    "error_type": "job_not_found",
+                    "job_id": job_id,
+                }
+                await event_queue.enqueue_event(
+                    new_agent_text_message(f"No job found for task {task_id}")
+                )
+                return
+
+            runner = self._runners.get(job_id)
+            if runner:
+                runner.request_cancel()
+                logger.info("Cancel requested for task %s (job %s)", task_id, job_id)
+
+            context_id = context.context_id or task_id
+            audit_payload = {"status": "cancel_requested", "job_id": job_id}
             await event_queue.enqueue_event(
-                new_agent_text_message(f"No job found for task {task_id}")
+                _status_update_event(
+                    state=TaskState.canceled,
+                    text=f"Cancellation requested for job {job_id}",
+                    task_id=task_id,
+                    context_id=context_id,
+                    final=True,
+                )
             )
-            return
-
-        job = self._mcp.job_store.get(job_id)
-        if job is None or not _caller_owns_job(job, _a2a_client_id(self._mcp)):
-            await event_queue.enqueue_event(
-                new_agent_text_message(f"No job found for task {task_id}")
+        except Exception as exc:
+            caught_exception = exc
+            audit_payload = {"error": True, "error_type": exc.__class__.__name__}
+            raise
+        finally:
+            self._record_a2a_skill_audit(
+                skill_id="cancel_task",
+                arguments={"skill_id": "cancel_task", "task_id": task_id},
+                result_payload=audit_payload,
+                started_at=started_at,
+                exception=caught_exception,
             )
-            return
 
-        runner = self._runners.get(job_id)
-        if runner:
-            runner.request_cancel()
-            logger.info("Cancel requested for task %s (job %s)", task_id, job_id)
-
-        context_id = context.context_id or task_id
-        await event_queue.enqueue_event(
-            _status_update_event(
-                state=TaskState.canceled,
-                text=f"Cancellation requested for job {job_id}",
-                task_id=task_id,
-                context_id=context_id,
-                final=True,
-            )
+    def _record_a2a_skill_audit(
+        self,
+        *,
+        skill_id: str | None,
+        arguments: dict[str, Any],
+        result_payload: dict[str, Any] | None,
+        started_at: float,
+        exception: BaseException | None = None,
+    ) -> None:
+        auth_context = getattr(self._mcp, "_auth_context", None)
+        self._mcp.audit_log.record_a2a_skill_call(
+            skill_id=skill_id,
+            arguments=arguments,
+            result_payload=result_payload,
+            auth_context=auth_context,
+            client_id=_a2a_client_id(self._mcp),
+            started_at=started_at,
+            exception=exception,
         )
 
     async def _enqueue_scope_denial(
@@ -204,7 +264,7 @@ class PrimrAgentExecutor(AgentExecutor):
     # Skill handlers
     # -------------------------------------------------------------------------
 
-    async def _handle_estimate(self, text: str, event_queue: EventQueue) -> None:
+    async def _handle_estimate(self, text: str, event_queue: EventQueue) -> dict[str, Any]:
         """Handle estimate_research skill - synchronous."""
         params = _parse_research_params(text)
         company_url = params.get("url", "")
@@ -213,7 +273,7 @@ class PrimrAgentExecutor(AgentExecutor):
             await event_queue.enqueue_event(
                 new_agent_text_message("Please provide a company URL to estimate.")
             )
-            return
+            return {"error": True, "error_type": "missing_url"}
 
         # Validate URL
         url_result = self._mcp.url_validator.validate(company_url)
@@ -221,7 +281,7 @@ class PrimrAgentExecutor(AgentExecutor):
             await event_queue.enqueue_event(
                 new_agent_text_message(f"Invalid URL: {url_result.error_message}")
             )
-            return
+            return {"error": True, "error_type": "invalid_url"}
 
         from primr.utils.cost_estimator import estimate_cost
 
@@ -238,6 +298,15 @@ class PrimrAgentExecutor(AgentExecutor):
             await event_queue.enqueue_event(
                 new_agent_text_message(json.dumps(estimate, indent=2, default=str))
             )
+            payload: dict[str, Any] = {"status": "estimated"}
+            if isinstance(estimate, dict):
+                payload.update(
+                    {
+                        "estimated_cost_usd": estimate.get("estimated_cost_usd"),
+                        "estimated_time_minutes": estimate.get("estimated_time_minutes"),
+                    }
+                )
+            return payload
         except Exception:
             # Don't echo the raw exception — provider errors can contain
             # internal hostnames, file paths, or API-key fragments. The
@@ -246,13 +315,14 @@ class PrimrAgentExecutor(AgentExecutor):
             await event_queue.enqueue_event(
                 new_agent_text_message("Estimate failed (see server logs)")
             )
+            return {"error": True, "error_type": "estimate_failed"}
 
     async def _handle_research(
         self,
         text: str,
         context: RequestContext,
         event_queue: EventQueue,
-    ) -> None:
+    ) -> dict[str, Any]:
         """Handle research_company skill - async with SSE streaming."""
         params = _parse_research_params(text)
         company_url = params.get("url", "")
@@ -263,7 +333,7 @@ class PrimrAgentExecutor(AgentExecutor):
             await event_queue.enqueue_event(
                 new_agent_text_message("Please provide a company URL to research.")
             )
-            return
+            return {"error": True, "error_type": "missing_url"}
 
         # Validate URL
         url_result = self._mcp.url_validator.validate(company_url)
@@ -271,7 +341,7 @@ class PrimrAgentExecutor(AgentExecutor):
             await event_queue.enqueue_event(
                 new_agent_text_message(f"Invalid URL: {url_result.error_message}")
             )
-            return
+            return {"error": True, "error_type": "invalid_url"}
 
         # Validate company name. It is interpolated into report filenames and
         # the working-folder path downstream, so '../', '/', '\\', or drive
@@ -286,7 +356,7 @@ class PrimrAgentExecutor(AgentExecutor):
             await event_queue.enqueue_event(
                 new_agent_text_message(f"Invalid company name: {e.reason}")
             )
-            return
+            return {"error": True, "error_type": "invalid_company_name"}
 
         # Create job in the shared job store
         try:
@@ -300,7 +370,7 @@ class PrimrAgentExecutor(AgentExecutor):
             await event_queue.enqueue_event(
                 new_agent_text_message("Cannot start research (see server logs)")
             )
-            return
+            return {"error": True, "error_type": "job_create_failed"}
 
         # Register A2A task mapping
         task_id = context.task_id or str(uuid.uuid4())
@@ -406,8 +476,9 @@ class PrimrAgentExecutor(AgentExecutor):
         # Run in background - the event_queue bridges to SSE
         task = asyncio.create_task(_run_and_stream())
         self._mcp._track_task(task)
+        return {"status": "started", "job_id": job.job_id}
 
-    async def _handle_check_jobs(self, event_queue: EventQueue) -> None:
+    async def _handle_check_jobs(self, event_queue: EventQueue) -> dict[str, Any]:
         """Handle check_jobs skill - synchronous.
 
         Only return job metadata for jobs the caller owns; otherwise report
@@ -444,8 +515,9 @@ class PrimrAgentExecutor(AgentExecutor):
                 result = {"status": "idle", "message": "No active or recent jobs"}
 
         await event_queue.enqueue_event(new_agent_text_message(json.dumps(result, indent=2)))
+        return result
 
-    async def _handle_qa(self, text: str, event_queue: EventQueue) -> None:
+    async def _handle_qa(self, text: str, event_queue: EventQueue) -> dict[str, Any]:
         """Handle run_qa skill - synchronous."""
         params = _parse_research_params(text)
         report_path = params.get("path", "")
@@ -465,40 +537,45 @@ class PrimrAgentExecutor(AgentExecutor):
                 await event_queue.enqueue_event(
                     new_agent_text_message("Please provide a report path for QA analysis.")
                 )
-                return
+                return {"error": True, "error_type": "missing_report_path"}
 
         try:
             qa_result = await run_qa_analysis(report_path)
             await event_queue.enqueue_event(
                 new_agent_text_message(json.dumps(qa_result, indent=2, default=str))
             )
+            return qa_result if isinstance(qa_result, dict) else {"status": "qa_completed"}
         except Exception:
             logger.exception("A2A QA analysis failed for %s", report_path)
             await event_queue.enqueue_event(
                 new_agent_text_message("QA analysis failed (see server logs)")
             )
+            return {"error": True, "error_type": "qa_failed"}
 
-    async def _handle_doctor(self, event_queue: EventQueue) -> None:
+    async def _handle_doctor(self, event_queue: EventQueue) -> dict[str, Any]:
         """Handle system_health skill - synchronous."""
         try:
             status = get_doctor_status()
             await event_queue.enqueue_event(
                 new_agent_text_message(json.dumps(status, indent=2, default=str))
             )
+            return status if isinstance(status, dict) else {"status": "healthy"}
         except Exception:
             logger.exception("A2A health check failed")
             await event_queue.enqueue_event(
                 new_agent_text_message("Health check failed (see server logs)")
             )
+            return {"error": True, "error_type": "health_check_failed"}
 
     async def _handle_unknown(
         self, skill_id: str | None, text: str, event_queue: EventQueue
-    ) -> None:
+    ) -> dict[str, Any]:
         """Handle unrecognized skill - try to route by content."""
         available = "estimate_research, research_company, check_jobs, run_qa, system_health"
         await event_queue.enqueue_event(
             new_agent_text_message(f"Unknown skill '{skill_id}'. Available skills: {available}")
         )
+        return {"error": True, "error_type": "unknown_skill"}
 
 
 # =============================================================================
@@ -551,6 +628,14 @@ def _a2a_client_id(mcp_server: Any) -> str:
 def _caller_owns_job(job: Any, client_id: str) -> bool:
     """Return whether an A2A caller owns a job."""
     return getattr(job, "owner_client_id", None) == client_id
+
+
+def _scope_denial_payload(
+    skill_id: str | None,
+    decision: A2ASkillAuthorizationDecision,
+) -> dict[str, Any]:
+    """Return the structured denial payload emitted to the caller."""
+    return json.loads(a2a_scope_denied_text(skill_id, decision))
 
 
 def _parse_research_params(text: str) -> dict[str, str]:

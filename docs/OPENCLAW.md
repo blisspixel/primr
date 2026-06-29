@@ -163,7 +163,10 @@ primr doctor
 - MCP resource reads are audit-logged with normalized resource kind, hashed URI,
   hashed result body, job id when present, granted scopes, duration, and
   outcome. The audit log does not persist raw URI query values or resource
-  bodies.
+  bodies. A2A skill calls are audit-logged with hashed message/result payloads,
+  hashed caller ids, granted scopes, duration, outcome, and job id when present,
+  without raw message text, task ids, URLs, report paths, raw results, or
+  caller ids.
 
 
 

@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.34.19
+Current State: v1.34.20
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -68,9 +68,10 @@ Current priority order:
 3. **Agent control-plane consumption resources and A2A parity.** MCP already has
    scopes, approval tokens, tool/resource-read audit events, and budget
    propagation. A2A now shares the HTTP bearer-token auth context and enforces
-   the same `read`/`research` split for equivalent skills. The next safety win
-   is extending the remaining approval, budget, audit, and compact read
-   semantics to A2A. The first seven resource slices shipped:
+   the same `read`/`research` split for equivalent skills. A2A skill invocation
+   audit parity is shipped. The next safety win is extending the remaining
+   approval, budget, and compact read semantics to A2A. The first seven
+   resource slices shipped:
    `primr://output/artifacts/by_job/{job_id}` returns owned-job artifact
    metadata, and `primr://output/qa_summary/by_job/{job_id}` returns compact QA
    score/status/count metadata, and
@@ -89,7 +90,9 @@ Current priority order:
    omit raw claims, source URLs, evidence reviews, and rationales. MCP resource
    reads now append privacy-preserving audit events with hashed URI/result
    values, normalized resource kind, job id when present, caller scope, and
-   outcome without storing raw URI query values or resource bodies.
+   outcome without storing raw URI query values or resource bodies. A2A skill
+   calls and task cancellations now append matching privacy-preserving audit
+   events with hashed message/result payloads and job id when present.
 4. **Research memory layer 1.** Memory comes after calibrated claims and safer
    artifact consumption so prior-run material can compound value without
    laundering weak claims into fresh findings.
@@ -438,9 +441,9 @@ Each step unblocks the ones after it; items within a step are independent.
    the first seven job-scoped resource slices now cover artifact metadata, compact QA
    summaries, compact usage/cost summaries, compact source appendix
    summaries, compact scrape trace summaries, compact claim verification
-   summaries, and compact label-calibration summaries. A2A skill-scope parity
-   is now shipped; A2A approval, audit, compact-resource parity, and non-fast
-   runtime budget checkpointing remain next.
+   summaries, and compact label-calibration summaries. A2A skill-scope and
+   skill-audit parity are now shipped; A2A approval, compact-resource parity,
+   and non-fast runtime budget checkpointing remain next.
    Independent of steps 1-4; can proceed in parallel.
 6. **Backend freedom** (#18 + provider expansion) (2.0):
    capability-requirement routing and provider-availability headroom first
@@ -1039,7 +1042,7 @@ Already shipped: SSRF guard on every outbound URL (`primr.utils.security`), cont
 - **Output / egress guardrails** - SHIPPED baseline, hardening continuing. `is_safe_url` guards every egress helper; `data/safe_http.py` validates every redirect hop before connecting for `fallback_sources._http_get`, `hiring_signals._http_get`, Wayback CDX/replay fetches, and async citation-resolution HEAD requests; `data/scraping/net.py` validates every redirect hop manually for sitemap and URL-existence checks; `HTTPClient.get/head` does the same while preserving pooled sessions; and the requests, httpx, and curl_cffi scraping tiers validate redirect hops while preserving their tier-specific transports. The "no fetch bypasses the SSRF guard" invariant is locked by `tests/security/test_egress_guardrails.py`; intermediate-redirect migration is complete. The shared safe HTTP seam resolves each hop once and connects to the validated IP literal with the original Host header and HTTPS SNI, closing the DNS-rebind check/connect gap for fallback, hiring, Wayback, and citation HEAD fetches. The tiered httpx scraper uses the same pinned connection artifact while preserving HTTP/2 behavior. Requests-family egress has a shared `PinnedHTTPAdapter`, so pooled `HTTPClient` calls and the tiered requests scraper connect through urllib3 to the validated IP literal while preserving retries, pooling, Host, SNI, and response contracts. The curl_cffi tier now passes vetted per-hop addresses to libcurl through `CurlOpt.RESOLVE` while keeping the logical URL and disabling environment proxy trust. Browser-backed Chromium tiers now pin the initial hostname with Chromium resolver rules, route through a local loopback egress proxy that validates and dials every HTTP request or HTTPS CONNECT target, disable QUIC, and keep Playwright-compatible route guards as defense-in-depth. Remaining SSRF hardening: no known DNS-rebind TOCTOU seam in tracked scraper fetch paths; future browser protocol additions must preserve the proxy/pinning invariant.
 - **Secret / log redaction** - SHIPPED. `SecretMaskingFilter` on all log handlers (sink-level, not opt-in) + `mask_sensitive_data` (incl. xAI) applied in `chat_logger` before persist, with atomic writes. Provider patterns: xAI/Google/OpenAI/Anthropic/GitHub/AWS/Slack/JWT. Note: `usage_history.json` and `_run_state.json` are metadata-only (no secrets) - verified, no change needed.
 - **Scoped threat model** - SHIPPED. `docs/SECURITY.md` documents the client/scraper/agent threat model (ATLAS-style table T1-T8), shipped controls, residual-risk acceptance, and coordinated disclosure.
-- **Agentic trust boundaries (MCP/A2A)** - MCP Stage 1 SHIPPED (T8). MCP now enforces per-tool scopes at dispatch (`read`, `research`, `delegate`, `admin`) and honors OAuth `scope` plus Entra `scp` JWT claims while keeping legacy `write` tokens compatible. A2A authenticated HTTP requests now bind the bearer token into the shared MCP auth context and enforce the matching `read`/`research` split for estimate, status, health, research, QA, and cancellation. MCP Stage 2 token approval is shipped for cost-cap-governed execution tools: estimate tools mint short-lived single-use tokens, and execution requires a matching token when server-side cost enforcement is active. MCP structured invocation audit is shipped for tool calls and resource reads with hashed payloads and admin-readable recent events. MCP resource-read events record normalized resource kind, hashed resource URI, hashed result body, job id when present, granted scopes, duration, and outcome without persisting raw URI query values or resource bodies. MCP `research_company` fast-path execution now also activates the approved cap as a runtime `RunBudget`, so pre-flight approval and mid-run optional-spend checkpoints agree on the networked surface. The first seven job-scoped consumption resources now cover artifact metadata, compact QA summaries, compact usage/cost summaries, compact source appendix summaries, compact scrape trace summaries, compact verification summaries, and compact calibration summaries without report body content. Trace summaries omit raw trace entries; verification summaries omit raw claims, source URLs, search queries, and explanations; calibration summaries omit raw claims, source URLs, evidence reviews, and rationales. Remaining control-plane work: A2A approval, audit, compact-resource parity, and non-fast runtime budget checkpoints. Folds into Active Queue #11 (constrained agent permissions) and #21 (agent control-plane hardening).
+- **Agentic trust boundaries (MCP/A2A)** - MCP Stage 1 SHIPPED (T8). MCP now enforces per-tool scopes at dispatch (`read`, `research`, `delegate`, `admin`) and honors OAuth `scope` plus Entra `scp` JWT claims while keeping legacy `write` tokens compatible. A2A authenticated HTTP requests now bind the bearer token into the shared MCP auth context and enforce the matching `read`/`research` split for estimate, status, health, research, QA, and cancellation. MCP Stage 2 token approval is shipped for cost-cap-governed execution tools: estimate tools mint short-lived single-use tokens, and execution requires a matching token when server-side cost enforcement is active. MCP structured invocation audit is shipped for tool calls and resource reads with hashed payloads and admin-readable recent events. MCP resource-read events record normalized resource kind, hashed resource URI, hashed result body, job id when present, granted scopes, duration, and outcome without persisting raw URI query values or resource bodies. A2A skill calls and task cancellation now write matching privacy-preserving audit events with transport, skill name, hashed message/result payloads, hashed caller id, granted scopes, duration, outcome, and job id when present. MCP `research_company` fast-path execution now also activates the approved cap as a runtime `RunBudget`, so pre-flight approval and mid-run optional-spend checkpoints agree on the networked surface. The first seven job-scoped consumption resources now cover artifact metadata, compact QA summaries, compact usage/cost summaries, compact source appendix summaries, compact scrape trace summaries, compact verification summaries, and compact calibration summaries without report body content. Trace summaries omit raw trace entries; verification summaries omit raw claims, source URLs, search queries, and explanations; calibration summaries omit raw claims, source URLs, evidence reviews, and rationales. Remaining control-plane work: A2A approval, compact-resource parity, and non-fast runtime budget checkpoints. Folds into Active Queue #11 (constrained agent permissions) and #21 (agent control-plane hardening).
 
 Decision principle: secure the surface primr actually has - untrusted input, agent tool use, secrets, supply chain - and explicitly decline model-training/serving security primr will never own.
 
@@ -1425,6 +1428,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.34.20 | Jun 2026 | **A2A skill audit parity.** A2A skill invocations and task cancellation now append privacy-preserving audit events to the shared agent audit JSONL with transport, skill name, hashed arguments/results, hashed caller ids, granted scopes, duration, outcome, and job id when present, without storing raw message text, task ids, report paths, URLs, raw results, or caller ids. |
 | 1.34.19 | Jun 2026 | **Docs and operator-guidance refresh.** Refreshed agent/operator docs, run-mode references, architecture/config cost guidance, security support policy, and roadmap test-count wording so default xAI plus Gemini costs, default AI Strategy generation, `--no-ai-strategy`, the `1.34.x` supported line, and the 10,000+ test suite are consistent across the repo. |
 | 1.34.18 | Jun 2026 | **A2A skill-scope parity.** Authenticated A2A HTTP requests now bind the bearer token into the shared MCP auth context, and A2A skill dispatch enforces `read` for estimate/status/health operations and `research` for research, QA, and cancellation while preserving local loopback behavior and legacy `write` compatibility. |
 | 1.34.17 | Jun 2026 | **Inference-label source-copy calibration.** Label calibration now checks cited `(Estimated)` and `(Hypothesis)` claims for deterministic source-copy leakage while keeping those labels exempt from traceability. Calibration sidecars, eval scorecards, CSV output, and baseline readiness artifacts now surface `source_copied` / `inference_source_copied` as report-only signals until a representative baseline defines acceptable behavior. |

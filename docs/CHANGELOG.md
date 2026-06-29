@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.20] - 2026-06-29
+
+### Added
+
+- A2A skill invocations and task cancellation now append
+  privacy-preserving audit events to the shared agent audit JSONL with
+  transport, skill name, outcome, hashed arguments, hashed results, hashed
+  caller ids, granted scopes, duration, and job id when present.
+- A2A audit events cover successful skill calls, insufficient-scope denials,
+  handled validation errors, and cancellation requests without storing raw
+  message text, company URLs, report paths, task ids, raw results, or caller
+  ids.
+
 ## [1.34.19] - 2026-06-29
 
 ### Changed

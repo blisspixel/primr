@@ -156,6 +156,50 @@ class MCPAuditLog:
         except Exception:
             logger.exception("Failed to write MCP audit event for resource read")
 
+    def record_a2a_skill_call(
+        self,
+        *,
+        skill_id: str | None,
+        arguments: dict[str, Any],
+        result_payload: dict[str, Any] | None,
+        auth_context: Any,
+        client_id: str,
+        started_at: float,
+        exception: BaseException | None = None,
+    ) -> None:
+        """Persist one A2A skill audit event without raw message text or results."""
+        try:
+            payload = result_payload or {}
+            duration_ms = max(0, int((time.perf_counter() - started_at) * 1000))
+            authenticated = bool(getattr(auth_context, "is_authenticated", False))
+            local_actor = "a2a" if not authenticated and client_id == "a2a" else None
+            event = MCPAuditEvent(
+                schema_version="1.0",
+                event_id=str(uuid.uuid4()),
+                timestamp=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                transport="a2a",
+                tool_name=_a2a_tool_name(skill_id),
+                status=_classify_status(payload, exception),
+                duration_ms=duration_ms,
+                actor=local_actor,
+                client_id_hash=None if local_actor is not None else _hash_text(client_id),
+                authenticated=authenticated,
+                auth_scopes=sorted(str(s) for s in getattr(auth_context, "scopes", []) or []),
+                args_hash=_hash_json(arguments),
+                result_hash=_hash_json(payload) if result_payload is not None else None,
+                approval_token_id=_approval_token_id(arguments, payload),
+                job_id=_optional_string(payload.get("job_id")),
+                estimated_cost_usd=_optional_float(
+                    payload.get("estimated_cost_usd", arguments.get("estimated_cost_usd"))
+                ),
+                max_estimated_cost_usd=_optional_float(arguments.get("max_estimated_cost_usd")),
+                error_type=_error_type(payload, exception),
+                error_code=_optional_error_code(payload.get("error_code")),
+            )
+            self._append(event)
+        except Exception:
+            logger.exception("Failed to write MCP audit event for A2A skill %s", skill_id)
+
     def recent(self, limit: int = 50) -> list[dict[str, Any]]:
         """Return the most recent audit events in file order."""
         bounded_limit = max(1, min(int(limit), 200))
@@ -443,6 +487,12 @@ def _resource_kind(uri: str) -> str:
     base = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
     base = re.sub(r"/by_job/[^/?]+", "/by_job/{job_id}", base)
     return base
+
+
+def _a2a_tool_name(skill_id: str | None) -> str:
+    if isinstance(skill_id, str) and re.fullmatch(r"[A-Za-z0-9_.:-]{1,80}", skill_id):
+        return f"a2a/{skill_id}"
+    return "a2a/unknown"
 
 
 def _resource_job_id(uri: str, payload: dict[str, Any]) -> str | None:

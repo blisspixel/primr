@@ -167,6 +167,9 @@ buckets, judge provenance, or judge-agreement metadata is needed without raw
 claims, source URLs, evidence reviews, rationales, or report body content.
 MCP resource reads are audit-logged with hashed URI/result values and
 normalized resource kind, without raw URI query values or resource bodies.
+A2A skill calls are audit-logged with hashed message/result payloads, hashed
+caller ids, granted scopes, duration, outcome, and job id when present, without
+raw message text, task ids, URLs, report paths, raw results, or caller ids.
 Read `primr://output/latest` only when the next step needs a report preview.
 
 

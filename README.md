@@ -173,7 +173,10 @@ entries, or page content.
 MCP `resources/read` calls are audited with hashed URI/result values,
 normalized resource kind, job id when present, granted scopes, duration, and
 outcome; raw URI query values and resource bodies are not persisted in the
-audit log.
+audit log. A2A skill calls and task cancellation use the same audit log with
+hashed message/result payloads, hashed caller ids, granted scopes, duration,
+outcome, and job id when present; raw message text, task ids, URLs, report
+paths, raw results, and caller ids are not persisted.
 
 With `--output-dir`, Primr writes customer-facing Markdown and DOCX deliverables to that folder while keeping TXT mirrors and validation diagnostics in the run diagnostics directory.
 

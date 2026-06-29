@@ -283,8 +283,13 @@ Do next:
   Authenticated A2A jobs are owned by the token `client_id`. Local
   unauthenticated loopback behavior remains permissive, and legacy `write`
   still satisfies research-scope operations for compatibility.
-- Extend the remaining approval, budget, compact read-resource, and audit
-  decisions to A2A.
+- Shipped second A2A parity slice: skill invocations and task cancellation now
+  append privacy-preserving audit events with transport, skill name, hashed
+  message/result payloads, hashed caller id, granted scopes, duration,
+  outcome, and job id when present, without raw message text, task ids, URLs,
+  report paths, raw results, or caller ids.
+- Extend the remaining approval, budget, and compact read-resource decisions
+  to A2A.
 - Carry request/job ids into OpenTelemetry-compatible spans and structured logs
   without storing raw report bodies by default.
 
@@ -298,7 +303,8 @@ Done when:
   argument, URI query, resource-body, or report-body persistence.
 - MCP and A2A enforce the same approval, audit, and compact read-resource
   semantics for equivalent operations. The shared `read`/`research` skill
-  scope split is shipped; approval, audit, and compact resource parity remain.
+  scope split and A2A skill-call audit parity are shipped; approval and compact
+  resource parity remain.
 
 ### 4. Research memory layer 1
 

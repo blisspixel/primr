@@ -16,6 +16,7 @@ from primr.a2a.executor import (
     _parse_research_params,
 )
 from primr.a2a.task_store import PrimrTaskStore
+from primr.a2a.types import A2ATaskMapping
 
 
 class TestExtractSkillId:
@@ -173,6 +174,46 @@ class TestPrimrAgentExecutor:
         event_queue.enqueue_event.assert_called()
 
     @pytest.mark.asyncio
+    async def test_check_jobs_writes_hashed_a2a_audit_event(self, executor, event_queue, context):
+        """A2A skill calls are audited without raw message text or caller ids."""
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["read"]
+        auth_context.client_id = "sensitive-client"
+        executor._mcp._auth_context = auth_context
+        context.message = {
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": "status for https://example.com/private?token=secret",
+                }
+            ],
+            "metadata": {"skillId": "check_jobs"},
+        }
+
+        try:
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        audit_text = executor._mcp.audit_log.path.read_text(encoding="utf-8")
+        assert "sensitive-client" not in audit_text
+        assert "example.com" not in audit_text
+        assert "private" not in audit_text
+        assert "secret" not in audit_text
+
+        event = _audit_events(executor)[0]
+        assert event["transport"] == "a2a"
+        assert event["event_type"] == "tool_call"
+        assert event["tool_name"] == "a2a/check_jobs"
+        assert event["status"] == "success"
+        assert event["actor"] is None
+        assert event["client_id_hash"].startswith("sha256:")
+        assert event["auth_scopes"] == ["read"]
+        assert event["args_hash"].startswith("sha256:")
+        assert event["result_hash"].startswith("sha256:")
+
+    @pytest.mark.asyncio
     async def test_handle_doctor(self, executor, event_queue, context):
         """system_health dispatches to doctor."""
         context.message["metadata"] = {"skillId": "system_health"}
@@ -203,6 +244,43 @@ class TestPrimrAgentExecutor:
         context.task_id = "nonexistent-task"
         await executor.cancel(context, event_queue)
         event_queue.enqueue_event.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_cancel_writes_a2a_audit_event_with_job_id(self, executor, event_queue, context):
+        """A2A cancellation audit records job provenance without raw task ids."""
+        job = executor._mcp.job_store.create(
+            company_name="Acme",
+            mode="full",
+            owner_client_id="client-1",
+        )
+        executor._task_store.register_mapping(
+            A2ATaskMapping(
+                task_id="task-secret-1",
+                job_id=job.job_id,
+                skill_id="research_company",
+            )
+        )
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["research"]
+        auth_context.client_id = "client-1"
+        executor._mcp._auth_context = auth_context
+        context.task_id = "task-secret-1"
+        context.context_id = "ctx-1"
+
+        try:
+            await executor.cancel(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        audit_text = executor._mcp.audit_log.path.read_text(encoding="utf-8")
+        assert "task-secret-1" not in audit_text
+        event = _audit_events(executor)[0]
+        assert event["transport"] == "a2a"
+        assert event["tool_name"] == "a2a/cancel_task"
+        assert event["status"] == "success"
+        assert event["job_id"] == job.job_id
+        assert event["client_id_hash"].startswith("sha256:")
 
     @pytest.mark.asyncio
     async def test_check_jobs_returns_json(self, executor, event_queue, context):
@@ -260,9 +338,15 @@ class TestPrimrAgentExecutor:
         auth_context = MagicMock()
         auth_context.is_authenticated = True
         auth_context.scopes = ["read"]
+        auth_context.client_id = "sensitive-client"
         executor._mcp._auth_context = auth_context
         context.message = {
-            "parts": [{"kind": "text", "text": "research something"}],
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": '{"url":"https://example.com/private?token=secret"}',
+                }
+            ],
             "metadata": {"skillId": "research_company"},
         }
 
@@ -275,6 +359,18 @@ class TestPrimrAgentExecutor:
         data = json.loads(_get_event_text(event))
         assert data["error_type"] == "insufficient_scope"
         assert data["missing_scopes"] == ["research"]
+        audit_text = executor._mcp.audit_log.path.read_text(encoding="utf-8")
+        assert "sensitive-client" not in audit_text
+        assert "example.com" not in audit_text
+        assert "private" not in audit_text
+        assert "secret" not in audit_text
+        audit_event = _audit_events(executor)[0]
+        assert audit_event["transport"] == "a2a"
+        assert audit_event["tool_name"] == "a2a/research_company"
+        assert audit_event["status"] == "scope_denied"
+        assert audit_event["error_type"] == "insufficient_scope"
+        assert audit_event["client_id_hash"].startswith("sha256:")
+        assert audit_event["auth_scopes"] == ["read"]
 
     @pytest.mark.asyncio
     async def test_research_create_uses_authenticated_client_owner(
@@ -359,6 +455,13 @@ class TestPrimrAgentExecutor:
         event = event_queue.enqueue_event.call_args[0][0]
         text = _get_event_text(event)
         assert "failed" in text.lower() or "error" in text.lower() or "Internal" in text
+
+
+def _audit_events(executor) -> list[dict]:
+    return [
+        json.loads(line)
+        for line in executor._mcp.audit_log.path.read_text(encoding="utf-8").splitlines()
+    ]
 
 
 def _get_event_text(event) -> str:
