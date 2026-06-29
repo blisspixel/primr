@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fingerprints forward.
 - Calibration baseline inspection now reports missing or mutated fingerprinted
   report and sidecar artifacts without returning report bodies.
+- Ready calibration baseline artifacts now publish a report-only
+  `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` gate recommendation from the
+  per-report Confirmed traceability floor.
 - Source distributions now explicitly prune `.agent/` while retaining the
   legacy `docs/.agent/` prune rule.
 - Local `_site/` documentation build output is now gitignored.

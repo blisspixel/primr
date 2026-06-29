@@ -196,7 +196,11 @@ Do next:
   as machine-readable JSON for operators and checks current report/sidecar
   fingerprints against the frozen pack without returning report bodies. MCP
   clients can read the same path-allowlisted payload through
-  `primr://calibration/baseline/inspection?path=<baseline.json>`.
+  `primr://calibration/baseline/inspection?path=<baseline.json>`. Ready
+  baseline artifacts now publish a report-only gate recommendation from the
+  per-report Confirmed traceability floor, including the exact
+  `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` assignment to review before arming a
+  hard gate.
 - Set `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` only from the measured floor of
   that agreement-validated baseline.
 - Surface contradicted `--verify` claims in the report trust summary. First

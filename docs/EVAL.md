@@ -152,7 +152,11 @@ For a 24 GB RTX 4090 or comparable local box, start with `4090-report-race` befo
   `missing_representative_coverage` until every required tag appears in the
   selected pack. Inspection compares current report and sidecar fingerprints
   against the frozen pack and reports missing or mutated artifacts without
-  returning report bodies. The artifact includes structured `next_actions` with
+  returning report bodies. When the pack is ready, the artifact also publishes a
+  report-only `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` recommendation from the
+  per-report Confirmed traceability floor; operators still have to review the
+  representative pack, disagreement cases, and false-positive risk before
+  arming a hard gate. The artifact includes structured `next_actions` with
   missing counts, remediation, suggested commands, and the policy to keep the
   hard calibration gate unset until the pack is ready. Its per-report summaries
   include evidence-review counts, inference source-copy counts, and

@@ -8,6 +8,11 @@ from pathlib import Path
 from typing import Any
 
 from primr.core.eval_calibration import calibration_counts_from_payload, percent_or_dash
+from primr.qa.calibration_baseline_gate import (
+    baseline_gate_recommendation,
+    inspection_gate_recommendation,
+    render_gate_recommendation_markdown,
+)
 from primr.qa.calibration_baseline_integrity import (
     artifact_integrity_summary,
     inspection_status,
@@ -118,6 +123,10 @@ def inspect_calibration_baseline(
         and not artifact_integrity["mismatched"]
     )
     status = inspection_status(baseline.get("status"), artifact_integrity)
+    gate_recommendation = inspection_gate_recommendation(
+        baseline.get("gate_recommendation"),
+        ready=ready,
+    )
 
     return {
         "inspection_format": INSPECTION_FORMAT,
@@ -127,6 +136,7 @@ def inspect_calibration_baseline(
         "reasons": reasons,
         "spend_preview_required": bool(next_actions.get("spend_preview_required")),
         "gate_policy": next_actions.get("gate_policy"),
+        "gate_recommendation": gate_recommendation,
         "artifact_integrity": artifact_integrity["counts"],
         "counts": {
             "reports": _safe_int(totals.get("reports"), default=len(reports)),
@@ -218,6 +228,8 @@ def build_calibration_baseline(
         representation_missing_tags=representation["missing_tags"],
         selection_path=representation.get("selection_path"),
     )
+    report_summaries = [_report_summary(report) for report in reports]
+    ready = not reasons
 
     return {
         "baseline_format": BASELINE_FORMAT,
@@ -225,8 +237,8 @@ def build_calibration_baseline(
         "pack_manifest": manifest_path.as_posix() if manifest_path is not None else None,
         "pack_created_at_utc": manifest.get("created_at_utc"),
         "minimum_reports": minimum_reports,
-        "ready": not reasons,
-        "status": "ready" if not reasons else reasons[0],
+        "ready": ready,
+        "status": "ready" if ready else reasons[0],
         "reasons": reasons,
         "next_actions": next_actions,
         "judge": manifest.get("judge"),
@@ -247,7 +259,15 @@ def build_calibration_baseline(
         "representation": representation,
         "evidence_review": evidence_summary,
         "judge_agreement": judge_agreement,
-        "reports": [_report_summary(report) for report in reports],
+        "gate_recommendation": baseline_gate_recommendation(
+            ready=ready,
+            reports=report_summaries,
+            traceability=label_summary,
+            evidence=evidence_summary,
+            agreement=judge_agreement,
+            representation=representation,
+        ),
+        "reports": report_summaries,
     }
 
 
@@ -258,6 +278,7 @@ def render_calibration_baseline_markdown(baseline: dict[str, Any]) -> str:
     agreement = _dict_value(baseline, "judge_agreement")
     representation = _dict_value(baseline, "representation")
     traceability = _dict_value(baseline, "traceability")
+    gate = _dict_value(baseline, "gate_recommendation")
     reasons = baseline.get("reasons", [])
     reason_text = ", ".join(str(reason) for reason in reasons) if reasons else "none"
     lines = [
@@ -368,6 +389,8 @@ def render_calibration_baseline_markdown(baseline: dict[str, Any]) -> str:
                 "honest_uncertainty_rate",
             ),
             _rate_row(evidence, "High Relevance", "high_relevance_reviews", "high_relevance_rate"),
+            "",
+            *render_gate_recommendation_markdown(gate),
             "",
             "## Next Actions",
             "",

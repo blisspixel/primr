@@ -67,8 +67,11 @@ Current priority order:
    missing/mismatch checks that do not return report bodies, and MCP exposes the
    same inspection through
    `primr://calibration/baseline/inspection?path=<baseline.json>` under the
-   existing path-allowlist boundary. The measured operator-curated
-   multi-report baseline itself is still next.
+   existing path-allowlist boundary. Ready baseline artifacts now publish a
+   report-only gate recommendation from the per-report Confirmed traceability
+   floor, including the exact environment-variable assignment an operator can
+   review before choosing whether to arm a hard gate. The measured
+   operator-curated multi-report baseline itself is still next.
 2. **Backend freedom production wiring.** Provider abstractions and pure routing
    foundations exist, and `core/stage_inventory.py` now records router-ready
    capability requirements and promotion gates for fast-mode and premium

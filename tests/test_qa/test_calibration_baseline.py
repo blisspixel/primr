@@ -20,14 +20,16 @@ def _sidecar(
     *,
     include_agreement: bool = True,
     include_evidence: bool = True,
+    confirmed_traceable: int = 1,
+    confirmed_untraceable: int = 0,
 ) -> dict[str, object]:
     payload: dict[str, object] = {
         "judge": {"kind": "cloud", "model": "fast-tier"},
         "per_label": {
             "Confirmed": {
-                "sampled": 1,
-                "traceable": 1,
-                "untraceable": 0,
+                "sampled": confirmed_traceable + confirmed_untraceable,
+                "traceable": confirmed_traceable,
+                "untraceable": confirmed_untraceable,
                 "no_source": 0,
                 "unfetchable": 0,
                 "exempt": 0,
@@ -85,6 +87,8 @@ def _manifest(
     include_sidecars: bool = True,
     required_tags: list[str] | None = None,
     present_tags: list[str] | None = None,
+    confirmed_traceable: int = 1,
+    confirmed_untraceable: int = 0,
 ) -> dict[str, object]:
     present = present_tags or []
     required = required_tags or []
@@ -106,6 +110,8 @@ def _manifest(
             report["sidecar"] = _sidecar(
                 include_agreement=include_agreement,
                 include_evidence=include_evidence,
+                confirmed_traceable=confirmed_traceable,
+                confirmed_untraceable=confirmed_untraceable,
             )
         reports.append(report)
 
@@ -126,9 +132,9 @@ def _manifest(
         "per_label": {},
         "existing_sidecar_per_label": {
             "Confirmed": {
-                "sampled": report_count,
-                "traceable": report_count,
-                "untraceable": 0,
+                "sampled": report_count * (confirmed_traceable + confirmed_untraceable),
+                "traceable": report_count * confirmed_traceable,
+                "untraceable": report_count * confirmed_untraceable,
                 "no_source": 0,
                 "unfetchable": 0,
                 "exempt": 0,
@@ -226,6 +232,27 @@ def test_build_baseline_ready_when_pack_has_required_evidence() -> None:
     assert baseline["reports"][0]["judge_agreement_compared"] == 2
     assert baseline["reports"][0]["has_judge_agreement"] is True
     assert baseline["reports"][0]["inference_source_copied"] == 1
+    assert baseline["gate_recommendation"] == {
+        "status": "candidate",
+        "reason": "ready_baseline_measured_floor",
+        "environment_variable": "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY",
+        "recommended_threshold": 1.0,
+        "measured_floor": 1.0,
+        "aggregate_confirmed_traceability": 1.0,
+        "reports_considered": 5,
+        "reports_without_decidable_confirmed": 0,
+        "evidence_source_reviews": 10,
+        "judge_agreement_rate": 1.0,
+        "required_tags": ["clean", "blocked_origin", "strategy_module"],
+        "present_tags": ["clean", "blocked_origin", "strategy_module"],
+        "operator_review_required": True,
+        "env_assignment": "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=1.000",
+        "gate_policy": (
+            "Do not arm automatically; review the representative pack, measured "
+            "floor, disagreement cases, and false-positive risk before setting "
+            "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY."
+        ),
+    }
     assert baseline["next_actions"]["spend_preview_required"] is False
     assert baseline["next_actions"]["items"] == [
         {
@@ -236,6 +263,27 @@ def test_build_baseline_ready_when_pack_has_required_evidence() -> None:
             ),
         }
     ]
+
+
+def test_ready_baseline_without_decidable_confirmed_claims_has_no_gate_candidate() -> None:
+    baseline = build_calibration_baseline(
+        _manifest(
+            5,
+            required_tags=["clean", "blocked_origin"],
+            present_tags=["clean", "blocked_origin"],
+            confirmed_traceable=0,
+            confirmed_untraceable=0,
+        ),
+        minimum_reports=5,
+    )
+
+    assert baseline["ready"] is True
+    assert baseline["traceability"]["Confirmed"]["traceability_rate"] is None
+    assert baseline["gate_recommendation"]["status"] == "not_recommended"
+    assert baseline["gate_recommendation"]["reason"] == "no_decidable_confirmed_claims"
+    assert baseline["gate_recommendation"]["recommended_threshold"] is None
+    assert baseline["gate_recommendation"]["reports_without_decidable_confirmed"] == 5
+    assert baseline["gate_recommendation"]["env_assignment"] is None
 
 
 def test_build_baseline_preserves_manifest_artifact_fingerprints() -> None:
@@ -305,6 +353,9 @@ def test_inspect_baseline_flags_mutated_fingerprinted_artifacts(tmp_path: Path) 
     assert inspection["status"] == "fingerprinted_artifact_missing"
     assert "fingerprinted_artifact_missing" in inspection["reasons"]
     assert "artifact_fingerprint_mismatch" in inspection["reasons"]
+    assert inspection["gate_recommendation"]["status"] == "not_recommended"
+    assert inspection["gate_recommendation"]["reason"] == "inspection_not_ready"
+    assert inspection["gate_recommendation"]["recommended_threshold"] is None
     assert inspection["artifact_integrity"] == {
         "checked": 1,
         "unfingerprinted": 8,
@@ -453,8 +504,11 @@ def test_write_baseline_json_and_markdown(tmp_path: Path) -> None:
     assert "## Evidence Review" in markdown
     assert "## Inference Label Checks" in markdown
     assert "## Representative Coverage" in markdown
+    assert "## Gate Recommendation" in markdown
     assert "## Next Actions" in markdown
     assert "## Suggested Commands" in markdown
+    assert "| candidate | ready_baseline_measured_floor | 100% |" in markdown
+    assert "`PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=1.000`" in markdown
     assert "Judge agreement: 10 / 10 (100%)" in markdown
     assert "Evidence-reviewed reports: 5 / 5" in markdown
     assert "Judge-agreement reports: 5 / 5" in markdown
