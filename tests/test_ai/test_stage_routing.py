@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from primr.ai.capability_routing import InferenceProfile
+from primr.ai.provider_availability import ProviderQuotaSnapshot, QuotaWindow
 from primr.ai.stage_routing import (
     INFERENCE_PROFILE_ENV,
     current_inference_profile,
@@ -98,6 +99,43 @@ def test_local_profile_records_rejection_and_preserves_legacy_model(monkeypatch)
     assert route.model_name == PrimrModels.FLASH_MODEL
     assert route.reasons == ("legacy_fallback",)
     assert "profile_disallows_backend" in route.rejections
+
+
+def test_provider_availability_snapshot_marks_runtime_route_unavailable(monkeypatch) -> None:
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+    snapshot = ProviderQuotaSnapshot(
+        provider="google",
+        windows=(QuotaWindow("requests_per_day", used_percent=100.0),),
+        metadata={
+            "configured": True,
+            "credential_source": "env",
+            "quota_source": "not_collected",
+        },
+    )
+
+    route = resolve_stage_model(
+        "fast.source_relevance",
+        legacy_model_type="fast",
+        profile="cloud",
+        availability_snapshots=(snapshot,),
+    )
+
+    assert route.routed is False
+    assert route.model_name == PrimrModels.FLASH_MODEL
+    assert route.reasons == ("legacy_fallback",)
+    assert "unavailable" in route.rejections
+    assert route.availability == {
+        "available": False,
+        "provider": "google",
+        "quota_source": "not_collected",
+        "stale": False,
+        "headroom_percent": 0.0,
+        "binding_window_label": "requests_per_day",
+        "configured": True,
+        "credential_source": "env",
+    }
+    assert route.log_metadata()["availability"] == route.availability
 
 
 def test_record_stage_route_usage_appends_body_free_run_state(tmp_path, monkeypatch) -> None:

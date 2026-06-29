@@ -257,7 +257,9 @@ Do next:
   now consume `route_stage()` behind `--inference cloud|hybrid`, log safe route
   metadata, append capped body-free `stage_routes` records to
   `_run_state.json`, and execute through existing provider seams with today's
-  role defaults preserved as fallback.
+  role defaults preserved as fallback. Runtime route resolution can now consume
+  sanitized provider availability snapshots and record body-free availability
+  metadata without adding live quota collection to normal runs.
 - Feed provider health and availability into the runtime bridge, then promote
   one host/local candidate only after stage-scoped evals prove quality, cost,
   latency, and failure behavior. Actual token, cache, and cost fields should be

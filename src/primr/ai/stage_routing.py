@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from primr.ai.capability_routing import (
     BackendCapabilities,
@@ -15,12 +16,16 @@ from primr.ai.capability_routing import (
     ReasoningDepth,
     RoutingPolicy,
     TrustSensitivity,
+    backends_with_availability,
     route_stage,
 )
 from primr.ai.routing import Role, pick_model_for_legacy_type
 from primr.config.model_registry import ModelConfig
 from primr.config.models import PrimrModels
 from primr.core.stage_inventory import get_production_stage
+
+if TYPE_CHECKING:
+    from primr.ai.provider_availability import ProviderQuotaSnapshot
 
 INFERENCE_PROFILE_ENV = "PRIMR_INFERENCE_PROFILE"
 DEFAULT_INFERENCE_PROFILE = InferenceProfile.CLOUD
@@ -42,6 +47,7 @@ class StageModelRoute:
     routed: bool
     reasons: tuple[str, ...]
     rejections: tuple[str, ...]
+    availability: dict[str, Any] | None = None
 
     def log_metadata(self) -> dict[str, Any]:
         """Return safe structured-log metadata for this route."""
@@ -61,6 +67,8 @@ class StageModelRoute:
             data["estimated_cost_usd"] = round(self.estimated_cost_usd, 6)
         if self.rejections:
             data["fallback_rejections"] = list(self.rejections)
+        if self.availability is not None:
+            data["availability"] = dict(self.availability)
         return data
 
 
@@ -76,6 +84,8 @@ def resolve_stage_model(
     *,
     legacy_model_type: str,
     profile: InferenceProfile | str | None = None,
+    availability_snapshots: Iterable[ProviderQuotaSnapshot] | None = None,
+    require_availability_snapshot: bool = False,
 ) -> StageModelRoute:
     """Resolve the model for a production stage through the capability router.
 
@@ -107,6 +117,12 @@ def resolve_stage_model(
             reasons=("legacy_model_unregistered",),
             rejections=("legacy_model_unregistered",),
         )
+    if availability_snapshots is not None:
+        backend = backends_with_availability(
+            (backend,),
+            availability_snapshots,
+            require_snapshot=require_availability_snapshot,
+        )[0]
 
     plan = route_stage(
         stage.to_requirements(),
@@ -128,6 +144,7 @@ def resolve_stage_model(
             routed=True,
             reasons=primary.reasons,
             rejections=(),
+            availability=_availability_metadata(primary.backend),
         )
 
     rejection_reasons = tuple(reason for item in plan.rejections for reason in item.reasons)
@@ -144,6 +161,7 @@ def resolve_stage_model(
         routed=False,
         reasons=("legacy_fallback",),
         rejections=rejection_reasons,
+        availability=_availability_metadata(backend),
     )
 
 
@@ -199,6 +217,13 @@ def _backend_for_model(model_name: str, role: Role) -> BackendCapabilities | Non
         max_trust_sensitivity=_trust_for_role(role),
         supports_structured_output=True,
     )
+
+
+def _availability_metadata(backend: BackendCapabilities) -> dict[str, Any] | None:
+    value = backend.metadata.get("availability")
+    if not isinstance(value, dict):
+        return None
+    return dict(value)
 
 
 def _coerce_profile(profile: InferenceProfile | str) -> InferenceProfile:

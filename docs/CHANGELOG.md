@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ready calibration baseline artifacts now publish a report-only
   `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` gate recommendation from the
   per-report Confirmed traceability floor.
+- Stage runtime routing can now consume sanitized provider availability
+  snapshots and carry body-free availability metadata into route logs while
+  preserving the existing legacy fallback path.
 - Source distributions now explicitly prune `.agent/` while retaining the
   legacy `docs/.agent/` prune rule.
 - Local `_site/` documentation build output is now gitignored.

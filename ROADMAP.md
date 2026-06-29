@@ -82,10 +82,12 @@ Current priority order:
    `fast.scrape_summary`, `fast.source_relevance`, and
    `fast.hiring_signals` now consume the capability router behind the
    `--inference cloud|hybrid` flag while executing through existing provider
-   seams. All three routes record body-free usage metadata in
-   `_run_state.json`; the next architecture unlock is feeding provider health
-   into runtime routing and promoting host/local candidates with stage-scoped
-   eval data.
+   seams. Runtime route resolution can consume sanitized provider availability
+   snapshots and record body-free availability metadata without collecting live
+   quota data during normal runs. All three routes record body-free usage
+   metadata in `_run_state.json`; the next architecture unlock is feeding
+   provider health into runtime routing and promoting host/local candidates
+   with stage-scoped eval data.
 3. **Agent control-plane consumption resources and A2A parity.** MCP already has
    scopes, approval tokens, tool/resource-read audit events, and budget
    propagation. A2A now shares the HTTP bearer-token auth context and enforces
