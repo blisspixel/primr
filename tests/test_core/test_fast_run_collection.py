@@ -61,7 +61,7 @@ def seams(monkeypatch, tmp_path):
 
     monkeypatch.setattr("primr.pipeline.integration.scrape_page_with_recovery", fake_recovery)
 
-    relevance = MagicMock(side_effect=lambda company, data: data)
+    relevance = MagicMock(side_effect=lambda company, data, folder_path=None: data)
     monkeypatch.setattr("primr.core.research_agent._assess_source_relevance", relevance)
 
     captured.update(
@@ -168,7 +168,7 @@ class TestExternalValidation:
         assert seams["run_state"]["failed_scrape_urls"] == ["https://evidence.example/q1"]
 
     def test_quality_filter_drops_low_relevance(self, seams):
-        seams["relevance"].side_effect = lambda company, data: {}
+        seams["relevance"].side_effect = lambda company, data, folder_path=None: {}
         result = _call(seams)
         assert result.source_urls == []
         assert result.external_data == {}

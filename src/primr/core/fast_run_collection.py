@@ -74,9 +74,6 @@ def collect_research_data(
     total_phases: int,
 ) -> DataCollectionResult:
     """Scrape the site, search + validate external sources, seed the pools."""
-    # Lazy import: research_agent imports this module, so the LLM-backed
-    # relevance filter (which stays there until its own extraction) must be
-    # resolved at call time to avoid a circular import.
     from primr.core.research_agent import _assess_source_relevance
 
     scan_domain = urlparse(website or "").netloc.replace("www.", "") if website else "website"
@@ -315,7 +312,7 @@ def collect_research_data(
 
     # Adaptive quality filter: drop low-relevance sources
     pre_filter_count = len(external_data)
-    external_data = _assess_source_relevance(company_name, external_data)
+    external_data = _assess_source_relevance(company_name, external_data, folder_path)
     if len(external_data) < pre_filter_count:
         console.info(
             f"Quality filter: {pre_filter_count} -> {len(external_data)} sources (dropped {pre_filter_count - len(external_data)} low-relevance)"

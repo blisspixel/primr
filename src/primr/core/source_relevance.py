@@ -1,0 +1,154 @@
+"""LLM-backed source relevance filtering for fast-mode external sources."""
+
+from __future__ import annotations
+
+import json
+import time
+
+from primr.ai import stage_routing
+from primr.ai.llm import llm
+from primr.utils.observability import log_structured
+
+
+def _assess_source_relevance(
+    company_name: str,
+    external_data: dict[str, str],
+    folder_path: str | None = None,
+) -> dict[str, str]:
+    """Filter external sources by relevance using LLM assessment."""
+
+    if len(external_data) <= 5:
+        return external_data
+
+    source_summaries: list[str] = []
+    url_list = list(external_data.keys())
+    for i, url in enumerate(url_list):
+        snippet = external_data[url][:500].replace("\n", " ")
+        source_summaries.append(f"{i + 1}. {url}\n   {snippet}")
+
+    prompt = f"""You are evaluating external research sources about {company_name}.
+
+Below are {len(url_list)} sources. For each, decide: KEEP or DROP.
+
+KEEP a source if it provides SPECIFIC, USEFUL intelligence about {company_name}:
+- Names executives, financials, deals, partnerships, or strategies
+- Provides industry analysis mentioning this company specifically
+- Contains news, press releases, or analyst coverage about this company
+
+DROP a source if it is:
+- Generic industry content that barely mentions the company
+- A directory listing, job board, or social media page with no substance
+- Duplicate information already covered by another KEPT source
+- Tangentially related but not genuinely informative
+
+IMPORTANT: For smaller or less prominent companies, it is BETTER to keep 5 high-quality
+sources than 25 mediocre ones. Be selective. Quality over quantity.
+
+SOURCES:
+{chr(10).join(source_summaries)}
+
+Return ONLY a JSON array of the source NUMBERS to KEEP (e.g. [1, 3, 5, 8]).
+
+No prose, no explanation."""
+    route: stage_routing.StageModelRoute | None = None
+    start_time = time.monotonic()
+    try:
+        route = stage_routing.resolve_stage_model("fast.source_relevance", legacy_model_type="fast")
+        log_structured("info", "Source relevance route selected", **route.log_metadata())
+        response = llm(prompt, model_type="fast", streaming=False, model=route.model_name).strip()
+        text = response.strip()
+        if text.startswith("```"):
+            first_nl = text.find("\n")
+            text = text[first_nl + 1 :] if first_nl != -1 else text[3:]
+            if text.rstrip().endswith("```"):
+                text = text.rstrip()[:-3]
+            text = text.strip()
+        bracket_start = text.find("[")
+        bracket_end = text.rfind("]")
+        if bracket_start != -1 and bracket_end > bracket_start:
+            keep_indices = json.loads(text[bracket_start : bracket_end + 1])
+        else:
+            _record_source_route(
+                folder_path,
+                route,
+                outcome="fallback",
+                input_count=len(external_data),
+                output_count=len(external_data),
+                duration_seconds=time.monotonic() - start_time,
+                failure_class="unparseable_response",
+            )
+            return external_data
+
+        keep_set = {round(n) - 1 for n in keep_indices if isinstance(n, (int, float))}
+        filtered = {
+            url_list[i]: external_data[url_list[i]] for i in keep_set if 0 <= i < len(url_list)
+        }
+
+        if len(filtered) < 3:
+            _record_source_route(
+                folder_path,
+                route,
+                outcome="fallback",
+                input_count=len(external_data),
+                output_count=len(external_data),
+                duration_seconds=time.monotonic() - start_time,
+                failure_class="too_few_sources",
+            )
+            return external_data
+
+        dropped = len(external_data) - len(filtered)
+        _record_source_route(
+            folder_path,
+            route,
+            outcome="selected",
+            input_count=len(external_data),
+            output_count=len(filtered),
+            duration_seconds=time.monotonic() - start_time,
+        )
+        if dropped > 0:
+            log_structured(
+                "info",
+                "Source quality filter dropped low-relevance sources",
+                kept=len(filtered),
+                dropped=dropped,
+            )
+        return filtered
+    except Exception as e:
+        if route is not None:
+            _record_source_route(
+                folder_path,
+                route,
+                outcome="fallback",
+                input_count=len(external_data),
+                output_count=len(external_data),
+                duration_seconds=time.monotonic() - start_time,
+                failure_class=type(e).__name__,
+            )
+        log_structured(
+            "warning",
+            "Source relevance assessment failed, keeping all sources",
+            error=str(e),
+            source_count=len(external_data),
+        )
+        return external_data
+
+
+def _record_source_route(
+    folder_path: str | None,
+    route: stage_routing.StageModelRoute,
+    *,
+    outcome: str,
+    input_count: int,
+    output_count: int,
+    duration_seconds: float,
+    failure_class: str | None = None,
+) -> None:
+    stage_routing.record_stage_route_usage(
+        folder_path,
+        route,
+        outcome=outcome,
+        input_items=input_count,
+        output_items=output_count,
+        duration_seconds=duration_seconds,
+        failure_class=failure_class,
+    )

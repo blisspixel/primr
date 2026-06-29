@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.27] - 2026-06-29
+
+### Added
+
+- Added capped body-free `stage_routes` records to `_run_state.json` for
+  routed stages, starting with `fast.source_relevance`.
+- Route records include stage id, inference profile, backend id/kind, billing
+  mode, route/fallback reasons, expected stage token budget, latency, source
+  counts, and failure class when fallback occurs.
+
+### Changed
+
+- Extracted source-relevance filtering into `core/source_relevance.py` and
+  lowered the `research_agent.py` architecture line ceiling.
+
 ## [1.34.26] - 2026-06-29
 
 ### Added

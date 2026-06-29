@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -26,7 +27,7 @@ class TestAssessSourceRelevance:
         sources = _ten_sources()
         # LLM keeps 1, 3, 5, 7, 9 (1-indexed)
         monkeypatch.setattr(
-            "primr.core.research_agent.llm",
+            "primr.core.source_relevance.llm",
             MagicMock(return_value="[1, 3, 5, 7, 9]"),
         )
         result = _assess_source_relevance("Acme", sources)
@@ -37,7 +38,7 @@ class TestAssessSourceRelevance:
         sources = _ten_sources()
         # LLM keeps only 2, which is too aggressive, so fallback returns originals.
         monkeypatch.setattr(
-            "primr.core.research_agent.llm",
+            "primr.core.source_relevance.llm",
             MagicMock(return_value="[1, 2]"),
         )
         result = _assess_source_relevance("Acme", sources)
@@ -46,7 +47,7 @@ class TestAssessSourceRelevance:
     def test_llm_response_with_markdown_fence_parsed(self, monkeypatch):
         sources = _ten_sources()
         monkeypatch.setattr(
-            "primr.core.research_agent.llm",
+            "primr.core.source_relevance.llm",
             MagicMock(return_value="```json\n[1, 2, 3, 4, 5]\n```"),
         )
         result = _assess_source_relevance("Acme", sources)
@@ -55,7 +56,7 @@ class TestAssessSourceRelevance:
     def test_llm_no_brackets_falls_back(self, monkeypatch):
         sources = _ten_sources()
         monkeypatch.setattr(
-            "primr.core.research_agent.llm",
+            "primr.core.source_relevance.llm",
             MagicMock(return_value="not a list at all"),
         )
         result = _assess_source_relevance("Acme", sources)
@@ -64,7 +65,7 @@ class TestAssessSourceRelevance:
     def test_llm_exception_falls_back(self, monkeypatch):
         sources = _ten_sources()
         monkeypatch.setattr(
-            "primr.core.research_agent.llm",
+            "primr.core.source_relevance.llm",
             MagicMock(side_effect=RuntimeError("llm down")),
         )
         result = _assess_source_relevance("Acme", sources)
@@ -74,7 +75,7 @@ class TestAssessSourceRelevance:
         sources = _ten_sources()  # 10 sources, indices 1-10
         # Mix valid and out-of-range
         monkeypatch.setattr(
-            "primr.core.research_agent.llm",
+            "primr.core.source_relevance.llm",
             MagicMock(return_value="[1, 2, 3, 50, 100]"),
         )
         result = _assess_source_relevance("Acme", sources)
@@ -94,10 +95,49 @@ class TestAssessSourceRelevance:
         resolver = MagicMock(return_value=route)
         llm_mock = MagicMock(return_value="[1, 2, 3]")
         monkeypatch.setattr("primr.ai.stage_routing.resolve_stage_model", resolver)
-        monkeypatch.setattr("primr.core.research_agent.llm", llm_mock)
+        monkeypatch.setattr("primr.core.source_relevance.llm", llm_mock)
 
         result = _assess_source_relevance("Acme", sources)
 
         assert len(result) == 3
         resolver.assert_called_once_with("fast.source_relevance", legacy_model_type="fast")
         assert llm_mock.call_args.kwargs["model"] == "routed-utility-model"
+
+    def test_route_usage_metadata_is_recorded(self, monkeypatch, tmp_path):
+        sources = _ten_sources()
+        route = SimpleNamespace(
+            model_name="routed-utility-model",
+            log_metadata=lambda: {
+                "stage_id": "fast.source_relevance",
+                "inference_profile": "hybrid",
+                "backend_id": "routed-utility-model",
+                "backend_kind": "cloud_api",
+                "billing_mode": "api_dollars",
+                "routed": True,
+                "route_reasons": ["meets_context"],
+                "expected_input_tokens": 18_000,
+                "expected_output_tokens": 2_000,
+            },
+        )
+        monkeypatch.setattr(
+            "primr.ai.stage_routing.resolve_stage_model",
+            MagicMock(return_value=route),
+        )
+        monkeypatch.setattr(
+            "primr.core.source_relevance.llm",
+            MagicMock(return_value="[1, 2, 3, 4]"),
+        )
+
+        result = _assess_source_relevance("Acme", sources, str(tmp_path))
+
+        assert len(result) == 4
+        state = json.loads((tmp_path / "_run_state.json").read_text(encoding="utf-8"))
+        [record] = state["stage_routes"]
+        assert record["outcome"] == "selected"
+        assert record["stage_id"] == "fast.source_relevance"
+        assert record["input_items"] == 10
+        assert record["output_items"] == 4
+        assert record["expected_input_tokens"] == 18_000
+        assert record["expected_output_tokens"] == 2_000
+        assert "prompt" not in record
+        assert "response" not in record

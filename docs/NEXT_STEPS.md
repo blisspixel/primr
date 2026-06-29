@@ -248,11 +248,13 @@ Do next:
 - Wire one cheap utility stage through capability routing behind an explicit
   inference/profile flag while preserving today's fallback chain. First slice
   shipped: `fast.source_relevance` now consumes `route_stage()` behind
-  `--inference cloud|hybrid`, logs safe route metadata, and executes through
+  `--inference cloud|hybrid`, logs safe route metadata, appends capped
+  body-free `stage_routes` records to `_run_state.json`, and executes through
   the existing `llm()` provider seam with today's role default preserved as
   fallback.
-- Record backend id, billing mode, route reason, fallback reason, token mix,
-  cache use, cost, latency, and failure class in usage metadata.
+- Wire the next cheap utility stage through the same bridge. Actual token,
+  cache, and cost fields should be added only after provider usage seams expose
+  stage-scoped counters.
 - Promote one stage at a time. A provider path is supported only when report
   quality, cost, latency, and failure behavior are measured against the same
   calibration pack.
@@ -260,9 +262,11 @@ Do next:
 Done when:
 
 - The stage declares requirements; the router chooses candidates; execution
-  consumes the resulting chain. The declaration slice is shipped; router
-  consumption by runtime stages is still pending.
-- Estimates and usage records name the backend and billing mode honestly.
+  consumes the resulting chain. The declaration slice and first utility-stage
+  runtime slice are shipped; broader production wiring is still pending.
+- Estimates and usage records name the backend and billing mode honestly. The
+  first route ledger records backend/profile/billing metadata for
+  `fast.source_relevance`; stage-scoped token/cache/cost records remain pending.
 - Provider comparison artifacts exist for every promoted stage.
 - No hidden provider dependency remains in the full-report path for the wired
   stage.

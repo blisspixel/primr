@@ -159,6 +159,7 @@ from primr.core.section_prompts import (
     _build_link_selection_prompt,
     _load_fast_feedback_guidance,
 )
+from primr.core.source_relevance import _assess_source_relevance as _assess_source_relevance
 from primr.core.strategy_artifacts import (
     _clean_strategy_output,
     _compute_strategy_qa_metrics,
@@ -250,7 +251,6 @@ if TYPE_CHECKING:
     from primr.output.final_artifact import GeneratedSection
     from primr.prompts.loader import SectionConfig
 
-from primr.ai import stage_routing
 from primr.ai.grading_agent import grade_report
 from primr.ai.llm import llm
 from primr.ai.routing import Role, pick_model_for_role
@@ -1588,98 +1588,6 @@ Return the fully edited markdown report only.
             error=str(e),
         )
         return report_content
-
-
-def _assess_source_relevance(
-    company_name: str,
-    external_data: dict[str, str],
-) -> dict[str, str]:
-    """Filter external sources by relevance using LLM assessment.
-
-    Asks the LLM to rate each source's relevance given the company's profile.
-    Drops sources that are generic filler rather than genuinely informative.
-    Returns a filtered dict of URL -> content.
-    """
-    if len(external_data) <= 5:
-        return external_data  # too few to bother filtering
-
-    # Build a compact summary of each source for LLM review
-    source_summaries: list[str] = []
-    url_list = list(external_data.keys())
-    for i, url in enumerate(url_list):
-        snippet = external_data[url][:500].replace("\n", " ")
-        source_summaries.append(f"{i + 1}. {url}\n   {snippet}")
-
-    prompt = f"""You are evaluating external research sources about {company_name}.
-
-Below are {len(url_list)} sources. For each, decide: KEEP or DROP.
-
-KEEP a source if it provides SPECIFIC, USEFUL intelligence about {company_name}:
-- Names executives, financials, deals, partnerships, or strategies
-- Provides industry analysis mentioning this company specifically
-- Contains news, press releases, or analyst coverage about this company
-
-DROP a source if it is:
-- Generic industry content that barely mentions the company
-- A directory listing, job board, or social media page with no substance
-- Duplicate information already covered by another KEPT source
-- Tangentially related but not genuinely informative
-
-IMPORTANT: For smaller or less prominent companies, it is BETTER to keep 5 high-quality
-sources than 25 mediocre ones. Be selective. Quality over quantity.
-
-SOURCES:
-{chr(10).join(source_summaries)}
-
-Return ONLY a JSON array of the source NUMBERS to KEEP (e.g. [1, 3, 5, 8]).
-No prose, no explanation."""
-
-    try:
-        route = stage_routing.resolve_stage_model("fast.source_relevance", legacy_model_type="fast")
-        log_structured("info", "Source relevance route selected", **route.log_metadata())
-        response = llm(prompt, model_type="fast", streaming=False, model=route.model_name).strip()
-        import json as _json
-
-        text = response.strip()
-        if text.startswith("```"):
-            first_nl = text.find("\n")
-            text = text[first_nl + 1 :] if first_nl != -1 else text[3:]
-            if text.rstrip().endswith("```"):
-                text = text.rstrip()[:-3]
-            text = text.strip()
-        bracket_start = text.find("[")
-        bracket_end = text.rfind("]")
-        if bracket_start != -1 and bracket_end > bracket_start:
-            keep_indices = _json.loads(text[bracket_start : bracket_end + 1])
-        else:
-            return external_data
-
-        keep_set = {round(n) - 1 for n in keep_indices if isinstance(n, (int, float))}
-        filtered = {
-            url_list[i]: external_data[url_list[i]] for i in keep_set if 0 <= i < len(url_list)
-        }
-
-        if len(filtered) < 3:
-            # LLM was too aggressive, keep originals
-            return external_data
-
-        dropped = len(external_data) - len(filtered)
-        if dropped > 0:
-            log_structured(
-                "info",
-                "Source quality filter dropped low-relevance sources",
-                kept=len(filtered),
-                dropped=dropped,
-            )
-        return filtered
-    except Exception as e:
-        log_structured(
-            "warning",
-            "Source relevance assessment failed, keeping all sources",
-            error=str(e),
-            source_count=len(external_data),
-        )
-        return external_data
 
 
 def _fast_cross_validate(

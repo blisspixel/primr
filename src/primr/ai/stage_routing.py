@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from primr.ai.capability_routing import (
@@ -36,6 +37,8 @@ class StageModelRoute:
     backend_kind: str
     billing_mode: str
     estimated_cost_usd: float | None
+    expected_input_tokens: int
+    expected_output_tokens: int
     routed: bool
     reasons: tuple[str, ...]
     rejections: tuple[str, ...]
@@ -51,6 +54,8 @@ class StageModelRoute:
             "billing_mode": self.billing_mode,
             "routed": self.routed,
             "route_reasons": list(self.reasons),
+            "expected_input_tokens": self.expected_input_tokens,
+            "expected_output_tokens": self.expected_output_tokens,
         }
         if self.estimated_cost_usd is not None:
             data["estimated_cost_usd"] = round(self.estimated_cost_usd, 6)
@@ -96,6 +101,8 @@ def resolve_stage_model(
             backend_kind="unknown",
             billing_mode=BillingMode.UNKNOWN.value,
             estimated_cost_usd=None,
+            expected_input_tokens=stage.expected_input_tokens,
+            expected_output_tokens=stage.expected_output_tokens,
             routed=False,
             reasons=("legacy_model_unregistered",),
             rejections=("legacy_model_unregistered",),
@@ -116,6 +123,8 @@ def resolve_stage_model(
             backend_kind=BackendKind(primary.backend.kind).value,
             billing_mode=BillingMode(primary.backend.billing_mode).value,
             estimated_cost_usd=primary.estimated_cost_usd,
+            expected_input_tokens=stage.expected_input_tokens,
+            expected_output_tokens=stage.expected_output_tokens,
             routed=True,
             reasons=primary.reasons,
             rejections=(),
@@ -130,10 +139,52 @@ def resolve_stage_model(
         backend_kind=BackendKind(backend.kind).value,
         billing_mode=BillingMode(backend.billing_mode).value,
         estimated_cost_usd=None,
+        expected_input_tokens=stage.expected_input_tokens,
+        expected_output_tokens=stage.expected_output_tokens,
         routed=False,
         reasons=("legacy_fallback",),
         rejections=rejection_reasons,
     )
+
+
+def record_stage_route_usage(
+    folder_path: str | os.PathLike[str] | None,
+    route: StageModelRoute,
+    *,
+    outcome: str,
+    input_items: int | None = None,
+    output_items: int | None = None,
+    duration_seconds: float | None = None,
+    failure_class: str | None = None,
+) -> None:
+    """Append body-free route usage metadata to the per-run state file."""
+
+    if folder_path is None:
+        return
+
+    from primr.core.run_state_io import _load_run_state, _save_run_state
+
+    state = _load_run_state(str(folder_path))
+    routes = state.get("stage_routes", [])
+    if not isinstance(routes, list):
+        routes = []
+    record = {
+        "ts": datetime.now().isoformat(),
+        "outcome": outcome,
+        **route.log_metadata(),
+    }
+    if input_items is not None:
+        record["input_items"] = input_items
+    if output_items is not None:
+        record["output_items"] = output_items
+    if duration_seconds is not None:
+        record["duration_seconds"] = round(max(0.0, duration_seconds), 3)
+    if failure_class:
+        record["failure_class"] = failure_class
+    routes.append(record)
+    state["stage_routes"] = routes[-200:]
+    state["updated_at"] = datetime.now().isoformat()
+    _save_run_state(str(folder_path), state)
 
 
 def _backend_for_model(model_name: str, role: Role) -> BackendCapabilities | None:
