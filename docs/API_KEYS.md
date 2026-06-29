@@ -303,9 +303,10 @@ primr --dry-run "Company Name" https://company.com
 |------|--------|---------------|--------|-------|
 | scrape | ~$0.05 | -- | ~$0.04 | ~$0.10 |
 | deep | -- | ~$2.50 | -- | ~$2.50 |
-| full | ~$0.60 | ~$2.50 | ~$0.35 | ~$3.50 |
+| full, xAI plus Gemini | provider-token based | -- | DuckDuckGo default | ~$0.89-$1.01 |
+| full, xAI only | provider-token based | -- | DuckDuckGo default | ~$5.76 |
 
-Deep Research is a flat per-task fee from Google (not token-based). Search costs $0.035/query. Use `primr --dry-run` for estimates based on your actual usage history.
+Deep Research is a flat per-task fee from Google (not token-based) and is mainly used by deep and premium paths. DuckDuckGo search is the default for standard runs; Google Custom Search costs apply only when `SEARCH_PROVIDER=google`. Use `primr --dry-run` for estimates based on your actual provider configuration and usage history.
 
 ### Set Billing Alerts
 

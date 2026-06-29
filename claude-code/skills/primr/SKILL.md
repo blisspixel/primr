@@ -7,7 +7,7 @@ allowed-tools: Bash(primr:*), Read
 
 # primr
 
-Run a long, metered, autonomous research pipeline that turns a company URL into a structured strategic brief. primr is **not** another web-search tool. It combines DNS recon, multi-tier scraping, hiring-signal extraction, provider-backed AI synthesis, and structured report generation. A typical run produces a ~21,500-word Strategic Overview plus optional strategy modules, lands in `output/<company>/`, and feeds the rest of the user's analytical workflow.
+Run a long, metered, autonomous research pipeline that turns a company URL into a structured strategic brief. primr is **not** another web-search tool. It combines DNS recon, multi-tier scraping, hiring-signal extraction, provider-backed AI synthesis, and structured report generation. A typical run produces a 23-section Strategic Overview plus an AI Strategy module by default, lands in `output/<company>/`, and feeds the rest of the user's analytical workflow.
 
 ## When this is the right tool
 
@@ -58,7 +58,7 @@ primr runs cost real money and real time. **Never** launch a run without:
 2. **Reporting the estimate** verbatim - quoted dollars and minutes, plus what mode and what strategy.
 3. **Getting explicit user approval** in the conversation. "Want me to launch it?" → wait for "yes" / "go" / equivalent. A user asking *"how much would it cost"* is **not** approval.
 
-If the user pushes back on cost, suggest a cheaper mode (`scrape` ~$0.10, default ~$4.27) before walking away. If they want premium depth, surface the `--grok-tier max` (~$3.75) and `--premium` (~$5) tiers and re-estimate.
+If the user pushes back on cost, suggest a cheaper mode (`scrape` ~$0.10, or `--no-ai-strategy` around ~$0.76-$0.79 on the measured xAI plus Gemini recipe) before walking away. If they want premium depth, surface `--premium` (~$5) and re-estimate.
 
 The MCP server enforces this gate via `primr://agent/governance`; the CLI does not, so on CLI you are the gate.
 
@@ -73,13 +73,13 @@ The MCP server enforces this gate via `primr://agent/governance`; the CLI does n
 
 ## Mode, tier, platform, strategy
 
-primr exposes four orthogonal levers. Default is `full` mode, no platform bias, default `--grok-tier`, no `--strategy-type` (Strategic Overview only).
+primr exposes four orthogonal levers. Default is `full` mode, recon-driven platform selection, default `--grok-tier`, and the built-in AI Strategy module unless `--no-ai-strategy` is passed.
 
 For the full decision matrix - when to pick each, cost and time per combination, multi-platform behavior - see [references/modes-and-strategies.md](references/modes-and-strategies.md). One-liner heuristics:
 
 - **Mode**: `full` for almost everything. `scrape` if external research isn't needed. `deep` if the site is blocked. `premium` only when the user asks for board-grade depth.
 - **Platform**: omit unless the user is positioning a specific cloud. Then pass exactly what they're selling against (`--platform aws`, `--platform ms`, etc.). It biases the AI strategy module, not the core report.
-- **Strategy type**: omit for default Strategic Overview. Add `--strategy-type ai` to also produce the AI Strategy module in the same run. Other built-ins: `customer_experience`, `modern_security_compliance`, `data_fabric_strategy`, `cloud_migration`, `data_strategy`, `ai_first_transformation`. Use `primr --list-strategies` or `primr://strategies/available` to enumerate.
+- **Strategy type**: omit for the default Strategic Overview plus AI Strategy. Pass `--no-ai-strategy` for the base report only. Use `--strategy-type customer_experience`, `modern_security_compliance`, `data_fabric_strategy`, `cloud_migration`, `data_strategy`, or `ai_first_transformation` when the user asks for a different strategy deliverable. Use `primr --list-strategies` or `primr://strategies/available` to enumerate.
 
 ## Custom strategies
 

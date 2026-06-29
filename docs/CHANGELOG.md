@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.19] - 2026-06-29
+
+### Changed
+
+- Refreshed operator-facing docs for the current default run shape: xAI plus
+  Gemini cost guidance, default AI Strategy generation, `--no-ai-strategy`
+  base-report guidance, current security supported-version line, and 10,000+
+  test-suite wording.
+
 ## [1.34.18] - 2026-06-29
 
 ### Added

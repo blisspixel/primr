@@ -43,8 +43,8 @@ separately from API-dollar stages.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `AI_RESEARCH_MODEL` | Model for research operations | `gemini-3-flash-preview` |
-| `AI_REPORT_MODEL` | Model for report generation | `gemini-3-flash-preview` |
+| `AI_RESEARCH_MODEL` | Legacy Gemini-backed research model override | `gemini-3-flash-preview` |
+| `AI_REPORT_MODEL` | Legacy Gemini-backed report model override | `gemini-3-flash-preview` |
 | `VERBOSE` | Enable verbose output | `false` |
 | `DEBUG` | Enable debug mode | `false` |
 
@@ -191,8 +191,8 @@ Controls AI model behavior.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `research_model` | str | `gemini-3-flash-preview` | Model for research |
-| `report_model` | str | `gemini-3-flash-preview` | Model for reports |
+| `research_model` | str | `gemini-3-flash-preview` | Legacy Gemini-backed research model override |
+| `report_model` | str | `gemini-3-flash-preview` | Legacy Gemini-backed report model override |
 | `max_retries` | int | 3 | Maximum retry attempts |
 | `grade_threshold` | int | 70 | Quality threshold (0-100) |
 | `default_temperature` | float | 1.0 | Model temperature (0.0-2.0) |
@@ -232,6 +232,13 @@ Controls cost estimation. Prices are per 1 million tokens.
 | `gemini_output_per_million` | float | 12.00 | Output token cost (USD/1M) |
 | `deep_research_base_cost` | float | 2.50 | Base cost per deep research task |
 | `search_cost_per_query` | float | 0.035 | Search API cost per query |
+
+These legacy settings are not the whole estimator for modern routed runs. The
+current default estimate comes from provider routing and strategy settings:
+with xAI plus Gemini configured, the default Strategic Overview plus AI
+Strategy is typically around `$0.89-$1.01`; `--no-ai-strategy` is typically
+around `$0.76-$0.79`; XAI-only defaults remain on the higher legacy path.
+Always use `primr --dry-run` as the source of truth.
 
 ## Usage
 

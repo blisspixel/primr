@@ -1,6 +1,6 @@
 # Primr Architecture
 
-This document describes the internal architecture of Primr, a research tool that generates company intelligence briefs using Google's Gemini models.
+This document describes the internal architecture of Primr, a research tool that generates company intelligence briefs using a local orchestration pipeline and provider-backed AI models.
 
 ## Overview
 
@@ -1172,15 +1172,15 @@ Playwright tiers now perform adaptive lazy-load scrolling (up to 20 steps by def
 | Model | Role | Pricing (per 1M tokens) |
 |-------|------|-------------------------|
 | Grok 4.3 | Default mode: reasoning stages (analysis, workbook, cross-validation) | $1.25 in / $2.50 out · $0.20 cached |
-| Grok 4.1 fast | Default mode: utility tier (scraping summaries, link selection, QA) and writing in HYBRID tier | $0.20 in / $0.50 out |
+| Grok 4.1 fast | XAI-only utility and writing fallback when Gemini is not configured | $0.20 in / $0.50 out |
 | Grok 4.20 | Legacy flagship - kept registered for resume of in-flight runs and as a fallback in the analysis chain | $2.00 in / $6.00 out |
-| Gemini 3 Flash | Used for utility tier when only `GEMINI_API_KEY` is set (no `XAI_API_KEY`) | $0.50 in / $3 out |
+| Gemini 3.1 Flash-Lite | Default routed writing and utility path when `XAI_API_KEY` and `GEMINI_API_KEY` are both configured | See provider pricing in the estimator |
 | Gemini 3.1 Pro | `--premium` mode: section writing, analysis | $2/$12 (≤200k) · $4/$18 (>200k) |
 | Deep Research Agent | `--premium` mode: autonomous research | ~$2.50/task (flat) |
 
 ### Why Grok is the Default
 
-Primr originally ran everything through Google's Deep Research API + Gemini 3.1 Pro - excellent research quality, but the Deep Research API runs ~$2.50 per task, pushing full runs to ~$5 and 50-75 minutes. When xAI released Grok 4.1, testing showed it handles company research comparably: strong at search-grounded analysis, solid structured output, and reliable citation handling. The default pipeline now uses Grok 4.3 hybrid (4.3 always-on reasoning for analysis stages, 4.1-fast for bulk writing and utility-tier calls like scraping summaries and link selection) at ~$0.60/run - ~88% cheaper than premium. As of v1.22.0, `XAI_API_KEY` alone is sufficient for the standard pipeline; Gemini Flash is only used for utility-tier calls when no xAI key is configured. The full Gemini + Deep Research pipeline remains available via `--premium` when maximum research depth justifies the cost.
+Primr originally ran everything through Google's Deep Research API plus Gemini 3.1 Pro. That path remains available via `--premium` when maximum research depth justifies the cost, but it pushes runs toward the premium cost and runtime envelope. The current measured default uses Grok 4.3 for reasoning-heavy stages and Gemini 3.1 Flash-Lite for bulk writing and utility work when both `XAI_API_KEY` and `GEMINI_API_KEY` are configured. That recipe keeps the default Strategic Overview plus AI Strategy around the sub-dollar range shown by `--dry-run`. XAI-only setups still work and use the legacy writing/utility fallback path; OpenAI, Anthropic, and local OpenAI-compatible providers are wired for fallback, utility, evaluation, and planned backend-freedom routing.
 
 ### Agentic Architecture
 

@@ -8,7 +8,7 @@ primr exposes four orthogonal levers. Picking the right combination keeps cost a
 
 | Mode | What it does | Time | Cost | Pick when |
 |------|--------------|------|------|-----------|
-| `full` (default) | Site corpus + external research + structured report | 35-50 min | ~$0.75 | Almost everything. The default for "research Acme." |
+| `full` (default) | Site corpus + external research + structured report + AI Strategy | 34-59 min | ~$0.89-$1.01 | Almost everything. The default for "research Acme." |
 | `scrape` | Site corpus + insights only, no external research | 5-10 min | ~$0.10 | The user only cares what the company says about itself; external context not needed; cost-sensitive scoping pass. |
 | `deep` | External research only (Gemini Deep Research), no site scrape | 10-15 min | ~$2.50 | Site is hard-blocked or actively hostile to scraping; user wants third-party / analyst / news-driven context. |
 | `premium` | Gemini Pro + Deep Research + structured report | 50-75 min | ~$5 | User explicitly asked for board-grade depth and accepted the cost. Don't pick this default. |
@@ -27,11 +27,11 @@ Heuristics:
 
 | Tier | What it does | Cost (full mode) |
 |------|--------------|------|
-| `fast` | Grok 4.3 (reasoning_effort=low) + 4.20-nr writing | ~$4.27 |
-| `hybrid` (default) | Grok 4.3 for reasoning + 4.20-nr for writing | ~$4.27 |
+| `fast` | Grok 4.3 (reasoning_effort=low) with the routed writing provider | Re-estimate |
+| `hybrid` (default) | Grok 4.3 for reasoning + Gemini 3.1 Flash-Lite writing when Gemini is configured | ~$0.76-$1.01 |
 | `max` | Grok 4.3 everywhere | ~$3.75 |
 
-`fast` saves tokens on reasoning (low effort). `max` uses 4.3 for writing too - actually cheaper per-token than 4.20-nr but uses reasoning overhead on prose. Only pick it if the user has explicitly asked for "absolute best Grok output" and you've already cost-gated.
+`fast` saves tokens on reasoning (low effort). `max` uses 4.3 for writing too and adds reasoning overhead on prose. Only pick it if the user has explicitly asked for "absolute best Grok output" and you've already cost-gated.
 
 ## Platform
 
@@ -56,7 +56,7 @@ Heuristics:
 
 ## Strategy type
 
-`--strategy-type` adds an additional structured deliverable (in its own markdown / DOCX file) alongside the Strategic Overview. Without this flag, primr only produces the Strategic Overview.
+The default command produces the Strategic Overview plus the built-in AI Strategy module. `--no-ai-strategy` produces the Strategic Overview only. `--strategy-type` swaps or adds a specific structured deliverable (in its own markdown / DOCX file) when the user asks for something besides the default AI Strategy.
 
 Built-in types (run `primr --list-strategies` to enumerate at the user's install):
 
@@ -72,19 +72,19 @@ Built-in types (run `primr --list-strategies` to enumerate at the user's install
 
 Heuristics:
 
-- User said "I want the AI strategy too" → `--strategy-type ai`.
+- User wants only the Strategic Overview -> `--no-ai-strategy`.
 - User is positioning a specific deliverable type (CX, security, data) → match it.
-- User just wants "the report" → omit the flag.
+- User just wants "the report" -> omit the flag and keep the default AI Strategy unless cost is a concern.
 - Multiple modules at once: not supported in one command. Run primr once per strategy type, or use `primr --ai-strategy-only <existing-report>` to add modules to an existing report without re-paying for the corpus stage.
 
 ## Combining the levers
 
 Cost compounding is roughly additive on the strategy lever, multiplicative on the mode/tier lever. Examples:
 
-- `primr "Acme" url` → ~$0.75, ~40 min, Strategic Overview only.
-- `primr "Acme" url --strategy-type ai` → ~$0.82, ~45 min, Overview + AI Strategy.
-- `primr "Acme" url --strategy-type ai --platform ms` → ~$0.82, ~50 min, Overview + Azure-biased AI Strategy.
-- `primr "Acme" url --premium --strategy-type ai --platform ms` → ~$9, ~110 min, premium Overview + premium Azure-biased AI Strategy.
+- `primr "Acme" url` -> ~$0.89-$1.01, ~34-59 min, Overview + AI Strategy.
+- `primr "Acme" url --no-ai-strategy` -> ~$0.76-$0.79, ~31-47 min, Strategic Overview only.
+- `primr "Acme" url --platform ms` -> re-estimate, Overview + Azure-biased AI Strategy.
+- `primr "Acme" url --premium --platform ms` -> re-estimate, premium Overview + premium Azure-biased AI Strategy.
 
 Always re-estimate when you add levers; don't assume a previous estimate covers a new combination.
 

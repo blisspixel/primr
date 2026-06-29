@@ -91,9 +91,8 @@ MCP/A2A tool surfaces, and (4) provider secrets + the dependency supply chain.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.27.x  | Yes                |
-| 1.24.x  | Yes                |
-| < 1.24  | No                 |
+| 1.34.x  | Yes                |
+| < 1.34  | No                 |
 
 Requires Python 3.12+ (3.10/3.11 are past or nearing end-of-life).
 

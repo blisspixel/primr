@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.34.18
+Current State: v1.34.19
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -194,7 +194,7 @@ into generic agent middleware.
 - Cost estimation, usage tracking, job recovery, crash/reboot recovery
 - System diagnostics (`primr doctor`)
 - One-command install/update: idempotent `scripts/install.{ps1,sh}` one-liners (pipx-based, upgrade on re-run), a `primr update` self-upgrade command (detects pipx vs pip), and a passive once-a-day "update available" notice (cached in the per-user dir, opt-out via `PRIMR_NO_UPDATE_CHECK`)
-- 9,000+ tests, full ruff compliance, mypy clean on an incremental strict ratchet (see [Engineering Standards & Toolchain](#engineering-standards--toolchain))
+- 10,000+ tests, full ruff compliance, mypy clean on an incremental strict ratchet (see [Engineering Standards & Toolchain](#engineering-standards--toolchain))
 - Serverless cloud deployment templates (AWS, Azure, GCP); Azure validated end-to-end (remaining hardening below)
 - Agentic architecture: hypothesis tracking, subagents, hooks, orchestrator
 - Content sanitization for prompt injection protection
@@ -970,7 +970,7 @@ full catalog, integration traps, and phased delivery plan in
 
 ## Engineering Standards & Toolchain
 
-primr is a mature, shipping PyPI application (`py.typed`, 9,000+ tests, heavy native deps: playwright / patchright / curl_cffi / DrissionPage / pymupdf / pandas), not a greenfield internal service. The standards below are calibrated for that reality: adopt the high-leverage, low-risk discipline; defer code-reshaping behind non-regression ratchets; and decline the maximalist conventions that would churn a stable codebase or hurt downstream consumers. The buckets are explicit so the decisions are durable and don't get re-litigated.
+primr is a mature, shipping PyPI application (`py.typed`, 10,000+ tests, heavy native deps: playwright / patchright / curl_cffi / DrissionPage / pymupdf / pandas), not a greenfield internal service. The standards below are calibrated for that reality: adopt the high-leverage, low-risk discipline; defer code-reshaping behind non-regression ratchets; and decline the maximalist conventions that would churn a stable codebase or hurt downstream consumers. The buckets are explicit so the decisions are durable and don't get re-litigated.
 
 **Decision principle:** modern where it pays, conservative where users feel it. Track the Python floor to the EOL line (not the bleeding edge) and the ceiling to current stable; gate on reproducibility and supply-chain integrity; ratchet type-strictness, complexity, and verification (contracts, mutation, fault-injection) rather than flipping them globally; and stay deliberately native-dep-first where the scraping/document engine demands it, pure-Python-preferred everywhere else.
 
@@ -1425,6 +1425,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.34.19 | Jun 2026 | **Docs and operator-guidance refresh.** Refreshed agent/operator docs, run-mode references, architecture/config cost guidance, security support policy, and roadmap test-count wording so default xAI plus Gemini costs, default AI Strategy generation, `--no-ai-strategy`, the `1.34.x` supported line, and the 10,000+ test suite are consistent across the repo. |
 | 1.34.18 | Jun 2026 | **A2A skill-scope parity.** Authenticated A2A HTTP requests now bind the bearer token into the shared MCP auth context, and A2A skill dispatch enforces `read` for estimate/status/health operations and `research` for research, QA, and cancellation while preserving local loopback behavior and legacy `write` compatibility. |
 | 1.34.17 | Jun 2026 | **Inference-label source-copy calibration.** Label calibration now checks cited `(Estimated)` and `(Hypothesis)` claims for deterministic source-copy leakage while keeping those labels exempt from traceability. Calibration sidecars, eval scorecards, CSV output, and baseline readiness artifacts now surface `source_copied` / `inference_source_copied` as report-only signals until a representative baseline defines acceptable behavior. |
 | 1.34.16 | Jun 2026 | **MCP resource-read audit logging.** MCP `resources/read` calls now append privacy-preserving audit events with event type, normalized resource kind, hashed resource URI, hashed result body, job id when present, granted scopes, duration, and outcome. `primr://agent/audit/recent` now reports tool-call and resource-read events to local stdio callers and admin-scoped HTTP callers without storing raw URI query values, resource bodies, raw arguments, raw results, raw caller ids, or approval tokens. |
