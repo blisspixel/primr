@@ -63,9 +63,11 @@ Current priority order:
    report and sidecar byte sizes plus SHA-256 content hashes so a baseline
    candidate names the exact artifacts it measured. `primr calibrate
    --inspect-baseline` prints the same blocker set as machine-readable JSON for
-   operators and agent control planes, and MCP exposes the same inspection
-   through `primr://calibration/baseline/inspection?path=<baseline.json>` under
-   the existing path-allowlist boundary. The measured operator-curated
+   operators and agent control planes, including current-file fingerprint
+   missing/mismatch checks that do not return report bodies, and MCP exposes the
+   same inspection through
+   `primr://calibration/baseline/inspection?path=<baseline.json>` under the
+   existing path-allowlist boundary. The measured operator-curated
    multi-report baseline itself is still next.
 2. **Backend freedom production wiring.** Provider abstractions and pure routing
    foundations exist, and `core/stage_inventory.py` now records router-ready

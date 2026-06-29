@@ -193,8 +193,9 @@ Do next:
   Calibration sidecars and eval/baseline summaries now also flag source-copied
   `(Estimated)` / `(Hypothesis)` claims as a report-only signal.
   `primr calibrate --inspect-baseline <baseline.json>` exposes those blockers
-  as machine-readable JSON for operators, and MCP clients can read the same
-  path-allowlisted payload through
+  as machine-readable JSON for operators and checks current report/sidecar
+  fingerprints against the frozen pack without returning report bodies. MCP
+  clients can read the same path-allowlisted payload through
   `primr://calibration/baseline/inspection?path=<baseline.json>`.
 - Set `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` only from the measured floor of
   that agreement-validated baseline.

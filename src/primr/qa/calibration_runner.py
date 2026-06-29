@@ -19,7 +19,6 @@ switchable so tests stay offline.
 
 from __future__ import annotations
 
-import hashlib
 import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -31,6 +30,7 @@ if TYPE_CHECKING:
 
     from primr.qa.label_calibration import EvidenceReview
 
+from primr.qa.artifact_fingerprints import artifact_fingerprint
 from primr.qa.calibration_selection import CalibrationPackSelection
 from primr.qa.label_calibration import (
     DEFAULT_MAX_PER_LABEL,
@@ -579,15 +579,17 @@ def write_calibration_pack_manifest(
         outcome = by_report.get(report_path)
         sidecar = sidecar_path_for(report_path)
         sidecar_payload = _read_sidecar_payload(report_path)
+        report_fingerprint = artifact_fingerprint(report_path)
+        sidecar_fingerprint = artifact_fingerprint(sidecar)
         entry: dict[str, Any] = {
             "report_path": report_path.as_posix(),
             "report_file": report_path.name,
-            "report_size_bytes": _file_size(report_path),
-            "report_content_hash": _file_content_hash(report_path),
+            "report_size_bytes": report_fingerprint["size_bytes"],
+            "report_content_hash": report_fingerprint["content_hash"],
             "sidecar_path": sidecar.as_posix(),
             "sidecar_exists": sidecar.exists(),
-            "sidecar_size_bytes": _file_size(sidecar),
-            "sidecar_content_hash": _file_content_hash(sidecar),
+            "sidecar_size_bytes": sidecar_fingerprint["size_bytes"],
+            "sidecar_content_hash": sidecar_fingerprint["content_hash"],
             "claims_sampled": outcome.claims_sampled if outcome else 0,
             "judgeable_claims": outcome.judgeable_claims if outcome else 0,
             "estimated_judge_calls": outcome.estimated_judge_calls if outcome else 0,
@@ -606,24 +608,6 @@ def write_calibration_pack_manifest(
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     return payload
-
-
-def _file_size(path: Path) -> int | None:
-    try:
-        return path.stat().st_size
-    except OSError:
-        return None
-
-
-def _file_content_hash(path: Path) -> str | None:
-    try:
-        hasher = hashlib.sha256()
-        with path.open("rb") as handle:
-            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                hasher.update(chunk)
-    except OSError:
-        return None
-    return f"sha256:{hasher.hexdigest()}"
 
 
 def _aggregate_existing_sidecar_per_label(report_paths: list[Path]) -> dict[str, dict[str, int]]:

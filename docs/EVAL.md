@@ -150,7 +150,9 @@ For a 24 GB RTX 4090 or comparable local box, start with `4090-report-race` befo
   with one reviewed report and four unreviewed reports remains not ready. When
   the pack manifest declares required representative tags, the artifact reports
   `missing_representative_coverage` until every required tag appears in the
-  selected pack. The artifact includes structured `next_actions` with
+  selected pack. Inspection compares current report and sidecar fingerprints
+  against the frozen pack and reports missing or mutated artifacts without
+  returning report bodies. The artifact includes structured `next_actions` with
   missing counts, remediation, suggested commands, and the policy to keep the
   hard calibration gate unset until the pack is ready. Its per-report summaries
   include evidence-review counts, inference source-copy counts, and

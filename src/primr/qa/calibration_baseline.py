@@ -8,6 +8,10 @@ from pathlib import Path
 from typing import Any
 
 from primr.core.eval_calibration import calibration_counts_from_payload, percent_or_dash
+from primr.qa.calibration_baseline_integrity import (
+    artifact_integrity_summary,
+    inspection_status,
+)
 
 BASELINE_FORMAT = "primr.calibration_baseline.v1"
 INSPECTION_FORMAT = "primr.calibration_readiness_inspection.v1"
@@ -102,15 +106,28 @@ def inspect_calibration_baseline(
     calibration_failures = [report for report in reports if report.get("error")]
     missing_evidence = [report for report in reports if not _has_evidence_reviews(report)]
     missing_agreement = [report for report in reports if not _has_judge_agreement(report)]
+    artifact_integrity = artifact_integrity_summary(reports)
+    reasons = _string_list(baseline.get("reasons"))
+    if artifact_integrity["missing"]:
+        reasons = [*reasons, "fingerprinted_artifact_missing"]
+    if artifact_integrity["mismatched"]:
+        reasons = [*reasons, "artifact_fingerprint_mismatch"]
+    ready = (
+        bool(baseline.get("ready"))
+        and not artifact_integrity["missing"]
+        and not artifact_integrity["mismatched"]
+    )
+    status = inspection_status(baseline.get("status"), artifact_integrity)
 
     return {
         "inspection_format": INSPECTION_FORMAT,
         "baseline_path": baseline_path.as_posix() if baseline_path is not None else None,
-        "ready": bool(baseline.get("ready")),
-        "status": baseline.get("status"),
-        "reasons": _string_list(baseline.get("reasons")),
+        "ready": ready,
+        "status": status,
+        "reasons": reasons,
         "spend_preview_required": bool(next_actions.get("spend_preview_required")),
         "gate_policy": next_actions.get("gate_policy"),
+        "artifact_integrity": artifact_integrity["counts"],
         "counts": {
             "reports": _safe_int(totals.get("reports"), default=len(reports)),
             "minimum_reports": _safe_int(baseline.get("minimum_reports")),
@@ -133,6 +150,8 @@ def inspect_calibration_baseline(
             "missing_judge_agreement": [
                 _report_blocker(report, include_counts=True) for report in missing_agreement
             ],
+            "fingerprinted_artifacts_missing": artifact_integrity["missing"],
+            "artifact_fingerprint_mismatches": artifact_integrity["mismatched"],
             "missing_representative_selection": (
                 {
                     "selection_format": representation.get("selection_format"),

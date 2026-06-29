@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from primr.qa.artifact_fingerprints import artifact_fingerprint
 from primr.qa.calibration_baseline import (
     build_calibration_baseline,
     default_baseline_json_path,
@@ -264,6 +265,57 @@ def test_build_baseline_preserves_manifest_artifact_fingerprints() -> None:
     assert baseline["reports"][0]["sidecar_size_bytes"] == 456
     assert baseline["reports"][0]["sidecar_content_hash"] == "sha256:sidecar"
     assert inspection["blockers"]["missing_sidecars"] == []
+
+
+def test_inspect_baseline_flags_mutated_fingerprinted_artifacts(tmp_path: Path) -> None:
+    report_path = tmp_path / "Acme_Strategic_Overview.md"
+    sidecar_path = tmp_path / "Acme_Strategic_Overview.md.calibration.json"
+    report_path.write_text("original report", encoding="utf-8")
+    sidecar_path.write_text("{}", encoding="utf-8")
+    report_fingerprint = artifact_fingerprint(report_path)
+    sidecar_fingerprint = artifact_fingerprint(sidecar_path)
+
+    manifest = _manifest(
+        5,
+        required_tags=["clean"],
+        present_tags=["clean"],
+    )
+    reports = manifest["reports"]
+    assert isinstance(reports, list)
+    first_report = reports[0]
+    assert isinstance(first_report, dict)
+    first_report.update(
+        {
+            "report_path": report_path.as_posix(),
+            "report_size_bytes": report_fingerprint["size_bytes"],
+            "report_content_hash": report_fingerprint["content_hash"],
+            "sidecar_path": sidecar_path.as_posix(),
+            "sidecar_size_bytes": sidecar_fingerprint["size_bytes"],
+            "sidecar_content_hash": sidecar_fingerprint["content_hash"],
+        }
+    )
+    report_path.write_text("mutated report", encoding="utf-8")
+    sidecar_path.unlink()
+
+    baseline = build_calibration_baseline(manifest, minimum_reports=5)
+    inspection = inspect_calibration_baseline(baseline)
+
+    assert baseline["ready"] is True
+    assert inspection["ready"] is False
+    assert inspection["status"] == "fingerprinted_artifact_missing"
+    assert "fingerprinted_artifact_missing" in inspection["reasons"]
+    assert "artifact_fingerprint_mismatch" in inspection["reasons"]
+    assert inspection["artifact_integrity"] == {
+        "checked": 1,
+        "unfingerprinted": 8,
+        "missing": 1,
+        "mismatched": 1,
+    }
+    assert inspection["blockers"]["fingerprinted_artifacts_missing"][0]["artifact"] == "sidecar"
+    mismatch = inspection["blockers"]["artifact_fingerprint_mismatches"][0]
+    assert mismatch["artifact"] == "report"
+    assert mismatch["expected_content_hash"] == report_fingerprint["content_hash"]
+    assert mismatch["actual_content_hash"] != report_fingerprint["content_hash"]
 
 
 def test_build_baseline_requires_explicit_representative_selection() -> None:

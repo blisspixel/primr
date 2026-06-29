@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Calibration pack manifests now include report and sidecar byte sizes plus
   SHA-256 content hashes, and baseline readiness JSON carries those
   fingerprints forward.
+- Calibration baseline inspection now reports missing or mutated fingerprinted
+  report and sidecar artifacts without returning report bodies.
 - Source distributions now explicitly prune `.agent/` while retaining the
   legacy `docs/.agent/` prune rule.
 - Local `_site/` documentation build output is now gitignored.
