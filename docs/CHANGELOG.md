@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.22] - 2026-06-29
+
+### Added
+
+- Added `core/stage_inventory.py`, a typed production-stage capability
+  inventory for backend-freedom wiring. It declares fast-mode and premium
+  deep-research stage ids, modules, roles, reasoning/trust requirements,
+  context and token estimates, egress/deep-research/structured-output needs,
+  accepted backend families, budget checkpoints, current backend ownership,
+  promotion gates, and emitted artifacts without changing runtime routing.
+- Backend-freedom docs now cite current OpenTelemetry, OpenAI, Anthropic, and
+  Gemini guidance for GenAI telemetry and prompt/context caching, and identify
+  the first three low-risk utility stages for future local or host routing.
+
 ## [1.34.21] - 2026-06-29
 
 ### Changed

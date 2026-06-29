@@ -219,7 +219,12 @@ Do next:
 
 - Inventory every production stage by capability requirements: browsing,
   long-context reasoning, structured extraction, writing, vision, tool use,
-  citation handling, cache support, streaming, and max output.
+  citation handling, cache support, streaming, and max output. First slice
+  shipped: `src/primr/core/stage_inventory.py` now records router-ready
+  requirements, accepted backend families, current backend ownership,
+  promotion gates, budget checkpoints, and artifacts for the fast-mode and
+  premium deep-research stages. The inventory is descriptive only; production
+  execution still uses the legacy routing seams.
 - Move `grok_browse_and_summarize`, Gemini quota UI, and provider-specific
   fallback messages into provider-owned seams.
 - Add long-context surcharge fields and cache-token fields to estimates for
@@ -235,7 +240,8 @@ Do next:
 Done when:
 
 - The stage declares requirements; the router chooses candidates; execution
-  consumes the resulting chain.
+  consumes the resulting chain. The declaration slice is shipped; router
+  consumption by runtime stages is still pending.
 - Estimates and usage records name the backend and billing mode honestly.
 - Provider comparison artifacts exist for every promoted stage.
 - No hidden provider dependency remains in the full-report path for the wired
