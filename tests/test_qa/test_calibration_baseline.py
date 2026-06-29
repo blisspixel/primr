@@ -175,6 +175,7 @@ def test_build_baseline_flags_small_unvalidated_pack() -> None:
     assert "insufficient_reports" in baseline["reasons"]
     assert "missing_evidence_reviews" in baseline["reasons"]
     assert "missing_judge_agreement" in baseline["reasons"]
+    assert "missing_representative_selection" in baseline["reasons"]
     actions = baseline["next_actions"]
     assert actions["missing_reports"] == 4
     assert actions["missing_sidecars"] == 0
@@ -184,19 +185,31 @@ def test_build_baseline_flags_small_unvalidated_pack() -> None:
         "insufficient_reports",
         "missing_evidence_reviews",
         "missing_judge_agreement",
+        "missing_representative_selection",
     }
     assert actions["items"][0]["missing_reports"] == 4
     assert actions["commands"][0]["command"].startswith(
+        "primr calibrate --calibrate-recent 5 --pack-selection-template"
+    )
+    assert actions["commands"][1]["command"].startswith(
         "primr calibrate --calibrate-recent 5 --dry-run"
     )
-    assert "--judge-compare" in actions["commands"][1]["command"]
+    assert "--judge-compare" in actions["commands"][2]["command"]
 
 
 def test_build_baseline_ready_when_pack_has_required_evidence() -> None:
-    baseline = build_calibration_baseline(_manifest(5), minimum_reports=5)
+    baseline = build_calibration_baseline(
+        _manifest(
+            5,
+            required_tags=["clean", "blocked_origin", "strategy_module"],
+            present_tags=["clean", "blocked_origin", "strategy_module"],
+        ),
+        minimum_reports=5,
+    )
 
     assert baseline["ready"] is True
     assert baseline["status"] == "ready"
+    assert baseline["representation"]["selection_ready"] is True
     assert baseline["totals"]["reports_with_evidence_reviews"] == 5
     assert baseline["totals"]["reports_with_judge_agreement"] == 5
     assert baseline["traceability"]["Confirmed"]["traceability_rate"] == 1.0
@@ -222,6 +235,24 @@ def test_build_baseline_ready_when_pack_has_required_evidence() -> None:
             ),
         }
     ]
+
+
+def test_build_baseline_requires_explicit_representative_selection() -> None:
+    baseline = build_calibration_baseline(_manifest(5), minimum_reports=5)
+
+    assert baseline["ready"] is False
+    assert baseline["status"] == "missing_representative_selection"
+    assert baseline["representation"]["selection_ready"] is False
+    assert baseline["next_actions"]["missing_representative_selection"] is True
+    assert any(
+        item["reason"] == "missing_representative_selection"
+        and "curated calibration pack selection" in item["action"]
+        for item in baseline["next_actions"]["items"]
+    )
+    assert (
+        "--pack-selection-template docs/.agent/calibration-selection.json"
+        in baseline["next_actions"]["commands"][0]["command"]
+    )
 
 
 def test_build_baseline_requires_per_report_evidence_review_coverage() -> None:
@@ -346,6 +377,7 @@ def test_write_baseline_json_and_markdown(tmp_path: Path) -> None:
     assert "Judge agreement: 10 / 10 (100%)" in markdown
     assert "Evidence-reviewed reports: 5 / 5" in markdown
     assert "Judge-agreement reports: 5 / 5" in markdown
+    assert "Representative selection: ready" in markdown
     assert (
         "| Report | Sidecar | Evidence Reviews | Judge Agreement | Claims | Judgeable | Tags |"
         in markdown
@@ -393,6 +425,7 @@ def test_inspect_baseline_lists_report_level_blockers() -> None:
         "calibration_failures": 1,
         "missing_evidence_review_reports": 2,
         "missing_judge_agreement_reports": 2,
+        "missing_representative_selection": False,
         "missing_representative_tags": 1,
     }
     assert inspection["blockers"]["missing_sidecars"][0]["report_file"] == (

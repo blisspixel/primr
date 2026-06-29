@@ -12,6 +12,7 @@ from primr.core.eval_calibration import calibration_counts_from_payload, percent
 BASELINE_FORMAT = "primr.calibration_baseline.v1"
 INSPECTION_FORMAT = "primr.calibration_readiness_inspection.v1"
 PACK_FORMAT = "primr.calibration_pack.v1"
+SELECTION_FORMAT = "primr.calibration_pack_selection.v1"
 DEFAULT_MINIMUM_REPORTS = 5
 
 _COUNT_KEYS = (
@@ -117,6 +118,7 @@ def inspect_calibration_baseline(
             "calibration_failures": len(calibration_failures),
             "missing_evidence_review_reports": len(missing_evidence),
             "missing_judge_agreement_reports": len(missing_agreement),
+            "missing_representative_selection": not bool(representation.get("selection_ready")),
             "missing_representative_tags": len(_string_list(representation.get("missing_tags"))),
         },
         "blockers": {
@@ -130,6 +132,15 @@ def inspect_calibration_baseline(
             "missing_judge_agreement": [
                 _report_blocker(report, include_counts=True) for report in missing_agreement
             ],
+            "missing_representative_selection": (
+                {
+                    "selection_format": representation.get("selection_format"),
+                    "selection_path": representation.get("selection_path"),
+                    "required_tags": _string_list(representation.get("required_tags")),
+                }
+                if not bool(representation.get("selection_ready"))
+                else None
+            ),
             "missing_representative_tags": _string_list(representation.get("missing_tags")),
         },
         "commands": _command_items(next_actions),
@@ -171,6 +182,7 @@ def build_calibration_baseline(
         failures=failures,
         reports_with_evidence_reviews=coverage_counts["reports_with_evidence_reviews"],
         reports_with_judge_agreement=coverage_counts["reports_with_judge_agreement"],
+        representative_selection_ready=bool(representation["selection_ready"]),
         representation_missing_tags=representation["missing_tags"],
     )
     next_actions = _next_actions(
@@ -182,6 +194,7 @@ def build_calibration_baseline(
         failures=failures,
         reports_with_evidence_reviews=coverage_counts["reports_with_evidence_reviews"],
         reports_with_judge_agreement=coverage_counts["reports_with_judge_agreement"],
+        representative_selection_ready=bool(representation["selection_ready"]),
         representation_missing_tags=representation["missing_tags"],
         selection_path=representation.get("selection_path"),
     )
@@ -249,6 +262,10 @@ def render_calibration_baseline_markdown(baseline: dict[str, Any]) -> str:
             f"{len(representation.get('required_tags', []))} required tags"
         ),
         (
+            "Representative selection: "
+            f"{'ready' if representation.get('selection_ready') else 'missing'}"
+        ),
+        (
             "Judge agreement: "
             f"{agreement.get('agreed', 0)} / {agreement.get('compared', 0)} "
             f"({percent_or_dash(agreement.get('agreement_rate'))})"
@@ -289,17 +306,18 @@ def render_calibration_baseline_markdown(baseline: dict[str, Any]) -> str:
         ]
     )
 
-    if representation.get("required_tags"):
+    if representation.get("required_tags") or not representation.get("selection_ready"):
         missing_tags = ", ".join(str(tag) for tag in representation.get("missing_tags", []))
         lines.extend(
             [
                 "",
                 "## Representative Coverage",
                 "",
-                "| Required Tags | Present Tags | Missing Tags |",
-                "|---|---|---|",
+                "| Selection Ready | Required Tags | Present Tags | Missing Tags |",
+                "|---|---|---|---|",
                 (
-                    f"| {', '.join(str(tag) for tag in representation.get('required_tags', []))} | "
+                    f"| {'yes' if representation.get('selection_ready') else 'no'} | "
+                    f"{', '.join(str(tag) for tag in representation.get('required_tags', []))} | "
                     f"{', '.join(str(tag) for tag in representation.get('present_tags', []))} | "
                     f"{missing_tags or 'none'} |"
                 ),
@@ -557,6 +575,13 @@ def _representation_summary(
     return {
         "selection_format": representation.get("selection_format"),
         "selection_path": representation.get("selection_path"),
+        "selection_required": True,
+        "selection_ready": (
+            representation.get("selection_format") == SELECTION_FORMAT
+            and isinstance(representation.get("selection_path"), str)
+            and bool(representation.get("selection_path"))
+            and bool(required_tags)
+        ),
         "required_tags": required_tags,
         "present_tags": present_tags,
         "missing_tags": missing_tags,
@@ -571,6 +596,7 @@ def _readiness_reasons(
     failures: int,
     reports_with_evidence_reviews: int,
     reports_with_judge_agreement: int,
+    representative_selection_ready: bool,
     representation_missing_tags: list[str],
 ) -> list[str]:
     reasons: list[str] = []
@@ -586,6 +612,8 @@ def _readiness_reasons(
         reasons.append("missing_evidence_reviews")
     if report_count > 0 and reports_with_judge_agreement < report_count:
         reasons.append("missing_judge_agreement")
+    if not representative_selection_ready:
+        reasons.append("missing_representative_selection")
     if representation_missing_tags:
         reasons.append("missing_representative_coverage")
     return reasons
@@ -601,6 +629,7 @@ def _next_actions(
     failures: int,
     reports_with_evidence_reviews: int,
     reports_with_judge_agreement: int,
+    representative_selection_ready: bool,
     representation_missing_tags: list[str],
     selection_path: Any,
 ) -> dict[str, Any]:
@@ -695,6 +724,16 @@ def _next_actions(
                 ),
             }
         )
+    if "missing_representative_selection" in reasons:
+        items.append(
+            {
+                "reason": "missing_representative_selection",
+                "action": (
+                    "Create a curated calibration pack selection with non-empty required "
+                    "representative tags before treating the pack as a baseline."
+                ),
+            }
+        )
     if "missing_representative_coverage" in reasons:
         items.append(
             {
@@ -718,19 +757,20 @@ def _next_actions(
             }
         )
 
-    return {
-        "missing_reports": missing_reports,
-        "missing_sidecars": missing_sidecars,
-        "missing_evidence_review_reports": missing_evidence_reviews,
-        "missing_judge_agreement_reports": missing_judge_agreement,
-        "missing_representative_tags": representation_missing_tags,
-        "spend_preview_required": spend_preview_required,
-        "gate_policy": (
-            "Keep PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY unset until this artifact "
-            "is ready and the measured floor has been reviewed."
-        ),
-        "items": items,
-        "commands": [
+    commands = []
+    if not representative_selection_ready:
+        commands.append(
+            {
+                "purpose": "Create representative selection template",
+                "command": (
+                    "primr calibrate "
+                    f"--calibrate-recent {target_report_count} "
+                    "--pack-selection-template docs/.agent/calibration-selection.json"
+                ),
+            }
+        )
+    commands.extend(
+        [
             {
                 "purpose": "Preview report selection and judge-call cost",
                 "command": (
@@ -751,7 +791,23 @@ def _next_actions(
                     f"--baseline-md {baseline_md_ref}"
                 ),
             },
-        ],
+        ]
+    )
+
+    return {
+        "missing_reports": missing_reports,
+        "missing_sidecars": missing_sidecars,
+        "missing_evidence_review_reports": missing_evidence_reviews,
+        "missing_judge_agreement_reports": missing_judge_agreement,
+        "missing_representative_selection": not representative_selection_ready,
+        "missing_representative_tags": representation_missing_tags,
+        "spend_preview_required": spend_preview_required,
+        "gate_policy": (
+            "Keep PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY unset until this artifact "
+            "is ready and the measured floor has been reviewed."
+        ),
+        "items": items,
+        "commands": commands,
     }
 
 

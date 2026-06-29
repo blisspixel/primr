@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.34.20
+Current State: v1.34.21
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -53,15 +53,18 @@ Current priority order:
    `primr calibrate --baseline-from` writes a zero-spend readiness artifact
    that refuses to mark small, unvalidated, or
    under-representative packs as ready while naming the exact next actions
-   needed to make the pack baseline-ready. Readiness now requires every
+   needed to make the pack baseline-ready. Readiness now requires an explicit
+   curated pack-selection manifest with non-empty representative tag
+   requirements, and it reports `missing_representative_selection` for
+   aggregate latest-N packs that have not been curated. It also requires every
    selected report to carry evidence-review dimensions and cloud-vs-local
    judge-agreement metadata, so partial sidecar coverage cannot make a pack
    look ready by aggregate counts alone. `primr calibrate --inspect-baseline`
    prints the same blocker set as machine-readable JSON for operators and
    agent control planes, and MCP exposes the same inspection through
    `primr://calibration/baseline/inspection?path=<baseline.json>` under the
-   existing path-allowlist boundary. The representative multi-report baseline
-   itself is still next.
+   existing path-allowlist boundary. The measured operator-curated
+   multi-report baseline itself is still next.
 2. **Backend freedom production wiring.** Provider abstractions and pure routing
    foundations exist, but full-report execution still carries xAI/Gemini-era
    assumptions. Stage-by-stage routing is the next architecture unlock.
@@ -317,9 +320,12 @@ per-module coverage ratchet unlocked by the refactor:
   any paid baseline. Curated
   `--pack-selection` inputs now record exact report paths and explicit
   representative coverage tags in the manifest, and the readiness artifact
-  now computes missing report, sidecar, evidence-review, judge-agreement, and
-  coverage-tag gaps plus reason-specific remediation, suggested commands, and
-  the policy to keep the hard gate unset for any not-ready pack. Calibration
+  now computes missing report, sidecar, evidence-review, judge-agreement,
+  representative-selection, and coverage-tag gaps plus reason-specific
+  remediation, suggested commands, and the policy to keep the hard gate unset
+  for any not-ready pack. It refuses to treat a latest-N aggregate manifest as
+  ready until a curated selection with required representative tags is present.
+  Calibration
   sidecars and eval/baseline summaries now also flag source-copied
   `(Estimated)`/`(Hypothesis)` claims as a report-only signal. Remaining:
   gather a multi-report, agreement-validated baseline (cloud-vs-local
@@ -1428,6 +1434,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.34.21 | Jun 2026 | **Representative baseline selection contract.** Calibration baseline readiness now requires explicit `primr.calibration_pack_selection.v1` metadata with non-empty representative tag requirements before a pack can be marked ready; latest-N manifests report `missing_representative_selection`, and baseline Markdown/JSON inspections surface representative selection readiness directly. |
 | 1.34.20 | Jun 2026 | **A2A skill audit parity.** A2A skill invocations and task cancellation now append privacy-preserving audit events to the shared agent audit JSONL with transport, skill name, hashed arguments/results, hashed caller ids, granted scopes, duration, outcome, and job id when present, without storing raw message text, task ids, report paths, URLs, raw results, or caller ids. |
 | 1.34.19 | Jun 2026 | **Docs and operator-guidance refresh.** Refreshed agent/operator docs, run-mode references, architecture/config cost guidance, security support policy, and roadmap test-count wording so default xAI plus Gemini costs, default AI Strategy generation, `--no-ai-strategy`, the `1.34.x` supported line, and the 10,000+ test suite are consistent across the repo. |
 | 1.34.18 | Jun 2026 | **A2A skill-scope parity.** Authenticated A2A HTTP requests now bind the bearer token into the shared MCP auth context, and A2A skill dispatch enforces `read` for estimate/status/health operations and `research` for research, QA, and cancellation while preserving local loopback behavior and legacy `write` compatibility. |

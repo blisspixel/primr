@@ -2,6 +2,41 @@
 
 When a new model or profile is released (for example, a new Pro/Flash/Grok variant), evaluate it with a repeatable run ID so decisions are data-driven.
 
+## Current External Practice Checkpoint
+
+Reviewed 2026-06-29:
+
+- OpenAI's current evaluation guidance says to keep evals task-specific,
+  representative of real distributions, logged, automated where possible, and
+  calibrated against human feedback. OpenAI's legacy Evals platform is also in
+  deprecation, with new work steered toward Datasets and trace/eval workflows.
+  See [Evaluation best practices](https://developers.openai.com/api/docs/guides/evaluation-best-practices),
+  [Working with evals](https://developers.openai.com/api/docs/guides/evals),
+  and [Evaluate agent workflows](https://developers.openai.com/api/docs/guides/agent-evals).
+- Anthropic's current test-and-evaluate guidance starts with explicit success
+  criteria and evaluations before prompt iteration, and its agent-evals writeup
+  warns that LLM-as-judge graders need calibration against human experts. See
+  [Define success criteria and build evaluations](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests)
+  and [Demystifying evals for AI agents](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents).
+- Google's current Gemini Enterprise Agent Platform docs describe Gen AI
+  evaluation as test-driven evaluation with adaptive rubrics, candidate and
+  baseline responses, autorater configuration, and immutable evaluation items.
+  The older Vertex AI Gen AI docs now warn that Vertex documentation is no
+  longer the current surface. See
+  [Gen AI evaluation service overview](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/evaluation-overview)
+  and the [EvaluationItem API](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/reference/rest/v1beta1/projects.locations.evaluationItems).
+- NIST's AI RMF Generative AI Profile frames evaluation as part of governing,
+  mapping, measuring, and managing GenAI risk, while NIST AI 700-1 demonstrates
+  curated benchmark datasets plus statistical metrics for GenAI text
+  evaluation. See [NIST AI 600-1](https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence)
+  and [NIST AI 700-1](https://www.nist.gov/publications/2024-nist-genai-pilot-study-text-text-evaluation-overview-and-results).
+
+Primr's eval path therefore treats a calibration baseline as an explicit,
+representative, agreement-checked artifact. A latest-N pack can estimate cost
+and surface missing sidecars, but it is not baseline-ready unless it came from
+a curated `primr.calibration_pack_selection.v1` file with non-empty required
+representative tags.
+
 ## 1) Pick an eval version and fixed corpus
 
 - Example eval ID: `eval-2026-02-r1`
@@ -106,12 +141,15 @@ For a 24 GB RTX 4090 or comparable local box, start with `4090-report-race` befo
   `primr.calibration_baseline.v1` JSON, and optional Markdown via
   `--baseline-md path/to/baseline.md`, with explicit not-ready reasons such as
   `insufficient_reports`, `missing_evidence_reviews`, or
-  `missing_judge_agreement`. Evidence review and judge agreement are
+  `missing_judge_agreement`. A ready baseline also requires an explicit curated
+  selection manifest with non-empty representative tag requirements; otherwise
+  the artifact reports `missing_representative_selection`, even if all sidecar
+  and agreement counts are present. Evidence review and judge agreement are
   per-report coverage requirements, not merely aggregate nonzero counts; a pack
   with one reviewed report and four unreviewed reports remains not ready. When
-  the pack manifest declares required representative tags, the artifact also
-  reports `missing_representative_coverage` until every required tag appears in
-  the selected pack. The artifact includes structured `next_actions` with
+  the pack manifest declares required representative tags, the artifact reports
+  `missing_representative_coverage` until every required tag appears in the
+  selected pack. The artifact includes structured `next_actions` with
   missing counts, remediation, suggested commands, and the policy to keep the
   hard calibration gate unset until the pack is ready. Its per-report summaries
   include evidence-review counts, inference source-copy counts, and
@@ -134,8 +172,8 @@ primr calibrate "Company" --judge local --judge-model qwen2.5:14b   # pin a mode
 primr calibrate "Company" --judge-compare       # judge with BOTH, report agreement
 primr calibrate --calibrate-recent 10 --pack-selection-template docs/.agent/calibration-selection.json
 primr calibrate --inspect-selection docs/.agent/calibration-selection.json
-primr calibrate --calibrate-recent 10 --dry-run --pack-manifest docs/.agent/calibration-pack.json
 primr calibrate --pack-selection docs/.agent/calibration-selection.json --dry-run --pack-manifest docs/.agent/calibration-pack.json
+primr calibrate --pack-selection docs/.agent/calibration-selection.json --judge-compare --pack-manifest docs/.agent/calibration-pack.json
 primr calibrate --baseline-from docs/.agent/calibration-pack.json --baseline-md docs/.agent/calibration-baseline.md
 primr calibrate --inspect-baseline docs/.agent/calibration-pack.baseline.json
 ```

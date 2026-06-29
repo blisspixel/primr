@@ -84,7 +84,8 @@ def add_calibration_arguments(parser: argparse.ArgumentParser) -> None:
         metavar="PATH",
         help=(
             "With 'calibrate', build a zero-spend baseline readiness artifact from an "
-            "existing calibration pack manifest."
+            "existing calibration pack manifest. Ready baselines require an explicit "
+            "curated pack selection with representative tags."
         ),
     )
     parser.add_argument(

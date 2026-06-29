@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.21] - 2026-06-29
+
+### Changed
+
+- Calibration baseline readiness now requires explicit
+  `primr.calibration_pack_selection.v1` metadata with non-empty representative
+  tag requirements before a pack can be marked ready. Latest-N manifests now
+  report `missing_representative_selection` and stay report-only until an
+  operator-curated representative selection is attached.
+- Baseline Markdown and JSON inspections now expose representative selection
+  readiness directly so agents and operators do not mistake missing selection
+  metadata for complete representative coverage.
+
 ## [1.34.20] - 2026-06-29
 
 ### Added
