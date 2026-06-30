@@ -34,6 +34,10 @@ from primr.mcp_server.artifact_resources import (
     read_qa_summary_by_job_resource,
     read_usage_summary_by_job_resource,
 )
+from primr.mcp_server.calibration_summary import (
+    CALIBRATION_SUMMARY_BY_JOB_URI,
+    read_calibration_summary_by_job_resource,
+)
 from primr.mcp_server.pipeline_runner import PipelineRunner, get_doctor_status, run_qa_analysis
 from primr.mcp_server.source_summary import (
     SOURCE_SUMMARY_BY_JOB_URI,
@@ -107,6 +111,7 @@ class PrimrAgentExecutor(AgentExecutor):
         - research_company  -> async job, streams progress via SSE
         - check_jobs        -> synchronous job status
         - run_qa            -> synchronous QA analysis
+        - read_calibration_summary_by_job -> synchronous compact job calibration summary
         - read_artifacts_by_job -> synchronous compact job artifact metadata
         - read_qa_summary_by_job -> synchronous compact job QA summary
         - read_usage_summary_by_job -> synchronous compact job usage summary
@@ -153,6 +158,8 @@ class PrimrAgentExecutor(AgentExecutor):
                 audit_payload = await self._handle_check_jobs(event_queue)
             elif skill_id == "run_qa":
                 audit_payload = await self._handle_qa(text, event_queue)
+            elif skill_id == "read_calibration_summary_by_job":
+                audit_payload = await self._handle_calibration_summary(text, event_queue)
             elif skill_id == "read_artifacts_by_job":
                 audit_payload = await self._handle_artifact_metadata(text, event_queue)
             elif skill_id == "read_qa_summary_by_job":
@@ -624,6 +631,21 @@ class PrimrAgentExecutor(AgentExecutor):
             success_status="artifact_metadata_read",
         )
 
+    async def _handle_calibration_summary(
+        self,
+        text: str,
+        event_queue: EventQueue,
+    ) -> dict[str, Any]:
+        """Handle read_calibration_summary_by_job skill - synchronous compact job read."""
+        return await self._handle_job_resource_summary(
+            text,
+            event_queue,
+            resource_uri=CALIBRATION_SUMMARY_BY_JOB_URI,
+            reader=read_calibration_summary_by_job_resource,
+            missing_message="Please provide a job_id for the calibration summary.",
+            success_status="calibration_summary_read",
+        )
+
     async def _handle_qa_summary(
         self,
         text: str,
@@ -771,7 +793,8 @@ class PrimrAgentExecutor(AgentExecutor):
         """Handle unrecognized skill - try to route by content."""
         available = (
             "estimate_research, research_company, check_jobs, run_qa, "
-            "read_artifacts_by_job, read_qa_summary_by_job, read_usage_summary_by_job, "
+            "read_calibration_summary_by_job, read_artifacts_by_job, "
+            "read_qa_summary_by_job, read_usage_summary_by_job, "
             "read_source_summary_by_job, read_trace_summary_by_job, "
             "read_verification_summary_by_job, read_stage_scorecard, system_health"
         )

@@ -115,6 +115,25 @@ _SKILLS: list[dict] = [
         ],
     },
     {
+        "id": "read_calibration_summary_by_job",
+        "name": "Read Calibration Summary by Job",
+        "description": (
+            "Read compact label-calibration metadata for one owned research "
+            "job. Returns per-label traceability counts, inference source-copy "
+            "counts, evidence-review count buckets, judge metadata, and "
+            "judge-agreement metadata without raw claims, source URLs, "
+            "evidence reviews, rationales, or report body content.\n\n"
+            'Input (JSON or text): {"job_id": "job-20260630-abc123"}\n\n'
+            "Output: JSON with job_id, status, company_name, summary_count, "
+            "full_content_included=false, and compact calibration summary rows"
+        ),
+        "tags": ["calibration", "read", "jobs", "labels"],
+        "examples": [
+            "Read calibration summary for job-20260630-abc123",
+            '{"job_id": "job-20260630-abc123"}',
+        ],
+    },
+    {
         "id": "read_qa_summary_by_job",
         "name": "Read QA Summary by Job",
         "description": (

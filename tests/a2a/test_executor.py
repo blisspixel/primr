@@ -130,6 +130,15 @@ class TestParseJobId:
     def test_artifact_resource_uri(self):
         assert _parse_job_id("primr://output/artifacts/by_job/job-2026-06") == "job-2026-06"
 
+    def test_calibration_summary_resource_uri(self):
+        assert (
+            _parse_job_id(
+                "primr://output/calibration_summary/by_job/job-2026-06",
+                uri_prefix="primr://output/calibration_summary/by_job",
+            )
+            == "job-2026-06"
+        )
+
     def test_qa_summary_resource_uri(self):
         assert (
             _parse_job_id(
@@ -1254,6 +1263,236 @@ class TestPrimrAgentExecutor:
         assert "Other Corp" not in text
         assert "verification.json" not in text
         assert "Secret claim text" not in text
+        assert "secret.example" not in text
+
+    def _write_calibration_sidecar(self, report_path) -> None:
+        sidecar = report_path.with_name(report_path.name + ".calibration.json")
+        sidecar.write_text(
+            json.dumps(
+                {
+                    "report_file": report_path.name,
+                    "max_per_label": 10,
+                    "judge": {
+                        "kind": "local",
+                        "model": "qwen2.5:14b",
+                        "cloud_fallbacks": 1,
+                    },
+                    "judge_agreement": {
+                        "scope": "report",
+                        "local_model": "qwen2.5:14b",
+                        "compared": 4,
+                        "agreed": 3,
+                        "agreement": 0.75,
+                    },
+                    "per_label": {
+                        "Confirmed": {
+                            "sampled": 3,
+                            "traceable": 1,
+                            "untraceable": 1,
+                            "no_source": 1,
+                            "unfetchable": 0,
+                            "exempt": 0,
+                            "source_copied": 0,
+                            "precision": 0.333,
+                        },
+                        "Hypothesis": {
+                            "sampled": 2,
+                            "traceable": 0,
+                            "untraceable": 0,
+                            "no_source": 0,
+                            "unfetchable": 0,
+                            "exempt": 1,
+                            "source_copied": 1,
+                            "precision": None,
+                        },
+                    },
+                    "validation_rubric": {
+                        "claims_with_reviews": 2,
+                        "source_reviews": 3,
+                        "support": {"supported": 2, "unsupported": 1},
+                        "contradiction": {
+                            "direct": 1,
+                            "none": 2,
+                            "partial": 0,
+                            "unknown": 0,
+                        },
+                        "source_independence": {
+                            "independent": 1,
+                            "first_party": 2,
+                            "unknown": 0,
+                        },
+                        "source_authority": {
+                            "high": 1,
+                            "medium": 1,
+                            "low": 1,
+                            "unknown": 0,
+                        },
+                        "reasoning_strength": {
+                            "strong": 2,
+                            "partial": 1,
+                            "weak": 0,
+                            "unknown": 0,
+                        },
+                        "uncertainty_honesty": {
+                            "honest": 2,
+                            "overstated": 1,
+                            "understated": 0,
+                            "unknown": 0,
+                        },
+                        "business_relevance": {
+                            "high": 2,
+                            "medium": 1,
+                            "low": 0,
+                            "unknown": 0,
+                        },
+                    },
+                    "claims": [
+                        {
+                            "label": "Confirmed",
+                            "section": "Secret Section",
+                            "sentence": "Secret calibrated claim text",
+                            "source_urls": ["https://secret.example/source"],
+                            "verdict": "traceable",
+                            "evidence_reviews": [
+                                {
+                                    "supported": True,
+                                    "rationale": "Sensitive evidence rationale",
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    @pytest.mark.asyncio
+    async def test_calibration_summary_returns_owned_compact_a2a_payload(
+        self, executor, event_queue, context, tmp_path
+    ):
+        """read_calibration_summary_by_job returns compact label metadata only."""
+        report = tmp_path / "Acme_Report.md"
+        report.write_text("# Report\n\nSECRET REPORT BODY", encoding="utf-8")
+        self._write_calibration_sidecar(report)
+        job = executor._mcp.job_store.create(
+            company_name="Acme",
+            mode="full",
+            owner_client_id="client-1",
+        )
+        job.output_paths = [str(report)]
+
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["read"]
+        auth_context.client_id = "client-1"
+        executor._mcp._auth_context = auth_context
+        context.message = {
+            "parts": [{"kind": "text", "text": json.dumps({"job_id": job.job_id})}],
+            "metadata": {"skillId": "read_calibration_summary_by_job"},
+        }
+
+        try:
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        text = json.dumps(data)
+        assert data["job_id"] == job.job_id
+        assert data["company_name"] == "Acme"
+        assert data["summary_count"] == 1
+        assert data["full_content_included"] is False
+        summary = data["summaries"][0]
+        assert summary["artifact_type"] == "calibration_sidecar"
+        assert summary["parsed"] is True
+        assert summary["raw_claims_included"] is False
+        assert summary["claim_text_included"] is False
+        assert summary["source_urls_included"] is False
+        assert summary["evidence_reviews_included"] is False
+        assert summary["rationales_included"] is False
+        assert summary["report_file"] == "Acme_Report.md"
+        assert summary["judge"] == {
+            "kind": "local",
+            "model": "qwen2.5:14b",
+            "cloud_fallbacks": 1,
+        }
+        assert summary["judge_agreement"] == {
+            "scope": "report",
+            "local_model": "qwen2.5:14b",
+            "compared": 4,
+            "agreed": 3,
+            "agreement": 0.75,
+        }
+        assert summary["claim_result_count"] == 1
+        assert summary["claims_sampled"] == 5
+        assert summary["decidable_claims"] == 3
+        assert summary["traceable_count"] == 1
+        assert summary["untraceable_count"] == 1
+        assert summary["no_source_count"] == 1
+        assert summary["exempt_count"] == 1
+        assert summary["source_copied_count"] == 1
+        by_label = {item["label"]: item for item in summary["per_label"]}
+        assert by_label["Confirmed"]["precision"] == 0.333
+        assert by_label["Hypothesis"]["exempt"] == 1
+        assert by_label["Hypothesis"]["source_copied"] == 1
+        rubric = summary["validation_rubric"]
+        assert rubric["claims_with_reviews"] == 2
+        assert rubric["source_reviews"] == 3
+        assert rubric["support_counts"] == [
+            {"count": 2, "value": "supported"},
+            {"count": 1, "value": "unsupported"},
+        ]
+        assert "SECRET REPORT BODY" not in text
+        assert "Secret calibrated claim text" not in text
+        assert "secret.example" not in text
+        assert "Sensitive evidence rationale" not in text
+
+        audit_event = _audit_events(executor)[0]
+        assert audit_event["tool_name"] == "a2a/read_calibration_summary_by_job"
+        assert audit_event["status"] == "success"
+        assert audit_event["auth_scopes"] == ["read"]
+        assert audit_event["job_id"] == job.job_id
+
+    @pytest.mark.asyncio
+    async def test_calibration_summary_hides_other_client_job(
+        self, executor, event_queue, context, tmp_path
+    ):
+        """read_calibration_summary_by_job reuses the MCP ownership gate."""
+        report = tmp_path / "Other_Report.md"
+        report.write_text("# Report\n\nOTHER CLIENT REPORT BODY", encoding="utf-8")
+        self._write_calibration_sidecar(report)
+        job = executor._mcp.job_store.create(
+            company_name="Other Corp",
+            mode="full",
+            owner_client_id="client-2",
+        )
+        job.output_paths = [str(report)]
+
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["read"]
+        auth_context.client_id = "client-1"
+        executor._mcp._auth_context = auth_context
+        context.message = {
+            "parts": [{"kind": "text", "text": json.dumps({"job_id": job.job_id})}],
+            "metadata": {"skillId": "read_calibration_summary_by_job"},
+        }
+
+        try:
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        text = json.dumps(data)
+        assert data["error"] == "job_not_found"
+        assert data["job_id"] == job.job_id
+        assert "Other Corp" not in text
+        assert "Other_Report.md" not in text
+        assert "OTHER CLIENT REPORT BODY" not in text
+        assert "Secret calibrated claim text" not in text
         assert "secret.example" not in text
 
     @pytest.mark.asyncio

@@ -18,6 +18,7 @@ A2A_READ_SKILLS = frozenset(
         "estimate_research",
         "check_jobs",
         "system_health",
+        "read_calibration_summary_by_job",
         "read_artifacts_by_job",
         "read_qa_summary_by_job",
         "read_usage_summary_by_job",

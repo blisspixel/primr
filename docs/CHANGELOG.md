@@ -53,6 +53,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A2A now advertises `read_verification_summary_by_job` as a read-scoped
   compact claim verification summary skill backed by the same ownership-gated
   by-job contract as MCP.
+- A2A now advertises `read_calibration_summary_by_job` as a read-scoped
+  compact label-calibration summary skill backed by the same ownership-gated
+  by-job contract as MCP.
 - A2A now advertises `read_stage_scorecard` as a read-scoped compact
   scorecard summary skill backed by the same eval-id resource boundary as MCP.
 - Website-summary local stage evals now write
