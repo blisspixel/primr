@@ -45,7 +45,7 @@ FILE_LINE_CEILINGS: dict[str, int] = {
     "core/model_eval.py": 1832,
     "data/scrape.py": 1838,
     "mcp_server/tools.py": 1596,
-    "data/fallback_sources.py": 1098,
+    "data/fallback_sources.py": 1089,
     "agentic/hooks.py": 1116,
     "core/research_orchestrator.py": 1087,
     "data/scraping/orchestrator.py": 1072,

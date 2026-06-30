@@ -116,6 +116,11 @@ def test_gather_fallback_content_no_duplicates_on_timeout():
         patch.object(fb, "as_completed", fake_as_completed),
         patch.object(fb, "fetch_subdomain_content", lambda *a, **k: _page("subdomain")),
         patch.object(fb, "fetch_feed_content", lambda *a, **k: _page("feed")),
+        patch.object(
+            fb,
+            "fetch_structured_data_content",
+            lambda *a, **k: _page("structured_data"),
+        ),
         patch.object(fb, "fetch_edgar_content", lambda *a, **k: _page("edgar")),
         patch.object(fb, "fetch_wikipedia_content", lambda *a, **k: _page("wikipedia")),
     ):
@@ -252,6 +257,13 @@ def test_gather_fallback_content_merges_all_sources():
         "edgar": [FallbackPage(url="https://e", source="edgar", content="10-K text " * 300)],
         "subdomain": [FallbackPage(url="https://s", source="subdomain", content="IR text " * 80)],
         "feed": [FallbackPage(url="https://f", source="feed", content="feed text " * 40)],
+        "structured_data": [
+            FallbackPage(
+                url="https://sd",
+                source="structured_data",
+                content="schema text " * 40,
+            )
+        ],
         "wayback": [FallbackPage(url="https://y", source="wayback", content="archive text " * 100)],
         "grok": [FallbackPage(url="https://g", source="grok", content="grok synth text " * 50)],
     }
@@ -261,6 +273,9 @@ def test_gather_fallback_content_merges_all_sources():
 
     def fake_feed(base_host, **_kwargs):
         return fake_pages_by_source["feed"]
+
+    def fake_structured_data(base_host, **_kwargs):
+        return fake_pages_by_source["structured_data"]
 
     def fake_edgar(name, **_kwargs):
         return fake_pages_by_source["edgar"]
@@ -277,6 +292,10 @@ def test_gather_fallback_content_merges_all_sources():
     with (
         patch("primr.data.fallback_sources.fetch_subdomain_content", side_effect=fake_subdomain),
         patch("primr.data.fallback_sources.fetch_feed_content", side_effect=fake_feed),
+        patch(
+            "primr.data.fallback_sources.fetch_structured_data_content",
+            side_effect=fake_structured_data,
+        ),
         patch("primr.data.fallback_sources.fetch_edgar_content", side_effect=fake_edgar),
         patch("primr.data.fallback_sources.fetch_wikipedia_content", side_effect=fake_wikipedia),
         patch("primr.data.fallback_sources.fetch_wayback_pages", side_effect=fake_wayback),
@@ -290,7 +309,15 @@ def test_gather_fallback_content_merges_all_sources():
         )
 
     sources = sorted(p.source for p in pages)
-    assert sources == ["edgar", "feed", "grok", "subdomain", "wayback", "wikipedia"]
+    assert sources == [
+        "edgar",
+        "feed",
+        "grok",
+        "structured_data",
+        "subdomain",
+        "wayback",
+        "wikipedia",
+    ]
 
 
 def test_gather_fallback_content_tolerates_individual_source_failure():
@@ -303,6 +330,7 @@ def test_gather_fallback_content_tolerates_individual_source_failure():
     with (
         patch("primr.data.fallback_sources.fetch_subdomain_content", side_effect=raises),
         patch("primr.data.fallback_sources.fetch_feed_content", side_effect=raises),
+        patch("primr.data.fallback_sources.fetch_structured_data_content", side_effect=raises),
         patch("primr.data.fallback_sources.fetch_edgar_content", side_effect=raises),
         patch("primr.data.fallback_sources.fetch_wikipedia_content", return_value=[good_page]),
         patch("primr.data.fallback_sources.fetch_wayback_pages", side_effect=raises),
@@ -321,6 +349,7 @@ def test_gather_fallback_content_returns_empty_when_all_sources_empty():
     with (
         patch("primr.data.fallback_sources.fetch_subdomain_content", return_value=[]),
         patch("primr.data.fallback_sources.fetch_feed_content", return_value=[]),
+        patch("primr.data.fallback_sources.fetch_structured_data_content", return_value=[]),
         patch("primr.data.fallback_sources.fetch_edgar_content", return_value=[]),
         patch("primr.data.fallback_sources.fetch_wikipedia_content", return_value=[]),
         patch("primr.data.fallback_sources.fetch_wayback_pages", return_value=[]),
@@ -392,6 +421,7 @@ def test_same_site_matches_apex_www_and_subdomain():
 def test_same_site_rejects_offsite_and_lookalike():
     assert not _same_site("evil.example", "acme.example")
     assert not _same_site("acme.example.evil.com", "acme.example")
+    assert not _same_site("", "acme.example")
     # endswith-style false match guard: must be a real subdomain, not a suffix.
     assert not _same_site("notacme.example", "acme.example")
 

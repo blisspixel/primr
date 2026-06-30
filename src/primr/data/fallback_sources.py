@@ -35,6 +35,9 @@ from xml.etree.ElementTree import ParseError
 import defusedxml.ElementTree as DefusedET
 from defusedxml.common import DefusedXmlException
 
+from primr.data.first_party_structured_data import fetch_structured_data_content
+from primr.data.first_party_url import same_site as _same_site
+
 logger = logging.getLogger(__name__)
 
 # =============================================================================
@@ -74,7 +77,7 @@ class FallbackPage:
     """A page of content recovered from a fallback source."""
 
     url: str
-    source: str  # "subdomain" | "feed" | "edgar" | "wikipedia" | "wayback"
+    source: str  # "subdomain" | "feed" | "structured_data" | "edgar" | "wikipedia" | "wayback"
     content: str  # extracted plain text
     raw_html: bytes | None = None
     title: str | None = None
@@ -278,20 +281,6 @@ def _strip_html(text: str, *, limit: int = 600) -> str:
     stripped = _HTML_TAG_RE.sub(" ", unescaped)
     collapsed = re.sub(r"\s+", " ", stripped).strip()
     return collapsed[:limit]
-
-
-def _same_site(host: str, base_host: str) -> bool:
-    """True when ``host`` is the base host, its www form, or a subdomain of it.
-
-    Defense-in-depth + relevance: autodiscovered feed hrefs that point off the
-    company's own registrable domain are dropped (the SSRF guard in ``_http_get``
-    still validates whatever survives this filter).
-    """
-    host = (host or "").lower().removeprefix("www.")
-    base_host = (base_host or "").lower().removeprefix("www.")
-    if not host or not base_host:
-        return False
-    return host == base_host or host.endswith("." + base_host)
 
 
 def _discover_feed_urls(base_host: str, homepage_html: bytes | None) -> list[str]:
@@ -1010,6 +999,7 @@ def gather_fallback_content(
     Sources:
     - subdomain probe (fast, ~5-15s per live subdomain)
     - RSS/Atom feeds (fast, ~3-10s; recent press/news/blog content)
+    - first-party JSON-LD structured data (fast, ~3-10s; organization/news facts)
     - SEC EDGAR (public companies only, ~10-30s including filing fetch)
     - Wikipedia (almost always available for known companies, ~5s)
     - Wayback replays for a provided list of blocked URLs (slow, ~30-60s)
@@ -1023,7 +1013,7 @@ def gather_fallback_content(
     base_host = base_host.lower().removeprefix("www.")
 
     logger.info(
-        "Gathering fallback content for %r (host=%s) — subdomain/EDGAR/Wikipedia/Wayback in parallel",
+        "Gathering fallback content for %r (host=%s) - subdomain/feed/structured-data/EDGAR/Wikipedia/Wayback in parallel",
         company_name,
         base_host,
     )
@@ -1036,6 +1026,7 @@ def gather_fallback_content(
         futures = {
             pool.submit(fetch_subdomain_content, base_host): "subdomain",
             pool.submit(fetch_feed_content, base_host): "feed",
+            pool.submit(fetch_structured_data_content, base_host): "structured_data",
             pool.submit(fetch_edgar_content, company_name): "edgar",
             pool.submit(fetch_wikipedia_content, company_name): "wikipedia",
         }

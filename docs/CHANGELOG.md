@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added first-party JSON-LD structured-data recovery to the blocked-origin
+  fallback fan-out. The new source probes bounded priority same-site pages,
+  extracts Organization / NewsArticle / Product / Event / Person facts with
+  stdlib parsing, filters same-site URLs, caps HTML/entity/output budgets, and
+  returns `source="structured_data"` through the existing SSRF-safe HTTP seam
+  without invoking any paid AI provider.
 - Added A2A `read_report_by_job`, an explicit report-scoped owned-job report
   read backed by the same MCP `primr://output/report/by_job/{job_id}` helper,
   with `content_mode`, `artifact_type`, and `max_chars` output negotiation.
