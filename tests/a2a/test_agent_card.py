@@ -21,7 +21,7 @@ class TestBuildAgentCard:
 
     def test_skills_count(self):
         card = build_agent_card(version="1.0.0")
-        assert len(card.skills) == 7
+        assert len(card.skills) == 8
 
     def test_skill_ids(self):
         card = build_agent_card(version="1.0.0")
@@ -31,6 +31,7 @@ class TestBuildAgentCard:
         assert "check_jobs" in skill_ids
         assert "run_qa" in skill_ids
         assert "read_artifacts_by_job" in skill_ids
+        assert "read_qa_summary_by_job" in skill_ids
         assert "read_stage_scorecard" in skill_ids
         assert "system_health" in skill_ids
 

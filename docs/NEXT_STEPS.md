@@ -320,8 +320,8 @@ least-privilege and approval semantics as MCP.
 
 Do next:
 
-- Continue A2A parity now that the first seven
-  compact job-scoped resource slices shipped:
+- Continue A2A parity now that the seven compact MCP job-scoped resource
+  slices shipped:
   `primr://output/artifacts/by_job/{job_id}` returns ownership-gated file names,
   paths, sizes, hashes, timestamps, and missing-file state for one job, and
   `primr://output/qa_summary/by_job/{job_id}` returns compact QA score/status
@@ -345,9 +345,9 @@ Do next:
   and rationales. Resource reads are now audited with normalized resource kind,
   hashed URI, hashed result body, job id when present, granted scopes,
   duration, and outcome, without raw URI query values or resource bodies.
-  A2A now advertises the equivalent read-scoped `read_artifacts_by_job` skill
-  for the artifact metadata slice, using the same ownership-gated compact
-  summary helper.
+  A2A now advertises equivalent read-scoped `read_artifacts_by_job` and
+  `read_qa_summary_by_job` skills for the artifact metadata and QA summary
+  slices, using the same ownership-gated compact summary helpers.
 - Non-job eval readback is also available for routed-stage scorecards:
   `primr://eval/stage_scorecard/{eval_id}` reads
   `output/evals/{eval_id}/stage_eval_scorecard.json` through a simple eval-id
@@ -363,8 +363,8 @@ Do next:
   bearer token into the shared MCP auth context, and A2A skill dispatch
   enforces `read` for `estimate_research`, `check_jobs`, `system_health`, and
   compact read skills such as `read_artifacts_by_job` and
-  `read_stage_scorecard`, and `research` for `research_company`, `run_qa`, and
-  task cancellation.
+  `read_qa_summary_by_job` and `read_stage_scorecard`, and `research` for
+  `research_company`, `run_qa`, and task cancellation.
   Authenticated A2A jobs are owned by the token `client_id`. Local
   unauthenticated loopback behavior remains permissive, and legacy `write`
   still satisfies research-scope operations for compatibility.
@@ -389,8 +389,9 @@ Done when:
 - MCP and A2A enforce the same approval, audit, and compact read-resource
   semantics for equivalent operations. The shared `read`/`research` skill
   scope split, A2A skill-call audit parity, artifact-metadata compact read
-  parity, and stage-scorecard compact eval-read parity are shipped; approval
-  and the remaining job-scoped compact-resource parity slices remain.
+  parity, QA-summary compact read parity, and stage-scorecard compact
+  eval-read parity are shipped; approval and the remaining job-scoped
+  compact-resource parity slices remain.
 
 ### 4. Research memory layer 1
 

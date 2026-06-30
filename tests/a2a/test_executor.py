@@ -130,6 +130,15 @@ class TestParseJobId:
     def test_artifact_resource_uri(self):
         assert _parse_job_id("primr://output/artifacts/by_job/job-2026-06") == "job-2026-06"
 
+    def test_qa_summary_resource_uri(self):
+        assert (
+            _parse_job_id(
+                "primr://output/qa_summary/by_job/job-2026-06",
+                uri_prefix="primr://output/qa_summary/by_job",
+            )
+            == "job-2026-06"
+        )
+
     def test_plain_text_job_id(self):
         assert _parse_job_id(" job-2026-06 ") == "job-2026-06"
 
@@ -524,6 +533,123 @@ class TestPrimrAgentExecutor:
         assert "Other Corp" not in text
         assert "other-report.md" not in text
         assert "OTHER CLIENT REPORT BODY" not in text
+
+    @pytest.mark.asyncio
+    async def test_qa_summary_returns_owned_compact_a2a_payload(
+        self, executor, event_queue, context, tmp_path
+    ):
+        """read_qa_summary_by_job returns compact QA metadata without detailed bodies."""
+        qa_summary = tmp_path / "Acme_QA_Report.json"
+        qa_summary.write_text(
+            json.dumps(
+                {
+                    "overall_score": 94,
+                    "status": "passed",
+                    "ready_for_use": True,
+                    "issues": [{"description": "SECRET QA ISSUE BODY"}],
+                    "warnings": ["SECRET QA WARNING BODY"],
+                    "recommendations": ["SECRET QA RECOMMENDATION BODY"],
+                    "secret_details": "SECRET QA NARRATIVE BODY",
+                }
+            ),
+            encoding="utf-8",
+        )
+        report_path = tmp_path / "report.md"
+        report_path.write_text("SECRET REPORT BODY", encoding="utf-8")
+        job = executor._mcp.job_store.create(
+            company_name="Acme",
+            mode="full",
+            owner_client_id="client-1",
+        )
+        job.output_paths = [str(report_path), str(qa_summary)]
+
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["read"]
+        auth_context.client_id = "client-1"
+        executor._mcp._auth_context = auth_context
+        context.message = {
+            "parts": [{"kind": "text", "text": json.dumps({"job_id": job.job_id})}],
+            "metadata": {"skillId": "read_qa_summary_by_job"},
+        }
+
+        try:
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        text = json.dumps(data)
+        assert data["job_id"] == job.job_id
+        assert data["company_name"] == "Acme"
+        assert data["summary_count"] == 1
+        assert data["full_content_included"] is False
+        summary = data["summaries"][0]
+        assert summary["artifact_type"] == "qa_summary"
+        assert summary["parsed"] is True
+        assert summary["score_fields"] == {"overall_score": 94}
+        assert summary["status_fields"] == {
+            "ready_for_use": True,
+            "status": "passed",
+        }
+        assert summary["count_fields"] == {
+            "issues_count": 1,
+            "recommendations_count": 1,
+            "warnings_count": 1,
+        }
+        assert "SECRET QA ISSUE BODY" not in text
+        assert "SECRET QA WARNING BODY" not in text
+        assert "SECRET QA RECOMMENDATION BODY" not in text
+        assert "SECRET QA NARRATIVE BODY" not in text
+        assert "SECRET REPORT BODY" not in text
+
+        audit_event = _audit_events(executor)[0]
+        assert audit_event["tool_name"] == "a2a/read_qa_summary_by_job"
+        assert audit_event["status"] == "success"
+        assert audit_event["auth_scopes"] == ["read"]
+        assert audit_event["job_id"] == job.job_id
+
+    @pytest.mark.asyncio
+    async def test_qa_summary_hides_other_client_job(
+        self, executor, event_queue, context, tmp_path
+    ):
+        """read_qa_summary_by_job reuses the MCP ownership gate for A2A callers."""
+        qa_summary = tmp_path / "Other_QA_Report.json"
+        qa_summary.write_text(
+            '{"overall_score": 88, "secret": "OTHER CLIENT QA BODY"}',
+            encoding="utf-8",
+        )
+        job = executor._mcp.job_store.create(
+            company_name="Other Corp",
+            mode="full",
+            owner_client_id="client-2",
+        )
+        job.output_paths = [str(qa_summary)]
+
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["read"]
+        auth_context.client_id = "client-1"
+        executor._mcp._auth_context = auth_context
+        context.message = {
+            "parts": [{"kind": "text", "text": json.dumps({"job_id": job.job_id})}],
+            "metadata": {"skillId": "read_qa_summary_by_job"},
+        }
+
+        try:
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        text = json.dumps(data)
+        assert data["error"] == "job_not_found"
+        assert data["job_id"] == job.job_id
+        assert "Other Corp" not in text
+        assert "Other_QA_Report.json" not in text
+        assert "OTHER CLIENT QA BODY" not in text
 
     @pytest.mark.asyncio
     async def test_stage_scorecard_summary_returns_compact_a2a_payload(

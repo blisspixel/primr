@@ -23,6 +23,7 @@ def test_scope_table_covers_public_skills_and_cancel() -> None:
         "check_jobs": ("read",),
         "system_health": ("read",),
         "read_artifacts_by_job": ("read",),
+        "read_qa_summary_by_job": ("read",),
         "read_stage_scorecard": ("read",),
         "research_company": ("research",),
         "run_qa": ("research",),

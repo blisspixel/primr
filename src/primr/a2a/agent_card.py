@@ -115,6 +115,24 @@ _SKILLS: list[dict] = [
         ],
     },
     {
+        "id": "read_qa_summary_by_job",
+        "name": "Read QA Summary by Job",
+        "description": (
+            "Read compact QA summary metadata for one owned research job. "
+            "Returns score fields, status fields, count fields, parse state, "
+            "hashes, timestamps, and artifact metadata without detailed QA body "
+            "or report body content.\n\n"
+            'Input (JSON or text): {"job_id": "job-20260630-abc123"}\n\n'
+            "Output: JSON with job_id, status, company_name, summary_count, "
+            "full_content_included=false, and compact QA summary rows"
+        ),
+        "tags": ["qa", "read", "jobs", "summary"],
+        "examples": [
+            "Read QA summary for job-20260630-abc123",
+            '{"job_id": "job-20260630-abc123"}',
+        ],
+    },
+    {
         "id": "read_stage_scorecard",
         "name": "Read Stage Scorecard Summary",
         "description": (
