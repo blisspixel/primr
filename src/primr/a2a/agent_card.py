@@ -151,6 +151,24 @@ _SKILLS: list[dict] = [
         ],
     },
     {
+        "id": "read_source_summary_by_job",
+        "name": "Read Source Summary by Job",
+        "description": (
+            "Read compact source appendix and citation-integrity metadata for "
+            "one owned research job. Returns source counts, domains, duplicate "
+            "URL counts, missing references, and source rows without report "
+            "body content.\n\n"
+            'Input (JSON or text): {"job_id": "job-20260630-abc123"}\n\n'
+            "Output: JSON with job_id, status, company_name, summary_count, "
+            "full_content_included=false, and compact source summary rows"
+        ),
+        "tags": ["sources", "read", "jobs", "citations"],
+        "examples": [
+            "Read source summary for job-20260630-abc123",
+            '{"job_id": "job-20260630-abc123"}',
+        ],
+    },
+    {
         "id": "read_stage_scorecard",
         "name": "Read Stage Scorecard Summary",
         "description": (

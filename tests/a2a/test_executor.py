@@ -148,6 +148,15 @@ class TestParseJobId:
             == "job-2026-06"
         )
 
+    def test_source_summary_resource_uri(self):
+        assert (
+            _parse_job_id(
+                "primr://output/source_summary/by_job/job-2026-06",
+                uri_prefix="primr://output/source_summary/by_job",
+            )
+            == "job-2026-06"
+        )
+
     def test_plain_text_job_id(self):
         assert _parse_job_id(" job-2026-06 ") == "job-2026-06"
 
@@ -806,6 +815,127 @@ class TestPrimrAgentExecutor:
         assert "Other Corp" not in text
         assert "other-report.md" not in text
         assert "https://other-secret.example" not in text
+        assert "OTHER CLIENT REPORT BODY" not in text
+
+    @pytest.mark.asyncio
+    async def test_source_summary_returns_owned_compact_a2a_payload(
+        self, executor, event_queue, context, tmp_path
+    ):
+        """read_source_summary_by_job returns compact source metadata without report prose."""
+        report_path = tmp_path / "Acme_Strategic_Overview.md"
+        report_path.write_text(
+            "\n".join(
+                [
+                    "# Strategic Overview",
+                    "SECRET BODY CLAIM uses sources [cite: 1] and [cite: 2].",
+                    "Another body-only reference appears as [3].",
+                    "",
+                    "## Sources",
+                    "[cite: 1] Acme newsroom - https://www.acme.example/news?q=launch",
+                    "[cite: 2] https://investors.acme.example/q4",
+                    "[3] SEC filing",
+                    "    https://sec.gov/Archives/example",
+                    "[cite: 4] https://www.acme.example/news?q=launch",
+                    "[cite: 5] not-a-url",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        job = executor._mcp.job_store.create(
+            company_name="Acme",
+            mode="full",
+            owner_client_id="client-1",
+        )
+        job.output_paths = [str(report_path)]
+
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["read"]
+        auth_context.client_id = "client-1"
+        executor._mcp._auth_context = auth_context
+        context.message = {
+            "parts": [{"kind": "text", "text": json.dumps({"job_id": job.job_id})}],
+            "metadata": {"skillId": "read_source_summary_by_job"},
+        }
+
+        try:
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        text = json.dumps(data)
+        assert data["job_id"] == job.job_id
+        assert data["company_name"] == "Acme"
+        assert data["summary_count"] == 1
+        assert data["full_content_included"] is False
+        summary = data["summaries"][0]
+        assert summary["artifact_type"] == "report_markdown"
+        assert summary["parsed"] is True
+        assert summary["source_section_present"] is True
+        assert summary["inline_reference_count"] == 3
+        assert summary["referenced_numbers"] == [1, 2, 3]
+        assert summary["definition_count"] == 4
+        assert summary["invalid_source_count"] == 1
+        assert summary["duplicate_url_count"] == 1
+        assert summary["unused_definition_numbers"] == [4]
+        assert summary["domains"][0] == {"count": 2, "domain": "acme.example"}
+        assert summary["sources"][0] == {
+            "domain": "acme.example",
+            "reference": 1,
+            "title": "Acme newsroom",
+            "url": "https://www.acme.example/news?q=launch",
+        }
+        assert "SECRET BODY CLAIM" not in text
+        assert "Another body-only reference" not in text
+
+        audit_event = _audit_events(executor)[0]
+        assert audit_event["tool_name"] == "a2a/read_source_summary_by_job"
+        assert audit_event["status"] == "success"
+        assert audit_event["auth_scopes"] == ["read"]
+        assert audit_event["job_id"] == job.job_id
+
+    @pytest.mark.asyncio
+    async def test_source_summary_hides_other_client_job(
+        self, executor, event_queue, context, tmp_path
+    ):
+        """read_source_summary_by_job reuses the MCP ownership gate for A2A callers."""
+        report_path = tmp_path / "Other_Report.md"
+        report_path.write_text(
+            "OTHER CLIENT REPORT BODY [cite: 1]\n\n## Sources\n[cite: 1] https://other.example",
+            encoding="utf-8",
+        )
+        job = executor._mcp.job_store.create(
+            company_name="Other Corp",
+            mode="full",
+            owner_client_id="client-2",
+        )
+        job.output_paths = [str(report_path)]
+
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["read"]
+        auth_context.client_id = "client-1"
+        executor._mcp._auth_context = auth_context
+        context.message = {
+            "parts": [{"kind": "text", "text": json.dumps({"job_id": job.job_id})}],
+            "metadata": {"skillId": "read_source_summary_by_job"},
+        }
+
+        try:
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        text = json.dumps(data)
+        assert data["error"] == "job_not_found"
+        assert data["job_id"] == job.job_id
+        assert "Other Corp" not in text
+        assert "Other_Report.md" not in text
+        assert "https://other.example" not in text
         assert "OTHER CLIENT REPORT BODY" not in text
 
     @pytest.mark.asyncio

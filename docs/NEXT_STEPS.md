@@ -346,9 +346,10 @@ Do next:
   hashed URI, hashed result body, job id when present, granted scopes,
   duration, and outcome, without raw URI query values or resource bodies.
   A2A now advertises equivalent read-scoped `read_artifacts_by_job`,
-  `read_qa_summary_by_job`, and `read_usage_summary_by_job` skills for the
-  artifact metadata, QA summary, and usage/cost slices, using the same
-  ownership-gated compact summary helpers.
+  `read_qa_summary_by_job`, `read_usage_summary_by_job`, and
+  `read_source_summary_by_job` skills for the artifact metadata, QA summary,
+  usage/cost, and source appendix slices, using the same ownership-gated
+  compact summary helpers.
 - Non-job eval readback is also available for routed-stage scorecards:
   `primr://eval/stage_scorecard/{eval_id}` reads
   `output/evals/{eval_id}/stage_eval_scorecard.json` through a simple eval-id
@@ -365,8 +366,8 @@ Do next:
   enforces `read` for `estimate_research`, `check_jobs`, `system_health`, and
   compact read skills such as `read_artifacts_by_job` and
   `read_qa_summary_by_job`, `read_usage_summary_by_job`, and
-  `read_stage_scorecard`, and `research` for `research_company`, `run_qa`,
-  and task cancellation.
+  `read_source_summary_by_job` and `read_stage_scorecard`, and `research` for
+  `research_company`, `run_qa`, and task cancellation.
   Authenticated A2A jobs are owned by the token `client_id`. Local
   unauthenticated loopback behavior remains permissive, and legacy `write`
   still satisfies research-scope operations for compatibility.
@@ -392,8 +393,9 @@ Done when:
   semantics for equivalent operations. The shared `read`/`research` skill
   scope split, A2A skill-call audit parity, artifact-metadata compact read
   parity, QA-summary compact read parity, usage-summary compact read parity,
-  and stage-scorecard compact eval-read parity are shipped; approval and the
-  remaining job-scoped compact-resource parity slices remain.
+  source-summary compact read parity, and stage-scorecard compact eval-read
+  parity are shipped; approval and the remaining job-scoped compact-resource
+  parity slices remain.
 
 ### 4. Research memory layer 1
 
