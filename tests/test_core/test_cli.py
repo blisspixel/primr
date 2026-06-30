@@ -389,6 +389,20 @@ class TestParseArgs:
         assert config.eval_stage_min_quality_score == 88.0
         assert config.eval_stage_max_failure_rate == 0.1
 
+    def test_parse_source_relevance_fixture_eval_option(self):
+        """Test parsing source relevance fixture eval arguments."""
+        config = parse_args(
+            [
+                "--eval",
+                "--eval-id",
+                "eval-2026-03-stage",
+                "--eval-source-relevance-fixture",
+                ".agent/source-relevance-fixture.json",
+            ]
+        )
+
+        assert config.eval_source_relevance_fixture == ".agent/source-relevance-fixture.json"
+
     def test_parse_improve_flag(self):
         """Test parsing --improve flag."""
         config = parse_args(["--improve", "output/demo.md"])

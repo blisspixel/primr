@@ -95,7 +95,9 @@ Current priority order:
    the eval CLI and compact MCP readback at
    `primr://eval/stage_scorecard/{eval_id}` without exposing prompt, report,
    quality-source, or raw run-state content. Website-summary local-stage evals
-   now write scorecard-ready structured quality evidence as report-only input.
+   now write scorecard-ready structured quality evidence as report-only input,
+   and source-relevance labeled fixtures now write body-free precision, recall,
+   F1, and exact-match evidence for review-only host/cloud scorecards.
 3. **Agent control-plane consumption resources and A2A parity.** MCP already has
    scopes, approval tokens, tool/resource-read audit events, and budget
    propagation. A2A now shares the HTTP bearer-token auth context and enforces
@@ -813,6 +815,7 @@ Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The firs
 - Stage scorecard MCP readback shipped in `mcp_server/stage_scorecard_summary.py`: `primr://eval/stage_scorecard/{eval_id}` returns compact route, quality-score, status, and blocker fields from the eval artifact without arbitrary path reads, prompt bodies, report bodies, quality-source bodies, or raw run-state content
 - Generated stage quality evidence shipped in `core/local_stage_eval.py` and `core/cli_local_stage_eval.py`: website-summary local-stage evals write `website_summary_stage_quality_evidence.json`, and same-command scorecard generation can consume that structured evidence when no manual quality file is supplied
 - Semantic local stage evidence shipped in `core/local_stage_eval.py` and `core/cli_local_stage_eval.py`: `--eval-local-stage website-summary --eval-local-stage-semantic-judge` runs a local OpenAI-compatible semantic judge pass or comma-separated local judge panel, writes body-free semantic eval artifacts with score-spread agreement metadata, and can feed same-command scorecards as review-only evidence. This is not a promotion gate by itself; broader calibrated samples and human-reviewed acceptance criteria are still required.
+- Source-relevance labeled fixture evidence shipped in `core/source_relevance_eval.py` and `core/cli_local_stage_eval.py`: `--eval-source-relevance-fixture` converts expected and candidate keep-list source numbers into body-free precision, recall, F1, exact-match, and scorecard quality evidence for `fast.source_relevance`
 - Router selection must continue to be wired into execution and cost estimation stage by stage, keeping today's role defaults as fallback until eval data promotes a requirement profile
 - Integrates with the circuit breaker - unhealthy models are skipped automatically
 - Official cloud quota/status collectors must translate supported provider surfaces into the availability shape, then feed the existing availability-to-backend adapter before routing
@@ -1480,6 +1483,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.34.31 | Jun 2026 | **Source-relevance eval evidence.** Added `--eval-source-relevance-fixture` to turn labeled source keep-list fixtures into body-free precision, recall, F1, exact-match, and stage quality evidence for `fast.source_relevance` scorecards. The host-agent source packet now also keeps untrusted source snippets in fenced evidence instead of embedding them in host-agent instructions. |
 | 1.34.30 | Jun 2026 | **First official host-agent pilot.** Added an experimental Codex CLI host-runner transport for `--inference agent` on `fast.source_relevance`. The runner uses official `codex exec`, a read-only sandbox, no approvals, disabled web search/shell-tool config, no persisted history, a JSON-array output schema, and bounded output/time limits. Route metadata records the host backend and billing mode without prompt or response bodies. If no official host runner qualifies under an explicit agent profile, the stage keeps all sources and records `agent_profile_unavailable` instead of silently falling back to cloud API spend. |
 | 1.34.29 | Jun 2026 | **Third routed utility stage.** Routed `fast.hiring_signals` through the capability-router bridge, passing the selected model into the existing hiring triage and extraction LLM seams while preserving fail-open behavior and the legacy utility fallback path. The stage now appends capped body-free `stage_routes` records with expected token budget, discovered/produced counts, duration, backend, profile, billing, and fallback metadata, and the hiring-signal artifact helpers are split out to keep the architecture line ratchet green. |
 | 1.34.28 | Jun 2026 | **Second routed utility stage.** Routed `fast.scrape_summary` through the same capability-router bridge as source relevance, passing the selected model into the existing summarizer LLM seam and appending capped body-free `stage_routes` records with expected token budget, input page count, output summary count, duration, backend, profile, billing, and fallback metadata. |

@@ -331,6 +331,7 @@ class CLIConfig:
     eval_local_stage: str | None = None
     eval_stage_semantic_judge: bool = False
     eval_stage_semantic_judge_model: str | None = None
+    eval_source_relevance_fixture: str | None = None
     eval_working_root: str = "working"
     eval_stage_scorecard: bool = False
     eval_stage_quality: str | None = None
@@ -593,6 +594,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         eval_local_stage=getattr(parsed, "eval_local_stage", None),
         eval_stage_semantic_judge=getattr(parsed, "eval_stage_semantic_judge", False),
         eval_stage_semantic_judge_model=getattr(parsed, "eval_stage_semantic_judge_model", None),
+        eval_source_relevance_fixture=getattr(parsed, "eval_source_relevance_fixture", None),
         eval_working_root=getattr(parsed, "eval_working_root", "working"),
         eval_stage_scorecard=getattr(parsed, "eval_stage_scorecard", False),
         eval_stage_quality=getattr(parsed, "eval_stage_quality", None),
@@ -2008,7 +2010,7 @@ def _handle_eval(config: CLIConfig) -> int:
     from pathlib import Path
 
     from primr.config.config import FAST_FEEDBACK_RULES_PATH, OUTPUT_DIR
-    from primr.core.cli_local_stage_eval import handle_website_summary_local_stage_eval
+    from primr.core.cli_local_stage_eval import handle_stage_quality_generation
     from primr.core.model_eval import (
         LLMJudgeMetadata,
         auto_stage_existing_reports,
@@ -2421,19 +2423,16 @@ def _handle_eval(config: CLIConfig) -> int:
             console.warn(f"LLM judge skipped due to provider/network error: {e}")
             console.info("Deterministic eval scorecard is still valid.")
 
-    if config.eval_local_stage == "website-summary":
-        judge_models, missing_models = _resolve_local_judge_models(config)
-        local_stage_exit_code, generated_stage_quality_path = (
-            handle_website_summary_local_stage_eval(
-                config=config,
-                eval_metrics=eval_result.metrics,
-                judge_models=judge_models,
-                missing_models=missing_models,
-                console=console,
-            )
-        )
-        if local_stage_exit_code != 0:
-            return local_stage_exit_code
+    judge_models, missing_models = (
+        _resolve_local_judge_models(config)
+        if config.eval_local_stage == "website-summary"
+        else ([], [])
+    )
+    stage_exit_code, generated_stage_quality_path = handle_stage_quality_generation(
+        config, eval_result.metrics, judge_models, missing_models, console
+    )
+    if stage_exit_code != 0:
+        return stage_exit_code
 
     if config.eval_stage_scorecard:
         quality_path = (

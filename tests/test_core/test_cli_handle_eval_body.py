@@ -240,6 +240,83 @@ class TestEvalBody:
 
         assert result == 1
 
+    def test_source_relevance_fixture_generates_quality_evidence_for_scorecard(
+        self, stub_eval_deps, tmp_path
+    ):
+        fixture = tmp_path / "source_relevance_fixture.json"
+        fixture.write_text(
+            json.dumps(
+                {
+                    "cases": [
+                        {
+                            "case_id": "case-001",
+                            "company": "ExampleCo",
+                            "source_count": 3,
+                            "source_text": "must not be copied",
+                            "expected_keep": [1, 3],
+                            "candidates": [
+                                {"backend_id": "codex-host", "kept": [1, 3]},
+                            ],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        working_root = tmp_path / "working"
+        run_state = working_root / "ExampleCo" / "run-001" / "_run_state.json"
+        run_state.parent.mkdir(parents=True)
+        run_state.write_text(
+            json.dumps(
+                {
+                    "stage_routes": [
+                        {
+                            "stage_id": "fast.source_relevance",
+                            "backend_id": "codex-host",
+                            "backend_kind": "host_agent",
+                            "billing_mode": "host_plan",
+                            "inference_profile": "agent",
+                            "outcome": "selected",
+                            "duration_seconds": 3.0,
+                            "actual_cost_usd": 0.0,
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = _handle_eval(
+            _config(
+                eval_id="eval-r1",
+                eval_baseline="full",
+                eval_profiles=("full",),
+                eval_root=str(tmp_path / "evals"),
+                eval_source_relevance_fixture=str(fixture),
+                eval_stage_scorecard=True,
+                eval_stage_quality=None,
+                eval_stage_route_root=str(working_root),
+                eval_stage_id="fast.source_relevance",
+            )
+        )
+
+        assert result == 0
+        quality_path = (
+            tmp_path
+            / "evals"
+            / "eval-r1"
+            / "source_relevance_stage"
+            / "source_relevance_stage_quality_evidence.json"
+        )
+        scorecard_path = tmp_path / "evals" / "eval-r1" / "stage_eval_scorecard.json"
+        quality_text = quality_path.read_text(encoding="utf-8")
+        assert "must not be copied" not in quality_text
+        quality_payload = json.loads(quality_text)
+        assert quality_payload["quality_evidence"][0]["quality_score"] == 100.0
+        scorecard_payload = json.loads(scorecard_path.read_text(encoding="utf-8"))
+        assert scorecard_payload["rows"][0]["stage_id"] == "fast.source_relevance"
+        assert scorecard_payload["rows"][0]["review_status"] == "candidate_for_human_review"
+
     def test_local_stage_eval_generates_quality_evidence_for_scorecard(
         self, stub_eval_deps, tmp_path, monkeypatch
     ):

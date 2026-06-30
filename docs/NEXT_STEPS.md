@@ -277,7 +277,11 @@ Do next:
   quality-source, or raw run-state content. The website-summary local-stage
   eval now emits `website_summary_stage_quality_evidence.json` as a structured
   scorecard input, and same-command scorecard generation can consume it when a
-  manual `--eval-stage-quality` path is not supplied.
+  manual `--eval-stage-quality` path is not supplied. Source-relevance labeled
+  fixtures now emit body-free precision, recall, F1, exact-match, and quality
+  evidence through `--eval-source-relevance-fixture`, giving the Codex
+  source-relevance pilot a review-only comparison path before host execution is
+  broadened.
 - Promote one host/local candidate only after stage-scoped evals prove quality,
   cost, latency, and failure behavior.
 - Promote one stage at a time. A provider path is supported only when report
@@ -298,9 +302,11 @@ Done when:
   The route-metadata comparison artifact exists; quality comparison artifacts
   now have a CLI-accessible scorecard layer, and website-summary local-stage
   evals can produce either structural completeness evidence or local semantic
-  judge-panel evidence for same-command scorecards. Both remain report-only
-  scorecard evidence, not promotion gates; calibrated samples and
-  human-reviewed acceptance criteria are still required before any promotion.
+  judge-panel evidence for same-command scorecards. Source-relevance fixture
+  evals can also produce F1 quality evidence for the host-agent pilot. These
+  remain report-only scorecard evidence, not promotion gates; calibrated samples
+  and human-reviewed acceptance criteria are still required before any
+  promotion.
 - No hidden provider dependency remains in the full-report path for the wired
   stage.
 

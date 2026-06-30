@@ -18,6 +18,13 @@ from primr.core.local_stage_eval import (
     write_website_summary_stage_eval_summary,
     write_website_summary_stage_quality_evidence,
 )
+from primr.core.source_relevance_eval import (
+    build_source_relevance_eval_rows,
+    load_source_relevance_eval_fixture,
+    write_source_relevance_stage_eval_markdown,
+    write_source_relevance_stage_eval_report,
+    write_source_relevance_stage_quality_evidence,
+)
 
 
 def _write_scraped_content(path: Path, company: str) -> None:
@@ -103,6 +110,86 @@ def test_find_latest_website_summary_eval_inputs_prefers_latest_run(tmp_path: Pa
 
     assert len(rows) == 1
     assert rows[0].working_dir == newer
+
+
+def test_source_relevance_fixture_writes_body_free_quality_evidence(tmp_path: Path):
+    fixture = tmp_path / "source_relevance_fixture.json"
+    fixture.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "cases": [
+                    {
+                        "case_id": "case-001",
+                        "company": "ExampleCo",
+                        "source_count": 3,
+                        "source_url": "https://must-not-be-copied.example",
+                        "source_text": "must not be copied",
+                        "expected_keep": [1, 3],
+                        "candidates": [
+                            {"backend_id": "codex-host", "kept": [1, 3]},
+                            {"backend_id": "noisy-model", "kept": [1, 2]},
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    cases = load_source_relevance_eval_fixture(fixture)
+    rows = build_source_relevance_eval_rows(cases)
+    report_path = tmp_path / "source_relevance_stage_eval.json"
+    markdown_path = tmp_path / "source_relevance_stage_eval.md"
+    evidence_path = tmp_path / "source_relevance_stage_quality_evidence.json"
+
+    write_source_relevance_stage_eval_report(
+        report_path,
+        eval_id="eval-stage-001",
+        fixture_path=fixture,
+        rows=rows,
+    )
+    write_source_relevance_stage_eval_markdown(
+        markdown_path,
+        eval_id="eval-stage-001",
+        rows=rows,
+    )
+    write_source_relevance_stage_quality_evidence(
+        evidence_path,
+        eval_id="eval-stage-001",
+        rows=rows,
+    )
+
+    by_backend = {row.backend_id: row for row in rows}
+    assert by_backend["codex-host"].f1_score == 100.0
+    assert by_backend["codex-host"].exact_match is True
+    assert by_backend["noisy-model"].precision == 50.0
+    assert by_backend["noisy-model"].recall == 50.0
+    assert by_backend["noisy-model"].f1_score == 50.0
+
+    report_text = report_path.read_text(encoding="utf-8")
+    evidence_text = evidence_path.read_text(encoding="utf-8")
+    assert "must-not-be-copied" not in report_text
+    assert "must not be copied" not in report_text
+    assert "must-not-be-copied" not in evidence_text
+    payload = json.loads(evidence_text)
+    assert payload["evidence_type"] == "source_relevance_labeled_quality"
+    assert payload["stage_id"] == "fast.source_relevance"
+    assert payload["quality_evidence"] == [
+        {
+            "stage_id": "fast.source_relevance",
+            "backend_id": "codex-host",
+            "quality_score": 100.0,
+            "sample_size": 1,
+            "source": "source_relevance_labeled:eval-stage-001:codex-host",
+        },
+        {
+            "stage_id": "fast.source_relevance",
+            "backend_id": "noisy-model",
+            "quality_score": 50.0,
+            "sample_size": 1,
+            "source": "source_relevance_labeled:eval-stage-001:noisy-model",
+        },
+    ]
 
 
 def test_write_website_summary_stage_eval_outputs(tmp_path: Path):

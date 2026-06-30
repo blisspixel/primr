@@ -57,6 +57,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `fast.source_relevance` host-agent packet now passes source snippets as
   fenced evidence blocks rather than embedding untrusted snippets in host-agent
   instructions.
+- `primr --eval --eval-source-relevance-fixture` now writes body-free
+  precision, recall, F1, exact-match, and stage quality evidence for
+  review-only `fast.source_relevance` scorecards.
 - Agentic QA fallback scoring no longer assigns a default passing accuracy
   score when it has not verified factual accuracy; the compatibility
   `accuracy` dimension now reflects deterministic traceability signals only.

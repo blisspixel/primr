@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from primr.core import local_stage_eval
+from primr.core import local_stage_eval, source_relevance_eval
 
 
 def handle_website_summary_local_stage_eval(
@@ -140,6 +140,80 @@ def handle_website_summary_local_stage_eval(
         console.info(f"Local stage semantic quality evidence: {semantic_quality_path}")
 
     return 0, selected_quality_path
+
+
+def handle_stage_quality_generation(
+    config: Any,
+    eval_metrics: Any,
+    judge_models: list[str],
+    missing_models: list[str],
+    console: Any,
+) -> tuple[int, Path | None]:
+    """Run optional stage-quality evidence generators for eval scorecards."""
+
+    generated_path: Path | None = None
+    if config.eval_local_stage == "website-summary":
+        exit_code, generated_path = handle_website_summary_local_stage_eval(
+            config=config,
+            eval_metrics=eval_metrics,
+            judge_models=judge_models,
+            missing_models=missing_models,
+            console=console,
+        )
+        if exit_code != 0:
+            return exit_code, generated_path
+    if config.eval_source_relevance_fixture:
+        return handle_source_relevance_fixture_eval(config=config, console=console)
+    return 0, generated_path
+
+
+def handle_source_relevance_fixture_eval(
+    *,
+    config: Any,
+    console: Any,
+) -> tuple[int, Path | None]:
+    """Build source-relevance fixture evidence for review-only scorecards."""
+
+    console.blank()
+    console.step("Source Relevance Stage Eval")
+    fixture_path = Path(config.eval_source_relevance_fixture)
+    try:
+        cases = source_relevance_eval.load_source_relevance_eval_fixture(fixture_path)
+        rows = source_relevance_eval.build_source_relevance_eval_rows(cases)
+    except (OSError, ValueError) as exc:
+        console.error(f"Source relevance fixture eval failed: {exc}")
+        return 1, None
+
+    if not rows:
+        console.error("Source relevance fixture eval produced no candidate rows.")
+        return 1, None
+
+    stage_root = Path(config.eval_root) / config.eval_id / "source_relevance_stage"
+    report_path = stage_root / "source_relevance_stage_eval.json"
+    markdown_path = stage_root / "source_relevance_stage_eval.md"
+    quality_path = stage_root / "source_relevance_stage_quality_evidence.json"
+    source_relevance_eval.write_source_relevance_stage_eval_report(
+        report_path,
+        eval_id=config.eval_id,
+        fixture_path=fixture_path,
+        rows=rows,
+    )
+    source_relevance_eval.write_source_relevance_stage_eval_markdown(
+        markdown_path,
+        eval_id=config.eval_id,
+        rows=rows,
+    )
+    source_relevance_eval.write_source_relevance_stage_quality_evidence(
+        quality_path,
+        eval_id=config.eval_id,
+        rows=rows,
+    )
+    console.info(f"Source relevance cases: {len({row.case_id for row in rows})}")
+    console.info(f"Source relevance candidate rows: {len(rows)}")
+    console.info(f"Source relevance eval: {report_path}")
+    console.info(f"Source relevance eval markdown: {markdown_path}")
+    console.info(f"Source relevance quality evidence: {quality_path}")
+    return 0, quality_path
 
 
 def _model_slug(model_name: str) -> str:

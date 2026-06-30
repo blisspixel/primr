@@ -86,6 +86,9 @@ primr --eval --eval-id eval-2026-06-4090-vs-subdollar --eval-local-stage website
 
 # Same focused sweep with local semantic judge-panel evidence for same-command stage scorecards
 primr --eval --eval-id eval-2026-06-4090-vs-subdollar --eval-local-stage website-summary --eval-local-stage-semantic-judge --eval-local-stage-semantic-judge-model llama3.1:70b,qwen2.5:14b --eval-stage-scorecard --eval-stage-id fast.scrape_summary --eval-judge-provider local --eval-judge-model-list 4090-report-race --eval-judge-base-url http://localhost:11434/v1
+
+# Source-relevance host/cloud comparison from labeled keep-list fixtures
+primr --eval --eval-id eval-2026-06-source-relevance --eval-source-relevance-fixture .agent/source-relevance-fixture.json --eval-stage-scorecard --eval-stage-id fast.source_relevance --eval-stage-route-root working
 ```
 
 Local judge runs now evaluate every staged non-baseline profile against the chosen baseline, not just the first available profile. They write one JSON artifact per model plus `local_judge_summary.json` / `local_judge_summary.md` with candidate-profile coverage, winner consensus, and per-profile breakdowns for side-by-side comparison.
@@ -93,6 +96,28 @@ Local judge runs now evaluate every staged non-baseline profile against the chos
 This is useful for evaluating local models against existing cloud-generated reports before routing any production pipeline stages to local inference. It is still a judge-based acceptance layer, not proof that a local model is ready to replace report-writing or deep-research stages directly.
 
 For a 24 GB RTX 4090 or comparable local box, start with `4090-report-race` before the broader `4090-top10` sweep. It keeps the first local run cheap in wall-clock time and answers the product question directly: is the local box already good enough for this stage, or is the ~$1 API route still buying meaningful quality? Add `--eval-local-stage-semantic-judge` when a local judge backend is available. The judge-model option accepts one model or a comma-separated local judge panel; panel runs record score-spread agreement metadata. The resulting semantic scorecard evidence is still review-only, and promotion requires a broader calibrated sample with provenance and human-reviewed acceptance criteria.
+
+For the `fast.source_relevance` host-agent pilot, use `--eval-source-relevance-fixture` to convert labeled keep-list fixtures into body-free precision, recall, F1, and exact-match artifacts. The fixture should use source numbers only, not source URLs or text bodies:
+
+```json
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "case_id": "case-001",
+      "company": "ExampleCo",
+      "source_count": 4,
+      "expected_keep": [1, 3],
+      "candidates": [
+        {"backend_id": "codex-host", "kept": [1, 3]},
+        {"backend_id": "cloud-baseline", "kept": [1, 2, 3]}
+      ]
+    }
+  ]
+}
+```
+
+The generated `source_relevance_stage_quality_evidence.json` feeds the same review-only stage scorecard as other route evidence. It does not promote host execution by itself; promotion still requires representative samples, route observations, and human-reviewed acceptance criteria.
 
 ## 2) Track the same metrics for every profile
 

@@ -180,6 +180,16 @@ def add_eval_arguments(parser: argparse.ArgumentParser) -> None:
         ),
     )
     parser.add_argument(
+        "--eval-source-relevance-fixture",
+        type=str,
+        default=None,
+        metavar="JSON_PATH",
+        help=(
+            "Build body-free fast.source_relevance quality evidence from labeled "
+            "keep-list fixture JSON"
+        ),
+    )
+    parser.add_argument(
         "--eval-working-root",
         type=str,
         default="working",
