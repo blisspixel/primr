@@ -356,6 +356,34 @@ class TestParseArgs:
         assert config.eval_judge_provider == "local"
         assert config.eval_judge_model_list == "installed-starter"
 
+    def test_parse_stage_scorecard_options(self):
+        """Test parsing routed-stage scorecard arguments."""
+        config = parse_args(
+            [
+                "--eval",
+                "--eval-id",
+                "eval-2026-03-stage",
+                "--eval-stage-scorecard",
+                "--eval-stage-quality",
+                "quality.json",
+                "--eval-stage-route-root",
+                "working",
+                "--eval-stage-id",
+                "fast.scrape_summary",
+                "--eval-stage-min-quality-score",
+                "88",
+                "--eval-stage-max-failure-rate",
+                "0.1",
+            ]
+        )
+
+        assert config.eval_stage_scorecard is True
+        assert config.eval_stage_quality == "quality.json"
+        assert config.eval_stage_route_root == "working"
+        assert config.eval_stage_id == "fast.scrape_summary"
+        assert config.eval_stage_min_quality_score == 88.0
+        assert config.eval_stage_max_failure_rate == 0.1
+
     def test_parse_improve_flag(self):
         """Test parsing --improve flag."""
         config = parse_args(["--improve", "output/demo.md"])

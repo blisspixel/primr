@@ -70,6 +70,7 @@ Versioned Eval (offline-first, no API spend by default):
   primr --eval --eval-id eval-2026-02-r1 --eval-company "Harver"
   primr --eval --eval-id eval-2026-02-r1 --eval-llm-judge --eval-judge-max-cost 0.25
   primr --eval --eval-id eval-2026-02-r1 --eval-run-missing --eval-manifest eval_companies.csv --eval-max-new-runs 2 --eval-max-estimated-cost 12
+  primr --eval --eval-id eval-2026-02-r1 --eval-stage-scorecard --eval-stage-quality quality.json
 
 Agentic Architecture (v1.7.0):
   primr memory "Acme Corp"                           # View hypotheses for a company

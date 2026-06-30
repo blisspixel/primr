@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   records into JSON/Markdown summaries by stage, backend, and profile.
 - Stage eval scorecards now join route comparison rows with explicit quality
   evidence to classify candidates for human review without auto-promotion.
+- `primr --eval --eval-stage-scorecard` now writes routed-stage scorecard
+  JSON/Markdown artifacts from `_run_state.json` route ledgers plus explicit
+  quality evidence JSON.
 - Source distributions now explicitly prune `.agent/` while retaining the
   legacy `docs/.agent/` prune rule.
 - Local `_site/` documentation build output is now gitignored.

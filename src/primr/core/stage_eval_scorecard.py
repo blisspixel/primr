@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 from primr.core.stage_route_comparison import StageRouteComparisonRow
 
@@ -33,6 +34,31 @@ class StageEvalScorecardRow:
     quality_sources: tuple[str, ...]
     review_status: str
     blockers: tuple[str, ...]
+
+
+def load_stage_quality_evidence(path: Path) -> list[StageQualityEvidence]:
+    """Load explicit stage quality evidence from JSON."""
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid stage quality evidence JSON: {path}") from exc
+
+    rows = _quality_evidence_payload_rows(payload)
+    evidence: list[StageQualityEvidence] = []
+    for index, item in enumerate(rows, start=1):
+        if not isinstance(item, dict):
+            raise ValueError(f"quality_evidence[{index}] must be an object")
+        evidence.append(
+            StageQualityEvidence(
+                stage_id=_required_text(item, "stage_id", index),
+                backend_id=_required_text(item, "backend_id", index),
+                quality_score=_required_quality_score(item, index),
+                sample_size=_required_sample_size(item, index),
+                source=_required_text(item, "source", index),
+            )
+        )
+    return evidence
 
 
 def build_stage_eval_scorecard(
@@ -165,6 +191,42 @@ def _aggregate_quality_evidence(
             sources=sources,
         )
     return out
+
+
+def _quality_evidence_payload_rows(payload: Any) -> list[Any]:
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict):
+        rows = payload.get("quality_evidence")
+        if isinstance(rows, list):
+            return rows
+    raise ValueError("Stage quality evidence must be a list or an object with quality_evidence")
+
+
+def _required_text(row: dict[str, Any], key: str, index: int) -> str:
+    value = row.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"quality_evidence[{index}].{key} must be a non-empty string")
+    return value.strip()
+
+
+def _required_quality_score(row: dict[str, Any], index: int) -> float:
+    value = row.get("quality_score")
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ValueError(f"quality_evidence[{index}].quality_score must be numeric")
+    score = float(value)
+    if score < 0.0 or score > 100.0:
+        raise ValueError(f"quality_evidence[{index}].quality_score must be between 0 and 100")
+    return score
+
+
+def _required_sample_size(row: dict[str, Any], index: int) -> int:
+    value = row.get("sample_size")
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"quality_evidence[{index}].sample_size must be a positive integer")
+    if value <= 0:
+        raise ValueError(f"quality_evidence[{index}].sample_size must be a positive integer")
+    return value
 
 
 def _review_status(blockers: list[str]) -> str:

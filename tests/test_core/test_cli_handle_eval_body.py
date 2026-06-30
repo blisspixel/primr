@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -155,3 +156,84 @@ class TestEvalBody:
         manifest = tmp_path / "eval-r1" / "eval_company_manifest.csv"
         assert manifest.exists()
         assert "ExampleCo" in manifest.read_text(encoding="utf-8")
+
+    def test_stage_scorecard_writes_review_only_artifacts(self, stub_eval_deps, tmp_path):
+        working_root = tmp_path / "working"
+        run_state = working_root / "ExampleCo" / "run-001" / "_run_state.json"
+        run_state.parent.mkdir(parents=True)
+        run_state.write_text(
+            json.dumps(
+                {
+                    "report_body": "must not be copied",
+                    "stage_routes": [
+                        {
+                            "stage_id": "fast.scrape_summary",
+                            "backend_id": "gemini-flash",
+                            "backend_kind": "cloud_api",
+                            "billing_mode": "api_dollars",
+                            "inference_profile": "cloud",
+                            "outcome": "selected",
+                            "duration_seconds": 1.25,
+                            "actual_input_tokens": 50,
+                            "actual_output_tokens": 20,
+                            "actual_cost_usd": 0.0002,
+                            "prompt": "must not be copied",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        quality_path = tmp_path / "quality.json"
+        quality_path.write_text(
+            json.dumps(
+                {
+                    "quality_evidence": [
+                        {
+                            "stage_id": "fast.scrape_summary",
+                            "backend_id": "gemini-flash",
+                            "quality_score": 91.0,
+                            "sample_size": 2,
+                            "source": "semantic-eval",
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = _handle_eval(
+            _config(
+                eval_id="eval-r1",
+                eval_baseline="full",
+                eval_profiles=("full",),
+                eval_root=str(tmp_path / "evals"),
+                eval_stage_scorecard=True,
+                eval_stage_quality=str(quality_path),
+                eval_stage_route_root=str(working_root),
+                eval_stage_id="fast.scrape_summary",
+            )
+        )
+
+        assert result == 0
+        scorecard_path = tmp_path / "evals" / "eval-r1" / "stage_eval_scorecard.json"
+        markdown_path = tmp_path / "evals" / "eval-r1" / "stage_eval_scorecard.md"
+        payload = json.loads(scorecard_path.read_text(encoding="utf-8"))
+        assert payload["decision_policy"] == "candidate_for_human_review_only"
+        assert payload["rows"][0]["review_status"] == "candidate_for_human_review"
+        assert "must not be copied" not in scorecard_path.read_text(encoding="utf-8")
+        assert "must not be copied" not in markdown_path.read_text(encoding="utf-8")
+
+    def test_stage_scorecard_requires_quality_evidence_path(self, stub_eval_deps, tmp_path):
+        result = _handle_eval(
+            _config(
+                eval_id="eval-r1",
+                eval_baseline="full",
+                eval_profiles=("full",),
+                eval_root=str(tmp_path),
+                eval_stage_scorecard=True,
+                eval_stage_quality=None,
+            )
+        )
+
+        assert result == 1

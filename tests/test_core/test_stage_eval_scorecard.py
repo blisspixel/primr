@@ -1,9 +1,12 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from primr.core.stage_eval_scorecard import (
     StageQualityEvidence,
     build_stage_eval_scorecard,
+    load_stage_quality_evidence,
     write_stage_eval_scorecard_json,
     write_stage_eval_scorecard_markdown,
 )
@@ -127,3 +130,60 @@ def test_stage_eval_scorecard_prioritizes_missing_route_observations() -> None:
         "no_route_observations",
         "missing_quality_evidence",
     )
+
+
+def test_load_stage_quality_evidence_accepts_schema_object(tmp_path: Path) -> None:
+    path = tmp_path / "quality.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "quality_evidence": [
+                    {
+                        "stage_id": "fast.scrape_summary",
+                        "backend_id": "gemini-flash",
+                        "quality_score": 91.5,
+                        "sample_size": 4,
+                        "source": "semantic-eval",
+                        "prompt": "ignored",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    rows = load_stage_quality_evidence(path)
+
+    assert rows == [
+        StageQualityEvidence(
+            stage_id="fast.scrape_summary",
+            backend_id="gemini-flash",
+            quality_score=91.5,
+            sample_size=4,
+            source="semantic-eval",
+        )
+    ]
+
+
+def test_load_stage_quality_evidence_rejects_invalid_score(tmp_path: Path) -> None:
+    path = tmp_path / "quality.json"
+    path.write_text(
+        json.dumps(
+            {
+                "quality_evidence": [
+                    {
+                        "stage_id": "fast.scrape_summary",
+                        "backend_id": "gemini-flash",
+                        "quality_score": 101,
+                        "sample_size": 1,
+                        "source": "semantic-eval",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="between 0 and 100"):
+        load_stage_quality_evidence(path)

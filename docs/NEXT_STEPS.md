@@ -265,7 +265,9 @@ Do next:
   counters expose them. Body-free stage route comparison helpers now aggregate
   those records into JSON/Markdown artifacts by stage/backend/profile. Stage
   eval scorecards now join those route rows with explicit quality evidence and
-  classify candidates for human review without auto-promotion.
+  classify candidates for human review without auto-promotion. The scorecard
+  artifact flow is available through
+  `primr --eval --eval-stage-scorecard --eval-stage-quality <quality.json>`.
 - Promote one host/local candidate only after stage-scoped evals prove quality,
   cost, latency, and failure behavior.
 - Promote one stage at a time. A provider path is supported only when report
@@ -284,8 +286,8 @@ Done when:
   available.
 - Provider comparison artifacts exist for every promoted stage.
   The route-metadata comparison artifact exists; quality comparison artifacts
-  now have a scorecard layer, but semantic eval evidence is still required
-  before any promotion.
+  now have a CLI-accessible scorecard layer, but semantic eval evidence is
+  still required before any promotion.
 - No hidden provider dependency remains in the full-report path for the wired
   stage.
 
