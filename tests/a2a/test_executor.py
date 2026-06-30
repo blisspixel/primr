@@ -335,6 +335,13 @@ class TestPrimrAgentExecutor:
         assert event["auth_scopes"] == ["read"]
         assert event["args_hash"].startswith("sha256:")
         assert event["result_hash"].startswith("sha256:")
+        assert event["request_id"] == event["event_id"]
+        assert event["otel_span"]["name"] == "primr.a2a.tool_call.a2a.check_jobs"
+        attrs = event["otel_span"]["attributes"]
+        assert attrs["primr.request_id"] == event["request_id"]
+        assert attrs["primr.transport"] == "a2a"
+        assert attrs["primr.tool_name"] == "a2a/check_jobs"
+        assert attrs["primr.status"] == "success"
 
     @pytest.mark.asyncio
     async def test_handle_doctor(self, executor, event_queue, context):

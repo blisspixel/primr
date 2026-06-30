@@ -402,8 +402,11 @@ Do next:
   now stay metadata-first even for `report`-scoped callers and point agents to
   the explicit report resource; A2A `check_jobs` returns compact artifact and
   report resource URIs instead of raw output paths.
-- Carry request/job ids into OpenTelemetry-compatible spans and structured logs
-  without storing raw report bodies by default.
+- Shipped OpenTelemetry-compatible audit projections: every MCP tool call,
+  MCP resource read, and A2A skill audit event now carries a `request_id` plus
+  a body-free `otel_span` name/attribute payload with job id when present,
+  without storing raw arguments, results, resource bodies, report bodies, URLs,
+  or raw caller ids.
 
 Done when:
 

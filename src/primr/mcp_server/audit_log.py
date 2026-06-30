@@ -37,6 +37,7 @@ class MCPAuditEvent:
 
     schema_version: str
     event_id: str
+    request_id: str
     timestamp: str
     transport: str
     tool_name: str
@@ -89,9 +90,11 @@ class MCPAuditLog:
         try:
             duration_ms = max(0, int((time.perf_counter() - started_at) * 1000))
             result_payload = _first_json_text(result)
+            event_id = str(uuid.uuid4())
             event = MCPAuditEvent(
                 schema_version="1.0",
-                event_id=str(uuid.uuid4()),
+                event_id=event_id,
+                request_id=event_id,
                 timestamp=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
                 transport=transport,
                 tool_name=tool_name,
@@ -131,9 +134,11 @@ class MCPAuditLog:
         try:
             duration_ms = max(0, int((time.perf_counter() - started_at) * 1000))
             result_payload = _first_json_resource(result)
+            event_id = str(uuid.uuid4())
             event = MCPAuditEvent(
                 schema_version="1.0",
-                event_id=str(uuid.uuid4()),
+                event_id=event_id,
+                request_id=event_id,
                 timestamp=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
                 transport=transport,
                 tool_name="resources/read",
@@ -173,9 +178,11 @@ class MCPAuditLog:
             duration_ms = max(0, int((time.perf_counter() - started_at) * 1000))
             authenticated = bool(getattr(auth_context, "is_authenticated", False))
             local_actor = "a2a" if not authenticated and client_id == "a2a" else None
+            event_id = str(uuid.uuid4())
             event = MCPAuditEvent(
                 schema_version="1.0",
-                event_id=str(uuid.uuid4()),
+                event_id=event_id,
+                request_id=event_id,
                 timestamp=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
                 transport="a2a",
                 tool_name=_a2a_tool_name(skill_id),
@@ -224,9 +231,20 @@ class MCPAuditLog:
 
     def _append(self, event: MCPAuditEvent) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        encoded = json.dumps(asdict(event), sort_keys=True, separators=(",", ":")) + "\n"
+        payload = asdict(event)
+        payload["otel_span"] = _otel_span_projection(event)
+        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n"
         with self._lock, self.path.open("a", encoding="utf-8") as handle:
             handle.write(encoded)
+        logger.info(
+            "MCP governance event",
+            extra={
+                "request_id": event.request_id,
+                "job_id": event.job_id,
+                "tool_name": event.tool_name,
+                "duration_ms": event.duration_ms,
+            },
+        )
 
 
 def audit_tool_calls(
@@ -410,6 +428,42 @@ def _hash_resource_result(result: Sequence[ReadResourceContents] | None) -> str 
         return None
     texts = [str(getattr(item, "content", "")) for item in result]
     return _hash_json(texts)
+
+
+def _otel_span_projection(event: MCPAuditEvent) -> dict[str, Any]:
+    """Return a body-free span projection for audit-log consumers."""
+    attributes: dict[str, str | int | float | bool] = {
+        "primr.request_id": event.request_id,
+        "primr.event_id": event.event_id,
+        "primr.event_type": event.event_type,
+        "primr.transport": event.transport,
+        "primr.tool_name": event.tool_name,
+        "primr.status": event.status,
+        "primr.authenticated": event.authenticated,
+        "primr.auth.scope_count": len(event.auth_scopes),
+        "primr.duration_ms": event.duration_ms,
+    }
+    optional_attributes: dict[str, str | int | float | bool | None] = {
+        "primr.job_id": event.job_id,
+        "primr.resource_kind": event.resource_kind,
+        "primr.approval_token_id": event.approval_token_id,
+        "primr.estimated_cost_usd": event.estimated_cost_usd,
+        "primr.max_estimated_cost_usd": event.max_estimated_cost_usd,
+        "primr.error_type": event.error_type,
+        "primr.error_code": event.error_code,
+    }
+    for key, value in optional_attributes.items():
+        if value is not None:
+            attributes[key] = value
+    return {
+        "name": _otel_span_name(event),
+        "attributes": attributes,
+    }
+
+
+def _otel_span_name(event: MCPAuditEvent) -> str:
+    normalized_tool = re.sub(r"[^A-Za-z0-9_.:-]+", ".", event.tool_name).strip(".")
+    return f"primr.{event.transport}.{event.event_type}.{normalized_tool}"
 
 
 def _first_json_text(result: Sequence[TextContent] | None) -> dict[str, Any]:

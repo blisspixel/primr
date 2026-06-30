@@ -1583,10 +1583,11 @@ Default governance contract for generic MCP clients.
 
 Recent privacy-preserving agent audit events for MCP tool calls, MCP resource
 reads, and A2A skill calls. Local stdio callers can read this directly; HTTP
-callers need `admin` scope. Events include hashes and metadata, not raw tool
-arguments, raw tool results, raw A2A message text, task ids, raw resource URI
-query values, raw resource bodies, raw caller ids, report paths, URLs, or
-approval tokens.
+callers need `admin` scope. Events include request ids, body-free
+OpenTelemetry span projections, hashes, and metadata, not raw tool arguments,
+raw tool results, raw A2A message text, task ids, raw resource URI query
+values, raw resource bodies, raw caller ids, report paths, URLs, or approval
+tokens.
 
 ```json
 {
@@ -1595,6 +1596,8 @@ approval tokens.
   "events": [
     {
       "schema_version": "1.0",
+      "event_id": "0f3a...",
+      "request_id": "0f3a...",
       "event_type": "tool_call",
       "tool_name": "estimate_run",
       "status": "success",
@@ -1606,10 +1609,23 @@ approval tokens.
       "result_hash": "sha256:...",
       "approval_token_id": "tok_...",
       "estimated_cost_usd": 0.89,
-      "duration_ms": 8
+      "duration_ms": 8,
+      "otel_span": {
+        "name": "primr.stdio.tool_call.estimate_run",
+        "attributes": {
+          "primr.request_id": "0f3a...",
+          "primr.event_type": "tool_call",
+          "primr.transport": "stdio",
+          "primr.tool_name": "estimate_run",
+          "primr.status": "success",
+          "primr.duration_ms": 8
+        }
+      }
     },
     {
       "schema_version": "1.0",
+      "event_id": "1a4b...",
+      "request_id": "1a4b...",
       "event_type": "tool_call",
       "tool_name": "a2a/check_jobs",
       "status": "success",
@@ -1619,10 +1635,21 @@ approval tokens.
       "auth_scopes": ["read"],
       "args_hash": "sha256:...",
       "result_hash": "sha256:...",
-      "duration_ms": 3
+      "duration_ms": 3,
+      "otel_span": {
+        "name": "primr.a2a.tool_call.a2a.check_jobs",
+        "attributes": {
+          "primr.request_id": "1a4b...",
+          "primr.transport": "a2a",
+          "primr.tool_name": "a2a/check_jobs",
+          "primr.status": "success"
+        }
+      }
     },
     {
       "schema_version": "1.0",
+      "event_id": "2b5c...",
+      "request_id": "2b5c...",
       "event_type": "resource_read",
       "tool_name": "resources/read",
       "status": "success",
@@ -1635,7 +1662,15 @@ approval tokens.
       "resource_kind": "primr://output/calibration_summary/by_job/{job_id}",
       "resource_uri_hash": "sha256:...",
       "job_id": "job_abc123",
-      "duration_ms": 4
+      "duration_ms": 4,
+      "otel_span": {
+        "name": "primr.http.resource_read.resources.read",
+        "attributes": {
+          "primr.request_id": "2b5c...",
+          "primr.job_id": "job_abc123",
+          "primr.resource_kind": "primr://output/calibration_summary/by_job/{job_id}"
+        }
+      }
     }
   ]
 }

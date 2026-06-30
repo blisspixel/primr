@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import tempfile
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 from mcp.server.auth.provider import AccessToken
@@ -70,6 +71,20 @@ def _events(server) -> list[dict]:
     ]
 
 
+def _assert_otel_projection(event: dict, *, expected_name: str) -> None:
+    UUID(event["request_id"])
+    assert event["event_id"] == event["request_id"]
+    span = event["otel_span"]
+    assert span["name"] == expected_name
+    attrs = span["attributes"]
+    assert attrs["primr.request_id"] == event["request_id"]
+    assert attrs["primr.event_type"] == event["event_type"]
+    assert attrs["primr.transport"] == event["transport"]
+    assert attrs["primr.tool_name"] == event["tool_name"]
+    assert attrs["primr.status"] == event["status"]
+    assert attrs["primr.duration_ms"] == event["duration_ms"]
+
+
 @pytest.mark.asyncio
 async def test_successful_tool_call_writes_hashed_audit_event(server):
     data = await _call(
@@ -91,6 +106,11 @@ async def test_successful_tool_call_writes_hashed_audit_event(server):
     assert event["result_hash"].startswith("sha256:")
     assert event["approval_token_id"] == data["approval_token_id"]
     assert event["estimated_cost_usd"] == data["estimated_cost_usd"]
+    _assert_otel_projection(event, expected_name="primr.stdio.tool_call.estimate_run")
+    assert event["otel_span"]["attributes"]["primr.approval_token_id"] == data["approval_token_id"]
+    assert (
+        event["otel_span"]["attributes"]["primr.estimated_cost_usd"] == data["estimated_cost_usd"]
+    )
 
 
 @pytest.mark.asyncio
@@ -157,6 +177,8 @@ async def test_successful_resource_read_writes_hashed_audit_event(server):
     assert event["actor"] == "stdio"
     assert event["args_hash"].startswith("sha256:")
     assert event["result_hash"].startswith("sha256:")
+    _assert_otel_projection(event, expected_name="primr.stdio.resource_read.resources.read")
+    assert event["otel_span"]["attributes"]["primr.resource_kind"] == "primr://research/status"
 
 
 @pytest.mark.asyncio

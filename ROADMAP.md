@@ -955,6 +955,11 @@ Shipped:
   normalized resource kind, hashed resource URI, hashed result body, job id
   when present, duration, and outcome. Raw resource URIs, URI query values,
   resource bodies, and caller ids are not persisted.
+- OpenTelemetry-compatible audit projection. Tool, resource, and A2A skill
+  audit events now carry `request_id` plus a body-free `otel_span`
+  name/attribute payload with job id when present, so structured logs can feed
+  App Insights or OTLP exporters without persisting raw arguments, results,
+  resource bodies, report bodies, URLs, or caller ids.
 - MCP runtime budget propagation for `research_company` fast-path runs. The
   approved `max_estimated_cost_usd` now reaches `PipelineRunner` as an active
   `RunBudget`, so the same mid-run checkpoints used by CLI `--budget` apply to
@@ -962,8 +967,6 @@ Shipped:
   `finally` after success, cancellation, or failure.
 
 Planned:
-- Carry request/job ids into OpenTelemetry-compatible spans and structured logs
-  now that compact output negotiation is metadata-first across MCP and A2A.
 - Add integration eval suites for routing, approval, recovery, and recomputation avoidance
 - Expose a compact project security/profile resource for agent clients when
   useful, including always-on guardrails and context-selected guidance for
