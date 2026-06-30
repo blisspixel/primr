@@ -263,7 +263,9 @@ Do next:
   without adding live quota collection or local probes to normal runs. Route
   records now also include measured token/cache/cost deltas when provider usage
   counters expose them. Body-free stage route comparison helpers now aggregate
-  those records into JSON/Markdown artifacts by stage/backend/profile.
+  those records into JSON/Markdown artifacts by stage/backend/profile. Stage
+  eval scorecards now join those route rows with explicit quality evidence and
+  classify candidates for human review without auto-promotion.
 - Promote one host/local candidate only after stage-scoped evals prove quality,
   cost, latency, and failure behavior.
 - Promote one stage at a time. A provider path is supported only when report
@@ -282,7 +284,8 @@ Done when:
   available.
 - Provider comparison artifacts exist for every promoted stage.
   The route-metadata comparison artifact exists; quality comparison artifacts
-  still need the stage-scoped eval layer before any promotion.
+  now have a scorecard layer, but semantic eval evidence is still required
+  before any promotion.
 - No hidden provider dependency remains in the full-report path for the wired
   stage.
 
