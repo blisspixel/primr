@@ -3,8 +3,9 @@
 This guide covers obtaining, configuring, and securing the API keys used by
 Primr. Agent-host credentials such as Codex access tokens or Claude Code
 subscription OAuth are intentionally separate: they can operate Primr through a
-host today, and are planned as subscription-backed stage runners, but they are
-not interchangeable with provider API keys for direct Primr model calls.
+host today, and Codex CLI can run the experimental `fast.source_relevance`
+host-agent pilot, but they are not interchangeable with provider API keys for
+direct Primr model calls.
 
 ## Recommended Credentials
 

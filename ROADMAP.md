@@ -82,14 +82,17 @@ Current priority order:
    `fast.scrape_summary`, `fast.source_relevance`, and
    `fast.hiring_signals` now consume the capability router behind the
    `--inference cloud|hybrid` flag while executing through existing provider
-   seams. Runtime route resolution consumes sanitized env-only cloud provider
-   availability snapshots by default, can accept injected quota snapshots, and
-   records body-free availability metadata without collecting live quota data or
-   probing local services during normal runs. All three routes record body-free
-   usage metadata in `_run_state.json`, including measured token/cache/cost
-   deltas when provider counters expose them; the next architecture unlock is
-   promoting host/local candidates with stage-scoped eval data. Stage scorecard
-   artifacts are now available through the eval CLI and compact MCP readback at
+   seams, and `fast.source_relevance` has an experimental Codex CLI
+   host-agent path behind `--inference agent`. Runtime route resolution
+   consumes sanitized env-only cloud provider availability snapshots by
+   default, can accept injected quota snapshots, and records body-free
+   availability metadata without collecting live quota data or probing local
+   services during normal runs. All three routes record body-free usage
+   metadata in `_run_state.json`, including measured token/cache/cost deltas
+   when provider counters expose them; the next architecture unlock is
+   expanding host/local candidates only with stage-specific adapters and
+   stage-scoped eval data. Stage scorecard artifacts are now available through
+   the eval CLI and compact MCP readback at
    `primr://eval/stage_scorecard/{eval_id}` without exposing prompt, report,
    quality-source, or raw run-state content. Website-summary local-stage evals
    now write scorecard-ready structured quality evidence as report-only input.
@@ -184,7 +187,7 @@ into generic agent middleware.
 - Five providers wired: xAI (Grok), Google (Gemini), OpenAI, Anthropic, Ollama (local)
 - Provider abstraction at `src/primr/ai/providers/` - `Provider` ABC, `OpenAICompatibleProvider` (xAI/OpenAI/Ollama/vLLM), `GeminiProvider`, `AnthropicProvider`
 - `pick_model_for_role` chooses the best model from configured providers; `primr doctor` shows what each key unlocks
-- Pure capability router foundation shipped in `src/primr/ai/capability_routing.py`: `StageRequirements`, backend capability rows, cloud/agent/hybrid/local profiles, billing-mode guards, ordered route plans, explicit rejection reasons, and pure availability-to-backend annotation. Runtime consumption is now wired for `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` behind `--inference cloud|hybrid`, with capped body-free route usage records persisted to `_run_state.json`.
+- Pure capability router foundation shipped in `src/primr/ai/capability_routing.py`: `StageRequirements`, backend capability rows, cloud/agent/hybrid/local profiles, billing-mode guards, ordered route plans, explicit rejection reasons, and pure availability-to-backend annotation. Runtime consumption is now wired for `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` behind `--inference cloud|hybrid`, with an experimental Codex CLI host-agent path for `fast.source_relevance` behind `--inference agent`, and capped body-free route usage records persisted to `_run_state.json`.
 - Provider availability foundation shipped across `src/primr/ai/provider_availability.py` and `src/primr/ai/provider_availability_collectors.py`: normalized quota windows, binding headroom, elapsed-reset handling, stale last-known-good snapshots, deterministic provider ranking, non-secret cloud provider configuration snapshots, generic local OpenAI-compatible availability probes, sanitized routing metadata, and `primr doctor` visibility. Official live cloud quota/status collectors and production execution wiring remain planned.
 - Provider-aware fallback chain: WRITING/UTILITY prefer GEMINI > OPENAI > ANTHROPIC > XAI; REASONING prefers XAI (cached) > GEMINI > OPENAI > ANTHROPIC
 - Cross-provider dispatch in `grok_llm` and `llm()` so writing-tier calls reach the right provider when the resolved model is non-Grok

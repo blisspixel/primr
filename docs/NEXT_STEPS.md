@@ -259,16 +259,18 @@ Do next:
   now consume `route_stage()` behind `--inference cloud|hybrid`, log safe route
   metadata, append capped body-free `stage_routes` records to
   `_run_state.json`, and execute through existing provider seams with today's
-  role defaults preserved as fallback. Runtime route resolution now consumes
-  sanitized env-only cloud provider availability snapshots by default, can
-  accept injected quota snapshots, and records body-free availability metadata
-  without adding live quota collection or local probes to normal runs. Route
-  records now also include measured token/cache/cost deltas when provider usage
-  counters expose them. Body-free stage route comparison helpers now aggregate
-  those records into JSON/Markdown artifacts by stage/backend/profile. Stage
-  eval scorecards now join those route rows with explicit quality evidence and
-  classify candidates for human review without auto-promotion. The scorecard
-  artifact flow is available through
+  role defaults preserved as fallback. `fast.source_relevance` also has an
+  experimental Codex CLI host-agent path behind `--inference agent`; no other
+  utility stage routes to host execution until it has its own adapter. Runtime
+  route resolution now consumes sanitized env-only cloud provider availability
+  snapshots by default, can accept injected quota snapshots, and records
+  body-free availability metadata without adding live quota collection or local
+  probes to normal runs. Route records now also include measured
+  token/cache/cost deltas when provider usage counters expose them. Body-free
+  stage route comparison helpers now aggregate those records into JSON/Markdown
+  artifacts by stage/backend/profile. Stage eval scorecards now join those
+  route rows with explicit quality evidence and classify candidates for human
+  review without auto-promotion. The scorecard artifact flow is available through
   `primr --eval --eval-stage-scorecard --eval-stage-quality <quality.json>`,
   and MCP clients can inspect those artifacts through
   `primr://eval/stage_scorecard/{eval_id}` without receiving prompt, report,
