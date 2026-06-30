@@ -56,6 +56,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A2A now advertises `read_calibration_summary_by_job` as a read-scoped
   compact label-calibration summary skill backed by the same ownership-gated
   by-job contract as MCP.
+- A2A `estimate_research` now returns MCP-equivalent approval-token fields,
+  and A2A `research_company` enforces `max_estimated_cost_usd` plus a matching
+  token when cost-cap enforcement is active before job creation, propagating
+  the accepted cap into `PipelineRunner` as the runtime budget.
 - A2A now advertises `read_stage_scorecard` as a read-scoped compact
   scorecard summary skill backed by the same eval-id resource boundary as MCP.
 - Website-summary local stage evals now write

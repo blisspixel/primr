@@ -1,5 +1,6 @@
 """Tests for A2A agent executor."""
 
+import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -409,6 +410,51 @@ class TestPrimrAgentExecutor:
         assert "Invalid URL" in text or "url" in text.lower()
 
     @pytest.mark.asyncio
+    async def test_estimate_research_returns_approval_token(self, executor, event_queue, context):
+        """A2A estimates use the same approval-token contract as MCP estimates."""
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["read"]
+        auth_context.client_id = "client-1"
+        executor._mcp._auth_context = auth_context
+        context.message = {
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": (
+                        '{"url": "https://example.com/private?token=secret", '
+                        '"mode": "full", "platform": "azure"}'
+                    ),
+                }
+            ],
+            "metadata": {"skillId": "estimate_research"},
+        }
+
+        try:
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        assert data["approval_token"]
+        assert data["approval_token_id"]
+        assert data["approval_expires_at"].endswith("Z")
+        assert data["platforms"] == ["azure"]
+
+        audit_text = executor._mcp.audit_log.path.read_text(encoding="utf-8")
+        assert "example.com" not in audit_text
+        assert "private" not in audit_text
+        assert "secret" not in audit_text
+        assert data["approval_token"] not in audit_text
+
+        audit_event = _audit_events(executor)[0]
+        assert audit_event["tool_name"] == "a2a/estimate_research"
+        assert audit_event["status"] == "success"
+        assert audit_event["approval_token_id"] == data["approval_token_id"]
+        assert audit_event["estimated_cost_usd"] == data["estimated_cost_usd"]
+
+    @pytest.mark.asyncio
     async def test_research_no_url(self, executor, event_queue, context):
         """research_company without URL asks for one."""
         context.message = {
@@ -459,6 +505,209 @@ class TestPrimrAgentExecutor:
         assert audit_event["error_type"] == "insufficient_scope"
         assert audit_event["client_id_hash"].startswith("sha256:")
         assert audit_event["auth_scopes"] == ["read"]
+
+    @pytest.mark.asyncio
+    async def test_research_requires_cost_cap_when_enforced(
+        self, executor, event_queue, context, monkeypatch
+    ):
+        """A2A research refuses paid execution without an approved cap."""
+        monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["research"]
+        auth_context.client_id = "client-1"
+        executor._mcp._auth_context = auth_context
+        context.message = {
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": '{"url": "https://example.com", "name": "Example"}',
+                }
+            ],
+            "metadata": {"skillId": "research_company"},
+        }
+
+        try:
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        assert data["error_type"] == "cost_cap_required"
+        assert executor._mcp.job_store.get_active() is None
+
+        audit_event = _audit_events(executor)[0]
+        assert audit_event["tool_name"] == "a2a/research_company"
+        assert audit_event["status"] == "error"
+        assert audit_event["error_type"] == "cost_cap_required"
+        assert audit_event["estimated_cost_usd"] == data["estimated_cost_usd"]
+
+    @pytest.mark.asyncio
+    async def test_research_requires_approval_token_when_enforced(
+        self, executor, event_queue, context, monkeypatch
+    ):
+        """A2A research requires a matching approval token when caps are enforced."""
+        monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["research"]
+        auth_context.client_id = "client-1"
+        executor._mcp._auth_context = auth_context
+        context.message = {
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": (
+                        '{"url": "https://example.com", "name": "Example", '
+                        '"max_estimated_cost_usd": 100.0}'
+                    ),
+                }
+            ],
+            "metadata": {"skillId": "research_company"},
+        }
+
+        try:
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        assert data["error_type"] == "approval_token_required"
+        assert data["max_estimated_cost_usd"] == 100.0
+        assert executor._mcp.job_store.get_active() is None
+
+        audit_event = _audit_events(executor)[0]
+        assert audit_event["status"] == "error"
+        assert audit_event["error_type"] == "approval_token_required"
+        assert audit_event["max_estimated_cost_usd"] == 100.0
+
+    @pytest.mark.asyncio
+    async def test_research_rejects_approval_args_swap(
+        self, executor, event_queue, context, monkeypatch
+    ):
+        """A2A approval tokens are bound to the estimated research shape."""
+        monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["read", "research"]
+        auth_context.client_id = "client-1"
+        executor._mcp._auth_context = auth_context
+
+        context.message = {
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": '{"url": "https://example.com", "mode": "full"}',
+                }
+            ],
+            "metadata": {"skillId": "estimate_research"},
+        }
+        try:
+            await executor.execute(context, event_queue)
+            estimate = json.loads(_get_event_text(event_queue.enqueue_event.call_args[0][0]))
+            event_queue.enqueue_event.reset_mock()
+            context.message = {
+                "parts": [
+                    {
+                        "kind": "text",
+                        "text": json.dumps(
+                            {
+                                "url": "https://example.org",
+                                "name": "Example",
+                                "mode": "full",
+                                "max_estimated_cost_usd": estimate["estimated_cost_usd"],
+                                "approval_token": estimate["approval_token"],
+                            }
+                        ),
+                    }
+                ],
+                "metadata": {"skillId": "research_company"},
+            }
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        assert data["error_type"] == "invalid_approval_token"
+        assert "arguments do not match" in data["message"]
+        assert executor._mcp.job_store.get_active() is None
+
+    @pytest.mark.asyncio
+    async def test_research_accepts_matching_approval_and_passes_budget_to_runner(
+        self, executor, event_queue, context, monkeypatch
+    ):
+        """A2A research propagates the approved cap as the runtime budget."""
+        monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["read", "research"]
+        auth_context.client_id = "client-1"
+        executor._mcp._auth_context = auth_context
+
+        context.message = {
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": ('{"url": "https://example.com", "mode": "full", "platform": "azure"}'),
+                }
+            ],
+            "metadata": {"skillId": "estimate_research"},
+        }
+
+        done = asyncio.Event()
+        seen = {}
+
+        class FakeRunner:
+            def __init__(self, mcp_server):
+                self.mcp_server = mcp_server
+
+            async def run_research(self, **kwargs):
+                seen.update(kwargs)
+                done.set()
+
+        try:
+            await executor.execute(context, event_queue)
+            estimate = json.loads(_get_event_text(event_queue.enqueue_event.call_args[0][0]))
+            event_queue.enqueue_event.reset_mock()
+            monkeypatch.setattr("primr.a2a.executor.PipelineRunner", FakeRunner)
+            context.task_id = "task-1"
+            context.context_id = "ctx-1"
+            context.message = {
+                "parts": [
+                    {
+                        "kind": "text",
+                        "text": json.dumps(
+                            {
+                                "url": "https://example.com",
+                                "name": "Example",
+                                "mode": "full",
+                                "platform": "azure",
+                                "max_estimated_cost_usd": estimate["estimated_cost_usd"],
+                                "approval_token": estimate["approval_token"],
+                            }
+                        ),
+                    }
+                ],
+                "metadata": {"skillId": "research_company"},
+            }
+            await executor.execute(context, event_queue)
+            await asyncio.wait_for(done.wait(), timeout=1)
+        finally:
+            executor._mcp._auth_context = None
+
+        assert seen["company_url"] == "https://example.com"
+        assert seen["mode"] == "full"
+        assert seen["platform"] == "azure"
+        assert seen["budget_usd"] == estimate["estimated_cost_usd"]
+
+        audit_event = _audit_events(executor)[-1]
+        assert audit_event["tool_name"] == "a2a/research_company"
+        assert audit_event["status"] == "success"
+        assert audit_event["estimated_cost_usd"] == estimate["estimated_cost_usd"]
+        assert audit_event["max_estimated_cost_usd"] == estimate["estimated_cost_usd"]
 
     @pytest.mark.asyncio
     async def test_stage_scorecard_summary_requires_read_scope(

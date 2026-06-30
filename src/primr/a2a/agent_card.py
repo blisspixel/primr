@@ -36,7 +36,9 @@ _SKILLS: list[dict] = [
             'Input (JSON or natural language): {"url": "https://example.com", "mode": "full"}\n'
             "Modes: scrape (~$0.10, 5-10 min), deep (~$2.50, 10-15 min), "
             "full (~$0.55, ~30 min, default), premium (~$5, 50-75 min)\n\n"
-            "Output: JSON with estimated_cost_usd, estimated_time_minutes, estimated_pages"
+            "Output: JSON with estimated_cost_usd, estimated_time_minutes, "
+            "planned_pages, budget_enforcement, approval_token, "
+            "approval_token_id, and approval_expires_at"
         ),
         "tags": ["estimate", "cost", "planning"],
         "examples": [
@@ -55,6 +57,8 @@ _SKILLS: list[dict] = [
             '{"url": "https://example.com", "name": "Acme Corp", "mode": "full"}\n'
             "Modes: scrape (website only), deep (external research), "
             "full (Grok-powered, default), premium (Gemini + Deep Research)\n\n"
+            "When cost-cap enforcement is active, pass max_estimated_cost_usd "
+            "and the approval_token returned by estimate_research.\n\n"
             "Output: SSE stream of TaskStatusUpdateEvent, final artifact is "
             "a .docx research brief path"
         ),

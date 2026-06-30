@@ -313,10 +313,12 @@ Done when:
 ### 3. Agent control-plane consumption resources and A2A parity
 
 Why next: MCP authorization, approval tokens, audit logging, and runtime budget
-propagation are shipped. The next gap is consumption safety: agents should be
-able to read compact, job-scoped artifacts without requiring broad filesystem
-access or dumping full reports into context. A2A should enforce the same
-least-privilege and approval semantics as MCP.
+propagation are shipped. A2A now shares MCP's read/research scope split,
+compact resource reads, approval-token enforcement for research execution, and
+runtime budget propagation for accepted research jobs. The next gap is
+consumption safety: agents should request full report content only through an
+explicit report-read path, without requiring broad filesystem access or dumping
+reports into context by default.
 
 Do next:
 
@@ -359,10 +361,11 @@ Do next:
   row fields without arbitrary path access or raw evidence bodies. A2A now
   advertises the equivalent read-scoped `read_stage_scorecard` skill, backed by
   the same compact eval-id summary contract.
-- Define the scope matrix before implementation: monitor can read status and
-  compact summaries; artifact read can read compact resources; report read can
-  request full report content; research can estimate; execution still requires
-  approval for paid work.
+- Scope matrix shipped so far: monitor can read status and compact summaries;
+  artifact read can read compact resources; research can estimate; and A2A
+  paid research execution now requires the same approved cap plus approval
+  token as MCP when cost-cap enforcement is active. Still define report-read
+  as a separate path before exposing any full report bodies.
 - Shipped first A2A parity slice: authenticated A2A HTTP requests now bind the
   bearer token into the shared MCP auth context, and A2A skill dispatch
   enforces `read` for `estimate_research`, `check_jobs`, `system_health`, and
@@ -380,8 +383,14 @@ Do next:
   message/result payloads, hashed caller id, granted scopes, duration,
   outcome, and job id when present, without raw message text, task ids, URLs,
   report paths, raw results, or caller ids.
-- Extend the remaining approval, budget, and other job-scoped compact
-  read-resource decisions to A2A.
+- Shipped A2A approval and budget parity: `estimate_research` returns
+  `approval_token`, `approval_token_id`, and `approval_expires_at`, and
+  `research_company` enforces `max_estimated_cost_usd` plus a matching token
+  when cost-cap enforcement is active before job creation. Accepted caps are
+  propagated into `PipelineRunner` as runtime budgets, and audit events record
+  sanitized estimate/cap metadata without raw URLs, message text, or approval
+  tokens.
+- Extend the remaining report-read and output-negotiation decisions to A2A.
 - Carry request/job ids into OpenTelemetry-compatible spans and structured logs
   without storing raw report bodies by default.
 
@@ -397,9 +406,9 @@ Done when:
   semantics for equivalent operations. The shared `read`/`research` skill
   scope split, A2A skill-call audit parity, artifact-metadata compact read
   parity, QA-summary compact read parity, usage-summary compact read parity,
-  source-summary compact read parity, and stage-scorecard compact eval-read
-  parity are shipped; approval and the remaining job-scoped compact-resource
-  parity slices remain.
+  source-summary compact read parity, stage-scorecard compact eval-read
+  parity, all seven job-scoped compact read parity slices, and A2A research
+  approval/budget parity are shipped; report-read scope separation remains.
 
 ### 4. Research memory layer 1
 

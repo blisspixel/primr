@@ -25,7 +25,24 @@ from primr.a2a.authz import (
     a2a_scope_denied_text,
     authorize_a2a_skill,
 )
+from primr.a2a.input_parsing import (
+    parse_eval_id as _parse_eval_id,
+)
+from primr.a2a.input_parsing import (
+    parse_job_id as _parse_job_id,
+)
+from primr.a2a.input_parsing import (
+    parse_research_params as _parse_research_params,
+)
+from primr.a2a.input_parsing import (
+    research_arguments_from_a2a_params as _research_arguments_from_a2a_params,
+)
 from primr.a2a.types import A2ATaskMapping
+from primr.mcp_server.approval_tokens import (
+    enforce_approval_token,
+    issue_approval_token,
+    research_approval_args,
+)
 from primr.mcp_server.artifact_resources import (
     ARTIFACT_METADATA_BY_JOB_URI,
     QA_SUMMARY_BY_JOB_URI,
@@ -39,6 +56,11 @@ from primr.mcp_server.calibration_summary import (
     read_calibration_summary_by_job_resource,
 )
 from primr.mcp_server.pipeline_runner import PipelineRunner, get_doctor_status, run_qa_analysis
+from primr.mcp_server.research_policy import (
+    build_research_estimate,
+    coerce_budget_usd,
+    enforce_cost_cap,
+)
 from primr.mcp_server.source_summary import (
     SOURCE_SUMMARY_BY_JOB_URI,
     read_source_summary_by_job_resource,
@@ -331,7 +353,8 @@ class PrimrAgentExecutor(AgentExecutor):
     async def _handle_estimate(self, text: str, event_queue: EventQueue) -> dict[str, Any]:
         """Handle estimate_research skill - synchronous."""
         params = _parse_research_params(text)
-        company_url = params.get("url", "")
+        arguments = _research_arguments_from_a2a_params(params)
+        company_url = str(arguments.get("company_url") or "")
 
         if not company_url:
             await event_queue.enqueue_event(
@@ -347,35 +370,32 @@ class PrimrAgentExecutor(AgentExecutor):
             )
             return {"error": True, "error_type": "invalid_url"}
 
-        from primr.utils.cost_estimator import estimate_cost
-
-        mode = params.get("mode", "full")
-        mode_mapping = {
-            "scrape": "scrape-only",
-            "deep": "deep-research",
-            "full": "complete",
-            "premium": "premium",
-        }
-        estimator_mode = mode_mapping.get(mode, "complete")
         try:
-            estimate = estimate_cost(estimator_mode, use_historical=False)
+            estimate = build_research_estimate(arguments)
+            estimate.update(
+                issue_approval_token(
+                    tool_name="research_company",
+                    approval_args=research_approval_args(arguments),
+                    max_cost_usd=float(estimate["estimated_cost_usd"]),
+                )
+            )
             await event_queue.enqueue_event(
                 new_agent_text_message(json.dumps(estimate, indent=2, default=str))
             )
             payload: dict[str, Any] = {"status": "estimated"}
-            if isinstance(estimate, dict):
-                payload.update(
-                    {
-                        "estimated_cost_usd": estimate.get("estimated_cost_usd"),
-                        "estimated_time_minutes": estimate.get("estimated_time_minutes"),
-                    }
-                )
+            payload.update(
+                {
+                    "estimated_cost_usd": estimate.get("estimated_cost_usd"),
+                    "estimated_time_minutes": estimate.get("estimated_time_minutes"),
+                    "approval_token_id": estimate.get("approval_token_id"),
+                }
+            )
             return payload
         except Exception:
             # Don't echo the raw exception — provider errors can contain
             # internal hostnames, file paths, or API-key fragments. The
             # operator-side log has the full traceback.
-            logger.exception("A2A estimate failed for mode=%s", estimator_mode)
+            logger.exception("A2A estimate failed")
             await event_queue.enqueue_event(
                 new_agent_text_message("Estimate failed (see server logs)")
             )
@@ -389,9 +409,15 @@ class PrimrAgentExecutor(AgentExecutor):
     ) -> dict[str, Any]:
         """Handle research_company skill - async with SSE streaming."""
         params = _parse_research_params(text)
-        company_url = params.get("url", "")
-        company_name = params.get("name", "Unknown")
-        mode = params.get("mode", "full")
+        arguments = _research_arguments_from_a2a_params(params)
+        company_url = str(arguments.get("company_url") or "")
+        company_name = str(arguments.get("company_name") or "Unknown")
+        mode = str(arguments.get("mode") or "full")
+        platform = arguments.get("platform")
+        skip_qa = bool(arguments.get("skip_qa", False))
+        verify = bool(arguments.get("verify", False))
+        destination = arguments.get("destination")
+        max_estimated_cost_usd = arguments.get("max_estimated_cost_usd")
 
         if not company_url:
             await event_queue.enqueue_event(
@@ -421,6 +447,52 @@ class PrimrAgentExecutor(AgentExecutor):
                 new_agent_text_message(f"Invalid company name: {e.reason}")
             )
             return {"error": True, "error_type": "invalid_company_name"}
+
+        if bool(arguments.get("no_ai_strategy", False)):
+            platform = None
+
+        if destination is not None:
+            dest_result = self._mcp.path_validator.validate(
+                str(destination),
+                _a2a_client_id(self._mcp),
+            )
+            if not dest_result.valid:
+                payload = {
+                    "error": True,
+                    "error_type": dest_result.error_type,
+                    "message": f"Invalid destination: {dest_result.error_message}",
+                }
+                await event_queue.enqueue_event(new_agent_text_message(json.dumps(payload)))
+                return payload
+            destination = str(dest_result.resolved_path)
+
+        estimate = build_research_estimate(arguments)
+        estimated_cost_usd = float(estimate["estimated_cost_usd"])
+        cost_cap_error = enforce_cost_cap(
+            estimated_cost=estimated_cost_usd,
+            max_estimated_cost_usd=max_estimated_cost_usd,
+            operation_name="research_company",
+        )
+        if cost_cap_error is not None:
+            payload = dict(cost_cap_error)
+            payload.setdefault("estimated_cost_usd", estimated_cost_usd)
+            await event_queue.enqueue_event(new_agent_text_message(json.dumps(payload)))
+            return payload
+
+        approval_error = enforce_approval_token(
+            tool_name="research_company",
+            approval_args=research_approval_args(arguments),
+            estimated_cost_usd=estimated_cost_usd,
+            approval_token=arguments.get("approval_token"),
+        )
+        if approval_error is not None:
+            payload = dict(approval_error)
+            payload["estimated_cost_usd"] = estimated_cost_usd
+            payload["max_estimated_cost_usd"] = coerce_budget_usd(max_estimated_cost_usd)
+            await event_queue.enqueue_event(new_agent_text_message(json.dumps(payload)))
+            return payload
+
+        budget_usd = coerce_budget_usd(max_estimated_cost_usd)
 
         # Create job in the shared job store
         try:
@@ -468,6 +540,11 @@ class PrimrAgentExecutor(AgentExecutor):
                         job=job,
                         company_url=company_url,
                         mode=mode,
+                        platform=str(platform) if platform else None,
+                        skip_qa=skip_qa,
+                        verify=verify,
+                        destination=str(destination) if destination else None,
+                        budget_usd=budget_usd,
                     )
                 )
 
@@ -540,7 +617,12 @@ class PrimrAgentExecutor(AgentExecutor):
         # Run in background - the event_queue bridges to SSE
         task = asyncio.create_task(_run_and_stream())
         self._mcp._track_task(task)
-        return {"status": "started", "job_id": job.job_id}
+        return {
+            "status": "started",
+            "job_id": job.job_id,
+            "estimated_cost_usd": estimated_cost_usd,
+            "max_estimated_cost_usd": budget_usd,
+        }
 
     async def _handle_check_jobs(self, event_queue: EventQueue) -> dict[str, Any]:
         """Handle check_jobs skill - synchronous.
@@ -862,89 +944,6 @@ def _scope_denial_payload(
 ) -> dict[str, Any]:
     """Return the structured denial payload emitted to the caller."""
     return json.loads(a2a_scope_denied_text(skill_id, decision))
-
-
-def _parse_research_params(text: str) -> dict[str, str]:
-    """Parse research parameters from message text.
-
-    Supports both JSON format and natural language extraction.
-    """
-    # Try JSON first
-    try:
-        parsed = json.loads(text)
-        if isinstance(parsed, dict):
-            return parsed
-    except (json.JSONDecodeError, TypeError):
-        pass
-
-    # Simple keyword extraction
-    params: dict[str, str] = {}
-    words = text.split()
-    for word in words:
-        if word.startswith(("http://", "https://")):
-            params["url"] = word
-            break
-
-    # Extract mode if mentioned
-    for mode in ("scrape", "deep", "full", "premium"):
-        if mode in text.lower():
-            params["mode"] = mode
-            break
-
-    # Try to extract company name (first few words before URL)
-    if "url" in params:
-        idx = text.find(params["url"])
-        if idx > 0:
-            name = text[:idx].strip()
-            if name.endswith(" at"):
-                name = name[:-3].strip()
-            if name:
-                params["name"] = name
-
-    return params
-
-
-def _parse_eval_id(text: str) -> str:
-    """Extract a simple eval id from JSON, URI, or plain text input."""
-    return _parse_identifier(
-        text,
-        json_keys=("eval_id", "evalId"),
-        uri_prefix=STAGE_SCORECARD_SUMMARY_URI,
-    )
-
-
-def _parse_job_id(text: str, *, uri_prefix: str = ARTIFACT_METADATA_BY_JOB_URI) -> str:
-    """Extract a simple job id from JSON, URI, or plain text input."""
-    return _parse_identifier(
-        text,
-        json_keys=("job_id", "jobId"),
-        uri_prefix=uri_prefix,
-    )
-
-
-def _parse_identifier(
-    text: str,
-    *,
-    json_keys: tuple[str, ...],
-    uri_prefix: str,
-) -> str:
-    """Extract a resource id from JSON, URI, or plain text input."""
-    try:
-        parsed = json.loads(text)
-        if isinstance(parsed, dict):
-            for key in json_keys:
-                value = parsed.get(key)
-                if isinstance(value, str) and value.strip():
-                    return value.strip()
-            return ""
-    except (json.JSONDecodeError, TypeError):
-        pass
-
-    value = text.strip()
-    prefix = f"{uri_prefix}/"
-    if value.startswith(prefix):
-        return value[len(prefix) :].strip()
-    return value
 
 
 def _resource_payload(contents: list[Any]) -> Any:

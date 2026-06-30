@@ -1365,13 +1365,21 @@ compatibility.
 
 | Skill ID | Required scope | Description |
 |----------|----------------|-------------|
-| `estimate_research` | `read` | Cost/time estimate for a research run |
-| `research_company` | `research` | Start async research (SSE streaming progress) |
+| `estimate_research` | `read` | Cost/time estimate plus approval-token fields for a research run |
+| `research_company` | `research` | Start async research (SSE streaming progress); when cost-cap enforcement is active, requires `max_estimated_cost_usd` and the matching `approval_token` from `estimate_research` |
 | `check_jobs` | `read` | Current job status |
 | `run_qa` | `research` | Quality assessment on completed reports |
+| `read_artifacts_by_job` | `read` | Compact owned-job artifact metadata without report body content |
+| `read_qa_summary_by_job` | `read` | Compact owned-job QA summary metadata without detailed QA/report bodies |
+| `read_usage_summary_by_job` | `read` | Compact owned-job usage/cost metadata without approval tokens or report bodies |
+| `read_source_summary_by_job` | `read` | Compact owned-job source appendix metadata without report bodies |
+| `read_trace_summary_by_job` | `read` | Compact owned-job scrape trace metadata without URLs, raw trace entries, or page content |
+| `read_verification_summary_by_job` | `read` | Compact owned-job claim verification metadata without raw claims or source URLs |
+| `read_calibration_summary_by_job` | `read` | Compact owned-job label-calibration metadata without raw claims, source URLs, evidence reviews, or rationales |
+| `read_stage_scorecard` | `read` | Compact eval scorecard metadata by eval id |
 | `system_health` | `read` | System diagnostics |
 
-**Example A2A message:**
+**Example A2A estimate message:**
 ```json
 {
   "jsonrpc": "2.0",
@@ -1380,6 +1388,25 @@ compatibility.
     "message": {
       "role": "user",
       "parts": [{"kind": "text", "text": "{\"url\": \"https://acme.com\", \"mode\": \"full\"}"}],
+      "metadata": {"skillId": "estimate_research"}
+    }
+  }
+}
+```
+
+Use the returned `estimated_cost_usd` as `max_estimated_cost_usd` and pass the
+returned `approval_token` into `research_company` when cost-cap enforcement is
+active.
+
+**Example A2A research message:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "message/send",
+  "params": {
+    "message": {
+      "role": "user",
+      "parts": [{"kind": "text", "text": "{\"url\": \"https://acme.com\", \"name\": \"Acme\", \"mode\": \"full\", \"max_estimated_cost_usd\": 0.67, \"approval_token\": \"<token from estimate_research>\"}"}],
       "metadata": {"skillId": "research_company"}
     }
   }
@@ -1393,8 +1420,9 @@ unauthenticated loopback jobs keep the legacy `a2a` owner id.
 Skill invocations and task cancellation write privacy-preserving audit events
 to the shared audit JSONL. Events include transport, skill name, outcome,
 hashed message/result payloads, hashed caller id, granted scopes, duration,
-and job id when present. They do not store raw A2A message text, task ids,
-company URLs, report paths, raw results, or caller ids.
+job id when present, and sanitized estimate/cap metadata. They do not store
+raw A2A message text, task ids, company URLs, report paths, approval tokens,
+raw results, or caller ids.
 
 ### Resources
 

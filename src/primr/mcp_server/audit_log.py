@@ -192,7 +192,9 @@ class MCPAuditLog:
                 estimated_cost_usd=_optional_float(
                     payload.get("estimated_cost_usd", arguments.get("estimated_cost_usd"))
                 ),
-                max_estimated_cost_usd=_optional_float(arguments.get("max_estimated_cost_usd")),
+                max_estimated_cost_usd=_optional_float(
+                    payload.get("max_estimated_cost_usd", arguments.get("max_estimated_cost_usd"))
+                ),
                 error_type=_error_type(payload, exception),
                 error_code=_optional_error_code(payload.get("error_code")),
             )
