@@ -133,6 +133,24 @@ _SKILLS: list[dict] = [
         ],
     },
     {
+        "id": "read_usage_summary_by_job",
+        "name": "Read Usage Summary by Job",
+        "description": (
+            "Read compact cost, timing, approval, execution, and artifact-count "
+            "metadata for one owned research job. Returns manifest metadata "
+            "without approval tokens, caller identities, source URLs, raw "
+            "artifact paths from the manifest body, or report content.\n\n"
+            'Input (JSON or text): {"job_id": "job-20260630-abc123"}\n\n'
+            "Output: JSON with job_id, status, company_name, summary_count, "
+            "full_content_included=false, and compact usage summary rows"
+        ),
+        "tags": ["usage", "read", "jobs", "cost"],
+        "examples": [
+            "Read usage summary for job-20260630-abc123",
+            '{"job_id": "job-20260630-abc123"}',
+        ],
+    },
+    {
         "id": "read_stage_scorecard",
         "name": "Read Stage Scorecard Summary",
         "description": (

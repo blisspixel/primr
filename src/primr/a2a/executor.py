@@ -29,8 +29,10 @@ from primr.a2a.types import A2ATaskMapping
 from primr.mcp_server.artifact_resources import (
     ARTIFACT_METADATA_BY_JOB_URI,
     QA_SUMMARY_BY_JOB_URI,
+    USAGE_SUMMARY_BY_JOB_URI,
     read_artifact_metadata_by_job_resource,
     read_qa_summary_by_job_resource,
+    read_usage_summary_by_job_resource,
 )
 from primr.mcp_server.pipeline_runner import PipelineRunner, get_doctor_status, run_qa_analysis
 from primr.mcp_server.stage_scorecard_summary import (
@@ -95,6 +97,7 @@ class PrimrAgentExecutor(AgentExecutor):
         - run_qa            -> synchronous QA analysis
         - read_artifacts_by_job -> synchronous compact job artifact metadata
         - read_qa_summary_by_job -> synchronous compact job QA summary
+        - read_usage_summary_by_job -> synchronous compact job usage summary
         - read_stage_scorecard -> synchronous compact eval scorecard summary
         - system_health     -> synchronous doctor check
     """
@@ -139,6 +142,8 @@ class PrimrAgentExecutor(AgentExecutor):
                 audit_payload = await self._handle_artifact_metadata(text, event_queue)
             elif skill_id == "read_qa_summary_by_job":
                 audit_payload = await self._handle_qa_summary(text, event_queue)
+            elif skill_id == "read_usage_summary_by_job":
+                audit_payload = await self._handle_usage_summary(text, event_queue)
             elif skill_id == "read_stage_scorecard":
                 audit_payload = await self._handle_stage_scorecard_summary(text, event_queue)
             elif skill_id == "system_health":
@@ -613,6 +618,21 @@ class PrimrAgentExecutor(AgentExecutor):
             success_status="qa_summary_read",
         )
 
+    async def _handle_usage_summary(
+        self,
+        text: str,
+        event_queue: EventQueue,
+    ) -> dict[str, Any]:
+        """Handle read_usage_summary_by_job skill - synchronous compact job read."""
+        return await self._handle_job_resource_summary(
+            text,
+            event_queue,
+            resource_uri=USAGE_SUMMARY_BY_JOB_URI,
+            reader=read_usage_summary_by_job_resource,
+            missing_message="Please provide a job_id for the usage summary.",
+            success_status="usage_summary_read",
+        )
+
     async def _handle_job_resource_summary(
         self,
         text: str,
@@ -685,7 +705,8 @@ class PrimrAgentExecutor(AgentExecutor):
         """Handle unrecognized skill - try to route by content."""
         available = (
             "estimate_research, research_company, check_jobs, run_qa, "
-            "read_artifacts_by_job, read_qa_summary_by_job, read_stage_scorecard, system_health"
+            "read_artifacts_by_job, read_qa_summary_by_job, read_usage_summary_by_job, "
+            "read_stage_scorecard, system_health"
         )
         await event_queue.enqueue_event(
             new_agent_text_message(f"Unknown skill '{skill_id}'. Available skills: {available}")

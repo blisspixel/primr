@@ -131,11 +131,14 @@ Current priority order:
    outcome without storing raw URI query values or resource bodies. A2A skill
    calls and task cancellations now append matching privacy-preserving audit
    events with hashed message/result payloads and job id when present. A2A
-   also exposes the first two job-scoped compact resource parity slices:
+   also exposes the first three job-scoped compact resource parity slices:
    `read_artifacts_by_job` returns ownership-gated artifact metadata through
    the same compact summary helper as MCP, and `read_qa_summary_by_job`
    returns ownership-gated compact QA score, status, count, parse-state, and
-   artifact metadata without report or detailed QA bodies.
+   artifact metadata without report or detailed QA bodies, and
+   `read_usage_summary_by_job` returns compact cost, timing, approval,
+   execution, artifact-count, and manifest metadata without approval tokens,
+   caller ids, manifest artifact paths, source URLs, or report bodies.
 4. **Research memory layer 1.** Memory comes after calibrated claims and safer
    artifact consumption so prior-run material can compound value without
    laundering weak claims into fresh findings.
@@ -488,10 +491,10 @@ Each step unblocks the ones after it; items within a step are independent.
    summaries, compact usage/cost summaries, compact source appendix
    summaries, compact scrape trace summaries, compact claim verification
    summaries, and compact label-calibration summaries. A2A skill-scope,
-   skill-audit, artifact-metadata compact read, QA-summary compact read, and
-   stage-scorecard compact eval-read parity are now shipped; A2A approval, the
-   remaining job-scoped compact-resource parity slices, and non-fast runtime
-   budget checkpointing remain next.
+   skill-audit, artifact-metadata compact read, QA-summary compact read,
+   usage-summary compact read, and stage-scorecard compact eval-read parity
+   are now shipped; A2A approval, the remaining job-scoped compact-resource
+   parity slices, and non-fast runtime budget checkpointing remain next.
    Independent of steps 1-4; can proceed in parallel.
 6. **Backend freedom** (#18 + provider expansion) (2.0):
    capability-requirement routing and provider-availability headroom first
@@ -929,10 +932,10 @@ Shipped:
   `finally` after success, cancellation, or failure.
 
 Planned:
-- Extend agent control-plane parity to A2A now that artifact metadata and QA
-  summary parity slices are shipped, and usage/cost, source appendix, scrape
-  trace, verification, and calibration compact MCP resources are ready for
-  equivalent A2A read skills.
+- Extend agent control-plane parity to A2A now that artifact metadata, QA
+  summary, and usage/cost parity slices are shipped, and source appendix,
+  scrape trace, verification, and calibration compact MCP resources are ready
+  for equivalent A2A read skills.
 - Add integration eval suites for routing, approval, recovery, and recomputation avoidance
 - Expose a compact project security/profile resource for agent clients when
   useful, including always-on guardrails and context-selected guidance for
@@ -1491,6 +1494,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.34.35 | Jun 2026 | **A2A usage summary readback.** Added read-scoped `read_usage_summary_by_job` to the A2A AgentCard and executor, backed by the same ownership-gated `primr://output/usage_summary/by_job/{job_id}` compact summary contract as MCP. The skill returns cost, timing, approval, execution, artifact-count, hash, timestamp, and manifest metadata without approval tokens, caller ids, source URLs, manifest artifact paths, or report bodies. |
 | 1.34.34 | Jun 2026 | **A2A QA summary readback.** Added read-scoped `read_qa_summary_by_job` to the A2A AgentCard and executor, backed by the same ownership-gated `primr://output/qa_summary/by_job/{job_id}` compact summary contract as MCP. The skill returns QA score, status, count, parse-state, hash, timestamp, and artifact metadata without report body or detailed QA body content. |
 | 1.34.33 | Jun 2026 | **A2A artifact metadata readback.** Added read-scoped `read_artifacts_by_job` to the A2A AgentCard and executor, backed by the same ownership-gated `primr://output/artifacts/by_job/{job_id}` compact metadata contract as MCP. The skill returns artifact names, paths, hashes, sizes, timestamps, missing-file state, and types without report body content. |
 | 1.34.32 | Jun 2026 | **A2A compact scorecard readback.** Added read-scoped `read_stage_scorecard` to the A2A AgentCard and executor, backed by the same compact `primr://eval/stage_scorecard/{eval_id}` summary contract as MCP. The skill returns route, quality-score, status, blocker, and artifact metadata without prompt bodies, report bodies, quality-source bodies, or raw run-state content. |
