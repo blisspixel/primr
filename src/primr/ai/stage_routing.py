@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 INFERENCE_PROFILE_ENV = "PRIMR_INFERENCE_PROFILE"
 DEFAULT_INFERENCE_PROFILE = InferenceProfile.CLOUD
+StageUsageByModel = dict[str, dict[str, int]]
 
 
 @dataclass(frozen=True)
@@ -182,6 +183,7 @@ def record_stage_route_usage(
     output_items: int | None = None,
     duration_seconds: float | None = None,
     failure_class: str | None = None,
+    usage_delta: dict[str, Any] | None = None,
 ) -> None:
     """Append body-free route usage metadata to the per-run state file."""
 
@@ -207,10 +209,87 @@ def record_stage_route_usage(
         record["duration_seconds"] = round(max(0.0, duration_seconds), 3)
     if failure_class:
         record["failure_class"] = failure_class
+    if usage_delta:
+        _apply_usage_delta(record, usage_delta)
     routes.append(record)
     state["stage_routes"] = routes[-200:]
     state["updated_at"] = datetime.now().isoformat()
     _save_run_state(str(folder_path), state)
+
+
+def capture_stage_usage() -> StageUsageByModel:
+    """Return cumulative provider token usage by model for stage delta accounting."""
+
+    usage: StageUsageByModel = {}
+    try:
+        from primr.ai.grok_client import get_grok_session_usage_by_model
+
+        _merge_usage_by_model(usage, get_grok_session_usage_by_model())
+    except Exception as exc:
+        logger.debug("Grok session usage snapshot skipped: %s", exc, exc_info=True)
+
+    try:
+        from primr.ai.llm import get_llm_provider_usage_by_model
+
+        _merge_usage_by_model(usage, get_llm_provider_usage_by_model())
+    except Exception as exc:
+        logger.debug("LLM provider usage snapshot skipped: %s", exc, exc_info=True)
+
+    return usage
+
+
+def stage_usage_delta(
+    before: StageUsageByModel,
+    after: StageUsageByModel | None = None,
+) -> dict[str, Any]:
+    """Return body-free token/cache/cost deltas between two usage snapshots."""
+
+    current = capture_stage_usage() if after is None else after
+    models: dict[str, dict[str, int | float]] = {}
+    total_input = 0
+    total_output = 0
+    total_cached = 0
+    total_cost = 0.0
+    for model_name in sorted(set(before) | set(current)):
+        prior = before.get(model_name, {})
+        latest = current.get(model_name, {})
+        input_tokens = max(
+            0,
+            _usage_int(latest, "input_tokens") - _usage_int(prior, "input_tokens"),
+        )
+        output_tokens = max(
+            0,
+            _usage_int(latest, "output_tokens") - _usage_int(prior, "output_tokens"),
+        )
+        cached_input_tokens = max(
+            0,
+            _usage_int(latest, "cached_input_tokens") - _usage_int(prior, "cached_input_tokens"),
+        )
+        if not (input_tokens or output_tokens or cached_input_tokens):
+            continue
+        actual_cost = _actual_usage_cost(
+            model_name, input_tokens, output_tokens, cached_input_tokens
+        )
+        models[model_name] = {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cached_input_tokens": cached_input_tokens,
+            "actual_cost_usd": round(actual_cost, 8),
+        }
+        total_input += input_tokens
+        total_output += output_tokens
+        total_cached += cached_input_tokens
+        total_cost += actual_cost
+
+    if not models:
+        return {}
+    return {
+        "actual_input_tokens": total_input,
+        "actual_output_tokens": total_output,
+        "actual_cached_input_tokens": total_cached,
+        "actual_cost_usd": round(total_cost, 8),
+        "actual_usage_by_model": models,
+    }
 
 
 def _backend_for_model(model_name: str, role: Role) -> BackendCapabilities | None:
@@ -242,6 +321,64 @@ def _default_provider_availability_snapshots() -> tuple[ProviderQuotaSnapshot, .
     except Exception as exc:
         logger.debug("Provider availability collection skipped: %s", exc, exc_info=True)
         return ()
+
+
+def _merge_usage_by_model(
+    target: StageUsageByModel,
+    source: dict[str, dict[str, int]] | dict[str, dict[str, int | float]],
+) -> None:
+    for model_name, values in source.items():
+        if not isinstance(model_name, str) or not isinstance(values, dict):
+            continue
+        bucket = target.setdefault(
+            model_name,
+            {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens": 0},
+        )
+        bucket["input_tokens"] += _usage_int(values, "input_tokens")
+        bucket["output_tokens"] += _usage_int(values, "output_tokens")
+        bucket["cached_input_tokens"] += _usage_int(values, "cached_input_tokens")
+
+
+def _usage_int(values: dict[str, int] | dict[str, int | float], key: str) -> int:
+    value = values.get(key, 0)
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return 0
+    return max(0, int(value))
+
+
+def _actual_usage_cost(
+    model_name: str,
+    input_tokens: int,
+    output_tokens: int,
+    cached_input_tokens: int,
+) -> float:
+    try:
+        return PrimrModels.calculate_cost(
+            model_name,
+            input_tokens,
+            output_tokens,
+            cached_input_tokens=cached_input_tokens,
+            prompt_tokens=input_tokens,
+        )
+    except KeyError:
+        return 0.0
+
+
+def _apply_usage_delta(record: dict[str, Any], usage_delta: dict[str, Any]) -> None:
+    for key in (
+        "actual_input_tokens",
+        "actual_output_tokens",
+        "actual_cached_input_tokens",
+    ):
+        value = usage_delta.get(key)
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            record[key] = value
+    cost = usage_delta.get("actual_cost_usd")
+    if isinstance(cost, int | float) and not isinstance(cost, bool) and cost >= 0:
+        record["actual_cost_usd"] = round(float(cost), 8)
+    models = usage_delta.get("actual_usage_by_model")
+    if isinstance(models, dict) and models:
+        record["actual_usage_by_model"] = models
 
 
 def _coerce_profile(profile: InferenceProfile | str) -> InferenceProfile:

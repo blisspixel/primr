@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stage routing now collects sanitized env-only cloud provider availability
   snapshots by default, skips local probes in normal runs, and maps Gemini
   availability rows onto Google-owned model configs.
+- Routed fast utility stages now append measured token/cache/cost deltas to
+  body-free `stage_routes` records when provider counters expose them.
 - Source distributions now explicitly prune `.agent/` while retaining the
   legacy `docs/.agent/` prune rule.
 - Local `_site/` documentation build output is now gitignored.

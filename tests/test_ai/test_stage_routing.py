@@ -7,9 +7,11 @@ from primr.ai.capability_routing import InferenceProfile
 from primr.ai.provider_availability import ProviderQuotaSnapshot, QuotaWindow
 from primr.ai.stage_routing import (
     INFERENCE_PROFILE_ENV,
+    capture_stage_usage,
     current_inference_profile,
     record_stage_route_usage,
     resolve_stage_model,
+    stage_usage_delta,
 )
 from primr.config.models import PrimrModels
 
@@ -203,6 +205,76 @@ def test_record_stage_route_usage_appends_body_free_run_state(tmp_path, monkeypa
     assert record["duration_seconds"] == 1.235
     assert "prompt" not in record
     assert "response" not in record
+
+
+def test_record_stage_route_usage_appends_actual_usage_delta(tmp_path, monkeypatch) -> None:
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+    route = resolve_stage_model(
+        "fast.source_relevance",
+        legacy_model_type="fast",
+        profile="cloud",
+    )
+
+    record_stage_route_usage(
+        tmp_path,
+        route,
+        outcome="selected",
+        usage_delta={
+            "actual_input_tokens": 100,
+            "actual_output_tokens": 25,
+            "actual_cached_input_tokens": 10,
+            "actual_cost_usd": 0.00001234,
+            "actual_usage_by_model": {
+                route.model_name: {
+                    "input_tokens": 100,
+                    "output_tokens": 25,
+                    "cached_input_tokens": 10,
+                    "actual_cost_usd": 0.00001234,
+                }
+            },
+        },
+    )
+
+    state = json.loads((tmp_path / "_run_state.json").read_text(encoding="utf-8"))
+    [record] = state["stage_routes"]
+    assert record["actual_input_tokens"] == 100
+    assert record["actual_output_tokens"] == 25
+    assert record["actual_cached_input_tokens"] == 10
+    assert record["actual_cost_usd"] == 0.00001234
+    assert record["actual_usage_by_model"][route.model_name]["cached_input_tokens"] == 10
+    assert "prompt" not in record
+    assert "response" not in record
+
+
+def test_stage_usage_delta_reports_body_free_model_cost() -> None:
+    from primr.ai.grok_client import _mirror_session_usage, reset_grok_session
+
+    reset_grok_session()
+    before = capture_stage_usage()
+    _mirror_session_usage(PrimrModels.FLASH_MODEL, 1_000, 250, cached_input_tokens=100)
+
+    delta = stage_usage_delta(before)
+    expected_cost = PrimrModels.calculate_cost(
+        PrimrModels.FLASH_MODEL,
+        1_000,
+        250,
+        cached_input_tokens=100,
+        prompt_tokens=1_000,
+    )
+
+    assert delta["actual_input_tokens"] == 1_000
+    assert delta["actual_output_tokens"] == 250
+    assert delta["actual_cached_input_tokens"] == 100
+    assert delta["actual_cost_usd"] == round(expected_cost, 8)
+    assert delta["actual_usage_by_model"][PrimrModels.FLASH_MODEL] == {
+        "input_tokens": 1_000,
+        "output_tokens": 250,
+        "cached_input_tokens": 100,
+        "actual_cost_usd": round(expected_cost, 8),
+    }
+
+    reset_grok_session()
 
 
 def test_record_stage_route_usage_caps_history(tmp_path, monkeypatch) -> None:

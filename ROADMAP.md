@@ -86,7 +86,8 @@ Current priority order:
    availability snapshots by default, can accept injected quota snapshots, and
    records body-free availability metadata without collecting live quota data or
    probing local services during normal runs. All three routes record body-free
-   usage metadata in `_run_state.json`; the next architecture unlock is
+   usage metadata in `_run_state.json`, including measured token/cache/cost
+   deltas when provider counters expose them; the next architecture unlock is
    promoting host/local candidates with stage-scoped eval data.
 3. **Agent control-plane consumption resources and A2A parity.** MCP already has
    scopes, approval tokens, tool/resource-read audit events, and budget
@@ -795,7 +796,7 @@ Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The firs
 - **Shipped router bridge:** `backend_with_availability()` and `backends_with_availability()` apply provider snapshots to backend capability rows and attach sanitized availability metadata before `route_stage()`
 - **Shipped doctor visibility:** `primr doctor` now shows sanitized provider availability from the same generic snapshots, without paid cloud probes or local endpoint leakage
 - Production-stage requirements are declared in `core/stage_inventory.py`: minimum reasoning depth, trust sensitivity, required capabilities, token/context estimates, and acceptable backend families
-- Runtime bridge shipped in `ai/stage_routing.py`: `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` resolve their legacy utility models through `route_stage()`, log safe route metadata, append capped body-free `stage_routes` records to `_run_state.json`, and execute through the existing utility provider seams with today's role defaults preserved as fallback
+- Runtime bridge shipped in `ai/stage_routing.py`: `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` resolve their legacy utility models through `route_stage()`, log safe route metadata, append capped body-free `stage_routes` records to `_run_state.json`, include measured token/cache/cost deltas when provider counters expose them, and execute through the existing utility provider seams with today's role defaults preserved as fallback
 - Router selection must continue to be wired into execution and cost estimation stage by stage, keeping today's role defaults as fallback until eval data promotes a requirement profile
 - Integrates with the circuit breaker - unhealthy models are skipped automatically
 - Official cloud quota/status collectors must translate supported provider surfaces into the availability shape, then feed the existing availability-to-backend adapter before routing

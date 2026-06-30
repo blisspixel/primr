@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import time
+from typing import Any
 
 from primr.ai import stage_routing
 from primr.ai.llm import llm
@@ -51,10 +52,12 @@ Return ONLY a JSON array of the source NUMBERS to KEEP (e.g. [1, 3, 5, 8]).
 
 No prose, no explanation."""
     route: stage_routing.StageModelRoute | None = None
+    usage_before: stage_routing.StageUsageByModel | None = None
     start_time = time.monotonic()
     try:
         route = stage_routing.resolve_stage_model("fast.source_relevance", legacy_model_type="fast")
         log_structured("info", "Source relevance route selected", **route.log_metadata())
+        usage_before = stage_routing.capture_stage_usage()
         response = llm(prompt, model_type="fast", streaming=False, model=route.model_name).strip()
         text = response.strip()
         if text.startswith("```"):
@@ -76,6 +79,9 @@ No prose, no explanation."""
                 output_count=len(external_data),
                 duration_seconds=time.monotonic() - start_time,
                 failure_class="unparseable_response",
+                usage_delta=stage_routing.stage_usage_delta(usage_before)
+                if usage_before is not None
+                else None,
             )
             return external_data
 
@@ -93,6 +99,9 @@ No prose, no explanation."""
                 output_count=len(external_data),
                 duration_seconds=time.monotonic() - start_time,
                 failure_class="too_few_sources",
+                usage_delta=stage_routing.stage_usage_delta(usage_before)
+                if usage_before is not None
+                else None,
             )
             return external_data
 
@@ -104,6 +113,9 @@ No prose, no explanation."""
             input_count=len(external_data),
             output_count=len(filtered),
             duration_seconds=time.monotonic() - start_time,
+            usage_delta=stage_routing.stage_usage_delta(usage_before)
+            if usage_before is not None
+            else None,
         )
         if dropped > 0:
             log_structured(
@@ -123,6 +135,9 @@ No prose, no explanation."""
                 output_count=len(external_data),
                 duration_seconds=time.monotonic() - start_time,
                 failure_class=type(e).__name__,
+                usage_delta=stage_routing.stage_usage_delta(usage_before)
+                if usage_before is not None
+                else None,
             )
         log_structured(
             "warning",
@@ -142,6 +157,7 @@ def _record_source_route(
     output_count: int,
     duration_seconds: float,
     failure_class: str | None = None,
+    usage_delta: dict[str, Any] | None = None,
 ) -> None:
     stage_routing.record_stage_route_usage(
         folder_path,
@@ -151,4 +167,5 @@ def _record_source_route(
         output_items=output_count,
         duration_seconds=duration_seconds,
         failure_class=failure_class,
+        usage_delta=usage_delta,
     )

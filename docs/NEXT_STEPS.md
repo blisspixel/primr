@@ -260,10 +260,11 @@ Do next:
   role defaults preserved as fallback. Runtime route resolution now consumes
   sanitized env-only cloud provider availability snapshots by default, can
   accept injected quota snapshots, and records body-free availability metadata
-  without adding live quota collection or local probes to normal runs.
+  without adding live quota collection or local probes to normal runs. Route
+  records now also include measured token/cache/cost deltas when provider usage
+  counters expose them.
 - Promote one host/local candidate only after stage-scoped evals prove quality,
-  cost, latency, and failure behavior. Actual token, cache, and cost fields
-  should be added only after provider usage seams expose stage-scoped counters.
+  cost, latency, and failure behavior.
 - Promote one stage at a time. A provider path is supported only when report
   quality, cost, latency, and failure behavior are measured against the same
   calibration pack.
@@ -275,9 +276,9 @@ Done when:
   runtime slices are shipped; broader production wiring is still pending.
 - Estimates and usage records name the backend and billing mode honestly. The
   route ledger records backend/profile/billing metadata for
-  `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals`;
-  stage-scoped
-  token/cache/cost records remain pending.
+  `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals`,
+  and appends measured stage-scoped token/cache/cost deltas when counters are
+  available.
 - Provider comparison artifacts exist for every promoted stage.
 - No hidden provider dependency remains in the full-report path for the wired
   stage.

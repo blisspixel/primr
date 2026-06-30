@@ -661,6 +661,27 @@ class TestGatherHiringSignalsE2E:
         with (
             patch.object(hs, "_http_get", side_effect=fake_http_get),
             patch("primr.ai.stage_routing.resolve_stage_model", return_value=route),
+            patch(
+                "primr.data.hiring_signals.stage_routing.capture_stage_usage",
+                return_value={"routed-hiring-model": {"input_tokens": 0}},
+            ),
+            patch(
+                "primr.data.hiring_signals.stage_routing.stage_usage_delta",
+                return_value={
+                    "actual_input_tokens": 360,
+                    "actual_output_tokens": 90,
+                    "actual_cached_input_tokens": 0,
+                    "actual_cost_usd": 0.00018,
+                    "actual_usage_by_model": {
+                        "routed-hiring-model": {
+                            "input_tokens": 360,
+                            "output_tokens": 90,
+                            "cached_input_tokens": 0,
+                            "actual_cost_usd": 0.00018,
+                        }
+                    },
+                },
+            ),
             patch("primr.ai.grok_client.grok_llm", side_effect=fake_grok_llm),
         ):
             signals = gather_hiring_signals(
@@ -678,6 +699,11 @@ class TestGatherHiringSignalsE2E:
         assert record["output_items"] == 1
         assert record["expected_input_tokens"] == 45_000
         assert record["expected_output_tokens"] == 4_000
+        assert record["actual_input_tokens"] == 360
+        assert record["actual_output_tokens"] == 90
+        assert record["actual_cached_input_tokens"] == 0
+        assert record["actual_cost_usd"] == 0.00018
+        assert record["actual_usage_by_model"]["routed-hiring-model"]["output_tokens"] == 90
         assert "prompt" not in record
         assert "response" not in record
         assert "url" not in record

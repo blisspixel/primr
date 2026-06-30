@@ -7,6 +7,7 @@ import os
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from primr.ai import stage_routing
 from primr.ai.llm import llm
@@ -342,12 +343,14 @@ def summarize_scraped_content(
     """Summarizes key insights from scraped website data."""
     start_time = time.monotonic()
     route: stage_routing.StageModelRoute | None = None
+    usage_before: stage_routing.StageUsageByModel | None = None
     summarize_fn: SummaryFn = _invoke_default_summary_model
     try:
         route = stage_routing.resolve_stage_model(
             "fast.scrape_summary", legacy_model_type="scraping"
         )
         log_structured("info", "Scrape summary route selected", **route.log_metadata())
+        usage_before = stage_routing.capture_stage_usage()
         summarize_fn = _build_routed_summary_model(route)
     except Exception as e:
         logger.warning("Scrape summary route resolution failed: %s", e, exc_info=True)
@@ -371,6 +374,9 @@ def summarize_scraped_content(
                 output_count=0,
                 duration_seconds=time.monotonic() - start_time,
                 failure_class=type(e).__name__,
+                usage_delta=stage_routing.stage_usage_delta(usage_before)
+                if usage_before is not None
+                else None,
             )
         raise
 
@@ -384,6 +390,9 @@ def summarize_scraped_content(
             output_count=output_count,
             duration_seconds=time.monotonic() - start_time,
             failure_class=None if output_count else "empty_summary",
+            usage_delta=stage_routing.stage_usage_delta(usage_before)
+            if usage_before is not None
+            else None,
         )
     return summary
 
@@ -397,6 +406,7 @@ def _record_summary_route(
     output_count: int,
     duration_seconds: float,
     failure_class: str | None = None,
+    usage_delta: dict[str, Any] | None = None,
 ) -> None:
     stage_routing.record_stage_route_usage(
         folder_path,
@@ -406,6 +416,7 @@ def _record_summary_route(
         output_items=output_count,
         duration_seconds=duration_seconds,
         failure_class=failure_class,
+        usage_delta=usage_delta,
     )
 
 

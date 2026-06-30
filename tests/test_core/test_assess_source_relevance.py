@@ -127,6 +127,29 @@ class TestAssessSourceRelevance:
             "primr.core.source_relevance.llm",
             MagicMock(return_value="[1, 2, 3, 4]"),
         )
+        monkeypatch.setattr(
+            "primr.core.source_relevance.stage_routing.capture_stage_usage",
+            MagicMock(return_value={"before": {"input_tokens": 10}}),
+        )
+        monkeypatch.setattr(
+            "primr.core.source_relevance.stage_routing.stage_usage_delta",
+            MagicMock(
+                return_value={
+                    "actual_input_tokens": 120,
+                    "actual_output_tokens": 30,
+                    "actual_cached_input_tokens": 12,
+                    "actual_cost_usd": 0.000045,
+                    "actual_usage_by_model": {
+                        "routed-utility-model": {
+                            "input_tokens": 120,
+                            "output_tokens": 30,
+                            "cached_input_tokens": 12,
+                            "actual_cost_usd": 0.000045,
+                        }
+                    },
+                }
+            ),
+        )
 
         result = _assess_source_relevance("Acme", sources, str(tmp_path))
 
@@ -139,5 +162,10 @@ class TestAssessSourceRelevance:
         assert record["output_items"] == 4
         assert record["expected_input_tokens"] == 18_000
         assert record["expected_output_tokens"] == 2_000
+        assert record["actual_input_tokens"] == 120
+        assert record["actual_output_tokens"] == 30
+        assert record["actual_cached_input_tokens"] == 12
+        assert record["actual_cost_usd"] == 0.000045
+        assert record["actual_usage_by_model"]["routed-utility-model"]["input_tokens"] == 120
         assert "prompt" not in record
         assert "response" not in record

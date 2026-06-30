@@ -249,6 +249,16 @@ def _get_gemini_provider():
     return _gemini_provider
 
 
+def get_llm_provider_usage_by_model() -> dict[str, dict[str, int]]:
+    """Return cumulative usage from provider-backed ``llm()`` calls by model."""
+
+    provider = _gemini_provider
+    if provider is None or not hasattr(provider, "get_usage_by_model"):
+        return {}
+    usage = provider.get_usage_by_model()
+    return {str(model): dict(values) for model, values in usage.items()}
+
+
 def llm_fast(prompt, model_type="fast"):
     """
     Fast LLM call with minimal thinking - for simple tasks like filtering links.

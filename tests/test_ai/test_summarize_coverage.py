@@ -232,6 +232,27 @@ def test_summarize_scraped_content_records_route_usage(monkeypatch, tmp_path):
     )
     monkeypatch.setattr("primr.ai.stage_routing.resolve_stage_model", lambda *_a, **_k: route)
     monkeypatch.setattr("primr.ai.summarize.llm", lambda *_a, **_k: "fact " * 60)
+    monkeypatch.setattr(
+        "primr.ai.summarize.stage_routing.capture_stage_usage",
+        lambda: {"routed-scrape-summary-model": {"input_tokens": 0}},
+    )
+    monkeypatch.setattr(
+        "primr.ai.summarize.stage_routing.stage_usage_delta",
+        lambda _before: {
+            "actual_input_tokens": 240,
+            "actual_output_tokens": 80,
+            "actual_cached_input_tokens": 40,
+            "actual_cost_usd": 0.00012,
+            "actual_usage_by_model": {
+                "routed-scrape-summary-model": {
+                    "input_tokens": 240,
+                    "output_tokens": 80,
+                    "cached_input_tokens": 40,
+                    "actual_cost_usd": 0.00012,
+                }
+            },
+        },
+    )
 
     summarize.summarize_scraped_content("Acme", "acme.example", data, str(tmp_path))
 
@@ -243,6 +264,11 @@ def test_summarize_scraped_content_records_route_usage(monkeypatch, tmp_path):
     assert record["output_items"] == 1
     assert record["expected_input_tokens"] == 70_000
     assert record["expected_output_tokens"] == 5_000
+    assert record["actual_input_tokens"] == 240
+    assert record["actual_output_tokens"] == 80
+    assert record["actual_cached_input_tokens"] == 40
+    assert record["actual_cost_usd"] == 0.00012
+    assert record["actual_usage_by_model"]["routed-scrape-summary-model"]["output_tokens"] == 80
     assert "prompt" not in record
     assert "response" not in record
 

@@ -8,6 +8,7 @@ signals; and persists audit artifacts under `<working>/_hiring/`.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -31,6 +32,7 @@ from primr.data.hiring_signal_artifacts import (
 from primr.data.hiring_signal_artifacts import (
     render_for_prompt as _render_for_prompt,
 )
+from primr.data.hiring_signal_routing import record_hiring_route as _record_hiring_route
 from primr.utils.observability import log_structured
 
 logger = logging.getLogger(__name__)
@@ -218,13 +220,11 @@ def _candidate_slugs(
             _add(_slugify(str(slug)))
 
     # Website hostname — "example.com" → "example", "acme-corp.io" → "acme-corp"
-    try:
+    with contextlib.suppress(Exception):
         host = urlparse(website).netloc.lower().removeprefix("www.")
         root = host.split(".")[0] if host else ""
         if root:
             _add(_slugify(root))
-    except Exception:
-        pass
 
     # Company name variants
     name = (company_name or "").strip()
@@ -886,12 +886,10 @@ def _discover_via_web_search(
         return []
 
     domain_hint = ""
-    try:
+    with contextlib.suppress(Exception):
         host = urlparse(website).netloc.lower().removeprefix("www.")
         if host:
             domain_hint = f" {host}"
-    except Exception:
-        pass
 
     query = f'"{company_name}" jobs OR careers OR hiring{domain_hint}'
     out: list[Posting] = []
@@ -996,7 +994,7 @@ def _careers_url_candidates(website: str, corpus: dict[str, str] | None) -> list
                 seen.add(url)
                 urls.append(url)
 
-    try:
+    with contextlib.suppress(Exception):
         parsed = urlparse(website)
         root_host = parsed.netloc.lower().removeprefix("www.") if parsed.netloc else ""
         scheme = parsed.scheme or "https"
@@ -1018,8 +1016,6 @@ def _careers_url_candidates(website: str, corpus: dict[str, str] | None) -> list
             if candidate not in seen:
                 seen.add(candidate)
                 urls.append(candidate)
-    except Exception:
-        pass
 
     # Bumped from 6 to 14 to accommodate the 6 subdomain probes plus the
     # 4 on-path probes plus a handful of corpus carryovers.
@@ -1673,11 +1669,13 @@ def gather_hiring_signals(
 
     route: stage_routing.StageModelRoute | None = None
     routed_model: str | None = None
+    usage_before: stage_routing.StageUsageByModel | None = None
     route_start = time.monotonic()
     try:
         route = stage_routing.resolve_stage_model("fast.hiring_signals", legacy_model_type="fast")
         routed_model = route.model_name
         log_structured("info", "Hiring signals route selected", **route.log_metadata())
+        usage_before = stage_routing.capture_stage_usage()
     except Exception as e:
         logger.warning("Hiring signals route resolution failed: %s", e, exc_info=True)
 
@@ -1728,6 +1726,9 @@ def gather_hiring_signals(
                 output_count=len(metadata_roles),
                 duration_seconds=time.monotonic() - route_start,
                 failure_class="no_recovered_bodies",
+                usage_delta=stage_routing.stage_usage_delta(usage_before)
+                if usage_before is not None
+                else None,
             )
         return skeleton
 
@@ -1771,27 +1772,9 @@ def gather_hiring_signals(
             output_count=signals.postings_extracted,
             duration_seconds=time.monotonic() - route_start,
             failure_class=None if isinstance(parsed, dict) else "unparseable_extraction",
+            usage_delta=stage_routing.stage_usage_delta(usage_before)
+            if usage_before is not None
+            else None,
         )
 
     return signals
-
-
-def _record_hiring_route(
-    folder_path: str | None,
-    route: stage_routing.StageModelRoute,
-    *,
-    outcome: str,
-    input_count: int,
-    output_count: int,
-    duration_seconds: float,
-    failure_class: str | None = None,
-) -> None:
-    stage_routing.record_stage_route_usage(
-        folder_path,
-        route,
-        outcome=outcome,
-        input_items=input_count,
-        output_items=output_count,
-        duration_seconds=duration_seconds,
-        failure_class=failure_class,
-    )
