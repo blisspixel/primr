@@ -34,30 +34,11 @@ def _assess_source_relevance(
         snippet = external_data[url][:500].replace("\n", " ")
         source_summaries.append(f"{i + 1}. {url}\n   {snippet}")
 
-    prompt = f"""You are evaluating external research sources about {company_name}.
-
-Below are {len(url_list)} sources. For each, decide: KEEP or DROP.
-
-KEEP a source if it provides SPECIFIC, USEFUL intelligence about {company_name}:
-- Names executives, financials, deals, partnerships, or strategies
-- Provides industry analysis mentioning this company specifically
-- Contains news, press releases, or analyst coverage about this company
-
-DROP a source if it is:
-- Generic industry content that barely mentions the company
-- A directory listing, job board, or social media page with no substance
-- Duplicate information already covered by another KEPT source
-- Tangentially related but not genuinely informative
-
-IMPORTANT: For smaller or less prominent companies, it is BETTER to keep 5 high-quality
-sources than 25 mediocre ones. Be selective. Quality over quantity.
+    instructions = _source_relevance_instructions(company_name, len(url_list))
+    prompt = f"""{instructions}
 
 SOURCES:
-{chr(10).join(source_summaries)}
-
-Return ONLY a JSON array of the source NUMBERS to KEEP (e.g. [1, 3, 5, 8]).
-
-No prose, no explanation."""
+{chr(10).join(source_summaries)}"""
     route: stage_routing.StageModelRoute | None = None
     usage_before: stage_routing.StageUsageByModel | None = None
     start_time = time.monotonic()
@@ -78,7 +59,11 @@ No prose, no explanation."""
             return external_data
 
         if execution_mode == "host_agent":
-            response = _run_source_relevance_host_agent(route, prompt).strip()
+            response = _run_source_relevance_host_agent(
+                route,
+                instructions,
+                source_summaries,
+            ).strip()
         else:
             usage_before = stage_routing.capture_stage_usage()
             response = llm(
@@ -173,16 +158,44 @@ No prose, no explanation."""
         return external_data
 
 
+def _source_relevance_instructions(company_name: str, source_count: int) -> str:
+    return f"""You are evaluating {source_count} external research sources about {company_name}.
+
+For each source, decide: KEEP or DROP.
+
+KEEP a source if it provides SPECIFIC, USEFUL intelligence about {company_name}:
+- Names executives, financials, deals, partnerships, or strategies
+- Provides industry analysis mentioning this company specifically
+- Contains news, press releases, or analyst coverage about this company
+
+DROP a source if it is:
+- Generic industry content that barely mentions the company
+- A directory listing, job board, or social media page with no substance
+- Duplicate information already covered by another KEPT source
+- Tangentially related but not genuinely informative
+
+IMPORTANT: For smaller or less prominent companies, it is BETTER to keep 5 high-quality
+sources than 25 mediocre ones. Be selective. Quality over quantity.
+
+Return ONLY a JSON array of the source NUMBERS to KEEP (e.g. [1, 3, 5, 8]).
+
+No prose, no explanation."""
+
+
 def _run_source_relevance_host_agent(
     route: stage_routing.StageModelRoute,
-    prompt: str,
+    instructions: str,
+    source_summaries: list[str],
 ) -> str:
     runner_kind = route.host_agent_kind or HostAgentKind.CODEX.value
     result = run_host_agent_stage(
         HostAgentStagePacket(
             stage_id="fast.source_relevance",
             role="utility",
-            instructions=prompt,
+            instructions=instructions,
+            evidence={
+                f"source_{idx}": summary for idx, summary in enumerate(source_summaries, start=1)
+            },
             output_schema=_SOURCE_RELEVANCE_OUTPUT_SCHEMA,
             policy=HostAgentPolicy(max_wall_seconds=180, max_output_chars=10_000),
         ),

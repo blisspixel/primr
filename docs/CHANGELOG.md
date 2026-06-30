@@ -54,6 +54,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   schema, and body-free route metadata. If no official host runner is
   available, the explicit agent profile keeps all sources instead of silently
   falling back to cloud API spend.
+- The `fast.source_relevance` host-agent packet now passes source snippets as
+  fenced evidence blocks rather than embedding untrusted snippets in host-agent
+  instructions.
 - Agentic QA fallback scoring no longer assigns a default passing accuracy
   score when it has not verified factual accuracy; the compatibility
   `accuracy` dimension now reflects deterministic traceability signals only.

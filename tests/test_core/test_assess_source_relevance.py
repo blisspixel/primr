@@ -135,6 +135,9 @@ class TestAssessSourceRelevance:
         packet = host_mock.call_args.args[0]
         assert packet.stage_id == "fast.source_relevance"
         assert packet.role == "utility"
+        assert "https://s0.example" not in packet.instructions
+        assert "https://s0.example" in packet.evidence["source_1"]
+        assert "content about Acme 0" in packet.evidence["source_1"]
         assert packet.output_schema == {"type": "array", "items": {"type": "integer"}}
         assert host_mock.call_args.kwargs["kind"] == "codex"
         llm_mock.assert_not_called()
