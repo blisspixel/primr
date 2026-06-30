@@ -29,6 +29,7 @@ from primr.a2a.input_parsing import (
 )
 from primr.a2a.task_store import PrimrTaskStore
 from primr.a2a.types import A2ATaskMapping
+from primr.mcp_server.types import ResearchStage
 
 
 class TestExtractSkillId:
@@ -417,6 +418,44 @@ class TestPrimrAgentExecutor:
         data = json.loads(text)
         assert "status" in data
         assert data["status"] == "idle"
+
+    @pytest.mark.asyncio
+    async def test_check_jobs_completed_job_returns_resource_pointers_not_paths(
+        self, executor, event_queue, context, tmp_path
+    ):
+        """A2A check_jobs advertises compact read surfaces without raw paths."""
+        report = tmp_path / "Acme_Strategic_Overview.md"
+        report.write_text("# SECRET REPORT BODY", encoding="utf-8")
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["read"]
+        auth_context.client_id = "client-a"
+        executor._mcp._auth_context = auth_context
+        job = executor._mcp.job_store.create(
+            "Acme Corp",
+            "full",
+            owner_client_id="client-a",
+        )
+        job.output_paths = [str(report)]
+        job.advance_stage(ResearchStage.COMPLETED)
+        executor._mcp.job_store.update(job)
+        context.message["metadata"] = {"skillId": "check_jobs"}
+
+        try:
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        text = json.dumps(data)
+        assert data["job_id"] == job.job_id
+        assert data["artifact_metadata_uri"] == f"primr://output/artifacts/by_job/{job.job_id}"
+        assert data["report_read_uri"] == f"primr://output/report/by_job/{job.job_id}"
+        assert data["output_paths_available"] is True
+        assert "output_paths" not in data
+        assert str(report) not in text
+        assert "SECRET REPORT BODY" not in text
 
     @pytest.mark.asyncio
     async def test_doctor_returns_json(self, executor, event_queue, context):

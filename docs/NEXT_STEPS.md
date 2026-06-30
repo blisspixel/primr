@@ -397,8 +397,11 @@ Do next:
   `primr://output/report/by_job/{job_id}` reader, and supports
   `content_mode`, `artifact_type`, and `max_chars` output negotiation while
   preserving hashed A2A audit events.
-- Extend any remaining output-consumption negotiation decisions that are not
-  report-body specific.
+- Shipped remaining compact status output negotiation: authenticated MCP
+  `check_jobs`, `primr://output/latest`, and `primr://output/by_job/{job_id}`
+  now stay metadata-first even for `report`-scoped callers and point agents to
+  the explicit report resource; A2A `check_jobs` returns compact artifact and
+  report resource URIs instead of raw output paths.
 - Carry request/job ids into OpenTelemetry-compatible spans and structured logs
   without storing raw report bodies by default.
 

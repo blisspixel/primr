@@ -97,6 +97,30 @@ class TestLatestOutput:
         assert data["content_preview_included"] is False
         assert data["full_content_included"] is False
         assert data["report_read_required"] is True
+        assert data["required_scopes"] == ["report"]
+
+    @pytest.mark.asyncio
+    async def test_authenticated_report_scope_still_uses_explicit_latest_report_read(
+        self, server, monkeypatch, tmp_path
+    ):
+        monkeypatch.chdir(tmp_path)
+        out = tmp_path / "output" / "acme"
+        out.mkdir(parents=True)
+        report = out / "report.md"
+        report.write_text("# SECRET latest body", encoding="utf-8")
+        server._auth_context = SimpleNamespace(
+            client_id="client-a",
+            scopes=["read", "report"],
+            is_authenticated=True,
+        )
+
+        data = await _read(server, "primr://output/latest?full_content=true")
+        assert "SECRET latest body" not in json.dumps(data)
+        assert data["content_preview"] is None
+        assert data["content_preview_included"] is False
+        assert data["full_content_included"] is False
+        assert data["report_read_required"] is True
+        assert "required_scopes" not in data
 
 
 class TestArtifacts:
@@ -175,6 +199,32 @@ class TestOutputByJob:
         assert data["content_preview_included"] is False
         assert data["report_read_required"] is True
         assert data["report_read_uri"] == f"primr://output/report/by_job/{job.job_id}"
+        assert data["required_scopes"] == ["report"]
+
+    @pytest.mark.asyncio
+    async def test_authenticated_report_scope_still_uses_explicit_by_job_report_read(
+        self, server, tmp_path
+    ):
+        report = tmp_path / "report.md"
+        report.write_text("# SECRET job report", encoding="utf-8")
+        server._auth_context = SimpleNamespace(
+            client_id="client-a",
+            scopes=["read", "report"],
+            is_authenticated=True,
+        )
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(report)]
+        job.advance_stage(ResearchStage.COMPLETED)
+        server.job_store.update(job)
+
+        data = await _read(server, f"primr://output/by_job/{job.job_id}")
+        assert "SECRET job report" not in json.dumps(data)
+        assert data["job_id"] == job.job_id
+        assert data["content_preview"] is None
+        assert data["content_preview_included"] is False
+        assert data["report_read_required"] is True
+        assert data["report_read_uri"] == f"primr://output/report/by_job/{job.job_id}"
+        assert "required_scopes" not in data
 
 
 class TestReportContentByJob:

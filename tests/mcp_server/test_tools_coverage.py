@@ -334,7 +334,7 @@ class TestCheckJobs:
         assert "artifacts" not in j
 
     @pytest.mark.asyncio
-    async def test_authenticated_report_scope_can_inline_requested_artifacts(
+    async def test_authenticated_report_scope_still_uses_explicit_report_resource(
         self, server, tmp_path
     ):
         report = tmp_path / "Acme_Strategic_Overview.md"
@@ -352,8 +352,12 @@ class TestCheckJobs:
 
         data = await _call(server, "check_jobs", {"job_id": job.job_id, "include_artifacts": True})
         j = data["jobs"][0]
-        assert j["artifacts_content_included"] is True
-        assert j["artifacts"][0]["content"] == "# SECRET REPORT BODY"
+        assert "SECRET REPORT BODY" not in json.dumps(data)
+        assert j["artifacts_content_included"] is False
+        assert j["include_artifacts_requested"] is True
+        assert j["report_read_required"] is True
+        assert j["report_read_uri"] == f"primr://output/report/by_job/{job.job_id}"
+        assert "required_scopes" not in j
 
     @pytest.mark.asyncio
     async def test_terminal_job_listed_when_no_active(self, server):

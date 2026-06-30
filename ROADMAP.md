@@ -107,9 +107,10 @@ Current priority order:
    `research_company` enforces `max_estimated_cost_usd` plus a matching
    approval token when cost-cap enforcement is active before creating a job,
    then propagates the approved cap into `PipelineRunner` as the runtime
-   budget. MCP report-read scope separation is now shipped, and A2A now has
-   matching report-read parity behind the explicit `report` scope. The next
-   safety win is any remaining output negotiation. The seven MCP
+   budget. MCP report-read scope separation is now shipped, A2A now has
+   matching report-read parity behind the explicit `report` scope, and compact
+   status output negotiation now points authenticated agents to explicit
+   resource URIs instead of inline bodies or raw output paths. The seven MCP
    job-scoped resource slices shipped:
    `primr://output/artifacts/by_job/{job_id}` returns owned-job artifact
    metadata, and `primr://output/qa_summary/by_job/{job_id}` returns compact QA
@@ -136,8 +137,8 @@ Current priority order:
    ownership checks, explicit `report` scope for authenticated HTTP callers,
    and `content_mode` / `artifact_type` / `max_chars` output negotiation.
    `check_jobs`, `primr://output/latest`, and `primr://output/by_job/{job_id}`
-   omit report bodies or previews for authenticated HTTP callers that do not
-   hold `report` scope, while local stdio retains backwards-compatible inline
+   omit report bodies or previews for authenticated HTTP callers even when
+   they hold `report`, while local stdio retains backwards-compatible inline
    artifact behavior. MCP resource
    reads now append privacy-preserving audit events with hashed URI/result
    values, normalized resource kind, job id when present, caller scope, and
@@ -961,9 +962,8 @@ Shipped:
   `finally` after success, cancellation, or failure.
 
 Planned:
-- Extend remaining output-consumption negotiation now that all seven compact
-  job-scoped A2A parity slices, research approval, runtime budget propagation,
-  and report-read scope separation are shipped.
+- Carry request/job ids into OpenTelemetry-compatible spans and structured logs
+  now that compact output negotiation is metadata-first across MCP and A2A.
 - Add integration eval suites for routing, approval, recovery, and recomputation avoidance
 - Expose a compact project security/profile resource for agent clients when
   useful, including always-on guardrails and context-selected guidance for
@@ -1522,7 +1522,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| 1.34.41 | Jun 2026 | **MCP report-read scope separation.** `check_jobs`, `primr://output/latest`, and `primr://output/by_job/{job_id}` now keep authenticated HTTP status and metadata reads body-free unless the caller holds the explicit `report` scope. Full report and strategy text moves to `primr://output/report/by_job/{job_id}` with ownership checks and `content_mode` / `artifact_type` / `max_chars` output negotiation, while local stdio keeps backwards-compatible inline artifact behavior. |
+| 1.34.41 | Jun 2026 | **Report-scoped output consumption.** `check_jobs`, `primr://output/latest`, and `primr://output/by_job/{job_id}` now keep authenticated HTTP status and metadata reads body-free even when the caller holds the explicit `report` scope. Full report and strategy text moves to `primr://output/report/by_job/{job_id}` with ownership checks and `content_mode` / `artifact_type` / `max_chars` output negotiation, A2A has matching `read_report_by_job` parity, A2A `check_jobs` returns compact resource URIs instead of raw output paths, and local stdio keeps backwards-compatible inline artifact behavior. |
 | 1.34.40 | Jun 2026 | **A2A research approval and budget parity.** `estimate_research` now returns the same approval-token fields as MCP `estimate_run`, and A2A `research_company` enforces `max_estimated_cost_usd` plus a matching approval token when cost-cap enforcement is active before any job is created. The accepted cap is propagated into `PipelineRunner` as the runtime budget, and A2A audit events record sanitized estimate/cap metadata without raw URLs, message text, or approval tokens. |
 | 1.34.39 | Jun 2026 | **A2A label-calibration summary readback.** Added read-scoped `read_calibration_summary_by_job` to the A2A AgentCard and executor, backed by the same ownership-gated `primr://output/calibration_summary/by_job/{job_id}` compact summary contract as MCP. The skill returns per-label traceability counts, inference source-copy counts, evidence-review count buckets, judge metadata, and judge-agreement metadata without raw claims, source URLs, evidence reviews, rationales, or report body content. |
 | 1.34.38 | Jun 2026 | **A2A claim verification summary readback.** Added read-scoped `read_verification_summary_by_job` to the A2A AgentCard and executor, backed by the same ownership-gated `primr://output/verification_summary/by_job/{job_id}` compact summary contract as MCP. The skill returns trust score, claim counts, status counts, first-party downgrade counts, and source-reference counts without raw claims, source URLs, search queries, explanations, or report body content. |

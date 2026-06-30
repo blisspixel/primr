@@ -1183,12 +1183,12 @@ Strategy types: `ai_strategy`, `customer_experience`, `modern_security_complianc
 #### check_jobs
 
 Check research job status. Completed jobs return output pointers by default.
-Authenticated HTTP callers only receive inline report and strategy bodies when
-they pass `include_artifacts=true` and hold the `report` scope. Local stdio
-callers keep the historical inline-artifact default for backwards
-compatibility. Prefer `primr://output/artifacts/by_job/{job_id}` for compact
-inventory reads and `primr://output/report/by_job/{job_id}` for explicit
-report-body reads.
+Authenticated HTTP callers do not receive inline report or strategy bodies
+from `check_jobs`; the `report` scope authorizes the explicit
+`primr://output/report/by_job/{job_id}` resource instead. Local stdio callers
+keep the historical inline-artifact default for backwards compatibility.
+Prefer `primr://output/artifacts/by_job/{job_id}` for compact inventory reads
+and `primr://output/report/by_job/{job_id}` for explicit report-body reads.
 
 ```json
 {
@@ -1252,8 +1252,26 @@ Response (authenticated caller requested artifacts without `report` scope):
 }
 ```
 
-Response (caller requested artifacts with `report` scope, or local stdio
-compatibility path):
+Response (authenticated caller requested artifacts with `report` scope):
+```json
+{
+  "jobs": [
+    {
+      "job_id": "job_abc123",
+      "status": "completed",
+      "company_name": "Acme Corp",
+      "output_path": "output/Acme_Corp_Strategic_Overview_04-08-2026.md",
+      "artifacts_content_included": false,
+      "include_artifacts_requested": true,
+      "artifact_metadata_uri": "primr://output/artifacts/by_job/job_abc123",
+      "report_read_uri": "primr://output/report/by_job/job_abc123",
+      "report_read_required": true
+    }
+  ]
+}
+```
+
+Response (local stdio compatibility path):
 ```json
 {
   "jobs": [
@@ -1644,9 +1662,10 @@ Current mode guidance for integrations.
 #### primr://output/latest
 
 Most recent research output. Local stdio callers can add
-`?full_content=true` for complete content. Authenticated HTTP callers need the
-`report` scope for `content_preview` or `full_content`; otherwise the response
-returns metadata plus `report_read_required=true`.
+`?full_content=true` for complete content. Authenticated HTTP callers receive
+metadata and, when a job is known, a `report_read_uri`; report bodies and
+previews stay on `primr://output/report/by_job/{job_id}` even when the caller
+holds the `report` scope.
 
 ```json
 {
@@ -1656,7 +1675,8 @@ returns metadata plus `report_read_required=true`.
   "report_type": "markdown",
   "content_preview": "# Acme Corp Strategic Overview...",
   "content_preview_included": true,
-  "full_content_included": false
+  "full_content_included": false,
+  "report_read_required": false
 }
 ```
 

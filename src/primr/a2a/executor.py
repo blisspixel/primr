@@ -604,7 +604,9 @@ class PrimrAgentExecutor(AgentExecutor):
                     "status": stage
                     if stage in ("completed", "failed", "cancelled")
                     else "finished",
-                    "output_paths": terminal.output_paths or [],
+                    "artifact_metadata_uri": (f"primr://output/artifacts/by_job/{terminal.job_id}"),
+                    "report_read_uri": f"primr://output/report/by_job/{terminal.job_id}",
+                    "output_paths_available": bool(terminal.output_paths),
                 }
             else:
                 result = {"status": "idle", "message": "No active or recent jobs"}

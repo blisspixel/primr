@@ -51,7 +51,10 @@ from primr.mcp_server.research_policy import (
 from primr.mcp_server.research_policy import (
     parse_max_duration,
 )
-from primr.mcp_server.resource_auth import caller_can_read_report
+from primr.mcp_server.resource_auth import (
+    caller_can_inline_legacy_report_content,
+    caller_can_read_report,
+)
 from primr.mcp_server.skill_pack_tools import handle_skill_pack_tool, register_skill_pack_tools
 from primr.mcp_server.tool_authz import authorize_tool_call, scope_denied_response
 from primr.mcp_server.types import MCPErrorCode, ResearchStage
@@ -924,9 +927,8 @@ async def _handle_check_jobs(
     """
     Handle check_jobs tool.
 
-    Status reads are owner-gated. Authenticated HTTP callers only receive
-    inline report bodies when they explicitly request artifacts and hold the
-    report scope.
+    Status reads are owner-gated. Authenticated HTTP callers receive metadata
+    and explicit report-resource pointers.
 
     Requirements: 7.1-7.6
     """
@@ -934,9 +936,18 @@ async def _handle_check_jobs(
 
     job_id = arguments.get("job_id")
     include_artifacts = include_artifacts_requested(arguments, client_id=client_id)
-    include_report_content = caller_can_read_report(mcp_server)
+    report_scope_granted = caller_can_read_report(mcp_server)
+    include_report_content = caller_can_inline_legacy_report_content(mcp_server)
 
     jobs = []
+
+    def response_for(job: ResearchJobState) -> dict[str, Any]:
+        return build_job_response(
+            job,
+            include_artifacts=include_artifacts,
+            include_report_content=include_report_content,
+            report_scope_granted=report_scope_granted,
+        )
 
     if job_id:
         # Check specific job
@@ -957,24 +968,12 @@ async def _handle_check_jobs(
                     ),
                 )
             ]
-        jobs.append(
-            build_job_response(
-                job,
-                include_artifacts=include_artifacts,
-                include_report_content=include_report_content,
-            )
-        )
+        jobs.append(response_for(job))
     else:
         # Return active + latest terminal — but only if owned by this client.
         active = mcp_server.job_store.get_active()
         if active and _caller_owns_job(active, client_id):
-            jobs.append(
-                build_job_response(
-                    active,
-                    include_artifacts=include_artifacts,
-                    include_report_content=include_report_content,
-                )
-            )
+            jobs.append(response_for(active))
 
         terminal = mcp_server.job_store.get_latest_terminal()
         if (
@@ -982,13 +981,7 @@ async def _handle_check_jobs(
             and _caller_owns_job(terminal, client_id)
             and (not active or terminal.job_id != active.job_id)
         ):
-            jobs.append(
-                build_job_response(
-                    terminal,
-                    include_artifacts=include_artifacts,
-                    include_report_content=include_report_content,
-                )
-            )
+            jobs.append(response_for(terminal))
 
     return [
         TextContent(

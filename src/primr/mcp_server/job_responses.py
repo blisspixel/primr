@@ -105,6 +105,7 @@ def build_job_response(
     *,
     include_artifacts: bool,
     include_report_content: bool,
+    report_scope_granted: bool = False,
 ) -> dict[str, Any]:
     """Build a `check_jobs` response without leaking report bodies by default."""
     status = job.get_status().value
@@ -140,12 +141,14 @@ def build_job_response(
         response.update(
             {
                 "report_read_required": True,
-                "required_scopes": [REPORT_SCOPE],
                 "message": (
-                    "Inline report content requires the report scope. Use "
+                    "Inline report content is only returned on the local stdio "
+                    "compatibility path. Use "
                     f"primr://output/report/by_job/{job.job_id} for explicit report reads."
                 ),
             }
         )
+        if not report_scope_granted:
+            response["required_scopes"] = [REPORT_SCOPE]
 
     return response

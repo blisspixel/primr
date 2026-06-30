@@ -15,6 +15,7 @@ from mcp.types import AnyUrl, Resource
 
 from primr.mcp_server.job_responses import build_output_artifact_rows
 from primr.mcp_server.resource_auth import (
+    caller_can_inline_legacy_report_content,
     caller_can_read_report,
     caller_client_id,
     caller_granted_scopes,
@@ -200,6 +201,7 @@ def read_latest_output_resource(
     may_read_report = (
         can_read_report if can_read_report is not None else caller_can_read_report(mcp_server)
     )
+    may_inline_legacy = may_read_report and caller_can_inline_legacy_report_content(mcp_server)
 
     job = mcp_server.job_store.get_latest_terminal()
     job_id = job.job_id if job else None
@@ -229,8 +231,8 @@ def read_latest_output_resource(
         company_name=company_name,
         generation_timestamp=datetime.fromtimestamp(latest_report.stat().st_mtime),
         report_type="markdown" if latest_report.suffix == ".md" else "text",
-        content_preview=content[:DEFAULT_PREVIEW_CHARS] if content and may_read_report else None,
-        full_content=content if full_content and may_read_report else None,
+        content_preview=content[:DEFAULT_PREVIEW_CHARS] if content and may_inline_legacy else None,
+        full_content=content if full_content and may_inline_legacy else None,
     )
 
     data = {
@@ -244,9 +246,11 @@ def read_latest_output_resource(
         "content_preview": output.content_preview,
         "content_preview_included": output.content_preview is not None,
         "full_content_included": output.full_content is not None,
+        "report_read_required": not may_inline_legacy,
     }
-    if full_content and not may_read_report:
-        data["report_read_required"] = True
+    if job_id:
+        data["report_read_uri"] = f"{REPORT_CONTENT_BY_JOB_URI}/{job_id}"
+    if not may_read_report:
         data["required_scopes"] = [REPORT_SCOPE]
     if output.full_content is not None:
         data["full_content"] = output.full_content
@@ -266,6 +270,7 @@ def read_output_by_job_resource(
     may_read_report = (
         can_read_report if can_read_report is not None else caller_can_read_report(mcp_server)
     )
+    may_inline_legacy = may_read_report and caller_can_inline_legacy_report_content(mcp_server)
 
     job = mcp_server.job_store.get_by_id(requested_job_id)
     if job is None or not caller_owns_job_resource(job, resolved_client_id):
@@ -292,7 +297,7 @@ def read_output_by_job_resource(
         report_path = job.output_paths[0]
 
     content_preview = None
-    if report_path and may_read_report:
+    if report_path and may_inline_legacy:
         try:
             report_file = Path(report_path)
             if report_file.exists():
@@ -311,8 +316,9 @@ def read_output_by_job_resource(
             "report_type": "markdown" if report_path and report_path.endswith(".md") else "text",
             "content_preview": content_preview,
             "content_preview_included": content_preview is not None,
-            "report_read_required": not may_read_report,
+            "report_read_required": not may_inline_legacy,
             "report_read_uri": f"{REPORT_CONTENT_BY_JOB_URI}/{job.job_id}",
             "status": job.get_status().value,
+            **({} if may_read_report else {"required_scopes": [REPORT_SCOPE]}),
         }
     )

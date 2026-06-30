@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read backed by the same MCP `primr://output/report/by_job/{job_id}` helper,
   with `content_mode`, `artifact_type`, and `max_chars` output negotiation.
 
+### Changed
+
+- Kept authenticated MCP `check_jobs`, `primr://output/latest`, and
+  `primr://output/by_job/{job_id}` metadata-first even for `report`-scoped
+  callers, and made A2A `check_jobs` return explicit compact resource URIs
+  instead of raw output paths.
+
 ## [1.34.41] - 2026-06-30
 
 ### Changed

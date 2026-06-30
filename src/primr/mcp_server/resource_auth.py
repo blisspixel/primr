@@ -44,6 +44,11 @@ def caller_can_read_report(mcp_server: Any) -> bool:
     return scope_granted(REPORT_SCOPE, caller_granted_scopes(mcp_server))
 
 
+def caller_can_inline_legacy_report_content(mcp_server: Any) -> bool:
+    """Return whether legacy compact endpoints may inline report content."""
+    return caller_client_id(mcp_server) == "stdio" and caller_can_read_report(mcp_server)
+
+
 def caller_owns_job_resource(job: Any, client_id: str) -> bool:
     """Return whether a caller may read a job-scoped resource."""
     if client_id == "stdio":

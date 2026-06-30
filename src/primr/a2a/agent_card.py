@@ -75,7 +75,8 @@ _SKILLS: list[dict] = [
         "description": (
             "Check the status of the current or most recent research job.\n\n"
             "Input: none required\n\n"
-            "Output: JSON with job_id, company, stage, progress (0-100), status"
+            "Output: JSON with job_id, company, stage, progress (0-100), "
+            "status, and compact artifact/report resource URIs for completed jobs"
         ),
         "tags": ["status", "jobs", "monitoring"],
         "examples": [
