@@ -23,6 +23,7 @@ from primr.core.cli_doctor import (
     _check_gemini_resources,
     _check_provider_availability,
     _check_providers,
+    _show_file_locations,
     run_doctor,
 )
 
@@ -370,6 +371,22 @@ class TestCheckFilesystem:
         with patch("os.makedirs", side_effect=PermissionError("denied")):
             all_passed, _ = _check_filesystem(True, 0)
         assert all_passed is False
+
+
+class TestFileLocations:
+    def test_shows_user_data_and_research_memory(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("PRIMR_CACHE_DIR", str(tmp_path / "cache"))
+        monkeypatch.setenv("PRIMR_DATA_DIR", str(tmp_path / "data"))
+        console = MagicMock()
+        monkeypatch.setattr(cli_doctor, "console", console)
+
+        _show_file_locations()
+
+        lines = [call.args[0] for call in console.info.call_args_list]
+        joined = "\n".join(lines)
+        assert "User data (durable):" in joined
+        assert "Research memory:" in joined
+        assert str(tmp_path / "data" / "research_memory") in joined
 
 
 # ---------------------------------------------------------------------------

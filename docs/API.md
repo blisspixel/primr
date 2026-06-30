@@ -2614,10 +2614,9 @@ Track hypotheses across research sessions with confidence levels.
 
 ```python
 from primr.agentic.memory import ResearchMemory, Hypothesis, ConfidenceLevel
-from pathlib import Path
 
 # Initialize memory
-memory = ResearchMemory(storage_path=Path("./logs/research_memory"))
+memory = ResearchMemory()
 
 # Save a hypothesis
 hypothesis = Hypothesis(
@@ -2802,7 +2801,7 @@ config = OrchestratorConfig(
 )
 
 # Initialize with memory and hooks
-memory = ResearchMemory(storage_path=Path("./logs/research_memory"))
+memory = ResearchMemory()
 hooks = HookSystem()
 hooks.register(CostGuardHook(max_cost_usd=10.0))
 

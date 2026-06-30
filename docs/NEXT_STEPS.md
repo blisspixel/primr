@@ -440,6 +440,10 @@ repeating stale or weak claims with too much confidence.
 Do next after the first three items are stable:
 
 - Implement filesystem-backed company tracking in the per-user data directory.
+  Foundation shipped: default `ResearchMemory()` now writes to
+  `<per-user data dir>/research_memory`, `PRIMR_DATA_DIR` relocates it,
+  `doctor` reports the path, and memory writes reject secret-like values before
+  YAML persistence.
 - Store run pointers, hypothesis history, source attribution, confidence,
   freshness metadata, retention metadata, and exportable OKF bundles.
 - Ship deletion, retention, and no-secret write rules with layer 1, not after

@@ -5,6 +5,8 @@ from pathlib import Path
 from primr.utils.user_cache import (
     get_user_cache_dir,
     get_user_cache_subdir,
+    get_user_data_dir,
+    get_user_data_subdir,
     migrate_legacy_file,
 )
 
@@ -30,6 +32,20 @@ class TestCacheDirResolution:
         assert sub.is_dir()
         assert sub.name == "vendor-research"
         assert sub.parent == tmp_path / "cache"
+
+    def test_data_env_override_wins(self, tmp_path, monkeypatch):
+        override = tmp_path / "custom-data"
+        monkeypatch.setenv("PRIMR_DATA_DIR", str(override))
+        result = get_user_data_dir()
+        assert result == override
+        assert result.is_dir()
+
+    def test_data_subdir_created(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("PRIMR_DATA_DIR", str(tmp_path / "data"))
+        sub = get_user_data_subdir("research_memory")
+        assert sub.is_dir()
+        assert sub.name == "research_memory"
+        assert sub.parent == tmp_path / "data"
 
 
 class TestLegacyMigration:

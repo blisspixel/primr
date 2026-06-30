@@ -1757,15 +1757,10 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
 
 def _handle_memory(config: CLIConfig) -> int:
     """Handle research memory commands."""
-    from pathlib import Path
-
     from primr.agentic.memory import ResearchMemory
 
-    # Default memory path
-    memory_path = Path("./logs/research_memory")
-
     try:
-        memory = ResearchMemory(storage_path=memory_path)
+        memory = ResearchMemory()
     except Exception as e:
         console.error(f"Failed to initialize research memory: {e}")
         return 1
@@ -1870,10 +1865,9 @@ def _handle_orchestrate(config: CLIConfig) -> int:
     console.blank()
 
     # Initialize components
-    memory_path = Path("./logs/research_memory")
     output_path = Path("./output")
 
-    memory = ResearchMemory(storage_path=memory_path)
+    memory = ResearchMemory()
     hooks = HookSystem()
 
     # Register hooks

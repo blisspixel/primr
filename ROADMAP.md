@@ -535,7 +535,10 @@ Each step unblocks the ones after it; items within a step are independent.
 7. **Memory layer 1 → 2 → 3** (2.0): persistent company tracking (filesystem,
    no new deps) → claim store + priming (SQLite + embeddings) → Strategy
    Delta Mode. Layer 3 also depends on the per-user cache (#12, shipped) and
-   benefits from step 1 (delta detection needs trustworthy claims).
+   benefits from step 1 (delta detection needs trustworthy claims). Layer 1
+   storage foundation is now started: default research memory lives in the
+   per-user data directory with `PRIMR_DATA_DIR` relocation, doctor readback,
+   and no-secret write enforcement.
 8. **2.0 release** when steps 5-7 all hold their exit criteria together.
 9. **3.0 workstreams** (VLM, compounding, handoff): VLM depends on nothing
    above (can start anytime resources allow); compounding depends on the

@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added runtime budget visibility to run manifests and compact usage-summary
   readback, including the approved ceiling, active checkpoint status, and
   non-interruptible required provider tasks without exposing manifest bodies.
+- Moved default research memory storage to the per-user data directory
+  (`PRIMR_DATA_DIR` override) and reject secret-like memory payloads before
+  durable writes.
 
 ## [1.34.41] - 2026-06-30
 

@@ -423,18 +423,22 @@ def _show_file_locations() -> None:
     One place that documents the on-disk story (roadmap #12): per-run
     artifacts resolve relative to the invocation directory; shared state
     (vendor research) lives in the per-user cache so it is never duplicated
-    per company folder.
+    per company folder. Durable operator state (research memory) lives in the
+    per-user data directory.
     """
     from pathlib import Path
 
+    from primr.agentic.memory import get_default_memory_path
     from primr.core.vendor_research import get_vendor_research_dir
     from primr.utils.usage_tracker import USAGE_FILE
-    from primr.utils.user_cache import get_user_cache_dir
+    from primr.utils.user_cache import get_user_cache_dir, get_user_data_dir
 
     locations = [
         ("Deliverables (per run)", str(Path(OUTPUT_DIR).resolve())),
         ("Working files (per run)", str(Path(WORKING_DIR).resolve())),
         ("User cache (shared)", str(get_user_cache_dir())),
+        ("User data (durable)", str(get_user_data_dir())),
+        ("Research memory", str(get_default_memory_path())),
         ("Vendor research (shared)", str(get_vendor_research_dir())),
         ("Usage history", str(Path(USAGE_FILE).resolve())),
     ]
@@ -442,7 +446,8 @@ def _show_file_locations() -> None:
         console.info(f"{label}: {path}")
     console.info(
         "Per-run folders are safe to archive/delete after a run; "
-        "the user cache is shared across runs (PRIMR_CACHE_DIR to relocate)."
+        "the user cache is shared across runs (PRIMR_CACHE_DIR to relocate), "
+        "and durable memory uses PRIMR_DATA_DIR when relocation is needed."
     )
 
 

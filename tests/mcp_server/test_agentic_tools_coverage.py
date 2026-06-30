@@ -154,8 +154,7 @@ class TestGetHypotheses:
     async def test_get_hypotheses_default_memory_path(self, monkeypatch, tmp_path):
         """When _memory_path is absent, the default path is used."""
         stub = MagicMock(spec=[])  # no _memory_path attribute
-        # Run from a temp cwd so the default logs/ dir lands somewhere safe
-        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("PRIMR_DATA_DIR", str(tmp_path / "data"))
         result = await handle_agentic_tool("get_hypotheses", {"company": "X"}, stub)
         data = _text(result)
         assert data["company"] == "X"

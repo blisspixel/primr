@@ -20,9 +20,11 @@ import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import pytest
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
+from primr.agentic.errors import MemoryError as ResearchMemoryError
 from primr.agentic.memory import (
     ResearchMemory,
 )
@@ -475,6 +477,35 @@ def test_update_nonexistent_hypothesis():
         )
 
         assert result is False
+
+
+def test_default_memory_path_uses_user_data_dir(tmp_path, monkeypatch):
+    """Default research memory lives under the per-user data root, not logs."""
+    monkeypatch.setenv("PRIMR_DATA_DIR", str(tmp_path / "data"))
+
+    memory = ResearchMemory()
+
+    assert memory.storage_path == tmp_path / "data" / "research_memory"
+    assert memory.storage_path.is_dir()
+
+
+def test_memory_write_rejects_secret_like_values(tmp_path):
+    """Durable memory refuses API-key-shaped values before writing YAML."""
+    memory = ResearchMemory(storage_path=tmp_path)
+    hypothesis = Hypothesis(
+        id="secret",
+        claim="xai-1234567890abcdef should not be persisted",
+    )
+
+    with pytest.raises(ResearchMemoryError) as exc_info:
+        memory.save_hypotheses("Secret Corp", [hypothesis])
+
+    exc = exc_info.value
+    assert exc.operation == "save"
+    assert exc.company == "Secret Corp"
+    assert "secret-like value" in exc.message
+
+    assert not memory._company_path("Secret Corp").exists()
 
 
 def test_delete_company():

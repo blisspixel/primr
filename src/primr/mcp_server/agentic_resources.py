@@ -148,11 +148,7 @@ def _read_memory(uri: str, mcp_server: PrimrMCPServer) -> list[ReadResourceConte
     company = unquote(company)
 
     try:
-        # Get memory storage path from config or use default
         memory_path = getattr(mcp_server, "_memory_path", None)
-        if memory_path is None:
-            memory_path = Path("logs/research_memory")
-
         memory = ResearchMemory(storage_path=memory_path)
         memory_json = memory.to_json(company)
 

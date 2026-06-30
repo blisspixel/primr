@@ -370,6 +370,7 @@ class TestAgenticResources:
     @pytest.mark.asyncio
     async def test_memory_for_company(self, server, monkeypatch, tmp_path):
         monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("PRIMR_DATA_DIR", str(tmp_path / "data"))
         data = await _read(server, "primr://memory/AcmeCorp")
         assert isinstance(data, dict)
 

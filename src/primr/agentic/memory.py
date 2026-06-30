@@ -13,7 +13,7 @@ The memory system follows a file-per-company storage pattern, making it
 easy to inspect, backup, and version control research state.
 
 Storage Format:
-    .primr/memory/
+    <per-user data dir>/research_memory/
     ├── acme_corp.yaml
     ├── exampleco.yaml
     └── ...
@@ -53,8 +53,15 @@ import yaml  # type: ignore[import-untyped]
 from primr.agentic.errors import MemoryError
 from primr.agentic.models import ConfidenceLevel, Hypothesis
 from primr.utils.atomic_io import atomic_replace
+from primr.utils.security import mask_sensitive_data
+from primr.utils.user_cache import get_user_data_subdir
 
 logger = logging.getLogger(__name__)
+
+
+def get_default_memory_path() -> Path:
+    """Return the default durable research-memory directory."""
+    return get_user_data_subdir("research_memory")
 
 
 # =============================================================================
@@ -221,10 +228,10 @@ class ResearchMemory:
         Initialize research memory.
 
         Args:
-            storage_path: Path to storage directory (default: .primr/memory)
+            storage_path: Path to storage directory (default: per-user data dir)
         """
         if storage_path is None:
-            storage_path = Path(".primr/memory")
+            storage_path = get_default_memory_path()
         elif isinstance(storage_path, str):
             storage_path = Path(storage_path)
 
@@ -329,6 +336,7 @@ class ResearchMemory:
 
         try:
             data = memory.to_dict()
+            _raise_if_secret_payload(data, company=memory.company_name, file_path=path)
             # Atomic write: write to temp file then rename, preventing corruption on crash
             tmp_path = path.with_suffix(".tmp")
             with open(tmp_path, "w", encoding="utf-8") as f:
@@ -615,3 +623,41 @@ class ResearchMemory:
                 # Skip invalid files
                 continue
         return companies
+
+
+def _raise_if_secret_payload(
+    value: Any,
+    *,
+    company: str,
+    file_path: Path,
+    path: str = "memory",
+) -> None:
+    """Reject secret-like values before durable memory writes."""
+    if isinstance(value, str):
+        if mask_sensitive_data(value) != value:
+            raise MemoryError(
+                message=f"Memory entry contains a secret-like value at {path}",
+                operation="save",
+                company=company,
+                file_path=str(file_path),
+            )
+        return
+
+    if isinstance(value, dict):
+        for key, item in value.items():
+            _raise_if_secret_payload(
+                item,
+                company=company,
+                file_path=file_path,
+                path=f"{path}.{key}",
+            )
+        return
+
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            _raise_if_secret_payload(
+                item,
+                company=company,
+                file_path=file_path,
+                path=f"{path}[{index}]",
+            )

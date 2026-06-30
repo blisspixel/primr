@@ -14,7 +14,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from mcp.types import TextContent, Tool
@@ -313,11 +312,7 @@ async def _handle_get_hypotheses(
     include_expired = arguments.get("include_expired", False)
 
     try:
-        # Get memory storage path from config or use default
         memory_path = getattr(mcp_server, "_memory_path", None)
-        if memory_path is None:
-            memory_path = Path("logs/research_memory")
-
         memory = ResearchMemory(storage_path=memory_path)
 
         # Convert confidence string to enum if provided
@@ -396,11 +391,7 @@ async def _handle_save_hypothesis(
     topic = arguments.get("topic", "")
 
     try:
-        # Get memory storage path from config or use default
         memory_path = getattr(mcp_server, "_memory_path", None)
-        if memory_path is None:
-            memory_path = Path("logs/research_memory")
-
         memory = ResearchMemory(storage_path=memory_path)
 
         # Convert confidence string to enum
