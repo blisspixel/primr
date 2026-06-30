@@ -1284,11 +1284,11 @@ Promotion criteria:
 Make research compound across runs by persisting extracted claims, citations, and hypotheses in a searchable store. Currently each run starts fresh. If you research 50 companies in the same industry, each run rediscovers the same industry context. Cross-run memory enables meta-research ("show AI strategy evolution across all fintech targets") and better hypothesis quality for repeat verticals. Three staged layers, build top-down:
 
 **Layer 1 - Persistent company tracking (entry point):**
-- `primr company track <name> <url>` - creates persistent local profile folder; shipped foundation stores URL, freshness status, retention classification, and empty run-pointer list under the per-user data directory
-- `primr company list` / `primr company show <name>` - show tracked company profiles; shipped foundation reports unrun freshness until run-history wiring lands
+- `primr company track <name> <url>` - creates persistent local profile folder; shipped foundation stores URL, freshness status, retention classification, and bounded body-free run pointers under the per-user data directory
+- `primr company list` / `primr company show <name>` - show tracked company profiles; shipped foundation reports tracked freshness once a local run pointer is recorded
 - `primr improve --track` - auto-runs improvement pass on stale profiles (configurable staleness threshold)
-- Profile folder stores run history, confidence evolution, and gaps flagged across runs
-- `primr company export <name>` - shipped foundation writes structured MD/JSON with profile metadata, persisted hypotheses, confidence tags, and explicit run-history/claim-store gaps; full claim graph waits for layer 2
+- Profile folder stores bounded body-free run pointers; automatic pipeline attachment, confidence evolution, and gaps flagged across runs remain planned
+- `primr company export <name>` - shipped foundation writes structured MD/JSON with profile metadata, stored run pointers when present, persisted hypotheses, confidence tags, and explicit missing-data gaps; full claim graph waits for layer 2
 
 **Layer 2 - Claim store + priming:**
 - SQLite-backed claim store (no external dependencies); each claim stored with company, section, text, confidence, citations, timestamp, embedding

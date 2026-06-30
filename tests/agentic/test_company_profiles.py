@@ -49,7 +49,65 @@ def test_tracking_existing_profile_preserves_created_at_and_run_pointers(tmp_pat
 
     assert second.created_at == first.created_at
     assert second.url == "https://www.acme.example"
-    assert second.run_pointers == ("runs/acme/001",)
+    assert second.run_pointers[0].run_id == "runs/acme/001"
+
+
+def test_record_run_updates_profile_and_export_run_history(tmp_path):
+    store = CompanyProfileStore(root_path=tmp_path)
+    store.track("Acme Corp", "https://acme.example")
+
+    profile = store.record_run(
+        "Acme Corp",
+        "job-20260630-acme",
+        artifacts=["output/acme/report.md", "output/acme/report.docx"],
+        manifest_path="output/acme/run_manifest.json",
+        recorded_at="2026-06-30T12:00:00+00:00",
+    )
+
+    assert profile.last_run_at == "2026-06-30T12:00:00+00:00"
+    assert profile.freshness_status == "tracked"
+    assert profile.run_pointers[0].run_id == "job-20260630-acme"
+    export = store.export_profile("Acme Corp")
+    gap_ids = {gap["id"] for gap in export.payload["flagged_gaps"]}
+    assert "run_history" not in gap_ids
+    assert export.payload["run_history"][0]["manifest_path"] == "output/acme/run_manifest.json"
+    markdown = export.markdown_path.read_text(encoding="utf-8")
+    assert "## Run History" in markdown
+    assert "job-20260630-acme [completed]" in markdown
+
+
+def test_record_run_deduplicates_and_limits_run_history(tmp_path):
+    store = CompanyProfileStore(root_path=tmp_path)
+    store.track("Acme Corp", "https://acme.example")
+
+    for index in range(25):
+        store.record_run("Acme Corp", f"job-{index}", recorded_at=f"2026-06-30T00:{index:02}:00Z")
+    store.record_run("Acme Corp", "job-3", recorded_at="2026-06-30T13:00:00Z")
+
+    profile = store.get_profile("Acme Corp")
+    assert profile is not None
+    assert len(profile.run_pointers) == 20
+    assert profile.run_pointers[0].run_id == "job-3"
+    assert sum(pointer.run_id == "job-3" for pointer in profile.run_pointers) == 1
+
+
+def test_record_run_rejects_secret_like_artifact(tmp_path):
+    store = CompanyProfileStore(root_path=tmp_path)
+    store.track("Acme Corp", "https://acme.example")
+
+    with pytest.raises(InputValidationError):
+        store.record_run(
+            "Acme Corp",
+            "job-1",
+            artifacts=["output/acme/xai-1234567890abcdef-report.md"],
+        )
+
+
+def test_record_run_missing_profile_raises(tmp_path):
+    store = CompanyProfileStore(root_path=tmp_path)
+
+    with pytest.raises(InputValidationError):
+        store.record_run("Missing Corp", "job-1")
 
 
 def test_list_profiles_is_sorted_and_skips_malformed_files(tmp_path):

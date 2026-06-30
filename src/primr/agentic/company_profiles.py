@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -20,11 +20,58 @@ PROFILE_SCHEMA_VERSION = 1
 PROFILE_FILE_NAME = "profile.json"
 EXPORT_JSON_NAME = "profile-export.json"
 EXPORT_MARKDOWN_NAME = "profile-export.md"
+MAX_RUN_POINTERS = 20
+MAX_ARTIFACT_POINTERS = 12
 
 
 def get_default_company_profile_path() -> Path:
     """Return the default durable tracked-company profile directory."""
     return get_user_data_subdir("company_profiles")
+
+
+@dataclass(frozen=True)
+class CompanyRunPointer:
+    """Body-free pointer to one owned research run for a tracked company."""
+
+    run_id: str
+    recorded_at: str
+    status: str = "completed"
+    artifacts: tuple[str, ...] = ()
+    manifest_path: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the run pointer to stable JSON-safe metadata."""
+        return {
+            "run_id": self.run_id,
+            "recorded_at": self.recorded_at,
+            "status": self.status,
+            "artifacts": list(self.artifacts),
+            "manifest_path": self.manifest_path,
+        }
+
+    @classmethod
+    def from_value(cls, value: Any) -> CompanyRunPointer:
+        """Load modern run-pointer objects and legacy string pointers."""
+        if isinstance(value, dict):
+            artifacts = value.get("artifacts", [])
+            if not isinstance(artifacts, list):
+                artifacts = []
+            return cls(
+                run_id=str(value.get("run_id") or value.get("id") or "unknown"),
+                recorded_at=str(value.get("recorded_at") or value.get("completed_at") or "unknown"),
+                status=str(value.get("status") or "completed"),
+                artifacts=tuple(str(item) for item in artifacts),
+                manifest_path=(
+                    str(value["manifest_path"]) if value.get("manifest_path") is not None else None
+                ),
+            )
+        return cls(
+            run_id=str(value),
+            recorded_at="unknown",
+            status="completed",
+            artifacts=(),
+            manifest_path=None,
+        )
 
 
 @dataclass(frozen=True)
@@ -38,7 +85,7 @@ class CompanyProfile:
     created_at: str
     updated_at: str
     last_run_at: str | None = None
-    run_pointers: tuple[str, ...] = ()
+    run_pointers: tuple[CompanyRunPointer, ...] = ()
     retention_policy: str = "keep_until_cleared"
     classification: str = "operator_data_third_party_profile"
 
@@ -58,7 +105,7 @@ class CompanyProfile:
             "updated_at": self.updated_at,
             "last_run_at": self.last_run_at,
             "freshness": {"status": self.freshness_status},
-            "run_pointers": list(self.run_pointers),
+            "run_pointers": [pointer.to_dict() for pointer in self.run_pointers],
             "retention": {"policy": self.retention_policy},
             "classification": self.classification,
         }
@@ -78,7 +125,7 @@ class CompanyProfile:
             created_at=str(data["created_at"]),
             updated_at=str(data["updated_at"]),
             last_run_at=(str(data["last_run_at"]) if data.get("last_run_at") is not None else None),
-            run_pointers=tuple(str(item) for item in run_pointers),
+            run_pointers=tuple(CompanyRunPointer.from_value(item) for item in run_pointers),
             retention_policy=str(retention.get("policy", "keep_until_cleared")),
             classification=str(data.get("classification", "operator_data_third_party_profile")),
         )
@@ -152,6 +199,38 @@ class CompanyProfileStore:
                 return profile
         return None
 
+    def record_run(
+        self,
+        name: str,
+        run_id: str,
+        *,
+        status: str = "completed",
+        artifacts: list[str] | tuple[str, ...] | None = None,
+        manifest_path: str | None = None,
+        recorded_at: str | None = None,
+    ) -> CompanyProfile:
+        """Attach a bounded body-free run pointer to an existing profile."""
+        profile = self.get_profile(name)
+        if profile is None:
+            raise InputValidationError("company_name", "Tracked company profile not found")
+
+        pointer = _build_run_pointer(
+            run_id,
+            status=status,
+            artifacts=artifacts or (),
+            manifest_path=manifest_path,
+            recorded_at=recorded_at or _utc_now(),
+        )
+        existing = [item for item in profile.run_pointers if item.run_id != pointer.run_id]
+        updated = replace(
+            profile,
+            updated_at=_utc_now(),
+            last_run_at=pointer.recorded_at,
+            run_pointers=tuple([pointer, *existing][:MAX_RUN_POINTERS]),
+        )
+        self._save_profile(updated)
+        return updated
+
     def export_profile(
         self,
         name: str,
@@ -221,22 +300,62 @@ def _validate_profile_url(url: str) -> str:
     return clean_url
 
 
+def _build_run_pointer(
+    run_id: str,
+    *,
+    status: str,
+    artifacts: list[str] | tuple[str, ...],
+    manifest_path: str | None,
+    recorded_at: str,
+) -> CompanyRunPointer:
+    return CompanyRunPointer(
+        run_id=_clean_pointer_text("run_id", run_id),
+        recorded_at=_clean_pointer_text("recorded_at", recorded_at),
+        status=_clean_pointer_text("status", status),
+        artifacts=tuple(
+            _clean_pointer_text("artifact", str(item))
+            for item in list(artifacts)[:MAX_ARTIFACT_POINTERS]
+        ),
+        manifest_path=(
+            _clean_pointer_text("manifest_path", manifest_path)
+            if manifest_path is not None
+            else None
+        ),
+    )
+
+
+def _clean_pointer_text(field: str, value: str) -> str:
+    text = value.strip()
+    if not text:
+        raise InputValidationError(field, "Run pointer value cannot be empty")
+    if len(text) > 1024:
+        raise InputValidationError(field, "Run pointer value is too long")
+    if "\x00" in text or "\n" in text or "\r" in text:
+        raise InputValidationError(field, "Run pointer value must be single-line text")
+    if mask_sensitive_data(text) != text:
+        raise InputValidationError(field, "Run pointer value contains a secret-like value")
+    return text
+
+
 def _build_export_payload(
     profile: CompanyProfile,
     hypotheses: list[dict[str, Any]],
 ) -> dict[str, Any]:
     gaps = [
         {
-            "id": "run_history",
-            "status": "missing",
-            "reason": "Run-history pointers are not wired into company profiles yet.",
-        },
-        {
             "id": "claim_store",
             "status": "missing",
             "reason": "Layer 2 claim store is not implemented yet.",
         },
     ]
+    if not profile.run_pointers:
+        gaps.append(
+            {
+                "id": "run_history",
+                "status": "missing",
+                "reason": "No run-history pointers were found for this company.",
+            }
+        )
     if not hypotheses:
         gaps.append(
             {
@@ -250,6 +369,7 @@ def _build_export_payload(
         "schema_version": PROFILE_SCHEMA_VERSION,
         "type": "Company",
         "company": profile.to_dict(),
+        "run_history": [pointer.to_dict() for pointer in profile.run_pointers],
         "hypotheses": hypotheses,
         "flagged_gaps": gaps,
         "bundle": {
@@ -277,9 +397,29 @@ def _render_export_markdown(payload: dict[str, Any]) -> str:
         f"- Last run: {company['last_run_at'] or 'none'}",
         f"- Retention: {company['retention']['policy']}",
         "",
-        "## Hypotheses",
+        "## Run History",
         "",
     ]
+    run_history = payload["run_history"]
+    if run_history:
+        for pointer in run_history:
+            lines.append(
+                f"- {pointer['run_id']} [{pointer['status']}] recorded {pointer['recorded_at']}"
+            )
+            if pointer.get("manifest_path"):
+                lines.append(f"  - Manifest: {pointer['manifest_path']}")
+            for artifact in pointer.get("artifacts", []):
+                lines.append(f"  - Artifact: {artifact}")
+    else:
+        lines.append("- No run-history pointers found.")
+
+    lines.extend(
+        [
+            "",
+            "## Hypotheses",
+            "",
+        ]
+    )
     hypotheses = payload["hypotheses"]
     if hypotheses:
         for hypothesis in hypotheses:

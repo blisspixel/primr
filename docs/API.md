@@ -2613,7 +2613,9 @@ Primr v1.7.0 introduces an agentic architecture that enables AI agents to drive 
 Track local company profiles in the per-user data directory. Profiles are JSON
 metadata under `<per-user data dir>/company_profiles`, relocated by
 `PRIMR_DATA_DIR`, and currently store URL, freshness status, run pointers, and
-retention classification without introducing a database.
+retention classification without introducing a database. Run pointers are
+body-free references to owned artifacts; report bodies and raw source content
+stay outside the profile JSON.
 
 ```bash
 primr company track "Acme Corp" https://acme.example
@@ -2627,6 +2629,12 @@ from primr.agentic import CompanyProfileStore
 
 store = CompanyProfileStore()
 profile = store.track("Acme Corp", "https://acme.example")
+profile = store.record_run(
+    "Acme Corp",
+    "job-20260630-acme",
+    artifacts=["output/acme/report.md"],
+    manifest_path="output/acme/run_manifest.json",
+)
 print(profile.freshness_status)
 ```
 

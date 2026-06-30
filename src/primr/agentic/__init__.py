@@ -27,6 +27,7 @@ from primr.agentic.company_profiles import (
     CompanyProfile,
     CompanyProfileExport,
     CompanyProfileStore,
+    CompanyRunPointer,
 )
 from primr.agentic.errors import (
     AgenticError,
@@ -104,6 +105,7 @@ __all__ = [
     "CompanyProfile",
     "CompanyProfileExport",
     "CompanyProfileStore",
+    "CompanyRunPointer",
     # Models
     "ConfidenceLevel",
     # Hooks
