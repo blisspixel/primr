@@ -36,6 +36,7 @@ from primr.mcp_server.approval_tokens import (
     strategy_approval_args,
 )
 from primr.mcp_server.audit_log import audit_tool_calls
+from primr.mcp_server.job_responses import build_job_response, include_artifacts_requested
 from primr.mcp_server.job_store import JobInProgressError, ResearchJobState
 from primr.mcp_server.platforms import normalize_platform, normalize_platforms
 from primr.mcp_server.research_policy import (
@@ -50,6 +51,7 @@ from primr.mcp_server.research_policy import (
 from primr.mcp_server.research_policy import (
     parse_max_duration,
 )
+from primr.mcp_server.resource_auth import caller_can_read_report
 from primr.mcp_server.skill_pack_tools import handle_skill_pack_tool, register_skill_pack_tools
 from primr.mcp_server.tool_authz import authorize_tool_call, scope_denied_response
 from primr.mcp_server.types import MCPErrorCode, ResearchStage
@@ -286,13 +288,26 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
             ),
             Tool(
                 name="check_jobs",
-                description="Check status of research jobs. When a job is completed, returns full artifact content (report + strategy MD files) inline so you can consume them directly without filesystem access.",
+                description=(
+                    "Check research job status. Completed jobs return output pointers by default; "
+                    "inline report artifacts require include_artifacts=true and report scope for "
+                    "authenticated HTTP callers. Local stdio keeps legacy inline artifact behavior."
+                ),
                 inputSchema={
                     "type": "object",
                     "properties": {
                         "job_id": {
                             "type": "string",
                             "description": "Specific job ID to check (optional)",
+                        },
+                        "include_artifacts": {
+                            "type": "boolean",
+                            "default": False,
+                            "description": (
+                                "Include inline report and strategy artifacts. Requires report scope "
+                                "for authenticated HTTP callers; defaults to true only for local stdio "
+                                "compatibility."
+                            ),
                         },
                     },
                     "required": [],
@@ -909,16 +924,17 @@ async def _handle_check_jobs(
     """
     Handle check_jobs tool.
 
-    When a job is completed, returns artifact content inline so the agent
-    client does not need filesystem access to read the output files. Access
-    is gated by owner_client_id so one HTTP client cannot read another's
-    completed report.
+    Status reads are owner-gated. Authenticated HTTP callers only receive
+    inline report bodies when they explicitly request artifacts and hold the
+    report scope.
 
     Requirements: 7.1-7.6
     """
     import json
 
     job_id = arguments.get("job_id")
+    include_artifacts = include_artifacts_requested(arguments, client_id=client_id)
+    include_report_content = caller_can_read_report(mcp_server)
 
     jobs = []
 
@@ -941,12 +957,24 @@ async def _handle_check_jobs(
                     ),
                 )
             ]
-        jobs.append(_build_job_response(job))
+        jobs.append(
+            build_job_response(
+                job,
+                include_artifacts=include_artifacts,
+                include_report_content=include_report_content,
+            )
+        )
     else:
         # Return active + latest terminal — but only if owned by this client.
         active = mcp_server.job_store.get_active()
         if active and _caller_owns_job(active, client_id):
-            jobs.append(_build_job_response(active))
+            jobs.append(
+                build_job_response(
+                    active,
+                    include_artifacts=include_artifacts,
+                    include_report_content=include_report_content,
+                )
+            )
 
         terminal = mcp_server.job_store.get_latest_terminal()
         if (
@@ -954,7 +982,13 @@ async def _handle_check_jobs(
             and _caller_owns_job(terminal, client_id)
             and (not active or terminal.job_id != active.job_id)
         ):
-            jobs.append(_build_job_response(terminal))
+            jobs.append(
+                build_job_response(
+                    terminal,
+                    include_artifacts=include_artifacts,
+                    include_report_content=include_report_content,
+                )
+            )
 
     return [
         TextContent(
@@ -962,65 +996,6 @@ async def _handle_check_jobs(
             text=json.dumps({"jobs": jobs}),
         )
     ]
-
-
-def _build_job_response(job: "ResearchJobState") -> dict[str, Any]:
-    """
-    Build a job response dict.
-
-    For completed jobs, includes full artifact content inline so agent
-    clients can consume the output without filesystem access.
-    """
-    from pathlib import Path
-
-    status = job.get_status().value
-    response: dict[str, Any] = {
-        "job_id": job.job_id,
-        "status": status,
-        "company_name": job.company_name,
-        "output_path": job.output_paths[0] if job.output_paths else None,
-        "error_type": job.error_type,
-        "error_message": job.error_message,
-    }
-
-    # For completed jobs, include artifact content inline
-    if status == "completed" and job.output_paths:
-        artifacts = []
-        for artifact_path in job.output_paths:
-            p = Path(artifact_path)
-            if not p.exists():
-                continue
-            try:
-                content = p.read_text(encoding="utf-8")
-            except Exception:
-                continue
-
-            # Classify artifact type from filename
-            name_lower = p.stem.lower()
-            if "ai_strategy" in name_lower or "ai-strategy" in name_lower:
-                artifact_type = "ai_strategy"
-            elif "customer_experience" in name_lower:
-                artifact_type = "customer_experience_strategy"
-            elif "security" in name_lower:
-                artifact_type = "security_strategy"
-            elif "data_fabric" in name_lower:
-                artifact_type = "data_fabric_strategy"
-            elif "strategic_overview" in name_lower or "report" in name_lower:
-                artifact_type = "strategic_overview"
-            else:
-                artifact_type = "report"
-
-            artifacts.append(
-                {
-                    "type": artifact_type,
-                    "filename": p.name,
-                    "content": content,
-                }
-            )
-
-        response["artifacts"] = artifacts
-
-    return response
 
 
 async def _handle_run_qa(

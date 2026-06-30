@@ -1182,13 +1182,20 @@ Strategy types: `ai_strategy`, `customer_experience`, `modern_security_complianc
 
 #### check_jobs
 
-Check status of research jobs. When a job is completed, returns full artifact content (report + strategy MD files) inline so the agent client can consume them directly without filesystem access.
+Check research job status. Completed jobs return output pointers by default.
+Authenticated HTTP callers only receive inline report and strategy bodies when
+they pass `include_artifacts=true` and hold the `report` scope. Local stdio
+callers keep the historical inline-artifact default for backwards
+compatibility. Prefer `primr://output/artifacts/by_job/{job_id}` for compact
+inventory reads and `primr://output/report/by_job/{job_id}` for explicit
+report-body reads.
 
 ```json
 {
   "name": "check_jobs",
   "arguments": {
-    "job_id": "job_abc123"
+    "job_id": "job_abc123",
+    "include_artifacts": false
   }
 }
 ```
@@ -1207,7 +1214,7 @@ Response (in progress):
 }
 ```
 
-Response (completed - includes artifact content):
+Response (completed - authenticated default):
 ```json
 {
   "jobs": [
@@ -1216,6 +1223,47 @@ Response (completed - includes artifact content):
       "status": "completed",
       "company_name": "Acme Corp",
       "output_path": "output/Acme_Corp_Strategic_Overview_04-08-2026.md",
+      "artifacts_content_included": false,
+      "include_artifacts_requested": false,
+      "artifact_metadata_uri": "primr://output/artifacts/by_job/job_abc123",
+      "report_read_uri": "primr://output/report/by_job/job_abc123"
+    }
+  ]
+}
+```
+
+Response (authenticated caller requested artifacts without `report` scope):
+```json
+{
+  "jobs": [
+    {
+      "job_id": "job_abc123",
+      "status": "completed",
+      "company_name": "Acme Corp",
+      "output_path": "output/Acme_Corp_Strategic_Overview_04-08-2026.md",
+      "artifacts_content_included": false,
+      "include_artifacts_requested": true,
+      "artifact_metadata_uri": "primr://output/artifacts/by_job/job_abc123",
+      "report_read_uri": "primr://output/report/by_job/job_abc123",
+      "report_read_required": true,
+      "required_scopes": ["report"]
+    }
+  ]
+}
+```
+
+Response (caller requested artifacts with `report` scope, or local stdio
+compatibility path):
+```json
+{
+  "jobs": [
+    {
+      "job_id": "job_abc123",
+      "status": "completed",
+      "company_name": "Acme Corp",
+      "output_path": "output/Acme_Corp_Strategic_Overview_04-08-2026.md",
+      "artifacts_content_included": true,
+      "include_artifacts_requested": true,
       "artifacts": [
         {
           "type": "strategic_overview",
@@ -1357,9 +1405,10 @@ curl http://localhost:9000/.well-known/agent.json
 
 Authenticated A2A requests use the same bearer-token identity and legacy
 scope compatibility as MCP HTTP. `read` can estimate, inspect job status, and
-check health. `research` is required to start paid work, run QA, or cancel an
-A2A research task. Legacy `write` tokens still satisfy `research` for
-compatibility.
+check health. `report` is required to read report or strategy body text.
+`research` is required to start paid work, run QA, or cancel an A2A research
+task. Legacy `write` tokens still satisfy `research` for compatibility, but
+it does not satisfy `report`.
 
 **Skills available via A2A:**
 
@@ -1369,6 +1418,7 @@ compatibility.
 | `research_company` | `research` | Start async research (SSE streaming progress); when cost-cap enforcement is active, requires `max_estimated_cost_usd` and the matching `approval_token` from `estimate_research` |
 | `check_jobs` | `read` | Current job status |
 | `run_qa` | `research` | Quality assessment on completed reports |
+| `read_report_by_job` | `report` | Explicit owned-job report or strategy body read with `content_mode`, `artifact_type`, and `max_chars` negotiation |
 | `read_artifacts_by_job` | `read` | Compact owned-job artifact metadata without report body content |
 | `read_qa_summary_by_job` | `read` | Compact owned-job QA summary metadata without detailed QA/report bodies |
 | `read_usage_summary_by_job` | `read` | Compact owned-job usage/cost metadata without approval tokens or report bodies |
@@ -1397,6 +1447,27 @@ compatibility.
 Use the returned `estimated_cost_usd` as `max_estimated_cost_usd` and pass the
 returned `approval_token` into `research_company` when cost-cap enforcement is
 active.
+
+**Example A2A report read message:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "message/send",
+  "params": {
+    "message": {
+      "role": "user",
+      "parts": [{"kind": "text", "text": "{\"job_id\": \"job_abc123\", \"content_mode\": \"preview\", \"artifact_type\": \"report\", \"max_chars\": 2000}"}],
+      "metadata": {"skillId": "read_report_by_job"}
+    }
+  }
+}
+```
+
+Use `read_artifacts_by_job`, `read_qa_summary_by_job`,
+`read_usage_summary_by_job`, `read_source_summary_by_job`,
+`read_trace_summary_by_job`, `read_verification_summary_by_job`, and
+`read_calibration_summary_by_job` before requesting full report text when an
+agent only needs metadata.
 
 **Example A2A research message:**
 ```json
@@ -1572,7 +1643,10 @@ Current mode guidance for integrations.
 
 #### primr://output/latest
 
-Most recent research output. Add `?full_content=true` for complete content.
+Most recent research output. Local stdio callers can add
+`?full_content=true` for complete content. Authenticated HTTP callers need the
+`report` scope for `content_preview` or `full_content`; otherwise the response
+returns metadata plus `report_read_required=true`.
 
 ```json
 {
@@ -1580,7 +1654,64 @@ Most recent research output. Add `?full_content=true` for complete content.
   "company_name": "Acme Corp",
   "generation_timestamp": "2026-02-02T10:30:00",
   "report_type": "markdown",
-  "content_preview": "# Acme Corp Strategic Overview..."
+  "content_preview": "# Acme Corp Strategic Overview...",
+  "content_preview_included": true,
+  "full_content_included": false
+}
+```
+
+#### primr://output/report/by_job/{job_id}
+
+Explicit report-body retrieval for one owned job. HTTP callers must own the job
+and hold the `report` scope. This is the preferred path when an agent needs
+report text because it separates status monitoring from content consumption and
+supports bounded output negotiation.
+
+Query parameters:
+
+- `content_mode`: `metadata`, `preview`, or `full` (default `preview`)
+- `artifact_type`: `report`, `strategy`, or `all` (default `report`)
+- `max_chars`: positive character limit, capped by the server
+
+```json
+{
+  "schema_version": "1.0",
+  "job_id": "job_abc123",
+  "company_name": "Acme Corp",
+  "status": "completed",
+  "content_mode": "preview",
+  "artifact_type_filter": "report",
+  "max_chars": 2000,
+  "artifact_count": 1,
+  "content_included": true,
+  "full_content_included": false,
+  "artifacts": [
+    {
+      "type": "strategic_overview",
+      "filename": "Acme_Corp_Strategic_Overview_06-30-2026.md",
+      "size_bytes": 184320,
+      "content_hash": "sha256:abc123...",
+      "content_included": true,
+      "content": "# Acme Corp Strategic Overview...",
+      "content_chars": 2000,
+      "content_truncated": true,
+      "full_content_included": false
+    }
+  ]
+}
+```
+
+Insufficient-scope responses do not include report text:
+
+```json
+{
+  "error": "insufficient_scope",
+  "message": "Report content requires the report scope.",
+  "job_id": "job_abc123",
+  "required_scopes": ["report"],
+  "granted_scopes": ["read"],
+  "full_content_included": false,
+  "content_included": false
 }
 ```
 
@@ -2230,8 +2361,11 @@ List of available strategy types with metadata for Open Claw integration.
 
 #### primr://output/by_job/{job_id}
 
-Job-scoped report preview retrieval for provenance tracking. Ensures the
-returned report preview corresponds to a specific approved job. Use
+Job-scoped output metadata and gated report preview for provenance tracking.
+Ensures any returned preview corresponds to a specific approved job.
+Authenticated HTTP callers need the `report` scope to receive
+`content_preview`; otherwise the response returns `report_read_required=true`
+and points to `primr://output/report/by_job/{job_id}`. Use
 `primr://output/artifacts/by_job/{job_id}` first when a client only needs
 artifact metadata and not report text. Use
 `primr://output/qa_summary/by_job/{job_id}` first when a client only needs QA
@@ -2258,7 +2392,10 @@ content.
   "generation_timestamp": "2026-02-15T10:31:00Z",
   "report_type": "markdown",
   "content_preview": "# Acme Corp Strategic Overview...",
-  "manifest_path": "output/acme_corp/run_manifest.json"
+  "content_preview_included": true,
+  "report_read_required": false,
+  "report_read_uri": "primr://output/report/by_job/abc123",
+  "status": "completed"
 }
 ```
 

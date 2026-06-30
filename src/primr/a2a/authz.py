@@ -6,32 +6,22 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+from primr.a2a.skill_ids import (
+    A2A_READ_SKILLS,
+    A2A_REPORT_RESOURCE_READ_SKILLS,
+    A2A_RESEARCH_SKILLS,
+)
 from primr.mcp_server.tool_authz import (
     READ_SCOPE,
+    REPORT_SCOPE,
     RESEARCH_SCOPE,
     scope_granted,
 )
 from primr.mcp_server.types import MCPErrorCode
 
-A2A_READ_SKILLS = frozenset(
-    {
-        "estimate_research",
-        "check_jobs",
-        "system_health",
-        "read_calibration_summary_by_job",
-        "read_artifacts_by_job",
-        "read_qa_summary_by_job",
-        "read_usage_summary_by_job",
-        "read_source_summary_by_job",
-        "read_trace_summary_by_job",
-        "read_verification_summary_by_job",
-        "read_stage_scorecard",
-    }
-)
-A2A_RESEARCH_SKILLS = frozenset({"research_company", "run_qa", "cancel_task"})
-
 A2A_SKILL_REQUIRED_SCOPES: dict[str, tuple[str, ...]] = {
     **dict.fromkeys(A2A_READ_SKILLS, (READ_SCOPE,)),
+    **dict.fromkeys(A2A_REPORT_RESOURCE_READ_SKILLS, (REPORT_SCOPE,)),
     **dict.fromkeys(A2A_RESEARCH_SKILLS, (RESEARCH_SCOPE,)),
 }
 

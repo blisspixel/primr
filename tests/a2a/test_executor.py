@@ -14,9 +14,18 @@ from primr.a2a.executor import (
     _caller_owns_job,
     _extract_skill_id,
     _extract_text,
-    _parse_eval_id,
-    _parse_job_id,
-    _parse_research_params,
+)
+from primr.a2a.input_parsing import (
+    parse_eval_id as _parse_eval_id,
+)
+from primr.a2a.input_parsing import (
+    parse_job_id as _parse_job_id,
+)
+from primr.a2a.input_parsing import (
+    parse_research_params as _parse_research_params,
+)
+from primr.a2a.input_parsing import (
+    report_read_uri_from_text as _report_read_uri_from_text,
 )
 from primr.a2a.task_store import PrimrTaskStore
 from primr.a2a.types import A2ATaskMapping
@@ -187,6 +196,30 @@ class TestParseJobId:
 
     def test_plain_text_job_id(self):
         assert _parse_job_id(" job-2026-06 ") == "job-2026-06"
+
+
+class TestReportReadUri:
+    """Tests for report-resource URI construction."""
+
+    def test_json_report_options(self):
+        uri = _report_read_uri_from_text(
+            json.dumps(
+                {
+                    "job_id": "job-2026-06",
+                    "content_mode": "full",
+                    "artifact_type": "all",
+                    "max_chars": 42,
+                }
+            )
+        )
+        assert uri == (
+            "primr://output/report/by_job/job-2026-06?"
+            "content_mode=full&artifact_type=all&max_chars=42"
+        )
+
+    def test_report_resource_uri_passthrough(self):
+        uri = "primr://output/report/by_job/job-2026-06?content_mode=metadata"
+        assert _report_read_uri_from_text(uri) == uri
 
 
 class TestA2AOwnershipHelpers:
@@ -741,6 +774,133 @@ class TestPrimrAgentExecutor:
         audit_text = executor._mcp.audit_log.path.read_text(encoding="utf-8")
         assert "sensitive-client" not in audit_text
         assert "eval-private-secret" not in audit_text
+
+    @pytest.mark.asyncio
+    async def test_report_read_requires_report_scope(self, executor, event_queue, context):
+        """read_report_by_job is blocked before handler execution without report scope."""
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["read"]
+        auth_context.client_id = "sensitive-client"
+        executor._mcp._auth_context = auth_context
+        context.message = {
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": "primr://output/report/by_job/job-private-secret?content_mode=full",
+                }
+            ],
+            "metadata": {"skillId": "read_report_by_job"},
+        }
+
+        try:
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        assert data["error_type"] == "insufficient_scope"
+        assert data["missing_scopes"] == ["report"]
+        audit_text = executor._mcp.audit_log.path.read_text(encoding="utf-8")
+        assert "sensitive-client" not in audit_text
+        assert "job-private-secret" not in audit_text
+
+    @pytest.mark.asyncio
+    async def test_report_read_returns_owned_bounded_content(
+        self, executor, event_queue, context, tmp_path
+    ):
+        """read_report_by_job returns negotiated content only with report scope."""
+        report_path = tmp_path / "report.md"
+        report_path.write_text("# Report\n\nSECRET REPORT BODY", encoding="utf-8")
+        job = executor._mcp.job_store.create(
+            company_name="Acme",
+            mode="full",
+            owner_client_id="client-1",
+        )
+        job.output_paths = [str(report_path)]
+
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["report"]
+        auth_context.client_id = "client-1"
+        executor._mcp._auth_context = auth_context
+        context.message = {
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": json.dumps(
+                        {
+                            "job_id": job.job_id,
+                            "content_mode": "full",
+                            "artifact_type": "report",
+                            "max_chars": 200,
+                        }
+                    ),
+                }
+            ],
+            "metadata": {"skillId": "read_report_by_job"},
+        }
+
+        try:
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        assert data["job_id"] == job.job_id
+        assert data["content_mode"] == "full"
+        assert data["content_included"] is True
+        assert data["full_content_included"] is True
+        assert data["artifacts"][0]["filename"] == "report.md"
+        assert data["artifacts"][0]["content"] == "# Report\n\nSECRET REPORT BODY"
+
+        audit_text = executor._mcp.audit_log.path.read_text(encoding="utf-8")
+        assert "SECRET REPORT BODY" not in audit_text
+        audit_event = _audit_events(executor)[0]
+        assert audit_event["tool_name"] == "a2a/read_report_by_job"
+        assert audit_event["status"] == "success"
+        assert audit_event["auth_scopes"] == ["report"]
+        assert audit_event["job_id"] == job.job_id
+
+    @pytest.mark.asyncio
+    async def test_report_read_hides_other_client_job(
+        self, executor, event_queue, context, tmp_path
+    ):
+        """read_report_by_job reuses the MCP ownership gate for A2A callers."""
+        report_path = tmp_path / "Other_Report.md"
+        report_path.write_text("# Report\n\nOTHER CLIENT REPORT BODY", encoding="utf-8")
+        job = executor._mcp.job_store.create(
+            company_name="Other Corp",
+            mode="full",
+            owner_client_id="client-2",
+        )
+        job.output_paths = [str(report_path)]
+
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["report"]
+        auth_context.client_id = "client-1"
+        executor._mcp._auth_context = auth_context
+        context.message = {
+            "parts": [{"kind": "text", "text": json.dumps({"job_id": job.job_id})}],
+            "metadata": {"skillId": "read_report_by_job"},
+        }
+
+        try:
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        text = json.dumps(data)
+        assert data["error"] == "job_not_found"
+        assert data["job_id"] == job.job_id
+        assert "Other Corp" not in text
+        assert "Other_Report.md" not in text
+        assert "OTHER CLIENT REPORT BODY" not in text
 
     @pytest.mark.asyncio
     async def test_artifact_metadata_returns_owned_compact_a2a_payload(

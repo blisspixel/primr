@@ -13,7 +13,7 @@ import json
 import logging
 import time
 import uuid
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any
 
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.types import Message, TaskState, TaskStatus, TaskStatusUpdateEvent
@@ -26,56 +26,24 @@ from primr.a2a.authz import (
     authorize_a2a_skill,
 )
 from primr.a2a.input_parsing import (
-    parse_eval_id as _parse_eval_id,
-)
-from primr.a2a.input_parsing import (
-    parse_job_id as _parse_job_id,
-)
-from primr.a2a.input_parsing import (
     parse_research_params as _parse_research_params,
 )
 from primr.a2a.input_parsing import (
     research_arguments_from_a2a_params as _research_arguments_from_a2a_params,
 )
+from primr.a2a.resource_reads import handle_a2a_resource_read, resource_read_skill_list
+from primr.a2a.skill_ids import A2A_RESOURCE_READ_SKILLS
 from primr.a2a.types import A2ATaskMapping
 from primr.mcp_server.approval_tokens import (
     enforce_approval_token,
     issue_approval_token,
     research_approval_args,
 )
-from primr.mcp_server.artifact_resources import (
-    ARTIFACT_METADATA_BY_JOB_URI,
-    QA_SUMMARY_BY_JOB_URI,
-    USAGE_SUMMARY_BY_JOB_URI,
-    read_artifact_metadata_by_job_resource,
-    read_qa_summary_by_job_resource,
-    read_usage_summary_by_job_resource,
-)
-from primr.mcp_server.calibration_summary import (
-    CALIBRATION_SUMMARY_BY_JOB_URI,
-    read_calibration_summary_by_job_resource,
-)
 from primr.mcp_server.pipeline_runner import PipelineRunner, get_doctor_status, run_qa_analysis
 from primr.mcp_server.research_policy import (
     build_research_estimate,
     coerce_budget_usd,
     enforce_cost_cap,
-)
-from primr.mcp_server.source_summary import (
-    SOURCE_SUMMARY_BY_JOB_URI,
-    read_source_summary_by_job_resource,
-)
-from primr.mcp_server.stage_scorecard_summary import (
-    STAGE_SCORECARD_SUMMARY_URI,
-    read_stage_scorecard_summary_resource,
-)
-from primr.mcp_server.trace_summary import (
-    TRACE_SUMMARY_BY_JOB_URI,
-    read_trace_summary_by_job_resource,
-)
-from primr.mcp_server.verification_summary import (
-    VERIFICATION_SUMMARY_BY_JOB_URI,
-    read_verification_summary_by_job_resource,
 )
 
 if TYPE_CHECKING:
@@ -88,18 +56,6 @@ logger = logging.getLogger(__name__)
 
 # Poll interval for long-running jobs (seconds)
 _JOB_POLL_INTERVAL = 5
-
-
-class _JobResourceReader(Protocol):
-    """Callable shape shared by compact job-scoped MCP resource readers."""
-
-    def __call__(
-        self,
-        mcp_server: PrimrMCPServer,
-        uri: str,
-        *,
-        client_id: str,
-    ) -> list[Any]: ...
 
 
 def _status_message(text: str, task_id: str | None, context_id: str | None) -> Message:
@@ -133,6 +89,7 @@ class PrimrAgentExecutor(AgentExecutor):
         - research_company  -> async job, streams progress via SSE
         - check_jobs        -> synchronous job status
         - run_qa            -> synchronous QA analysis
+        - read_report_by_job -> synchronous explicit owned-job report read
         - read_calibration_summary_by_job -> synchronous compact job calibration summary
         - read_artifacts_by_job -> synchronous compact job artifact metadata
         - read_qa_summary_by_job -> synchronous compact job QA summary
@@ -180,22 +137,14 @@ class PrimrAgentExecutor(AgentExecutor):
                 audit_payload = await self._handle_check_jobs(event_queue)
             elif skill_id == "run_qa":
                 audit_payload = await self._handle_qa(text, event_queue)
-            elif skill_id == "read_calibration_summary_by_job":
-                audit_payload = await self._handle_calibration_summary(text, event_queue)
-            elif skill_id == "read_artifacts_by_job":
-                audit_payload = await self._handle_artifact_metadata(text, event_queue)
-            elif skill_id == "read_qa_summary_by_job":
-                audit_payload = await self._handle_qa_summary(text, event_queue)
-            elif skill_id == "read_usage_summary_by_job":
-                audit_payload = await self._handle_usage_summary(text, event_queue)
-            elif skill_id == "read_source_summary_by_job":
-                audit_payload = await self._handle_source_summary(text, event_queue)
-            elif skill_id == "read_trace_summary_by_job":
-                audit_payload = await self._handle_trace_summary(text, event_queue)
-            elif skill_id == "read_verification_summary_by_job":
-                audit_payload = await self._handle_verification_summary(text, event_queue)
-            elif skill_id == "read_stage_scorecard":
-                audit_payload = await self._handle_stage_scorecard_summary(text, event_queue)
+            elif skill_id in A2A_RESOURCE_READ_SKILLS:
+                audit_payload = await handle_a2a_resource_read(
+                    skill_id,
+                    text,
+                    event_queue,
+                    mcp_server=self._mcp,
+                    client_id=_a2a_client_id(self._mcp),
+                )
             elif skill_id == "system_health":
                 audit_payload = await self._handle_doctor(event_queue)
             else:
@@ -698,162 +647,6 @@ class PrimrAgentExecutor(AgentExecutor):
             )
             return {"error": True, "error_type": "qa_failed"}
 
-    async def _handle_artifact_metadata(
-        self,
-        text: str,
-        event_queue: EventQueue,
-    ) -> dict[str, Any]:
-        """Handle read_artifacts_by_job skill - synchronous compact job read."""
-        return await self._handle_job_resource_summary(
-            text,
-            event_queue,
-            resource_uri=ARTIFACT_METADATA_BY_JOB_URI,
-            reader=read_artifact_metadata_by_job_resource,
-            missing_message="Please provide a job_id for the artifact metadata summary.",
-            success_status="artifact_metadata_read",
-        )
-
-    async def _handle_calibration_summary(
-        self,
-        text: str,
-        event_queue: EventQueue,
-    ) -> dict[str, Any]:
-        """Handle read_calibration_summary_by_job skill - synchronous compact job read."""
-        return await self._handle_job_resource_summary(
-            text,
-            event_queue,
-            resource_uri=CALIBRATION_SUMMARY_BY_JOB_URI,
-            reader=read_calibration_summary_by_job_resource,
-            missing_message="Please provide a job_id for the calibration summary.",
-            success_status="calibration_summary_read",
-        )
-
-    async def _handle_qa_summary(
-        self,
-        text: str,
-        event_queue: EventQueue,
-    ) -> dict[str, Any]:
-        """Handle read_qa_summary_by_job skill - synchronous compact job read."""
-        return await self._handle_job_resource_summary(
-            text,
-            event_queue,
-            resource_uri=QA_SUMMARY_BY_JOB_URI,
-            reader=read_qa_summary_by_job_resource,
-            missing_message="Please provide a job_id for the QA summary.",
-            success_status="qa_summary_read",
-        )
-
-    async def _handle_usage_summary(
-        self,
-        text: str,
-        event_queue: EventQueue,
-    ) -> dict[str, Any]:
-        """Handle read_usage_summary_by_job skill - synchronous compact job read."""
-        return await self._handle_job_resource_summary(
-            text,
-            event_queue,
-            resource_uri=USAGE_SUMMARY_BY_JOB_URI,
-            reader=read_usage_summary_by_job_resource,
-            missing_message="Please provide a job_id for the usage summary.",
-            success_status="usage_summary_read",
-        )
-
-    async def _handle_source_summary(
-        self,
-        text: str,
-        event_queue: EventQueue,
-    ) -> dict[str, Any]:
-        """Handle read_source_summary_by_job skill - synchronous compact job read."""
-        return await self._handle_job_resource_summary(
-            text,
-            event_queue,
-            resource_uri=SOURCE_SUMMARY_BY_JOB_URI,
-            reader=read_source_summary_by_job_resource,
-            missing_message="Please provide a job_id for the source summary.",
-            success_status="source_summary_read",
-        )
-
-    async def _handle_trace_summary(
-        self,
-        text: str,
-        event_queue: EventQueue,
-    ) -> dict[str, Any]:
-        """Handle read_trace_summary_by_job skill - synchronous compact job read."""
-        return await self._handle_job_resource_summary(
-            text,
-            event_queue,
-            resource_uri=TRACE_SUMMARY_BY_JOB_URI,
-            reader=read_trace_summary_by_job_resource,
-            missing_message="Please provide a job_id for the trace summary.",
-            success_status="trace_summary_read",
-        )
-
-    async def _handle_verification_summary(
-        self,
-        text: str,
-        event_queue: EventQueue,
-    ) -> dict[str, Any]:
-        """Handle read_verification_summary_by_job skill - synchronous compact job read."""
-        return await self._handle_job_resource_summary(
-            text,
-            event_queue,
-            resource_uri=VERIFICATION_SUMMARY_BY_JOB_URI,
-            reader=read_verification_summary_by_job_resource,
-            missing_message="Please provide a job_id for the verification summary.",
-            success_status="verification_summary_read",
-        )
-
-    async def _handle_job_resource_summary(
-        self,
-        text: str,
-        event_queue: EventQueue,
-        *,
-        resource_uri: str,
-        reader: _JobResourceReader,
-        missing_message: str,
-        success_status: str,
-    ) -> dict[str, Any]:
-        """Read a compact ownership-gated MCP job resource through A2A."""
-        job_id = _parse_job_id(text, uri_prefix=resource_uri)
-        if not job_id:
-            payload = {
-                "error": True,
-                "error_type": "missing_job_id",
-                "message": missing_message,
-            }
-            await event_queue.enqueue_event(new_agent_text_message(json.dumps(payload)))
-            return payload
-
-        contents = reader(
-            self._mcp,
-            f"{resource_uri}/{job_id}",
-            client_id=_a2a_client_id(self._mcp),
-        )
-        payload = _resource_payload(contents)
-        await event_queue.enqueue_event(new_agent_text_message(json.dumps(payload, indent=2)))
-        return payload if isinstance(payload, dict) else {"status": success_status}
-
-    async def _handle_stage_scorecard_summary(
-        self,
-        text: str,
-        event_queue: EventQueue,
-    ) -> dict[str, Any]:
-        """Handle read_stage_scorecard skill - synchronous compact eval read."""
-        eval_id = _parse_eval_id(text)
-        if not eval_id:
-            payload = {
-                "error": True,
-                "error_type": "missing_eval_id",
-                "message": "Please provide an eval_id for the stage scorecard summary.",
-            }
-            await event_queue.enqueue_event(new_agent_text_message(json.dumps(payload)))
-            return payload
-
-        contents = read_stage_scorecard_summary_resource(f"{STAGE_SCORECARD_SUMMARY_URI}/{eval_id}")
-        payload = _resource_payload(contents)
-        await event_queue.enqueue_event(new_agent_text_message(json.dumps(payload, indent=2)))
-        return payload if isinstance(payload, dict) else {"status": "scorecard_read"}
-
     async def _handle_doctor(self, event_queue: EventQueue) -> dict[str, Any]:
         """Handle system_health skill - synchronous."""
         try:
@@ -875,10 +668,7 @@ class PrimrAgentExecutor(AgentExecutor):
         """Handle unrecognized skill - try to route by content."""
         available = (
             "estimate_research, research_company, check_jobs, run_qa, "
-            "read_calibration_summary_by_job, read_artifacts_by_job, "
-            "read_qa_summary_by_job, read_usage_summary_by_job, "
-            "read_source_summary_by_job, read_trace_summary_by_job, "
-            "read_verification_summary_by_job, read_stage_scorecard, system_health"
+            f"{resource_read_skill_list()}, system_health"
         )
         await event_queue.enqueue_event(
             new_agent_text_message(f"Unknown skill '{skill_id}'. Available skills: {available}")
@@ -944,12 +734,3 @@ def _scope_denial_payload(
 ) -> dict[str, Any]:
     """Return the structured denial payload emitted to the caller."""
     return json.loads(a2a_scope_denied_text(skill_id, decision))
-
-
-def _resource_payload(contents: list[Any]) -> Any:
-    """Decode a compact MCP resource payload returned by a shared reader."""
-    content = contents[0].content if contents else "{}"
-    try:
-        return json.loads(content)
-    except json.JSONDecodeError:
-        return {"error": True, "error_type": "invalid_resource_payload"}

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added A2A `read_report_by_job`, an explicit report-scoped owned-job report
+  read backed by the same MCP `primr://output/report/by_job/{job_id}` helper,
+  with `content_mode`, `artifact_type`, and `max_chars` output negotiation.
+
+## [1.34.41] - 2026-06-30
+
+### Changed
+
+- MCP `check_jobs`, `primr://output/latest`, and
+  `primr://output/by_job/{job_id}` now separate status/metadata reads from
+  report-body consumption for authenticated HTTP callers. Full report and
+  strategy text requires the explicit `report` scope and
+  `primr://output/report/by_job/{job_id}` read path with
+  `content_mode` / `artifact_type` / `max_chars` output negotiation; local
+  stdio keeps backwards-compatible inline artifact behavior.
+
 ## [1.34.40] - 2026-06-30
 
 ### Changed

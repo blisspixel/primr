@@ -18,7 +18,6 @@ Requirements: 2.1-2.13, 3.1-3.6, 3A.1-3A.8, 4.1-4.7
 
 import hashlib
 import logging
-from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -49,8 +48,20 @@ from primr.mcp_server.calibration_summary import (
     CALIBRATION_SUMMARY_BY_JOB_URI,
     read_calibration_summary_by_job_resource,
 )
+from primr.mcp_server.report_resources import (
+    REPORT_CONTENT_BY_JOB_RESOURCE,
+    REPORT_CONTENT_BY_JOB_URI,
+    read_report_by_job_resource,
+)
+from primr.mcp_server.report_resources import (
+    read_latest_output_resource as _read_latest_output,
+)
+from primr.mcp_server.report_resources import (
+    read_output_by_job_resource as _read_output_by_job,
+)
 from primr.mcp_server.resource_auth import (
     caller_can_read_audit,
+    caller_can_read_report,
     caller_client_id,
     caller_owns_job_resource,
 )
@@ -74,7 +85,6 @@ from primr.mcp_server.types import (
     ArtifactsResponse,
     ConfigState,
     JobStatus,
-    LatestOutput,
     ResearchMode,
     ResearchStatus,
     StrategyType,
@@ -179,9 +189,10 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
             Resource(
                 uri="primr://output/by_job/{job_id}",
                 name="Output by Job ID",
-                description="Retrieve output for a specific job ID",
+                description="Retrieve owned-job output metadata and gated preview for a specific job ID",
                 mimeType="application/json",
             ),
+            REPORT_CONTENT_BY_JOB_RESOURCE,
             Resource(
                 uri="primr://output/manifest/latest",
                 name="Latest Run Manifest",
@@ -225,7 +236,18 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
         elif uri_str == "primr://research/modes" or uri_str.startswith("primr://research/modes"):
             return _read_research_modes()
         elif uri_str == "primr://output/latest" or uri_str.startswith("primr://output/latest"):
-            return _read_latest_output(mcp_server, uri_str)
+            return _read_latest_output(
+                mcp_server,
+                uri_str,
+                can_read_report=caller_can_read_report(mcp_server),
+            )
+        elif uri_str.startswith(f"{REPORT_CONTENT_BY_JOB_URI}/"):
+            return read_report_by_job_resource(
+                mcp_server,
+                uri_str,
+                client_id=caller_client_id(mcp_server),
+                can_read_report=caller_can_read_report(mcp_server),
+            )
         for resource_uri, reader in (
             (ARTIFACT_METADATA_BY_JOB_URI, read_artifact_metadata_by_job_resource),
             (QA_SUMMARY_BY_JOB_URI, read_qa_summary_by_job_resource),
@@ -248,7 +270,12 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
         ):
             return _read_strategies_available()
         elif uri_str.startswith("primr://output/by_job/"):
-            return _read_output_by_job(mcp_server, uri_str)
+            return _read_output_by_job(
+                mcp_server,
+                uri_str,
+                client_id=caller_client_id(mcp_server),
+                can_read_report=caller_can_read_report(mcp_server),
+            )
         elif uri_str == "primr://output/manifest/latest" or uri_str.startswith(
             "primr://output/manifest/latest"
         ):
@@ -424,88 +451,6 @@ def _read_research_status(mcp_server: "PrimrMCPServer") -> list[ReadResourceCont
         "error_type": status.error_type,
         "error_message": status.error_message,
     }
-
-    return [
-        ReadResourceContents(
-            content=json.dumps(data, indent=2),
-            mime_type="application/json",
-        )
-    ]
-
-
-def _read_latest_output(mcp_server: "PrimrMCPServer", uri: str) -> list[ReadResourceContents]:
-    """
-    Read most recent research output.
-
-    Requirements: 3.1-3.6, FR-6.1
-    """
-    import json
-
-    # Check for full_content parameter
-    full_content = "full_content=true" in uri.lower()
-
-    # Get job_id from job store for provenance tracking (FR-6.1)
-    job = mcp_server.job_store.get_latest_terminal()
-    job_id = job.job_id if job else None
-
-    # Find latest report in output directory
-    output_dir = Path("output")
-    if not output_dir.exists():
-        data = {"message": "No reports available", "report_path": None, "job_id": job_id}
-        return [
-            ReadResourceContents(
-                content=json.dumps(data, indent=2),
-                mime_type="application/json",
-            )
-        ]
-
-    # Find most recent report file
-    report_files = list(output_dir.glob("**/report*.md")) + list(output_dir.glob("**/report*.txt"))
-    if not report_files:
-        data = {"message": "No reports available", "report_path": None, "job_id": job_id}
-        return [
-            ReadResourceContents(
-                content=json.dumps(data, indent=2),
-                mime_type="application/json",
-            )
-        ]
-
-    # Get most recent by modification time
-    latest_report = max(report_files, key=lambda p: p.stat().st_mtime)
-
-    # Read content
-    try:
-        content = latest_report.read_text(encoding="utf-8")
-    except Exception as e:
-        logger.warning(f"Failed to read report: {e}")
-        content = ""
-
-    # Extract company name from path or content
-    company_name = latest_report.parent.name if latest_report.parent != output_dir else None
-
-    # Build response
-    output = LatestOutput(
-        report_path=str(latest_report),
-        company_name=company_name,
-        generation_timestamp=datetime.fromtimestamp(latest_report.stat().st_mtime),
-        report_type="markdown" if latest_report.suffix == ".md" else "text",
-        content_preview=content[:2000] if content else None,
-        full_content=content if full_content else None,
-    )
-
-    data = {
-        "job_id": job_id,  # FR-6.1: Include job_id for provenance verification
-        "report_path": output.report_path,
-        "company_name": output.company_name,
-        "generation_timestamp": output.generation_timestamp.isoformat()
-        if output.generation_timestamp
-        else None,
-        "report_type": output.report_type,
-        "content_preview": output.content_preview,
-    }
-
-    if full_content:
-        data["full_content"] = output.full_content
 
     return [
         ReadResourceContents(
@@ -832,99 +777,6 @@ def _read_strategies_available() -> list[ReadResourceContents]:
             "get explicit user approval before generate_strategy."
         ),
         "strategies": get_strategy_catalog(),
-    }
-
-    return [
-        ReadResourceContents(
-            content=json.dumps(data, indent=2),
-            mime_type="application/json",
-        )
-    ]
-
-
-def _read_output_by_job(mcp_server: "PrimrMCPServer", uri: str) -> list[ReadResourceContents]:
-    """
-    Read output for a specific job ID.
-
-    Owner-gated: HTTP clients only see their own jobs. Returning 404 on
-    ownership mismatch prevents authenticated clients from probing for
-    other users' job IDs and reading their report previews / paths.
-
-    Requirements: FR-6.2
-    """
-    import json
-    import re
-
-    # Extract job_id from URI
-    match = re.match(r"primr://output/by_job/([^/?]+)", uri)
-    if not match:
-        raise ValueError(f"Invalid job ID in URI: {uri}")
-
-    requested_job_id = match.group(1)
-    client_id = caller_client_id(mcp_server)
-
-    # Look up job in store
-    job = mcp_server.job_store.get_by_id(requested_job_id)
-
-    if job is None or not caller_owns_job_resource(job, client_id):
-        # 404 for both missing and not-owned, identical body shape.
-        data = {
-            "error": "job_not_found",
-            "message": f"No job found with ID: {requested_job_id}",
-            "job_id": requested_job_id,
-        }
-        return [
-            ReadResourceContents(
-                content=json.dumps(data, indent=2),
-                mime_type="application/json",
-            )
-        ]
-
-    # Check if job has output
-    if not job.output_paths:
-        data = {
-            "error": "no_output",
-            "message": f"Job {requested_job_id} has no output yet",
-            "job_id": requested_job_id,
-            "status": job.get_status().value,
-        }
-        return [
-            ReadResourceContents(
-                content=json.dumps(data, indent=2),
-                mime_type="application/json",
-            )
-        ]
-
-    # Find report in output paths
-    report_path = None
-    for path in job.output_paths:
-        if "report" in path.lower():
-            report_path = path
-            break
-
-    if not report_path and job.output_paths:
-        report_path = job.output_paths[0]
-
-    # Read report content
-    content_preview = None
-    if report_path:
-        try:
-            report_file = Path(report_path)
-            if report_file.exists():
-                content = report_file.read_text(encoding="utf-8")
-                content_preview = content[:2000]
-        except Exception as e:
-            logger.warning(f"Failed to read report for job {requested_job_id}: {e}")
-
-    # Build response
-    data = {
-        "job_id": job.job_id,
-        "report_path": report_path,
-        "company_name": job.company_name,
-        "generation_timestamp": job.completion_time.isoformat() if job.completion_time else None,
-        "report_type": "markdown" if report_path and report_path.endswith(".md") else "text",
-        "content_preview": content_preview,
-        "status": job.get_status().value,
     }
 
     return [

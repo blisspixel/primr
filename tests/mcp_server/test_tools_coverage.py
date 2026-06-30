@@ -11,6 +11,7 @@ and platform alias normalization.
 import json
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -279,9 +280,80 @@ class TestCheckJobs:
         data = await _call(server, "check_jobs", {"job_id": job.job_id})
         j = data["jobs"][0]
         assert j["status"] == "completed"
+        assert j["artifacts_content_included"] is True
         types = {a["type"] for a in j["artifacts"]}
         assert "strategic_overview" in types
         assert "ai_strategy" in types
+
+    @pytest.mark.asyncio
+    async def test_authenticated_read_scope_does_not_inline_report_artifacts(
+        self, server, tmp_path
+    ):
+        report = tmp_path / "Acme_Strategic_Overview.md"
+        report.write_text("# SECRET REPORT BODY", encoding="utf-8")
+
+        server._auth_context = SimpleNamespace(
+            client_id="client-a",
+            scopes=["read"],
+            is_authenticated=True,
+        )
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(report)]
+        job.advance_stage(ResearchStage.COMPLETED)
+        server.job_store.update(job)
+
+        data = await _call(server, "check_jobs", {"job_id": job.job_id, "include_artifacts": True})
+        assert "SECRET REPORT BODY" not in json.dumps(data)
+        j = data["jobs"][0]
+        assert j["artifacts_content_included"] is False
+        assert j["include_artifacts_requested"] is True
+        assert j["report_read_required"] is True
+        assert j["required_scopes"] == ["report"]
+        assert j["report_read_uri"] == f"primr://output/report/by_job/{job.job_id}"
+
+    @pytest.mark.asyncio
+    async def test_authenticated_report_scope_must_still_opt_into_artifacts(self, server, tmp_path):
+        report = tmp_path / "Acme_Strategic_Overview.md"
+        report.write_text("# SECRET REPORT BODY", encoding="utf-8")
+
+        server._auth_context = SimpleNamespace(
+            client_id="client-a",
+            scopes=["read", "report"],
+            is_authenticated=True,
+        )
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(report)]
+        job.advance_stage(ResearchStage.COMPLETED)
+        server.job_store.update(job)
+
+        data = await _call(server, "check_jobs", {"job_id": job.job_id})
+        assert "SECRET REPORT BODY" not in json.dumps(data)
+        j = data["jobs"][0]
+        assert j["artifacts_content_included"] is False
+        assert j["include_artifacts_requested"] is False
+        assert "artifacts" not in j
+
+    @pytest.mark.asyncio
+    async def test_authenticated_report_scope_can_inline_requested_artifacts(
+        self, server, tmp_path
+    ):
+        report = tmp_path / "Acme_Strategic_Overview.md"
+        report.write_text("# SECRET REPORT BODY", encoding="utf-8")
+
+        server._auth_context = SimpleNamespace(
+            client_id="client-a",
+            scopes=["read", "report"],
+            is_authenticated=True,
+        )
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(report)]
+        job.advance_stage(ResearchStage.COMPLETED)
+        server.job_store.update(job)
+
+        data = await _call(server, "check_jobs", {"job_id": job.job_id, "include_artifacts": True})
+        j = data["jobs"][0]
+        assert j["artifacts_content_included"] is True
+        assert j["artifacts"][0]["content"] == "# SECRET REPORT BODY"
 
     @pytest.mark.asyncio
     async def test_terminal_job_listed_when_no_active(self, server):

@@ -18,6 +18,7 @@ from mcp.types import TextContent
 from primr.mcp_server.types import MCPErrorCode
 
 READ_SCOPE = "read"
+REPORT_SCOPE = "report"
 RESEARCH_SCOPE = "research"
 DELEGATE_SCOPE = "delegate"
 ADMIN_SCOPE = "admin"

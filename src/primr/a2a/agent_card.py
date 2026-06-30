@@ -102,6 +102,27 @@ _SKILLS: list[dict] = [
         ],
     },
     {
+        "id": "read_report_by_job",
+        "name": "Read Report by Job",
+        "description": (
+            "Read explicit report or strategy content for one owned research "
+            "job. Authenticated callers need the report scope; read-only "
+            "tokens should use compact summary skills first.\n\n"
+            "Input (JSON or text): "
+            '{"job_id": "job-20260630-abc123", "content_mode": "preview", '
+            '"artifact_type": "report", "max_chars": 2000}\n'
+            "content_mode: metadata, preview, or full. artifact_type: report, "
+            "strategy, or all.\n\n"
+            "Output: JSON with job_id, status, content_mode, artifact_count, "
+            "content_included, full_content_included, and bounded artifact rows"
+        ),
+        "tags": ["report", "read", "jobs", "content"],
+        "examples": [
+            "Read report for job-20260630-abc123",
+            '{"job_id": "job-20260630-abc123", "content_mode": "metadata"}',
+        ],
+    },
+    {
         "id": "read_artifacts_by_job",
         "name": "Read Artifact Metadata by Job",
         "description": (

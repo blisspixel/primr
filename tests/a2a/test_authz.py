@@ -30,6 +30,7 @@ def test_scope_table_covers_public_skills_and_cancel() -> None:
         "read_trace_summary_by_job": ("read",),
         "read_verification_summary_by_job": ("read",),
         "read_stage_scorecard": ("read",),
+        "read_report_by_job": ("report",),
         "research_company": ("research",),
         "run_qa": ("research",),
         "cancel_task": ("research",),
@@ -38,6 +39,19 @@ def test_scope_table_covers_public_skills_and_cancel() -> None:
 
 def test_read_skill_accepts_read_scope() -> None:
     decision = authorize_a2a_skill("check_jobs", _auth_context(["read"]))
+    assert decision.allowed
+    assert decision.missing_scopes == ()
+
+
+def test_report_skill_requires_report_scope() -> None:
+    decision = authorize_a2a_skill("read_report_by_job", _auth_context(["read"]))
+    assert not decision.allowed
+    assert decision.missing_scopes == ("report",)
+    assert "insufficient_scope" in a2a_scope_denied_text("read_report_by_job", decision)
+
+
+def test_report_skill_accepts_report_scope() -> None:
+    decision = authorize_a2a_skill("read_report_by_job", _auth_context(["read", "report"]))
     assert decision.allowed
     assert decision.missing_scopes == ()
 

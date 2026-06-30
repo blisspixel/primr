@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from primr.mcp_server.tool_authz import ADMIN_SCOPE
+from primr.mcp_server.tool_authz import ADMIN_SCOPE, REPORT_SCOPE, scope_granted
 
 
 def caller_client_id(mcp_server: Any) -> str:
@@ -27,9 +27,21 @@ def caller_can_read_audit(mcp_server: Any) -> bool:
     """Audit events are local-only by default and admin-only over HTTP."""
     if caller_client_id(mcp_server) == "stdio":
         return True
+    return scope_granted(ADMIN_SCOPE, caller_granted_scopes(mcp_server))
+
+
+def caller_granted_scopes(mcp_server: Any) -> tuple[str, ...]:
+    """Return normalized scopes from the active auth context."""
     ctx = getattr(mcp_server, "_auth_context", None)
     scopes = getattr(ctx, "scopes", []) if ctx is not None else []
-    return ADMIN_SCOPE in {str(scope) for scope in scopes}
+    return tuple(str(scope) for scope in scopes)
+
+
+def caller_can_read_report(mcp_server: Any) -> bool:
+    """Report bodies are local-only by default and report-scoped over HTTP."""
+    if caller_client_id(mcp_server) == "stdio":
+        return True
+    return scope_granted(REPORT_SCOPE, caller_granted_scopes(mcp_server))
 
 
 def caller_owns_job_resource(job: Any, client_id: str) -> bool:

@@ -10,6 +10,7 @@ from mcp.types import CallToolRequest, CallToolRequestParams
 
 from primr.mcp_server.auth import AuthContext
 from primr.mcp_server.server import create_mcp_server
+from primr.mcp_server.tool_authz import ADMIN_SCOPE, REPORT_SCOPE, scope_granted
 
 
 @pytest.fixture
@@ -117,3 +118,10 @@ class TestToolScopeAuthorization:
         assert data["error"] is True
         assert data["error_type"] == "insufficient_scope"
         assert data["required_scopes"] == ["admin"]
+
+
+class TestScopeGrantPolicy:
+    def test_report_scope_is_not_satisfied_by_legacy_write(self):
+        assert scope_granted(REPORT_SCOPE, (REPORT_SCOPE,))
+        assert scope_granted(REPORT_SCOPE, (ADMIN_SCOPE,))
+        assert not scope_granted(REPORT_SCOPE, ("write",))

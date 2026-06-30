@@ -8,6 +8,7 @@ strategies/available, and the agentic roadmap/memory/context resources.
 import json
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from mcp.types import ReadResourceRequest, ReadResourceRequestParams
@@ -75,6 +76,28 @@ class TestLatestOutput:
         data = await _read(server, "primr://output/latest?full_content=true")
         assert data["full_content"] == "# Full body"
 
+    @pytest.mark.asyncio
+    async def test_authenticated_read_scope_omits_latest_report_body(
+        self, server, monkeypatch, tmp_path
+    ):
+        monkeypatch.chdir(tmp_path)
+        out = tmp_path / "output" / "acme"
+        out.mkdir(parents=True)
+        report = out / "report.md"
+        report.write_text("# SECRET latest body", encoding="utf-8")
+        server._auth_context = SimpleNamespace(
+            client_id="client-a",
+            scopes=["read"],
+            is_authenticated=True,
+        )
+
+        data = await _read(server, "primr://output/latest?full_content=true")
+        assert "SECRET latest body" not in json.dumps(data)
+        assert data["content_preview"] is None
+        assert data["content_preview_included"] is False
+        assert data["full_content_included"] is False
+        assert data["report_read_required"] is True
+
 
 class TestArtifacts:
     @pytest.mark.asyncio
@@ -130,6 +153,124 @@ class TestOutputByJob:
         assert data["report_path"] == str(report)
         assert data["content_preview"].startswith("# job report")
         assert data["report_type"] == "markdown"
+
+    @pytest.mark.asyncio
+    async def test_authenticated_read_scope_omits_report_preview(self, server, tmp_path):
+        report = tmp_path / "report.md"
+        report.write_text("# SECRET job report", encoding="utf-8")
+        server._auth_context = SimpleNamespace(
+            client_id="client-a",
+            scopes=["read"],
+            is_authenticated=True,
+        )
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(report)]
+        job.advance_stage(ResearchStage.COMPLETED)
+        server.job_store.update(job)
+
+        data = await _read(server, f"primr://output/by_job/{job.job_id}")
+        assert "SECRET job report" not in json.dumps(data)
+        assert data["job_id"] == job.job_id
+        assert data["content_preview"] is None
+        assert data["content_preview_included"] is False
+        assert data["report_read_required"] is True
+        assert data["report_read_uri"] == f"primr://output/report/by_job/{job.job_id}"
+
+
+class TestReportContentByJob:
+    @pytest.mark.asyncio
+    async def test_report_resource_requires_report_scope(self, server, tmp_path):
+        report = tmp_path / "report.md"
+        report.write_text("# SECRET full report", encoding="utf-8")
+        server._auth_context = SimpleNamespace(
+            client_id="client-a",
+            scopes=["read"],
+            is_authenticated=True,
+        )
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(report)]
+        job.advance_stage(ResearchStage.COMPLETED)
+        server.job_store.update(job)
+
+        data = await _read(server, f"primr://output/report/by_job/{job.job_id}?content_mode=full")
+        assert "SECRET full report" not in json.dumps(data)
+        assert data["error"] == "insufficient_scope"
+        assert data["required_scopes"] == ["report"]
+        assert data["content_included"] is False
+
+    @pytest.mark.asyncio
+    async def test_report_resource_returns_bounded_preview_with_scope(self, server, tmp_path):
+        report = tmp_path / "report.md"
+        report.write_text("# bounded report body", encoding="utf-8")
+        server._auth_context = SimpleNamespace(
+            client_id="client-a",
+            scopes=["read", "report"],
+            is_authenticated=True,
+        )
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(report)]
+        job.advance_stage(ResearchStage.COMPLETED)
+        server.job_store.update(job)
+
+        data = await _read(
+            server,
+            f"primr://output/report/by_job/{job.job_id}?content_mode=preview&max_chars=9",
+        )
+        assert data["content_mode"] == "preview"
+        assert data["content_included"] is True
+        assert data["full_content_included"] is False
+        assert data["artifacts"][0]["content"] == "# bounded"
+        assert data["artifacts"][0]["content_truncated"] is True
+
+    @pytest.mark.asyncio
+    async def test_report_resource_can_read_all_artifact_types(self, server, tmp_path):
+        report = tmp_path / "Acme_Strategic_Overview.md"
+        report.write_text("# overview", encoding="utf-8")
+        strategy = tmp_path / "Acme_AI_Strategy.md"
+        strategy.write_text("# strategy", encoding="utf-8")
+        server._auth_context = SimpleNamespace(
+            client_id="client-a",
+            scopes=["read", "report"],
+            is_authenticated=True,
+        )
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(report), str(strategy)]
+        job.advance_stage(ResearchStage.COMPLETED)
+        server.job_store.update(job)
+
+        data = await _read(
+            server,
+            f"primr://output/report/by_job/{job.job_id}?content_mode=full&artifact_type=all",
+        )
+        assert data["full_content_included"] is True
+        assert data["artifact_count"] == 2
+        assert {row["type"] for row in data["artifacts"]} == {
+            "strategic_overview",
+            "ai_strategy",
+        }
+
+    @pytest.mark.asyncio
+    async def test_report_resource_metadata_mode_excludes_content(self, server, tmp_path):
+        report = tmp_path / "report.md"
+        report.write_text("# metadata report", encoding="utf-8")
+        server._auth_context = SimpleNamespace(
+            client_id="client-a",
+            scopes=["read", "report"],
+            is_authenticated=True,
+        )
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
+        job.output_paths = [str(report)]
+        job.advance_stage(ResearchStage.COMPLETED)
+        server.job_store.update(job)
+
+        data = await _read(
+            server,
+            f"primr://output/report/by_job/{job.job_id}?content_mode=metadata",
+        )
+        assert data["content_mode"] == "metadata"
+        assert data["content_included"] is False
+        assert "content" not in data["artifacts"][0]
+        assert data["artifacts"][0]["content_hash"].startswith("sha256:")
 
 
 class TestManifestLatest:
