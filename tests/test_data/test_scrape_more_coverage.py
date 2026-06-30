@@ -426,6 +426,67 @@ class TestScrapeExternalSourcesValidated:
 # fetch_web_content — rate-limit skip + zero-page supplement
 # ============================================================================
 class TestFetchWebContentFallbackPaths:
+    def test_blocked_origin_prints_evidence_summary_before_public_fallback(self):
+        class FakeConsole:
+            _arrow = "->"
+
+            def __init__(self):
+                self.events = []
+
+            def status(self, msg):
+                self.events.append(("status", msg))
+
+            def clear_line(self):
+                self.events.append(("clear", ""))
+
+            def found(self, msg):
+                self.events.append(("found", msg))
+
+            def fail(self, msg):
+                self.events.append(("fail", msg))
+
+            def muted(self, msg):
+                self.events.append(("muted", msg))
+
+            def done(self, msg):
+                self.events.append(("done", msg))
+
+        fake_console = FakeConsole()
+        assessment = SimpleNamespace(
+            reason="challenge shell",
+            evidence=["soft_block_detector: challenge", "visible_text_length:12"],
+        )
+        orch = Mock()
+        orch.scrape_url.return_value = SimpleNamespace(
+            success=False,
+            raw_content=None,
+            error="challenge shell",
+            tier="requests",
+            access_assessment=assessment,
+        )
+        with (
+            patch("primr.data.scrape.console", fake_console),
+            patch("primr.data.scrape.get_orchestrator", return_value=orch),
+            patch("primr.data.scraping.rate_limit_state.get_rate_limit", return_value=None),
+            patch(
+                "primr.data.scrape.classify_organization_type",
+                return_value=SimpleNamespace(
+                    organization_type="commercial", confidence=0.8, signals=[]
+                ),
+            ),
+            patch("primr.data.scraping.discovery.discover_links", return_value=[]),
+            patch("primr.data.scrape._collect_fallback_content", return_value={}),
+        ):
+            result = fetch_web_content("https://acme.example", "Acme Corp")
+
+        messages = "\n".join(msg for _, msg in fake_console.events)
+        assert result == {}
+        assert "Could not access acme.example" in messages
+        assert "Evidence: challenge shell" in messages
+        assert "visible_text_length:12" in messages
+        assert "0 same-site candidate page(s)" in messages
+        assert "--mode deep" in messages
+
     def test_rate_limit_skip_goes_straight_to_fallbacks(self):
         rl_entry = SimpleNamespace(
             remaining_seconds=lambda: 125,

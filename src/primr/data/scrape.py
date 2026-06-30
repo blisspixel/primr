@@ -515,6 +515,7 @@ def fetch_web_content(
         extract_structured_content,
         host_markers,
     )
+    from .scraping.blocked_summary import emit_blocked_site_summary
 
     # Normalize so downstream helpers (validation prompts, fallback fan-out)
     # never have to handle the None case themselves.
@@ -947,9 +948,7 @@ def fetch_web_content(
             console.found(f"{in_scope_count} recovery links selected")
 
     if not homepage_access_ok and not pages_to_scrape:
-        console.clear_line()
-        console.fail(f"Could not access {domain}")
-        console.muted("  Routing around block via Wayback / subdomains / EDGAR / Wikipedia...")
+        emit_blocked_site_summary(console, domain, result, homepage_recovery_reason, total_found)
         _append_trace(
             "FALLBACK",
             website,

@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Once a confirmed real first-party page matches explicit company or host
   markers, Primr persists a bounded, filtered marker set under `PRIMR_DATA_DIR`
   and reuses it to classify later pages on the same host without provider calls.
+- Added clearer blocked-site CLI summaries when live first-party scraping and
+  same-site recovery both fail. The summary now shows sanitized evidence,
+  same-site recovery count, and the next fallback action before public-data
+  recovery starts.
 - Added A2A `read_report_by_job`, an explicit report-scoped owned-job report
   read backed by the same MCP `primr://output/report/by_job/{job_id}` helper,
   with `content_mode`, `artifact_type`, and `max_chars` output negotiation.
