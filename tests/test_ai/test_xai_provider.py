@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from unittest.mock import MagicMock
 
 import httpx
@@ -155,3 +156,52 @@ def test_xai_browse_returns_none_for_bad_responses(monkeypatch) -> None:
         ),
     )
     assert provider.browse_and_summarize("https://example.com", model="grok-4.3") is None
+
+
+def test_xai_browse_logs_redacted_url_without_provider_body(monkeypatch, caplog) -> None:
+    monkeypatch.setenv("XAI_API_KEY", "fake")
+    caplog.set_level(logging.WARNING, logger="primr.ai.providers.xai")
+    url = "https://user:pass@example.com/private/path?token=secret#frag"
+
+    monkeypatch.setattr(
+        httpx,
+        "post",
+        lambda *_args, **_kwargs: _response(
+            status=500,
+            text="provider body with secret details",
+        ),
+    )
+
+    assert XAIProvider().browse_and_summarize(url, model="grok-4.3") is None
+
+    messages = "\n".join(caplog.messages)
+    assert "https://example.com" in messages
+    assert "/private/path" not in messages
+    assert "token=secret" not in messages
+    assert "user:pass" not in messages
+    assert "provider body" not in messages
+
+
+def test_xai_browse_success_log_uses_low_detail_url(monkeypatch, caplog) -> None:
+    monkeypatch.setenv("XAI_API_KEY", "fake")
+    caplog.set_level(logging.INFO, logger="primr.ai.providers.xai")
+    data = {
+        "output": [
+            {
+                "type": "message",
+                "content": [{"type": "output_text", "text": "Summary body."}],
+            }
+        ],
+    }
+    monkeypatch.setattr(httpx, "post", lambda *_args, **_kwargs: _response(json_data=data))
+
+    result = XAIProvider().browse_and_summarize(
+        "https://example.com/customer/research?account=secret",
+        model="grok-4.3",
+    )
+
+    assert result is not None
+    messages = "\n".join(caplog.messages)
+    assert "https://example.com" in messages
+    assert "/customer/research" not in messages
+    assert "account=secret" not in messages

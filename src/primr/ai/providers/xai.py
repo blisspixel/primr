@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse, urlunparse
 
 import httpx
 
@@ -18,6 +19,31 @@ from primr.ai.providers.openai_compatible import OpenAICompatibleProvider
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("ai.providers.xai")
+
+
+def _safe_url_label(url: str) -> str:
+    """Return a low-detail URL label for logs without path, query, or userinfo."""
+
+    try:
+        parsed = urlparse(url)
+        if not parsed.scheme or not parsed.hostname:
+            return "<unparseable-url>"
+
+        host = parsed.hostname
+        if ":" in host and not host.startswith("["):
+            host = f"[{host}]"
+
+        netloc = host
+        try:
+            port = parsed.port
+        except ValueError:
+            port = None
+        if port is not None:
+            netloc = f"{netloc}:{port}"
+
+        return urlunparse((parsed.scheme.lower(), netloc, "", "", "", ""))
+    except Exception:
+        return "<unparseable-url>"
 
 
 @dataclass(frozen=True)
@@ -76,8 +102,9 @@ class XAIProvider(OpenAICompatibleProvider):
 
         api_key = os.getenv(self._api_key_env)
         if not api_key:
-            logger.debug("xAI browse skipped: %s not set", self._api_key_env)
+            logger.debug("xAI browse skipped: API key not configured")
             return None
+        url_label = _safe_url_label(url)
 
         try:
             response = httpx.post(
@@ -95,27 +122,26 @@ class XAIProvider(OpenAICompatibleProvider):
                 timeout=timeout,
             )
         except (httpx.TimeoutException, httpx.NetworkError) as exc:
-            logger.warning("xAI browse: network error for %s: %s", url, exc)
+            logger.warning("xAI browse: network error for %s: %s", url_label, type(exc).__name__)
             return None
 
         if response.status_code != 200:
             logger.warning(
-                "xAI browse: status %s for %s: %s",
+                "xAI browse: status %s for %s",
                 response.status_code,
-                url,
-                (response.text or "")[:200],
+                url_label,
             )
             return None
 
         try:
             data = response.json()
         except ValueError:
-            logger.warning("xAI browse: non-JSON response for %s", url)
+            logger.warning("xAI browse: non-JSON response for %s", url_label)
             return None
 
         summary = self._parse_browse_response(url, data)
         if summary is None:
-            logger.info("xAI browse: empty body for %s", url)
+            logger.info("xAI browse: empty body for %s", url_label)
             return None
 
         if summary.input_tokens or summary.output_tokens:
@@ -128,7 +154,7 @@ class XAIProvider(OpenAICompatibleProvider):
 
         logger.info(
             "xAI browse: %s - %d chars, %d tool calls, %d citations",
-            url,
+            url_label,
             len(summary.text),
             summary.tool_calls,
             len(summary.citations),

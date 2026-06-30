@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Redacted xAI browse/search logs to scheme and host only, and stopped logging
+  provider error-body snippets on failed browse calls so customer URL paths,
+  query strings, userinfo, and provider diagnostics do not enter logs.
 - Made Cowork skill-pack icon generation local by default. Remote image
   providers, including xAI Grok Imagine, now require the explicit CLI
   `--remote-icons` flag or MCP `remote_icons` argument so configured provider
