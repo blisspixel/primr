@@ -121,6 +121,11 @@ def test_gather_fallback_content_no_duplicates_on_timeout():
             "fetch_structured_data_content",
             lambda *a, **k: _page("structured_data"),
         ),
+        patch.object(
+            fb,
+            "fetch_first_party_pdf_content",
+            lambda *a, **k: _page("first_party_pdf"),
+        ),
         patch.object(fb, "fetch_edgar_content", lambda *a, **k: _page("edgar")),
         patch.object(fb, "fetch_wikipedia_content", lambda *a, **k: _page("wikipedia")),
     ):
@@ -257,6 +262,13 @@ def test_gather_fallback_content_merges_all_sources():
         "edgar": [FallbackPage(url="https://e", source="edgar", content="10-K text " * 300)],
         "subdomain": [FallbackPage(url="https://s", source="subdomain", content="IR text " * 80)],
         "feed": [FallbackPage(url="https://f", source="feed", content="feed text " * 40)],
+        "first_party_pdf": [
+            FallbackPage(
+                url="https://p",
+                source="first_party_pdf",
+                content="pdf text " * 80,
+            )
+        ],
         "structured_data": [
             FallbackPage(
                 url="https://sd",
@@ -277,6 +289,9 @@ def test_gather_fallback_content_merges_all_sources():
     def fake_structured_data(base_host, **_kwargs):
         return fake_pages_by_source["structured_data"]
 
+    def fake_first_party_pdf(base_host, **_kwargs):
+        return fake_pages_by_source["first_party_pdf"]
+
     def fake_edgar(name, **_kwargs):
         return fake_pages_by_source["edgar"]
 
@@ -296,6 +311,10 @@ def test_gather_fallback_content_merges_all_sources():
             "primr.data.fallback_sources.fetch_structured_data_content",
             side_effect=fake_structured_data,
         ),
+        patch(
+            "primr.data.fallback_sources.fetch_first_party_pdf_content",
+            side_effect=fake_first_party_pdf,
+        ),
         patch("primr.data.fallback_sources.fetch_edgar_content", side_effect=fake_edgar),
         patch("primr.data.fallback_sources.fetch_wikipedia_content", side_effect=fake_wikipedia),
         patch("primr.data.fallback_sources.fetch_wayback_pages", side_effect=fake_wayback),
@@ -312,6 +331,7 @@ def test_gather_fallback_content_merges_all_sources():
     assert sources == [
         "edgar",
         "feed",
+        "first_party_pdf",
         "grok",
         "structured_data",
         "subdomain",
@@ -330,6 +350,7 @@ def test_gather_fallback_content_tolerates_individual_source_failure():
     with (
         patch("primr.data.fallback_sources.fetch_subdomain_content", side_effect=raises),
         patch("primr.data.fallback_sources.fetch_feed_content", side_effect=raises),
+        patch("primr.data.fallback_sources.fetch_first_party_pdf_content", side_effect=raises),
         patch("primr.data.fallback_sources.fetch_structured_data_content", side_effect=raises),
         patch("primr.data.fallback_sources.fetch_edgar_content", side_effect=raises),
         patch("primr.data.fallback_sources.fetch_wikipedia_content", return_value=[good_page]),
@@ -349,6 +370,7 @@ def test_gather_fallback_content_returns_empty_when_all_sources_empty():
     with (
         patch("primr.data.fallback_sources.fetch_subdomain_content", return_value=[]),
         patch("primr.data.fallback_sources.fetch_feed_content", return_value=[]),
+        patch("primr.data.fallback_sources.fetch_first_party_pdf_content", return_value=[]),
         patch("primr.data.fallback_sources.fetch_structured_data_content", return_value=[]),
         patch("primr.data.fallback_sources.fetch_edgar_content", return_value=[]),
         patch("primr.data.fallback_sources.fetch_wikipedia_content", return_value=[]),

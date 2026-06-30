@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added first-party PDF recovery to the blocked-origin fallback fan-out. The
+  new source discovers same-site PDFs from priority investor/news/about/help
+  landing pages, adds bounded direct PDF probes, ranks likely annual reports,
+  fact sheets, overviews, media kits, and guides first, and extracts text
+  locally with PyMuPDF only as `source="first_party_pdf"`.
 - Added first-party JSON-LD structured-data recovery to the blocked-origin
   fallback fan-out. The new source probes bounded priority same-site pages,
   extracts Organization / NewsArticle / Product / Event / Person facts with

@@ -2,17 +2,9 @@
 First-party and public-data fallback sources for blocked hosts.
 
 When a primary host is bot-protected and the orchestrator can't reach real
-content (Kasada, Akamai, etc.), these fallbacks harvest the same company's
-information from places that aren't under the same WAF:
-
-- **Subdomain probe**: many companies expose investor.*, ir.*, newsroom.*,
-  press.* on a different stack (Q4 Inc., Business Wire, etc.) that isn't
-  bot-protected even when the main shop/marketing site is.
-- **SEC EDGAR**: public US companies must file 10-K / 10-Q / 8-K. These are
-  freely downloadable and contain comprehensive About/History/Risk/Products
-  sections written by the company itself.
-- **Wikipedia**: most known companies have a synthesized history + products
-  + leadership article, served via REST API with no bot protection.
+content (Kasada, Akamai, etc.), these fail-open sources harvest same-company
+information from first-party subdomains, feeds, PDFs, JSON-LD, EDGAR,
+Wikipedia, Wayback, and optional Grok surrogates.
 
 All fallback sources are fail-open: missing data from one source does not
 prevent the others from contributing. The caller fans them out in parallel
@@ -35,6 +27,7 @@ from xml.etree.ElementTree import ParseError
 import defusedxml.ElementTree as DefusedET
 from defusedxml.common import DefusedXmlException
 
+from primr.data.first_party_pdf import fetch_first_party_pdf_content
 from primr.data.first_party_structured_data import fetch_structured_data_content
 from primr.data.first_party_url import same_site as _same_site
 
@@ -77,7 +70,7 @@ class FallbackPage:
     """A page of content recovered from a fallback source."""
 
     url: str
-    source: str  # "subdomain" | "feed" | "structured_data" | "edgar" | "wikipedia" | "wayback"
+    source: str  # "subdomain" | "feed" | "first_party_pdf" | "structured_data" | ...
     content: str  # extracted plain text
     raw_html: bytes | None = None
     title: str | None = None
@@ -999,6 +992,7 @@ def gather_fallback_content(
     Sources:
     - subdomain probe (fast, ~5-15s per live subdomain)
     - RSS/Atom feeds (fast, ~3-10s; recent press/news/blog content)
+    - first-party PDFs (local PyMuPDF extraction only)
     - first-party JSON-LD structured data (fast, ~3-10s; organization/news facts)
     - SEC EDGAR (public companies only, ~10-30s including filing fetch)
     - Wikipedia (almost always available for known companies, ~5s)
@@ -1013,7 +1007,7 @@ def gather_fallback_content(
     base_host = base_host.lower().removeprefix("www.")
 
     logger.info(
-        "Gathering fallback content for %r (host=%s) - subdomain/feed/structured-data/EDGAR/Wikipedia/Wayback in parallel",
+        "Gathering fallback content for %r (host=%s) - subdomain/feed/PDF/structured-data/EDGAR/Wikipedia/Wayback in parallel",
         company_name,
         base_host,
     )
@@ -1026,6 +1020,7 @@ def gather_fallback_content(
         futures = {
             pool.submit(fetch_subdomain_content, base_host): "subdomain",
             pool.submit(fetch_feed_content, base_host): "feed",
+            pool.submit(fetch_first_party_pdf_content, base_host): "first_party_pdf",
             pool.submit(fetch_structured_data_content, base_host): "structured_data",
             pool.submit(fetch_edgar_content, company_name): "edgar",
             pool.submit(fetch_wikipedia_content, company_name): "wikipedia",

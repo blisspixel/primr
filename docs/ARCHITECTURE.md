@@ -348,7 +348,7 @@ The `scrape_page` primitive uses a tiered fallback system for web scraping, desi
 - **Soft Block Detection**: Checks content, not just HTTP status (catches "200 OK" traps)
 - **TLS Fingerprint Impersonation**: curl_cffi mimics real browser TLS signatures
 - **Driverless Browsers**: DrissionPage uses CDP directly, bypassing WebDriver detection
-- **Content-Type Routing**: Automatic detection (HTML, PDF, binary) via headers and magic bytes - PDFs extracted via Gemini LLM with PyMuPDF fallback
+- **Content-Type Routing**: Automatic detection (HTML, PDF, binary) via headers and magic bytes - PDFs are extracted locally with PyMuPDF by default; Gemini PDF extraction is opt-in via `PRIMR_PDF_LLM_MAX_CALLS`
 - **Smart Tier Escalation** (v1.2.4+): Stops after 3 consecutive failures of same error type to avoid wasting time on impossible pages
 - **Adaptive Timeout**: 45s max per page (reduced to 25s when best_tier is known for the host)
 - **Headed Popup Budget**: Opt-in counter (env `PRIMR_MAX_HEADED_POPUPS`, default `0`) shared across the Patchright stealth tier and the orchestrator's adaptive Playwright retry. When unset no visible-browser windows ever open; set to `N` to allow up to N total popups for a single run. External-source validation uses a separate orchestrator that excludes Patchright entirely, so validation scrapes never trigger popups regardless of the budget. On Linux the budget is treated as 0 unless `DISPLAY` or `WAYLAND_DISPLAY` is set, so headless runs never attempt a visible launch.
@@ -692,7 +692,7 @@ src/primr/
 │
 ├── data/                    # Data collection
 │   ├── scrape.py            # 9-tier scraping engine + public-data fallback routing
-│   ├── fallback_sources.py  # Wayback / subdomain / feed / JSON-LD / EDGAR / Wikipedia / Grok fan-out
+│   ├── fallback_sources.py  # Wayback / subdomain / feed / first-party PDF / JSON-LD / EDGAR / Wikipedia / Grok fan-out
 │   ├── adaptive_scraper.py  # Domain-learning scraper
 │   ├── parallel_scraper.py  # Concurrent scraping
 │   ├── http_client.py       # HTTP client wrapper
