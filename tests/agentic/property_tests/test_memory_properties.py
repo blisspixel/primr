@@ -29,6 +29,7 @@ from primr.agentic.memory import (
     ResearchMemory,
 )
 from primr.agentic.models import ConfidenceLevel, Hypothesis
+from tests.secret_fixtures import fake_xai_api_key
 
 # =============================================================================
 # STRATEGIES
@@ -492,9 +493,10 @@ def test_default_memory_path_uses_user_data_dir(tmp_path, monkeypatch):
 def test_memory_write_rejects_secret_like_values(tmp_path):
     """Durable memory refuses API-key-shaped values before writing YAML."""
     memory = ResearchMemory(storage_path=tmp_path)
+    secret = fake_xai_api_key()
     hypothesis = Hypothesis(
         id="secret",
-        claim="xai-1234567890abcdef should not be persisted",
+        claim=f"{secret} should not be persisted",
     )
 
     with pytest.raises(ResearchMemoryError) as exc_info:

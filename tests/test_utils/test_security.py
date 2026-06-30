@@ -23,6 +23,11 @@ from primr.utils.security import (
     secure_compare,
     verify_hashed_secret,
 )
+from tests.secret_fixtures import (
+    fake_google_api_key,
+    fake_openai_api_key,
+    fake_xai_api_key,
+)
 
 
 class TestSecureCompare:
@@ -119,9 +124,10 @@ class TestMaskSensitiveData:
 
     def test_mask_api_key(self):
         """API keys are masked."""
-        text = 'api_key = "sk-1234567890abcdefghijklmnop"'
+        key = fake_openai_api_key()
+        text = f'api_key = "{key}"'
         result = mask_sensitive_data(text)
-        assert "sk-1234567890" not in result
+        assert key not in result
         assert "[REDACTED]" in result or "[OPENAI_API_KEY]" in result
 
     def test_mask_password(self):
@@ -139,15 +145,16 @@ class TestMaskSensitiveData:
 
     def test_mask_google_api_key(self):
         """Google API keys are masked."""
-        text = "key=AIzaSyA1234567890abcdefghijklmnopqrstuv"
+        key = fake_google_api_key()
+        text = f"key={key}"
         result = mask_sensitive_data(text)
-        assert "AIzaSyA1234567890" not in result
+        assert key not in result
 
     def test_mask_xai_api_key(self):
         """xAI / Grok keys (primr's primary provider) are masked, even when they
         appear as a bare token in free text (no key=... prefix) — e.g. if one
         leaks into an error message or prompt."""
-        key = "xai-abc123DEF456ghi789JKL012mno345PQR678stu"
+        key = fake_xai_api_key()
         result = mask_sensitive_data(f"request failed for {key} after retry")
         assert key not in result
         assert "[XAI_API_KEY]" in result
@@ -222,9 +229,10 @@ class TestSanitizeLogInput:
 
     def test_mask_sensitive_in_input(self):
         """Sensitive data in input is masked."""
-        text = "api_key=sk-1234567890abcdefghijklmnopqrstuvwxyz1234567890ab"
+        key = fake_openai_api_key()
+        text = f"api_key={key}"
         result = sanitize_log_input(text)
-        assert "sk-1234567890" not in result
+        assert key not in result
 
     def test_preserve_newlines_tabs(self):
         """Newlines and tabs are preserved."""

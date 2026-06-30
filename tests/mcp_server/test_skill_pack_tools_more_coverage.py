@@ -157,6 +157,12 @@ def test_estimate_cost_scales_with_roles():
     assert many["max_minutes"] > few["max_minutes"]
 
 
+def test_estimate_cost_includes_remote_icon_allowance():
+    local = spt._estimate_skill_pack_cost(5, 3, has_report_path=True)
+    remote = spt._estimate_skill_pack_cost(5, 3, has_report_path=True, remote_icons=True)
+    assert remote["cost_usd"] > local["cost_usd"]
+
+
 # ---------------------------------------------------------------------------
 # estimate_skill_pack handler
 # ---------------------------------------------------------------------------
@@ -176,8 +182,20 @@ async def test_estimate_defaults_applied():
     assert payload["roles_count"] == DEFAULT_ROLES
     assert payload["skills_per_role"] == DEFAULT_SKILLS_PER_ROLE
     assert payload["uses_existing_report"] is False
+    assert payload["remote_icons"] is False
     assert "cost_usd" in payload
     assert "notes" in payload
+
+
+@pytest.mark.asyncio
+async def test_estimate_remote_icons_costs_more():
+    local = await _call("estimate_skill_pack", {"company_name": "Acme Corp"})
+    remote = await _call(
+        "estimate_skill_pack",
+        {"company_name": "Acme Corp", "remote_icons": True},
+    )
+    assert remote["remote_icons"] is True
+    assert remote["cost_usd"] > local["cost_usd"]
 
 
 @pytest.mark.asyncio
@@ -343,6 +361,29 @@ async def test_cost_cap_passes_when_under_cap(monkeypatch, tmp_path, patched_pip
     assert payload.get("error") is not True
     assert payload["company_name"] == "Acme Corp"
     patched_pipeline["run"].assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_remote_icons_bound_to_approval_token(monkeypatch, tmp_path):
+    monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
+    estimate = await _call(
+        "estimate_skill_pack",
+        {"company_name": "Acme Corp", "report_path": str(tmp_path)},
+    )
+
+    payload = await _call(
+        "generate_skill_pack",
+        {
+            "company_name": "Acme Corp",
+            "report_path": str(tmp_path),
+            "remote_icons": True,
+            "max_estimated_cost_usd": 100.0,
+            "approval_token": estimate["approval_token"],
+        },
+    )
+
+    assert payload["error"] is True
+    assert payload["error_type"] == "invalid_approval_token"
 
 
 @pytest.mark.parametrize(
@@ -693,6 +734,7 @@ async def test_plan_only_and_from_plan_path_mapped(tmp_path, patched_pipeline):
             "from_plan_path": str(plan_json),
             "allow_recon_only": True,
             "emit_agent_metadata": True,
+            "remote_icons": True,
         },
     )
     cfg = patched_pipeline["run"].call_args.kwargs["config"]
@@ -700,6 +742,7 @@ async def test_plan_only_and_from_plan_path_mapped(tmp_path, patched_pipeline):
     assert cfg.from_plan_path == str(plan_json)
     assert cfg.allow_recon_only is True
     assert cfg.emit_agent_metadata is True
+    assert cfg.remote_icon_generation is True
 
 
 @pytest.mark.asyncio

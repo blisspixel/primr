@@ -268,7 +268,7 @@ Each `primr skills` run produces:
 - `roles/<skill-slug>/references/role-family.md` - deterministic shared role-family grounding copied into every skill for the same role family.
 - `<Company>_Cowork_Pack.zip` - the Microsoft 365 Copilot Cowork sideload. Upload via **M365 Admin Center → Manage Apps → Upload custom app**. Contents:
   - `manifest.json` - Unified App Manifest v1.28 with deterministic UUID v5 (the same company name always yields the same UUID, so re-installs replace rather than duplicate)
-  - `color.png` (192x192) and `outline.png` (32x32) - icons. Generated via multi-provider fallback: Grok Imagine → Gemini Imagen → OpenAI image → Pillow gradient+shape → solid PNG
+  - `color.png` (192x192) and `outline.png` (32x32) - icons. Generated locally by default via Pillow gradient+shape → solid PNG. Remote image APIs are used only when explicitly enabled via `--remote-icons` / `remote_icons`.
   - `skills/<skill-slug>/SKILL.md` plus safe companion files such as `skills/<skill-slug>/references/role-family.md` - byte-identical to the matching unpacked-tree files
 - `<Company>_Skills_Pack_Report.md` - human-readable pack summary:
   - Configuration (target roles, skills per role, formats, coherence pass)
@@ -392,6 +392,7 @@ Output + validation:
 - `--optimize-triggers` - measure + optimize each skill's trigger description against a discovery simulator (Phase 5c; adds LLM calls, off by default)
 - `--with-evals` - behavioral eval: run each skill's task cases with vs without the skill, grade, report the delta, write `evals/evals.json` (Phase 5d; expensive, off by default)
 - `--emit-agent-metadata` - add optional primr-namespaced metadata to each `SKILL.md` frontmatter; off by default
+- `--remote-icons` - opt in to remote image-generation APIs for Cowork icons; off by default so configured provider keys do not create image API spend
 - `--dry-run` - estimate cost + time, exit before running
 
 ## MCP reference
@@ -409,8 +410,9 @@ Optional:
 - `report_path` (skips standalone evidence collection)
 - `from_jd_path` (adds local role-brief evidence; skips evidence collection when used without `company_url`)
 - `career_urls` (array of exact career / ATS URLs; merged before planning)
+- `remote_icons` (bool, default false; includes the explicit remote icon image-generation allowance)
 
-Returns `{cost_usd, min_minutes, max_minutes}`.
+Returns `{cost_usd, min_minutes, max_minutes}` plus the approval token fields when MCP cost-cap enforcement is enabled.
 
 ### `generate_skill_pack`
 
@@ -425,6 +427,7 @@ Optional:
 - `roles_count`, `skills_per_role`, `formats`, `max_refine_iterations`, `destination`, `max_estimated_cost_usd`
 - `allow_recon_only: bool` - fail-closed override
 - `emit_agent_metadata: bool` - optional metadata block in `SKILL.md`; default false
+- `remote_icons: bool` - opt in to remote image-generation APIs for Cowork icons; default false
 - `plan_only: bool` - write plan, return without authoring
 - `from_plan_path: string` - author against a saved plan
 - `roles_override: array[string]` - bypass planning entirely

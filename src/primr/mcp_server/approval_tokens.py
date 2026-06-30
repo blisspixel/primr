@@ -68,6 +68,7 @@ def skill_pack_approval_args(
     has_report_path: bool,
     has_operator_role_brief: bool,
     has_career_urls: bool,
+    remote_icons: bool = False,
 ) -> dict[str, Any]:
     """Return the cost-affecting approval shape for skill-pack generation."""
     return {
@@ -76,6 +77,7 @@ def skill_pack_approval_args(
         "uses_existing_report": bool(has_report_path),
         "uses_operator_role_brief": bool(has_operator_role_brief),
         "uses_career_urls": bool(has_career_urls),
+        "remote_icons": bool(remote_icons),
     }
 
 

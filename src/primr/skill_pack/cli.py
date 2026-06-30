@@ -20,6 +20,7 @@ from primr.skill_pack.config import (
     MAX_SKILLS_PER_ROLE,
     MIN_ROLES,
     MIN_SKILLS_PER_ROLE,
+    REMOTE_ICON_GENERATION_ESTIMATE_USD,
     SkillPackConfig,
     SkillPackFormat,
 )
@@ -151,6 +152,14 @@ def _create_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--remote-icons",
+        action="store_true",
+        help=(
+            "Opt in to remote image-generation APIs for Cowork icons. Off by "
+            "default; local deterministic icons are used unless this flag is set."
+        ),
+    )
+    parser.add_argument(
         "--allow-recon-only",
         action="store_true",
         help=(
@@ -262,6 +271,8 @@ def _estimate(config: SkillPackConfig, *, will_collect_evidence: bool) -> tuple[
         calls_per_skill = 1 + config.eval_cases_per_skill * 3
         cost += 0.006 * calls_per_skill * config.roles_count * config.skills_per_role
         minutes += 0.5 * config.roles_count
+    if config.remote_icon_generation:
+        cost += REMOTE_ICON_GENERATION_ESTIMATE_USD
     minutes += 0.5 * config.roles_count
     return cost, max(1, int(minutes))
 
@@ -336,6 +347,7 @@ def run_skills_cli(args: list[str] | None) -> int:
             optimize_triggers=parsed.optimize_triggers,
             with_evals=parsed.with_evals,
             emit_agent_metadata=parsed.emit_agent_metadata,
+            remote_icon_generation=parsed.remote_icons,
             reuse_existing_evidence=bool(from_report),
             allow_recon_only=parsed.allow_recon_only,
             roles_override=override_labels,

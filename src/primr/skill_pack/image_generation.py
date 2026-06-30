@@ -1,13 +1,14 @@
-"""Multi-provider image generation for Cowork plugin icons.
+"""Cowork plugin icon generation with explicit remote-provider opt-in.
 
-Provider fallback chain (highest quality first):
+Default generation is local and deterministic. When a caller explicitly sets
+``disable_remote=False``, the provider fallback chain is:
     1. Grok image generation (xAI)         — uses XAI_API_KEY
     2. Gemini Imagen                       — uses GEMINI_API_KEY
     3. OpenAI image generation (DALL-E)    — uses OPENAI_API_KEY
     4. Programmatic Pillow gradient+shape  — icons.build_color_icon
     5. Solid PNG                           — icons._write_png_solid (final fallback)
 
-Each provider runs behind a try/except so any combination of missing or
+Each remote provider runs behind a try/except so any combination of missing or
 flaky providers degrades gracefully. The result is always two PNG byte
 strings: a 192x192 color icon and a 32x32 outline icon.
 
@@ -370,7 +371,7 @@ def generate_icons(
     company_name: str,
     company_description: str | None = None,
     *,
-    disable_remote: bool = False,
+    disable_remote: bool = True,
 ) -> tuple[bytes, bytes]:
     """Produce (color_icon_192, outline_icon_32) for the given company.
 

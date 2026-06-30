@@ -92,6 +92,16 @@ Cost behavior:
 - Premium, deep, and non-fast complete or hybrid runs checkpoint before and between optional strategy documents after the required Deep Research task completes.
 - Required Deep Research tasks cannot be stopped mid-flight by `--budget`; scrape remains estimate-gated only.
 - MCP HTTP tools can enforce server-side cost caps and approval tokens.
+- Vendor-research generation is explicit: cached research is reused, but missing
+  or stale cache files do not trigger fresh Deep Research unless you pass
+  `--refresh-vendor-research`, run `primr --generate-vendor-research`, or set
+  `PRIMR_ALLOW_VENDOR_REFRESH=1`.
+- Gemini PDF extraction is off by default and local PyMuPDF parsing is used
+  instead. Set `PRIMR_PDF_LLM_MAX_CALLS=N` only when provider-backed PDF chart
+  and table extraction is worth the extra spend.
+- `primr skills` emits local Cowork icons by default. Remote image generation
+  requires `--remote-icons` or MCP `remote_icons=true`, and the estimate
+  includes a conservative image allowance only when that opt-in is set.
 
 ## Output Locations
 

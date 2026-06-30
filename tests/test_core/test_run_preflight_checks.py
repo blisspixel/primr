@@ -31,7 +31,7 @@ class TestPreflightApiKey:
 
     def test_full_mode_accepts_xai_only_without_gemini(self, monkeypatch):
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-        monkeypatch.setenv("XAI_API_KEY", "xai-real-looking-key-1234567890")
+        monkeypatch.setenv("XAI_API_KEY", "not-a-real-xai-test-key")
         with patch("playwright.sync_api.sync_playwright", return_value=_mock_playwright_ready()):
             ok, errors = _run_preflight_checks("complete")
         assert ok is True
@@ -40,7 +40,7 @@ class TestPreflightApiKey:
     def test_full_mode_rejects_openai_only_until_runtime_gap_closes(self, monkeypatch):
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.delenv("XAI_API_KEY", raising=False)
-        monkeypatch.setenv("OPENAI_API_KEY", "sk-real-looking-key-1234567890")
+        monkeypatch.setenv("OPENAI_API_KEY", "not-a-real-openai-test-key")
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         with patch("playwright.sync_api.sync_playwright", return_value=_mock_playwright_ready()):
             ok, errors = _run_preflight_checks("complete")
@@ -49,7 +49,7 @@ class TestPreflightApiKey:
 
     def test_premium_mode_requires_gemini_even_with_xai(self, monkeypatch):
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-        monkeypatch.setenv("XAI_API_KEY", "xai-real-looking-key-1234567890")
+        monkeypatch.setenv("XAI_API_KEY", "not-a-real-xai-test-key")
         with patch("playwright.sync_api.sync_playwright", return_value=_mock_playwright_ready()):
             ok, errors = _run_preflight_checks("complete", premium_mode=True)
         assert ok is False

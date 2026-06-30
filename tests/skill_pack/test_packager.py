@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import zipfile
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -93,6 +94,30 @@ def test_bundled_files_written_to_cowork_zip(tmp_path: Path):
     assert "skills/draft-dbt-models/scripts/calc.py" in names
     # No unsafe entry anywhere in the archive.
     assert not any("escape.md" in n for n in names)
+
+
+def test_cowork_icons_use_local_generation_by_default(tmp_path: Path):
+    pack = _make_pack()
+    png = b"\x89PNG\r\n\x1a\nlocal"
+
+    with patch("primr.skill_pack.packager.generate_icons", return_value=(png, png)) as generate:
+        package_skill_pack(pack, SkillPackConfig(formats=SkillPackFormat.COWORK), tmp_path)
+
+    assert generate.call_args.kwargs["disable_remote"] is True
+
+
+def test_cowork_icons_allow_explicit_remote_generation(tmp_path: Path):
+    pack = _make_pack()
+    png = b"\x89PNG\r\n\x1a\nremote"
+
+    config = SkillPackConfig(
+        formats=SkillPackFormat.COWORK,
+        remote_icon_generation=True,
+    )
+    with patch("primr.skill_pack.packager.generate_icons", return_value=(png, png)) as generate:
+        package_skill_pack(pack, config, tmp_path)
+
+    assert generate.call_args.kwargs["disable_remote"] is False
 
 
 def test_unsafe_folder_slug_is_dropped_from_both_artifacts(tmp_path: Path):

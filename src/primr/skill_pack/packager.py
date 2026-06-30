@@ -705,15 +705,14 @@ def package_skill_pack(
             [slug for slug, _, _, _ in cowork_skills],
         )
 
-        # Multi-provider image generation: tries Grok > Gemini > OpenAI image
-        # APIs in order if their keys are present, then falls back to a
-        # programmatic gradient+shape Pillow render, then to a solid PNG.
-        # Adding Foundry / Bedrock / Anthropic later is a localized change
-        # in image_generation.py.
+        # Remote image providers are explicit opt-in. By default this uses
+        # deterministic local Pillow/PNG generation so configured provider keys
+        # cannot silently create image API spend.
         company_blurb = pack.roles[0].summary[:120] if pack.roles and pack.roles[0].summary else ""
         color_png, outline_png = generate_icons(
             pack.company_name,
             company_description=company_blurb or None,
+            disable_remote=not config.remote_icon_generation,
         )
 
         buf = io.BytesIO()

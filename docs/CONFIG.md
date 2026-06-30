@@ -68,6 +68,24 @@ To revert to Gemini 3.0 Pro (flat $2/$12 pricing):
 | `PRIMR_ENABLE_DRISSION` | Include DrissionPage tiers in the external validation orchestrator. | `0` |
 | `PRIMR_BROWSER_HEADED` | Force the Playwright tiers to launch in headed mode for a specific call. Normally set internally by the adaptive-retry path, not by users. | unset |
 | `PRIMR_BROWSER_SESSION_MODE` | `persistent` enables a reused browser profile per host (set internally during adaptive retry). | unset |
+| `PRIMR_PDF_LLM_MAX_CALLS` | Per-process opt-in budget for Gemini-backed PDF extraction during scraping. Default `0` keeps PDF extraction local with PyMuPDF only. Set to a positive integer when chart/table extraction is worth the extra provider spend. | `0` |
+| `PRIMR_PDF_LLM_MAX_TOTAL_MB` | Total PDF bytes that Gemini extraction may receive after `PRIMR_PDF_LLM_MAX_CALLS` is enabled. | `40` |
+
+### Vendor Research Cache
+
+Vendor research is shared in the per-user cache and reused when present. Stale or
+missing cache files do not trigger fresh Deep Research automatically because the
+static run estimate does not include that extra task. Use one of these explicit
+opt-ins when a refresh is intentional:
+
+- `primr --generate-vendor-research <vendor>`
+- `primr "Company" https://company.com --refresh-vendor-research`
+- `PRIMR_ALLOW_VENDOR_REFRESH=1`
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PRIMR_VENDOR_NEWS_TTL_DAYS` | Freshness threshold for cached vendor research before Primr reports it as stale. Stale files are still reused unless refresh is explicitly enabled. | `7` |
+| `PRIMR_ALLOW_VENDOR_REFRESH` | Allows stale or missing vendor research cache to trigger a fresh Deep Research generation in paths that request vendor context. | unset |
 
 ### Reasoning Topology
 

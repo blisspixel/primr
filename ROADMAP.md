@@ -192,7 +192,7 @@ into generic agent middleware.
 - Stealth browser tiers: DrissionPage stealth, DrissionPage (driverless CDP)
 - Vision tier: Screenshot + LLM extraction for image-heavy pages (enabled by default, can be disabled)
 - HTTP tiers: httpx, requests
-- Content-type routing: automatic PDF detection and LLM-powered extraction with PyMuPDF fallback
+- Content-type routing: automatic PDF detection with local PyMuPDF extraction by default; Gemini PDF extraction is opt-in via `PRIMR_PDF_LLM_MAX_CALLS`
 - Reader-mode content extraction (BeautifulSoup-based, removes boilerplate)
 - Content quality validation (catches garbage pages, triggers escalation)
 - Homepage-first link discovery (fresher than sitemaps)
@@ -215,7 +215,7 @@ into generic agent middleware.
 - `--platform ms` shorthand for Microsoft Azure + NVIDIA private cloud
 - Multiple strategy types: AI, Customer Experience, Security, Data Fabric, Skills Ideation
 - Skills Ideation strategy emits per-role `SKILL.md` files deterministically alongside the strategy doc
-- **Skill pack subsystem** (`primr skills`, MCP `generate_skill_pack`): a first-class workflow that takes recon + hiring + research evidence and produces a QA-refined Agent Skills pack. Up to 15 roles × M skills, two-call planning step (observed roles from postings or operator role briefs + plausible roles inferred from research and industry classification, with provenance preserved end-to-end), archetype-grounded provenance-aware authoring, deterministic ASKILL-* validation, capped per-skill refinement loop, pack-level coherence pass. Inspectable `role_plan.md` / `role_plan.json` artifacts; `--plan-only` writes the plan and exits, `--from-plan` authors against a saved plan, `--from-jd` adds a local JD / role brief as sanitized hiring evidence, repeatable `--career-url` points discovery at exact segmented career / ATS boards, and `--roles-override` bypasses discovery entirely while still grounding authoring in supplied evidence. Emits both an unpacked Claude/Cursor/VS Code tree AND a Microsoft 365 Copilot Cowork sideload `.zip` from one byte-identical set of SKILL.md files. Multi-provider image generation for the Cowork icon (Grok Imagine → Gemini Imagen → OpenAI image → programmatic Pillow gradient+shape → solid PNG).
+- **Skill pack subsystem** (`primr skills`, MCP `generate_skill_pack`): a first-class workflow that takes recon + hiring + research evidence and produces a QA-refined Agent Skills pack. Up to 15 roles × M skills, two-call planning step (observed roles from postings or operator role briefs + plausible roles inferred from research and industry classification, with provenance preserved end-to-end), archetype-grounded provenance-aware authoring, deterministic ASKILL-* validation, capped per-skill refinement loop, pack-level coherence pass. Inspectable `role_plan.md` / `role_plan.json` artifacts; `--plan-only` writes the plan and exits, `--from-plan` authors against a saved plan, `--from-jd` adds a local JD / role brief as sanitized hiring evidence, repeatable `--career-url` points discovery at exact segmented career / ATS boards, and `--roles-override` bypasses discovery entirely while still grounding authoring in supplied evidence. Emits both an unpacked Claude/Cursor/VS Code tree AND a Microsoft 365 Copilot Cowork sideload `.zip` from one byte-identical set of SKILL.md files. Cowork icons are generated locally by default; remote image APIs are explicit opt-in via `--remote-icons` or MCP `remote_icons`.
 - Strategy enrichment: cross-validation, evidence search, section regeneration, polish pass, and pre-ship repair for citation/source/budget conflicts
 - TXT and DOCX outputs with citation styles, plus best-effort PDF conversion when `docx2pdf` or LibreOffice is available
 - Custom `--output-dir` support for clean client folders: Markdown and DOCX deliverables are written to the requested directory, while TXT mirrors and validation diagnostics stay with the run diagnostics
@@ -704,7 +704,8 @@ to 7 days (weekly). All three gaps closed:
 
 - **Shared per-vendor cache - DONE** (via #12's per-user cache): back-to-back
   runs in different company folders now reuse one vendor research file per
-  vendor instead of regenerating a ~$0.50 Deep Research task each time.
+  vendor. Missing cache files are now skipped unless refresh/generation is
+  explicitly enabled, so cache misses do not add hidden Deep Research spend.
 - **Configurable TTL - DONE.** `PRIMR_VENDOR_NEWS_TTL_DAYS` (default 7,
   invalid/negative values fall back) drives `is_vendor_research_current` AND
   the reuse/refresh gates in `get_or_generate_vendor_research[_sync]` - the

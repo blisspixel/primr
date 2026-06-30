@@ -47,7 +47,13 @@ class TestParser:
         assert ns.roles == DEFAULT_ROLES
         assert ns.skills_per_role == DEFAULT_SKILLS_PER_ROLE
         assert ns.formats == SkillPackFormat.BOTH.value
+        assert ns.remote_icons is False
         assert ns.dry_run is False
+
+    def test_remote_icons_flag_parses(self):
+        parser = _create_parser()
+        ns = parser.parse_args(["Acme", "https://acme.example", "--remote-icons"])
+        assert ns.remote_icons is True
 
     def test_from_jd_flag_parses(self):
         parser = _create_parser()
@@ -117,6 +123,14 @@ class TestEstimate:
         small, _ = _estimate(SkillPackConfig(roles_count=2), will_collect_evidence=False)
         big, _ = _estimate(SkillPackConfig(roles_count=10), will_collect_evidence=False)
         assert big > small
+
+    def test_remote_icons_add_explicit_allowance(self):
+        local, _ = _estimate(SkillPackConfig(), will_collect_evidence=False)
+        remote, _ = _estimate(
+            SkillPackConfig(remote_icon_generation=True),
+            will_collect_evidence=False,
+        )
+        assert remote > local
 
 
 class TestRunSkillsCliEarlyReturns:

@@ -38,6 +38,7 @@ from primr.skill_pack.config import (
     MAX_SKILLS_PER_ROLE,
     MIN_ROLES,
     MIN_SKILLS_PER_ROLE,
+    REMOTE_ICON_GENERATION_ESTIMATE_USD,
     SkillPackConfig,
     SkillPackFormat,
 )
@@ -108,6 +109,14 @@ def register_skill_pack_tools(server: Server, mcp_server: PrimrMCPServer) -> lis
                         "minimum": MIN_SKILLS_PER_ROLE,
                         "maximum": MAX_SKILLS_PER_ROLE,
                         "default": DEFAULT_SKILLS_PER_ROLE,
+                    },
+                    "remote_icons": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": (
+                            "When True, include the opt-in remote Cowork icon "
+                            "image-generation allowance in the estimate."
+                        ),
                     },
                 },
                 "required": ["company_name"],
@@ -226,6 +235,15 @@ def register_skill_pack_tools(server: Server, mcp_server: PrimrMCPServer) -> lis
                             "False keeps skills clean and portable."
                         ),
                     },
+                    "remote_icons": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": (
+                            "When True, use remote image-generation APIs for "
+                            "Cowork icons. Default False uses deterministic "
+                            "local icons and avoids image API spend."
+                        ),
+                    },
                     "plan_only": {
                         "type": "boolean",
                         "default": False,
@@ -287,6 +305,7 @@ def _estimate_skill_pack_cost(
     roles_count: int,
     skills_per_role: int,
     has_report_path: bool,
+    remote_icons: bool = False,
 ) -> dict[str, float]:
     """Return {cost_usd, min_minutes, max_minutes}.
 
@@ -300,6 +319,8 @@ def _estimate_skill_pack_cost(
     cost += 0.03 * roles_count  # authoring (per role)
     cost += 0.015 * roles_count * skills_per_role * 0.3  # refinement (30% need it)
     cost += 0.02  # pack coherence pass
+    if remote_icons:
+        cost += REMOTE_ICON_GENERATION_ESTIMATE_USD
     cost = round(cost * 1.15, 3)  # 15% safety margin
 
     minutes_min = 0.5 if has_report_path else 1.5
@@ -389,6 +410,7 @@ async def _handle_estimate_skill_pack(arguments: dict[str, Any]) -> list[TextCon
 
     roles_count = int(arguments.get("roles_count") or DEFAULT_ROLES)
     skills_per_role = int(arguments.get("skills_per_role") or DEFAULT_SKILLS_PER_ROLE)
+    remote_icons = bool(arguments.get("remote_icons") or False)
     has_report_path = bool(arguments.get("report_path"))
     has_jd_path = bool(arguments.get("from_jd_path") or arguments.get("from_jd"))
     try:
@@ -403,6 +425,7 @@ async def _handle_estimate_skill_pack(arguments: dict[str, Any]) -> list[TextCon
         roles_count,
         skills_per_role,
         has_report_path=cost_uses_existing_evidence,
+        remote_icons=remote_icons,
     )
     payload = {
         "company_name": company_name,
@@ -411,6 +434,7 @@ async def _handle_estimate_skill_pack(arguments: dict[str, Any]) -> list[TextCon
         "uses_existing_report": has_report_path,
         "uses_operator_role_brief": has_jd_path,
         "uses_career_urls": bool(career_urls),
+        "remote_icons": remote_icons,
         **estimate,
         "notes": (
             "Includes role discovery, parallel authoring, validation, "
@@ -430,6 +454,7 @@ async def _handle_estimate_skill_pack(arguments: dict[str, Any]) -> list[TextCon
                 has_report_path=cost_uses_existing_evidence,
                 has_operator_role_brief=has_jd_path,
                 has_career_urls=bool(career_urls),
+                remote_icons=remote_icons,
             ),
             max_cost_usd=float(estimate["cost_usd"]),
         )
@@ -476,6 +501,7 @@ async def _handle_generate_skill_pack(
     max_cost = arguments.get("max_estimated_cost_usd")
     allow_recon_only = bool(arguments.get("allow_recon_only") or False)
     emit_agent_metadata = bool(arguments.get("emit_agent_metadata") or False)
+    remote_icons = bool(arguments.get("remote_icons") or False)
     plan_only = bool(arguments.get("plan_only") or False)
     from_plan_path = arguments.get("from_plan_path") or None
 
@@ -501,6 +527,7 @@ async def _handle_generate_skill_pack(
         effective_roles,
         skills_per_role,
         has_report_path=cost_uses_existing_evidence,
+        remote_icons=remote_icons,
     )
     if _is_cost_cap_enforced():
         # Fail closed: when server-side caps are enforced, a cost-incurring run
@@ -537,6 +564,7 @@ async def _handle_generate_skill_pack(
                 has_report_path=cost_uses_existing_evidence,
                 has_operator_role_brief=bool(from_jd_path),
                 has_career_urls=bool(career_urls),
+                remote_icons=remote_icons,
             ),
             estimated_cost_usd=float(estimate["cost_usd"]),
             approval_token=arguments.get("approval_token"),
@@ -556,6 +584,7 @@ async def _handle_generate_skill_pack(
             max_total_cost_usd=float(max_cost) if max_cost is not None else None,
             allow_recon_only=allow_recon_only,
             emit_agent_metadata=emit_agent_metadata,
+            remote_icon_generation=remote_icons,
             roles_override=roles_override,
             roles_add=roles_add,
             roles_skip=roles_skip,

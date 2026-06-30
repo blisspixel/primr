@@ -456,12 +456,11 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str | None:
         return None
 
 
-# Per-process budget for Gemini PDF extraction. Without it, an authenticated
-# user (or attacker-controlled scraped site serving many small PDFs) could
-# burn unbounded Gemini spend that is not reflected in the static
-# scrape/full mode cost estimates. Tunable via env so operators can lift
-# the cap when they need to.
-_PDF_LLM_CALL_BUDGET = int(os.environ.get("PRIMR_PDF_LLM_MAX_CALLS", "8"))
+# Per-process budget for Gemini PDF extraction. The default is zero because PDF
+# LLM extraction is not part of the static scrape/full estimates; operators can
+# opt in with PRIMR_PDF_LLM_MAX_CALLS when chart/table extraction is worth the
+# extra spend.
+_PDF_LLM_CALL_BUDGET = int(os.environ.get("PRIMR_PDF_LLM_MAX_CALLS", "0"))
 _PDF_LLM_BYTE_BUDGET = int(os.environ.get("PRIMR_PDF_LLM_MAX_TOTAL_MB", "40")) * 1024 * 1024
 _PDF_LLM_TIMEOUT_S = float(os.environ.get("PRIMR_PDF_LLM_TIMEOUT_S", "60"))
 _pdf_llm_calls_made = 0
@@ -479,7 +478,7 @@ def extract_text_from_pdf_via_llm(pdf_bytes: bytes) -> str | None:
     """
     Extract text from PDF bytes using Gemini (handles charts, tables, images).
 
-    Falls back to PyMuPDF text extraction if Gemini is unavailable or if
+    Falls back to PyMuPDF text extraction if Gemini is unavailable, disabled, or if
     the per-process budget (PRIMR_PDF_LLM_MAX_CALLS /
     PRIMR_PDF_LLM_MAX_TOTAL_MB) has been exhausted.
     """

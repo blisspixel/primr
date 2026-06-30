@@ -209,7 +209,23 @@ def test_sync_azure_includes_manual(tmp_path: Path):
     assert str(manual) in paths
 
 
-def test_sync_generates_when_missing(tmp_path: Path):
+def test_sync_missing_skips_without_opt_in(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("PRIMR_ALLOW_VENDOR_REFRESH", raising=False)
+    missing = tmp_path / "missing.txt"
+    with (
+        patch("primr.core.vendor_research.get_vendor_research_path", return_value=missing),
+        patch(
+            "primr.core.vendor_research.generate_vendor_research_sync",
+            return_value=str(tmp_path / "generated.txt"),
+        ) as mock_gen,
+    ):
+        paths = get_or_generate_vendor_research_sync("aws")
+    assert not mock_gen.called
+    assert paths == []
+
+
+def test_sync_generates_missing_with_explicit_opt_in(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("PRIMR_ALLOW_VENDOR_REFRESH", "1")
     missing = tmp_path / "missing.txt"
     with (
         patch("primr.core.vendor_research.get_vendor_research_path", return_value=missing),
@@ -252,7 +268,27 @@ async def test_async_stale_reused(tmp_path: Path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_async_generates_when_missing(tmp_path: Path):
+async def test_async_missing_skips_without_opt_in(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("PRIMR_ALLOW_VENDOR_REFRESH", raising=False)
+    missing = tmp_path / "missing.txt"
+    generated = tmp_path / "generated.txt"
+    generated.write_text("x", encoding="utf-8")
+    with (
+        patch("primr.core.vendor_research.get_vendor_research_path", return_value=missing),
+        patch(
+            "primr.core.vendor_research.generate_vendor_research",
+            new=AsyncMock(return_value=str(generated)),
+        ) as mock_gen,
+    ):
+        result = await get_or_generate_vendor_research("aws")
+    assert not mock_gen.called
+    assert result.generated is False
+    assert result.paths == []
+
+
+@pytest.mark.asyncio
+async def test_async_generates_missing_with_explicit_opt_in(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("PRIMR_ALLOW_VENDOR_REFRESH", "1")
     missing = tmp_path / "missing.txt"
     generated = tmp_path / "generated.txt"
     generated.write_text("x", encoding="utf-8")
@@ -266,6 +302,7 @@ async def test_async_generates_when_missing(tmp_path: Path):
         result = await get_or_generate_vendor_research("aws")
     assert mock_gen.called
     assert result.generated is True
+    assert generated in result.paths
 
 
 @pytest.mark.asyncio

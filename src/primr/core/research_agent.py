@@ -4652,39 +4652,10 @@ List all sources with URLs and dates. Group by section for easy reference.
 
 
 def _get_or_generate_vendor_research(platform: str) -> list[str]:
-    """
-    Get vendor research file, generating if needed.
+    """Backward-compatible wrapper around the canonical vendor-research cache."""
+    from primr.core.vendor_research import get_or_generate_vendor_research_sync
 
-    For Azure, prefers the manually curated Ignite analysis.
-    For AWS/GCP, auto-generates if current month's research doesn't exist.
-
-    Args:
-        platform: Platform (azure, aws, gcp)
-
-    Returns:
-        List of paths to vendor research files, or empty list if unavailable
-    """
-
-    result_paths = []
-
-    # Azure: always include manually curated Ignite analysis (it's excellent)
-    if platform.lower() == "azure":
-        manual_path = os.path.join(
-            PROJECT_ROOT, "docs/research latest microsoft ignite analysis.txt"
-        )
-        if os.path.exists(manual_path):
-            result_paths.append(manual_path)
-
-    # Check for current month's auto-generated research
-    research_path = _get_vendor_research_path(platform)
-    if os.path.exists(research_path):
-        result_paths.append(research_path)
-    elif not result_paths:  # Only auto-generate if we have nothing
-        generated = _generate_vendor_research(platform)
-        if generated:
-            result_paths.append(generated)
-
-    return result_paths
+    return get_or_generate_vendor_research_sync(platform)
 
 
 def _generate_strategy_section(

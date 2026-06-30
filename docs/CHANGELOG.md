@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Made Cowork skill-pack icon generation local by default. Remote image
+  providers, including xAI Grok Imagine, now require the explicit CLI
+  `--remote-icons` flag or MCP `remote_icons` argument so configured provider
+  keys cannot silently create image API spend. Skill-pack estimates now include
+  a conservative remote-icon allowance when that opt-in is set, and MCP
+  approval tokens bind the `remote_icons` choice.
+- Closed two additional hidden-spend paths: missing or stale vendor-research
+  cache no longer triggers Deep Research unless explicitly enabled, and Gemini
+  PDF extraction is disabled by default in favor of local PyMuPDF parsing unless
+  `PRIMR_PDF_LLM_MAX_CALLS` is set.
 - Kept authenticated MCP `check_jobs`, `primr://output/latest`, and
   `primr://output/by_job/{job_id}` metadata-first even for `report`-scoped
   callers, and made A2A `check_jobs` return explicit compact resource URIs

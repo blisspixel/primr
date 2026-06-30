@@ -12,6 +12,7 @@ from primr.utils.logging_config import (
     get_logger,
     setup_logging,
 )
+from tests.secret_fixtures import fake_google_api_key, fake_xai_api_key
 
 
 class TestSetupLogging:
@@ -243,12 +244,12 @@ class TestSecretMaskingFilter:
             pathname=__file__,
             lineno=1,
             msg="auth with key=%s",
-            args=("AIzaSyA1234567890abcdefghijklmnopqrstuv",),
+            args=(fake_google_api_key(),),
             exc_info=None,
         )
         assert f.filter(record) is True
         rendered = record.getMessage()
-        assert "AIzaSyA1234567890" not in rendered
+        assert fake_google_api_key() not in rendered
 
     def test_filter_passes_clean_messages_untouched(self):
         """Non-secret records keep their original msg/args (no needless rewrite)."""
@@ -270,7 +271,7 @@ class TestSecretMaskingFilter:
         """End-to-end: an xAI key logged anywhere is redacted before it hits disk."""
         setup_logging(level="DEBUG", log_dir=tmp_path, session_id="mask_test")
         logger = get_logger("masking_module")
-        secret = "xai-abc123DEF456ghi789JKL012mno345PQR678stu"
+        secret = fake_xai_api_key()
         logger.info("calling provider with token %s", secret)
 
         content = (tmp_path / "research_mask_test.log").read_text()
@@ -287,7 +288,7 @@ class TestSecretMaskingUnderFaults:
         traceback (not getMessage()). The filter must mask it there too."""
         setup_logging(level="DEBUG", log_dir=tmp_path, session_id="exc_test")
         logger = get_logger("faulty_module")
-        secret = "xai-abc123DEF456ghi789JKL012mno345PQR678stu"
+        secret = fake_xai_api_key()
         try:
             raise RuntimeError(f"provider rejected key {secret}")
         except RuntimeError:

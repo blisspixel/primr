@@ -8,11 +8,14 @@ all of which are testable without spinning up the full pipeline.
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 from primr.core.research_agent import (
     _a_or_an,
     _extract_domain,
+    _get_or_generate_vendor_research,
     _validate_scrape_quality,
     consolidate_working_folder,
     create_working_folder,
@@ -247,6 +250,23 @@ class TestGeneratePrompt:
             scraped_website_summary="N/A",
         )
         assert "Acme" in result
+
+
+# ---------------------------------------------------------------------------
+# legacy vendor research helper
+# ---------------------------------------------------------------------------
+
+
+class TestLegacyVendorResearchHelper:
+    def test_delegates_to_canonical_vendor_cache(self):
+        with patch(
+            "primr.core.vendor_research.get_or_generate_vendor_research_sync",
+            return_value=["cached.txt"],
+        ) as mock_get:
+            paths = _get_or_generate_vendor_research("aws")
+
+        assert paths == ["cached.txt"]
+        mock_get.assert_called_once_with("aws")
 
 
 # ---------------------------------------------------------------------------

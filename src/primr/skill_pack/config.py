@@ -40,6 +40,10 @@ DEFAULT_MAX_REFINE_ITERATIONS = 2
 # even before CostGuardHook fires at the global level.
 DEFAULT_MAX_COST_PER_ROLE_USD = 0.08
 
+# Conservative allowance for exactly one remote Cowork color-icon generation
+# when the operator explicitly opts in with --remote-icons / remote_icons.
+REMOTE_ICON_GENERATION_ESTIMATE_USD = 0.10
+
 
 @dataclass
 class SkillPackConfig:
@@ -85,6 +89,11 @@ class SkillPackConfig:
     # hints). Off by default so generated skills are clean, portable artifacts
     # with only the Agent Skills standard name + description frontmatter.
     emit_agent_metadata: bool = False
+
+    # Remote image-generation APIs are explicitly opt-in. The default Cowork
+    # icon path is deterministic local Pillow/PNG generation so configured
+    # provider keys do not accidentally create image API spend.
+    remote_icon_generation: bool = False
 
     # Skip evidence-collection scrape; assume recon + hiring already exist
     # in the working dir (set by --from-report and by MCP when report_path

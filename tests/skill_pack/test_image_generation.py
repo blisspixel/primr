@@ -7,6 +7,7 @@ import pytest
 from primr.skill_pack.image_generation import (
     MAX_PROVIDER_IMAGE_BYTES,
     _fetch_provider_image_url,
+    generate_icons,
 )
 
 
@@ -77,3 +78,16 @@ def test_fetch_provider_image_url_rejects_http_errors() -> None:
 
 def test_max_provider_image_bytes_is_bounded() -> None:
     assert MAX_PROVIDER_IMAGE_BYTES <= 5 * 1024 * 1024
+
+
+def test_generate_icons_default_ignores_available_xai_key(monkeypatch) -> None:
+    monkeypatch.setenv("XAI_API_KEY", "test-key")
+
+    with patch(
+        "primr.skill_pack.image_generation.GrokImageProvider.generate",
+        side_effect=AssertionError("remote image provider must not run"),
+    ):
+        color, outline = generate_icons("Acme Corp")
+
+    assert color.startswith(b"\x89PNG")
+    assert outline.startswith(b"\x89PNG")

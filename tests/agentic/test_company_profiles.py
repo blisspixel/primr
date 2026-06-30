@@ -11,6 +11,7 @@ from primr.agentic.company_profiles import (
     get_default_company_profile_path,
 )
 from primr.utils.validators import InputValidationError
+from tests.secret_fixtures import fake_xai_api_key
 
 
 def test_default_company_profile_path_uses_user_data_dir(tmp_path, monkeypatch):
@@ -94,12 +95,13 @@ def test_record_run_deduplicates_and_limits_run_history(tmp_path):
 def test_record_run_rejects_secret_like_artifact(tmp_path):
     store = CompanyProfileStore(root_path=tmp_path)
     store.track("Acme Corp", "https://acme.example")
+    secret = fake_xai_api_key()
 
     with pytest.raises(InputValidationError):
         store.record_run(
             "Acme Corp",
             "job-1",
-            artifacts=["output/acme/xai-1234567890abcdef-report.md"],
+            artifacts=[f"output/acme/{secret}-report.md"],
         )
 
 
@@ -181,6 +183,7 @@ def test_export_missing_profile_raises(tmp_path):
 def test_export_rejects_secret_like_hypothesis_payload(tmp_path):
     store = CompanyProfileStore(root_path=tmp_path)
     store.track("Acme Corp", "https://acme.example")
+    secret = fake_xai_api_key()
 
     with pytest.raises(InputValidationError):
         store.export_profile(
@@ -188,7 +191,7 @@ def test_export_rejects_secret_like_hypothesis_payload(tmp_path):
             hypotheses=[
                 {
                     "id": "h1",
-                    "claim": "xai-1234567890abcdef must not leave memory",
+                    "claim": f"{secret} must not leave memory",
                     "confidence": "untested",
                 }
             ],
@@ -200,7 +203,7 @@ def test_export_rejects_secret_like_hypothesis_payload(tmp_path):
     [
         "ftp://acme.example",
         "https://user:pass@acme.example",
-        "https://acme.example/?api_key=xai-1234567890abcdef",
+        "https://acme.example/?api_key=" + fake_xai_api_key(),
     ],
 )
 def test_track_rejects_unsafe_urls(tmp_path, url):

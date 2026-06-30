@@ -12,7 +12,7 @@ Usage:
         is_vendor_research_current,
     )
 
-    # Get vendor research (generates if needed)
+    # Get cached vendor research. Generation requires explicit opt-in.
     paths = get_or_generate_vendor_research("azure")
 
     # Check if current month's research exists
@@ -210,12 +210,13 @@ def get_or_generate_vendor_research_sync(
     vendor: str, force_refresh: bool = False, on_progress: Callable[[str], None] | None = None
 ) -> list[str]:
     """
-    Get vendor research files, generating if needed (synchronous).
+    Get vendor research files, generating only after explicit opt-in (synchronous).
 
     Priority order:
     1. Manually curated files (e.g., Ignite analysis for Azure)
     2. Current month's auto-generated research
-    3. Generate fresh research if nothing available
+    3. Stale auto-generated research is reused unless explicit refresh is enabled
+    4. Missing auto-generated research is skipped unless explicit refresh is enabled
 
     Args:
         vendor: Cloud vendor (azure, aws, gcp, agnostic)
@@ -239,7 +240,9 @@ def get_or_generate_vendor_research_sync(
     research_exists, age_days = _vendor_research_age(research_path)
     is_fresh = research_exists and age_days is not None and age_days <= get_vendor_news_ttl_days()
     is_stale = research_exists and not is_fresh
-    refresh_now = force_refresh or (is_stale and _allow_vendor_auto_refresh())
+    auto_refresh_enabled = _allow_vendor_auto_refresh()
+    refresh_now = force_refresh or (is_stale and auto_refresh_enabled)
+    generate_missing_now = not research_exists and auto_refresh_enabled
 
     if is_fresh and not force_refresh:
         result_paths.append(str(research_path))
@@ -248,13 +251,19 @@ def get_or_generate_vendor_research_sync(
     elif is_stale and not refresh_now:
         result_paths.append(str(research_path))
         console.warn(
-            f"Vendor research is {age_days}d old (>{get_vendor_news_ttl_days()}d TTL) — reusing without refresh "
+            f"Vendor research is {age_days}d old (>{get_vendor_news_ttl_days()}d TTL) - reusing without refresh "
             "(set PRIMR_ALLOW_VENDOR_REFRESH=1 or pass force_refresh=True to regenerate)"
         )
-    elif refresh_now or not result_paths:
+    elif refresh_now or generate_missing_now:
         generated = generate_vendor_research_sync(vendor, on_progress)
         if generated:
             result_paths.append(generated)
+    elif not research_exists and not result_paths:
+        console.warn(
+            "No cached vendor research found; skipping automatic Deep Research generation "
+            "(set PRIMR_ALLOW_VENDOR_REFRESH=1 or pass force_refresh=True to generate)"
+        )
+        logger.info("Vendor research missing and auto-generation disabled: %s", research_path)
 
     return result_paths
 
@@ -284,18 +293,7 @@ def _allow_vendor_auto_refresh() -> bool:
 async def get_or_generate_vendor_research(
     vendor: str, force_refresh: bool = False, on_progress: Callable[[str], None] | None = None
 ) -> VendorResearchResult:
-    """Get vendor research files, generating only when explicitly approved.
-
-    Priority order:
-    1. Manually curated files (e.g., Ignite analysis for Azure)
-    2. Fresh (≤14d) auto-generated research
-    3. Stale auto-generated research is REUSED, not refreshed, unless
-       ``force_refresh=True`` or ``PRIMR_ALLOW_VENDOR_REFRESH=1``. The
-       MCP/static cost-cap estimate does not include a ~$0.50 Deep
-       Research refresh, so silently triggering one would bypass the
-       approved spend ceiling.
-    4. Generate fresh research when nothing exists at all.
-    """
+    """Get cached vendor research, generating only after explicit refresh approval."""
     import time
 
     start_time = time.time()
@@ -314,7 +312,9 @@ async def get_or_generate_vendor_research(
     research_exists, age_days = _vendor_research_age(research_path)
     is_fresh = research_exists and age_days is not None and age_days <= get_vendor_news_ttl_days()
     is_stale = research_exists and not is_fresh
-    refresh_now = force_refresh or (is_stale and _allow_vendor_auto_refresh())
+    auto_refresh_enabled = _allow_vendor_auto_refresh()
+    refresh_now = force_refresh or (is_stale and auto_refresh_enabled)
+    generate_missing_now = not research_exists and auto_refresh_enabled
 
     if is_fresh and not force_refresh:
         files.append(
@@ -331,7 +331,7 @@ async def get_or_generate_vendor_research(
             )
         )
         console.warn(
-            f"Vendor research is {age_days}d old (>{get_vendor_news_ttl_days()}d TTL) — reusing without refresh "
+            f"Vendor research is {age_days}d old (>{get_vendor_news_ttl_days()}d TTL) - reusing without refresh "
             "(set PRIMR_ALLOW_VENDOR_REFRESH=1 or pass force_refresh=True to regenerate)"
         )
         logger.info(
@@ -339,10 +339,10 @@ async def get_or_generate_vendor_research(
             research_path,
             age_days,
         )
-    elif refresh_now or not files:
+    elif refresh_now or generate_missing_now:
         if research_exists and not force_refresh:
             console.info(
-                f"Vendor research is {age_days}d old (>{get_vendor_news_ttl_days()}d TTL) — refreshing..."
+                f"Vendor research is {age_days}d old (>{get_vendor_news_ttl_days()}d TTL) - refreshing..."
             )
         result = await generate_vendor_research(vendor, on_progress)
         if result:
@@ -352,6 +352,12 @@ async def get_or_generate_vendor_research(
                 )
             )
             generated = True
+    elif not research_exists and not files:
+        console.warn(
+            "No cached vendor research found; skipping automatic Deep Research generation "
+            "(set PRIMR_ALLOW_VENDOR_REFRESH=1 or pass force_refresh=True to generate)"
+        )
+        logger.info("Vendor research missing and auto-generation disabled: %s", research_path)
 
     return VendorResearchResult(
         files=tuple(files), generated=generated, duration_seconds=time.time() - start_time

@@ -18,6 +18,13 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from tests.secret_fixtures import (
+    fake_aws_access_key_one,
+    fake_aws_access_key_two,
+    fake_openai_api_key,
+    fake_private_key_header,
+)
+
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
@@ -303,8 +310,8 @@ class TestSecretPatternCoverage:
         pattern = r"AKIA[0-9A-Z]{16}"
 
         # Should match
-        assert re.search(pattern, "AKIAIOSFODNN7EXAMPLE")
-        assert re.search(pattern, "AKIAI44QH8DHBEXAMPLE")
+        assert re.search(pattern, fake_aws_access_key_one())
+        assert re.search(pattern, fake_aws_access_key_two())
 
         # Should not match
         assert not re.search(pattern, "AKIA123")  # Too short
@@ -315,8 +322,7 @@ class TestSecretPatternCoverage:
         pattern = r"sk-[a-zA-Z0-9]{48}"
 
         # Should match (fake key for testing)
-        fake_key = "sk-" + "a" * 48
-        assert re.search(pattern, fake_key)
+        assert re.search(pattern, fake_openai_api_key())
 
         # Should not match
         assert not re.search(pattern, "sk-short")
@@ -325,10 +331,10 @@ class TestSecretPatternCoverage:
         """Private key pattern should match PEM headers."""
         pattern = r"-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"
 
-        assert re.search(pattern, "-----BEGIN PRIVATE KEY-----")
-        assert re.search(pattern, "-----BEGIN RSA PRIVATE KEY-----")
-        assert re.search(pattern, "-----BEGIN EC PRIVATE KEY-----")
-        assert re.search(pattern, "-----BEGIN OPENSSH PRIVATE KEY-----")
+        assert re.search(pattern, fake_private_key_header())
+        assert re.search(pattern, fake_private_key_header("RSA"))
+        assert re.search(pattern, fake_private_key_header("EC"))
+        assert re.search(pattern, fake_private_key_header("OPENSSH"))
 
         # Should not match
         assert not re.search(pattern, "-----BEGIN PUBLIC KEY-----")

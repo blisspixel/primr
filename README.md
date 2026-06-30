@@ -89,6 +89,9 @@ Current dry-run shape for the common setup:
 | `primr recon` | DNS intelligence only | 2-3 sec | $0.00 |
 
 Costs change with provider configuration, strategy count, cache hits, model pricing, and run mode. Treat `--dry-run` as the source of truth for the next run.
+`primr skills` generates Cowork icons locally by default; remote image APIs are used only with `--remote-icons`.
+Cached vendor research is reused when present. Fresh vendor-research generation or refresh requires `--refresh-vendor-research`, `primr --generate-vendor-research`, or `PRIMR_ALLOW_VENDOR_REFRESH=1`.
+PDF text extraction uses local PyMuPDF by default; Gemini PDF extraction is opt-in with `PRIMR_PDF_LLM_MAX_CALLS=N`.
 
 See [Run Modes and Costs](docs/RUN_MODES.md) for the full mode matrix, platform selection, strategy types, premium modes, and output examples.
 
@@ -121,6 +124,8 @@ Primr treats spend and egress as explicit control surfaces:
   optional strategy documents after the required Deep Research task completes.
 - Required Deep Research tasks cannot be stopped mid-flight once started, and
   scrape mode remains estimate-gated only.
+- Remote Cowork icon generation, vendor-research refresh, and Gemini PDF
+  extraction are opt-in controls rather than key-presence side effects.
 - Outbound URLs and redirects are guarded against internal-network and
   cloud-metadata targets.
 

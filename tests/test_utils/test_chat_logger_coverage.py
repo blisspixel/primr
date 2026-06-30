@@ -14,6 +14,7 @@ import logging
 import pytest
 
 from primr.utils import chat_logger
+from tests.secret_fixtures import fake_xai_api_key
 
 
 @pytest.fixture
@@ -65,7 +66,7 @@ class TestLogChatInteraction:
 
     def test_secrets_are_redacted_before_persist(self, log_dir):
         """API keys in prompt/response are masked before hitting disk."""
-        secret = "xai-abc123DEF456ghi789JKL012mno345PQR678stu"
+        secret = fake_xai_api_key()
         chat_logger.log_chat_interaction(
             f"call provider with {secret}", f"done using {secret}", session_id="sec"
         )
