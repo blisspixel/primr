@@ -345,6 +345,9 @@ Do next:
   and rationales. Resource reads are now audited with normalized resource kind,
   hashed URI, hashed result body, job id when present, granted scopes,
   duration, and outcome, without raw URI query values or resource bodies.
+  A2A now advertises the equivalent read-scoped `read_artifacts_by_job` skill
+  for the artifact metadata slice, using the same ownership-gated compact
+  summary helper.
 - Non-job eval readback is also available for routed-stage scorecards:
   `primr://eval/stage_scorecard/{eval_id}` reads
   `output/evals/{eval_id}/stage_eval_scorecard.json` through a simple eval-id
@@ -359,7 +362,8 @@ Do next:
 - Shipped first A2A parity slice: authenticated A2A HTTP requests now bind the
   bearer token into the shared MCP auth context, and A2A skill dispatch
   enforces `read` for `estimate_research`, `check_jobs`, `system_health`, and
-  `read_stage_scorecard` and `research` for `research_company`, `run_qa`, and
+  compact read skills such as `read_artifacts_by_job` and
+  `read_stage_scorecard`, and `research` for `research_company`, `run_qa`, and
   task cancellation.
   Authenticated A2A jobs are owned by the token `client_id`. Local
   unauthenticated loopback behavior remains permissive, and legacy `write`
@@ -369,8 +373,8 @@ Do next:
   message/result payloads, hashed caller id, granted scopes, duration,
   outcome, and job id when present, without raw message text, task ids, URLs,
   report paths, raw results, or caller ids.
-- Extend the remaining approval, budget, and job-scoped compact read-resource
-  decisions to A2A.
+- Extend the remaining approval, budget, and other job-scoped compact
+  read-resource decisions to A2A.
 - Carry request/job ids into OpenTelemetry-compatible spans and structured logs
   without storing raw report bodies by default.
 
@@ -384,9 +388,9 @@ Done when:
   argument, URI query, resource-body, or report-body persistence.
 - MCP and A2A enforce the same approval, audit, and compact read-resource
   semantics for equivalent operations. The shared `read`/`research` skill
-  scope split, A2A skill-call audit parity, and stage-scorecard compact
-  eval-read parity are shipped; approval and job-scoped compact-resource parity
-  remain.
+  scope split, A2A skill-call audit parity, artifact-metadata compact read
+  parity, and stage-scorecard compact eval-read parity are shipped; approval
+  and the remaining job-scoped compact-resource parity slices remain.
 
 ### 4. Research memory layer 1
 

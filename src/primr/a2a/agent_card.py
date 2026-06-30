@@ -98,6 +98,23 @@ _SKILLS: list[dict] = [
         ],
     },
     {
+        "id": "read_artifacts_by_job",
+        "name": "Read Artifact Metadata by Job",
+        "description": (
+            "Read compact artifact metadata for one owned research job. "
+            "Returns file names, paths, sizes, hashes, timestamps, missing-file "
+            "state, and artifact types without report body content.\n\n"
+            'Input (JSON or text): {"job_id": "job-20260630-abc123"}\n\n'
+            "Output: JSON with job_id, status, company_name, artifact_count, "
+            "full_content_included=false, and artifact metadata rows"
+        ),
+        "tags": ["artifacts", "read", "jobs", "metadata"],
+        "examples": [
+            "Read artifacts for job-20260630-abc123",
+            '{"job_id": "job-20260630-abc123"}',
+        ],
+    },
+    {
         "id": "read_stage_scorecard",
         "name": "Read Stage Scorecard Summary",
         "description": (

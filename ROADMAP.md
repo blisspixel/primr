@@ -130,7 +130,10 @@ Current priority order:
    values, normalized resource kind, job id when present, caller scope, and
    outcome without storing raw URI query values or resource bodies. A2A skill
    calls and task cancellations now append matching privacy-preserving audit
-   events with hashed message/result payloads and job id when present.
+   events with hashed message/result payloads and job id when present. A2A
+   also exposes the first job-scoped compact resource parity slice:
+   `read_artifacts_by_job` returns ownership-gated artifact metadata through
+   the same compact summary helper as MCP.
 4. **Research memory layer 1.** Memory comes after calibrated claims and safer
    artifact consumption so prior-run material can compound value without
    laundering weak claims into fresh findings.
@@ -484,8 +487,8 @@ Each step unblocks the ones after it; items within a step are independent.
    summaries, compact scrape trace summaries, compact claim verification
    summaries, and compact label-calibration summaries. A2A skill-scope,
    skill-audit, and stage-scorecard compact eval-read parity are now shipped;
-   A2A approval, job-scoped compact-resource parity, and non-fast runtime
-   budget checkpointing remain next.
+   A2A approval, the remaining job-scoped compact-resource parity slices, and
+   non-fast runtime budget checkpointing remain next.
    Independent of steps 1-4; can proceed in parallel.
 6. **Backend freedom** (#18 + provider expansion) (2.0):
    capability-requirement routing and provider-availability headroom first
@@ -1485,6 +1488,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.34.33 | Jun 2026 | **A2A artifact metadata readback.** Added read-scoped `read_artifacts_by_job` to the A2A AgentCard and executor, backed by the same ownership-gated `primr://output/artifacts/by_job/{job_id}` compact metadata contract as MCP. The skill returns artifact names, paths, hashes, sizes, timestamps, missing-file state, and types without report body content. |
 | 1.34.32 | Jun 2026 | **A2A compact scorecard readback.** Added read-scoped `read_stage_scorecard` to the A2A AgentCard and executor, backed by the same compact `primr://eval/stage_scorecard/{eval_id}` summary contract as MCP. The skill returns route, quality-score, status, blocker, and artifact metadata without prompt bodies, report bodies, quality-source bodies, or raw run-state content. |
 | 1.34.31 | Jun 2026 | **Source-relevance eval evidence.** Added `--eval-source-relevance-fixture` to turn labeled source keep-list fixtures into body-free precision, recall, F1, exact-match, and stage quality evidence for `fast.source_relevance` scorecards. The host-agent source packet now also keeps untrusted source snippets in fenced evidence instead of embedding them in host-agent instructions. |
 | 1.34.30 | Jun 2026 | **First official host-agent pilot.** Added an experimental Codex CLI host-runner transport for `--inference agent` on `fast.source_relevance`. The runner uses official `codex exec`, a read-only sandbox, no approvals, disabled web search/shell-tool config, no persisted history, a JSON-array output schema, and bounded output/time limits. Route metadata records the host backend and billing mode without prompt or response bodies. If no official host runner qualifies under an explicit agent profile, the stage keeps all sources and records `agent_profile_unavailable` instead of silently falling back to cloud API spend. |

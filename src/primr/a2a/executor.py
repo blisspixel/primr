@@ -26,6 +26,10 @@ from primr.a2a.authz import (
     authorize_a2a_skill,
 )
 from primr.a2a.types import A2ATaskMapping
+from primr.mcp_server.artifact_resources import (
+    ARTIFACT_METADATA_BY_JOB_URI,
+    read_artifact_metadata_by_job_resource,
+)
 from primr.mcp_server.pipeline_runner import PipelineRunner, get_doctor_status, run_qa_analysis
 from primr.mcp_server.stage_scorecard_summary import (
     STAGE_SCORECARD_SUMMARY_URI,
@@ -75,6 +79,7 @@ class PrimrAgentExecutor(AgentExecutor):
         - research_company  -> async job, streams progress via SSE
         - check_jobs        -> synchronous job status
         - run_qa            -> synchronous QA analysis
+        - read_artifacts_by_job -> synchronous compact job artifact metadata
         - read_stage_scorecard -> synchronous compact eval scorecard summary
         - system_health     -> synchronous doctor check
     """
@@ -115,6 +120,8 @@ class PrimrAgentExecutor(AgentExecutor):
                 audit_payload = await self._handle_check_jobs(event_queue)
             elif skill_id == "run_qa":
                 audit_payload = await self._handle_qa(text, event_queue)
+            elif skill_id == "read_artifacts_by_job":
+                audit_payload = await self._handle_artifact_metadata(text, event_queue)
             elif skill_id == "read_stage_scorecard":
                 audit_payload = await self._handle_stage_scorecard_summary(text, event_queue)
             elif skill_id == "system_health":
@@ -559,6 +566,31 @@ class PrimrAgentExecutor(AgentExecutor):
             )
             return {"error": True, "error_type": "qa_failed"}
 
+    async def _handle_artifact_metadata(
+        self,
+        text: str,
+        event_queue: EventQueue,
+    ) -> dict[str, Any]:
+        """Handle read_artifacts_by_job skill - synchronous compact job read."""
+        job_id = _parse_job_id(text)
+        if not job_id:
+            payload = {
+                "error": True,
+                "error_type": "missing_job_id",
+                "message": "Please provide a job_id for the artifact metadata summary.",
+            }
+            await event_queue.enqueue_event(new_agent_text_message(json.dumps(payload)))
+            return payload
+
+        contents = read_artifact_metadata_by_job_resource(
+            self._mcp,
+            f"{ARTIFACT_METADATA_BY_JOB_URI}/{job_id}",
+            client_id=_a2a_client_id(self._mcp),
+        )
+        payload = _resource_payload(contents)
+        await event_queue.enqueue_event(new_agent_text_message(json.dumps(payload, indent=2)))
+        return payload if isinstance(payload, dict) else {"status": "artifact_metadata_read"}
+
     async def _handle_stage_scorecard_summary(
         self,
         text: str,
@@ -576,12 +608,7 @@ class PrimrAgentExecutor(AgentExecutor):
             return payload
 
         contents = read_stage_scorecard_summary_resource(f"{STAGE_SCORECARD_SUMMARY_URI}/{eval_id}")
-        content = contents[0].content if contents else "{}"
-        try:
-            payload = json.loads(content)
-        except json.JSONDecodeError:
-            payload = {"error": True, "error_type": "invalid_scorecard_summary"}
-
+        payload = _resource_payload(contents)
         await event_queue.enqueue_event(new_agent_text_message(json.dumps(payload, indent=2)))
         return payload if isinstance(payload, dict) else {"status": "scorecard_read"}
 
@@ -606,7 +633,7 @@ class PrimrAgentExecutor(AgentExecutor):
         """Handle unrecognized skill - try to route by content."""
         available = (
             "estimate_research, research_company, check_jobs, run_qa, "
-            "read_stage_scorecard, system_health"
+            "read_artifacts_by_job, read_stage_scorecard, system_health"
         )
         await event_queue.enqueue_event(
             new_agent_text_message(f"Unknown skill '{skill_id}'. Available skills: {available}")
@@ -716,16 +743,51 @@ def _parse_research_params(text: str) -> dict[str, str]:
 
 def _parse_eval_id(text: str) -> str:
     """Extract a simple eval id from JSON, URI, or plain text input."""
+    return _parse_identifier(
+        text,
+        json_keys=("eval_id", "evalId"),
+        uri_prefix=STAGE_SCORECARD_SUMMARY_URI,
+    )
+
+
+def _parse_job_id(text: str) -> str:
+    """Extract a simple job id from JSON, URI, or plain text input."""
+    return _parse_identifier(
+        text,
+        json_keys=("job_id", "jobId"),
+        uri_prefix=ARTIFACT_METADATA_BY_JOB_URI,
+    )
+
+
+def _parse_identifier(
+    text: str,
+    *,
+    json_keys: tuple[str, ...],
+    uri_prefix: str,
+) -> str:
+    """Extract a resource id from JSON, URI, or plain text input."""
     try:
         parsed = json.loads(text)
         if isinstance(parsed, dict):
-            value = parsed.get("eval_id", parsed.get("evalId"))
-            return value.strip() if isinstance(value, str) else ""
+            for key in json_keys:
+                value = parsed.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+            return ""
     except (json.JSONDecodeError, TypeError):
         pass
 
     value = text.strip()
-    prefix = f"{STAGE_SCORECARD_SUMMARY_URI}/"
+    prefix = f"{uri_prefix}/"
     if value.startswith(prefix):
         return value[len(prefix) :].strip()
     return value
+
+
+def _resource_payload(contents: list[Any]) -> Any:
+    """Decode a compact MCP resource payload returned by a shared reader."""
+    content = contents[0].content if contents else "{}"
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        return {"error": True, "error_type": "invalid_resource_payload"}
