@@ -232,12 +232,12 @@ _PREMIUM_CANDIDATES = (
         name="premium-sonnet-write",
         recipe=ProfileRecipe(
             reasoning="grok-4.3",
-            writing="claude-sonnet-4-6",
+            writing="claude-sonnet-5",
             utility="gemini-3-flash-preview",
         ),
         estimated_cost_usd=2.50,
         description=(
-            "Premium WRITING. Grok 4.3 reasoning + Sonnet 4.6 ($3/$15) for the "
+            "Premium WRITING. Grok 4.3 reasoning + Sonnet 5 for the "
             "section-writing fan-out. The writing stage is the token-heavy one "
             "(~1.7M input), so this is the expensive lever - prompt caching of "
             "the shared context is what keeps it near $2-3. Tests whether better "

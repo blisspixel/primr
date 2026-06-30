@@ -591,11 +591,36 @@ class ModelRegistry:
     )
 
     # =========================================================================
-    # ANTHROPIC CLAUDE SONNET 4.6 - Best speed/intelligence balance
+    # ANTHROPIC CLAUDE SONNET 5 - Best speed/intelligence balance
+    # Conservative estimator rate: $3.00 input / $15.00 output per 1M tokens,
+    # cached input $0.30. Anthropic's launch rate is lower ($2/$10) through Aug
+    # 31, 2026, then returns to Sonnet 4.6 pricing. Use the post-intro rate here
+    # so pre-run estimates do not become stale underestimates after the promo
+    # window. Context: 1M tokens, Output: 128k tokens. Uses adaptive thinking by
+    # default; manual output_config.effort is handled in ai/providers/anthropic.py.
+    # =========================================================================
+    ANTHROPIC_SONNET = ModelConfig(
+        name="claude-sonnet-5",
+        display_name="Claude Sonnet 5",
+        provider="anthropic",
+        cost_per_1m_input_tokens=3.00,
+        cost_per_1m_output_tokens=15.00,
+        max_input_tokens=1_000_000,
+        max_output_tokens=128_000,
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=True,
+        cost_per_1m_input_tokens_cached=0.30,
+    )
+
+    # =========================================================================
+    # ANTHROPIC CLAUDE SONNET 4.6 - Previous balanced tier
+    # Kept registered for explicit eval recipes and back-compat. New routing uses
+    # ANTHROPIC_SONNET (Claude Sonnet 5).
     # $3.00 input / $15.00 output per 1M tokens, cached input $0.30
     # Context: 1M tokens, Output: 64k tokens
     # =========================================================================
-    ANTHROPIC_SONNET = ModelConfig(
+    ANTHROPIC_SONNET_4_6 = ModelConfig(
         name="claude-sonnet-4-6",
         display_name="Claude Sonnet 4.6",
         provider="anthropic",

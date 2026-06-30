@@ -110,13 +110,16 @@ Full citations live in the research transcripts; key integration facts:
 ### Anthropic (direct)
 
 - Models: `claude-fable-5` ($10/$50), `claude-opus-4-8` ($5/$25),
-  `claude-sonnet-4-6` ($3/$15), `claude-haiku-4-5` ($1/$5). 1M ctx on the
-  big three with no long-context premium.
+  `claude-sonnet-5` (Primr estimates $3/$15 post-intro; Anthropic launch
+  pricing is $2/$10 through 2026-08-31), `claude-sonnet-4-6` ($3/$15,
+  explicit back-compat only), and `claude-haiku-4-5` ($1/$5). 1M ctx on
+  Fable, Opus, and both Sonnet generations with no long-context premium.
 - Integration traps that MUST be capability-flagged in the registry:
-  Fable 5 / Opus 4.7+ **reject temperature/top_p/top_k** (primr sets
-  temperature generically today); Fable 5's new tokenizer uses ~30-35% more
-  tokens (re-baseline cost estimates); Fable 5 can return
-  `stop_reason: "refusal"`.
+  Fable 5 / Opus 4.7+ / Sonnet 5 **reject temperature/top_p/top_k**; Sonnet 5
+  uses adaptive thinking by default and accepts `output_config.effort` instead
+  of legacy `thinking.budget_tokens`; Fable 5's new tokenizer uses ~30-35% more
+  tokens (re-baseline cost estimates); Fable 5 can return `stop_reason:
+  "refusal"`.
 - Web search: server-side `web_search_20260209` ($10/1k) plus
   `web_fetch_20260209` (free per-call, token costs only). Both Messages-API
   tools.

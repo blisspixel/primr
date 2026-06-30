@@ -5,7 +5,7 @@ Centralized Model Configuration for Primr
 THIS IS THE SINGLE SOURCE OF TRUTH FOR ALL AI MODELS.
 UPDATE HERE TO CHANGE MODELS GLOBALLY.
 
-Last audited: June 29, 2026 (refresh of the June 13 audit), checked against
+Last audited: June 30, 2026 (refresh of the June 29 audit), checked against
 current provider docs (developers.openai.com, ai.google.dev, docs.x.ai) and the
 Anthropic model catalog. Re-audit before each major eval — see ROADMAP "Model
 Adaptability".
@@ -21,12 +21,13 @@ KEY CHANGES (June 29, 2026 audit):
   Deep Research slug refreshed to deep-research-preview-04-2026; cached-input
   rates filled in for the 3.x/2.5 entries.
 - Anthropic: claude-haiku-3-5 retired Feb 19, 2026 (404) — marked deprecated.
-  Opus 4.7+/Fable-5 reject temperature (handled in ai/providers/anthropic.py).
+  Sonnet 5 is the balanced default; Opus 4.7+/Sonnet 5/Fable-5 reject
+  temperature (handled in ai/providers/anthropic.py).
 - xAI Grok 4.3 reasoning is NOT always-on — reasoning_effort has four levels
   (none/low/medium/high, default low); published output cap is unverified.
 
-AVAILABLE MODELS (May 2026):
------------------------------
+AVAILABLE MODELS (June 2026):
+------------------------------
 xAI / GROK:
   grok-4.3                   - Flagship reasoning, $1.25/$2.50 + $0.20 cached, 1M context
                                No published >200K tier (flat rate)
@@ -59,7 +60,12 @@ OPENAI:
 ANTHROPIC:
   claude-opus-4-8            - Most capable (GA May 28, 2026), $5.00/$25.00 + $0.50 cached,
                                1M ctx, 128k out. Drop-in over 4.7 (identical pricing).
-  claude-sonnet-4-6          - Balance, $3.00/$15.00 + $0.30 cached, 1M ctx, 64k out
+  claude-sonnet-5            - Balance, $3.00/$15.00 + $0.30 cached estimate,
+                               1M ctx, 128k out. Actual launch pricing is
+                               $2/$10 through Aug 31, 2026, then returns to
+                               Sonnet 4.6 pricing per Anthropic.
+  claude-sonnet-4-6          - Previous balance tier, $3.00/$15.00 + $0.30 cached,
+                               1M ctx, 64k out. Registered for explicit back-compat.
   claude-haiku-4-5           - Utility candidate, $1.00/$5.00 + $0.10 cached, 200k ctx
   claude-haiku-3-5           - Cheaper utility option, $0.80/$4.00 + $0.08 cached, 200k ctx
 
@@ -248,6 +254,7 @@ class PrimrModels:
         # Anthropic
         ModelRegistry.ANTHROPIC_OPUS.name: ModelRegistry.ANTHROPIC_OPUS,
         ModelRegistry.ANTHROPIC_SONNET.name: ModelRegistry.ANTHROPIC_SONNET,
+        ModelRegistry.ANTHROPIC_SONNET_4_6.name: ModelRegistry.ANTHROPIC_SONNET_4_6,
         ModelRegistry.ANTHROPIC_HAIKU.name: ModelRegistry.ANTHROPIC_HAIKU,
         ModelRegistry.ANTHROPIC_HAIKU_3_5.name: ModelRegistry.ANTHROPIC_HAIKU_3_5,
         # Ollama (local, zero cost) — original four

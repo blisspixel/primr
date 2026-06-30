@@ -7,6 +7,7 @@ Unit tests for model circuit breaker, fallback chains, and health logging.
 
 from __future__ import annotations
 
+from primr.config.model_registry import ModelRegistry
 from primr.config.models import PrimrModels
 from primr.pipeline.model_breaker import (
     ANALYSIS_FALLBACK_CHAIN,
@@ -25,7 +26,7 @@ class TestFallbackChainOrder:
         assert ANALYSIS_FALLBACK_CHAIN.models == (
             PrimrModels.GROK_MODEL_43,
             PrimrModels.GROK_MODEL_420,
-            "claude-sonnet-4-6",
+            ModelRegistry.ANTHROPIC_SONNET.name,
             "gpt-5.4",
             PrimrModels.FLASH_MODEL,
         )

@@ -40,3 +40,11 @@ class TestProTierEvalSlots:
         cfg = PrimrModels.get_model_config("gemini-3.5-flash")
         assert cfg is not None
         assert cfg.provider == "google"
+
+
+class TestPremiumAnthropicSlots:
+    def test_premium_sonnet_slot_uses_current_sonnet(self):
+        from primr.config.models import ModelRegistry
+
+        slot = get_eval_profile("premium-sonnet-write")
+        assert slot.recipe.writing == ModelRegistry.ANTHROPIC_SONNET.name

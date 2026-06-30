@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
+from primr.config.model_registry import ModelRegistry
 from primr.config.models import PrimrModels
 from primr.utils.circuit_breaker import (
     CircuitBreaker,
@@ -74,7 +75,7 @@ ANALYSIS_FALLBACK_CHAIN = FallbackChain(
     models=(
         PrimrModels.GROK_MODEL_43,  # grok-4.3 (primary)
         PrimrModels.GROK_MODEL_420,  # grok-4.20 reasoning (legacy)
-        "claude-sonnet-4-6",  # Anthropic cross-provider fallback
+        ModelRegistry.ANTHROPIC_SONNET.name,  # Anthropic cross-provider fallback
         "gpt-5.4",  # OpenAI cross-provider fallback
         PrimrModels.FLASH_MODEL,  # gemini-3-flash (last resort)
     ),

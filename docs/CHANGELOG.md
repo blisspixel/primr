@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Updated the Anthropic balanced model to Claude Sonnet 5 (`claude-sonnet-5`)
+  with conservative post-intro price estimates, 128k max output, Sonnet 4.6
+  back-compat registration, request guards for models that reject sampling
+  parameters, and Sonnet 5 `output_config.effort` support.
 - Redacted xAI browse/search logs to scheme and host only, and stopped logging
   provider error-body snippets on failed browse calls so customer URL paths,
   query strings, userinfo, and provider diagnostics do not enter logs.

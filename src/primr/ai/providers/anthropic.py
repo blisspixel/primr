@@ -7,7 +7,8 @@ SDK. Handles:
 - Retry with exponential backoff on transient errors (429, 5xx)
 - Quota/billing exhaustion detection → raises ``QuotaExhaustedError``
 - Cache-aware token tracking (``cache_read_input_tokens``, ``cache_creation_input_tokens``)
-- Passthrough of Anthropic-specific kwargs (``thinking``)
+- Passthrough of Anthropic-specific kwargs where supported (``thinking``,
+  Sonnet 5 ``output_config.effort``)
 
 Prompt caching note: Anthropic's prompt caching is configured via ``cache_control``
 directives embedded *inside* message content blocks (not as a top-level API
@@ -71,20 +72,44 @@ def _is_retryable_status(status_code: int) -> bool:
 
 
 # Model families that reject sampling parameters (temperature/top_p/top_k) with
-# a 400. As of June 2026 this is Opus 4.7+, and the Fable/Mythos 5 line. Matched
-# by substring so dated or aliased IDs (claude-opus-4-8, claude-fable-5, ...)
-# are all covered. Keep in sync with config/models.py when new tiers land.
+# a 400. As of June 2026 this is Opus 4.7+, Sonnet 5, and the Fable/Mythos 5
+# line. Matched by substring so dated or aliased IDs (claude-opus-4-8,
+# claude-fable-5, ...) are all covered. Keep in sync with config/models.py when
+# new tiers land.
 _SAMPLING_PARAM_REJECTORS: tuple[str, ...] = (
     "opus-4-7",
     "opus-4-8",
+    "sonnet-5",
     "fable-5",
     "mythos-5",
 )
+
+_OUTPUT_CONFIG_EFFORT_MODELS: tuple[str, ...] = ("sonnet-5",)
+_MANUAL_THINKING_REJECTORS: tuple[str, ...] = ("sonnet-5",)
+_VALID_EFFORT_LEVELS: frozenset[str] = frozenset({"low", "medium", "high"})
 
 
 def _rejects_sampling_params(model: str) -> bool:
     """Return True when ``model`` 400s on temperature/top_p/top_k."""
     return any(marker in model for marker in _SAMPLING_PARAM_REJECTORS)
+
+
+def _supports_output_config_effort(model: str) -> bool:
+    """Return True when ``model`` accepts ``output_config.effort``."""
+    return any(marker in model for marker in _OUTPUT_CONFIG_EFFORT_MODELS)
+
+
+def _rejects_manual_thinking_config(model: str) -> bool:
+    """Return True when ``model`` uses adaptive thinking instead of ``thinking``."""
+    return any(marker in model for marker in _MANUAL_THINKING_REJECTORS)
+
+
+def _validated_effort(value: object) -> str:
+    """Validate Sonnet 5 effort strings before sending them to the SDK."""
+    if not isinstance(value, str) or value not in _VALID_EFFORT_LEVELS:
+        valid = ", ".join(sorted(_VALID_EFFORT_LEVELS))
+        raise ValueError(f"Anthropic effort must be one of: {valid}")
+    return value
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +125,9 @@ class AnthropicProvider(Provider):
     - user/assistant messages → ``messages`` array
 
     Provider-specific kwargs:
-    - thinking: dict — Extended thinking configuration (budget_tokens, etc.)
+    - thinking: dict — Extended thinking configuration on models that support it
+    - effort: "low" | "medium" | "high" — maps to Sonnet 5 output_config.effort
+    - output_config: dict — passed through for Sonnet 5, after effort validation
 
     Prompt caching is not exposed as a kwarg here; callers embed
     ``cache_control`` directives inside the structured message content they
@@ -240,10 +267,10 @@ class AnthropicProvider(Provider):
         }
 
         # Sampling parameters (temperature/top_p/top_k) were removed on the
-        # newest Claude tiers (Opus 4.7+, Fable/Mythos 5) and now return a 400 -
-        # behaviour is steered by prompting and the effort parameter instead.
+        # newest Claude tiers (Opus 4.7+, Sonnet 5, Fable/Mythos 5) and now
+        # return a 400. Behaviour is steered by prompting and effort instead.
         # Older tiers (Sonnet 4.6, Haiku 4.5, Opus 4.6 and earlier) still accept
-        # temperature, so only send it where it's valid.
+        # temperature, so only send it where valid.
         if not _rejects_sampling_params(model):
             sdk_kwargs["temperature"] = temperature
 
@@ -254,7 +281,18 @@ class AnthropicProvider(Provider):
         # NOTE: prompt caching is configured at the message-content level
         # (cache_control directives inside content blocks), not as a top-level
         # parameter — see module docstring.
-        if "thinking" in provider_kwargs:
+        if _supports_output_config_effort(model):
+            if "output_config" in provider_kwargs:
+                output_config = dict(provider_kwargs["output_config"])
+                if "effort" in output_config:
+                    output_config["effort"] = _validated_effort(output_config["effort"])
+                sdk_kwargs["output_config"] = output_config
+            elif "effort" in provider_kwargs:
+                sdk_kwargs["output_config"] = {
+                    "effort": _validated_effort(provider_kwargs["effort"])
+                }
+
+        if "thinking" in provider_kwargs and not _rejects_manual_thinking_config(model):
             sdk_kwargs["thinking"] = provider_kwargs["thinking"]
 
         last_error: Exception | None = None

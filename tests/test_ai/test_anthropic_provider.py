@@ -20,6 +20,9 @@ from primr.ai.providers.anthropic import (
     AnthropicProvider,
     _is_quota_exhausted,
     _is_retryable_status,
+    _rejects_manual_thinking_config,
+    _rejects_sampling_params,
+    _supports_output_config_effort,
 )
 from primr.ai.providers.base import QuotaExhaustedError
 
@@ -305,18 +308,67 @@ class TestChat:
         call_kwargs = provider._client.messages.create.call_args[1]
         assert call_kwargs["temperature"] == 0.3
 
-    def test_temperature_omitted_for_opus_4_8(self, monkeypatch):
-        # Opus 4.7+ and Fable/Mythos 5 reject temperature with a 400 - sending it
-        # would make these models unusable. It must be left out entirely.
+    def test_temperature_omitted_for_newest_models(self, monkeypatch):
+        # Opus 4.7+, Sonnet 5, and Fable/Mythos 5 reject temperature with a 400.
+        # It must be left out entirely.
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
         provider = self._make_provider_with_mock_client()
         provider._client.messages.create.return_value = self._make_response()
 
-        for model in ("claude-opus-4-8", "claude-opus-4-7", "claude-fable-5"):
+        for model in (
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-sonnet-5",
+            "claude-fable-5",
+        ):
             provider._client.messages.create.reset_mock()
             provider.chat([{"role": "user", "content": "Hi"}], model=model)
             call_kwargs = provider._client.messages.create.call_args[1]
             assert "temperature" not in call_kwargs, f"{model} must not receive temperature"
+
+    def test_sonnet_5_effort_maps_to_output_config(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        provider = self._make_provider_with_mock_client()
+        provider._client.messages.create.return_value = self._make_response()
+
+        provider.chat(
+            [{"role": "user", "content": "Hi"}],
+            model="claude-sonnet-5",
+            effort="low",
+            temperature=0.3,
+        )
+
+        call_kwargs = provider._client.messages.create.call_args[1]
+        assert call_kwargs["output_config"] == {"effort": "low"}
+        assert "temperature" not in call_kwargs
+        assert "thinking" not in call_kwargs
+
+    def test_sonnet_5_rejects_invalid_effort_before_sdk_call(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        provider = self._make_provider_with_mock_client()
+
+        with pytest.raises(ValueError, match="Anthropic effort"):
+            provider.chat(
+                [{"role": "user", "content": "Hi"}],
+                model="claude-sonnet-5",
+                effort="maximum",
+            )
+
+        provider._client.messages.create.assert_not_called()
+
+    def test_sonnet_5_drops_legacy_thinking_config(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        provider = self._make_provider_with_mock_client()
+        provider._client.messages.create.return_value = self._make_response()
+
+        provider.chat(
+            [{"role": "user", "content": "Hi"}],
+            model="claude-sonnet-5",
+            thinking={"budget_tokens": 5000},
+        )
+
+        call_kwargs = provider._client.messages.create.call_args[1]
+        assert "thinking" not in call_kwargs
 
     def test_reset_usage(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
@@ -475,13 +527,27 @@ class TestRejectsSamplingParams:
     """The substring gate that decides whether to send temperature."""
 
     def test_rejector_models(self):
-        from primr.ai.providers.anthropic import _rejects_sampling_params
-
-        for model in ("claude-opus-4-8", "claude-opus-4-7", "claude-fable-5", "claude-mythos-5"):
+        for model in (
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-sonnet-5",
+            "claude-fable-5",
+            "claude-mythos-5",
+        ):
             assert _rejects_sampling_params(model) is True
 
     def test_accepting_models(self):
-        from primr.ai.providers.anthropic import _rejects_sampling_params
-
         for model in ("claude-sonnet-4-6", "claude-haiku-4-5", "claude-opus-4-6"):
             assert _rejects_sampling_params(model) is False
+
+
+class TestSonnet5CapabilityGates:
+    """Sonnet 5 uses output_config.effort and adaptive thinking."""
+
+    def test_output_config_effort_models(self):
+        assert _supports_output_config_effort("claude-sonnet-5") is True
+        assert _supports_output_config_effort("claude-sonnet-4-6") is False
+
+    def test_manual_thinking_gate(self):
+        assert _rejects_manual_thinking_config("claude-sonnet-5") is True
+        assert _rejects_manual_thinking_config("claude-opus-4-8") is False

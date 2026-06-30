@@ -177,7 +177,7 @@ class TestProviderAwareFallbackChain:
             assert pick_model_for_role(Role.UTILITY) == ModelRegistry.ANTHROPIC_HAIKU.name
 
     def test_anthropic_only_reasoning(self) -> None:
-        """Anthropic-only → Sonnet 4.6 for reasoning (Opus is too expensive as default)."""
+        """Anthropic-only -> Sonnet 5 for reasoning (Opus is too expensive as default)."""
         from primr.config.models import ModelRegistry
 
         env = _scrubbed_env(ANTHROPIC_API_KEY="test-anthropic")

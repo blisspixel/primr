@@ -181,7 +181,7 @@ class TestRegistryExpansion:
         """get_provider_for_model routes Anthropic model names to Anthropic provider."""
         from primr.ai.routing import get_provider_for_model
 
-        provider = get_provider_for_model("claude-sonnet-4-6")
+        provider = get_provider_for_model(ModelRegistry.ANTHROPIC_SONNET.name)
         assert provider.name == "anthropic"
 
     def test_get_provider_for_model_routes_ollama(self) -> None:
@@ -259,9 +259,26 @@ class TestAnthropicModelCorrectness:
         assert config.max_output_tokens == 128_000
 
     def test_sonnet_has_1m_context(self) -> None:
-        config = PrimrModels.get_model_config("claude-sonnet-4-6")
+        config = PrimrModels.get_model_config(ModelRegistry.ANTHROPIC_SONNET.name)
         assert config is not None
         assert config.max_input_tokens == 1_000_000
+
+    def test_sonnet_5_has_128k_output(self) -> None:
+        config = PrimrModels.get_model_config(ModelRegistry.ANTHROPIC_SONNET.name)
+        assert config is not None
+        assert config.max_output_tokens == 128_000
+
+    def test_sonnet_5_uses_conservative_post_intro_estimate(self) -> None:
+        config = PrimrModels.get_model_config(ModelRegistry.ANTHROPIC_SONNET.name)
+        assert config is not None
+        assert config.cost_per_1m_input_tokens == 3.00
+        assert config.cost_per_1m_output_tokens == 15.00
+        assert config.cost_per_1m_input_tokens_cached == 0.30
+
+    def test_sonnet_4_6_remains_registered_for_back_compat(self) -> None:
+        config = PrimrModels.get_model_config("claude-sonnet-4-6")
+        assert config is not None
+        assert config.provider == "anthropic"
 
     def test_haiku_has_64k_output(self) -> None:
         config = PrimrModels.get_model_config("claude-haiku-4-5")

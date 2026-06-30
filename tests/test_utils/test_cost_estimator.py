@@ -752,7 +752,7 @@ class TestGrokTier:
         notes = " ".join(est.notes)
         assert est.mode == "standard (Anthropic routed)"
         assert est.deep_research_cost == 0.0
-        assert "claude-sonnet-4-6 reasoning" in notes
+        assert f"{ModelRegistry.ANTHROPIC_SONNET.name} reasoning" in notes
         assert "claude-haiku-4-5 writing" in notes
         assert "claude-haiku-4-5 utility" in notes
 
