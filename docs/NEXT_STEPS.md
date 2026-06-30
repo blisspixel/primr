@@ -272,7 +272,10 @@ Do next:
   `primr --eval --eval-stage-scorecard --eval-stage-quality <quality.json>`,
   and MCP clients can inspect those artifacts through
   `primr://eval/stage_scorecard/{eval_id}` without receiving prompt, report,
-  quality-source, or raw run-state content.
+  quality-source, or raw run-state content. The website-summary local-stage
+  eval now emits `website_summary_stage_quality_evidence.json` as a structured
+  scorecard input, and same-command scorecard generation can consume it when a
+  manual `--eval-stage-quality` path is not supplied.
 - Promote one host/local candidate only after stage-scoped evals prove quality,
   cost, latency, and failure behavior.
 - Promote one stage at a time. A provider path is supported only when report
@@ -292,7 +295,9 @@ Done when:
 - Provider comparison artifacts exist for every promoted stage.
   The route-metadata comparison artifact exists; quality comparison artifacts
   now have a CLI-accessible scorecard layer, but semantic eval evidence is
-  still required before any promotion.
+  still required before any promotion. The first generated quality-evidence
+  input now comes from the website-summary local-stage eval; it remains
+  report-only scorecard evidence, not a promotion gate.
 - No hidden provider dependency remains in the full-report path for the wired
   stage.
 

@@ -2004,13 +2004,7 @@ def _handle_eval(config: CLIConfig) -> int:
     from pathlib import Path
 
     from primr.config.config import FAST_FEEDBACK_RULES_PATH, OUTPUT_DIR
-    from primr.core.local_stage_eval import (
-        find_latest_website_summary_eval_inputs,
-        run_local_website_summary_stage_eval,
-        write_website_summary_stage_eval_markdown,
-        write_website_summary_stage_eval_report,
-        write_website_summary_stage_eval_summary,
-    )
+    from primr.core.cli_local_stage_eval import handle_website_summary_local_stage_eval
     from primr.core.model_eval import (
         LLMJudgeMetadata,
         auto_stage_existing_reports,
@@ -2069,6 +2063,7 @@ def _handle_eval(config: CLIConfig) -> int:
         console.error(f"Invalid --eval-id: {e}")
         return 1
     eval_dir.mkdir(parents=True, exist_ok=True)
+    generated_stage_quality_path: Path | None = None
     manifest_path = Path(config.eval_manifest) if config.eval_manifest else None
     if config.eval_company and manifest_path is None:
         company_manifest = eval_dir / "eval_company_manifest.csv"
@@ -2423,78 +2418,32 @@ def _handle_eval(config: CLIConfig) -> int:
             console.info("Deterministic eval scorecard is still valid.")
 
     if config.eval_local_stage == "website-summary":
-        console.blank()
-        console.step("Local Stage Eval")
         judge_models, missing_models = _resolve_local_judge_models(config)
-        if config.eval_judge_model_list:
-            console.info(f"Local stage model list: {config.eval_judge_model_list}")
-        if missing_models:
-            console.warn(
-                "Skipping local stage models not installed in Ollama: " + ", ".join(missing_models)
-            )
-        if not judge_models:
-            console.error(
-                "No local models available for stage eval after resolving the requested list."
-            )
-            return 1
-        target_companies = (
-            [config.eval_company]
-            if config.eval_company
-            else sorted({m.company for m in eval_result.metrics})
-        )
-        inputs = find_latest_website_summary_eval_inputs(
-            Path(config.eval_working_root),
-            companies=target_companies or None,
-        )
-        if not inputs:
-            console.warn(
-                "No working folders with scraped_content.txt and scraped_website_summary.txt found for local stage eval."
-            )
-        else:
-            console.info(
-                f"Stage=website-summary, Companies={', '.join(row.company for row in inputs)}, "
-                f"Models={', '.join(judge_models)}"
-            )
-            stage_root = Path(config.eval_root) / config.eval_id / "website_summary_stage"
-            stage_results: list[tuple[str, list[Any]]] = []
-            for model_name in judge_models:
-                console.info(f"Running local website-summary stage model: {model_name}")
-                stage_rows = run_local_website_summary_stage_eval(
-                    inputs=inputs,
-                    model=model_name,
-                    output_root=stage_root,
-                    base_url=config.eval_judge_base_url,
-                    api_key_env=config.eval_judge_api_key_env,
-                )
-                stage_results.append((model_name, stage_rows))
-                model_slug = re.sub(r"[^a-zA-Z0-9]+", "-", model_name).strip("-").lower() or "model"
-                report_path = stage_root / f"website_summary_stage.{model_slug}.json"
-                write_website_summary_stage_eval_report(
-                    report_path,
-                    model=model_name,
-                    rows=stage_rows,
-                    base_url=config.eval_judge_base_url,
-                    api_key_env=config.eval_judge_api_key_env,
-                )
-                console.info(f"  companies: {len(stage_rows)}")
-                console.info(f"  output: {report_path}")
-            summary_json = stage_root / "website_summary_stage_summary.json"
-            summary_md = stage_root / "website_summary_stage_summary.md"
-            write_website_summary_stage_eval_summary(
-                summary_json,
+        local_stage_exit_code, generated_stage_quality_path = (
+            handle_website_summary_local_stage_eval(
                 eval_id=config.eval_id,
-                results=stage_results,
+                eval_root=config.eval_root,
+                eval_working_root=config.eval_working_root,
+                eval_company=config.eval_company,
+                eval_metrics=eval_result.metrics,
+                judge_models=judge_models,
+                missing_models=missing_models,
+                eval_judge_model_list=config.eval_judge_model_list,
+                eval_judge_base_url=config.eval_judge_base_url,
+                eval_judge_api_key_env=config.eval_judge_api_key_env,
+                console=console,
             )
-            write_website_summary_stage_eval_markdown(
-                summary_md,
-                eval_id=config.eval_id,
-                results=stage_results,
-            )
-            console.info(f"Local stage eval summary: {summary_json}")
-            console.info(f"Local stage eval markdown: {summary_md}")
+        )
+        if local_stage_exit_code != 0:
+            return local_stage_exit_code
 
     if config.eval_stage_scorecard:
-        if not config.eval_stage_quality:
+        quality_path = (
+            Path(config.eval_stage_quality)
+            if config.eval_stage_quality
+            else generated_stage_quality_path
+        )
+        if quality_path is None:
             console.error("--eval-stage-scorecard requires --eval-stage-quality")
             return 1
         try:
@@ -2504,7 +2453,7 @@ def _handle_eval(config: CLIConfig) -> int:
 
             artifacts = write_stage_eval_scorecard_from_files(
                 route_root=Path(config.eval_stage_route_root or config.eval_working_root),
-                quality_path=Path(config.eval_stage_quality),
+                quality_path=quality_path,
                 output_dir=eval_dir,
                 stage_id=config.eval_stage_id,
                 min_quality_score=config.eval_stage_min_quality_score,

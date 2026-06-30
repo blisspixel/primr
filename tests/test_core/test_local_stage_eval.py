@@ -9,6 +9,7 @@ from primr.core.local_stage_eval import (
     write_website_summary_stage_eval_markdown,
     write_website_summary_stage_eval_report,
     write_website_summary_stage_eval_summary,
+    write_website_summary_stage_quality_evidence,
 )
 
 
@@ -154,3 +155,52 @@ def test_write_website_summary_stage_eval_outputs(tmp_path: Path):
     markdown = summary_md.read_text(encoding="utf-8")
     assert "Local Website Summary Stage Eval" in markdown
     assert "ExampleCo: score=96.00" in markdown
+
+
+def test_write_website_summary_stage_quality_evidence(tmp_path: Path):
+    row = WebsiteSummaryEvalRow(
+        company="ExampleCo",
+        model="qwen3:30b",
+        working_dir="working/ExampleCo/2026-03-02_1200",
+        input_pages=2,
+        local_summary_path="must-not-be-copied.local.txt",
+        baseline_summary_path="must-not-be-copied.baseline.txt",
+        baseline_words=100,
+        local_words=90,
+        baseline_source_sections=2,
+        local_source_sections=2,
+        baseline_source_citations=1,
+        local_source_citations=1,
+        baseline_open_questions=2,
+        local_open_questions=2,
+        baseline_has_synthesis=True,
+        local_has_synthesis=True,
+        source_section_ratio=100.0,
+        citation_ratio=100.0,
+        open_questions_ratio=100.0,
+        word_ratio=90.0,
+        completeness_score=96.0,
+    )
+    output = tmp_path / "website_summary_stage_quality_evidence.json"
+
+    write_website_summary_stage_quality_evidence(
+        output,
+        eval_id="eval-stage-001",
+        results=[("qwen3:30b", [row])],
+    )
+
+    text = output.read_text(encoding="utf-8")
+    payload = json.loads(text)
+    assert payload["evidence_type"] == "website_summary_stage_quality"
+    assert payload["decision_policy"] == "scorecard_input_only"
+    assert payload["stage_id"] == "fast.scrape_summary"
+    assert "must-not-be-copied" not in text
+    assert payload["quality_evidence"] == [
+        {
+            "stage_id": "fast.scrape_summary",
+            "backend_id": "qwen3:30b",
+            "quality_score": 96.0,
+            "sample_size": 1,
+            "source": "website_summary_stage:eval-stage-001:qwen3:30b",
+        }
+    ]

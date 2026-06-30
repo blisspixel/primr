@@ -91,7 +91,8 @@ Current priority order:
    promoting host/local candidates with stage-scoped eval data. Stage scorecard
    artifacts are now available through the eval CLI and compact MCP readback at
    `primr://eval/stage_scorecard/{eval_id}` without exposing prompt, report,
-   quality-source, or raw run-state content.
+   quality-source, or raw run-state content. Website-summary local-stage evals
+   now write scorecard-ready structured quality evidence as report-only input.
 3. **Agent control-plane consumption resources and A2A parity.** MCP already has
    scopes, approval tokens, tool/resource-read audit events, and budget
    propagation. A2A now shares the HTTP bearer-token auth context and enforces
@@ -807,6 +808,7 @@ Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The firs
 - Stage route comparison artifacts shipped in `core/stage_route_comparison.py`: run-state route records can be aggregated by stage/backend/profile into body-free JSON and Markdown summaries with attempts, selected/fallback/failure counts, latency, and measured token/cache/cost deltas
 - Stage eval scorecards shipped in `core/stage_eval_scorecard.py` with CLI artifact flow behind `primr --eval --eval-stage-scorecard`: explicit quality evidence can now be joined with route comparison rows to classify candidates as human-review-ready, needing quality eval, below quality bar, or needing reliability review without auto-promotion
 - Stage scorecard MCP readback shipped in `mcp_server/stage_scorecard_summary.py`: `primr://eval/stage_scorecard/{eval_id}` returns compact route, quality-score, status, and blocker fields from the eval artifact without arbitrary path reads, prompt bodies, report bodies, quality-source bodies, or raw run-state content
+- Generated stage quality evidence shipped in `core/local_stage_eval.py` and `core/cli_local_stage_eval.py`: website-summary local-stage evals write `website_summary_stage_quality_evidence.json`, and same-command scorecard generation can consume that structured evidence when no manual quality file is supplied
 - Router selection must continue to be wired into execution and cost estimation stage by stage, keeping today's role defaults as fallback until eval data promotes a requirement profile
 - Integrates with the circuit breaker - unhealthy models are skipped automatically
 - Official cloud quota/status collectors must translate supported provider surfaces into the availability shape, then feed the existing availability-to-backend adapter before routing

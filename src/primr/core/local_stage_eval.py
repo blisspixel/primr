@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 from primr.ai.summarize import summarize_scraped_content_local
 from primr.core.model_eval import _company_similarity
+from primr.core.stage_eval_scorecard import StageQualityEvidence
 
 
 @dataclass(frozen=True)
@@ -321,6 +322,60 @@ def write_website_summary_stage_eval_summary(
         "models_evaluated": len(results),
         "recommended_models": [row["model"] for row in ranked[:3]],
         "results": ranked,
+    }
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def build_website_summary_stage_quality_evidence(
+    *,
+    eval_id: str,
+    results: list[tuple[str, list[WebsiteSummaryEvalRow]]],
+    stage_id: str = "fast.scrape_summary",
+) -> list[StageQualityEvidence]:
+    """Build scorecard-ready quality evidence from website-summary eval results."""
+
+    evidence: list[StageQualityEvidence] = []
+    for model, rows in results:
+        if not rows:
+            continue
+        quality_score = round(
+            sum(row.completeness_score for row in rows) / max(1, len(rows)),
+            2,
+        )
+        evidence.append(
+            StageQualityEvidence(
+                stage_id=stage_id,
+                backend_id=model,
+                quality_score=quality_score,
+                sample_size=len(rows),
+                source=f"website_summary_stage:{eval_id}:{model}",
+            )
+        )
+    return sorted(evidence, key=lambda row: (row.stage_id, row.backend_id))
+
+
+def write_website_summary_stage_quality_evidence(
+    path: Path,
+    *,
+    eval_id: str,
+    results: list[tuple[str, list[WebsiteSummaryEvalRow]]],
+    stage_id: str = "fast.scrape_summary",
+) -> None:
+    """Write structured quality evidence for routed-stage scorecards."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    evidence = build_website_summary_stage_quality_evidence(
+        eval_id=eval_id,
+        results=results,
+        stage_id=stage_id,
+    )
+    payload = {
+        "schema_version": 1,
+        "evidence_type": "website_summary_stage_quality",
+        "decision_policy": "scorecard_input_only",
+        "eval_id": eval_id,
+        "stage_id": stage_id,
+        "quality_evidence": [asdict(row) for row in evidence],
     }
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
