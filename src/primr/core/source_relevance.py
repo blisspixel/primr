@@ -7,8 +7,15 @@ import time
 from typing import Any
 
 from primr.ai import stage_routing
+from primr.ai.host_agent_cli import run_host_agent_stage
+from primr.ai.host_agent_runner import HostAgentKind, HostAgentPolicy, HostAgentStagePacket
 from primr.ai.llm import llm
 from primr.utils.observability import log_structured
+
+_SOURCE_RELEVANCE_OUTPUT_SCHEMA: dict[str, object] = {
+    "type": "array",
+    "items": {"type": "integer"},
+}
 
 
 def _assess_source_relevance(
@@ -57,8 +64,26 @@ No prose, no explanation."""
     try:
         route = stage_routing.resolve_stage_model("fast.source_relevance", legacy_model_type="fast")
         log_structured("info", "Source relevance route selected", **route.log_metadata())
-        usage_before = stage_routing.capture_stage_usage()
-        response = llm(prompt, model_type="fast", streaming=False, model=route.model_name).strip()
+        execution_mode = getattr(route, "execution_mode", "llm")
+        if execution_mode == "unavailable":
+            _record_source_route(
+                folder_path,
+                route,
+                outcome="fallback",
+                input_count=len(external_data),
+                output_count=len(external_data),
+                duration_seconds=time.monotonic() - start_time,
+                failure_class="agent_profile_unavailable",
+            )
+            return external_data
+
+        if execution_mode == "host_agent":
+            response = _run_source_relevance_host_agent(route, prompt).strip()
+        else:
+            usage_before = stage_routing.capture_stage_usage()
+            response = llm(
+                prompt, model_type="fast", streaming=False, model=route.model_name
+            ).strip()
         text = response.strip()
         if text.startswith("```"):
             first_nl = text.find("\n")
@@ -146,6 +171,24 @@ No prose, no explanation."""
             source_count=len(external_data),
         )
         return external_data
+
+
+def _run_source_relevance_host_agent(
+    route: stage_routing.StageModelRoute,
+    prompt: str,
+) -> str:
+    runner_kind = route.host_agent_kind or HostAgentKind.CODEX.value
+    result = run_host_agent_stage(
+        HostAgentStagePacket(
+            stage_id="fast.source_relevance",
+            role="utility",
+            instructions=prompt,
+            output_schema=_SOURCE_RELEVANCE_OUTPUT_SCHEMA,
+            policy=HostAgentPolicy(max_wall_seconds=180, max_output_chars=10_000),
+        ),
+        kind=runner_kind,
+    )
+    return result.text
 
 
 def _record_source_route(

@@ -35,12 +35,18 @@ seats. The intended Primr model is:
 - Use provider API keys for the supported direct full-report path today.
 - Use Codex/Claude Code/Cursor/VS Code MCP integrations to operate Primr from
   those tools today.
-- Use planned host-agent runner mode for compatible LLM stages once it is
-  implemented and eval-validated.
+- Use experimental host-agent runner mode only for compatible pilot stages
+  that have explicit routing support. Today, `--inference agent` can route
+  `fast.source_relevance` through the official Codex CLI when it is installed
+  and authenticated.
 
 Do not paste ChatGPT or Claude web-session credentials into Primr. Do not route
-through unofficial subscription proxies. When host runners land, they should use
-official surfaces only:
+through unofficial subscription proxies. Host runners must use official
+surfaces only. The current Codex pilot uses `codex exec` with a read-only
+sandbox, disabled web search/shell-tool config, no approvals, no persisted
+history, and schema-constrained output. If Codex is unavailable under an
+explicit `--inference agent` run, Primr keeps all sources and records a
+fallback instead of silently spending cloud API dollars.
 
 | Host | Official credential shape | Notes |
 |------|---------------------------|-------|

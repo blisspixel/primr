@@ -86,6 +86,7 @@ class TestAssessSourceRelevance:
         sources = _ten_sources()
         route = SimpleNamespace(
             model_name="routed-utility-model",
+            execution_mode="llm",
             log_metadata=lambda: {
                 "stage_id": "fast.source_relevance",
                 "inference_profile": "hybrid",
@@ -103,10 +104,84 @@ class TestAssessSourceRelevance:
         resolver.assert_called_once_with("fast.source_relevance", legacy_model_type="fast")
         assert llm_mock.call_args.kwargs["model"] == "routed-utility-model"
 
+    def test_host_agent_route_uses_host_runner(self, monkeypatch):
+        sources = _ten_sources()
+        route = SimpleNamespace(
+            model_name="codex-cli",
+            execution_mode="host_agent",
+            host_agent_kind="codex",
+            log_metadata=lambda: {
+                "stage_id": "fast.source_relevance",
+                "inference_profile": "agent",
+                "backend_id": "codex-cli",
+                "backend_kind": "host_agent",
+                "billing_mode": "host_plan_usage",
+                "routed": True,
+                "execution_mode": "host_agent",
+            },
+        )
+        host_mock = MagicMock(return_value=SimpleNamespace(text="[1, 2, 3, 4]"))
+        llm_mock = MagicMock(side_effect=AssertionError("cloud LLM should not run"))
+        monkeypatch.setattr(
+            "primr.ai.stage_routing.resolve_stage_model",
+            MagicMock(return_value=route),
+        )
+        monkeypatch.setattr("primr.core.source_relevance.run_host_agent_stage", host_mock)
+        monkeypatch.setattr("primr.core.source_relevance.llm", llm_mock)
+
+        result = _assess_source_relevance("Acme", sources)
+
+        assert len(result) == 4
+        packet = host_mock.call_args.args[0]
+        assert packet.stage_id == "fast.source_relevance"
+        assert packet.role == "utility"
+        assert packet.output_schema == {"type": "array", "items": {"type": "integer"}}
+        assert host_mock.call_args.kwargs["kind"] == "codex"
+        llm_mock.assert_not_called()
+
+    def test_unavailable_agent_route_keeps_sources_without_cloud_llm(self, monkeypatch, tmp_path):
+        sources = _ten_sources()
+        route = SimpleNamespace(
+            model_name="",
+            execution_mode="unavailable",
+            log_metadata=lambda: {
+                "stage_id": "fast.source_relevance",
+                "inference_profile": "agent",
+                "backend_id": "agent-profile-unavailable",
+                "backend_kind": "host_agent",
+                "billing_mode": "unknown",
+                "routed": False,
+                "execution_mode": "unavailable",
+                "route_reasons": ["agent_profile_unavailable"],
+                "expected_input_tokens": 18_000,
+                "expected_output_tokens": 2_000,
+            },
+        )
+        llm_mock = MagicMock(side_effect=AssertionError("cloud LLM should not run"))
+        host_mock = MagicMock(side_effect=AssertionError("host runner should not run"))
+        monkeypatch.setattr(
+            "primr.ai.stage_routing.resolve_stage_model",
+            MagicMock(return_value=route),
+        )
+        monkeypatch.setattr("primr.core.source_relevance.llm", llm_mock)
+        monkeypatch.setattr("primr.core.source_relevance.run_host_agent_stage", host_mock)
+
+        result = _assess_source_relevance("Acme", sources, str(tmp_path))
+
+        assert result == sources
+        llm_mock.assert_not_called()
+        host_mock.assert_not_called()
+        state = json.loads((tmp_path / "_run_state.json").read_text(encoding="utf-8"))
+        [record] = state["stage_routes"]
+        assert record["outcome"] == "fallback"
+        assert record["failure_class"] == "agent_profile_unavailable"
+        assert record["backend_id"] == "agent-profile-unavailable"
+
     def test_route_usage_metadata_is_recorded(self, monkeypatch, tmp_path):
         sources = _ten_sources()
         route = SimpleNamespace(
             model_name="routed-utility-model",
+            execution_mode="llm",
             log_metadata=lambda: {
                 "stage_id": "fast.source_relevance",
                 "inference_profile": "hybrid",

@@ -52,6 +52,8 @@ class StageModelRoute:
     reasons: tuple[str, ...]
     rejections: tuple[str, ...]
     availability: dict[str, Any] | None = None
+    execution_mode: str = "llm"
+    host_agent_kind: str | None = None
 
     def log_metadata(self) -> dict[str, Any]:
         """Return safe structured-log metadata for this route."""
@@ -63,10 +65,13 @@ class StageModelRoute:
             "backend_kind": self.backend_kind,
             "billing_mode": self.billing_mode,
             "routed": self.routed,
+            "execution_mode": self.execution_mode,
             "route_reasons": list(self.reasons),
             "expected_input_tokens": self.expected_input_tokens,
             "expected_output_tokens": self.expected_output_tokens,
         }
+        if self.host_agent_kind:
+            data["host_agent_kind"] = self.host_agent_kind
         if self.estimated_cost_usd is not None:
             data["estimated_cost_usd"] = round(self.estimated_cost_usd, 6)
         if self.rejections:
@@ -93,11 +98,10 @@ def resolve_stage_model(
 ) -> StageModelRoute:
     """Resolve the model for a production stage through the capability router.
 
-    The first production slice is intentionally conservative: it routes the
-    legacy role-selected backend through ``route_stage()`` and then executes the
-    returned model through existing provider seams. If the declared stage and
-    selected profile reject that backend, the route object records the rejection
-    but still returns the legacy model so current runs do not regress.
+    Runtime routing remains conservative: cloud/local-compatible selections
+    execute through existing provider seams, while official host-agent
+    selections return an explicit ``host_agent`` execution mode for bounded
+    stage-specific delegation.
     """
 
     stage = get_production_stage(stage_id)
@@ -105,8 +109,13 @@ def resolve_stage_model(
         _coerce_profile(profile) if profile is not None else current_inference_profile()
     )
     legacy_model = pick_model_for_legacy_type(legacy_model_type)
-    backend = _backend_for_model(legacy_model, stage.role)
-    if backend is None:
+    legacy_backend = _backend_for_model(legacy_model, stage.role)
+    candidate_backends = [
+        backend
+        for backend in (*_supported_host_agent_backends(stage.stage_id), legacy_backend)
+        if backend is not None
+    ]
+    if not candidate_backends:
         return StageModelRoute(
             stage_id=stage.stage_id,
             profile=selected_profile,
@@ -127,51 +136,134 @@ def resolve_stage_model(
         else _default_provider_availability_snapshots()
     )
     if snapshots:
-        backend = backends_with_availability(
-            (backend,),
-            snapshots,
-            require_snapshot=require_availability_snapshot,
-        )[0]
+        candidate_backends = list(
+            backends_with_availability(
+                candidate_backends,
+                snapshots,
+                require_snapshot=require_availability_snapshot,
+            )
+        )
 
     plan = route_stage(
         stage.to_requirements(),
-        (backend,),
+        candidate_backends,
         RoutingPolicy(profile=selected_profile),
     )
     if plan.primary is not None:
-        primary = plan.primary
-        return StageModelRoute(
-            stage_id=stage.stage_id,
-            profile=selected_profile,
-            model_name=primary.backend.backend_id,
-            backend_id=primary.backend.backend_id,
-            backend_kind=BackendKind(primary.backend.kind).value,
-            billing_mode=BillingMode(primary.backend.billing_mode).value,
-            estimated_cost_usd=primary.estimated_cost_usd,
-            expected_input_tokens=stage.expected_input_tokens,
-            expected_output_tokens=stage.expected_output_tokens,
-            routed=True,
-            reasons=primary.reasons,
-            rejections=(),
-            availability=_availability_metadata(primary.backend),
+        return _route_from_candidate(
+            stage,
+            selected_profile,
+            plan.primary.backend,
+            plan.primary.estimated_cost_usd,
+            plan.primary.reasons,
         )
 
     rejection_reasons = tuple(reason for item in plan.rejections for reason in item.reasons)
+    if selected_profile is InferenceProfile.AGENT:
+        return StageModelRoute(
+            stage_id=stage.stage_id,
+            profile=selected_profile,
+            model_name="",
+            backend_id="agent-profile-unavailable",
+            backend_kind=BackendKind.HOST_AGENT.value,
+            billing_mode=BillingMode.UNKNOWN.value,
+            estimated_cost_usd=None,
+            expected_input_tokens=stage.expected_input_tokens,
+            expected_output_tokens=stage.expected_output_tokens,
+            routed=False,
+            reasons=("agent_profile_unavailable",),
+            rejections=rejection_reasons,
+            execution_mode="unavailable",
+        )
+
+    if legacy_backend is None:
+        return StageModelRoute(
+            stage_id=stage.stage_id,
+            profile=selected_profile,
+            model_name=legacy_model,
+            backend_id=legacy_model,
+            backend_kind="unknown",
+            billing_mode=BillingMode.UNKNOWN.value,
+            estimated_cost_usd=None,
+            expected_input_tokens=stage.expected_input_tokens,
+            expected_output_tokens=stage.expected_output_tokens,
+            routed=False,
+            reasons=("legacy_model_unregistered",),
+            rejections=("legacy_model_unregistered",),
+        )
+    legacy_backend_for_log = next(
+        (
+            backend
+            for backend in candidate_backends
+            if backend.backend_id == legacy_backend.backend_id
+        ),
+        legacy_backend,
+    )
     return StageModelRoute(
         stage_id=stage.stage_id,
         profile=selected_profile,
         model_name=legacy_model,
-        backend_id=backend.backend_id,
-        backend_kind=BackendKind(backend.kind).value,
-        billing_mode=BillingMode(backend.billing_mode).value,
+        backend_id=legacy_backend_for_log.backend_id,
+        backend_kind=BackendKind(legacy_backend_for_log.kind).value,
+        billing_mode=BillingMode(legacy_backend_for_log.billing_mode).value,
         estimated_cost_usd=None,
         expected_input_tokens=stage.expected_input_tokens,
         expected_output_tokens=stage.expected_output_tokens,
         routed=False,
         reasons=("legacy_fallback",),
         rejections=rejection_reasons,
-        availability=_availability_metadata(backend),
+        availability=_availability_metadata(legacy_backend_for_log),
     )
+
+
+def _supported_host_agent_backends(stage_id: str) -> tuple[BackendCapabilities, ...]:
+    """Return host-agent backends without making routing import heavy."""
+
+    if stage_id != "fast.source_relevance":
+        return ()
+    try:
+        from primr.ai.host_agent_cli import supported_host_agent_backends
+
+        return supported_host_agent_backends()
+    except Exception as exc:
+        logger.debug("Host-agent backend discovery skipped: %s", exc, exc_info=True)
+        return ()
+
+
+def _route_from_candidate(
+    stage: Any,
+    selected_profile: InferenceProfile,
+    backend: BackendCapabilities,
+    estimated_cost_usd: float | None,
+    reasons: tuple[str, ...],
+) -> StageModelRoute:
+    backend_kind = BackendKind(backend.kind)
+    execution_mode = "host_agent" if backend_kind is BackendKind.HOST_AGENT else "llm"
+    host_agent_kind = _host_agent_kind(backend) if execution_mode == "host_agent" else None
+    return StageModelRoute(
+        stage_id=stage.stage_id,
+        profile=selected_profile,
+        model_name=backend.backend_id,
+        backend_id=backend.backend_id,
+        backend_kind=backend_kind.value,
+        billing_mode=BillingMode(backend.billing_mode).value,
+        estimated_cost_usd=estimated_cost_usd,
+        expected_input_tokens=stage.expected_input_tokens,
+        expected_output_tokens=stage.expected_output_tokens,
+        routed=True,
+        reasons=reasons,
+        rejections=(),
+        availability=_availability_metadata(backend),
+        execution_mode=execution_mode,
+        host_agent_kind=host_agent_kind,
+    )
+
+
+def _host_agent_kind(backend: BackendCapabilities) -> str | None:
+    runner = backend.metadata.get("runner")
+    if isinstance(runner, str) and runner.strip():
+        return runner.strip()
+    return None
 
 
 def record_stage_route_usage(

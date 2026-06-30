@@ -4,6 +4,7 @@ import json
 from unittest.mock import MagicMock
 
 from primr.ai.capability_routing import InferenceProfile
+from primr.ai.host_agent_cli import codex_cli_backend
 from primr.ai.provider_availability import ProviderQuotaSnapshot, QuotaWindow
 from primr.ai.stage_routing import (
     INFERENCE_PROFILE_ENV,
@@ -90,6 +91,101 @@ def test_hiring_signals_cloud_route_uses_stage_token_budget(monkeypatch) -> None
     assert route.expected_input_tokens == 45_000
     assert route.expected_output_tokens == 4_000
     assert "meets_context" in route.reasons
+
+
+def test_agent_profile_routes_to_available_codex_host_runner(monkeypatch) -> None:
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setattr(
+        "primr.ai.stage_routing._supported_host_agent_backends",
+        lambda stage_id: (
+            (codex_cli_backend(available=True),) if stage_id == "fast.source_relevance" else ()
+        ),
+    )
+
+    route = resolve_stage_model(
+        "fast.source_relevance",
+        legacy_model_type="fast",
+        profile="agent",
+    )
+
+    assert route.routed is True
+    assert route.profile is InferenceProfile.AGENT
+    assert route.model_name == "codex-cli"
+    assert route.backend_kind == "host_agent"
+    assert route.billing_mode == "host_plan_usage"
+    assert route.execution_mode == "host_agent"
+    assert route.host_agent_kind == "codex"
+    assert route.estimated_cost_usd == 0.0
+    assert "host_plan_usage" in route.reasons
+    assert route.log_metadata()["execution_mode"] == "host_agent"
+
+
+def test_hybrid_scrape_summary_preserves_cloud_until_host_stage_is_wired(monkeypatch) -> None:
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+    monkeypatch.setattr(
+        "primr.ai.stage_routing._supported_host_agent_backends",
+        lambda stage_id: (
+            (codex_cli_backend(available=True),) if stage_id == "fast.source_relevance" else ()
+        ),
+    )
+
+    route = resolve_stage_model(
+        "fast.scrape_summary",
+        legacy_model_type="scraping",
+        profile="hybrid",
+    )
+
+    assert route.routed is True
+    assert route.profile is InferenceProfile.HYBRID
+    assert route.model_name == PrimrModels.SCRAPING_MODEL
+    assert route.backend_kind == "cloud_api"
+    assert route.execution_mode == "llm"
+
+
+def test_agent_profile_for_unwired_stage_does_not_fall_back_to_cloud(monkeypatch) -> None:
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+    monkeypatch.setattr(
+        "primr.ai.stage_routing._supported_host_agent_backends",
+        lambda stage_id: (
+            (codex_cli_backend(available=True),) if stage_id == "fast.source_relevance" else ()
+        ),
+    )
+
+    route = resolve_stage_model(
+        "fast.scrape_summary",
+        legacy_model_type="scraping",
+        profile="agent",
+    )
+
+    assert route.routed is False
+    assert route.model_name == ""
+    assert route.execution_mode == "unavailable"
+    assert route.reasons == ("agent_profile_unavailable",)
+
+
+def test_agent_profile_without_runner_does_not_fall_back_to_cloud(monkeypatch) -> None:
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+    monkeypatch.setattr(
+        "primr.ai.stage_routing._supported_host_agent_backends", lambda stage_id: ()
+    )
+
+    route = resolve_stage_model(
+        "fast.source_relevance",
+        legacy_model_type="fast",
+        profile="agent",
+    )
+
+    assert route.routed is False
+    assert route.profile is InferenceProfile.AGENT
+    assert route.model_name == ""
+    assert route.backend_id == "agent-profile-unavailable"
+    assert route.execution_mode == "unavailable"
+    assert route.billing_mode == "unknown"
+    assert route.reasons == ("agent_profile_unavailable",)
+    assert "profile_disallows_backend" in route.rejections
 
 
 def test_local_profile_records_rejection_and_preserves_legacy_model(monkeypatch) -> None:

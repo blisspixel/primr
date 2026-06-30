@@ -60,6 +60,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "HostAgentStagePacket": ("primr.ai.host_agent_runner", "HostAgentStagePacket"),
     "HostAgentUnavailableError": ("primr.ai.host_agent_runner", "HostAgentUnavailableError"),
     "render_host_agent_prompt": ("primr.ai.host_agent_runner", "render_host_agent_prompt"),
+    "CodexCliHostAgentRunner": ("primr.ai.host_agent_cli", "CodexCliHostAgentRunner"),
+    "HostAgentExecutionError": ("primr.ai.host_agent_cli", "HostAgentExecutionError"),
+    "codex_cli_backend": ("primr.ai.host_agent_cli", "codex_cli_backend"),
+    "run_host_agent_stage": ("primr.ai.host_agent_cli", "run_host_agent_stage"),
+    "supported_host_agent_backends": (
+        "primr.ai.host_agent_cli",
+        "supported_host_agent_backends",
+    ),
     # Capability routing
     "BackendCapabilities": ("primr.ai.capability_routing", "BackendCapabilities"),
     "BackendKind": ("primr.ai.capability_routing", "BackendKind"),

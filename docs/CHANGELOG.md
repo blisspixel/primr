@@ -48,6 +48,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The semantic judge model option now accepts a comma-separated local judge
   panel and records agreement-rate plus score-spread metadata without changing
   review-only promotion policy.
+- `--inference agent` now has an experimental Codex CLI host-runner pilot for
+  `fast.source_relevance`: Primr invokes official `codex exec` with a read-only
+  sandbox, no approvals, disabled web search/shell tool config, a JSON-array
+  schema, and body-free route metadata. If no official host runner is
+  available, the explicit agent profile keeps all sources instead of silently
+  falling back to cloud API spend.
 - Agentic QA fallback scoring no longer assigns a default passing accuracy
   score when it has not verified factual accuracy; the compatibility
   `accuracy` dimension now reflects deterministic traceability signals only.
