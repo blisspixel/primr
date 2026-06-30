@@ -103,6 +103,12 @@ from primr.core.cli_init import (
     _validate_key_live as _validate_key_live,
 )
 from primr.core.cli_keys import run_keys
+from primr.core.cli_memory import (
+    handle_company as _handle_company,
+)
+from primr.core.cli_memory import (
+    handle_memory as _handle_memory,
+)
 from primr.core.cli_parser import (
     CLI_EPILOG,
     _determine_command,
@@ -213,6 +219,7 @@ class Command(Enum):
     AI_STRATEGY_ONLY = "ai-strategy-only"
     EVAL = "eval"
     # Agentic architecture commands
+    COMPANY = "company"
     MEMORY = "memory"
     ORCHESTRATE = "orchestrate"
     ROADMAP = "roadmap"
@@ -302,6 +309,10 @@ class CLIConfig:
     banner_explicit: bool = False
     memory_company: str | None = None
     memory_list: bool = False
+    company_profile_track: str | None = None
+    company_profile_url: str | None = None
+    company_profile_show: str | None = None
+    company_profile_list: bool = False
     orchestrate_max_cost: float | None = None
     roadmap_version: str | None = None
     eval_mode: bool = False
@@ -391,6 +402,38 @@ MODE_MAP = {
 }
 
 
+def _rewrite_company_command_args(
+    args: list[str] | None,
+    parser: argparse.ArgumentParser,
+) -> list[str]:
+    """Rewrite leading `company ...` syntax into explicit flags."""
+    raw_args = list(sys.argv[1:] if args is None else args)
+    if not raw_args or raw_args[0].casefold() != "company":
+        return raw_args
+
+    if len(raw_args) == 1:
+        return ["--company-list"]
+
+    action = raw_args[1].casefold()
+    if action == "list":
+        if len(raw_args) != 2:
+            parser.error("Usage: primr company list")
+        return ["--company-list"]
+
+    if action == "track":
+        if len(raw_args) != 4:
+            parser.error('Usage: primr company track "Company Name" https://company.com')
+        return ["--company-track", raw_args[2], "--company-url", raw_args[3]]
+
+    if action == "show":
+        if len(raw_args) != 3:
+            parser.error('Usage: primr company show "Company Name"')
+        return ["--company-show", raw_args[2]]
+
+    parser.error("Unknown company action. Use track, list, or show.")
+    return raw_args
+
+
 def parse_args(args: list[str] | None = None) -> CLIConfig:
     """
     Parse command-line arguments.
@@ -402,7 +445,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         CLIConfig with parsed values
     """
     parser = _create_parser()
-    parsed = parser.parse_args(args)
+    parsed = parser.parse_args(_rewrite_company_command_args(args, parser))
 
     command = _determine_command(parsed)
 
@@ -563,6 +606,10 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         browser_session_mode=getattr(parsed, "browser_session", "isolated"),
         memory_company=getattr(parsed, "memory", None),
         memory_list=getattr(parsed, "memory_list", False),
+        company_profile_track=getattr(parsed, "company_track", None),
+        company_profile_url=getattr(parsed, "company_url", None),
+        company_profile_show=getattr(parsed, "company_show", None),
+        company_profile_list=getattr(parsed, "company_list", False),
         orchestrate_max_cost=getattr(parsed, "max_cost", None),
         roadmap_version=getattr(parsed, "roadmap_version", None),
         eval_mode=getattr(parsed, "eval_mode", False),
@@ -806,6 +853,7 @@ def main(args: list[str] | None = None) -> int:
         Command.EVAL: _handle_eval,
         Command.RESEARCH: _handle_research,
         # Agentic architecture handlers
+        Command.COMPANY: _handle_company,
         Command.MEMORY: _handle_memory,
         Command.ORCHESTRATE: _handle_orchestrate,
         Command.ROADMAP: _handle_roadmap,
@@ -1167,6 +1215,29 @@ def _create_parser() -> argparse.ArgumentParser:
         "--memory-list", action="store_true", help="List all companies with research memory"
     )
     parser.add_argument(
+        "--company-track",
+        type=str,
+        metavar="COMPANY",
+        help="Track a company profile in the local per-user data directory",
+    )
+    parser.add_argument(
+        "--company-url",
+        type=str,
+        metavar="URL",
+        help="Company URL for --company-track",
+    )
+    parser.add_argument(
+        "--company-list",
+        action="store_true",
+        help="List tracked company profiles",
+    )
+    parser.add_argument(
+        "--company-show",
+        type=str,
+        metavar="COMPANY",
+        help="Show a tracked company profile",
+    )
+    parser.add_argument(
         "--orchestrate",
         action="store_true",
         help="Run orchestrated research with subagent coordination (experimental)",
@@ -1202,6 +1273,7 @@ def _create_parser() -> argparse.ArgumentParser:
 _POSITIONAL_COMMANDS: dict[str, Command] = {
     "init": Command.INIT,
     "doctor": Command.DOCTOR,
+    "company": Command.COMPANY,
     "memory": Command.MEMORY,
     "orchestrate": Command.ORCHESTRATE,
     "roadmap": Command.ROADMAP,
@@ -1212,6 +1284,9 @@ _POSITIONAL_COMMANDS: dict[str, Command] = {
 
 # (attr_name, command) - checked with getattr(args, attr, None) for truthiness
 _FLAG_COMMANDS: list[tuple[str, Command]] = [
+    ("company_track", Command.COMPANY),
+    ("company_list", Command.COMPANY),
+    ("company_show", Command.COMPANY),
     ("memory", Command.MEMORY),
     ("memory_list", Command.MEMORY),
     ("orchestrate", Command.ORCHESTRATE),
@@ -1753,82 +1828,6 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
 # =============================================================================
 # AGENTIC ARCHITECTURE HANDLERS
 # =============================================================================
-
-
-def _handle_memory(config: CLIConfig) -> int:
-    """Handle research memory commands."""
-    from primr.agentic.memory import ResearchMemory
-
-    try:
-        memory = ResearchMemory()
-    except Exception as e:
-        console.error(f"Failed to initialize research memory: {e}")
-        return 1
-
-    # List all companies
-    if config.memory_list:
-        console.banner("Research Memory")
-        companies = memory.list_companies()
-        if not companies:
-            console.info("No research memory found.")
-            console.info("Run research to start tracking hypotheses.")
-            return 0
-
-        console.info(f"Found {len(companies)} company/companies with research memory:")
-        console.blank()
-        for company in sorted(companies):
-            hypotheses = memory.get_hypotheses(company)
-            console.ok(f"  {company}: {len(hypotheses)} hypothesis/hypotheses")
-        return 0
-
-    # Show hypotheses for a specific company
-    company = config.memory_company
-    if not company:
-        # Check if company was passed as positional arg (website position when 'memory' is company)
-        if config.website:
-            company = config.website
-        elif config.company_name and config.company_name.lower() != "memory":
-            company = config.company_name
-        else:
-            console.error("Company name required")
-            console.info('Usage: primr memory "Company Name"')
-            console.info('   or: primr --memory "Company Name"')
-            console.info("   or: primr --memory-list")
-            return 1
-
-    console.banner(f"Research Memory: {company}")
-
-    hypotheses = memory.get_hypotheses(company)
-    if not hypotheses:
-        console.info(f"No hypotheses found for {company}")
-        console.info("Run research to generate hypotheses.")
-        return 0
-
-    console.info(f"Found {len(hypotheses)} hypothesis/hypotheses:")
-    console.blank()
-
-    # Group by confidence level
-    by_confidence: dict[str, list] = {}
-    for h in hypotheses:
-        level = h.confidence.value
-        if level not in by_confidence:
-            by_confidence[level] = []
-        by_confidence[level].append(h)
-
-    # Display in order: validated, high, medium, low
-    order = ["validated", "high", "medium", "low"]
-    for level in order:
-        if level in by_confidence:
-            console.step(f"{level.upper()} confidence ({len(by_confidence[level])})")
-            for h in by_confidence[level]:
-                console.info(f"  • {h.statement}")
-                if h.evidence:
-                    console.info(f"    Evidence: {h.evidence[:100]}...")
-                if h.topic:
-                    console.info(f"    Topic: {h.topic}")
-            console.blank()
-
-    return 0
 
 
 def _handle_orchestrate(config: CLIConfig) -> int:

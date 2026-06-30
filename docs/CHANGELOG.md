@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Moved default research memory storage to the per-user data directory
   (`PRIMR_DATA_DIR` override) and reject secret-like memory payloads before
   durable writes.
+- Added local `primr company track`, `company list`, and `company show`
+  commands backed by per-user JSON company profiles with URL/userinfo and
+  secret-like payload rejection.
 
 ## [1.34.41] - 2026-06-30
 

@@ -26,6 +26,32 @@ class TestPositionalArgs:
         assert config.command == Command.INIT
 
 
+class TestCompanyCommand:
+    def test_company_track_rewrite(self):
+        config = parse_args(["company", "track", "Acme Corp", "https://acme.example"])
+        assert config.command == Command.COMPANY
+        assert config.company_profile_track == "Acme Corp"
+        assert config.company_profile_url == "https://acme.example"
+
+    def test_company_list_rewrite(self):
+        config = parse_args(["company", "list"])
+        assert config.command == Command.COMPANY
+        assert config.company_profile_list is True
+
+    def test_company_show_rewrite(self):
+        config = parse_args(["company", "show", "Acme Corp"])
+        assert config.command == Command.COMPANY
+        assert config.company_profile_show == "Acme Corp"
+
+    def test_company_track_flag(self):
+        config = parse_args(
+            ["--company-track", "Acme Corp", "--company-url", "https://acme.example"]
+        )
+        assert config.command == Command.COMPANY
+        assert config.company_profile_track == "Acme Corp"
+        assert config.company_profile_url == "https://acme.example"
+
+
 class TestPlatformExpansion:
     def test_alias_microsoft_becomes_azure(self):
         config = parse_args(["Acme", "https://acme.example", "--platform", "microsoft"])

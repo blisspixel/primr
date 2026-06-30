@@ -443,7 +443,10 @@ Do next after the first three items are stable:
   Foundation shipped: default `ResearchMemory()` now writes to
   `<per-user data dir>/research_memory`, `PRIMR_DATA_DIR` relocates it,
   `doctor` reports the path, and memory writes reject secret-like values before
-  YAML persistence.
+  YAML persistence. Company profile tracking is also started:
+  `primr company track`, `company list`, and `company show` create/read local
+  JSON profiles under `<per-user data dir>/company_profiles` with no network or
+  paid calls.
 - Store run pointers, hypothesis history, source attribution, confidence,
   freshness metadata, retention metadata, and exportable OKF bundles.
 - Ship deletion, retention, and no-secret write rules with layer 1, not after
@@ -453,8 +456,8 @@ Do next after the first three items are stable:
 
 Done when:
 
-- `primr company track`, `company list`, and `company export` work without new
-  services.
+- `primr company export` works without new services and includes confidence
+  tags plus flagged gaps.
 - Clearing a company removes its local profile and claim history.
 - Prior-run material can inform a run only as clearly marked context, never as a
   fresh claim without attribution.

@@ -536,9 +536,10 @@ Each step unblocks the ones after it; items within a step are independent.
    no new deps) → claim store + priming (SQLite + embeddings) → Strategy
    Delta Mode. Layer 3 also depends on the per-user cache (#12, shipped) and
    benefits from step 1 (delta detection needs trustworthy claims). Layer 1
-   storage foundation is now started: default research memory lives in the
-   per-user data directory with `PRIMR_DATA_DIR` relocation, doctor readback,
-   and no-secret write enforcement.
+   foundation is now started: default research memory and company profiles live
+   in the per-user data directory with `PRIMR_DATA_DIR` relocation, doctor
+   readback for memory paths, no-secret write enforcement, and deterministic
+   `primr company track/list/show` profile commands.
 8. **2.0 release** when steps 5-7 all hold their exit criteria together.
 9. **3.0 workstreams** (VLM, compounding, handoff): VLM depends on nothing
    above (can start anytime resources allow); compounding depends on the
@@ -1283,8 +1284,8 @@ Promotion criteria:
 Make research compound across runs by persisting extracted claims, citations, and hypotheses in a searchable store. Currently each run starts fresh. If you research 50 companies in the same industry, each run rediscovers the same industry context. Cross-run memory enables meta-research ("show AI strategy evolution across all fintech targets") and better hypothesis quality for repeat verticals. Three staged layers, build top-down:
 
 **Layer 1 - Persistent company tracking (entry point):**
-- `primr company track <name> <url>` - creates persistent profile folder with versioned reports, hypothesis deltas, and freshness score
-- `primr company list` - shows tracked companies with last-run date and staleness indicator
+- `primr company track <name> <url>` - creates persistent local profile folder; shipped foundation stores URL, freshness status, retention classification, and empty run-pointer list under the per-user data directory
+- `primr company list` / `primr company show <name>` - show tracked company profiles; shipped foundation reports unrun freshness until run-history wiring lands
 - `primr improve --track` - auto-runs improvement pass on stale profiles (configurable staleness threshold)
 - Profile folder stores run history, confidence evolution, and gaps flagged across runs
 - `primr company export <name>` - structured MD/JSON bundle with confidence tags and flagged gaps

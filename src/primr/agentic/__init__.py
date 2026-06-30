@@ -23,6 +23,10 @@ Example:
     result = await orchestrator.research("Acme Corp", "https://acme.com")
 """
 
+from primr.agentic.company_profiles import (
+    CompanyProfile,
+    CompanyProfileStore,
+)
 from primr.agentic.errors import (
     AgenticError,
     HookError,
@@ -96,6 +100,8 @@ __all__ = [
     "CircuitBreakerIntegration",
     # Memory
     "CompanyMemory",
+    "CompanyProfile",
+    "CompanyProfileStore",
     # Models
     "ConfidenceLevel",
     # Hooks

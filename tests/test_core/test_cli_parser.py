@@ -124,6 +124,9 @@ class TestDetermineCommand:
             "batch": None,
             "enrich": False,
             "qa_recent": None,
+            "company_track": None,
+            "company_list": False,
+            "company_show": None,
             "memory": False,
             "memory_list": False,
             "orchestrate": False,
@@ -156,6 +159,18 @@ class TestDetermineCommand:
     def test_positional_init_routes_to_init(self):
         ns = self._ns(company="init")
         assert _determine_command(ns) == Command.INIT
+
+    def test_positional_company_routes_to_company(self):
+        ns = self._ns(company="company")
+        assert _determine_command(ns) == Command.COMPANY
+
+    def test_flag_command_company_list(self):
+        ns = self._ns(company_list=True)
+        assert _determine_command(ns) == Command.COMPANY
+
+    def test_flag_command_company_track(self):
+        ns = self._ns(company_track="Acme Corp")
+        assert _determine_command(ns) == Command.COMPANY
 
     def test_positional_case_insensitive(self):
         ns = self._ns(company="Doctor")

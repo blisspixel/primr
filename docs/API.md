@@ -2608,6 +2608,27 @@ Standard error codes returned by tools:
 
 Primr v1.7.0 introduces an agentic architecture that enables AI agents to drive research workflows with persistent memory, hypothesis tracking, and governance hooks.
 
+### Tracked Company Profiles
+
+Track local company profiles in the per-user data directory. Profiles are JSON
+metadata under `<per-user data dir>/company_profiles`, relocated by
+`PRIMR_DATA_DIR`, and currently store URL, freshness status, run pointers, and
+retention classification without introducing a database.
+
+```bash
+primr company track "Acme Corp" https://acme.example
+primr company list
+primr company show "Acme Corp"
+```
+
+```python
+from primr.agentic import CompanyProfileStore
+
+store = CompanyProfileStore()
+profile = store.track("Acme Corp", "https://acme.example")
+print(profile.freshness_status)
+```
+
 ### Research Memory
 
 Track hypotheses across research sessions with confidence levels.
