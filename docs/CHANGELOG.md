@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   availability rows onto Google-owned model configs.
 - Routed fast utility stages now append measured token/cache/cost deltas to
   body-free `stage_routes` records when provider counters expose them.
+- Stage route comparison helpers now aggregate body-free run-state route
+  records into JSON/Markdown summaries by stage, backend, and profile.
 - Source distributions now explicitly prune `.agent/` while retaining the
   legacy `docs/.agent/` prune rule.
 - Local `_site/` documentation build output is now gitignored.

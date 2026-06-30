@@ -262,7 +262,8 @@ Do next:
   accept injected quota snapshots, and records body-free availability metadata
   without adding live quota collection or local probes to normal runs. Route
   records now also include measured token/cache/cost deltas when provider usage
-  counters expose them.
+  counters expose them. Body-free stage route comparison helpers now aggregate
+  those records into JSON/Markdown artifacts by stage/backend/profile.
 - Promote one host/local candidate only after stage-scoped evals prove quality,
   cost, latency, and failure behavior.
 - Promote one stage at a time. A provider path is supported only when report
@@ -280,6 +281,8 @@ Done when:
   and appends measured stage-scoped token/cache/cost deltas when counters are
   available.
 - Provider comparison artifacts exist for every promoted stage.
+  The route-metadata comparison artifact exists; quality comparison artifacts
+  still need the stage-scoped eval layer before any promotion.
 - No hidden provider dependency remains in the full-report path for the wired
   stage.
 
