@@ -43,6 +43,10 @@ from primr.mcp_server.stage_scorecard_summary import (
     STAGE_SCORECARD_SUMMARY_URI,
     read_stage_scorecard_summary_resource,
 )
+from primr.mcp_server.trace_summary import (
+    TRACE_SUMMARY_BY_JOB_URI,
+    read_trace_summary_by_job_resource,
+)
 
 if TYPE_CHECKING:
     from a2a.server.events import EventQueue
@@ -103,6 +107,7 @@ class PrimrAgentExecutor(AgentExecutor):
         - read_qa_summary_by_job -> synchronous compact job QA summary
         - read_usage_summary_by_job -> synchronous compact job usage summary
         - read_source_summary_by_job -> synchronous compact job source summary
+        - read_trace_summary_by_job -> synchronous compact job scrape trace summary
         - read_stage_scorecard -> synchronous compact eval scorecard summary
         - system_health     -> synchronous doctor check
     """
@@ -151,6 +156,8 @@ class PrimrAgentExecutor(AgentExecutor):
                 audit_payload = await self._handle_usage_summary(text, event_queue)
             elif skill_id == "read_source_summary_by_job":
                 audit_payload = await self._handle_source_summary(text, event_queue)
+            elif skill_id == "read_trace_summary_by_job":
+                audit_payload = await self._handle_trace_summary(text, event_queue)
             elif skill_id == "read_stage_scorecard":
                 audit_payload = await self._handle_stage_scorecard_summary(text, event_queue)
             elif skill_id == "system_health":
@@ -655,6 +662,21 @@ class PrimrAgentExecutor(AgentExecutor):
             success_status="source_summary_read",
         )
 
+    async def _handle_trace_summary(
+        self,
+        text: str,
+        event_queue: EventQueue,
+    ) -> dict[str, Any]:
+        """Handle read_trace_summary_by_job skill - synchronous compact job read."""
+        return await self._handle_job_resource_summary(
+            text,
+            event_queue,
+            resource_uri=TRACE_SUMMARY_BY_JOB_URI,
+            reader=read_trace_summary_by_job_resource,
+            missing_message="Please provide a job_id for the trace summary.",
+            success_status="trace_summary_read",
+        )
+
     async def _handle_job_resource_summary(
         self,
         text: str,
@@ -728,7 +750,8 @@ class PrimrAgentExecutor(AgentExecutor):
         available = (
             "estimate_research, research_company, check_jobs, run_qa, "
             "read_artifacts_by_job, read_qa_summary_by_job, read_usage_summary_by_job, "
-            "read_source_summary_by_job, read_stage_scorecard, system_health"
+            "read_source_summary_by_job, read_trace_summary_by_job, "
+            "read_stage_scorecard, system_health"
         )
         await event_queue.enqueue_event(
             new_agent_text_message(f"Unknown skill '{skill_id}'. Available skills: {available}")

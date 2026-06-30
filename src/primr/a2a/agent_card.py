@@ -169,6 +169,25 @@ _SKILLS: list[dict] = [
         ],
     },
     {
+        "id": "read_trace_summary_by_job",
+        "name": "Read Trace Summary by Job",
+        "description": (
+            "Read compact scrape trace metadata for one owned research job. "
+            "Returns tier attempts, success rates, latency summaries, block "
+            "counts, HTTP status counts, and validation health without URLs, "
+            "final URLs, raw trace entries, page content, or report body "
+            "content.\n\n"
+            'Input (JSON or text): {"job_id": "job-20260630-abc123"}\n\n'
+            "Output: JSON with job_id, status, company_name, summary_count, "
+            "full_content_included=false, and compact trace summary rows"
+        ),
+        "tags": ["trace", "read", "jobs", "scraping"],
+        "examples": [
+            "Read trace summary for job-20260630-abc123",
+            '{"job_id": "job-20260630-abc123"}',
+        ],
+    },
+    {
         "id": "read_stage_scorecard",
         "name": "Read Stage Scorecard Summary",
         "description": (

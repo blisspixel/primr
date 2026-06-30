@@ -22,6 +22,7 @@ A2A_READ_SKILLS = frozenset(
         "read_qa_summary_by_job",
         "read_usage_summary_by_job",
         "read_source_summary_by_job",
+        "read_trace_summary_by_job",
         "read_stage_scorecard",
     }
 )

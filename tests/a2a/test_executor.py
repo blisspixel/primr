@@ -157,6 +157,15 @@ class TestParseJobId:
             == "job-2026-06"
         )
 
+    def test_trace_summary_resource_uri(self):
+        assert (
+            _parse_job_id(
+                "primr://output/trace_summary/by_job/job-2026-06",
+                uri_prefix="primr://output/trace_summary/by_job",
+            )
+            == "job-2026-06"
+        )
+
     def test_plain_text_job_id(self):
         assert _parse_job_id(" job-2026-06 ") == "job-2026-06"
 
@@ -937,6 +946,167 @@ class TestPrimrAgentExecutor:
         assert "Other_Report.md" not in text
         assert "https://other.example" not in text
         assert "OTHER CLIENT REPORT BODY" not in text
+
+    def _write_trace(self, path) -> None:
+        header = {
+            "schema_version": "1.1",
+            "run_id": "trace-run-1",
+            "company": "Acme_Corp",
+            "started_at": "2026-06-28T21:00:00",
+        }
+        base_entry = {
+            "run_id": "trace-run-1",
+            "url": "https://secret.example/page",
+            "timestamp": "2026-06-28T21:00:01",
+            "tier_attempts": [],
+            "success_tier": None,
+            "blocked": False,
+            "block_type": None,
+            "blocked_reason": None,
+            "http_status": None,
+            "content_type": None,
+            "final_url": "https://secret.example/final",
+            "elapsed_total_ms": 0.0,
+            "extracted_text_length": None,
+            "validation_result": None,
+            "access_assessment": None,
+        }
+        entries = [
+            {
+                **base_entry,
+                "tier_attempts": [
+                    {"tier": "requests", "success": False, "elapsed_ms": 100.0},
+                    {"tier": "playwright", "success": True, "elapsed_ms": 500.0},
+                ],
+                "success_tier": "playwright",
+                "http_status": 200,
+                "extracted_text_length": 1200,
+                "validation_result": {"valid": True},
+            },
+            {
+                **base_entry,
+                "tier_attempts": [
+                    {"tier": "requests", "success": False, "elapsed_ms": 250.0},
+                ],
+                "blocked": True,
+                "block_type": "hard_block",
+                "http_status": 403,
+                "extracted_text_length": 100,
+                "validation_result": {"valid": False},
+            },
+        ]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "\n".join(json.dumps(row) for row in [header, *entries]) + "\n",
+            encoding="utf-8",
+        )
+
+    @pytest.mark.asyncio
+    async def test_trace_summary_returns_owned_compact_a2a_payload(
+        self, executor, event_queue, context, tmp_path
+    ):
+        """read_trace_summary_by_job returns compact scrape telemetry only."""
+        trace_path = tmp_path / "logs" / "scrape_traces" / "Acme_Corp_20260628.jsonl"
+        self._write_trace(trace_path)
+        job = executor._mcp.job_store.create(
+            company_name="Acme",
+            mode="full",
+            owner_client_id="client-1",
+        )
+        job.output_paths = [str(trace_path)]
+
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["read"]
+        auth_context.client_id = "client-1"
+        executor._mcp._auth_context = auth_context
+        context.message = {
+            "parts": [{"kind": "text", "text": json.dumps({"job_id": job.job_id})}],
+            "metadata": {"skillId": "read_trace_summary_by_job"},
+        }
+
+        try:
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        text = json.dumps(data)
+        assert data["job_id"] == job.job_id
+        assert data["company_name"] == "Acme"
+        assert data["summary_count"] == 1
+        assert data["full_content_included"] is False
+        summary = data["summaries"][0]
+        assert summary["artifact_type"] == "scrape_trace"
+        assert summary["parsed"] is True
+        assert summary["trace_schema_version"] == "1.1"
+        assert summary["raw_entries_included"] is False
+        assert summary["urls_included"] is False
+        assert summary["entry_count"] == 2
+        assert summary["success_count"] == 1
+        assert summary["failure_count"] == 1
+        assert summary["success_rate"] == 0.5
+        assert summary["blocked_count"] == 1
+        assert summary["block_type_counts"] == [{"count": 1, "value": "hard_block"}]
+        assert summary["http_status_counts"] == [
+            {"count": 1, "value": "200"},
+            {"count": 1, "value": "403"},
+        ]
+        assert summary["validated_page_count"] == 2
+        assert summary["valid_page_count"] == 1
+        assert summary["content_valid_rate"] == 0.5
+        by_tier = {tier["tier"]: tier for tier in summary["tier_summaries"]}
+        assert by_tier["requests"]["attempts"] == 2
+        assert by_tier["requests"]["successes"] == 0
+        assert by_tier["playwright"]["success_rate"] == 1.0
+        assert by_tier["playwright"]["p95_latency_ms"] == 500.0
+        assert "https://secret.example" not in text
+        assert "secret.example" not in text
+
+        audit_event = _audit_events(executor)[0]
+        assert audit_event["tool_name"] == "a2a/read_trace_summary_by_job"
+        assert audit_event["status"] == "success"
+        assert audit_event["auth_scopes"] == ["read"]
+        assert audit_event["job_id"] == job.job_id
+
+    @pytest.mark.asyncio
+    async def test_trace_summary_hides_other_client_job(
+        self, executor, event_queue, context, tmp_path
+    ):
+        """read_trace_summary_by_job reuses the MCP ownership gate for A2A callers."""
+        trace_path = tmp_path / "logs" / "scrape_traces" / "Other_Corp_20260628.jsonl"
+        self._write_trace(trace_path)
+        job = executor._mcp.job_store.create(
+            company_name="Other Corp",
+            mode="full",
+            owner_client_id="client-2",
+        )
+        job.output_paths = [str(trace_path)]
+
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["read"]
+        auth_context.client_id = "client-1"
+        executor._mcp._auth_context = auth_context
+        context.message = {
+            "parts": [{"kind": "text", "text": json.dumps({"job_id": job.job_id})}],
+            "metadata": {"skillId": "read_trace_summary_by_job"},
+        }
+
+        try:
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        text = json.dumps(data)
+        assert data["error"] == "job_not_found"
+        assert data["job_id"] == job.job_id
+        assert "Other Corp" not in text
+        assert "Other_Corp_20260628.jsonl" not in text
+        assert "secret.example" not in text
 
     @pytest.mark.asyncio
     async def test_stage_scorecard_summary_returns_compact_a2a_payload(
