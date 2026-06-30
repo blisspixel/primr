@@ -1,6 +1,6 @@
 # Next Steps
 
-Last research refresh: 2026-06-29.
+Last research refresh: 2026-06-30.
 
 This page answers the working question: what should Primr do next, and why?
 `ROADMAP.md` remains the ordered backlog. This page is the shorter execution
@@ -27,7 +27,8 @@ for Primr's shape:
   support matures; the current implementation extends the repo's existing
   URI-pattern resource listing for compatibility while preserving the same
   body-free and ownership-gated contract for artifacts, QA, usage, source
-  appendix, and scrape trace metadata.
+  appendix, and scrape trace metadata. Eval-id reads should avoid arbitrary
+  file paths and expose only compact application summaries.
 - For HTTP MCP auth, keep Primr as the protected resource server and enforce
   internal scopes per operation. The latest MCP revision adds incremental
   scope-consent semantics through `WWW-Authenticate`, which fits the existing
@@ -126,7 +127,8 @@ Newer guidance has six practical implications for Primr:
   inventory, QA summary, usage/cost metadata, source appendix metadata, and
   scrape trace metadata, and claim verification metadata without report body
   content, raw trace logs, raw claims, source URLs, search queries, or
-  explanations.
+  explanations. Stage eval scorecard readback also stays compact and eval-id
+  scoped rather than accepting raw filesystem paths.
 - GenAI observability should use structured spans, metrics, and events for
   model calls, tool calls, token and cost use, route choices, request ids, job
   ids, outcomes, and errors. Full prompt and report body capture should remain
@@ -267,7 +269,10 @@ Do next:
   eval scorecards now join those route rows with explicit quality evidence and
   classify candidates for human review without auto-promotion. The scorecard
   artifact flow is available through
-  `primr --eval --eval-stage-scorecard --eval-stage-quality <quality.json>`.
+  `primr --eval --eval-stage-scorecard --eval-stage-quality <quality.json>`,
+  and MCP clients can inspect those artifacts through
+  `primr://eval/stage_scorecard/{eval_id}` without receiving prompt, report,
+  quality-source, or raw run-state content.
 - Promote one host/local candidate only after stage-scoped evals prove quality,
   cost, latency, and failure behavior.
 - Promote one stage at a time. A provider path is supported only when report
@@ -326,6 +331,11 @@ Do next:
   and rationales. Resource reads are now audited with normalized resource kind,
   hashed URI, hashed result body, job id when present, granted scopes,
   duration, and outcome, without raw URI query values or resource bodies.
+- Non-job eval readback is also available for routed-stage scorecards:
+  `primr://eval/stage_scorecard/{eval_id}` reads
+  `output/evals/{eval_id}/stage_eval_scorecard.json` through a simple eval-id
+  segment, returning status, blocker, route, cost, quality-score, and compact
+  row fields without arbitrary path access or raw evidence bodies.
 - Define the scope matrix before implementation: monitor can read status and
   compact summaries; artifact read can read compact resources; report read can
   request full report content; research can estimate; execution still requires

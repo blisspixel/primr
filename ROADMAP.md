@@ -88,7 +88,10 @@ Current priority order:
    probing local services during normal runs. All three routes record body-free
    usage metadata in `_run_state.json`, including measured token/cache/cost
    deltas when provider counters expose them; the next architecture unlock is
-   promoting host/local candidates with stage-scoped eval data.
+   promoting host/local candidates with stage-scoped eval data. Stage scorecard
+   artifacts are now available through the eval CLI and compact MCP readback at
+   `primr://eval/stage_scorecard/{eval_id}` without exposing prompt, report,
+   quality-source, or raw run-state content.
 3. **Agent control-plane consumption resources and A2A parity.** MCP already has
    scopes, approval tokens, tool/resource-read audit events, and budget
    propagation. A2A now shares the HTTP bearer-token auth context and enforces
@@ -111,7 +114,11 @@ Current priority order:
    returns report body content; trace
    summaries omit raw trace entries, verification summaries omit raw claims,
    source URLs, search queries, and explanations, and calibration summaries
-   omit raw claims, source URLs, evidence reviews, and rationales. MCP resource
+   omit raw claims, source URLs, evidence reviews, and rationales. MCP also
+   exposes compact eval-id readback for stage scorecards at
+   `primr://eval/stage_scorecard/{eval_id}`, without arbitrary file paths,
+   prompt bodies, report bodies, quality-source bodies, or raw run-state
+   content. MCP resource
    reads now append privacy-preserving audit events with hashed URI/result
    values, normalized resource kind, job id when present, caller scope, and
    outcome without storing raw URI query values or resource bodies. A2A skill
@@ -799,6 +806,7 @@ Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The firs
 - Runtime bridge shipped in `ai/stage_routing.py`: `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` resolve their legacy utility models through `route_stage()`, log safe route metadata, append capped body-free `stage_routes` records to `_run_state.json`, include measured token/cache/cost deltas when provider counters expose them, and execute through the existing utility provider seams with today's role defaults preserved as fallback
 - Stage route comparison artifacts shipped in `core/stage_route_comparison.py`: run-state route records can be aggregated by stage/backend/profile into body-free JSON and Markdown summaries with attempts, selected/fallback/failure counts, latency, and measured token/cache/cost deltas
 - Stage eval scorecards shipped in `core/stage_eval_scorecard.py` with CLI artifact flow behind `primr --eval --eval-stage-scorecard`: explicit quality evidence can now be joined with route comparison rows to classify candidates as human-review-ready, needing quality eval, below quality bar, or needing reliability review without auto-promotion
+- Stage scorecard MCP readback shipped in `mcp_server/stage_scorecard_summary.py`: `primr://eval/stage_scorecard/{eval_id}` returns compact route, quality-score, status, and blocker fields from the eval artifact without arbitrary path reads, prompt bodies, report bodies, quality-source bodies, or raw run-state content
 - Router selection must continue to be wired into execution and cost estimation stage by stage, keeping today's role defaults as fallback until eval data promotes a requirement profile
 - Integrates with the circuit breaker - unhealthy models are skipped automatically
 - Official cloud quota/status collectors must translate supported provider surfaces into the availability shape, then feed the existing availability-to-backend adapter before routing

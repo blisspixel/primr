@@ -59,6 +59,11 @@ from primr.mcp_server.source_summary import (
     SOURCE_SUMMARY_BY_JOB_URI,
     read_source_summary_by_job_resource,
 )
+from primr.mcp_server.stage_scorecard_summary import (
+    STAGE_SCORECARD_SUMMARY_RESOURCE,
+    STAGE_SCORECARD_SUMMARY_URI,
+    read_stage_scorecard_summary_resource,
+)
 from primr.mcp_server.trace_summary import (
     TRACE_SUMMARY_BY_JOB_RESOURCE,
     TRACE_SUMMARY_BY_JOB_URI,
@@ -158,6 +163,7 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
             TRACE_SUMMARY_BY_JOB_RESOURCE,
             VERIFICATION_SUMMARY_BY_JOB_RESOURCE,
             CALIBRATION_SUMMARY_BY_JOB_RESOURCE,
+            STAGE_SCORECARD_SUMMARY_RESOURCE,
             Resource(
                 uri="primr://config",
                 name="Configuration",
@@ -231,6 +237,8 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
         ):
             if uri_str.startswith(f"{resource_uri}/"):
                 return reader(mcp_server, uri_str, client_id=caller_client_id(mcp_server))
+        if uri_str.startswith(f"{STAGE_SCORECARD_SUMMARY_URI}/"):
+            return read_stage_scorecard_summary_resource(uri_str)
         if uri_str == "primr://output/artifacts" or uri_str.startswith("primr://output/artifacts"):
             return _read_artifacts(mcp_server)
         elif uri_str == "primr://config" or uri_str.startswith("primr://config"):

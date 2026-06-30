@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `primr --eval --eval-stage-scorecard` now writes routed-stage scorecard
   JSON/Markdown artifacts from `_run_state.json` route ledgers plus explicit
   quality evidence JSON.
+- MCP now exposes `primr://eval/stage_scorecard/{eval_id}` as a compact
+  readback resource for CLI-generated stage scorecards, omitting prompts,
+  responses, quality-source bodies, report bodies, and raw run-state content.
 - Source distributions now explicitly prune `.agent/` while retaining the
   legacy `docs/.agent/` prune rule.
 - Local `_site/` documentation build output is now gitignored.

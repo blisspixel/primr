@@ -51,6 +51,7 @@ class TestResourceListing:
         assert "primr://output/trace_summary/by_job/%7Bjob_id%7D" in uris
         assert "primr://output/verification_summary/by_job/%7Bjob_id%7D" in uris
         assert "primr://output/calibration_summary/by_job/%7Bjob_id%7D" in uris
+        assert "primr://eval/stage_scorecard/%7Beval_id%7D" in uris
         assert "primr://calibration/baseline/inspection?path={baseline_path}" in uris
         assert "primr://config" in uris
 
