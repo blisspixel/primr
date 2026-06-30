@@ -3,10 +3,8 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import asdict, dataclass
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from pathlib import Path
+from pathlib import Path
+from typing import Any
 
 from primr.ai.summarize import summarize_scraped_content_local
 from primr.core.model_eval import _company_similarity
@@ -44,6 +42,28 @@ class WebsiteSummaryEvalRow:
     open_questions_ratio: float
     word_ratio: float
     completeness_score: float
+
+
+@dataclass(frozen=True)
+class WebsiteSummarySemanticEvalRow:
+    company: str
+    model: str
+    judge_model: str
+    working_dir: str
+    semantic_score: float
+    aspects: dict[str, float]
+    rationale: str
+    response_valid: bool
+    input_tokens: int
+    output_tokens: int
+
+
+_SEMANTIC_ASPECT_WEIGHTS = {
+    "strategic_coverage": 0.25,
+    "factual_alignment": 0.35,
+    "evidence_usefulness": 0.25,
+    "uncertainty_calibration": 0.15,
+}
 
 
 def _display_company_name(raw: str) -> str:
@@ -114,6 +134,124 @@ def _website_summary_completeness_score(
         + (synthesis_score * 0.20),
         2,
     )
+
+
+def _clamp_score(value: Any, fallback: float) -> float:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        numeric = fallback
+    return round(max(0.0, min(100.0, numeric)), 2)
+
+
+def _optional_score(value: Any) -> float | None:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    return round(max(0.0, min(100.0, numeric)), 2)
+
+
+def _extract_json_object(text: str) -> dict[str, Any] | None:
+    raw = text.strip()
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start < 0 or end <= start:
+        return None
+    try:
+        payload = json.loads(raw[start : end + 1])
+    except json.JSONDecodeError:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def build_website_summary_semantic_judge_prompt(
+    *,
+    company: str,
+    baseline_summary: str,
+    candidate_summary: str,
+) -> str:
+    """Build a local judge prompt for website-summary semantic quality."""
+
+    return f"""Evaluate a candidate website-summary stage output against the current baseline for {company}.
+
+Return only a compact JSON object with this shape:
+{{
+  "aspects": {{
+    "strategic_coverage": 0-100,
+    "factual_alignment": 0-100,
+    "evidence_usefulness": 0-100,
+    "uncertainty_calibration": 0-100
+  }},
+  "semantic_score": 0-100,
+  "rationale": "one concise sentence"
+}}
+
+Scoring guidance:
+- strategic_coverage: captures the company, offering, customer, partner, hiring, risk, and open-question signals that matter for downstream strategic analysis.
+- factual_alignment: stays grounded in the provided website evidence and does not invent unsupported claims.
+- evidence_usefulness: preserves source-linked facts and decision-useful distinctions rather than generic prose.
+- uncertainty_calibration: flags gaps and unknowns honestly without overclaiming.
+
+Baseline summary:
+```text
+{baseline_summary}
+```
+
+Candidate summary:
+```text
+{candidate_summary}
+```
+"""
+
+
+def parse_website_summary_semantic_judge_response(
+    text: str,
+    *,
+    fallback_score: float,
+) -> tuple[float, dict[str, float], str, bool]:
+    """Parse a semantic judge response without treating malformed output as truth."""
+
+    fallback = _clamp_score(fallback_score, 0.0)
+    fallback_aspects = dict.fromkeys(_SEMANTIC_ASPECT_WEIGHTS, fallback)
+    payload = _extract_json_object(text)
+    if payload is None:
+        return (
+            fallback,
+            fallback_aspects,
+            "Malformed semantic judge response; fell back to structural completeness score.",
+            False,
+        )
+
+    raw_aspects = payload.get("aspects")
+    aspects_obj = raw_aspects if isinstance(raw_aspects, dict) else {}
+    aspects: dict[str, float] = {}
+    parsed_aspect_count = 0
+    for key in _SEMANTIC_ASPECT_WEIGHTS:
+        score = _optional_score(aspects_obj.get(key))
+        if score is not None:
+            parsed_aspect_count += 1
+            aspects[key] = score
+        else:
+            aspects[key] = fallback
+
+    explicit_score = _optional_score(payload.get("semantic_score", payload.get("score")))
+    if parsed_aspect_count == 0 and explicit_score is None:
+        return (
+            fallback,
+            fallback_aspects,
+            "Semantic judge JSON omitted numeric scores; fell back to structural completeness score.",
+            False,
+        )
+    weighted_score = round(
+        sum(aspects[key] * weight for key, weight in _SEMANTIC_ASPECT_WEIGHTS.items()),
+        2,
+    )
+    semantic_score = explicit_score if explicit_score is not None else weighted_score
+    rationale = str(payload.get("rationale", "")).strip()
+    if not rationale:
+        rationale = "Semantic judge returned scores without rationale."
+    return semantic_score, aspects, rationale[:600], True
 
 
 def find_latest_website_summary_eval_inputs(
@@ -248,6 +386,59 @@ def run_local_website_summary_stage_eval(
     return rows
 
 
+def run_local_website_summary_semantic_eval(
+    *,
+    rows: list[WebsiteSummaryEvalRow],
+    judge_model: str,
+    base_url: str | None = None,
+    api_key_env: str = "LOCAL_LLM_API_KEY",
+    max_rows: int | None = None,
+) -> list[WebsiteSummarySemanticEvalRow]:
+    """Judge website-summary stage outputs semantically with a local model."""
+
+    from primr.ai.openai_compatible_client import chat_completion
+
+    semantic_rows: list[WebsiteSummarySemanticEvalRow] = []
+    selected_rows = rows[: max(0, max_rows)] if max_rows is not None else rows
+    for row in selected_rows:
+        baseline_summary = Path(row.baseline_summary_path).read_text(encoding="utf-8")
+        candidate_summary = Path(row.local_summary_path).read_text(encoding="utf-8")
+        prompt = build_website_summary_semantic_judge_prompt(
+            company=row.company,
+            baseline_summary=baseline_summary,
+            candidate_summary=candidate_summary,
+        )
+        result = chat_completion(
+            prompt,
+            model=judge_model,
+            base_url=base_url,
+            api_key_env=api_key_env,
+            temperature=0.1,
+            max_tokens=700,
+        )
+        semantic_score, aspects, rationale, response_valid = (
+            parse_website_summary_semantic_judge_response(
+                result.text,
+                fallback_score=row.completeness_score,
+            )
+        )
+        semantic_rows.append(
+            WebsiteSummarySemanticEvalRow(
+                company=row.company,
+                model=row.model,
+                judge_model=judge_model,
+                working_dir=row.working_dir,
+                semantic_score=semantic_score,
+                aspects=aspects,
+                rationale=rationale,
+                response_valid=response_valid,
+                input_tokens=result.prompt_tokens,
+                output_tokens=result.completion_tokens,
+            )
+        )
+    return semantic_rows
+
+
 def write_website_summary_stage_eval_report(
     path: Path,
     *,
@@ -322,6 +513,110 @@ def write_website_summary_stage_eval_summary(
         "models_evaluated": len(results),
         "recommended_models": [row["model"] for row in ranked[:3]],
         "results": ranked,
+    }
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def write_website_summary_semantic_eval_report(
+    path: Path,
+    *,
+    eval_id: str,
+    judge_model: str,
+    results: list[tuple[str, list[WebsiteSummarySemanticEvalRow]]],
+    base_url: str | None,
+    api_key_env: str,
+) -> None:
+    """Write body-free semantic judge rows for website-summary stage evals."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    all_rows = [row for _, rows in results for row in rows]
+    valid_rows = [row for row in all_rows if row.response_valid]
+    avg_score = (
+        round(sum(row.semantic_score for row in all_rows) / max(1, len(all_rows)), 2)
+        if all_rows
+        else 0.0
+    )
+    payload = {
+        "schema_version": 1,
+        "eval_id": eval_id,
+        "stage": "website-summary",
+        "evidence_type": "website_summary_semantic_eval",
+        "decision_policy": "scorecard_input_only",
+        "judge_policy": "single_local_judge_review_signal_not_promotion_gate",
+        "judge_model": judge_model,
+        "base_url": base_url,
+        "api_key_env": api_key_env,
+        "rows_evaluated": len(all_rows),
+        "valid_response_rows": len(valid_rows),
+        "avg_semantic_score": avg_score,
+        "results": [
+            {
+                "model": model,
+                "rows": [asdict(row) for row in rows],
+            }
+            for model, rows in results
+        ],
+    }
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def build_website_summary_semantic_quality_evidence(
+    *,
+    eval_id: str,
+    results: list[tuple[str, list[WebsiteSummarySemanticEvalRow]]],
+    stage_id: str = "fast.scrape_summary",
+) -> list[StageQualityEvidence]:
+    """Build scorecard-ready quality evidence from semantic judge rows."""
+
+    evidence: list[StageQualityEvidence] = []
+    for model, rows in results:
+        valid_rows = [row for row in rows if row.response_valid]
+        if not valid_rows:
+            continue
+        quality_score = round(
+            sum(row.semantic_score for row in valid_rows) / max(1, len(valid_rows)),
+            2,
+        )
+        judge_models = ",".join(sorted({row.judge_model for row in rows}))
+        invalid_rows = len(rows) - len(valid_rows)
+        source = f"website_summary_semantic:{eval_id}:{model}:judge={judge_models}"
+        if invalid_rows:
+            source += f":fallback_rows={invalid_rows}"
+        evidence.append(
+            StageQualityEvidence(
+                stage_id=stage_id,
+                backend_id=model,
+                quality_score=quality_score,
+                sample_size=len(valid_rows),
+                source=source,
+            )
+        )
+    return sorted(evidence, key=lambda row: (row.stage_id, row.backend_id))
+
+
+def write_website_summary_semantic_quality_evidence(
+    path: Path,
+    *,
+    eval_id: str,
+    results: list[tuple[str, list[WebsiteSummarySemanticEvalRow]]],
+    stage_id: str = "fast.scrape_summary",
+) -> None:
+    """Write semantic quality evidence for routed-stage scorecards."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    evidence = build_website_summary_semantic_quality_evidence(
+        eval_id=eval_id,
+        results=results,
+        stage_id=stage_id,
+    )
+    payload = {
+        "schema_version": 1,
+        "evidence_type": "website_summary_semantic_quality",
+        "decision_policy": "scorecard_input_only",
+        "judge_policy": "single_local_judge_review_signal_not_promotion_gate",
+        "eval_id": eval_id,
+        "stage_id": stage_id,
+        "quality_evidence": [asdict(row) for row in evidence],
     }
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 

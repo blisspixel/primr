@@ -329,6 +329,8 @@ class CLIConfig:
     eval_judge_passes: int = 1
     eval_judge_max_cost: float = 0.0
     eval_local_stage: str | None = None
+    eval_stage_semantic_judge: bool = False
+    eval_stage_semantic_judge_model: str | None = None
     eval_working_root: str = "working"
     eval_stage_scorecard: bool = False
     eval_stage_quality: str | None = None
@@ -589,6 +591,8 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         eval_judge_passes=getattr(parsed, "eval_judge_passes", 1),
         eval_judge_max_cost=getattr(parsed, "eval_judge_max_cost", 0.0),
         eval_local_stage=getattr(parsed, "eval_local_stage", None),
+        eval_stage_semantic_judge=getattr(parsed, "eval_stage_semantic_judge", False),
+        eval_stage_semantic_judge_model=getattr(parsed, "eval_stage_semantic_judge_model", None),
         eval_working_root=getattr(parsed, "eval_working_root", "working"),
         eval_stage_scorecard=getattr(parsed, "eval_stage_scorecard", False),
         eval_stage_quality=getattr(parsed, "eval_stage_quality", None),
@@ -2421,16 +2425,10 @@ def _handle_eval(config: CLIConfig) -> int:
         judge_models, missing_models = _resolve_local_judge_models(config)
         local_stage_exit_code, generated_stage_quality_path = (
             handle_website_summary_local_stage_eval(
-                eval_id=config.eval_id,
-                eval_root=config.eval_root,
-                eval_working_root=config.eval_working_root,
-                eval_company=config.eval_company,
+                config=config,
                 eval_metrics=eval_result.metrics,
                 judge_models=judge_models,
                 missing_models=missing_models,
-                eval_judge_model_list=config.eval_judge_model_list,
-                eval_judge_base_url=config.eval_judge_base_url,
-                eval_judge_api_key_env=config.eval_judge_api_key_env,
                 console=console,
             )
         )

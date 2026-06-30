@@ -161,6 +161,25 @@ def add_eval_arguments(parser: argparse.ArgumentParser) -> None:
         help="Run a local generation eval for a production-adjacent stage",
     )
     parser.add_argument(
+        "--eval-local-stage-semantic-judge",
+        action="store_true",
+        dest="eval_stage_semantic_judge",
+        help=(
+            "For --eval-local-stage website-summary, run a local semantic judge pass "
+            "and use its body-free quality evidence for same-command scorecards"
+        ),
+    )
+    parser.add_argument(
+        "--eval-local-stage-semantic-judge-model",
+        type=str,
+        default=None,
+        dest="eval_stage_semantic_judge_model",
+        help=(
+            "Local/OpenAI-compatible model for --eval-local-stage-semantic-judge "
+            "(default: first resolved local stage model)"
+        ),
+    )
+    parser.add_argument(
         "--eval-working-root",
         type=str,
         default="working",

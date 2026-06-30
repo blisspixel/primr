@@ -294,10 +294,11 @@ Done when:
   available.
 - Provider comparison artifacts exist for every promoted stage.
   The route-metadata comparison artifact exists; quality comparison artifacts
-  now have a CLI-accessible scorecard layer, but semantic eval evidence is
-  still required before any promotion. The first generated quality-evidence
-  input now comes from the website-summary local-stage eval; it remains
-  report-only scorecard evidence, not a promotion gate.
+  now have a CLI-accessible scorecard layer, and website-summary local-stage
+  evals can produce either structural completeness evidence or local semantic
+  judge evidence for same-command scorecards. Both remain report-only
+  scorecard evidence, not promotion gates; calibrated samples and agreement
+  checks are still required before any promotion.
 - No hidden provider dependency remains in the full-report path for the wired
   stage.
 

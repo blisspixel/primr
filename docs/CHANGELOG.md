@@ -41,6 +41,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `website_summary_stage_quality_evidence.json`, giving routed-stage
   scorecards structured quality evidence without copying local summaries,
   baseline summaries, prompts, or run-state bodies.
+- Website-summary local stage evals can now add
+  `--eval-local-stage-semantic-judge` to run a local OpenAI-compatible semantic
+  judge pass, write body-free semantic eval artifacts, and feed the resulting
+  review-only quality evidence into same-command stage scorecards.
 - Agentic QA fallback scoring no longer assigns a default passing accuracy
   score when it has not verified factual accuracy; the compatibility
   `accuracy` dimension now reflects deterministic traceability signals only.

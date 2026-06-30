@@ -349,12 +349,17 @@ class TestParseArgs:
                 "local",
                 "--eval-judge-model-list",
                 "installed-starter",
+                "--eval-local-stage-semantic-judge",
+                "--eval-local-stage-semantic-judge-model",
+                "llama3.1:70b",
             ]
         )
         assert config.eval_local_stage == "website-summary"
         assert config.eval_working_root == "working"
         assert config.eval_judge_provider == "local"
         assert config.eval_judge_model_list == "installed-starter"
+        assert config.eval_stage_semantic_judge is True
+        assert config.eval_stage_semantic_judge_model == "llama3.1:70b"
 
     def test_parse_stage_scorecard_options(self):
         """Test parsing routed-stage scorecard arguments."""

@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from primr.core.cli import CLIConfig, Command, _handle_eval
-from primr.core.local_stage_eval import WebsiteSummaryEvalRow
+from primr.core.local_stage_eval import WebsiteSummaryEvalRow, WebsiteSummarySemanticEvalRow
 
 
 def _config(**overrides):
@@ -333,3 +333,123 @@ class TestEvalBody:
         assert quality_payload["quality_evidence"][0]["quality_score"] == 96.0
         scorecard_payload = json.loads(scorecard_path.read_text(encoding="utf-8"))
         assert scorecard_payload["rows"][0]["review_status"] == "candidate_for_human_review"
+
+    def test_local_stage_eval_uses_semantic_evidence_for_same_command_scorecard(
+        self, stub_eval_deps, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "primr.core.cli._resolve_local_judge_models",
+            lambda config: (["qwen3:30b"], []),
+        )
+        monkeypatch.setattr(
+            "primr.core.local_stage_eval.find_latest_website_summary_eval_inputs",
+            MagicMock(return_value=[SimpleNamespace(company="ExampleCo")]),
+        )
+        stage_row = WebsiteSummaryEvalRow(
+            company="ExampleCo",
+            model="qwen3:30b",
+            working_dir="working/ExampleCo/run-001",
+            input_pages=2,
+            local_summary_path="must-not-be-copied.local.txt",
+            baseline_summary_path="must-not-be-copied.baseline.txt",
+            baseline_words=100,
+            local_words=90,
+            baseline_source_sections=2,
+            local_source_sections=2,
+            baseline_source_citations=1,
+            local_source_citations=1,
+            baseline_open_questions=2,
+            local_open_questions=2,
+            baseline_has_synthesis=True,
+            local_has_synthesis=True,
+            source_section_ratio=100.0,
+            citation_ratio=100.0,
+            open_questions_ratio=100.0,
+            word_ratio=90.0,
+            completeness_score=96.0,
+        )
+        semantic_row = WebsiteSummarySemanticEvalRow(
+            company="ExampleCo",
+            model="qwen3:30b",
+            judge_model="llama3.1:70b",
+            working_dir="working/ExampleCo/run-001",
+            semantic_score=91.0,
+            aspects={
+                "strategic_coverage": 91.0,
+                "factual_alignment": 93.0,
+                "evidence_usefulness": 90.0,
+                "uncertainty_calibration": 87.0,
+            },
+            rationale="Candidate keeps the useful strategic evidence.",
+            response_valid=True,
+            input_tokens=120,
+            output_tokens=40,
+        )
+        monkeypatch.setattr(
+            "primr.core.local_stage_eval.run_local_website_summary_stage_eval",
+            MagicMock(return_value=[stage_row]),
+        )
+        semantic_mock = MagicMock(return_value=[semantic_row])
+        monkeypatch.setattr(
+            "primr.core.local_stage_eval.run_local_website_summary_semantic_eval",
+            semantic_mock,
+        )
+
+        working_root = tmp_path / "working"
+        run_state = working_root / "ExampleCo" / "run-001" / "_run_state.json"
+        run_state.parent.mkdir(parents=True)
+        run_state.write_text(
+            json.dumps(
+                {
+                    "stage_routes": [
+                        {
+                            "stage_id": "fast.scrape_summary",
+                            "backend_id": "qwen3:30b",
+                            "backend_kind": "local",
+                            "billing_mode": "local_runtime",
+                            "inference_profile": "local",
+                            "outcome": "selected",
+                            "duration_seconds": 2.0,
+                            "actual_cost_usd": 0.0,
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = _handle_eval(
+            _config(
+                eval_id="eval-r1",
+                eval_baseline="full",
+                eval_profiles=("full",),
+                eval_root=str(tmp_path / "evals"),
+                eval_company="ExampleCo",
+                eval_local_stage="website-summary",
+                eval_stage_semantic_judge=True,
+                eval_stage_semantic_judge_model="llama3.1:70b",
+                eval_stage_scorecard=True,
+                eval_stage_quality=None,
+                eval_stage_route_root=str(working_root),
+                eval_stage_id="fast.scrape_summary",
+                eval_judge_models=("qwen3:30b",),
+            )
+        )
+
+        assert result == 0
+        semantic_mock.assert_called_once()
+        assert semantic_mock.call_args.kwargs["judge_model"] == "llama3.1:70b"
+        quality_path = (
+            tmp_path
+            / "evals"
+            / "eval-r1"
+            / "website_summary_stage"
+            / "website_summary_stage_semantic_quality_evidence.json"
+        )
+        scorecard_path = tmp_path / "evals" / "eval-r1" / "stage_eval_scorecard.json"
+        quality_text = quality_path.read_text(encoding="utf-8")
+        assert "must-not-be-copied" not in quality_text
+        quality_payload = json.loads(quality_text)
+        assert quality_payload["quality_evidence"][0]["quality_score"] == 91.0
+        scorecard_payload = json.loads(scorecard_path.read_text(encoding="utf-8"))
+        assert scorecard_payload["rows"][0]["quality_score"] == 91.0
