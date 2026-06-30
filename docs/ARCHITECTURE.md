@@ -346,6 +346,7 @@ The `scrape_page` primitive uses a tiered fallback system for web scraping, desi
 - **Circuit Breaker**: Skips failing tiers after 3 consecutive failures per host
 - **Cookie Handoff**: Browser-obtained cookies reused by faster HTTP tiers
 - **Soft Block Detection**: Checks content, not just HTTP status (catches "200 OK" traps)
+- **Host Positive Marker Learning**: Confirmed real first-party pages can persist a bounded, filtered marker set in user data and reuse it as positive evidence for later pages on the same host
 - **TLS Fingerprint Impersonation**: curl_cffi mimics real browser TLS signatures
 - **Driverless Browsers**: DrissionPage uses CDP directly, bypassing WebDriver detection
 - **Content-Type Routing**: Automatic detection (HTML, PDF, binary) via headers and magic bytes - PDFs are extracted locally with PyMuPDF by default; Gemini PDF extraction is opt-in via `PRIMR_PDF_LLM_MAX_CALLS`

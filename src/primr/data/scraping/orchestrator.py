@@ -49,6 +49,7 @@ from .content import (
     is_quality_content,
 )
 from .headed_budget import remaining_headed_budget, try_consume_headed_budget
+from .host_markers import get_positive_markers, learn_positive_markers
 from .models import (
     Attempt,
     ErrorType,
@@ -470,10 +471,6 @@ class ScrapeOrchestrator:
 
             return result
 
-        # 2b. Check if host has a remembered rate-limit cooldown. Skip the
-        # full tier escalation instead of wasting 60+ seconds on a host we
-        # know is 429'ing us. The caller (fetch_web_content) will route to
-        # public-data fallbacks instead.
         from .rate_limit_state import get_rate_limit
 
         rl_entry = get_rate_limit(host)
@@ -499,6 +496,7 @@ class ScrapeOrchestrator:
         # 3. Try each tier (start with best_tier if known for this host)
         last_result: ScrapeResult | None = None
         host_state = self._get_host_state(host)
+        expected_markers = get_positive_markers(host)
 
         # Reorder tiers to start with best_tier if we know one works for this host
         tiers_to_try = self.tiers
@@ -551,13 +549,8 @@ class ScrapeOrchestrator:
 
             tier_attempts += 1
 
-            # Use shorter timeout when we have a proven working tier
-            # If requests normally works in <1s, waiting 15s is wasteful
-            # BUT: Browser tiers need full timeout for JS rendering and challenge solving
-            # Only apply fast timeout to HTTP tiers (requests, httpx, curl_cffi)
             remaining_time = effective_max_page_time - elapsed_total
 
-            # Browser tiers that need full timeout for JS/challenges
             browser_tiers = {
                 "playwright",
                 "playwright_aggressive",
@@ -567,7 +560,6 @@ class ScrapeOrchestrator:
             }
             is_browser_tier = tier.name in browser_tiers
 
-            # Apply fast timeout only to HTTP tiers when we have a proven working tier
             if use_fast_timeout and not is_browser_tier:
                 effective_timeout = min(tier.timeout, 5.0)
             else:
@@ -578,16 +570,13 @@ class ScrapeOrchestrator:
             if effective_timeout <= 0:
                 break  # No time left
 
-            # 3b-d. Acquire rate limit, make request, release (try/finally)
             try:
                 self.rate_limiter.acquire(host)
 
                 try:
-                    # Make request
                     with self._browser_execution_env(host_state, tier.name):
                         tier_result = tier.scrape_fn(url, effective_timeout)
 
-                    # Record attempt
                     if tier_result.attempts:
                         all_attempts.extend(tier_result.attempts)
                     else:
@@ -605,7 +594,6 @@ class ScrapeOrchestrator:
                     last_result = tier_result
 
                 finally:
-                    # 3d. Always release rate limit
                     self.rate_limiter.release(host)
 
             except Exception as e:
@@ -682,6 +670,7 @@ class ScrapeOrchestrator:
                 http_status=tier_result.http_status,
                 content_type=tier_result.content_type,
                 final_url=tier_result.final_url,
+                expected_markers=expected_markers,
             )
 
             if access_assessment.state == PageAccessState.SOFT_BLOCK:
@@ -721,6 +710,7 @@ class ScrapeOrchestrator:
                         http_status=retry_result.http_status,
                         content_type=retry_result.content_type,
                         final_url=retry_result.final_url,
+                        expected_markers=expected_markers,
                     )
                     if retry_assessment.state == PageAccessState.SUCCESS:
                         tier_result = retry_result
@@ -785,6 +775,7 @@ class ScrapeOrchestrator:
                         http_status=retry_result.http_status,
                         content_type=retry_result.content_type,
                         final_url=retry_result.final_url,
+                        expected_markers=expected_markers,
                     )
                     if retry_assessment.state == PageAccessState.SUCCESS:
                         tier_result = retry_result
@@ -962,6 +953,7 @@ class ScrapeOrchestrator:
             # Content is confirmed usable — now promote this tier as best
             host_state.best_tier = tier.name
             host_state.record_tier_attempt(tier.name, success=True)
+            learn_positive_markers(host, access_assessment, expected_markers)
 
             result = ScrapeResult(
                 url=url,

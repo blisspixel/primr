@@ -363,6 +363,36 @@ class TestThinContentEscalation:
         assert result.tier == "t2"
 
 
+class TestHostPositiveMarkers:
+    def test_learned_host_marker_can_confirm_later_generic_page(self, tmp_path, monkeypatch):
+        from primr.data.scraping import host_markers
+
+        marker_state = tmp_path / "host_markers.json"
+        monkeypatch.setattr(host_markers, "STATE_FILE", marker_state)
+        host_markers.reset_all_for_testing()
+        host_markers.record_positive_markers("https://www.example.com/", ["ExampleCo"])
+        generic_page = b"""<!DOCTYPE html>
+        <html><head><title>ExampleCo customer portal</title></head>
+        <body><header><nav>Home Customers Support</nav></header><section><h1>Customer portal</h1>
+        <p>ExampleCo customers use this portal to review implementation guidance,
+        operational playbooks, account resources, and release notes that support
+        ongoing platform adoption across distributed teams.</p>
+        <p>The portal includes product education, support workflows, account
+        resources, and service details for organizations managing complex
+        technology programs across multiple regions.</p>
+        </section></body></html>"""
+        orch = build([make_tier("t1", content=generic_page)])
+
+        try:
+            result = orch.scrape_url("https://www.example.com/customer-portal")
+        finally:
+            host_markers.reset_all_for_testing()
+
+        assert result.success is True
+        assert result.access_assessment is not None
+        assert "exampleco" in result.access_assessment.matched_expected_markers
+
+
 class TestAllTiersFail:
     def test_terminal_result_when_all_fail(self):
         t1 = make_tier("t1", success=False)

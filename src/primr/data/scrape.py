@@ -513,6 +513,7 @@ def fetch_web_content(
         classify_page_access,
         extract_main_content,
         extract_structured_content,
+        host_markers,
     )
 
     # Normalize so downstream helpers (validation prompts, fallback fan-out)
@@ -754,12 +755,9 @@ def fetch_web_content(
                 for token in re.split(r"[^a-zA-Z0-9]+", company_name)
                 if len(token) >= 4
             )
-        host_tokens = [
-            token
-            for token in urlparse(website).netloc.lower().replace("www.", "").split(".")
-            if len(token) >= 4
-        ]
-        expected_markers.extend(host_tokens[:2])
+        host = (urlparse(website).hostname or "").lower().removeprefix("www.")
+        host_tokens = [token for token in host.split(".") if len(token) >= 4]
+        expected_markers.extend([*host_tokens[:2], *host_markers.get_positive_markers(host)])
 
         homepage_assessment = classify_page_access(
             result.raw_content,
@@ -792,6 +790,7 @@ def fetch_web_content(
             homepage_tier = None
         else:
             homepage_access_ok = True
+            host_markers.learn_positive_markers(host, homepage_assessment, expected_markers)
     else:
         access_assessment = getattr(result, "access_assessment", None)
         if access_assessment and getattr(access_assessment, "reason", None):
