@@ -707,7 +707,7 @@ def get_doctor_status() -> dict:
     if not os.path.exists(OUTPUT_DIR):
         warnings.append(f"Output directory does not exist: {OUTPUT_DIR}")
 
-    # Check for orphaned stores (placeholder - would check Gemini file stores)
+    # MCP health does not own provider file-store lifecycle checks.
     orphaned_stores_count = 0
 
     # Check config validity

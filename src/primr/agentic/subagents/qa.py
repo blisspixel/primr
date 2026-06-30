@@ -280,8 +280,9 @@ class QASubagent(Subagent[QAResult]):
         evidence_score = self._assess_evidence(content, feedback)
         dimension_scores["evidence"] = evidence_score
 
-        # Assess accuracy (placeholder - would need AI for real assessment)
-        accuracy_score = 70  # Default to passing
+        # Keep the historical key for compatibility, but score only what this
+        # deterministic pass can prove: whether factual claims are traceable.
+        accuracy_score = self._assess_accuracy_traceability(content, feedback)
         dimension_scores["accuracy"] = accuracy_score
 
         # Assess hypothesis framing
@@ -384,6 +385,40 @@ class QASubagent(Subagent[QAResult]):
         if "http" not in content.lower() and "source" not in content.lower():
             score -= 30
             feedback.append("Report lacks citations or sources")
+
+        return max(0, score)
+
+    def _assess_accuracy_traceability(
+        self,
+        content: str,
+        feedback: list[str],
+    ) -> int:
+        """Assess source traceability without claiming factual verification."""
+
+        score = 100
+        lowered = content.lower()
+        has_citation_marker = "[cite:" in lowered or "[source:" in lowered
+        has_url = "http://" in lowered or "https://" in lowered
+        has_sources_section = "## sources" in lowered
+        has_confidence_label = any(
+            label in lowered
+            for label in (
+                "(confirmed",
+                "(reported",
+                "(estimated",
+                "(hypothesis",
+            )
+        )
+
+        if not (has_citation_marker or has_url):
+            score -= 40
+            feedback.append("Accuracy is not independently traceable without citations or URLs")
+        if not has_sources_section:
+            score -= 25
+            feedback.append("Accuracy traceability lacks a Sources section")
+        if not has_confidence_label:
+            score -= 15
+            feedback.append("Accuracy traceability lacks confidence labels")
 
         return max(0, score)
 

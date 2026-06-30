@@ -41,6 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `website_summary_stage_quality_evidence.json`, giving routed-stage
   scorecards structured quality evidence without copying local summaries,
   baseline summaries, prompts, or run-state bodies.
+- Agentic QA fallback scoring no longer assigns a default passing accuracy
+  score when it has not verified factual accuracy; the compatibility
+  `accuracy` dimension now reflects deterministic traceability signals only.
 - Source distributions now explicitly prune `.agent/` while retaining the
   legacy `docs/.agent/` prune rule.
 - Local `_site/` documentation build output is now gitignored.

@@ -5071,15 +5071,5 @@ def run_doctor():
     return _cli_run_doctor()
 
 
-def _legacy_main_removed():
-    """
-    The duplicate main() function has been removed.
-
-    CLI logic is now centralized in cli.py. This module re-exports
-    main = _main_new from cli.py for backward compatibility.
-    """
-    raise NotImplementedError("Use main() which delegates to cli.py")
-
-
 if __name__ == "__main__":
     main()

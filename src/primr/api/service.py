@@ -534,17 +534,3 @@ def create_app(
         ]
 
     return app
-
-
-async def run_research(job_manager: JobManager, job_id: str) -> None:
-    """
-    Run research in background.
-
-    This endpoint is intentionally not implemented until it is wired to the
-    production research pipeline.
-    """
-    del job_manager, job_id
-    raise NotImplementedError(
-        "REST API research execution is disabled until the endpoint is wired "
-        "to the production research pipeline."
-    )

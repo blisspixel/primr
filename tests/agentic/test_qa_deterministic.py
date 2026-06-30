@@ -98,6 +98,15 @@ class TestQASubagentDimensions:
         assert result.data.dimension_scores["confidence_labels"] <= 70
         assert any("confidence" in f.lower() for f in result.data.feedback)
 
+    def test_thin_report_does_not_receive_default_passing_accuracy(self):
+        report_path = _write_report(THIN_REPORT)
+        ctx = _make_qa_context(report_path)
+        agent = QASubagent(ctx)
+        result = asyncio.run(agent.execute())
+        assert result.data is not None
+        assert result.data.dimension_scores["accuracy"] < 70
+        assert any("traceable" in f.lower() for f in result.data.feedback)
+
     def test_truncated_sections_feedback(self):
         content = "# Report\n## Full Section\n" + "word " * 100 + "\n## Stub Section\nTiny.\n"
         report_path = _write_report(content)
