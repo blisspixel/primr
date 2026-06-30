@@ -109,6 +109,9 @@ from primr.core.cli_memory import (
 from primr.core.cli_memory import (
     handle_memory as _handle_memory,
 )
+from primr.core.cli_memory import (
+    rewrite_company_command_args as _rewrite_company_command_args,
+)
 from primr.core.cli_parser import (
     CLI_EPILOG,
     _determine_command,
@@ -312,6 +315,7 @@ class CLIConfig:
     company_profile_track: str | None = None
     company_profile_url: str | None = None
     company_profile_show: str | None = None
+    company_profile_export: str | None = None
     company_profile_list: bool = False
     orchestrate_max_cost: float | None = None
     roadmap_version: str | None = None
@@ -400,38 +404,6 @@ MODE_MAP = {
     "hybrid": "hybrid",
     "scrape-only": "scrape-only",
 }
-
-
-def _rewrite_company_command_args(
-    args: list[str] | None,
-    parser: argparse.ArgumentParser,
-) -> list[str]:
-    """Rewrite leading `company ...` syntax into explicit flags."""
-    raw_args = list(sys.argv[1:] if args is None else args)
-    if not raw_args or raw_args[0].casefold() != "company":
-        return raw_args
-
-    if len(raw_args) == 1:
-        return ["--company-list"]
-
-    action = raw_args[1].casefold()
-    if action == "list":
-        if len(raw_args) != 2:
-            parser.error("Usage: primr company list")
-        return ["--company-list"]
-
-    if action == "track":
-        if len(raw_args) != 4:
-            parser.error('Usage: primr company track "Company Name" https://company.com')
-        return ["--company-track", raw_args[2], "--company-url", raw_args[3]]
-
-    if action == "show":
-        if len(raw_args) != 3:
-            parser.error('Usage: primr company show "Company Name"')
-        return ["--company-show", raw_args[2]]
-
-    parser.error("Unknown company action. Use track, list, or show.")
-    return raw_args
 
 
 def parse_args(args: list[str] | None = None) -> CLIConfig:
@@ -609,6 +581,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         company_profile_track=getattr(parsed, "company_track", None),
         company_profile_url=getattr(parsed, "company_url", None),
         company_profile_show=getattr(parsed, "company_show", None),
+        company_profile_export=getattr(parsed, "company_export", None),
         company_profile_list=getattr(parsed, "company_list", False),
         orchestrate_max_cost=getattr(parsed, "max_cost", None),
         roadmap_version=getattr(parsed, "roadmap_version", None),
@@ -1238,6 +1211,12 @@ def _create_parser() -> argparse.ArgumentParser:
         help="Show a tracked company profile",
     )
     parser.add_argument(
+        "--company-export",
+        type=str,
+        metavar="COMPANY",
+        help="Export a tracked company profile bundle",
+    )
+    parser.add_argument(
         "--orchestrate",
         action="store_true",
         help="Run orchestrated research with subagent coordination (experimental)",
@@ -1287,6 +1266,7 @@ _FLAG_COMMANDS: list[tuple[str, Command]] = [
     ("company_track", Command.COMPANY),
     ("company_list", Command.COMPANY),
     ("company_show", Command.COMPANY),
+    ("company_export", Command.COMPANY),
     ("memory", Command.MEMORY),
     ("memory_list", Command.MEMORY),
     ("orchestrate", Command.ORCHESTRATE),

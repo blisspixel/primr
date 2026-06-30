@@ -25,6 +25,7 @@ Example:
 
 from primr.agentic.company_profiles import (
     CompanyProfile,
+    CompanyProfileExport,
     CompanyProfileStore,
 )
 from primr.agentic.errors import (
@@ -101,6 +102,7 @@ __all__ = [
     # Memory
     "CompanyMemory",
     "CompanyProfile",
+    "CompanyProfileExport",
     "CompanyProfileStore",
     # Models
     "ConfidenceLevel",

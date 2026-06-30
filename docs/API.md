@@ -2619,6 +2619,7 @@ retention classification without introducing a database.
 primr company track "Acme Corp" https://acme.example
 primr company list
 primr company show "Acme Corp"
+primr company export "Acme Corp"
 ```
 
 ```python

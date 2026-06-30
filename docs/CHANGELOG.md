@@ -30,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added local `primr company track`, `company list`, and `company show`
   commands backed by per-user JSON company profiles with URL/userinfo and
   secret-like payload rejection.
+- Added `primr company export` to write local JSON and Markdown profile bundles
+  with persisted hypothesis confidence tags and explicit run-history/claim-store
+  gap markers.
 
 ## [1.34.41] - 2026-06-30
 

@@ -75,6 +75,68 @@ def test_get_profile_by_name(tmp_path):
     assert profile.name == "Acme Corp"
 
 
+def test_export_profile_writes_json_and_markdown_bundle(tmp_path):
+    store = CompanyProfileStore(root_path=tmp_path)
+    store.track("Acme Corp", "https://acme.example")
+
+    export = store.export_profile(
+        "Acme Corp",
+        hypotheses=[
+            {
+                "id": "h1",
+                "claim": "Acme is testing AI logistics",
+                "confidence": "validated",
+                "topic": "strategy",
+                "evidence": ["public case study"],
+            }
+        ],
+    )
+
+    assert export.json_path.is_file()
+    assert export.markdown_path.is_file()
+    payload = json.loads(export.json_path.read_text(encoding="utf-8"))
+    assert payload["type"] == "Company"
+    assert payload["company"]["name"] == "Acme Corp"
+    assert payload["hypotheses"][0]["confidence"] == "validated"
+    markdown = export.markdown_path.read_text(encoding="utf-8")
+    assert "type: Company" in markdown
+    assert "[validated] Acme is testing AI logistics" in markdown
+
+
+def test_export_profile_marks_empty_hypothesis_gap(tmp_path):
+    store = CompanyProfileStore(root_path=tmp_path)
+    store.track("Acme Corp", "https://acme.example")
+
+    export = store.export_profile("Acme Corp")
+
+    gap_ids = {gap["id"] for gap in export.payload["flagged_gaps"]}
+    assert "hypotheses" in gap_ids
+
+
+def test_export_missing_profile_raises(tmp_path):
+    store = CompanyProfileStore(root_path=tmp_path)
+
+    with pytest.raises(InputValidationError):
+        store.export_profile("Missing Corp")
+
+
+def test_export_rejects_secret_like_hypothesis_payload(tmp_path):
+    store = CompanyProfileStore(root_path=tmp_path)
+    store.track("Acme Corp", "https://acme.example")
+
+    with pytest.raises(InputValidationError):
+        store.export_profile(
+            "Acme Corp",
+            hypotheses=[
+                {
+                    "id": "h1",
+                    "claim": "xai-1234567890abcdef must not leave memory",
+                    "confidence": "untested",
+                }
+            ],
+        )
+
+
 @pytest.mark.parametrize(
     "url",
     [

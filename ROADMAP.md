@@ -539,7 +539,7 @@ Each step unblocks the ones after it; items within a step are independent.
    foundation is now started: default research memory and company profiles live
    in the per-user data directory with `PRIMR_DATA_DIR` relocation, doctor
    readback for memory paths, no-secret write enforcement, and deterministic
-   `primr company track/list/show` profile commands.
+   `primr company track/list/show/export` profile commands.
 8. **2.0 release** when steps 5-7 all hold their exit criteria together.
 9. **3.0 workstreams** (VLM, compounding, handoff): VLM depends on nothing
    above (can start anytime resources allow); compounding depends on the
@@ -1288,7 +1288,7 @@ Make research compound across runs by persisting extracted claims, citations, an
 - `primr company list` / `primr company show <name>` - show tracked company profiles; shipped foundation reports unrun freshness until run-history wiring lands
 - `primr improve --track` - auto-runs improvement pass on stale profiles (configurable staleness threshold)
 - Profile folder stores run history, confidence evolution, and gaps flagged across runs
-- `primr company export <name>` - structured MD/JSON bundle with confidence tags and flagged gaps
+- `primr company export <name>` - shipped foundation writes structured MD/JSON with profile metadata, persisted hypotheses, confidence tags, and explicit run-history/claim-store gaps; full claim graph waits for layer 2
 
 **Layer 2 - Claim store + priming:**
 - SQLite-backed claim store (no external dependencies); each claim stored with company, section, text, confidence, citations, timestamp, embedding

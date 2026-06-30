@@ -127,6 +127,7 @@ class TestDetermineCommand:
             "company_track": None,
             "company_list": False,
             "company_show": None,
+            "company_export": None,
             "memory": False,
             "memory_list": False,
             "orchestrate": False,
@@ -170,6 +171,10 @@ class TestDetermineCommand:
 
     def test_flag_command_company_track(self):
         ns = self._ns(company_track="Acme Corp")
+        assert _determine_command(ns) == Command.COMPANY
+
+    def test_flag_command_company_export(self):
+        ns = self._ns(company_export="Acme Corp")
         assert _determine_command(ns) == Command.COMPANY
 
     def test_positional_case_insensitive(self):

@@ -2,10 +2,49 @@
 
 from __future__ import annotations
 
+import argparse
+import sys
 from typing import Any
 
 from primr.utils.console import console
 from primr.utils.validators import InputValidationError
+
+
+def rewrite_company_command_args(
+    args: list[str] | None,
+    parser: argparse.ArgumentParser,
+) -> list[str]:
+    """Rewrite leading `company ...` syntax into explicit flags."""
+    raw_args = list(sys.argv[1:] if args is None else args)
+    if not raw_args or raw_args[0].casefold() != "company":
+        return raw_args
+
+    if len(raw_args) == 1:
+        return ["--company-list"]
+
+    action = raw_args[1].casefold()
+    if action == "list":
+        if len(raw_args) != 2:
+            parser.error("Usage: primr company list")
+        return ["--company-list"]
+
+    if action == "track":
+        if len(raw_args) != 4:
+            parser.error('Usage: primr company track "Company Name" https://company.com')
+        return ["--company-track", raw_args[2], "--company-url", raw_args[3]]
+
+    if action == "show":
+        if len(raw_args) != 3:
+            parser.error('Usage: primr company show "Company Name"')
+        return ["--company-show", raw_args[2]]
+
+    if action == "export":
+        if len(raw_args) != 3:
+            parser.error('Usage: primr company export "Company Name"')
+        return ["--company-export", raw_args[2]]
+
+    parser.error("Unknown company action. Use track, list, show, or export.")
+    return raw_args
 
 
 def handle_memory(config: Any) -> int:
@@ -129,10 +168,40 @@ def handle_company(config: Any) -> int:
         console.info(f"Profile: {store.profile_dir(profile)}")
         return 0
 
+    if config.company_profile_export:
+        from primr.agentic.memory import ResearchMemory
+
+        try:
+            memory = ResearchMemory()
+            hypotheses = [
+                hypothesis.to_dict()
+                for hypothesis in memory.get_hypotheses(
+                    config.company_profile_export,
+                    include_expired=True,
+                )
+            ]
+            export = store.export_profile(
+                config.company_profile_export,
+                hypotheses=hypotheses,
+            )
+        except InputValidationError as exc:
+            console.error(str(exc))
+            return 1
+        except Exception as exc:
+            console.error(f"Failed to export company profile: {exc}")
+            return 1
+        console.ok(f"Exported company profile: {config.company_profile_export}")
+        console.info(f"JSON: {export.json_path}")
+        console.info(f"Markdown: {export.markdown_path}")
+        console.info(f"Hypotheses: {len(export.payload['hypotheses'])}")
+        console.info(f"Flagged gaps: {len(export.payload['flagged_gaps'])}")
+        return 0
+
     console.error("Company command required")
     console.info('Usage: primr company track "Company Name" https://company.com')
     console.info("   or: primr company list")
     console.info('   or: primr company show "Company Name"')
+    console.info('   or: primr company export "Company Name"')
     return 1
 
 

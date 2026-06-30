@@ -43,6 +43,11 @@ class TestCompanyCommand:
         assert config.command == Command.COMPANY
         assert config.company_profile_show == "Acme Corp"
 
+    def test_company_export_rewrite(self):
+        config = parse_args(["company", "export", "Acme Corp"])
+        assert config.command == Command.COMPANY
+        assert config.company_profile_export == "Acme Corp"
+
     def test_company_track_flag(self):
         config = parse_args(
             ["--company-track", "Acme Corp", "--company-url", "https://acme.example"]
@@ -50,6 +55,11 @@ class TestCompanyCommand:
         assert config.command == Command.COMPANY
         assert config.company_profile_track == "Acme Corp"
         assert config.company_profile_url == "https://acme.example"
+
+    def test_company_export_flag(self):
+        config = parse_args(["--company-export", "Acme Corp"])
+        assert config.command == Command.COMPANY
+        assert config.company_profile_export == "Acme Corp"
 
 
 class TestPlatformExpansion:

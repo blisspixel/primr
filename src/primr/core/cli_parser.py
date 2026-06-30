@@ -76,6 +76,7 @@ Agentic Architecture (v1.7.0):
   primr company track "Acme Corp" https://acme.com  # Track a company profile locally
   primr company list                                # List tracked company profiles
   primr company show "Acme Corp"                    # Show one tracked company profile
+  primr company export "Acme Corp"                  # Export local profile + hypotheses bundle
   primr memory "Acme Corp"                           # View hypotheses for a company
   primr --memory-list                                # List all companies with memory
   primr orchestrate "Acme Corp" https://acme.com    # Run orchestrated research

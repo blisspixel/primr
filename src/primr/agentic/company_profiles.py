@@ -18,6 +18,8 @@ from primr.utils.validators import InputValidationError, validate_company_name, 
 
 PROFILE_SCHEMA_VERSION = 1
 PROFILE_FILE_NAME = "profile.json"
+EXPORT_JSON_NAME = "profile-export.json"
+EXPORT_MARKDOWN_NAME = "profile-export.md"
 
 
 def get_default_company_profile_path() -> Path:
@@ -82,6 +84,15 @@ class CompanyProfile:
         )
 
 
+@dataclass(frozen=True)
+class CompanyProfileExport:
+    """Paths and payload for a tracked-company export bundle."""
+
+    json_path: Path
+    markdown_path: Path
+    payload: dict[str, Any]
+
+
 class CompanyProfileStore:
     """Manage local tracked-company profile folders."""
 
@@ -141,6 +152,35 @@ class CompanyProfileStore:
                 return profile
         return None
 
+    def export_profile(
+        self,
+        name: str,
+        *,
+        hypotheses: list[dict[str, Any]] | None = None,
+    ) -> CompanyProfileExport:
+        """Write a structured local export bundle for a tracked company."""
+        profile = self.get_profile(name)
+        if profile is None:
+            raise InputValidationError("company_name", "Tracked company profile not found")
+
+        payload = _build_export_payload(profile, hypotheses or [])
+        _raise_if_secret_payload(payload)
+        export_dir = self.profile_dir(profile) / "exports"
+        export_dir.mkdir(parents=True, exist_ok=True)
+
+        json_path = export_dir / EXPORT_JSON_NAME
+        markdown_path = export_dir / EXPORT_MARKDOWN_NAME
+        _atomic_write_text(
+            json_path,
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        )
+        _atomic_write_text(markdown_path, _render_export_markdown(payload))
+        return CompanyProfileExport(
+            json_path=json_path,
+            markdown_path=markdown_path,
+            payload=payload,
+        )
+
     def profile_dir(self, profile: CompanyProfile) -> Path:
         """Return the directory that contains a profile."""
         return self.root_path / profile.slug
@@ -154,12 +194,7 @@ class CompanyProfileStore:
         profile_dir = self.profile_dir(profile)
         profile_dir.mkdir(parents=True, exist_ok=True)
         path = profile_dir / PROFILE_FILE_NAME
-        tmp_path = path.with_suffix(".tmp")
-        tmp_path.write_text(
-            json.dumps(data, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        atomic_replace(tmp_path, path)
+        _atomic_write_text(path, json.dumps(data, indent=2, sort_keys=True) + "\n")
 
     @staticmethod
     def _load_profile_file(path: Path) -> CompanyProfile:
@@ -184,6 +219,92 @@ def _validate_profile_url(url: str) -> str:
     if mask_sensitive_data(clean_url) != clean_url:
         raise InputValidationError("url", "Company profile URL contains a secret-like value")
     return clean_url
+
+
+def _build_export_payload(
+    profile: CompanyProfile,
+    hypotheses: list[dict[str, Any]],
+) -> dict[str, Any]:
+    gaps = [
+        {
+            "id": "run_history",
+            "status": "missing",
+            "reason": "Run-history pointers are not wired into company profiles yet.",
+        },
+        {
+            "id": "claim_store",
+            "status": "missing",
+            "reason": "Layer 2 claim store is not implemented yet.",
+        },
+    ]
+    if not hypotheses:
+        gaps.append(
+            {
+                "id": "hypotheses",
+                "status": "empty",
+                "reason": "No persisted hypotheses were found for this company.",
+            }
+        )
+
+    return {
+        "schema_version": PROFILE_SCHEMA_VERSION,
+        "type": "Company",
+        "company": profile.to_dict(),
+        "hypotheses": hypotheses,
+        "flagged_gaps": gaps,
+        "bundle": {
+            "json": EXPORT_JSON_NAME,
+            "markdown": EXPORT_MARKDOWN_NAME,
+        },
+    }
+
+
+def _render_export_markdown(payload: dict[str, Any]) -> str:
+    company = payload["company"]
+    lines = [
+        "---",
+        "type: Company",
+        f"schema_version: {payload['schema_version']}",
+        f"name: {_yaml_string(company['name'])}",
+        f"url: {_yaml_string(company['url'])}",
+        f"freshness: {_yaml_string(company['freshness']['status'])}",
+        "---",
+        "",
+        f"# {company['name']}",
+        "",
+        f"- URL: {company['url']}",
+        f"- Freshness: {company['freshness']['status']}",
+        f"- Last run: {company['last_run_at'] or 'none'}",
+        f"- Retention: {company['retention']['policy']}",
+        "",
+        "## Hypotheses",
+        "",
+    ]
+    hypotheses = payload["hypotheses"]
+    if hypotheses:
+        for hypothesis in hypotheses:
+            confidence = hypothesis.get("confidence", "untested")
+            claim = hypothesis.get("claim", "")
+            topic = hypothesis.get("topic") or "uncategorized"
+            lines.append(f"- [{confidence}] {claim} (topic: {topic})")
+    else:
+        lines.append("- No persisted hypotheses found.")
+
+    lines.extend(["", "## Flagged Gaps", ""])
+    for gap in payload["flagged_gaps"]:
+        lines.append(f"- {gap['id']}: {gap['status']} - {gap['reason']}")
+
+    return "\n".join(lines) + "\n"
+
+
+def _yaml_string(value: str) -> str:
+    return json.dumps(value)
+
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    tmp_path = path.with_suffix(".tmp")
+    tmp_path.write_text(content, encoding="utf-8")
+    atomic_replace(tmp_path, path)
 
 
 def _raise_if_secret_payload(value: Any, path: str = "profile") -> None:
