@@ -347,8 +347,9 @@ Do next:
   duration, and outcome, without raw URI query values or resource bodies.
   A2A now advertises equivalent read-scoped `read_artifacts_by_job`,
   `read_qa_summary_by_job`, `read_usage_summary_by_job`,
-  `read_source_summary_by_job`, and `read_trace_summary_by_job` skills for the
-  artifact metadata, QA summary, usage/cost, source appendix, and scrape trace
+  `read_source_summary_by_job`, `read_trace_summary_by_job`, and
+  `read_verification_summary_by_job` skills for the artifact metadata, QA
+  summary, usage/cost, source appendix, scrape trace, and claim verification
   slices, using the same ownership-gated compact summary helpers.
 - Non-job eval readback is also available for routed-stage scorecards:
   `primr://eval/stage_scorecard/{eval_id}` reads
@@ -366,9 +367,9 @@ Do next:
   enforces `read` for `estimate_research`, `check_jobs`, `system_health`, and
   compact read skills such as `read_artifacts_by_job` and
   `read_qa_summary_by_job`, `read_usage_summary_by_job`, and
-  `read_source_summary_by_job`, `read_trace_summary_by_job`, and
-  `read_stage_scorecard`, and `research` for `research_company`, `run_qa`, and
-  task cancellation.
+  `read_source_summary_by_job`, `read_trace_summary_by_job`,
+  `read_verification_summary_by_job`, and `read_stage_scorecard`, and
+  `research` for `research_company`, `run_qa`, and task cancellation.
   Authenticated A2A jobs are owned by the token `client_id`. Local
   unauthenticated loopback behavior remains permissive, and legacy `write`
   still satisfies research-scope operations for compatibility.

@@ -166,6 +166,15 @@ class TestParseJobId:
             == "job-2026-06"
         )
 
+    def test_verification_summary_resource_uri(self):
+        assert (
+            _parse_job_id(
+                "primr://output/verification_summary/by_job/job-2026-06",
+                uri_prefix="primr://output/verification_summary/by_job",
+            )
+            == "job-2026-06"
+        )
+
     def test_plain_text_job_id(self):
         assert _parse_job_id(" job-2026-06 ") == "job-2026-06"
 
@@ -1106,6 +1115,145 @@ class TestPrimrAgentExecutor:
         assert data["job_id"] == job.job_id
         assert "Other Corp" not in text
         assert "Other_Corp_20260628.jsonl" not in text
+        assert "secret.example" not in text
+
+    def _write_verification(self, path) -> None:
+        path.write_text(
+            json.dumps(
+                {
+                    "trust_score": 0.5,
+                    "trust_percentage": 50,
+                    "verified_count": 1,
+                    "unverified_count": 0,
+                    "contradicted_count": 1,
+                    "total_claims": 2,
+                    "duration_seconds": 12.4,
+                    "claim_results": [
+                        {
+                            "claim": "Secret claim text",
+                            "status": "verified",
+                            "supporting_sources": ["https://secret.example/source"],
+                            "evidence_sources": ["https://evidence.example/source"],
+                            "search_query": "secret acquisition query",
+                            "explanation": "Sensitive explanation",
+                            "first_party_downgrade": True,
+                        },
+                        {
+                            "claim": "Another secret claim",
+                            "status": "contradicted",
+                            "supporting_sources": ["https://secret.example/conflict"],
+                            "search_query": "secret contradiction query",
+                            "explanation": "Sensitive contradiction",
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    @pytest.mark.asyncio
+    async def test_verification_summary_returns_owned_compact_a2a_payload(
+        self, executor, event_queue, context, tmp_path
+    ):
+        """read_verification_summary_by_job returns compact claim metadata only."""
+        verification = tmp_path / "verification.json"
+        self._write_verification(verification)
+        job = executor._mcp.job_store.create(
+            company_name="Acme",
+            mode="full",
+            owner_client_id="client-1",
+        )
+        job.output_paths = [str(verification)]
+
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["read"]
+        auth_context.client_id = "client-1"
+        executor._mcp._auth_context = auth_context
+        context.message = {
+            "parts": [{"kind": "text", "text": json.dumps({"job_id": job.job_id})}],
+            "metadata": {"skillId": "read_verification_summary_by_job"},
+        }
+
+        try:
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        text = json.dumps(data)
+        assert data["job_id"] == job.job_id
+        assert data["company_name"] == "Acme"
+        assert data["summary_count"] == 1
+        assert data["full_content_included"] is False
+        summary = data["summaries"][0]
+        assert summary["artifact_type"] == "verification_summary"
+        assert summary["parsed"] is True
+        assert summary["raw_claim_results_included"] is False
+        assert summary["source_urls_included"] is False
+        assert summary["search_queries_included"] is False
+        assert summary["trust_score"] == 0.5
+        assert summary["trust_percentage"] == 50
+        assert summary["verification_gate"] == "WARN"
+        assert summary["total_claims"] == 2
+        assert summary["verified_count"] == 1
+        assert summary["contradicted_count"] == 1
+        assert summary["claim_result_count"] == 2
+        assert summary["first_party_downgrade_count"] == 1
+        assert summary["source_reference_count"] == 3
+        assert summary["claim_status_counts"] == [
+            {"count": 1, "value": "contradicted"},
+            {"count": 1, "value": "verified"},
+        ]
+        assert "Secret claim text" not in text
+        assert "secret.example" not in text
+        assert "secret acquisition query" not in text
+        assert "Sensitive explanation" not in text
+
+        audit_event = _audit_events(executor)[0]
+        assert audit_event["tool_name"] == "a2a/read_verification_summary_by_job"
+        assert audit_event["status"] == "success"
+        assert audit_event["auth_scopes"] == ["read"]
+        assert audit_event["job_id"] == job.job_id
+
+    @pytest.mark.asyncio
+    async def test_verification_summary_hides_other_client_job(
+        self, executor, event_queue, context, tmp_path
+    ):
+        """read_verification_summary_by_job reuses the MCP ownership gate."""
+        verification = tmp_path / "verification.json"
+        self._write_verification(verification)
+        job = executor._mcp.job_store.create(
+            company_name="Other Corp",
+            mode="full",
+            owner_client_id="client-2",
+        )
+        job.output_paths = [str(verification)]
+
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["read"]
+        auth_context.client_id = "client-1"
+        executor._mcp._auth_context = auth_context
+        context.message = {
+            "parts": [{"kind": "text", "text": json.dumps({"job_id": job.job_id})}],
+            "metadata": {"skillId": "read_verification_summary_by_job"},
+        }
+
+        try:
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        text = json.dumps(data)
+        assert data["error"] == "job_not_found"
+        assert data["job_id"] == job.job_id
+        assert "Other Corp" not in text
+        assert "verification.json" not in text
+        assert "Secret claim text" not in text
         assert "secret.example" not in text
 
     @pytest.mark.asyncio

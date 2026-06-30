@@ -131,7 +131,7 @@ Current priority order:
    outcome without storing raw URI query values or resource bodies. A2A skill
    calls and task cancellations now append matching privacy-preserving audit
    events with hashed message/result payloads and job id when present. A2A
-   also exposes the first five job-scoped compact resource parity slices:
+   also exposes the first six job-scoped compact resource parity slices:
    `read_artifacts_by_job` returns ownership-gated artifact metadata through
    the same compact summary helper as MCP, and `read_qa_summary_by_job`
    returns ownership-gated compact QA score, status, count, parse-state, and
@@ -142,7 +142,10 @@ Current priority order:
    `read_source_summary_by_job` returns compact source appendix and citation
    metadata without report bodies while preserving the MCP source-row
    contract, and `read_trace_summary_by_job` returns compact scrape telemetry
-   without raw trace entries, URLs, final URLs, page content, or report bodies.
+   without raw trace entries, URLs, final URLs, page content, or report
+   bodies, and `read_verification_summary_by_job` returns compact claim
+   verification metadata without raw claims, source URLs, search queries,
+   explanations, or report bodies.
 4. **Research memory layer 1.** Memory comes after calibrated claims and safer
    artifact consumption so prior-run material can compound value without
    laundering weak claims into fresh findings.
@@ -938,9 +941,9 @@ Shipped:
 
 Planned:
 - Extend agent control-plane parity to A2A now that artifact metadata, QA
-  summary, usage/cost, source appendix, and scrape trace parity slices are
-  shipped, and verification and calibration compact MCP resources are ready
-  for equivalent A2A read skills.
+  summary, usage/cost, source appendix, scrape trace, and claim verification
+  parity slices are shipped, and calibration compact MCP resources are ready
+  for an equivalent A2A read skill.
 - Add integration eval suites for routing, approval, recovery, and recomputation avoidance
 - Expose a compact project security/profile resource for agent clients when
   useful, including always-on guardrails and context-selected guidance for
@@ -1499,6 +1502,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.34.38 | Jun 2026 | **A2A claim verification summary readback.** Added read-scoped `read_verification_summary_by_job` to the A2A AgentCard and executor, backed by the same ownership-gated `primr://output/verification_summary/by_job/{job_id}` compact summary contract as MCP. The skill returns trust score, claim counts, status counts, first-party downgrade counts, and source-reference counts without raw claims, source URLs, search queries, explanations, or report body content. |
 | 1.34.37 | Jun 2026 | **A2A scrape trace summary readback.** Added read-scoped `read_trace_summary_by_job` to the A2A AgentCard and executor, backed by the same ownership-gated `primr://output/trace_summary/by_job/{job_id}` compact summary contract as MCP. The skill returns tier attempts, success rates, latency summaries, block counts, status counts, and validation health without URLs, final URLs, raw trace entries, page content, or report body content. |
 | 1.34.36 | Jun 2026 | **A2A source summary readback.** Added read-scoped `read_source_summary_by_job` to the A2A AgentCard and executor, backed by the same ownership-gated `primr://output/source_summary/by_job/{job_id}` compact summary contract as MCP. The skill returns citation counts, missing/unused references, domains, duplicate URL counts, and source rows without report body content. |
 | 1.34.35 | Jun 2026 | **A2A usage summary readback.** Added read-scoped `read_usage_summary_by_job` to the A2A AgentCard and executor, backed by the same ownership-gated `primr://output/usage_summary/by_job/{job_id}` compact summary contract as MCP. The skill returns cost, timing, approval, execution, artifact-count, hash, timestamp, and manifest metadata without approval tokens, caller ids, source URLs, manifest artifact paths, or report bodies. |

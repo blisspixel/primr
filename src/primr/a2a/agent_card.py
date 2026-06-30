@@ -188,6 +188,25 @@ _SKILLS: list[dict] = [
         ],
     },
     {
+        "id": "read_verification_summary_by_job",
+        "name": "Read Verification Summary by Job",
+        "description": (
+            "Read compact claim verification metadata for one owned research "
+            "job. Returns trust score, claim counts, status counts, "
+            "first-party downgrade counts, and source-reference counts "
+            "without raw claims, source URLs, search queries, explanations, "
+            "or report body content.\n\n"
+            'Input (JSON or text): {"job_id": "job-20260630-abc123"}\n\n'
+            "Output: JSON with job_id, status, company_name, summary_count, "
+            "full_content_included=false, and compact verification summary rows"
+        ),
+        "tags": ["verification", "read", "jobs", "claims"],
+        "examples": [
+            "Read verification summary for job-20260630-abc123",
+            '{"job_id": "job-20260630-abc123"}',
+        ],
+    },
+    {
         "id": "read_stage_scorecard",
         "name": "Read Stage Scorecard Summary",
         "description": (
