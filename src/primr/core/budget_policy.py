@@ -29,6 +29,7 @@ class BudgetEnforcement:
     runtime_checkpoints: bool
     runtime: str
     checkpointed_stages: tuple[str, ...] = ()
+    non_interruptible_required_tasks: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, object]:
         """Return a JSON-safe payload for agent surfaces."""
@@ -37,6 +38,7 @@ class BudgetEnforcement:
             "runtime_checkpoints": self.runtime_checkpoints,
             "runtime": self.runtime,
             "checkpointed_stages": list(self.checkpointed_stages),
+            "non_interruptible_required_tasks": list(self.non_interruptible_required_tasks),
         }
 
 
@@ -66,6 +68,7 @@ def describe_budget_enforcement(
                 "the required Deep Research task cannot be stopped mid-flight"
             ),
             checkpointed_stages=_NONFAST_CHECKPOINTED_STAGES,
+            non_interruptible_required_tasks=("required Deep Research task",),
         )
 
     return BudgetEnforcement(

@@ -1942,9 +1942,9 @@ No QA summary response:
 
 Compact, ownership-gated usage and cost summary for one job. This resource
 reads `run_manifest.json` files adjacent to the owned job's output artifacts
-and returns cost, timing, approval, execution, parse, hash, timestamp, and
-artifact-count metadata without returning company URL, approval token, the
-manifest artifact list, or full manifest content.
+and returns cost, timing, approval, budget-enforcement, execution, parse,
+hash, timestamp, and artifact-count metadata without returning company URL,
+approval token, the manifest artifact list, or full manifest content.
 
 HTTP callers can read only jobs owned by the authenticated client. Missing jobs
 and unowned jobs return the same `job_not_found` shape so clients cannot probe
@@ -1985,6 +1985,15 @@ without echoing the malformed body.
         "bound_to_estimate": true,
         "approved_by_present": true,
         "token_present": false
+      },
+      "budget": {
+        "approved_ceiling_usd": 0.80,
+        "runtime_budget_active": true,
+        "preflight": "refuses to start when the estimated cost exceeds the ceiling",
+        "runtime_checkpoints": true,
+        "runtime": "runtime checkpoint is active before and between optional strategy documents after required Deep Research completes; the required Deep Research task cannot be stopped mid-flight",
+        "checkpointed_stages": ["optional strategy generation"],
+        "non_interruptible_required_tasks": ["required Deep Research task"]
       },
       "execution": {
         "started_at": "2026-06-28T19:02:00Z",

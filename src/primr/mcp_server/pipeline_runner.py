@@ -271,7 +271,14 @@ class PipelineRunner:
             self.mcp_server.job_store.update(job)
 
             # Generate run manifest for audit trail (FR-7.1)
-            await self._generate_run_manifest(job, company_url, mode)
+            await self._generate_run_manifest(
+                job,
+                company_url,
+                mode,
+                budget_usd=budget_usd,
+                fast_mode=use_fast,
+                premium_mode=mode == "premium",
+            )
 
             logger.info(f"Research job {job.job_id} completed successfully")
 
@@ -385,6 +392,10 @@ class PipelineRunner:
         job: ResearchJobState,
         company_url: str,
         mode: str,
+        *,
+        budget_usd: float | None = None,
+        fast_mode: bool | None = None,
+        premium_mode: bool | None = None,
     ) -> None:
         """
         Generate run_manifest.json for audit trail.
@@ -392,9 +403,11 @@ class PipelineRunner:
         Requirements: FR-7.1, FR-7.2
         """
         import json
+        import os
         from pathlib import Path
 
         from primr.config.config import OUTPUT_DIR
+        from primr.core.budget_policy import describe_budget_enforcement
 
         # Determine output directory for this job
         if job.output_paths:
@@ -410,6 +423,24 @@ class PipelineRunner:
         if job.start_time and job.completion_time:
             delta = job.completion_time - job.start_time
             actual_time_minutes = int(delta.total_seconds() / 60)
+
+        resolved_fast_mode = (
+            mode == "full" and bool(os.environ.get("XAI_API_KEY"))
+            if fast_mode is None
+            else fast_mode
+        )
+        resolved_premium_mode = mode == "premium" if premium_mode is None else premium_mode
+        budget_policy_mode = {
+            "scrape": "scrape-only",
+            "deep": "deep-research",
+            "full": "complete",
+            "premium": "complete",
+        }.get(mode, "complete")
+        budget_enforcement = describe_budget_enforcement(
+            mode=budget_policy_mode,
+            fast_mode=resolved_fast_mode,
+            premium_mode=resolved_premium_mode,
+        ).as_dict()
 
         # Build manifest per FR-7.2 schema
         manifest = {
@@ -428,6 +459,11 @@ class PipelineRunner:
                 "approved_at": None,
                 "approved_by": job.owner_client_id or "stdio",
                 "bound_to_estimate": False,
+            },
+            "budget": {
+                "approved_ceiling_usd": budget_usd,
+                "runtime_budget_active": budget_usd is not None and budget_usd > 0,
+                "enforcement": budget_enforcement,
             },
             "execution": {
                 "started_at": job.start_time.isoformat() if job.start_time else None,

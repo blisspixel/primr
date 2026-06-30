@@ -244,6 +244,8 @@ def _usage_manifest_summary(index: int, path: Path) -> dict[str, Any]:
 
     estimate = _dict_payload(payload.get("estimate"))
     approval = _dict_payload(payload.get("approval"))
+    budget = _dict_payload(payload.get("budget"))
+    budget_enforcement = _dict_payload(budget.get("enforcement"))
     execution = _dict_payload(payload.get("execution"))
     artifacts = payload.get("artifacts")
     return {
@@ -263,6 +265,17 @@ def _usage_manifest_summary(index: int, path: Path) -> dict[str, Any]:
             "bound_to_estimate": bool(approval.get("bound_to_estimate")),
             "approved_by_present": bool(approval.get("approved_by")),
             "token_present": bool(approval.get("token")),
+        },
+        "budget": {
+            "approved_ceiling_usd": _number_or_none(budget.get("approved_ceiling_usd")),
+            "runtime_budget_active": bool(budget.get("runtime_budget_active")),
+            "preflight": _scalar_or_none(budget_enforcement.get("preflight")),
+            "runtime_checkpoints": bool(budget_enforcement.get("runtime_checkpoints")),
+            "runtime": _scalar_or_none(budget_enforcement.get("runtime")),
+            "checkpointed_stages": _string_list(budget_enforcement.get("checkpointed_stages")),
+            "non_interruptible_required_tasks": _string_list(
+                budget_enforcement.get("non_interruptible_required_tasks")
+            ),
         },
         "execution": {
             "started_at": _scalar_or_none(execution.get("started_at")),
@@ -475,6 +488,12 @@ def _scalar_or_none(value: Any) -> str | int | float | bool | None:
     if isinstance(value, str | int | float | bool):
         return value
     return None
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str)]
 
 
 def _owned_job(mcp_server: PrimrMCPServer, job_id: str, client_id: str) -> Any | None:

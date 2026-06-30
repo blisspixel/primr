@@ -523,6 +523,17 @@ class TestUsageSummaryByJobResource:
                         "approved_by": "client-secret",
                         "bound_to_estimate": True,
                     },
+                    "budget": {
+                        "approved_ceiling_usd": 0.8,
+                        "runtime_budget_active": True,
+                        "enforcement": {
+                            "preflight": "refuses to start when estimate exceeds cap",
+                            "runtime_checkpoints": True,
+                            "runtime": "required Deep Research task cannot be stopped",
+                            "checkpointed_stages": ["optional strategy generation"],
+                            "non_interruptible_required_tasks": ["required Deep Research task"],
+                        },
+                    },
                     "execution": {
                         "started_at": "2026-06-28T19:02:00Z",
                         "completed_at": "2026-06-28T19:44:00Z",
@@ -576,6 +587,15 @@ class TestUsageSummaryByJobResource:
             "approved_by_present": True,
             "bound_to_estimate": True,
             "token_present": True,
+        }
+        assert summary["budget"] == {
+            "approved_ceiling_usd": 0.8,
+            "checkpointed_stages": ["optional strategy generation"],
+            "non_interruptible_required_tasks": ["required Deep Research task"],
+            "preflight": "refuses to start when estimate exceeds cap",
+            "runtime": "required Deep Research task cannot be stopped",
+            "runtime_budget_active": True,
+            "runtime_checkpoints": True,
         }
         assert summary["execution"] == {
             "actual_cost_usd": 0.72,

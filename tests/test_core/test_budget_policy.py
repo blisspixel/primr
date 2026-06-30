@@ -23,6 +23,7 @@ class TestBudgetPolicy:
 
         assert policy.runtime_checkpoints is True
         assert policy.checkpointed_stages == ("optional strategy generation",)
+        assert policy.non_interruptible_required_tasks == ("required Deep Research task",)
         assert "required Deep Research task cannot be stopped" in policy.runtime
 
     def test_scrape_runs_are_estimate_gated_only(self):
@@ -46,3 +47,4 @@ class TestBudgetPolicy:
 
         assert payload["runtime_checkpoints"] is True
         assert isinstance(payload["checkpointed_stages"], list)
+        assert isinstance(payload["non_interruptible_required_tasks"], list)

@@ -6,6 +6,7 @@ run_qa_analysis, and the run_research orchestration with all external
 dependencies mocked (no real LLM/network/scrape calls).
 """
 
+import json
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -435,9 +436,25 @@ class TestSaveReportAndManifest:
         job.advance_stage(ResearchStage.COMPLETED)
         server.job_store.update(job)
 
-        await runner._generate_run_manifest(job, "https://example.com", "full")
+        await runner._generate_run_manifest(
+            job,
+            "https://example.com",
+            "premium",
+            budget_usd=2.0,
+            fast_mode=False,
+            premium_mode=True,
+        )
         manifest = tmp_path / "run_manifest.json"
         assert manifest.exists()
+        payload = json.loads(manifest.read_text(encoding="utf-8"))
+        assert payload["budget"]["approved_ceiling_usd"] == 2.0
+        assert payload["budget"]["runtime_budget_active"] is True
+        assert payload["budget"]["enforcement"]["checkpointed_stages"] == [
+            "optional strategy generation"
+        ]
+        assert payload["budget"]["enforcement"]["non_interruptible_required_tasks"] == [
+            "required Deep Research task"
+        ]
 
     @pytest.mark.asyncio
     async def test_run_qa_method_handles_failure(self, runner):

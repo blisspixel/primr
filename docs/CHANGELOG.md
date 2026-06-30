@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of raw output paths.
 - Added body-free OpenTelemetry span projections and stable `request_id`
   fields to MCP tool, MCP resource, and A2A skill audit events.
+- Added runtime budget visibility to run manifests and compact usage-summary
+  readback, including the approved ceiling, active checkpoint status, and
+  non-interruptible required provider tasks without exposing manifest bodies.
 
 ## [1.34.41] - 2026-06-30
 

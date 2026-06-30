@@ -522,9 +522,9 @@ Each step unblocks the ones after it; items within a step are independent.
    summaries, and compact label-calibration summaries. A2A skill-scope,
    skill-audit, artifact-metadata compact read, QA-summary compact read,
    usage-summary compact read, source-summary compact read, stage-scorecard
-   compact eval-read parity, approval-token enforcement, and runtime budget
-   propagation, and A2A report-read scope separation are now shipped; non-fast
-   runtime budget visibility remains next.
+   compact eval-read parity, approval-token enforcement, runtime budget
+   propagation, A2A report-read scope separation, and compact non-fast runtime
+   budget visibility through run manifests and usage summaries are now shipped.
    Independent of steps 1-4; can proceed in parallel.
 6. **Backend freedom** (#18 + provider expansion) (2.0):
    capability-requirement routing and provider-availability headroom first

@@ -407,6 +407,11 @@ Do next:
   a body-free `otel_span` name/attribute payload with job id when present,
   without storing raw arguments, results, resource bodies, report bodies, URLs,
   or raw caller ids.
+- Shipped non-fast runtime budget visibility: run manifests now persist the
+  estimate-time budget-enforcement payload plus the approved ceiling and active
+  runtime-budget flag, and compact usage-summary readback exposes that metadata
+  including non-interruptible required Deep Research tasks without returning
+  company URLs, approval tokens, manifest bodies, or artifact lists.
 
 Done when:
 
@@ -423,7 +428,8 @@ Done when:
   parity, QA-summary compact read parity, usage-summary compact read parity,
   source-summary compact read parity, stage-scorecard compact eval-read
   parity, all seven job-scoped compact read parity slices, and A2A research
-  approval/budget parity, and A2A report-read parity are shipped.
+  approval/budget parity, A2A report-read parity, and compact non-fast runtime
+  budget visibility are shipped.
 
 ### 4. Research memory layer 1
 
