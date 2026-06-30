@@ -13,7 +13,14 @@ from primr.mcp_server.tool_authz import (
 )
 from primr.mcp_server.types import MCPErrorCode
 
-A2A_READ_SKILLS = frozenset({"estimate_research", "check_jobs", "system_health"})
+A2A_READ_SKILLS = frozenset(
+    {
+        "estimate_research",
+        "check_jobs",
+        "system_health",
+        "read_stage_scorecard",
+    }
+)
 A2A_RESEARCH_SKILLS = frozenset({"research_company", "run_qa", "cancel_task"})
 
 A2A_SKILL_REQUIRED_SCOPES: dict[str, tuple[str, ...]] = {

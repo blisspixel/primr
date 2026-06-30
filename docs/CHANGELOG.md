@@ -37,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MCP now exposes `primr://eval/stage_scorecard/{eval_id}` as a compact
   readback resource for CLI-generated stage scorecards, omitting prompts,
   responses, quality-source bodies, report bodies, and raw run-state content.
+- A2A now advertises `read_stage_scorecard` as a read-scoped compact
+  scorecard summary skill backed by the same eval-id resource boundary as MCP.
 - Website-summary local stage evals now write
   `website_summary_stage_quality_evidence.json`, giving routed-stage
   scorecards structured quality evidence without copying local summaries,

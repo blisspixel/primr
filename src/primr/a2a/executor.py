@@ -27,6 +27,10 @@ from primr.a2a.authz import (
 )
 from primr.a2a.types import A2ATaskMapping
 from primr.mcp_server.pipeline_runner import PipelineRunner, get_doctor_status, run_qa_analysis
+from primr.mcp_server.stage_scorecard_summary import (
+    STAGE_SCORECARD_SUMMARY_URI,
+    read_stage_scorecard_summary_resource,
+)
 
 if TYPE_CHECKING:
     from a2a.server.events import EventQueue
@@ -71,6 +75,7 @@ class PrimrAgentExecutor(AgentExecutor):
         - research_company  -> async job, streams progress via SSE
         - check_jobs        -> synchronous job status
         - run_qa            -> synchronous QA analysis
+        - read_stage_scorecard -> synchronous compact eval scorecard summary
         - system_health     -> synchronous doctor check
     """
 
@@ -110,6 +115,8 @@ class PrimrAgentExecutor(AgentExecutor):
                 audit_payload = await self._handle_check_jobs(event_queue)
             elif skill_id == "run_qa":
                 audit_payload = await self._handle_qa(text, event_queue)
+            elif skill_id == "read_stage_scorecard":
+                audit_payload = await self._handle_stage_scorecard_summary(text, event_queue)
             elif skill_id == "system_health":
                 audit_payload = await self._handle_doctor(event_queue)
             else:
@@ -552,6 +559,32 @@ class PrimrAgentExecutor(AgentExecutor):
             )
             return {"error": True, "error_type": "qa_failed"}
 
+    async def _handle_stage_scorecard_summary(
+        self,
+        text: str,
+        event_queue: EventQueue,
+    ) -> dict[str, Any]:
+        """Handle read_stage_scorecard skill - synchronous compact eval read."""
+        eval_id = _parse_eval_id(text)
+        if not eval_id:
+            payload = {
+                "error": True,
+                "error_type": "missing_eval_id",
+                "message": "Please provide an eval_id for the stage scorecard summary.",
+            }
+            await event_queue.enqueue_event(new_agent_text_message(json.dumps(payload)))
+            return payload
+
+        contents = read_stage_scorecard_summary_resource(f"{STAGE_SCORECARD_SUMMARY_URI}/{eval_id}")
+        content = contents[0].content if contents else "{}"
+        try:
+            payload = json.loads(content)
+        except json.JSONDecodeError:
+            payload = {"error": True, "error_type": "invalid_scorecard_summary"}
+
+        await event_queue.enqueue_event(new_agent_text_message(json.dumps(payload, indent=2)))
+        return payload if isinstance(payload, dict) else {"status": "scorecard_read"}
+
     async def _handle_doctor(self, event_queue: EventQueue) -> dict[str, Any]:
         """Handle system_health skill - synchronous."""
         try:
@@ -571,7 +604,10 @@ class PrimrAgentExecutor(AgentExecutor):
         self, skill_id: str | None, text: str, event_queue: EventQueue
     ) -> dict[str, Any]:
         """Handle unrecognized skill - try to route by content."""
-        available = "estimate_research, research_company, check_jobs, run_qa, system_health"
+        available = (
+            "estimate_research, research_company, check_jobs, run_qa, "
+            "read_stage_scorecard, system_health"
+        )
         await event_queue.enqueue_event(
             new_agent_text_message(f"Unknown skill '{skill_id}'. Available skills: {available}")
         )
@@ -676,3 +712,20 @@ def _parse_research_params(text: str) -> dict[str, str]:
                 params["name"] = name
 
     return params
+
+
+def _parse_eval_id(text: str) -> str:
+    """Extract a simple eval id from JSON, URI, or plain text input."""
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, dict):
+            value = parsed.get("eval_id", parsed.get("evalId"))
+            return value.strip() if isinstance(value, str) else ""
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    value = text.strip()
+    prefix = f"{STAGE_SCORECARD_SUMMARY_URI}/"
+    if value.startswith(prefix):
+        return value[len(prefix) :].strip()
+    return value

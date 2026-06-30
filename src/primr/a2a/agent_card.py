@@ -98,6 +98,24 @@ _SKILLS: list[dict] = [
         ],
     },
     {
+        "id": "read_stage_scorecard",
+        "name": "Read Stage Scorecard Summary",
+        "description": (
+            "Read a compact routed-stage eval scorecard summary by eval ID. "
+            "Returns route, quality-score, status, blocker, and artifact metadata "
+            "without prompt bodies, report bodies, raw run-state content, or "
+            "quality-source bodies.\n\n"
+            'Input (JSON or text): {"eval_id": "eval-2026-06-source-relevance"}\n\n'
+            "Output: JSON with eval_id, artifact metadata, status counts, blocker "
+            "counts, route totals, quality score stats, and compact scorecard rows"
+        ),
+        "tags": ["eval", "scorecard", "read", "routing"],
+        "examples": [
+            "Read stage scorecard eval-2026-06-source-relevance",
+            '{"eval_id": "eval-2026-06-source-relevance"}',
+        ],
+    },
+    {
         "id": "system_health",
         "name": "System Health Check",
         "description": (

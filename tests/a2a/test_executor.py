@@ -13,6 +13,7 @@ from primr.a2a.executor import (
     _caller_owns_job,
     _extract_skill_id,
     _extract_text,
+    _parse_eval_id,
     _parse_research_params,
 )
 from primr.a2a.task_store import PrimrTaskStore
@@ -98,6 +99,22 @@ class TestParseResearchParams:
     def test_empty_text(self):
         params = _parse_research_params("")
         assert params == {}
+
+
+class TestParseEvalId:
+    """Tests for _parse_eval_id helper."""
+
+    def test_json_eval_id(self):
+        assert _parse_eval_id('{"eval_id": "eval-2026-06"}') == "eval-2026-06"
+
+    def test_json_eval_id_alias(self):
+        assert _parse_eval_id('{"evalId": "eval-2026-06"}') == "eval-2026-06"
+
+    def test_stage_scorecard_uri(self):
+        assert _parse_eval_id("primr://eval/stage_scorecard/eval-2026-06") == "eval-2026-06"
+
+    def test_plain_text_eval_id(self):
+        assert _parse_eval_id(" eval-2026-06 ") == "eval-2026-06"
 
 
 class TestA2AOwnershipHelpers:
@@ -370,6 +387,112 @@ class TestPrimrAgentExecutor:
         assert audit_event["status"] == "scope_denied"
         assert audit_event["error_type"] == "insufficient_scope"
         assert audit_event["client_id_hash"].startswith("sha256:")
+        assert audit_event["auth_scopes"] == ["read"]
+
+    @pytest.mark.asyncio
+    async def test_stage_scorecard_summary_requires_read_scope(
+        self, executor, event_queue, context
+    ):
+        """read_stage_scorecard is blocked before handler execution without read scope."""
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["research"]
+        auth_context.client_id = "sensitive-client"
+        executor._mcp._auth_context = auth_context
+        context.message = {
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": '{"eval_id":"eval-private-secret"}',
+                }
+            ],
+            "metadata": {"skillId": "read_stage_scorecard"},
+        }
+
+        try:
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        assert data["error_type"] == "insufficient_scope"
+        assert data["missing_scopes"] == ["read"]
+        audit_text = executor._mcp.audit_log.path.read_text(encoding="utf-8")
+        assert "sensitive-client" not in audit_text
+        assert "eval-private-secret" not in audit_text
+
+    @pytest.mark.asyncio
+    async def test_stage_scorecard_summary_returns_compact_a2a_payload(
+        self, executor, event_queue, context, tmp_path, monkeypatch
+    ):
+        """read_stage_scorecard reuses the compact MCP summary without raw bodies."""
+        monkeypatch.chdir(tmp_path)
+        scorecard_dir = tmp_path / "output" / "evals" / "eval-a2a-1"
+        scorecard_dir.mkdir(parents=True)
+        (scorecard_dir / "stage_eval_scorecard.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "decision_policy": "candidate_for_human_review_only",
+                    "min_quality_score": 85.0,
+                    "max_failure_rate": 0.0,
+                    "prompt": "SECRET PROMPT",
+                    "report_body": "SECRET REPORT BODY",
+                    "rows": [
+                        {
+                            "stage_id": "fast.source_relevance",
+                            "backend_id": "codex-host",
+                            "inference_profile": "agent",
+                            "attempts": 2,
+                            "selected_attempts": 2,
+                            "fallback_attempts": 0,
+                            "failed_attempts": 0,
+                            "failure_rate": 0.0,
+                            "actual_cost_usd": 0.0,
+                            "avg_duration_seconds": 1.5,
+                            "quality_score": 95.0,
+                            "quality_sample_size": 4,
+                            "quality_sources": ["SECRET QUALITY SOURCE BODY"],
+                            "review_status": "candidate_for_human_review",
+                            "blockers": [],
+                            "raw_run_state": "SECRET RAW RUN STATE",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["read"]
+        auth_context.client_id = "client-1"
+        executor._mcp._auth_context = auth_context
+        context.message = {
+            "parts": [{"kind": "text", "text": '{"eval_id":"eval-a2a-1"}'}],
+            "metadata": {"skillId": "read_stage_scorecard"},
+        }
+
+        try:
+            await executor.execute(context, event_queue)
+        finally:
+            executor._mcp._auth_context = None
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        text = json.dumps(data)
+        assert data["eval_id"] == "eval-a2a-1"
+        assert data["summary"]["row_count"] == 1
+        assert data["summary"]["candidate_count"] == 1
+        assert data["summary"]["rows"][0]["backend_id"] == "codex-host"
+        assert "SECRET PROMPT" not in text
+        assert "SECRET REPORT BODY" not in text
+        assert "SECRET QUALITY SOURCE BODY" not in text
+        assert "SECRET RAW RUN STATE" not in text
+
+        audit_event = _audit_events(executor)[0]
+        assert audit_event["tool_name"] == "a2a/read_stage_scorecard"
+        assert audit_event["status"] == "success"
         assert audit_event["auth_scopes"] == ["read"]
 
     @pytest.mark.asyncio
