@@ -175,8 +175,8 @@ def add_eval_arguments(parser: argparse.ArgumentParser) -> None:
         default=None,
         dest="eval_stage_semantic_judge_model",
         help=(
-            "Local/OpenAI-compatible model for --eval-local-stage-semantic-judge "
-            "(default: first resolved local stage model)"
+            "Local/OpenAI-compatible model or comma-separated model panel for "
+            "--eval-local-stage-semantic-judge (default: first resolved local stage model)"
         ),
     )
     parser.add_argument(

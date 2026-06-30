@@ -368,31 +368,39 @@ class TestEvalBody:
             word_ratio=90.0,
             completeness_score=96.0,
         )
-        semantic_row = WebsiteSummarySemanticEvalRow(
-            company="ExampleCo",
-            model="qwen3:30b",
-            judge_model="llama3.1:70b",
-            working_dir="working/ExampleCo/run-001",
-            semantic_score=91.0,
-            aspects={
-                "strategic_coverage": 91.0,
-                "factual_alignment": 93.0,
-                "evidence_usefulness": 90.0,
-                "uncertainty_calibration": 87.0,
-            },
-            rationale="Candidate keeps the useful strategic evidence.",
-            response_valid=True,
-            input_tokens=120,
-            output_tokens=40,
-        )
         monkeypatch.setattr(
             "primr.core.local_stage_eval.run_local_website_summary_stage_eval",
             MagicMock(return_value=[stage_row]),
         )
-        semantic_mock = MagicMock(return_value=[semantic_row])
+        semantic_calls = []
+
+        def fake_semantic_eval(*, rows, judge_model, **_kwargs):
+            assert rows == [stage_row]
+            semantic_calls.append(judge_model)
+            score = 91.0 if judge_model == "llama3.1:70b" else 89.0
+            return [
+                WebsiteSummarySemanticEvalRow(
+                    company="ExampleCo",
+                    model="qwen3:30b",
+                    judge_model=judge_model,
+                    working_dir="working/ExampleCo/run-001",
+                    semantic_score=score,
+                    aspects={
+                        "strategic_coverage": score,
+                        "factual_alignment": score,
+                        "evidence_usefulness": score,
+                        "uncertainty_calibration": score,
+                    },
+                    rationale="Candidate keeps the useful strategic evidence.",
+                    response_valid=True,
+                    input_tokens=120,
+                    output_tokens=40,
+                )
+            ]
+
         monkeypatch.setattr(
             "primr.core.local_stage_eval.run_local_website_summary_semantic_eval",
-            semantic_mock,
+            fake_semantic_eval,
         )
 
         working_root = tmp_path / "working"
@@ -427,7 +435,7 @@ class TestEvalBody:
                 eval_company="ExampleCo",
                 eval_local_stage="website-summary",
                 eval_stage_semantic_judge=True,
-                eval_stage_semantic_judge_model="llama3.1:70b",
+                eval_stage_semantic_judge_model="llama3.1:70b,qwen2.5:14b",
                 eval_stage_scorecard=True,
                 eval_stage_quality=None,
                 eval_stage_route_root=str(working_root),
@@ -437,8 +445,7 @@ class TestEvalBody:
         )
 
         assert result == 0
-        semantic_mock.assert_called_once()
-        assert semantic_mock.call_args.kwargs["judge_model"] == "llama3.1:70b"
+        assert semantic_calls == ["llama3.1:70b", "qwen2.5:14b"]
         quality_path = (
             tmp_path
             / "evals"
@@ -446,10 +453,22 @@ class TestEvalBody:
             / "website_summary_stage"
             / "website_summary_stage_semantic_quality_evidence.json"
         )
+        report_path = (
+            tmp_path
+            / "evals"
+            / "eval-r1"
+            / "website_summary_stage"
+            / "website_summary_stage_semantic_eval.json"
+        )
         scorecard_path = tmp_path / "evals" / "eval-r1" / "stage_eval_scorecard.json"
         quality_text = quality_path.read_text(encoding="utf-8")
         assert "must-not-be-copied" not in quality_text
         quality_payload = json.loads(quality_text)
-        assert quality_payload["quality_evidence"][0]["quality_score"] == 91.0
+        assert quality_payload["quality_evidence"][0]["quality_score"] == 90.0
+        report_payload = json.loads(report_path.read_text(encoding="utf-8"))
+        assert (
+            report_payload["judge_policy"] == "local_judge_panel_review_signal_not_promotion_gate"
+        )
+        assert report_payload["agreement_summary"]["overall"]["avg_score_spread"] == 2.0
         scorecard_payload = json.loads(scorecard_path.read_text(encoding="utf-8"))
-        assert scorecard_payload["rows"][0]["quality_score"] == 91.0
+        assert scorecard_payload["rows"][0]["quality_score"] == 90.0

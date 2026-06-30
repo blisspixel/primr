@@ -99,18 +99,24 @@ def handle_website_summary_local_stage_eval(
     console.info(f"Local stage quality evidence: {generated_stage_quality_path}")
 
     if config.eval_stage_semantic_judge:
-        semantic_judge_model = config.eval_stage_semantic_judge_model or judge_models[0]
-        console.info(f"Running local website-summary semantic judge: {semantic_judge_model}")
+        semantic_judge_models = _semantic_judge_models(config, default_model=judge_models[0])
+        console.info(
+            "Running local website-summary semantic judge(s): " + ", ".join(semantic_judge_models)
+        )
         semantic_results: list[
             tuple[str, list[local_stage_eval.WebsiteSummarySemanticEvalRow]]
         ] = []
         for model_name, stage_rows in stage_results:
-            semantic_rows = local_stage_eval.run_local_website_summary_semantic_eval(
-                rows=stage_rows,
-                judge_model=semantic_judge_model,
-                base_url=config.eval_judge_base_url,
-                api_key_env=config.eval_judge_api_key_env,
-            )
+            semantic_rows: list[local_stage_eval.WebsiteSummarySemanticEvalRow] = []
+            for semantic_judge_model in semantic_judge_models:
+                semantic_rows.extend(
+                    local_stage_eval.run_local_website_summary_semantic_eval(
+                        rows=stage_rows,
+                        judge_model=semantic_judge_model,
+                        base_url=config.eval_judge_base_url,
+                        api_key_env=config.eval_judge_api_key_env,
+                    )
+                )
             semantic_results.append((model_name, semantic_rows))
             console.info(f"  judged {model_name}: {len(semantic_rows)} row(s)")
 
@@ -119,7 +125,7 @@ def handle_website_summary_local_stage_eval(
         local_stage_eval.write_website_summary_semantic_eval_report(
             semantic_report_path,
             eval_id=config.eval_id,
-            judge_model=semantic_judge_model,
+            judge_model=", ".join(semantic_judge_models),
             results=semantic_results,
             base_url=config.eval_judge_base_url,
             api_key_env=config.eval_judge_api_key_env,
@@ -140,3 +146,11 @@ def _model_slug(model_name: str) -> str:
     import re
 
     return re.sub(r"[^a-zA-Z0-9]+", "-", model_name).strip("-").lower() or "model"
+
+
+def _semantic_judge_models(config: Any, *, default_model: str) -> list[str]:
+    raw = config.eval_stage_semantic_judge_model
+    if not raw:
+        return [default_model]
+    models = [part.strip() for part in raw.split(",") if part.strip()]
+    return list(dict.fromkeys(models)) or [default_model]

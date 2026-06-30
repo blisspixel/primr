@@ -517,6 +517,66 @@ def write_website_summary_stage_eval_summary(
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+def build_website_summary_semantic_agreement_summary(
+    results: list[tuple[str, list[WebsiteSummarySemanticEvalRow]]],
+    *,
+    agreement_threshold_points: float = 10.0,
+) -> dict[str, Any]:
+    """Summarize local semantic judge agreement without using it as a gate."""
+
+    model_summaries: list[dict[str, Any]] = []
+    total_groups = 0
+    total_agreed = 0
+    all_spreads: list[float] = []
+
+    for model, rows in results:
+        by_company: dict[str, dict[str, float]] = {}
+        for row in rows:
+            if not row.response_valid:
+                continue
+            by_company.setdefault(row.company, {})[row.judge_model] = row.semantic_score
+
+        spreads: list[float] = []
+        for scores_by_judge in by_company.values():
+            if len(scores_by_judge) < 2:
+                continue
+            scores = list(scores_by_judge.values())
+            spreads.append(round(max(scores) - min(scores), 2))
+
+        agreed_groups = sum(1 for spread in spreads if spread <= agreement_threshold_points)
+        total_groups += len(spreads)
+        total_agreed += agreed_groups
+        all_spreads.extend(spreads)
+        model_summaries.append(
+            {
+                "model": model,
+                "comparable_groups": len(spreads),
+                "agreed_groups": agreed_groups,
+                "agreement_rate_pct": (
+                    round((agreed_groups / len(spreads)) * 100.0, 2) if spreads else None
+                ),
+                "avg_score_spread": (round(sum(spreads) / len(spreads), 2) if spreads else None),
+                "max_score_spread": max(spreads) if spreads else None,
+            }
+        )
+
+    return {
+        "agreement_threshold_points": agreement_threshold_points,
+        "overall": {
+            "comparable_groups": total_groups,
+            "agreed_groups": total_agreed,
+            "agreement_rate_pct": (
+                round((total_agreed / total_groups) * 100.0, 2) if total_groups else None
+            ),
+            "avg_score_spread": (
+                round(sum(all_spreads) / len(all_spreads), 2) if all_spreads else None
+            ),
+            "max_score_spread": max(all_spreads) if all_spreads else None,
+        },
+        "models": model_summaries,
+    }
+
+
 def write_website_summary_semantic_eval_report(
     path: Path,
     *,
@@ -531,10 +591,16 @@ def write_website_summary_semantic_eval_report(
     path.parent.mkdir(parents=True, exist_ok=True)
     all_rows = [row for _, rows in results for row in rows]
     valid_rows = [row for row in all_rows if row.response_valid]
+    judge_models = sorted({row.judge_model for row in all_rows})
     avg_score = (
         round(sum(row.semantic_score for row in all_rows) / max(1, len(all_rows)), 2)
         if all_rows
         else 0.0
+    )
+    judge_policy = (
+        "local_judge_panel_review_signal_not_promotion_gate"
+        if len(judge_models) > 1
+        else "single_local_judge_review_signal_not_promotion_gate"
     )
     payload = {
         "schema_version": 1,
@@ -542,13 +608,15 @@ def write_website_summary_semantic_eval_report(
         "stage": "website-summary",
         "evidence_type": "website_summary_semantic_eval",
         "decision_policy": "scorecard_input_only",
-        "judge_policy": "single_local_judge_review_signal_not_promotion_gate",
+        "judge_policy": judge_policy,
         "judge_model": judge_model,
+        "judge_models": judge_models,
         "base_url": base_url,
         "api_key_env": api_key_env,
         "rows_evaluated": len(all_rows),
         "valid_response_rows": len(valid_rows),
         "avg_semantic_score": avg_score,
+        "agreement_summary": build_website_summary_semantic_agreement_summary(results),
         "results": [
             {
                 "model": model,

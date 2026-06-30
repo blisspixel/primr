@@ -84,15 +84,15 @@ primr --eval --eval-id eval-2026-03-local-sweep --eval-llm-judge --eval-judge-pr
 # Focused RTX 4090 sweep before paying for another sub-dollar API comparison
 primr --eval --eval-id eval-2026-06-4090-vs-subdollar --eval-local-stage website-summary --eval-judge-provider local --eval-judge-model-list 4090-report-race --eval-judge-base-url http://localhost:11434/v1
 
-# Same focused sweep with local semantic judge evidence for same-command stage scorecards
-primr --eval --eval-id eval-2026-06-4090-vs-subdollar --eval-local-stage website-summary --eval-local-stage-semantic-judge --eval-local-stage-semantic-judge-model llama3.1:70b --eval-stage-scorecard --eval-stage-id fast.scrape_summary --eval-judge-provider local --eval-judge-model-list 4090-report-race --eval-judge-base-url http://localhost:11434/v1
+# Same focused sweep with local semantic judge-panel evidence for same-command stage scorecards
+primr --eval --eval-id eval-2026-06-4090-vs-subdollar --eval-local-stage website-summary --eval-local-stage-semantic-judge --eval-local-stage-semantic-judge-model llama3.1:70b,qwen2.5:14b --eval-stage-scorecard --eval-stage-id fast.scrape_summary --eval-judge-provider local --eval-judge-model-list 4090-report-race --eval-judge-base-url http://localhost:11434/v1
 ```
 
 Local judge runs now evaluate every staged non-baseline profile against the chosen baseline, not just the first available profile. They write one JSON artifact per model plus `local_judge_summary.json` / `local_judge_summary.md` with candidate-profile coverage, winner consensus, and per-profile breakdowns for side-by-side comparison.
 
 This is useful for evaluating local models against existing cloud-generated reports before routing any production pipeline stages to local inference. It is still a judge-based acceptance layer, not proof that a local model is ready to replace report-writing or deep-research stages directly.
 
-For a 24 GB RTX 4090 or comparable local box, start with `4090-report-race` before the broader `4090-top10` sweep. It keeps the first local run cheap in wall-clock time and answers the product question directly: is the local box already good enough for this stage, or is the ~$1 API route still buying meaningful quality? Add `--eval-local-stage-semantic-judge` when a local judge backend is available; the resulting semantic scorecard evidence is still review-only, and promotion requires a broader calibrated sample with provenance and agreement checks.
+For a 24 GB RTX 4090 or comparable local box, start with `4090-report-race` before the broader `4090-top10` sweep. It keeps the first local run cheap in wall-clock time and answers the product question directly: is the local box already good enough for this stage, or is the ~$1 API route still buying meaningful quality? Add `--eval-local-stage-semantic-judge` when a local judge backend is available. The judge-model option accepts one model or a comma-separated local judge panel; panel runs record score-spread agreement metadata. The resulting semantic scorecard evidence is still review-only, and promotion requires a broader calibrated sample with provenance and human-reviewed acceptance criteria.
 
 ## 2) Track the same metrics for every profile
 

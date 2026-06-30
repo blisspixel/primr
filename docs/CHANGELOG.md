@@ -45,6 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--eval-local-stage-semantic-judge` to run a local OpenAI-compatible semantic
   judge pass, write body-free semantic eval artifacts, and feed the resulting
   review-only quality evidence into same-command stage scorecards.
+- The semantic judge model option now accepts a comma-separated local judge
+  panel and records agreement-rate plus score-spread metadata without changing
+  review-only promotion policy.
 - Agentic QA fallback scoring no longer assigns a default passing accuracy
   score when it has not verified factual accuracy; the compatibility
   `accuracy` dimension now reflects deterministic traceability signals only.

@@ -296,9 +296,9 @@ Done when:
   The route-metadata comparison artifact exists; quality comparison artifacts
   now have a CLI-accessible scorecard layer, and website-summary local-stage
   evals can produce either structural completeness evidence or local semantic
-  judge evidence for same-command scorecards. Both remain report-only
-  scorecard evidence, not promotion gates; calibrated samples and agreement
-  checks are still required before any promotion.
+  judge-panel evidence for same-command scorecards. Both remain report-only
+  scorecard evidence, not promotion gates; calibrated samples and
+  human-reviewed acceptance criteria are still required before any promotion.
 - No hidden provider dependency remains in the full-report path for the wired
   stage.
 

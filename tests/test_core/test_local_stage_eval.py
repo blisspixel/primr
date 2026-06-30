@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from primr.core.local_stage_eval import (
     WebsiteSummaryEvalRow,
     WebsiteSummarySemanticEvalRow,
+    build_website_summary_semantic_agreement_summary,
     extract_summary_metrics,
     find_latest_website_summary_eval_inputs,
     parse_scraped_content_file,
@@ -383,6 +384,58 @@ def test_write_website_summary_semantic_outputs_are_body_free(tmp_path: Path):
             "source": ("website_summary_semantic:eval-stage-001:qwen3:30b:judge=llama3.1:70b"),
         }
     ]
+
+
+def test_website_summary_semantic_agreement_summary_tracks_score_spread():
+    rows = [
+        WebsiteSummarySemanticEvalRow(
+            company="ExampleCo",
+            model="qwen3:30b",
+            judge_model="llama3.1:70b",
+            working_dir="working/ExampleCo/run-001",
+            semantic_score=91.0,
+            aspects={},
+            rationale="Judge one.",
+            response_valid=True,
+            input_tokens=120,
+            output_tokens=40,
+        ),
+        WebsiteSummarySemanticEvalRow(
+            company="ExampleCo",
+            model="qwen3:30b",
+            judge_model="qwen2.5:14b",
+            working_dir="working/ExampleCo/run-001",
+            semantic_score=84.0,
+            aspects={},
+            rationale="Judge two.",
+            response_valid=True,
+            input_tokens=120,
+            output_tokens=40,
+        ),
+        WebsiteSummarySemanticEvalRow(
+            company="ExampleTwo",
+            model="qwen3:30b",
+            judge_model="llama3.1:70b",
+            working_dir="working/ExampleTwo/run-001",
+            semantic_score=70.0,
+            aspects={},
+            rationale="Malformed fallback.",
+            response_valid=False,
+            input_tokens=120,
+            output_tokens=40,
+        ),
+    ]
+
+    summary = build_website_summary_semantic_agreement_summary(
+        [("qwen3:30b", rows)],
+        agreement_threshold_points=10.0,
+    )
+
+    assert summary["overall"]["comparable_groups"] == 1
+    assert summary["overall"]["agreed_groups"] == 1
+    assert summary["overall"]["agreement_rate_pct"] == 100.0
+    assert summary["overall"]["avg_score_spread"] == 7.0
+    assert summary["models"][0]["max_score_spread"] == 7.0
 
 
 def test_write_website_summary_semantic_quality_omits_invalid_judge_rows(tmp_path: Path):
