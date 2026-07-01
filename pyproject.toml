@@ -121,7 +121,7 @@ a2a = [
     # DefaultRequestHandler now requires agent_card, TaskStatusUpdateEvent
     # dropped final=, several type kwargs renamed). Upgrading the pin requires
     # reworking src/primr/a2a/{executor,server,task_store,agent_card}.py.
-    "a2a-sdk[http-server]>=0.3.20,<0.4.0",
+    "a2a-sdk[http-server]>=0.3.20,<1.2.0",
 ]
 security = [
     "bandit>=1.7.0",
