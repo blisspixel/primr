@@ -164,8 +164,8 @@ def rotate_search_key(old_key_id: str | None = None) -> bool:
     if not result:
         return False
 
-    new_key_id, new_key_string = result
-    print(f"✓ Created new key: {new_key_id[-12:]}")
+    _new_key_id, new_key_string = result
+    print("✓ Created new search API key")
 
     if not save_config_key("SEARCH_API_KEY", new_key_string):
         print("⚠ Key was created but not saved. Retrieve it from Google Cloud before use.")
@@ -174,7 +174,7 @@ def rotate_search_key(old_key_id: str | None = None) -> bool:
     # old credential alive is no rotation at all. Caller is expected to
     # delete out-of-band, so we surface failure rather than print success.
     if old_key_id:
-        print(f"Deleting old key: {old_key_id[-12:]}...")
+        print("Deleting selected old search API key...")
         if not delete_api_key(old_key_id):
             print("❌ Failed to delete old key. Revoke it manually before declaring rotation done.")
             return False
@@ -201,8 +201,8 @@ def interactive_mode():
     print("\n--- Current API Keys ---")
     keys = list_api_keys()
     if keys:
-        for i, key in enumerate(keys):
-            print(f"  [{i + 1}] {key['name']} (created: {key['created'][:10]})")
+        for i, _key in enumerate(keys):
+            print(f"  [{i + 1}] search key candidate")
     else:
         print("  No keys found")
 
@@ -221,7 +221,7 @@ def interactive_mode():
         search_keys = [k for k in keys if "search" in k["name"].lower()]
         old_key_id = None
         if search_keys:
-            print(f"\nFound existing search key: {search_keys[0]['name']}")
+            print("\nFound an existing search key candidate.")
             if input("Delete after rotation? [y/N]: ").lower() == "y":
                 old_key_id = search_keys[0]["id"]
 
@@ -230,12 +230,12 @@ def interactive_mode():
     elif choice == "2":
         result = create_api_key("primr-search", "customsearch.googleapis.com")
         if result:
-            key_id, key_string = result
+            _key_id, key_string = result
             print("\n✓ New key created!")
             if save_config_key("SEARCH_API_KEY", key_string):
                 print("  SEARCH_API_KEY is configured for Primr.")
             else:
-                print(f"  Retrieve it with: gcloud services api-keys get-key-string {key_id}")
+                print("  Retrieve the key string from Google Cloud before use.")
             return 0
         return 1
 
@@ -277,8 +277,8 @@ Note: Gemini API keys must be rotated manually at https://aistudio.google.com/ap
         if not check_gcloud_auth() or not get_project():
             return 1
         print("\n--- API Keys ---")
-        for key in list_api_keys():
-            print(f"  {key['name']}: {key['id']}")
+        for index, _key in enumerate(list_api_keys(), start=1):
+            print(f"  [{index}] search key candidate")
         return 0
 
     if args.delete:

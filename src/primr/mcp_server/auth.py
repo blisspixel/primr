@@ -113,8 +113,8 @@ class AuthConfig:
                 )
             else:
                 logger.warning(
-                    f"Configured MCP signing secret is shorter than {MIN_SECRET_KEY_LENGTH} characters. "
-                    "Consider using a longer secret for better security."
+                    "Configured MCP signing value is too short. "
+                    "Use a cryptographically random value with the documented minimum length."
                 )
 
         # L3b: Refuse known placeholder secrets. A long-but-public placeholder

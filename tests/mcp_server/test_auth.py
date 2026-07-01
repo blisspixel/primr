@@ -880,7 +880,7 @@ class TestJwtSecretCloudEnforcement:
             config = AuthConfig.from_env()
 
         assert config.jwt_secret == "short"
-        assert "shorter than" in caplog.text
+        assert "too short" in caplog.text
 
     def test_long_secret_ok_in_cloud_mode(self, monkeypatch):
         """In cloud mode, sufficiently long JWT secret is accepted."""

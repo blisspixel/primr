@@ -183,8 +183,8 @@ def check_hardcoded_secrets() -> tuple[bool, list[str]]:
 
     if issues:
         print_error(f"Found {len(issues)} potential hardcoded secrets:")
-        for issue in issues[:10]:
-            print(f"  {issue}")
+        for index, _issue in enumerate(issues[:10], start=1):
+            print(f"  finding {index}")
         return False, issues
 
     print_ok("No hardcoded secrets detected")

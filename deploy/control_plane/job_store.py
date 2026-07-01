@@ -19,7 +19,6 @@ Requirements: 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.18
 from __future__ import annotations
 
 import hashlib
-import hmac
 import json
 import os
 import threading
@@ -240,11 +239,16 @@ def hash_inputs(inputs: JobInputs) -> str:
 
 def _control_plane_hash_key(scope: str) -> bytes:
     pepper = os.getenv("PRIMR_CONTROL_PLANE_HASH_PEPPER", "")
-    return f"primr-control-plane:{scope}:{pepper}".encode()
+    material = f"primr-control-plane:{scope}:{pepper}".encode()
+    return hashlib.blake2b(material, digest_size=64).digest()
 
 
 def _control_plane_fingerprint(scope: str, value: str) -> str:
-    return hmac.new(_control_plane_hash_key(scope), value.encode(), digestmod="sha256").hexdigest()
+    return hashlib.blake2b(
+        value.encode(),
+        key=_control_plane_hash_key(scope),
+        digest_size=32,
+    ).hexdigest()
 
 
 def hash_job_id(deployment: str, idempotency_key: str, api_key: str) -> str:
@@ -259,7 +263,7 @@ def hash_job_id(deployment: str, idempotency_key: str, api_key: str) -> str:
 
 def hash_api_key(api_key: str) -> str:
     """Hash API key for storage (never store raw keys)."""
-    return f"hmac-sha256:{_control_plane_fingerprint('api-key', api_key)}"
+    return f"keyed-blake2b:{_control_plane_fingerprint('api-key', api_key)}"
 
 
 def get_expected_artifacts(mode: str) -> list[str]:

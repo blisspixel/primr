@@ -9,7 +9,7 @@ This module provides:
 - Expiration support
 """
 
-import hmac
+import hashlib
 import secrets
 import threading
 from collections.abc import Callable
@@ -390,7 +390,11 @@ class APIKeyAuth:
 
     def _hash_key(self, key: str) -> str:
         """Fingerprint a generated high-entropy API key for in-memory lookup."""
-        return hmac.new(self._hash_key_secret, key.encode(), digestmod="sha256").hexdigest()
+        return hashlib.blake2b(
+            key.encode(),
+            key=self._hash_key_secret,
+            digest_size=32,
+        ).hexdigest()
 
 
 # =============================================================================
