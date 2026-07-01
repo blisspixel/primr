@@ -22,7 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fingerprints use deterministic PBKDF2-HMAC-SHA256 digests where compatibility
   allows. GitHub Actions workflows now default to read-only token permissions,
   CI checkouts no longer persist credentials, and Dependabot is configured for
-  uv and GitHub Actions dependency updates.
+  uv and GitHub Actions dependency updates. Azure Functions deployment
+  requirements now enforce the same secure Azure SDK floors as the main project.
 - Cleaned up credential-shaped test fixtures and public Azure role-definition
   literals so local secret scanning now passes on current `src/`, `docs/`,
   `tests/`, and `deploy/` paths without masking real leaks. GitHub secret
