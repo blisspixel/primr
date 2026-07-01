@@ -15,8 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   JavaScript-only page detection uses the HTML parser rather than a tag regex;
   console output now redacts secret-shaped values; rate-limit logging no longer
   emits caller bucket identifiers; role-plan and stage-eval artifacts mask
-  accidental secrets before persistence; and API-key fingerprints use keyed
-  HMAC digests where compatibility allows.
+  accidental secrets before persistence through a shared redacted-write helper;
+  helper scripts no longer print or write generated search API keys directly to
+  `.env`; the user key store now uses the same low-level restrictive write path
+  across platforms; Cosmos status queries are parameterized; and API-key
+  fingerprints use keyed HMAC digests where compatibility allows.
 - Cleaned up credential-shaped test fixtures and public Azure role-definition
   literals so local secret scanning now passes on current `src/`, `docs/`,
   `tests/`, and `deploy/` paths without masking real leaks. GitHub secret

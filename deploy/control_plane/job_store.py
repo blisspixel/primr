@@ -240,12 +240,11 @@ def hash_inputs(inputs: JobInputs) -> str:
 
 def _control_plane_hash_key(scope: str) -> bytes:
     pepper = os.getenv("PRIMR_CONTROL_PLANE_HASH_PEPPER", "")
-    material = f"primr-control-plane:{scope}:{pepper}".encode()
-    return hashlib.sha256(material).digest()
+    return f"primr-control-plane:{scope}:{pepper}".encode()
 
 
 def _control_plane_fingerprint(scope: str, value: str) -> str:
-    return hmac.new(_control_plane_hash_key(scope), value.encode(), hashlib.sha256).hexdigest()
+    return hmac.new(_control_plane_hash_key(scope), value.encode(), digestmod="sha256").hexdigest()
 
 
 def hash_job_id(deployment: str, idempotency_key: str, api_key: str) -> str:
@@ -571,11 +570,15 @@ class CosmosStore:
         started_before: datetime | None = None,
     ) -> list[JobRecord]:
         """Query jobs by status."""
-        status_values = [f"'{s.value}'" for s in status]
-        query = f"SELECT * FROM c WHERE c.status IN ({', '.join(status_values)})"
+        query = "SELECT * FROM c WHERE ARRAY_CONTAINS(@statuses, c.status)"
+        parameters = [{"name": "@statuses", "value": [s.value for s in status]}]
 
         results = []
-        for item in self.container.query_items(query=query, enable_cross_partition_query=True):
+        for item in self.container.query_items(
+            query=query,
+            parameters=parameters,
+            enable_cross_partition_query=True,
+        ):
             job = JobRecord.from_dict(item)
             if started_before and job.timing.started_at:
                 started = datetime.fromisoformat(job.timing.started_at.replace("Z", "+00:00"))

@@ -113,7 +113,7 @@ class AuthConfig:
                 )
             else:
                 logger.warning(
-                    f"MCP_JWT_SECRET is shorter than {MIN_SECRET_KEY_LENGTH} characters. "
+                    f"Configured MCP signing secret is shorter than {MIN_SECRET_KEY_LENGTH} characters. "
                     "Consider using a longer secret for better security."
                 )
 
@@ -131,7 +131,7 @@ class AuthConfig:
                 )
             else:
                 logger.warning(
-                    "MCP_JWT_SECRET looks like a placeholder value. Replace it with a "
+                    "Configured MCP signing secret looks like a placeholder value. Replace it with a "
                     "cryptographically random secret before exposing the server publicly."
                 )
 

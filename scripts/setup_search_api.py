@@ -10,7 +10,7 @@ Steps performed:
   2. Enable Custom Search API on the project
   3. Create a restricted API key (Custom Search only)
   4. Create a Programmable Search Engine (whole-web)
-  5. Write both values to .env
+  5. Save both values to the Primr user key store
 
 Usage:
     python scripts/setup_search_api.py
@@ -25,12 +25,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+from _primr_key_store import save_primr_key
+
 # Fix Windows console encoding
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-ENV_FILE = PROJECT_ROOT / ".env"
 DEFAULT_PROJECT = "primr-485912"
 CUSTOM_SEARCH_SERVICE = "customsearch.googleapis.com"
 
@@ -335,34 +336,17 @@ def prompt_for_search_engine_id() -> str:
     return cx
 
 
-def update_env_file(key_name: str, key_value: str) -> None:
-    """Update or add a key in the .env file."""
+def save_config_value(key_name: str, key_value: str) -> None:
+    """Save a value through Primr's user key store without echoing it."""
     if not key_value:
         return
-
-    if not ENV_FILE.exists():
-        # Copy from .env.example if available
-        example = PROJECT_ROOT / ".env.example"
-        if example.exists():
-            ENV_FILE.write_text(example.read_text())
-            print("  Created .env from .env.example")
-        else:
-            ENV_FILE.write_text("")
-
-    content = ENV_FILE.read_text()
-    pattern = rf"^{re.escape(key_name)}=.*$"
-
-    if re.search(pattern, content, re.MULTILINE):
-        # Replace existing value
-        content = re.sub(pattern, f"{key_name}={key_value}", content, flags=re.MULTILINE)
-    else:
-        # Append
-        if not content.endswith("\n"):
-            content += "\n"
-        content += f"{key_name}={key_value}\n"
-
-    ENV_FILE.write_text(content)
-    print(f"  .env: {key_name} updated")
+    try:
+        path = save_primr_key(key_name, key_value)
+    except OSError as exc:
+        print(f"  ERROR: could not save {key_name} to the Primr key store: {exc}")
+        print("  Retrieve the value from Google Cloud and run `primr keys set` manually.")
+        return
+    print(f"  Primr key store: {key_name} updated at {path}")
 
 
 def verify_with_doctor() -> None:
@@ -415,7 +399,7 @@ def main():
     if args.dry_run:
         print(f"\n[3/5] Would enable: {CUSTOM_SEARCH_SERVICE}")
         print("\n[4/5] Would create API key restricted to Custom Search")
-        print("\n[5/5] Would update .env with SEARCH_API_KEY and SEARCH_ENGINE_ID")
+        print("\n[5/5] Would save SEARCH_API_KEY and SEARCH_ENGINE_ID to the Primr key store")
         print("\nDry run complete. Run without --dry-run to apply.")
         return
 
@@ -426,7 +410,7 @@ def main():
     # Step 4: Create API key
     print("\n[4/5] API Key")
     api_key = create_api_key(args.project)
-    update_env_file("SEARCH_API_KEY", api_key)
+    save_config_value("SEARCH_API_KEY", api_key)
 
     # Step 5: Search Engine ID
     print("\n[5/5] Search Engine ID")
@@ -443,16 +427,19 @@ def main():
             cx = prompt_for_search_engine_id()
 
         if cx:
-            update_env_file("SEARCH_ENGINE_ID", cx)
+            save_config_value("SEARCH_ENGINE_ID", cx)
         else:
-            print("  Skipped - you can add SEARCH_ENGINE_ID to .env later")
+            print("  Skipped - you can add SEARCH_ENGINE_ID with `primr keys set search-engine`")
             print("  Create at: https://programmablesearchengine.google.com/controlpanel/create")
 
     # Verify
     print("\n" + "=" * 40)
     print("Setup complete!")
     print(f"  SEARCH_API_KEY: {'configured' if api_key else 'MISSING'}")
-    print(f"  SEARCH_ENGINE_ID: {'configured' if cx else 'MISSING - add to .env'}")
+    print(
+        f"  SEARCH_ENGINE_ID: "
+        f"{'configured' if cx else 'MISSING - run primr keys set search-engine'}"
+    )
 
     if api_key:
         verify_with_doctor()

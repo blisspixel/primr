@@ -22,6 +22,7 @@ import re
 import secrets
 from collections.abc import Callable
 from functools import wraps
+from pathlib import Path
 from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
@@ -166,6 +167,20 @@ def mask_sensitive_data(text: str) -> str:
     for pattern, replacement in SENSITIVE_PATTERNS:
         result = pattern.sub(replacement, result)
     return result
+
+
+def write_redacted_text(path: Path, text: str, *, encoding: str = "utf-8") -> None:
+    """Write an artifact after applying Primr's standard secret redaction."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = mask_sensitive_data(text).encode(encoding)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    if hasattr(os, "O_BINARY"):
+        flags |= os.O_BINARY
+    fd = os.open(str(path), flags, 0o600)
+    try:
+        os.write(fd, data)
+    finally:
+        os.close(fd)
 
 
 def mask_dict_values(data: dict, sensitive_keys: set[str] | None = None) -> dict:

@@ -33,6 +33,7 @@ from deploy.control_plane.cost_governor import (
 )
 from deploy.control_plane.job_store import (
     ConditionalCheckFailedError,
+    CosmosStore,
     CostEstimate,
     InMemoryJobStore,
     JobInputs,
@@ -224,6 +225,54 @@ class TestJobStore:
         running = job_store.query_by_status([JobStatus.RUNNING])
         assert len(running) == 1
         assert running[0].job_id == "test-1"
+
+    def test_cosmos_query_by_status_uses_parameters(self) -> None:
+        """Cosmos status queries keep status values out of the SQL text."""
+
+        job = JobRecord(
+            job_id="test-1",
+            deployment="test",
+            idempotency_key="key-1",
+            api_key_hash=hash_api_key(CONTROL_PLANE_TEST_TOKEN),
+            canonical_hash="hash-1",
+            status=JobStatus.RUNNING,
+            inputs=JobInputs(
+                company_name="Acme",
+                company_url="https://acme.example",
+                mode="full",
+            ),
+            expected_artifacts=[],
+            estimate=CostEstimate(cost_usd=1.0, duration_minutes=30),
+            timing=JobTiming(submitted_at="2024-01-01T00:00:00Z"),
+        )
+
+        class FakeContainer:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, object]] = []
+
+            def query_items(self, **kwargs: object) -> list[dict[str, object]]:
+                self.calls.append(kwargs)
+                item = job.to_dict()
+                item["id"] = job.job_id
+                return [item]
+
+        container = FakeContainer()
+        store = CosmosStore(
+            database_name="db",
+            container_name="jobs",
+            connection_string="AccountEndpoint=https://example;AccountKey=test;",
+            container=container,
+        )
+
+        results = store.query_by_status([JobStatus.RUNNING, JobStatus.QUEUED])
+
+        assert [result.job_id for result in results] == ["test-1"]
+        call = container.calls[0]
+        assert call["query"] == "SELECT * FROM c WHERE ARRAY_CONTAINS(@statuses, c.status)"
+        assert "RUNNING" not in str(call["query"])
+        assert call["parameters"] == [
+            {"name": "@statuses", "value": ["RUNNING", "QUEUED"]},
+        ]
 
 
 # =============================================================================

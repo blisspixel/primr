@@ -298,19 +298,14 @@ def set_user_key(name: str, value: str) -> tuple[str, Path]:
     data = ("\n".join(lines).rstrip() + "\n").encode("utf-8")
     # Create-or-truncate with restrictive permissions in one syscall so
     # there is no window where the file is readable to other users.
-    if os.name == "posix":
-        flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
-        fd = os.open(str(path), flags, 0o600)
-        try:
-            os.write(fd, data)
-        finally:
-            os.close(fd)
-    else:
-        # This is the explicit user-local key store for `primr keys set`.
-        # `_secure_path_modes` immediately restricts access on supported filesystems.
-
-        # codeql[py/clear-text-storage-sensitive-data]
-        path.write_bytes(data)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    if hasattr(os, "O_BINARY"):
+        flags |= os.O_BINARY
+    fd = os.open(str(path), flags, 0o600)
+    try:
+        os.write(fd, data)
+    finally:
+        os.close(fd)
 
     _secure_path_modes(path)
 

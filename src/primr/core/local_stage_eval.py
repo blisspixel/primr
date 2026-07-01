@@ -9,7 +9,7 @@ from typing import Any
 from primr.ai.summarize import summarize_scraped_content_local
 from primr.core.model_eval import _company_similarity
 from primr.core.stage_eval_scorecard import StageQualityEvidence
-from primr.utils.security import mask_sensitive_data
+from primr.utils.security import write_redacted_text
 
 
 @dataclass(frozen=True)
@@ -452,7 +452,7 @@ def write_website_summary_stage_eval_report(
     payload = {
         "model": model,
         "base_url": base_url,
-        "credential_env_var": credential_env_var,
+        "credential_source": "environment" if credential_env_var else "none",
         "companies_evaluated": len(rows),
         "avg_completeness_score": round(
             sum(row.completeness_score for row in rows) / max(1, len(rows)),
@@ -460,10 +460,7 @@ def write_website_summary_stage_eval_report(
         ),
         "rows": [row.__dict__ for row in rows],
     }
-    safe_json = mask_sensitive_data(json.dumps(payload, indent=2))
-
-    # codeql[py/clear-text-storage-sensitive-data]
-    path.write_text(safe_json, encoding="utf-8")
+    write_redacted_text(path, json.dumps(payload, indent=2))
 
 
 def write_website_summary_stage_eval_summary(
@@ -518,10 +515,7 @@ def write_website_summary_stage_eval_summary(
         "recommended_models": [row["model"] for row in ranked[:3]],
         "results": ranked,
     }
-    safe_json = mask_sensitive_data(json.dumps(payload, indent=2))
-
-    # codeql[py/clear-text-storage-sensitive-data]
-    path.write_text(safe_json, encoding="utf-8")
+    write_redacted_text(path, json.dumps(payload, indent=2))
 
 
 def build_website_summary_semantic_agreement_summary(
@@ -619,7 +613,7 @@ def write_website_summary_semantic_eval_report(
         "judge_model": judge_model,
         "judge_models": judge_models,
         "base_url": base_url,
-        "credential_env_var": credential_env_var,
+        "credential_source": "environment" if credential_env_var else "none",
         "rows_evaluated": len(all_rows),
         "valid_response_rows": len(valid_rows),
         "avg_semantic_score": avg_score,
@@ -632,7 +626,7 @@ def write_website_summary_semantic_eval_report(
             for model, rows in results
         ],
     }
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    write_redacted_text(path, json.dumps(payload, indent=2))
 
 
 def build_website_summary_semantic_quality_evidence(

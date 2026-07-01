@@ -2,7 +2,7 @@
 """
 API Key Rotation Utility
 
-Rotates Google Cloud API keys and updates .env file.
+Rotates Google Cloud API keys and updates the Primr user key store.
 Gemini (AI Studio) keys must be rotated manually at https://aistudio.google.com/apikey
 
 Usage:
@@ -18,10 +18,10 @@ Requirements:
 """
 
 import argparse
-import re
 import subprocess
 import sys
-from pathlib import Path
+
+from _primr_key_store import save_primr_key
 
 
 def run_gcloud(args: list[str], capture: bool = True) -> tuple[int, str, str]:
@@ -144,26 +144,15 @@ def delete_api_key(key_id: str) -> bool:
     return True
 
 
-def update_env_file(key_name: str, new_value: str) -> bool:
-    """Update a key in the .env file."""
-    env_path = Path(".env")
-    if not env_path.exists():
-        print("❌ .env file not found")
+def save_config_key(key_name: str, new_value: str) -> bool:
+    """Save a key through Primr's user-level key store without echoing it."""
+    try:
+        path = save_primr_key(key_name, new_value)
+    except OSError as exc:
+        print(f"❌ Failed to save {key_name} to the Primr key store: {exc}")
         return False
-
-    content = env_path.read_text()
-    pattern = rf"^{re.escape(key_name)}=.*$"
-
-    if re.search(pattern, content, re.MULTILINE):
-        new_content = re.sub(pattern, f"{key_name}={new_value}", content, flags=re.MULTILINE)
-        env_path.write_text(new_content)
-        print(f"✓ Updated {key_name} in .env")
-        return True
-    else:
-        print(f"⚠ {key_name} not found in .env, appending...")
-        with open(env_path, "a") as f:
-            f.write(f"\n{key_name}={new_value}\n")
-        return True
+    print(f"✓ Saved {key_name} to the Primr key store at {path}")
+    return True
 
 
 def rotate_search_key(old_key_id: str | None = None) -> bool:
@@ -178,9 +167,8 @@ def rotate_search_key(old_key_id: str | None = None) -> bool:
     new_key_id, new_key_string = result
     print(f"✓ Created new key: {new_key_id[-12:]}")
 
-    # Update .env
-    if not update_env_file("SEARCH_API_KEY", new_key_string):
-        print("⚠ Remember to manually update SEARCH_API_KEY in .env")
+    if not save_config_key("SEARCH_API_KEY", new_key_string):
+        print("⚠ Key was created but not saved. Retrieve it from Google Cloud before use.")
 
     # Delete old key if provided. Fail closed: a rotation that leaves the
     # old credential alive is no rotation at all. Caller is expected to
@@ -219,7 +207,7 @@ def interactive_mode():
         print("  No keys found")
 
     print("\n--- Options ---")
-    print("  [1] Rotate Search API key (creates new, updates .env, deletes old)")
+    print("  [1] Rotate Search API key (creates new, saves to Primr key store, deletes old)")
     print("  [2] Create new Search API key only")
     print("  [3] List keys and exit")
     print("  [4] Exit")
@@ -242,9 +230,12 @@ def interactive_mode():
     elif choice == "2":
         result = create_api_key("primr-search", "customsearch.googleapis.com")
         if result:
-            _, key_string = result
+            key_id, key_string = result
             print("\n✓ New key created!")
-            print(f"  Add to .env: SEARCH_API_KEY={key_string}")
+            if save_config_key("SEARCH_API_KEY", key_string):
+                print("  SEARCH_API_KEY is configured for Primr.")
+            else:
+                print(f"  Retrieve it with: gcloud services api-keys get-key-string {key_id}")
             return 0
         return 1
 

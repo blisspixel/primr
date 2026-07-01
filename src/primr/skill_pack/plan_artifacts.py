@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from primr.skill_pack.schema import Role, RolePlan
-from primr.utils.security import mask_sensitive_data
+from primr.utils.security import write_redacted_text
 
 logger = logging.getLogger(__name__)
 
@@ -25,19 +25,11 @@ def persist_plan(
         working_dir.mkdir(parents=True, exist_ok=True)
         md_path = working_dir / "role_plan.md"
         json_path = working_dir / "role_plan.json"
-        safe_md_text = mask_sensitive_data(
-            render_plan_md(company_name, plan, generated_at, roles_count)
-        )
 
-        # codeql[py/clear-text-storage-sensitive-data]
-        md_path.write_text(safe_md_text, encoding="utf-8")
+        write_redacted_text(md_path, render_plan_md(company_name, plan, generated_at, roles_count))
         plan.plan_md_path = str(md_path)
-        safe_json_text = mask_sensitive_data(
-            json.dumps(plan.to_dict(), indent=2, ensure_ascii=False)
-        )
 
-        # codeql[py/clear-text-storage-sensitive-data]
-        json_path.write_text(safe_json_text, encoding="utf-8")
+        write_redacted_text(json_path, json.dumps(plan.to_dict(), indent=2, ensure_ascii=False))
         plan.plan_json_path = str(json_path)
         logger.info("Wrote role plan to %s and %s", md_path, json_path)
     except OSError as exc:

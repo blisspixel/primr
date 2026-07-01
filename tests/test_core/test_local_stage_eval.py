@@ -241,6 +241,9 @@ def test_write_website_summary_stage_eval_outputs(tmp_path: Path):
     payload = json.loads(report_path.read_text(encoding="utf-8"))
     assert payload["companies_evaluated"] == 1
     assert payload["avg_completeness_score"] == 96.0
+    assert payload["credential_source"] == "environment"
+    assert "credential_env_var" not in payload
+    assert "LOCAL_LLM_API_KEY" not in report_path.read_text(encoding="utf-8")
 
     summary_payload = json.loads(summary_json.read_text(encoding="utf-8"))
     assert summary_payload["stage"] == "website-summary"
@@ -457,6 +460,9 @@ def test_write_website_summary_semantic_outputs_are_body_free(tmp_path: Path):
     report_payload = json.loads(report_path.read_text(encoding="utf-8"))
     assert report_payload["judge_policy"] == ("single_local_judge_review_signal_not_promotion_gate")
     assert report_payload["avg_semantic_score"] == 91.25
+    assert report_payload["credential_source"] == "environment"
+    assert "credential_env_var" not in report_payload
+    assert "LOCAL_LLM_API_KEY" not in report_path.read_text(encoding="utf-8")
 
     evidence_text = evidence_path.read_text(encoding="utf-8")
     evidence_payload = json.loads(evidence_text)

@@ -169,13 +169,14 @@ def check_hardcoded_secrets() -> tuple[bool, list[str]]:
                     # Skip if it's in a comment or docstring context
                     line_start = content.rfind("\n", 0, match.start()) + 1
                     line = content[line_start : match.end()]
+                    line_no = content.count("\n", 0, match.start()) + 1
 
                     if line.strip().startswith("#"):
                         continue
                     if "example" in line.lower() or "placeholder" in line.lower():
                         continue
 
-                    issues.append(f"{py_file}:{description} - {match.group()[:30]}...")
+                    issues.append(f"{py_file}:{line_no}: {description}")
 
         except Exception as e:
             print_warn(f"Could not read {py_file}: {e}")
