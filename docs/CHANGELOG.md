@@ -96,6 +96,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   models: `output_config.effort` now accepts `max` and `xhigh`, Sonnet 5 can
   explicitly disable adaptive thinking, adaptive display config is preserved,
   and legacy manual thinking budgets are omitted on tiers that reject them.
+- Rejected assistant-prefill-shaped Anthropic requests locally for current
+  Claude model families that return provider-side 400s, including Sonnet 5,
+  Sonnet 4.6, Opus 4.6 and later, Fable 5, Mythos 5, and Mythos Preview.
+- Applied a 30% tokenizer safety factor to dry-run estimates for any routed
+  cost bucket that uses Claude Sonnet 5, matching Anthropic's migration
+  guidance that the same text can tokenize larger than Sonnet 4.6.
 - Raised the optional Anthropic SDK floor to `anthropic>=0.109.1` so installed
   Claude support matches the current Messages API request shape.
 - Redacted xAI browse/search logs to scheme and host only, and stopped logging

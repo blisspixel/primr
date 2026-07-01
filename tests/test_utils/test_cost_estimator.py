@@ -19,6 +19,7 @@ from primr.utils.cost_estimator import (
     GEMINI_3_PRO_OUTPUT_PRICE_SMALL,
     MODE_ESTIMATES,
     CostEstimate,
+    _apply_tokenizer_safety_factor,
     estimate_cost,
     get_cost_summary,
 )
@@ -301,6 +302,25 @@ class TestPricingSingleSourceOfTruth:
         )
         assert ModelRegistry.GEMINI_3_FLASH.cost_per_1m_input_tokens == GEMINI_3_FLASH_INPUT_PRICE
         assert ModelRegistry.GEMINI_3_FLASH.cost_per_1m_output_tokens == GEMINI_3_FLASH_OUTPUT_PRICE
+
+    def test_sonnet_5_tokenizer_safety_factor(self):
+        """Sonnet 5 estimates should account for the documented tokenizer expansion."""
+        input_tokens, output_tokens, applied = _apply_tokenizer_safety_factor(
+            "claude-sonnet-5", 100_000, 10_000
+        )
+
+        assert input_tokens == 130_000
+        assert output_tokens == 13_000
+        assert applied is True
+
+    def test_other_models_do_not_get_sonnet_5_tokenizer_safety_factor(self):
+        input_tokens, output_tokens, applied = _apply_tokenizer_safety_factor(
+            "claude-haiku-4-5", 100_000, 10_000
+        )
+
+        assert input_tokens == 100_000
+        assert output_tokens == 10_000
+        assert applied is False
 
 
 class TestTieredPricing:
@@ -778,6 +798,7 @@ class TestGrokTier:
         assert f"{ModelRegistry.ANTHROPIC_SONNET.name} reasoning" in notes
         assert "claude-haiku-4-5 writing" in notes
         assert "claude-haiku-4-5 utility" in notes
+        assert "Sonnet 5 token estimates include a 30% tokenizer safety factor" in notes
 
     def test_max_tier_cost_range(self):
         """Max tier (Grok 4.3 everywhere) should be in the $2.00-$5.00 band."""

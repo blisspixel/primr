@@ -100,6 +100,16 @@ _MANUAL_THINKING_REJECTORS: tuple[str, ...] = (
     "fable-5",
     "mythos-5",
 )
+_ASSISTANT_PREFILL_REJECTORS: tuple[str, ...] = (
+    "opus-4-6",
+    "opus-4-7",
+    "opus-4-8",
+    "sonnet-4-6",
+    "sonnet-5",
+    "fable-5",
+    "mythos-5",
+    "mythos-preview",
+)
 _VALID_EFFORT_LEVELS: frozenset[str] = frozenset({"low", "medium", "high", "max", "xhigh"})
 _ADAPTIVE_THINKING_TYPES: frozenset[str] = frozenset({"adaptive", "disabled"})
 _VALID_THINKING_DISPLAY: frozenset[str] = frozenset({"omitted", "summarized"})
@@ -118,6 +128,16 @@ def _supports_output_config_effort(model: str) -> bool:
 def _rejects_manual_thinking_config(model: str) -> bool:
     """Return True when ``model`` uses adaptive thinking instead of ``thinking``."""
     return any(marker in model for marker in _MANUAL_THINKING_REJECTORS)
+
+
+def _rejects_assistant_prefill(model: str) -> bool:
+    """Return True when ``model`` 400s on final assistant prefill turns."""
+    return any(marker in model for marker in _ASSISTANT_PREFILL_REJECTORS)
+
+
+def _has_assistant_prefill(messages: list[dict[str, Any]]) -> bool:
+    """Return True when the final conversation turn is an assistant prefill."""
+    return bool(messages) and messages[-1].get("role") == "assistant"
 
 
 def _validated_effort(value: object) -> str:
@@ -300,6 +320,11 @@ class AnthropicProvider(Provider):
             raise ValueError(
                 "AnthropicProvider.chat() requires at least one user or assistant "
                 "message. Got only system messages."
+            )
+        if _rejects_assistant_prefill(model) and _has_assistant_prefill(anthropic_messages):
+            raise ValueError(
+                f"Anthropic model {model} does not support assistant message prefilling. "
+                "Use system instructions or output_config.format instead."
             )
 
         # Build the SDK call kwargs

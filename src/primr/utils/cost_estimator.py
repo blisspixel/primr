@@ -22,6 +22,7 @@ not the 100+ that "thinking steps" might suggest.
 
 from dataclasses import dataclass
 from enum import Enum
+from math import ceil
 
 from primr.config.models import (
     DEEP_RESEARCH_COST,
@@ -116,6 +117,8 @@ GEMINI_3_FLASH_OUTPUT_PRICE = PrimrModels.get_price(PrimrModels.FLASH_MODEL)[1] 
 
 GOOGLE_SEARCH_PRICE_PER_1000 = SEARCH_COST_PER_QUERY * 1000  # 35.00
 
+_SONNET_5_TOKENIZER_MULTIPLIER = 1.30
+
 
 def _provider_label_for_model(model_name: str) -> str:
     """Return a short display label for the model's provider."""
@@ -158,6 +161,21 @@ def _supports_cached_input_pricing(*model_names: str) -> bool:
         (config := PrimrModels.get_model_config(model_name)) is not None
         and config.cost_per_1m_input_tokens_cached is not None
         for model_name in model_names
+    )
+
+
+def _apply_tokenizer_safety_factor(
+    model_name: str,
+    input_tokens: int,
+    output_tokens: int,
+) -> tuple[int, int, bool]:
+    """Inflate estimates for models with documented tokenizer expansion."""
+    if model_name != "claude-sonnet-5":
+        return (input_tokens, output_tokens, False)
+    return (
+        ceil(input_tokens * _SONNET_5_TOKENIZER_MULTIPLIER),
+        ceil(output_tokens * _SONNET_5_TOKENIZER_MULTIPLIER),
+        True,
     )
 
 
@@ -394,6 +412,9 @@ def estimate_cost(
 
     # Resolve the active Pro model (honours AI_REASONING_MODEL env var)
     active_pro = PrimrModels.get_active_pro_model()
+    pro_in, pro_out, sonnet_5_tokenizer_adjusted = _apply_tokenizer_safety_factor(
+        active_pro.name, pro_in, pro_out
+    )
 
     flash_cached, pro_cached = _split_cached_tokens(cached_in, flash_in, pro_in)
     flash_breakdown = PrimrModels.calculate_cost_breakdown(
@@ -454,6 +475,8 @@ def estimate_cost(
             f"Estimate uses conservative (>{threshold_k}k) tier. "
             "Actual cost may be lower."
         )
+    if sonnet_5_tokenizer_adjusted:
+        notes.append("Claude Sonnet 5 token estimates include a 30% tokenizer safety factor.")
 
     if cached_in == 0 and _supports_cached_input_pricing(PrimrModels.FLASH_MODEL, active_pro.name):
         notes.append(
@@ -548,6 +571,19 @@ def _estimate_fast_mode_cost(
         reasoning_model = pick_model_for_role(Role.REASONING)
         writing_model = pick_model_for_role(Role.WRITING)
 
+    utility_tokenizer_adjusted = False
+    reasoning_tokenizer_adjusted = False
+    writing_tokenizer_adjusted = False
+    flash_in, flash_out, utility_tokenizer_adjusted = _apply_tokenizer_safety_factor(
+        utility_model, flash_in, flash_out
+    )
+    grok_reasoning_in, grok_reasoning_out, reasoning_tokenizer_adjusted = (
+        _apply_tokenizer_safety_factor(reasoning_model, grok_reasoning_in, grok_reasoning_out)
+    )
+    grok_writing_in, grok_writing_out, writing_tokenizer_adjusted = _apply_tokenizer_safety_factor(
+        writing_model, grok_writing_in, grok_writing_out
+    )
+
     # Costs: price each bucket using the resolved model. Pre-run estimates do
     # not assume prompt-cache hits, but the returned fields expose zero cached
     # input explicitly so downstream UIs can distinguish "not assumed" from
@@ -630,6 +666,8 @@ def _estimate_fast_mode_cost(
     notes.append(
         "Hiring signals via ATS / careers page (~$0.01, +1-2 min; skip with PRIMR_SKIP_HIRING_SIGNALS=1)"
     )
+    if utility_tokenizer_adjusted or reasoning_tokenizer_adjusted or writing_tokenizer_adjusted:
+        notes.append("Claude Sonnet 5 token estimates include a 30% tokenizer safety factor.")
     if _supports_cached_input_pricing(utility_model, reasoning_model, writing_model):
         notes.append(
             "No pre-run prompt-cache savings assumed; actual cache hits are recorded in usage."

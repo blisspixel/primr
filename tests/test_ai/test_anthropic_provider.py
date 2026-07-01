@@ -20,6 +20,7 @@ from primr.ai.providers.anthropic import (
     AnthropicProvider,
     _is_quota_exhausted,
     _is_retryable_status,
+    _rejects_assistant_prefill,
     _rejects_manual_thinking_config,
     _rejects_sampling_params,
     _supports_output_config_effort,
@@ -457,6 +458,54 @@ class TestChat:
         call_kwargs = provider._client.messages.create.call_args[1]
         assert call_kwargs["thinking"] == {"type": "enabled", "budget_tokens": 5000}
 
+    def test_sonnet_5_rejects_assistant_prefill_before_sdk_call(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        provider = self._make_provider_with_mock_client()
+
+        with pytest.raises(ValueError, match="assistant message prefilling"):
+            provider.chat(
+                [
+                    {"role": "user", "content": "Return JSON only."},
+                    {"role": "assistant", "content": "{"},
+                ],
+                model="claude-sonnet-5",
+            )
+
+        provider._client.messages.create.assert_not_called()
+
+    def test_sonnet_5_allows_history_when_final_turn_is_user(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        provider = self._make_provider_with_mock_client()
+        provider._client.messages.create.return_value = self._make_response()
+
+        provider.chat(
+            [
+                {"role": "user", "content": "Summarize the source."},
+                {"role": "assistant", "content": "A draft summary."},
+                {"role": "user", "content": "Now make it concise."},
+            ],
+            model="claude-sonnet-5",
+        )
+
+        call_kwargs = provider._client.messages.create.call_args[1]
+        assert call_kwargs["messages"][-1] == {"role": "user", "content": "Now make it concise."}
+
+    def test_prefill_capable_models_keep_final_assistant_turn(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        provider = self._make_provider_with_mock_client()
+        provider._client.messages.create.return_value = self._make_response()
+
+        provider.chat(
+            [
+                {"role": "user", "content": "Return JSON only."},
+                {"role": "assistant", "content": "{"},
+            ],
+            model="claude-haiku-4-5",
+        )
+
+        call_kwargs = provider._client.messages.create.call_args[1]
+        assert call_kwargs["messages"][-1] == {"role": "assistant", "content": "{"}
+
     def test_reset_usage(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
         provider = self._make_provider_with_mock_client()
@@ -641,3 +690,18 @@ class TestSonnet5CapabilityGates:
         assert _rejects_manual_thinking_config("claude-sonnet-5") is True
         assert _rejects_manual_thinking_config("claude-opus-4-8") is True
         assert _rejects_manual_thinking_config("claude-sonnet-4-6") is False
+
+    def test_assistant_prefill_gate(self):
+        for model in (
+            "claude-sonnet-5",
+            "claude-sonnet-4-6",
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-opus-4-6",
+            "claude-fable-5",
+            "claude-mythos-5",
+            "claude-mythos-preview",
+        ):
+            assert _rejects_assistant_prefill(model) is True
+
+        assert _rejects_assistant_prefill("claude-haiku-4-5") is False
