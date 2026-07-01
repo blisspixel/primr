@@ -102,6 +102,7 @@ _MANUAL_THINKING_REJECTORS: tuple[str, ...] = (
 )
 _VALID_EFFORT_LEVELS: frozenset[str] = frozenset({"low", "medium", "high", "max", "xhigh"})
 _ADAPTIVE_THINKING_TYPES: frozenset[str] = frozenset({"adaptive", "disabled"})
+_VALID_THINKING_DISPLAY: frozenset[str] = frozenset({"omitted", "summarized"})
 
 
 def _rejects_sampling_params(model: str) -> bool:
@@ -143,7 +144,12 @@ def _normalized_thinking_config(model: str, value: object) -> dict[str, Any] | N
 
     thinking_type = value.get("type")
     if thinking_type in _ADAPTIVE_THINKING_TYPES:
-        return dict(value)
+        config = dict(value)
+        display = config.get("display")
+        if display is not None and display not in _VALID_THINKING_DISPLAY:
+            valid = ", ".join(sorted(_VALID_THINKING_DISPLAY))
+            raise ValueError(f"Anthropic thinking.display must be one of: {valid}")
+        return config
 
     logger.debug("Dropping unsupported manual Anthropic thinking config for model=%s", model)
     return None

@@ -78,7 +78,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated the Anthropic balanced model to Claude Sonnet 5 (`claude-sonnet-5`)
   with conservative post-intro price estimates, 128k max output, Sonnet 4.6
   back-compat registration, request guards for models that reject sampling
-  parameters, and Sonnet 5 `output_config.effort` support.
+  parameters, Sonnet 5 `output_config.effort` support, and validation for the
+  current adaptive-thinking `display` values.
 - Expanded Anthropic Messages request shaping for current adaptive-thinking
   models: `output_config.effort` now accepts `max` and `xhigh`, Sonnet 5 can
   explicitly disable adaptive thinking, adaptive display config is preserved,

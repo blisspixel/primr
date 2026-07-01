@@ -395,11 +395,24 @@ class TestChat:
         provider.chat(
             [{"role": "user", "content": "Hi"}],
             model="claude-sonnet-5",
-            thinking={"type": "adaptive", "display": "none"},
+            thinking={"type": "adaptive", "display": "omitted"},
         )
 
         call_kwargs = provider._client.messages.create.call_args[1]
-        assert call_kwargs["thinking"] == {"type": "adaptive", "display": "none"}
+        assert call_kwargs["thinking"] == {"type": "adaptive", "display": "omitted"}
+
+    def test_sonnet_5_rejects_invalid_adaptive_thinking_display(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        provider = self._make_provider_with_mock_client()
+
+        with pytest.raises(ValueError, match=r"thinking\.display"):
+            provider.chat(
+                [{"role": "user", "content": "Hi"}],
+                model="claude-sonnet-5",
+                thinking={"type": "adaptive", "display": "none"},
+            )
+
+        provider._client.messages.create.assert_not_called()
 
     def test_new_adaptive_models_drop_legacy_manual_thinking_config(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
