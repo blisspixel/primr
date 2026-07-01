@@ -125,7 +125,7 @@ DNS intelligence pre-flight: detects cloud platforms (Azure / AWS / GCP), SaaS s
 
 ### Hiring signals (`src/primr/data/hiring_signals.py`)
 
-Eight ATS providers tried in parallel against slug candidates:
+Ten ATS/provider adapters are tried in parallel against slug candidates:
 
 1. **Greenhouse** - `boards-api.greenhouse.io/v1/boards/{slug}/jobs`
 2. **Lever** - `api.lever.co/v0/postings/{slug}`
@@ -135,12 +135,12 @@ Eight ATS providers tried in parallel against slug candidates:
 6. **Workable** - `apply.workable.com/api/v1/widget/accounts/{slug}`
 7. **Recruitee** - `{slug}.recruitee.com/api/offers/`
 8. **Jobvite** - `jobs.jobvite.com/{slug}/jobs?format=rss`
+9. **iCIMS** - bounded public HTML probes for `careers-{slug}.icims.com` / `jobs-{slug}.icims.com` portals
+10. **BambooHR** - bounded public HTML probes for `{slug}.bamboohr.com/careers`
 
-If every ATS misses, the **HTML careers-page fallback** crawls the company's `/careers` or `/jobs` page with a regex-based posting-link extractor. If that also misses, the **DuckDuckGo web-search fallback** sweeps across major job-board hosts (LinkedIn, Indeed, Glassdoor, Workday boards, the ATS hosts, ZipRecruiter, BuiltIn, Monster, Dice, iCIMS pattern) and returns metadata-only postings. Bodies are rarely recoverable from those hosts, so the downstream no-bodies branch populates `signals.roles` directly from posting titles.
+The iCIMS and BambooHR official job APIs require authenticated customer or partner access, so Primr treats their public hosted portals as bounded HTML boards rather than credentialed JSON APIs. If every provider misses, the **HTML careers-page fallback** crawls the company's `/careers` or `/jobs` page with the same posting-link extractor. If that also misses, the **DuckDuckGo web-search fallback** sweeps across major job-board hosts (LinkedIn, Indeed, Glassdoor, Workday boards, the ATS hosts, ZipRecruiter, BuiltIn, Monster, Dice, iCIMS and BambooHR patterns) and returns metadata-only postings. Bodies are rarely recoverable from those hosts, so the downstream no-bodies branch populates `signals.roles` directly from posting titles.
 
 Output persists to `<working>/_hiring/` (`hiring_signals.md` + `hiring_signals.json` + `postings_index.json` + `raw/jd_NNN_*.txt`). Skip with `PRIMR_SKIP_HIRING_SIGNALS=1`.
-
-iCIMS and BambooHR are not covered as dedicated providers - they have no clean public JSON APIs, and the HTML fallback handles them.
 
 ### Explicit career / ATS URLs (`--career-url`)
 

@@ -15,8 +15,11 @@ from unittest.mock import patch
 from primr.data import hiring_signals as hs
 from primr.data.hiring_signals import (
     _clean_web_search_title,
+    _detect_ats_redirect,
     _discover_via_web_search,
     _discover_workday_triples,
+    _fetch_bamboohr,
+    _fetch_icims,
     _fetch_jobvite,
     _fetch_recruitee,
     _fetch_workable,
@@ -254,6 +257,79 @@ class TestJobvite:
 
 
 # =============================================================================
+# Public HTML hosted boards: iCIMS and BambooHR
+# =============================================================================
+
+
+class TestICIMS:
+    def test_parses_public_portal_html(self):
+        html = b"""
+        <html><body>
+          <a href="/jobs/1709/customer-service-representative/job">
+            Customer Service Representative
+          </a>
+          <a href="https://offsite.example/jobs/9999/bad/job">Ignore Me</a>
+        </body></html>
+        """
+
+        def _fake_get(url, **_kwargs):
+            if url == "https://careers-acme.icims.com/jobs/search":
+                return 200, html, url
+            return 404, None, None
+
+        with patch.object(hs, "_http_get", side_effect=_fake_get):
+            postings = _fetch_icims("acme")
+
+        assert postings is not None
+        assert len(postings) == 1
+        assert postings[0].source == "icims"
+        assert postings[0].title == "Customer Service Representative"
+        assert postings[0].url == (
+            "https://careers-acme.icims.com/jobs/1709/customer-service-representative/job"
+        )
+
+    def test_redirect_dispatch_extracts_subdomain_tenant(self):
+        expected = [hs.Posting(url="https://careers-acme.icims.com/jobs/1/x/job", title="X")]
+        with patch.object(hs, "_fetch_icims", return_value=expected) as fetcher:
+            result = _detect_ats_redirect("https://careers-acme.icims.com/jobs/search")
+
+        assert result == ("icims", expected)
+        fetcher.assert_called_once_with("acme")
+
+
+class TestBambooHR:
+    def test_parses_public_careers_html(self):
+        html = b"""
+        <html><body>
+          <a href="/careers/42">Senior People Systems Analyst</a>
+          <a href="https://example.com/careers/99">Ignore Me</a>
+        </body></html>
+        """
+
+        def _fake_get(url, **_kwargs):
+            if url == "https://acme.bamboohr.com/careers":
+                return 200, html, url
+            return 404, None, None
+
+        with patch.object(hs, "_http_get", side_effect=_fake_get):
+            postings = _fetch_bamboohr("acme")
+
+        assert postings is not None
+        assert len(postings) == 1
+        assert postings[0].source == "bamboohr"
+        assert postings[0].title == "Senior People Systems Analyst"
+        assert postings[0].url == "https://acme.bamboohr.com/careers/42"
+
+    def test_redirect_dispatch_extracts_subdomain_tenant(self):
+        expected = [hs.Posting(url="https://acme.bamboohr.com/careers/42", title="X")]
+        with patch.object(hs, "_fetch_bamboohr", return_value=expected) as fetcher:
+            result = _detect_ats_redirect("https://acme.bamboohr.com/careers")
+
+        assert result == ("bamboohr", expected)
+        fetcher.assert_called_once_with("acme")
+
+
+# =============================================================================
 # Web search fallback
 # =============================================================================
 
@@ -263,6 +339,8 @@ class TestWebSearchHelpers:
         assert _looks_like_posting_url("https://linkedin.com/jobs/view/123")
         assert _looks_like_posting_url("https://acmecorp.wd1.myworkdayjobs.com/X")
         assert _looks_like_posting_url("https://boards.greenhouse.io/acme/jobs/1")
+        assert _looks_like_posting_url("https://careers-acme.icims.com/jobs/search")
+        assert _looks_like_posting_url("https://acme.bamboohr.com/careers")
         assert not _looks_like_posting_url("https://acme.example/about")
 
     def test_title_cleanup(self):

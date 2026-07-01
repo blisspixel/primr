@@ -9,9 +9,9 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from primr.data import hiring_signals as hs
+from primr.data.hiring_public_boards import extract_posting_links
 from primr.data.hiring_signals import (
     _CAREERS_SUBDOMAIN_PREFIXES,
-    _POSTING_URL_HINTS,
     _WORKDAY_BLIND_DISCOVERY_BUDGET,
     _careers_url_candidates,
     _detect_ats_redirect,
@@ -70,10 +70,14 @@ class TestCareersUrlCandidates:
 
 
 class TestPostingUrlHints:
+    def _matched_links(self, path: str) -> list[tuple[str, str]]:
+        html = f"<a href='{path}'>Senior Engineer</a>".encode()
+        return extract_posting_links(html, "https://acme.example", max_links=10)
+
     def test_matches_existing_patterns(self):
         # Original patterns still match.
         for path in ["/jobs/abc", "/careers/sr-eng", "/positions/123", "/openings/data"]:
-            assert _POSTING_URL_HINTS.search(path), f"missed: {path}"
+            assert self._matched_links(path), f"missed: {path}"
 
     def test_matches_new_patterns(self):
         # Broadened patterns.
@@ -87,11 +91,11 @@ class TestPostingUrlHints:
             "/listings/sr-eng",
             "/open-positions/123",
         ]:
-            assert _POSTING_URL_HINTS.search(path), f"new pattern missed: {path}"
+            assert self._matched_links(path), f"new pattern missed: {path}"
 
     def test_does_not_match_non_posting_paths(self):
         for path in ["/about", "/", "/blog/post"]:
-            assert not _POSTING_URL_HINTS.search(path), f"false positive: {path}"
+            assert not self._matched_links(path), f"false positive: {path}"
 
 
 # =============================================================================

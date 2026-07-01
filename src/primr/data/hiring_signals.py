@@ -21,6 +21,7 @@ from typing import Any
 from urllib.parse import urljoin, urlparse
 
 from primr.ai import stage_routing
+from primr.data import hiring_public_boards as public_boards
 from primr.data.hiring_career_urls import discover_career_url_postings, normalize_career_urls
 from primr.data.hiring_redirects import post_json_no_redirect
 from primr.data.hiring_signal_artifacts import (
@@ -83,7 +84,7 @@ class Posting:
     title: str
     location: str = ""
     department: str = ""
-    source: str = "html"  # "greenhouse" | "lever" | "ashby" | "smartrecruiters" | "html"
+    source: str = "html"  # ATS provider name, "html", "career-url:*", or "web-search"
     updated_at: str | None = None  # ISO8601 if known
     body: str | None = None
     apply_url: str | None = None
@@ -706,6 +707,34 @@ def _fetch_jobvite(slug: str) -> list[Posting] | None:
     return out or None
 
 
+def _public_board_postings(
+    items: list[public_boards.PublicBoardPosting] | None,
+) -> list[Posting] | None:
+    return (
+        None if not items else [Posting(url=i.url, title=i.title, source=i.source) for i in items]
+    )
+
+
+def _fetch_public_board(slug: str, fetcher: Any) -> list[Posting] | None:
+    return _public_board_postings(
+        fetcher(
+            slug,
+            http_get=_http_get,
+            timeout_s=_ATS_TIMEOUT_S,
+            max_links=MAX_HTML_LINKS_SCANNED,
+            max_discovered=MAX_DISCOVERED_POSTINGS,
+        )
+    )
+
+
+def _fetch_icims(slug: str) -> list[Posting] | None:
+    return _fetch_public_board(slug, public_boards.fetch_icims_public_board)
+
+
+def _fetch_bamboohr(slug: str) -> list[Posting] | None:
+    return _fetch_public_board(slug, public_boards.fetch_bamboohr_public_board)
+
+
 def _fetch_smartrecruiters(slug: str) -> list[Posting] | None:
     """SmartRecruiters public postings API. Returns None on miss.
 
@@ -763,6 +792,8 @@ _ATS_PROVIDERS: list[tuple[str, Any]] = [
     ("workable", _fetch_workable),
     ("recruitee", _fetch_recruitee),
     ("jobvite", _fetch_jobvite),
+    ("icims", _fetch_icims),
+    ("bamboohr", _fetch_bamboohr),
 ]
 
 
@@ -830,6 +861,9 @@ _WEB_SEARCH_POSTING_HOST_HINTS = (
     "jobs.jobvite.com",
     "recruitee.com",
     "careers-",  # iCIMS pattern: careers-{tenant}.icims.com
+    "jobs-",  # iCIMS pattern: jobs-{tenant}.icims.com
+    ".icims.com/jobs",
+    ".bamboohr.com/careers",
     ".bamboohr.com/jobs",
 )
 
@@ -950,16 +984,6 @@ _CAREERS_SUBDOMAIN_PREFIXES = (
     "recruit",
 )
 
-# Regex hints for "this link probably points at an individual job posting."
-# Broadened to include /apply/, /role/, /open-roles/, /talent/ patterns
-# common on company-hosted careers sites.
-_POSTING_URL_HINTS = re.compile(
-    r"/(?:jobs?|careers?|positions?|openings?|roles?|opportunities?|"
-    r"apply|role|open[\-_]roles?|open[\-_]positions?|talent|listings?)/"
-    r"(?:[a-z0-9][a-z0-9\-_]+)",
-    re.IGNORECASE,
-)
-
 
 def _careers_url_candidates(website: str, corpus: dict[str, str] | None) -> list[str]:
     """Return careers-page URLs worth probing.
@@ -1027,43 +1051,13 @@ def _extract_posting_links(html: bytes, base_url: str) -> list[tuple[str, str]]:
     job postings. Returns (absolute_url, anchor_text) tuples, deduped by
     URL and capped at MAX_HTML_LINKS_SCANNED.
     """
-    try:
-        text = html.decode("utf-8", errors="ignore")
-    except Exception:
-        return []
-
-    # <a href="..." ...>LABEL</a>
-    pattern = re.compile(
-        r'<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', re.IGNORECASE | re.DOTALL
+    return public_boards.extract_posting_links(
+        html,
+        base_url,
+        max_links=MAX_HTML_LINKS_SCANNED,
     )
-    out: list[tuple[str, str]] = []
-    seen: set[str] = set()
-    for match in pattern.finditer(text):
-        href, label_html = match.group(1), match.group(2)
-        if not href or href.startswith(("#", "mailto:", "tel:", "javascript:")):
-            continue
-        if not _POSTING_URL_HINTS.search(href):
-            continue
-        absolute = urljoin(base_url, href.split("#")[0])
-        if absolute in seen:
-            continue
-        seen.add(absolute)
-        label = _strip_html(label_html).strip()
-        if not label or len(label) > 200:
-            continue
-        out.append((absolute, label))
-        if len(out) >= MAX_HTML_LINKS_SCANNED:
-            break
-    return out
 
 
-# Maps ATS hostnames to the name of a fetcher function that takes the
-# slug extracted from the final URL and returns postings. The function
-# is looked up via `globals()[fetcher_name]` at call time rather than
-# captured by reference — this way `patch.object(hs, "_fetch_greenhouse")`
-# in tests reaches the dispatch path. Workday is special: it needs
-# (tenant, dc, site) extracted from both host and path, so it gets
-# inline handling below.
 _ATS_HOST_FETCHERS: tuple[tuple[re.Pattern[str], str, str | None], ...] = (
     (
         re.compile(
@@ -1089,20 +1083,28 @@ _ATS_HOST_FETCHERS: tuple[tuple[re.Pattern[str], str, str | None], ...] = (
         "_fetch_recruitee",
     ),
     (re.compile(r"^jobs\.jobvite\.com", re.IGNORECASE), "jobvite", "_fetch_jobvite"),
+    (
+        re.compile(r"^(?:careers|jobs)-([A-Za-z0-9][A-Za-z0-9-]*)\.icims\.com", re.IGNORECASE),
+        "icims",
+        "_fetch_icims",
+    ),
+    (
+        re.compile(r"^([A-Za-z0-9][A-Za-z0-9-]*)\.icims\.com", re.IGNORECASE),
+        "icims",
+        "_fetch_icims",
+    ),
+    (
+        re.compile(r"^([A-Za-z0-9][A-Za-z0-9-]*)\.bamboohr\.com", re.IGNORECASE),
+        "bamboohr",
+        "_fetch_bamboohr",
+    ),
 )
 
 
 def _detect_ats_redirect(
     final_url: str,
 ) -> tuple[str, list[Posting]] | None:
-    """If `final_url` lives on a known ATS host, extract the tenant slug
-    from the URL path and call the matching provider directly. Returns
-    (provider_name, postings) on success, None on no match or empty fetch.
-
-    Lets us turn "jobs.acme.com redirects to acmecorp.wd5.myworkdayjobs.com"
-    into a direct Workday tenant hit without running the bounded-but-still-
-    expensive blind discovery cross product.
-    """
+    """Dispatch a known ATS final URL to its provider fetcher."""
     parsed = urlparse(final_url)
     host = parsed.netloc.lower().removeprefix("www.")
     if not host:
@@ -1130,11 +1132,8 @@ def _detect_ats_redirect(
                 return provider_name, postings
             continue
 
-        # Greenhouse / Lever / Ashby / SmartRecruiters / Workable / Jobvite
-        # take a slug from the path's first segment.
         path_match = re.match(r"^/([A-Za-z0-9][A-Za-z0-9_\-]*)", parsed.path)
-        if provider_name == "recruitee":
-            # Recruitee tenant is in the subdomain, not the path.
+        if provider_name in {"recruitee", "icims", "bamboohr"}:
             slug = host_match.group(1).lower()
         elif path_match:
             slug = path_match.group(1)

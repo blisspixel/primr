@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added dedicated public-board hiring-signal adapters for iCIMS and BambooHR.
+  Because their official job APIs require authenticated customer or partner
+  access, Primr now probes their public hosted career portals through bounded
+  SSRF-safe HTML fetches and feeds the resulting postings through the existing
+  triage/body-fetch/extraction path.
 - Added a canonical protected-site page-access eval corpus at
   `tests/fixtures/page_access/protected_site_trace_corpus.json`. The corpus is
   built from sanitized trace `access_assessment` records only, covers major

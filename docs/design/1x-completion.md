@@ -183,7 +183,7 @@ to confirm the discount (~$0.50-0.80).
   an operator-facing `--eval-page-access-fixture` command, and a canonical
   representative sanitized protected-site corpus at
   `tests/fixtures/page_access/protected_site_trace_corpus.json`. Hiring signals
-  in `--premium` and BambooHR/iCIMS remain open.
+  in `--premium` remain open; BambooHR/iCIMS public-board adapters are shipped.
 - **Panel medium tier**: meeting-brief one-pager output mode, `--json`
   output for the main run, `primr replay` (record/replay run transcripts for
   demos), install extras (`primr[browser]`, `primr[ocr]`), sample gallery
