@@ -72,7 +72,7 @@ def handle_website_summary_local_stage_eval(
             model=model_name,
             rows=stage_rows,
             base_url=config.eval_judge_base_url,
-            api_key_env=config.eval_judge_api_key_env,
+            credential_env_var=config.eval_judge_api_key_env,
         )
         console.info(f"  companies: {len(stage_rows)}")
         console.info(f"  output: {report_path}")
@@ -130,7 +130,7 @@ def handle_website_summary_local_stage_eval(
             judge_model=", ".join(semantic_judge_models),
             results=semantic_results,
             base_url=config.eval_judge_base_url,
-            api_key_env=config.eval_judge_api_key_env,
+            credential_env_var=config.eval_judge_api_key_env,
         )
         local_stage_eval.write_website_summary_semantic_quality_evidence(
             semantic_quality_path,

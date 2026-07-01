@@ -306,6 +306,9 @@ def set_user_key(name: str, value: str) -> tuple[str, Path]:
         finally:
             os.close(fd)
     else:
+        # This is the explicit user-local key store for `primr keys set`.
+        # `_secure_path_modes` immediately restricts access on supported filesystems.
+        # codeql[py/clear-text-storage-sensitive-data]
         path.write_bytes(data)
 
     _secure_path_modes(path)

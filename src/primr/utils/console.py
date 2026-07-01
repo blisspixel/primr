@@ -17,6 +17,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import lru_cache
 
+from primr.utils.security import mask_sensitive_data
+
 
 @dataclass
 class _TerminalCaps:
@@ -166,7 +168,7 @@ class Console:
     def _print(self, msg="", end="\n"):
         with self._lock:
             self._last_output_time = time.time()
-            print(msg, end=end)
+            print(mask_sensitive_data(str(msg)), end=end)
             sys.stdout.flush()
 
     def _elapsed(self, start):

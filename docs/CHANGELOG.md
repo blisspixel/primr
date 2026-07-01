@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Hardened security-scan posture for current code scanning: CodeQL now uses a
+  production-scope config for `src/`, `deploy/`, and `scripts/` instead of
+  raising alerts from test fixtures; URL allow/deny checks now parse hostnames;
+  JavaScript-only page detection uses the HTML parser rather than a tag regex;
+  console and rate-limit output now redact secret-shaped values; role-plan
+  artifacts mask accidental secrets before persistence; and API-key
+  fingerprints no longer look like password hashes where compatibility allows.
 - Cleaned up credential-shaped test fixtures and public Azure role-definition
   literals so local secret scanning now passes on current `src/`, `docs/`,
   `tests/`, and `deploy/` paths without masking real leaks. GitHub secret

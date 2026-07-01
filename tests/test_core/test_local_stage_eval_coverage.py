@@ -252,7 +252,11 @@ def test_eval_report_round_trip(tmp_path: Path):
 
     report = tmp_path / "report.json"
     write_website_summary_stage_eval_report(
-        report, model="m1", rows=rows, base_url=None, api_key_env="LOCAL_LLM_API_KEY"
+        report,
+        model="m1",
+        rows=rows,
+        base_url=None,
+        credential_env_var="LOCAL_LLM_API_KEY",
     )
     payload = json.loads(report.read_text(encoding="utf-8"))
     assert payload["companies_evaluated"] == 1

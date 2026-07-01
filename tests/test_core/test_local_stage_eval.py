@@ -225,7 +225,7 @@ def test_write_website_summary_stage_eval_outputs(tmp_path: Path):
         model="qwen3:30b",
         rows=[row],
         base_url="http://localhost:11434/v1",
-        api_key_env="LOCAL_LLM_API_KEY",
+        credential_env_var="LOCAL_LLM_API_KEY",
     )
     write_website_summary_stage_eval_summary(
         summary_json,
@@ -446,7 +446,7 @@ def test_write_website_summary_semantic_outputs_are_body_free(tmp_path: Path):
         judge_model="llama3.1:70b",
         results=[("qwen3:30b", [row])],
         base_url="http://localhost:11434/v1",
-        api_key_env="LOCAL_LLM_API_KEY",
+        credential_env_var="LOCAL_LLM_API_KEY",
     )
     write_website_summary_semantic_quality_evidence(
         evidence_path,

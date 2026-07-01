@@ -36,6 +36,7 @@ jobs:
         uses: github/codeql-action/init@v4
         with:
           languages: python
+          config-file: ./.github/codeql/codeql-config.yml
           # Python is interpreted — no build step needed.
           build-mode: none
 

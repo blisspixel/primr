@@ -1,0 +1,16 @@
+name: "primr CodeQL config"
+
+queries:
+  - uses: security-and-quality
+
+paths:
+  - src
+  - deploy
+  - scripts
+
+paths-ignore:
+  - tests
+  - .agent
+  - docs
+  - output
+  - logs

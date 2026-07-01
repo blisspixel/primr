@@ -12,6 +12,7 @@ import time
 from dataclasses import dataclass, field
 
 from primr.utils.logging_config import get_logger
+from primr.utils.security import sanitize_log_input
 
 logger = get_logger("api.rate_limit")
 
@@ -123,7 +124,7 @@ class RateLimiter:
             allowed = bucket.consume(tokens)
 
             if not allowed:
-                logger.debug(f"Rate limited: {key}")
+                logger.debug("Rate limited bucket: %s", sanitize_log_input(key))
 
             return allowed
 

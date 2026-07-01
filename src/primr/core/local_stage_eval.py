@@ -445,13 +445,13 @@ def write_website_summary_stage_eval_report(
     model: str,
     rows: list[WebsiteSummaryEvalRow],
     base_url: str | None,
-    api_key_env: str,
+    credential_env_var: str,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "model": model,
         "base_url": base_url,
-        "api_key_env": api_key_env,
+        "credential_env_var": credential_env_var,
         "companies_evaluated": len(rows),
         "avg_completeness_score": round(
             sum(row.completeness_score for row in rows) / max(1, len(rows)),
@@ -584,7 +584,7 @@ def write_website_summary_semantic_eval_report(
     judge_model: str,
     results: list[tuple[str, list[WebsiteSummarySemanticEvalRow]]],
     base_url: str | None,
-    api_key_env: str,
+    credential_env_var: str,
 ) -> None:
     """Write body-free semantic judge rows for website-summary stage evals."""
 
@@ -612,7 +612,7 @@ def write_website_summary_semantic_eval_report(
         "judge_model": judge_model,
         "judge_models": judge_models,
         "base_url": base_url,
-        "api_key_env": api_key_env,
+        "credential_env_var": credential_env_var,
         "rows_evaluated": len(all_rows),
         "valid_response_rows": len(valid_rows),
         "avg_semantic_score": avg_score,

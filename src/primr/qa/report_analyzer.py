@@ -387,14 +387,25 @@ class ReportAnalyzer:
         from collections import Counter
         from urllib.parse import urlparse
 
-        news_domains = ("reuters", "bloomberg", "techcrunch", "prnewswire")
+        news_domains = ("reuters.com", "bloomberg.com", "techcrunch.com", "prnewswire.com")
+
+        def _matches_domain(host: str, domain: str) -> bool:
+            return host == domain or host.endswith(f".{domain}")
+
+        def _url_host(url: str) -> str:
+            try:
+                return (urlparse(url).hostname or "").lower().removeprefix("www.")
+            except ValueError:
+                return ""
+
         host_counts: Counter[str] = Counter()
         for url in urls:
-            try:
-                host = (urlparse(url).hostname or "").lower().removeprefix("www.")
-            except ValueError:
-                continue
-            if not host or "linkedin.com" in host or any(n in host for n in news_domains):
+            host = _url_host(url)
+            if (
+                not host
+                or _matches_domain(host, "linkedin.com")
+                or any(_matches_domain(host, domain) for domain in news_domains)
+            ):
                 continue
             host_counts[host] += 1
         primary_host = host_counts.most_common(1)[0][0] if host_counts else ""
@@ -403,9 +414,13 @@ class ReportAnalyzer:
         url_categories = {
             "primary_host": primary_host_count,
             "news_sources": len(
-                [u for u in urls if any(news in u.lower() for news in news_domains)]
+                [
+                    u
+                    for u in urls
+                    if any(_matches_domain(_url_host(u), domain) for domain in news_domains)
+                ]
             ),
-            "linkedin": len([u for u in urls if "linkedin.com" in u.lower()]),
+            "linkedin": len([u for u in urls if _matches_domain(_url_host(u), "linkedin.com")]),
             "other": 0,
         }
         url_categories["other"] = len(urls) - sum(url_categories.values())

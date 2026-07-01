@@ -7,26 +7,42 @@ numbered headings, and formatting numbers for readability.
 
 import re
 
-# Emoji regex pattern covering common emoji ranges
+# Emoji regex pattern covering common emoji ranges. Keep ranges non-overlapping so
+# CodeQL can prove this character class is intentional rather than overbroad.
 EMOJI_PATTERN = re.compile(
     "["
-    "\U0001f600-\U0001f64f"  # emoticons
+    "\u00a9"
+    "\u00ae"
+    "\u203c"
+    "\u2049"
+    "\u2122"
+    "\u2139"
+    "\u2194-\u21aa"
+    "\u231a-\u231b"
+    "\u2328"
+    "\u23cf"
+    "\u23e9-\u23f3"
+    "\u23f8-\u23fa"
+    "\u24c2"
+    "\u25aa-\u25ab"
+    "\u25b6"
+    "\u25c0"
+    "\u25fb-\u25fe"
+    "\u2b50"
+    "\u2600-\u26ff"  # misc symbols
+    "\u2700-\u27bf"  # dingbats
+    "\ufe00-\ufe0f"  # variation selectors
+    "\U0001f000-\U0001f02f"  # mahjong tiles
+    "\U0001f0a0-\U0001f0ff"  # playing cards
+    "\U0001f1e0-\U0001f1ff"  # flags
     "\U0001f300-\U0001f5ff"  # symbols & pictographs
+    "\U0001f600-\U0001f64f"  # emoticons
     "\U0001f680-\U0001f6ff"  # transport & map symbols
     "\U0001f700-\U0001f77f"  # alchemical symbols
     "\U0001f780-\U0001f7ff"  # geometric shapes extended
     "\U0001f800-\U0001f8ff"  # supplemental arrows-c
     "\U0001f900-\U0001f9ff"  # supplemental symbols and pictographs
-    "\U0001fa00-\U0001fa6f"  # chess symbols
-    "\U0001fa70-\U0001faff"  # symbols and pictographs extended-a
-    "\U00002702-\U000027b0"  # dingbats
-    "\U000024c2-\U0001f251"  # enclosed characters
-    "\U0001f1e0-\U0001f1ff"  # flags
-    "\U00002600-\U000026ff"  # misc symbols
-    "\U00002700-\U000027bf"  # dingbats
-    "\U0000fe00-\U0000fe0f"  # variation selectors
-    "\U0001f000-\U0001f02f"  # mahjong tiles
-    "\U0001f0a0-\U0001f0ff"  # playing cards
+    "\U0001fa00-\U0001faff"  # symbols and pictographs extended-a
     "]+",
     flags=re.UNICODE,
 )

@@ -845,7 +845,10 @@ def create_store(url: str, deployment: str = "default") -> ArtifactStore:
         bucket = parsed.netloc
         return GCSStore(bucket, deployment)
 
-    if parsed.scheme in ("https", "http") and ".blob.core.windows.net" in parsed.netloc:
+    parsed_host = (parsed.hostname or "").lower().strip(".")
+    if parsed.scheme in ("https", "http") and (
+        parsed_host == "blob.core.windows.net" or parsed_host.endswith(".blob.core.windows.net")
+    ):
         # Azure Blob Storage
         # URL format: https://<account>.blob.core.windows.net/<container>
         parts = parsed.path.strip("/").split("/")

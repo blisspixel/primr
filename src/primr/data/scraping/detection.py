@@ -6,6 +6,9 @@ Operates on raw HTML, headers, and response metadata.
 
 import hashlib
 import re
+from urllib.parse import urlparse
+
+from bs4 import BeautifulSoup
 
 from .config import MIN_CONTENT_LENGTH_BYTES, MIN_UNIQUE_LINE_RATIO, WAF_SIGNATURES
 from .models import BlockType
@@ -43,6 +46,12 @@ def _compute_template_hash(raw_content: bytes) -> str:
     # Combine and hash (MD5 used for fingerprinting, not security)
     template_str = f"{title}|{h1}|{text_sample}"
     return hashlib.md5(template_str.encode(), usedforsecurity=False).hexdigest()
+
+
+def _hostname_matches(hostname: str, domain: str) -> bool:
+    normalized = hostname.lower().strip(".")
+    domain = domain.lower().strip(".")
+    return normalized == domain or normalized.endswith(f".{domain}")
 
 
 def register_block_template(host: str, raw_content: bytes) -> None:
@@ -133,7 +142,13 @@ def detect_soft_block(
                 continue  # Substantial content = probably not a block page
 
             # Additional checks for common false positives
-            if signature == "cloudflare" and "cloudflare.com" in (final_url or "").lower():
+            final_host = ""
+            if final_url:
+                try:
+                    final_host = urlparse(final_url).hostname or ""
+                except ValueError:
+                    final_host = ""
+            if signature == "cloudflare" and _hostname_matches(final_host, "cloudflare.com"):
                 continue  # Cloudflare's own site
 
             return True, f"WAF signature: {description}"
@@ -167,16 +182,10 @@ def detect_soft_block(
 
     # 5. JavaScript-only pages
     if "<noscript>" in text_lower:
-        # Check if there's meaningful content outside noscript
-        text_without_noscript = re.sub(
-            r"<noscript[^>]*>.*?</noscript>", "", text, flags=re.DOTALL | re.IGNORECASE
-        )
-        # Remove script tags
-        text_without_scripts = re.sub(
-            r"<script[^>]*>.*?</script>", "", text_without_noscript, flags=re.DOTALL | re.IGNORECASE
-        )
-        # Remove HTML tags
-        text_only = re.sub(r"<[^>]+>", " ", text_without_scripts)
+        soup = BeautifulSoup(text, "html.parser")
+        for tag in soup.find_all(["noscript", "script"]):
+            tag.decompose()
+        text_only = soup.get_text(" ")
         text_only = re.sub(r"\s+", " ", text_only).strip()
 
         if len(text_only) < 200:

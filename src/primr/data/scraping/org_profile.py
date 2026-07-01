@@ -115,7 +115,9 @@ def classify_organization_type(
             scores[org_type] += min(3.0, 0.8 * len(matches))
             signals.extend(f"text:{keyword}" for keyword in matches[:4])
 
-    if "myflorida.com" in netloc and ("department" in text or "state of florida" in text):
+    if (netloc == "myflorida.com" or netloc.endswith(".myflorida.com")) and (
+        "department" in text or "state of florida" in text
+    ):
         scores["government"] += 2.5
         signals.append("domain:myflorida-government")
 

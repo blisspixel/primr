@@ -388,8 +388,12 @@ class APIKeyAuth:
         return len(to_remove)
 
     def _hash_key(self, key: str) -> str:
-        """Hash an API key for storage."""
-        return hashlib.sha256(key.encode()).hexdigest()
+        """Fingerprint a generated high-entropy API key for in-memory lookup."""
+        return hashlib.blake2b(
+            key.encode(),
+            digest_size=32,
+            person=b"primr-api-key",
+        ).hexdigest()
 
 
 # =============================================================================

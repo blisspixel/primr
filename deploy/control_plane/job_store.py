@@ -248,6 +248,9 @@ def hash_job_id(deployment: str, idempotency_key: str, api_key: str) -> str:
 
 def hash_api_key(api_key: str) -> str:
     """Hash API key for storage (never store raw keys)."""
+    # Control-plane callers already use generated high-entropy API keys, and
+    # this stable fingerprint is part of the persisted tenant/budget key.
+    # codeql[py/weak-sensitive-data-hashing]
     return f"sha256:{hashlib.sha256(api_key.encode()).hexdigest()}"
 
 
