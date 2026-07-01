@@ -956,17 +956,15 @@ class TestJwtSecretPlaceholderRejection:
         assert config.jwt_secret == self.OLD_IAC_PLACEHOLDER
         assert "placeholder" in caplog.text.lower()
 
-    def test_real_random_secret_accepted_in_cloud_mode(self, monkeypatch):
-        """A genuine random secret (no placeholder markers) is accepted."""
-        # 48 hex chars: random-looking, length-safe, and cannot contain any
-        # placeholder marker (markers use letters absent from the hex alphabet).
-        random_secret = "f3a9c1e87b6d4a2f90e5c7d1b8a4f6e2c3d9a0b1f4e6c8d2"
+    def test_non_placeholder_secret_accepted_in_cloud_mode(self, monkeypatch):
+        """A length-safe value without placeholder markers is accepted."""
+        accepted_value = "safe-jwt-value-for-unit-tests-000001"
         monkeypatch.setenv("AZURE_CLIENT_ID", "some-client-id")
-        monkeypatch.setenv("MCP_JWT_SECRET", random_secret)
+        monkeypatch.setenv("MCP_JWT_SECRET", accepted_value)
         self._clean_env(monkeypatch)
 
         config = AuthConfig.from_env()
-        assert config.jwt_secret == random_secret
+        assert config.jwt_secret == accepted_value
 
 
 class TestAdminTokenMaxAge:

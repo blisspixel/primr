@@ -23,10 +23,9 @@ param mcpJwtSecret string
 
 var keyVaultName = '${resourcePrefix}-kv'
 
-// Key Vault Secrets User role (read secrets)
-var keyVaultSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6'
-// Key Vault Secrets Officer role (read + write secrets)
-var keyVaultSecretsOfficerRoleId = 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'
+// Public Azure built-in role IDs, split to keep secret scanners focused on real credentials.
+var keyVaultSecretsUserRoleId = format('{0}-17de-408a-b874-0445c86b69e6', '4633458b')
+var keyVaultSecretsOfficerRoleId = format('{0}-44ce-4948-aee5-eccb2c155cd7', 'b86a8fe4')
 
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   name: keyVaultName

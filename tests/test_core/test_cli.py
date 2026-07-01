@@ -612,31 +612,31 @@ class TestMain:
         monkeypatch.setenv("PRIMR_CONFIG_DIR", str(tmp_path))
         monkeypatch.delenv("XAI_API_KEY", raising=False)
 
-        result = main(["keys", "set", "xai", "xai-test-key-12345"])
+        result = main(["keys", "set", "xai", "unit-test-value"])
 
         content = (tmp_path / ".env").read_text(encoding="utf-8")
         assert result == 0
         assert content.count("XAI_API_KEY=") == 1
-        assert "XAI_API_KEY=xai-test-key-12345" in content
-        assert os.environ["XAI_API_KEY"] == "xai-test-key-12345"
+        assert "XAI_API_KEY=unit-test-value" in content
+        assert os.environ["XAI_API_KEY"] == "unit-test-value"
 
     def test_main_keys_set_updates_existing_key(self, tmp_path, monkeypatch):
         """Test keys command updates an existing user config key in place."""
         monkeypatch.setenv("PRIMR_CONFIG_DIR", str(tmp_path))
         (tmp_path / ".env").write_text("GEMINI_API_KEY=old-key\n", encoding="utf-8")
 
-        result = main(["keys", "set", "gemini", "--value", "new-gemini-key-12345"])
+        result = main(["keys", "set", "gemini", "--value", "unit-test-value"])
 
         content = (tmp_path / ".env").read_text(encoding="utf-8")
         assert result == 0
-        assert "GEMINI_API_KEY=new-gemini-key-12345" in content
+        assert "GEMINI_API_KEY=unit-test-value" in content
         assert "old-key" not in content
 
     def test_main_keys_unset_removes_user_config_key(self, tmp_path, monkeypatch):
         """Test keys unset removes only the user config assignment."""
         monkeypatch.setenv("PRIMR_CONFIG_DIR", str(tmp_path))
         (tmp_path / ".env").write_text(
-            "XAI_API_KEY=xai-test-key-12345\nGEMINI_API_KEY=gemini-test-key-12345\n",
+            "XAI_API_KEY=unit-test-value\nGEMINI_API_KEY=unit-test-value\n",
             encoding="utf-8",
         )
 
@@ -645,7 +645,7 @@ class TestMain:
         content = (tmp_path / ".env").read_text(encoding="utf-8")
         assert result == 0
         assert "XAI_API_KEY=" not in content
-        assert "GEMINI_API_KEY=gemini-test-key-12345" in content
+        assert "GEMINI_API_KEY=unit-test-value" in content
 
     def test_main_show_usage(self):
         """Test main with show-usage flag."""
@@ -714,7 +714,7 @@ class TestRunDoctor:
     def test_doctor_with_valid_config(self):
         """Test doctor with valid configuration."""
         with (
-            patch.dict(os.environ, {"GEMINI_API_KEY": "AItest1234567890"}),
+            patch.dict(os.environ, {"GEMINI_API_KEY": "unit-test-value"}),
             patch("primr.core.cli_doctor._check_dependencies") as mock_deps,
             patch("primr.core.cli_doctor._check_filesystem") as mock_fs,
             patch("primr.core.cli_doctor._check_api_connectivity") as mock_api,

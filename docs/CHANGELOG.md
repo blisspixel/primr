@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Cleaned up credential-shaped test fixtures and public Azure role-definition
+  literals so local secret scanning now passes on current `src/`, `docs/`,
+  `tests/`, and `deploy/` paths without masking real leaks. GitHub secret
+  scanning remains at zero open alerts.
+
 ### Added
 
 - Added a canonical protected-site page-access eval corpus at
