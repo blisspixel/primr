@@ -708,6 +708,74 @@ class TestGatherHiringSignalsE2E:
         assert "response" not in record
         assert "url" not in record
 
+    def test_unavailable_agent_route_uses_metadata_without_llm(self, tmp_path):
+        fixture_body = json.dumps(GREENHOUSE_FIXTURE).encode()
+        route = SimpleNamespace(
+            model_name="",
+            execution_mode="unavailable",
+            log_metadata=lambda: {
+                "stage_id": "fast.hiring_signals",
+                "inference_profile": "agent",
+                "backend_id": "agent-profile-unavailable",
+                "backend_kind": "host_agent",
+                "billing_mode": "unknown",
+                "routed": False,
+                "execution_mode": "unavailable",
+                "route_reasons": ["agent_profile_unavailable"],
+                "expected_input_tokens": 45_000,
+                "expected_output_tokens": 4_000,
+            },
+        )
+
+        def fake_http_get(url, timeout, headers=None, params=None):
+            if "greenhouse" in url:
+                return 200, fixture_body, None
+            return 404, b"", None
+
+        with (
+            patch.object(hs, "_http_get", side_effect=fake_http_get),
+            patch("primr.ai.stage_routing.resolve_stage_model", return_value=route),
+            patch(
+                "primr.ai.grok_client.grok_llm",
+                side_effect=AssertionError("cloud LLM should not run"),
+            ) as grok_mock,
+            patch.object(
+                hs,
+                "_fetch_html_posting_bodies",
+                side_effect=AssertionError("body fetch is unnecessary"),
+            ) as fetch_mock,
+        ):
+            signals = gather_hiring_signals(
+                "Acme Corp",
+                "https://acme.com",
+                working_folder=str(tmp_path),
+                max_selected=1,
+            )
+
+        assert signals is not None
+        assert signals.postings_found == 2
+        assert signals.postings_selected == 1
+        assert signals.postings_extracted == 1
+        assert signals.roles == [
+            {
+                "title": "Senior Data Engineer",
+                "location": "New York, NY",
+                "department": "Data Platform",
+            }
+        ]
+        grok_mock.assert_not_called()
+        fetch_mock.assert_not_called()
+        state = json.loads((tmp_path / "_run_state.json").read_text(encoding="utf-8"))
+        [record] = state["stage_routes"]
+        assert record["outcome"] == "fallback"
+        assert record["backend_id"] == "agent-profile-unavailable"
+        assert record["failure_class"] == "agent_profile_unavailable"
+        assert record["input_items"] == 2
+        assert record["output_items"] == 1
+        assert "prompt" not in record
+        assert "response" not in record
+        assert "url" not in record
+
 
 # =============================================================================
 # Posting staleness

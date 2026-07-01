@@ -287,7 +287,11 @@ Do next:
   fixtures now emit body-free precision, recall, F1, exact-match, and quality
   evidence through `--eval-source-relevance-fixture`, giving the Codex
   source-relevance pilot a review-only comparison path before host execution is
-  broadened.
+  broadened. The two other routed utility stages now also fail closed under an
+  explicit agent profile when no host adapter qualifies: website summaries write
+  deterministic source excerpts, hiring signals use deterministic triage plus
+  posting metadata, and both record body-free `agent_profile_unavailable` route
+  fallbacks instead of invoking cloud LLMs.
 - Promote one host/local candidate only after stage-scoped evals prove quality,
   cost, latency, and failure behavior.
 - Promote one stage at a time. A provider path is supported only when report

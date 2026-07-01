@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -269,6 +269,59 @@ def test_summarize_scraped_content_records_route_usage(monkeypatch, tmp_path):
     assert record["actual_cached_input_tokens"] == 40
     assert record["actual_cost_usd"] == 0.00012
     assert record["actual_usage_by_model"]["routed-scrape-summary-model"]["output_tokens"] == 80
+    assert "prompt" not in record
+    assert "response" not in record
+
+
+def test_summarize_scraped_content_agent_unavailable_uses_local_excerpt(monkeypatch, tmp_path):
+    data = {
+        "https://acme.example/about": (
+            "Acme builds secure analytics platforms for regulated teams. " * 40
+        )
+    }
+    route = SimpleNamespace(
+        model_name="",
+        execution_mode="unavailable",
+        log_metadata=lambda: {
+            "stage_id": "fast.scrape_summary",
+            "inference_profile": "agent",
+            "backend_id": "agent-profile-unavailable",
+            "backend_kind": "host_agent",
+            "billing_mode": "unknown",
+            "routed": False,
+            "execution_mode": "unavailable",
+            "route_reasons": ["agent_profile_unavailable"],
+            "expected_input_tokens": 70_000,
+            "expected_output_tokens": 5_000,
+        },
+    )
+    llm_mock = MagicMock(side_effect=AssertionError("cloud LLM should not run"))
+    usage_mock = MagicMock(side_effect=AssertionError("usage should not be captured"))
+    monkeypatch.setattr("primr.ai.stage_routing.resolve_stage_model", lambda *_a, **_k: route)
+    monkeypatch.setattr("primr.ai.summarize.llm", llm_mock)
+    monkeypatch.setattr(
+        "primr.ai.summarize.stage_routing.capture_stage_usage",
+        usage_mock,
+    )
+
+    summary = summarize.summarize_scraped_content(
+        "Acme",
+        "https://acme.example",
+        data,
+        str(tmp_path),
+    )
+
+    assert "Deterministic source excerpt" in summary
+    assert "secure analytics platforms" in summary
+    llm_mock.assert_not_called()
+    usage_mock.assert_not_called()
+    state = json.loads((tmp_path / "_run_state.json").read_text(encoding="utf-8"))
+    [record] = state["stage_routes"]
+    assert record["outcome"] == "fallback"
+    assert record["backend_id"] == "agent-profile-unavailable"
+    assert record["failure_class"] == "agent_profile_unavailable"
+    assert record["input_items"] == 1
+    assert record["output_items"] == 1
     assert "prompt" not in record
     assert "response" not in record
 

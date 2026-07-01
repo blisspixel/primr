@@ -6,6 +6,8 @@ and structural-splitting helpers extracted from research_agent.
 
 from __future__ import annotations
 
+from urllib.parse import urlparse
+
 import pytest
 
 from primr.core.strategy_artifacts import (
@@ -19,6 +21,23 @@ from primr.core.strategy_artifacts import (
     _split_markdown_sections,
     _strategy_money_to_millions,
 )
+
+
+@pytest.fixture(autouse=True)
+def _deterministic_strategy_url_validation(monkeypatch):
+    """Keep pure artifact tests off live DNS; SSRF behavior is covered elsewhere."""
+
+    def fake_validate_url_for_request(url: str):
+        candidate = url.strip()
+        parsed = urlparse(candidate)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            return False, candidate, "Only HTTP/HTTPS URLs with hosts are valid"
+        return True, candidate, None
+
+    monkeypatch.setattr(
+        "primr.core.strategy_artifacts.validate_url_for_request",
+        fake_validate_url_for_request,
+    )
 
 
 class TestStrategyMoneyToMillions:

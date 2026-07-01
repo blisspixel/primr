@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.42] - 2026-07-01
+
+### Changed
+
+- Explicit `agent` profile unavailability now fails closed for the remaining
+  routed utility stages that do not yet have host adapters. `fast.scrape_summary`
+  writes deterministic source excerpts, `fast.hiring_signals` uses deterministic
+  triage plus posting metadata, both stages record body-free
+  `agent_profile_unavailable` route fallbacks, and neither stage silently calls
+  a cloud LLM when no official host runner qualifies.
+- Hiring-signal deterministic selection helpers now live in a focused
+  `hiring_signal_selection` module so the orchestration file stays below its
+  architecture ratchet while preserving existing triage behavior.
+
 ## [1.34.41] - 2026-07-01
 
 ### Security

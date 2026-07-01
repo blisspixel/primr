@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.34.41
+Current State: v1.34.42
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -95,7 +95,12 @@ Current priority order:
    availability metadata without collecting live quota data or probing local
    services during normal runs. All three routes record body-free usage
    metadata in `_run_state.json`, including measured token/cache/cost deltas
-   when provider counters expose them; the next architecture unlock is
+   when provider counters expose them. The other routed utility stages now also
+   fail closed under an explicit agent profile when no host adapter qualifies:
+   scrape summary writes deterministic source excerpts, hiring signals use
+   deterministic triage plus posting metadata, and both record
+   `agent_profile_unavailable` route fallbacks instead of invoking cloud LLMs;
+   the next architecture unlock is
    expanding host/local candidates only with stage-specific adapters and
    stage-scoped eval data. Stage scorecard artifacts are now available through
    the eval CLI and compact MCP readback at
@@ -872,7 +877,7 @@ Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The firs
 - **Shipped router bridge:** `backend_with_availability()` and `backends_with_availability()` apply provider snapshots to backend capability rows and attach sanitized availability metadata before `route_stage()`
 - **Shipped doctor visibility:** `primr doctor` now shows sanitized provider availability from the same generic snapshots, without paid cloud probes or local endpoint leakage
 - Production-stage requirements are declared in `core/stage_inventory.py`: minimum reasoning depth, trust sensitivity, required capabilities, token/context estimates, and acceptable backend families
-- Runtime bridge shipped in `ai/stage_routing.py`: `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` resolve their legacy utility models through `route_stage()`, log safe route metadata, append capped body-free `stage_routes` records to `_run_state.json`, include measured token/cache/cost deltas when provider counters expose them, and execute through the existing utility provider seams with today's role defaults preserved as fallback
+- Runtime bridge shipped in `ai/stage_routing.py`: `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` resolve their legacy utility models through `route_stage()`, log safe route metadata, append capped body-free `stage_routes` records to `_run_state.json`, include measured token/cache/cost deltas when provider counters expose them, and execute through the existing utility provider seams with today's role defaults preserved as fallback. Under an explicit agent profile, stages without a host adapter now record `agent_profile_unavailable` and use deterministic local output rather than silently falling back to cloud LLMs.
 - Stage route comparison artifacts shipped in `core/stage_route_comparison.py`: run-state route records can be aggregated by stage/backend/profile into body-free JSON and Markdown summaries with attempts, selected/fallback/failure counts, latency, and measured token/cache/cost deltas
 - Stage eval scorecards shipped in `core/stage_eval_scorecard.py` with CLI artifact flow behind `primr --eval --eval-stage-scorecard`: explicit quality evidence can now be joined with route comparison rows to classify candidates as human-review-ready, needing quality eval, below quality bar, or needing reliability review without auto-promotion
 - Stage scorecard MCP readback shipped in `mcp_server/stage_scorecard_summary.py`: `primr://eval/stage_scorecard/{eval_id}` returns compact route, quality-score, status, and blocker fields from the eval artifact without arbitrary path reads, prompt bodies, report bodies, quality-source bodies, or raw run-state content
@@ -1547,6 +1552,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.34.42 | Jul 2026 | **Agent-profile cost safety for remaining routed utility stages.** Explicit `agent` profile unavailability now fails closed for `fast.scrape_summary` and `fast.hiring_signals`: scrape summary writes deterministic source excerpts, hiring signals uses deterministic triage plus posting metadata, both stages record body-free `agent_profile_unavailable` route fallbacks, and neither stage silently calls a cloud LLM when no official host runner qualifies. |
 | 1.34.41 | Jul 2026 | **Sonnet 5, cost guardrails, and metadata-first output reads.** Claude Sonnet 5 is now registered and routed with conservative pricing, adaptive-thinking request shaping, assistant-prefill rejection, and a 30% dry-run tokenizer safety factor. xAI image generation and other hidden-spend paths now require explicit opt-in, security scanning remains clean for current code and secrets, authenticated MCP/A2A output reads stay metadata-first, and full report text moves to explicit report-body read paths with ownership and output negotiation. |
 | 1.34.40 | Jun 2026 | **A2A research approval and budget parity.** `estimate_research` now returns the same approval-token fields as MCP `estimate_run`, and A2A `research_company` enforces `max_estimated_cost_usd` plus a matching approval token when cost-cap enforcement is active before any job is created. The accepted cap is propagated into `PipelineRunner` as the runtime budget, and A2A audit events record sanitized estimate/cap metadata without raw URLs, message text, or approval tokens. |
 | 1.34.39 | Jun 2026 | **A2A label-calibration summary readback.** Added read-scoped `read_calibration_summary_by_job` to the A2A AgentCard and executor, backed by the same ownership-gated `primr://output/calibration_summary/by_job/{job_id}` compact summary contract as MCP. The skill returns per-label traceability counts, inference source-copy counts, evidence-review count buckets, judge metadata, and judge-agreement metadata without raw claims, source URLs, evidence reviews, rationales, or report body content. |

@@ -31,6 +31,7 @@ _BATCH_MAX_CHARS = 28_000
 _BATCH_PAGE_CHAR_LIMIT = 4_000
 _PER_PAGE_MIN_LENGTH = 80
 _DEFAULT_RETRIES = 3
+_DETERMINISTIC_EXCERPT_CHARS = 1_200
 
 SummaryFn = Callable[[str, int], str]
 
@@ -333,6 +334,57 @@ def summarize_scraped_content_with_callback(
     return "\n".join(all_summaries)
 
 
+def _compact_source_excerpt(text: str, *, max_chars: int = _DETERMINISTIC_EXCERPT_CHARS) -> str:
+    compacted = " ".join(text.split())
+    if len(compacted) <= max_chars:
+        return compacted
+    return compacted[: max_chars - 3].rstrip() + "..."
+
+
+def summarize_scraped_content_without_model(
+    company_name,
+    company_website,
+    scraped_data,
+    folder_path,
+    *,
+    on_progress: Callable[[int, int, str], None] | None = None,
+    output_filename: str = "scraped_website_summary.txt",
+):
+    """Write deterministic source excerpts when no model adapter is available."""
+
+    summary_filename = os.path.join(folder_path, output_filename)
+    with open(summary_filename, "w", encoding="utf-8") as f:
+        f.write(f"## Website Insights for {company_name}\n\n")
+        if company_website:
+            f.write(f"Website: {company_website}\n\n")
+
+    total = len(scraped_data)
+    all_summaries: list[str] = []
+    for i, (website_source, raw_text) in enumerate(scraped_data.items()):
+        if on_progress:
+            on_progress(i + 1, total, website_source)
+        if not raw_text.strip():
+            continue
+
+        prepared_text = _prepare_page_for_summary(raw_text, website_source)
+        excerpt = _compact_source_excerpt(prepared_text)
+        if not excerpt:
+            formatted_summary = f"### Source: {website_source}\nNo meaningful content found.\n"
+        else:
+            formatted_summary = (
+                f"### Source: {website_source}\n"
+                "Deterministic source excerpt captured because the selected inference "
+                "profile has no available model adapter.\n\n"
+                f"{excerpt}\n"
+            )
+        with open(summary_filename, "a", encoding="utf-8") as f:
+            f.write(formatted_summary + "\n")
+        all_summaries.append(formatted_summary)
+
+    logger.debug(f"Deterministic insights saved to: {summary_filename}")
+    return "\n".join(all_summaries)
+
+
 def summarize_scraped_content(
     company_name,
     company_website,
@@ -350,10 +402,35 @@ def summarize_scraped_content(
             "fast.scrape_summary", legacy_model_type="scraping"
         )
         log_structured("info", "Scrape summary route selected", **route.log_metadata())
-        usage_before = stage_routing.capture_stage_usage()
-        summarize_fn = _build_routed_summary_model(route)
     except Exception as e:
         logger.warning("Scrape summary route resolution failed: %s", e, exc_info=True)
+
+    if route is not None and getattr(route, "execution_mode", "llm") == "unavailable":
+        summary = summarize_scraped_content_without_model(
+            company_name,
+            company_website,
+            scraped_data,
+            folder_path,
+            on_progress=on_progress,
+        )
+        output_count = _count_summary_outputs(summary)
+        _record_summary_route(
+            folder_path,
+            route,
+            outcome="fallback",
+            input_count=_count_nonblank_pages(scraped_data),
+            output_count=output_count,
+            duration_seconds=time.monotonic() - start_time,
+            failure_class="agent_profile_unavailable",
+        )
+        return summary
+
+    if route is not None:
+        try:
+            usage_before = stage_routing.capture_stage_usage()
+            summarize_fn = _build_routed_summary_model(route)
+        except Exception as e:
+            logger.warning("Scrape summary route setup failed: %s", e, exc_info=True)
 
     try:
         summary = summarize_scraped_content_with_callback(

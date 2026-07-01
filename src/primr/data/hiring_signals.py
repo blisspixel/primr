@@ -34,6 +34,15 @@ from primr.data.hiring_signal_artifacts import (
     render_for_prompt as _render_for_prompt,
 )
 from primr.data.hiring_signal_routing import record_hiring_route as _record_hiring_route
+from primr.data.hiring_signal_selection import (
+    clean_web_search_title as _clean_web_search_title,
+)
+from primr.data.hiring_signal_selection import (
+    deterministic_triage as _deterministic_triage_impl,
+)
+from primr.data.hiring_signal_selection import (
+    metadata_roles_from_postings as _metadata_roles_from_postings,
+)
 from primr.utils.observability import log_structured
 
 logger = logging.getLogger(__name__)
@@ -867,35 +876,10 @@ _WEB_SEARCH_POSTING_HOST_HINTS = (
     ".bamboohr.com/jobs",
 )
 
-# Lowercase pattern used to strip board-name suffixes from search result
-# titles so the role label is what's left. Each entry is matched at the
-# end of the title only.
-_WEB_SEARCH_TITLE_SUFFIXES = (
-    r"\s+\|\s+linkedin.*$",
-    r"\s+-\s+linkedin.*$",
-    r"\s+\|\s+indeed.*$",
-    r"\s+-\s+indeed.*$",
-    r"\s+\|\s+glassdoor.*$",
-    r"\s+-\s+glassdoor.*$",
-    r"\s+\|\s+ziprecruiter.*$",
-    r"\s+at\s+.+\s+\|\s+.+$",
-    r"\s+\|\s+.+careers.*$",
-)
-
 
 def _looks_like_posting_url(url: str) -> bool:
     lower = url.lower()
     return any(hint in lower for hint in _WEB_SEARCH_POSTING_HOST_HINTS)
-
-
-def _clean_web_search_title(title: str) -> str:
-    """Strip common job-board suffixes from a search result title."""
-    cleaned = title.strip()
-    for pattern in _WEB_SEARCH_TITLE_SUFFIXES:
-        cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE)
-    # "Senior Engineer at Acme" -> "Senior Engineer"
-    cleaned = re.sub(r"\s+at\s+[A-Z][^|]*$", "", cleaned)
-    return cleaned.strip(" -|·")
 
 
 def _discover_via_web_search(
@@ -1238,44 +1222,7 @@ def _discover_via_html(
 
 
 def _deterministic_triage(postings: list[Posting], k: int) -> list[int]:
-    """Fallback ranking when the LLM call fails. Boosts senior / engineering
-    / product / data / security / platform roles; demotes retail / sales
-    SDR / support / intern / entry-level roles. Ties broken by original
-    order so providers that put strategic jobs first are respected.
-    """
-    boost = re.compile(
-        r"\b(chief|vp|vice\s+president|head\s+of|director|principal|staff|"
-        r"lead|senior|sr\.?|architect|engineer|data|ml|ai|security|"
-        r"platform|product\s+manager|cto|ciso|cpo|gm|general\s+manager)\b",
-        re.IGNORECASE,
-    )
-    demote = re.compile(
-        r"\b(intern|co[-\s]op|apprentice|associate|jr\.?|junior|entry|"
-        r"retail|store|barista|cashier|warehouse|delivery|support\s+rep|"
-        r"sdr|bdr|sales\s+dev|customer\s+support|customer\s+service)\b",
-        re.IGNORECASE,
-    )
-    scored: list[tuple[int, int]] = []
-    for i, posting in enumerate(postings):
-        score = 0
-        if boost.search(posting.title):
-            score += 3
-        if demote.search(posting.title):
-            score -= 4
-        if posting.department and re.search(
-            r"engineering|product|data|platform|security|infrastructure",
-            posting.department,
-            re.IGNORECASE,
-        ):
-            score += 2
-        # Slight age preference: fresher first
-        age = posting.age_days()
-        if age is not None and age > _STALE_DAYS_THRESHOLD:
-            score -= 2
-        scored.append((i, score))
-
-    scored.sort(key=lambda p: (-p[1], p[0]))
-    return [i for i, _ in scored[:k]]
+    return _deterministic_triage_impl(postings, k, stale_days_threshold=_STALE_DAYS_THRESHOLD)
 
 
 def _llm_triage(
@@ -1674,9 +1621,35 @@ def gather_hiring_signals(
         route = stage_routing.resolve_stage_model("fast.hiring_signals", legacy_model_type="fast")
         routed_model = route.model_name
         log_structured("info", "Hiring signals route selected", **route.log_metadata())
-        usage_before = stage_routing.capture_stage_usage()
+        if getattr(route, "execution_mode", "llm") != "unavailable":
+            usage_before = stage_routing.capture_stage_usage()
     except Exception as e:
         logger.warning("Hiring signals route resolution failed: %s", e, exc_info=True)
+
+    if route is not None and getattr(route, "execution_mode", "llm") == "unavailable":
+        selected_idx = _deterministic_triage(postings, max_selected)
+        selected = [postings[i] for i in selected_idx]
+        metadata_roles = _metadata_roles_from_postings(selected)
+        fallback_signals = HiringSignals(
+            company_slug=chosen_slug,
+            source=discovery_source,
+            postings_found=len(postings),
+            postings_selected=len(selected),
+            postings_extracted=len(metadata_roles),
+            roles=metadata_roles,
+        )
+        if working_folder:
+            _persist(working_folder, fallback_signals, postings, selected)
+        _record_hiring_route(
+            working_folder,
+            route,
+            outcome="fallback",
+            input_count=len(postings),
+            output_count=len(metadata_roles),
+            duration_seconds=time.monotonic() - route_start,
+            failure_class="agent_profile_unavailable",
+        )
+        return fallback_signals
 
     selected_idx = _llm_triage(postings, company_name, max_selected, model=routed_model)
     selected = [postings[i] for i in selected_idx]
@@ -1694,18 +1667,7 @@ def gather_hiring_signals(
         # discoveries that fail body fetch can also have noisy suffixes
         # (board names, company labels) bolted on, and the cleaner is
         # safe to run on already-clean strings.
-        metadata_roles: list[dict[str, str]] = []
-        for posting in selected[:30]:
-            cleaned = _clean_web_search_title(posting.title).strip()
-            if not cleaned:
-                continue
-            metadata_roles.append(
-                {
-                    "title": cleaned,
-                    "location": posting.location,
-                    "department": posting.department,
-                }
-            )
+        metadata_roles = _metadata_roles_from_postings(selected)
         skeleton = HiringSignals(
             company_slug=chosen_slug,
             source=discovery_source,
