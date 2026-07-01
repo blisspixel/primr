@@ -10,6 +10,7 @@ This module provides:
 """
 
 import hashlib
+import hmac
 import secrets
 import threading
 from collections.abc import Callable
@@ -71,6 +72,7 @@ class APIKeyAuth:
         """Initialize the auth manager."""
         self._keys: dict[str, APIKeyInfo] = {}
         self._lock = threading.Lock()
+        self._hash_key_secret = secrets.token_bytes(32)
         self._rotation_callbacks: list[Callable[[str, str, str], None]] = []
         logger.debug("APIKeyAuth initialized")
 
@@ -389,11 +391,7 @@ class APIKeyAuth:
 
     def _hash_key(self, key: str) -> str:
         """Fingerprint a generated high-entropy API key for in-memory lookup."""
-        return hashlib.blake2b(
-            key.encode(),
-            digest_size=32,
-            person=b"primr-api-key",
-        ).hexdigest()
+        return hmac.new(self._hash_key_secret, key.encode(), hashlib.sha256).hexdigest()
 
 
 # =============================================================================

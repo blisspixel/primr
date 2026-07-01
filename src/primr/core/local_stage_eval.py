@@ -9,6 +9,7 @@ from typing import Any
 from primr.ai.summarize import summarize_scraped_content_local
 from primr.core.model_eval import _company_similarity
 from primr.core.stage_eval_scorecard import StageQualityEvidence
+from primr.utils.security import mask_sensitive_data
 
 
 @dataclass(frozen=True)
@@ -459,7 +460,10 @@ def write_website_summary_stage_eval_report(
         ),
         "rows": [row.__dict__ for row in rows],
     }
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    safe_json = mask_sensitive_data(json.dumps(payload, indent=2))
+
+    # codeql[py/clear-text-storage-sensitive-data]
+    path.write_text(safe_json, encoding="utf-8")
 
 
 def write_website_summary_stage_eval_summary(
@@ -514,7 +518,10 @@ def write_website_summary_stage_eval_summary(
         "recommended_models": [row["model"] for row in ranked[:3]],
         "results": ranked,
     }
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    safe_json = mask_sensitive_data(json.dumps(payload, indent=2))
+
+    # codeql[py/clear-text-storage-sensitive-data]
+    path.write_text(safe_json, encoding="utf-8")
 
 
 def build_website_summary_semantic_agreement_summary(

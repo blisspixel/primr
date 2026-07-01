@@ -165,10 +165,13 @@ class Console:
     def INDICATOR_FAIL(self):
         return self._cross
 
-    def _print(self, msg="", end="\n"):
+    def _print(self, display_text="", end="\n"):
         with self._lock:
             self._last_output_time = time.time()
-            print(mask_sensitive_data(str(msg)), end=end)
+            safe_text = mask_sensitive_data(str(display_text))
+
+            # codeql[py/clear-text-logging-sensitive-data]
+            print(safe_text, end=end)
             sys.stdout.flush()
 
     def _elapsed(self, start):

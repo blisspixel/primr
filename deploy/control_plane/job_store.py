@@ -19,7 +19,9 @@ Requirements: 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.18
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
+import os
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -236,6 +238,16 @@ def hash_inputs(inputs: JobInputs) -> str:
     return hashlib.sha256(data.encode()).hexdigest()
 
 
+def _control_plane_hash_key(scope: str) -> bytes:
+    pepper = os.getenv("PRIMR_CONTROL_PLANE_HASH_PEPPER", "")
+    material = f"primr-control-plane:{scope}:{pepper}".encode()
+    return hashlib.sha256(material).digest()
+
+
+def _control_plane_fingerprint(scope: str, value: str) -> str:
+    return hmac.new(_control_plane_hash_key(scope), value.encode(), hashlib.sha256).hexdigest()
+
+
 def hash_job_id(deployment: str, idempotency_key: str, api_key: str) -> str:
     """
     Derive deterministic job_id from (deployment, idempotency_key, api_key).
@@ -243,15 +255,12 @@ def hash_job_id(deployment: str, idempotency_key: str, api_key: str) -> str:
     This prevents collisions across environments and tenants.
     """
     data = f"{deployment}:{idempotency_key}:{api_key}"
-    return hashlib.sha256(data.encode()).hexdigest()[:24]
+    return _control_plane_fingerprint("job-id", data)[:24]
 
 
 def hash_api_key(api_key: str) -> str:
     """Hash API key for storage (never store raw keys)."""
-    # Control-plane callers already use generated high-entropy API keys, and
-    # this stable fingerprint is part of the persisted tenant/budget key.
-    # codeql[py/weak-sensitive-data-hashing]
-    return f"sha256:{hashlib.sha256(api_key.encode()).hexdigest()}"
+    return f"hmac-sha256:{_control_plane_fingerprint('api-key', api_key)}"
 
 
 def get_expected_artifacts(mode: str) -> list[str]:

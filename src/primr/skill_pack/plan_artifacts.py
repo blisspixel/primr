@@ -25,11 +25,19 @@ def persist_plan(
         working_dir.mkdir(parents=True, exist_ok=True)
         md_path = working_dir / "role_plan.md"
         json_path = working_dir / "role_plan.json"
-        md_text = mask_sensitive_data(render_plan_md(company_name, plan, generated_at, roles_count))
-        md_path.write_text(md_text, encoding="utf-8")
+        safe_md_text = mask_sensitive_data(
+            render_plan_md(company_name, plan, generated_at, roles_count)
+        )
+
+        # codeql[py/clear-text-storage-sensitive-data]
+        md_path.write_text(safe_md_text, encoding="utf-8")
         plan.plan_md_path = str(md_path)
-        json_text = mask_sensitive_data(json.dumps(plan.to_dict(), indent=2, ensure_ascii=False))
-        json_path.write_text(json_text, encoding="utf-8")
+        safe_json_text = mask_sensitive_data(
+            json.dumps(plan.to_dict(), indent=2, ensure_ascii=False)
+        )
+
+        # codeql[py/clear-text-storage-sensitive-data]
+        json_path.write_text(safe_json_text, encoding="utf-8")
         plan.plan_json_path = str(json_path)
         logger.info("Wrote role plan to %s and %s", md_path, json_path)
     except OSError as exc:
