@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `primr --eval --eval-page-access-fixture <fixture.json>` for
+  operator-facing page-access classifier evals. The command reads labeled
+  sanitized HTML cases or trace-derived `access_assessment` predictions, then
+  writes false-positive/false-negative JSON, Markdown, and scorecard-input
+  quality evidence under `output/evals/<eval-id>/page_access_stage/` without
+  copying raw HTML, URLs, or page bodies.
 - Added a body-free offline page-access classifier eval helper. Labeled local
   fixtures or trace-derived predictions now produce true/false positive and
   false-negative metrics, tag-level breakdowns, and JSON/Markdown review

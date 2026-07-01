@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
 from primr.core import local_stage_eval, source_relevance_eval
+from primr.data.scraping import page_access_eval
 
 
 def handle_website_summary_local_stage_eval(
@@ -163,7 +165,18 @@ def handle_stage_quality_generation(
         if exit_code != 0:
             return exit_code, generated_path
     if config.eval_source_relevance_fixture:
-        return handle_source_relevance_fixture_eval(config=config, console=console)
+        exit_code, generated_path = handle_source_relevance_fixture_eval(
+            config=config, console=console
+        )
+        if exit_code != 0:
+            return exit_code, generated_path
+    if config.eval_page_access_fixture:
+        exit_code, page_access_quality_path = handle_page_access_fixture_eval(
+            config=config, console=console
+        )
+        if exit_code != 0:
+            return exit_code, page_access_quality_path
+        generated_path = generated_path or page_access_quality_path
     return 0, generated_path
 
 
@@ -214,6 +227,79 @@ def handle_source_relevance_fixture_eval(
     console.info(f"Source relevance eval markdown: {markdown_path}")
     console.info(f"Source relevance quality evidence: {quality_path}")
     return 0, quality_path
+
+
+def handle_page_access_fixture_eval(
+    *,
+    config: Any,
+    console: Any,
+) -> tuple[int, Path | None]:
+    """Build page-access classifier evidence from labeled local fixtures."""
+
+    console.blank()
+    console.step("Page Access Classifier Eval")
+    fixture_path = Path(config.eval_page_access_fixture)
+    try:
+        report = page_access_eval.evaluate_page_access_fixture_file(fixture_path)
+    except (OSError, ValueError) as exc:
+        console.error(f"Page access fixture eval failed: {exc}")
+        return 1, None
+
+    if report.metrics.sample_count <= 0:
+        console.error("Page access fixture eval produced no cases.")
+        return 1, None
+
+    stage_root = Path(config.eval_root) / config.eval_id / "page_access_stage"
+    report_path = stage_root / "page_access_stage_eval.json"
+    markdown_path = stage_root / "page_access_stage_eval.md"
+    quality_path = stage_root / "page_access_stage_quality_evidence.json"
+    page_access_eval.write_page_access_eval_json(report_path, report)
+    page_access_eval.write_page_access_eval_markdown(
+        markdown_path,
+        report,
+        title=f"Page Access Classifier Eval: {config.eval_id}",
+    )
+    _write_page_access_quality_evidence(
+        quality_path,
+        eval_id=config.eval_id,
+        report=report,
+    )
+    console.info(f"Page access cases: {report.metrics.sample_count}")
+    console.info(f"Page access false positives: {report.metrics.false_positive}")
+    console.info(f"Page access false negatives: {report.metrics.false_negative}")
+    console.info(f"Page access eval: {report_path}")
+    console.info(f"Page access eval markdown: {markdown_path}")
+    console.info(f"Page access quality evidence: {quality_path}")
+    return 0, quality_path
+
+
+def _write_page_access_quality_evidence(
+    path: Path,
+    *,
+    eval_id: str,
+    report: page_access_eval.PageAccessEvalReport,
+) -> None:
+    """Write scorecard-ready quality evidence for future route comparisons."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": 1,
+        "evidence_type": "page_access_classifier_labeled_quality",
+        "decision_policy": "scorecard_input_only",
+        "metric": "f1_score",
+        "eval_id": eval_id,
+        "stage_id": "scraping.page_access",
+        "quality_evidence": [
+            {
+                "stage_id": "scraping.page_access",
+                "backend_id": "primr-page-access-classifier",
+                "quality_score": round(report.metrics.f1 * 100.0, 2),
+                "sample_size": report.metrics.sample_count,
+                "source": f"page_access_labeled:{eval_id}:primr-page-access-classifier",
+            }
+        ],
+    }
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def _model_slug(model_name: str) -> str:

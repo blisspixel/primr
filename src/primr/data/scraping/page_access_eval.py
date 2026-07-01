@@ -9,6 +9,7 @@ the eval artifacts.
 from __future__ import annotations
 
 import json
+from base64 import b64decode
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -199,6 +200,71 @@ def score_page_access_predictions(
     )
 
 
+def evaluate_page_access_fixture_file(path: Path) -> PageAccessEvalReport:
+    """Load and score a page-access eval fixture file.
+
+    Cases may provide sanitized ``html``/``html_base64`` to run the classifier,
+    or a trace-derived ``access_assessment`` object to score recorded
+    predictions. Raw input bodies and URLs are never copied into the report.
+    """
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid page-access eval fixture JSON: {path}") from exc
+
+    cases = _fixture_cases(payload)
+    predictions: list[PageAccessPrediction] = []
+    for index, raw_case in enumerate(cases, start=1):
+        if not isinstance(raw_case, dict):
+            raise ValueError(f"cases[{index}] must be an object")
+        case_id = _optional_text(raw_case.get("case_id")) or f"case-{index}"
+        expected_real_content = _required_bool(
+            raw_case.get("expected_real_content"),
+            f"cases[{index}].expected_real_content",
+        )
+        tags = _clean_tags(_optional_text_tuple(raw_case.get("tags"), f"cases[{index}].tags"))
+        if "access_assessment" in raw_case:
+            predictions.append(
+                prediction_from_access_assessment(
+                    case_id=case_id,
+                    expected_real_content=expected_real_content,
+                    access_assessment=_optional_dict(
+                        raw_case.get("access_assessment"),
+                        f"cases[{index}].access_assessment",
+                    ),
+                    tags=tags,
+                )
+            )
+            continue
+
+        assessment = classify_page_access(
+            _fixture_html_bytes(raw_case, index),
+            url=_optional_text(raw_case.get("url")) or "https://redacted.invalid/",
+            http_status=_optional_int(raw_case.get("http_status"), f"cases[{index}].http_status"),
+            content_type=_optional_text(raw_case.get("content_type")) or "text/html",
+            final_url=_optional_text(raw_case.get("final_url")),
+            expected_markers=list(
+                _optional_text_tuple(
+                    raw_case.get("expected_markers"),
+                    f"cases[{index}].expected_markers",
+                )
+            ),
+        )
+        predictions.append(
+            PageAccessPrediction(
+                case_id=case_id,
+                expected_real_content=expected_real_content,
+                predicted_state=assessment.state,
+                confidence=assessment.confidence,
+                reason=assessment.reason,
+                tags=tags,
+            )
+        )
+
+    return score_page_access_predictions(predictions)
+
+
 def page_access_eval_payload(report: PageAccessEvalReport) -> dict[str, Any]:
     """Serialize a report without raw HTML, URLs, or page bodies."""
 
@@ -337,3 +403,66 @@ def _required_case_id(value: str) -> str:
 
 def _clean_tags(tags: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(sorted({tag.strip() for tag in tags if isinstance(tag, str) and tag.strip()}))
+
+
+def _fixture_cases(payload: Any) -> list[Any]:
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict):
+        raw_cases = payload.get("cases", payload.get("items"))
+        if isinstance(raw_cases, list):
+            return raw_cases
+    raise ValueError("Page-access eval fixture must be a list or object with cases")
+
+
+def _fixture_html_bytes(row: dict[str, Any], index: int) -> bytes:
+    html = row.get("html")
+    html_base64 = row.get("html_base64")
+    if isinstance(html, str):
+        return html.encode("utf-8")
+    if isinstance(html_base64, str):
+        try:
+            return b64decode(html_base64, validate=True)
+        except ValueError as exc:
+            raise ValueError(f"cases[{index}].html_base64 must be valid base64") from exc
+    raise ValueError(f"cases[{index}] must include html/html_base64 or access_assessment")
+
+
+def _required_bool(value: object, label: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{label} must be a boolean")
+    return value
+
+
+def _optional_int(value: object, label: str) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{label} must be an integer")
+    return value
+
+
+def _optional_text(value: object) -> str | None:
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def _optional_text_tuple(value: object, label: str) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise ValueError(f"{label} must be a list of strings")
+    items: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            raise ValueError(f"{label} must contain only strings")
+        if item.strip():
+            items.append(item.strip())
+    return tuple(items)
+
+
+def _optional_dict(value: object, label: str) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} must be an object or null")
+    return value

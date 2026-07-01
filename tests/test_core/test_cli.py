@@ -403,6 +403,20 @@ class TestParseArgs:
 
         assert config.eval_source_relevance_fixture == ".agent/source-relevance-fixture.json"
 
+    def test_parse_page_access_fixture_eval_option(self):
+        """Test parsing page access fixture eval arguments."""
+        config = parse_args(
+            [
+                "--eval",
+                "--eval-id",
+                "eval-2026-03-stage",
+                "--eval-page-access-fixture",
+                ".agent/page-access-fixture.json",
+            ]
+        )
+
+        assert config.eval_page_access_fixture == ".agent/page-access-fixture.json"
+
     def test_parse_improve_flag(self):
         """Test parsing --improve flag."""
         config = parse_args(["--improve", "output/demo.md"])

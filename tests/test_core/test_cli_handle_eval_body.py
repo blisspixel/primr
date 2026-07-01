@@ -317,6 +317,97 @@ class TestEvalBody:
         assert scorecard_payload["rows"][0]["stage_id"] == "fast.source_relevance"
         assert scorecard_payload["rows"][0]["review_status"] == "candidate_for_human_review"
 
+    def test_page_access_fixture_generates_body_free_eval_artifacts(self, stub_eval_deps, tmp_path):
+        fixture = tmp_path / "page_access_fixture.json"
+        fixture.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "cases": [
+                        {
+                            "case_id": "real-about",
+                            "expected_real_content": True,
+                            "html": (
+                                "<html><head><title>About ExampleCo</title>"
+                                '<script type="application/ld+json">{"@type":"Organization"}</script>'
+                                "</head><body><header><nav><a>About</a><a>Products</a>"
+                                "<a>News</a><a>Contact</a></nav></header><main>"
+                                "<h1>About ExampleCo</h1>"
+                                "<p>ExampleCo builds practical field equipment for "
+                                "industrial customers.</p>"
+                                "<p>Our company operates service centers and a partner "
+                                "network across North America.</p></main>"
+                                "<footer><a>Careers</a><a>Support</a><a>Investors</a>"
+                                "<a>Privacy</a></footer></body></html>"
+                            ),
+                            "url": "https://www.example.com/private/path?token=secret",
+                            "http_status": 200,
+                            "expected_markers": ["exampleco"],
+                            "tags": ["sanitized-real-trace"],
+                        },
+                        {
+                            "case_id": "trace-blocked",
+                            "expected_real_content": False,
+                            "access_assessment": {
+                                "state": "soft_block",
+                                "confidence": 0.96,
+                                "reason": "Challenge/interstitial shell detected",
+                            },
+                            "tags": ["sanitized-protected-trace"],
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = _handle_eval(
+            _config(
+                eval_id="eval-r1",
+                eval_baseline="full",
+                eval_profiles=("full",),
+                eval_root=str(tmp_path / "evals"),
+                eval_page_access_fixture=str(fixture),
+            )
+        )
+
+        assert result == 0
+        stage_root = tmp_path / "evals" / "eval-r1" / "page_access_stage"
+        report_path = stage_root / "page_access_stage_eval.json"
+        markdown_path = stage_root / "page_access_stage_eval.md"
+        quality_path = stage_root / "page_access_stage_quality_evidence.json"
+        report_text = report_path.read_text(encoding="utf-8")
+        markdown_text = markdown_path.read_text(encoding="utf-8")
+        quality_payload = json.loads(quality_path.read_text(encoding="utf-8"))
+
+        assert "ExampleCo builds practical field equipment" not in report_text
+        assert "https://www.example.com/private/path" not in report_text
+        assert "token=secret" not in report_text
+        assert "ExampleCo builds practical field equipment" not in markdown_text
+        assert "token=secret" not in markdown_text
+        report_payload = json.loads(report_text)
+        assert report_payload["metrics"]["sample_count"] == 2
+        assert report_payload["false_positive_case_ids"] == []
+        assert report_payload["false_negative_case_ids"] == []
+        assert quality_payload["quality_evidence"][0]["stage_id"] == "scraping.page_access"
+        assert quality_payload["quality_evidence"][0]["sample_size"] == 2
+
+    def test_page_access_fixture_invalid_file_returns_1(self, stub_eval_deps, tmp_path):
+        fixture = tmp_path / "page_access_fixture.json"
+        fixture.write_text('{"cases": [{"case_id": "missing-label"}]}', encoding="utf-8")
+
+        result = _handle_eval(
+            _config(
+                eval_id="eval-r1",
+                eval_baseline="full",
+                eval_profiles=("full",),
+                eval_root=str(tmp_path / "evals"),
+                eval_page_access_fixture=str(fixture),
+            )
+        )
+
+        assert result == 1
+
     def test_local_stage_eval_generates_quality_evidence_for_scorecard(
         self, stub_eval_deps, tmp_path, monkeypatch
     ):

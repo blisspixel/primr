@@ -347,6 +347,7 @@ class CLIConfig:
     eval_stage_semantic_judge: bool = False
     eval_stage_semantic_judge_model: str | None = None
     eval_source_relevance_fixture: str | None = None
+    eval_page_access_fixture: str | None = None
     eval_working_root: str = "working"
     eval_stage_scorecard: bool = False
     eval_stage_quality: str | None = None
@@ -615,6 +616,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         eval_stage_semantic_judge=getattr(parsed, "eval_stage_semantic_judge", False),
         eval_stage_semantic_judge_model=getattr(parsed, "eval_stage_semantic_judge_model", None),
         eval_source_relevance_fixture=getattr(parsed, "eval_source_relevance_fixture", None),
+        eval_page_access_fixture=getattr(parsed, "eval_page_access_fixture", None),
         eval_working_root=getattr(parsed, "eval_working_root", "working"),
         eval_stage_scorecard=getattr(parsed, "eval_stage_scorecard", False),
         eval_stage_quality=getattr(parsed, "eval_stage_quality", None),
@@ -2012,9 +2014,7 @@ def _handle_eval(config: CLIConfig) -> int:
         )
         return 1
 
-    # Validate every profile name is a registered slot. argparse no longer
-    # restricts to the legacy three; cross-provider eval slots are accepted
-    # via runtime registration. See ROADMAP "v1.24.0 - Sub-$1 default eval".
+    # Validate profile names against runtime-registered eval slots.
     unknown_profiles = [p for p in config.eval_profiles if get_eval_profile(p) is None]
     if unknown_profiles:
         registered = ", ".join(list_eval_profile_names())

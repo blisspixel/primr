@@ -190,6 +190,16 @@ def add_eval_arguments(parser: argparse.ArgumentParser) -> None:
         ),
     )
     parser.add_argument(
+        "--eval-page-access-fixture",
+        type=str,
+        default=None,
+        metavar="JSON_PATH",
+        help=(
+            "Build body-free page-access classifier eval artifacts from labeled "
+            "sanitized HTML or trace access-assessment fixture JSON"
+        ),
+    )
+    parser.add_argument(
         "--eval-working-root",
         type=str,
         default="working",

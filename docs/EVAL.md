@@ -89,6 +89,9 @@ primr --eval --eval-id eval-2026-06-4090-vs-subdollar --eval-local-stage website
 
 # Source-relevance host/cloud comparison from labeled keep-list fixtures
 primr --eval --eval-id eval-2026-06-source-relevance --eval-source-relevance-fixture .agent/source-relevance-fixture.json --eval-stage-scorecard --eval-stage-id fast.source_relevance --eval-stage-route-root working
+
+# Page-access classifier false-positive/false-negative eval from sanitized fixtures
+primr --eval --eval-id eval-2026-06-page-access --eval-page-access-fixture .agent/page-access-fixture.json
 ```
 
 Local judge runs now evaluate every staged non-baseline profile against the chosen baseline, not just the first available profile. They write one JSON artifact per model plus `local_judge_summary.json` / `local_judge_summary.md` with candidate-profile coverage, winner consensus, and per-profile breakdowns for side-by-side comparison.
@@ -118,6 +121,45 @@ For the `fast.source_relevance` host-agent pilot, use `--eval-source-relevance-f
 ```
 
 The generated `source_relevance_stage_quality_evidence.json` feeds the same review-only stage scorecard as other route evidence. It does not promote host execution by itself; promotion still requires representative samples, route observations, and human-reviewed acceptance criteria.
+
+For protected-site access classification, use `--eval-page-access-fixture` to
+score labeled sanitized HTML cases or trace-derived `access_assessment`
+predictions. The generated `page_access_stage_eval.json`,
+`page_access_stage_eval.md`, and `page_access_stage_quality_evidence.json`
+include confusion-matrix counts, false-positive and false-negative rates,
+case ids, tags, and classifier states. They do not copy raw HTML, URLs, page
+bodies, prompts, or provider responses.
+
+```json
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "case_id": "sanitized-real-about",
+      "expected_real_content": true,
+      "html": "<html>sanitized real page fixture</html>",
+      "url": "https://redacted.invalid/about",
+      "http_status": 200,
+      "expected_markers": ["exampleco"],
+      "tags": ["protected-site", "real"]
+    },
+    {
+      "case_id": "trace-soft-block",
+      "expected_real_content": false,
+      "access_assessment": {
+        "state": "soft_block",
+        "confidence": 0.96,
+        "reason": "Challenge/interstitial shell detected"
+      },
+      "tags": ["protected-site", "trace"]
+    }
+  ]
+}
+```
+
+Use only sanitized, consented fixtures in this file. Keep real page bodies and
+raw URLs out of committed corpora; store working corpora under the gitignored
+`.agent/` directory until they are scrubbed into canonical test fixtures.
 
 ## 2) Track the same metrics for every profile
 

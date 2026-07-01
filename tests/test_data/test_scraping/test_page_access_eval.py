@@ -1,12 +1,16 @@
 """Tests for offline page-access classifier eval helpers."""
 
+import base64
 import json
+
+import pytest
 
 from primr.data.scraping.models import PageAccessAssessment, PageAccessState
 from primr.data.scraping.page_access_eval import (
     PageAccessEvalCase,
     PageAccessPrediction,
     evaluate_page_access_cases,
+    evaluate_page_access_fixture_file,
     page_access_eval_payload,
     prediction_from_access_assessment,
     score_page_access_predictions,
@@ -231,3 +235,53 @@ def test_page_access_eval_payload_includes_case_ids_not_raw_inputs():
     assert payload["false_positive_case_ids"] == ["fp"]
     assert payload["false_negative_case_ids"] == ["fn"]
     assert "rows" in payload
+
+
+def test_evaluate_page_access_fixture_file_scores_html_and_trace_predictions(tmp_path):
+    fixture = tmp_path / "fixture.json"
+    fixture.write_text(
+        json.dumps(
+            {
+                "cases": [
+                    {
+                        "case_id": "base64-real",
+                        "expected_real_content": True,
+                        "html_base64": base64.b64encode(REAL_ABOUT_PAGE).decode("ascii"),
+                        "url": "https://www.example.com/about?token=secret",
+                        "http_status": 200,
+                        "expected_markers": ["exampleco"],
+                        "tags": ["protected-site", "real"],
+                    },
+                    {
+                        "case_id": "trace-block",
+                        "expected_real_content": False,
+                        "access_assessment": {
+                            "state": "soft_block",
+                            "confidence": 0.91,
+                            "reason": "Challenge/interstitial shell detected",
+                        },
+                        "tags": ["protected-site", "trace"],
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = evaluate_page_access_fixture_file(fixture)
+    payload_text = json.dumps(page_access_eval_payload(report))
+
+    assert report.metrics.sample_count == 2
+    assert report.metrics.false_positive == 0
+    assert report.metrics.false_negative == 0
+    assert report.by_tag["protected-site"].sample_count == 2
+    assert "ExampleCo builds practical field equipment" not in payload_text
+    assert "token=secret" not in payload_text
+
+
+def test_evaluate_page_access_fixture_file_rejects_missing_labels(tmp_path):
+    fixture = tmp_path / "fixture.json"
+    fixture.write_text('{"cases": [{"case_id": "missing-label"}]}', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="expected_real_content"):
+        evaluate_page_access_fixture_file(fixture)
