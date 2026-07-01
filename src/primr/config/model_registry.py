@@ -597,7 +597,8 @@ class ModelRegistry:
     # 31, 2026, then returns to Sonnet 4.6 pricing. Use the post-intro rate here
     # so pre-run estimates do not become stale underestimates after the promo
     # window. Context: 1M tokens, Output: 128k tokens. Uses adaptive thinking by
-    # default; manual output_config.effort is handled in ai/providers/anthropic.py.
+    # default; output_config.effort and valid adaptive-thinking controls are
+    # handled in ai/providers/anthropic.py.
     # =========================================================================
     ANTHROPIC_SONNET = ModelConfig(
         name="claude-sonnet-5",

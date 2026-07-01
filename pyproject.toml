@@ -112,8 +112,9 @@ fast = [
 anthropic = [
     # Optional: enables the Anthropic Claude provider (reasoning/writing/pro).
     # `primr doctor` flags a set ANTHROPIC_API_KEY whose SDK is missing and can
-    # install this for you.
-    "anthropic>=0.40.0",
+    # install this for you. The July 2026 floor is needed for current Messages
+    # request fields such as output_config.effort and adaptive thinking config.
+    "anthropic>=0.109.1",
 ]
 a2a = [
     # Pinned to 0.3.x: a2a-sdk 1.0 made breaking API changes (TaskStore.list,

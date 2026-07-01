@@ -326,22 +326,39 @@ class TestChat:
             call_kwargs = provider._client.messages.create.call_args[1]
             assert "temperature" not in call_kwargs, f"{model} must not receive temperature"
 
-    def test_sonnet_5_effort_maps_to_output_config(self, monkeypatch):
+    def test_latest_anthropic_effort_levels_map_to_output_config(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        provider = self._make_provider_with_mock_client()
+        provider._client.messages.create.return_value = self._make_response()
+
+        for effort in ("low", "medium", "high", "max", "xhigh"):
+            provider._client.messages.create.reset_mock()
+            provider.chat(
+                [{"role": "user", "content": "Hi"}],
+                model="claude-sonnet-5",
+                effort=effort,
+                temperature=0.3,
+            )
+
+            call_kwargs = provider._client.messages.create.call_args[1]
+            assert call_kwargs["output_config"] == {"effort": effort}
+            assert "temperature" not in call_kwargs
+            assert "thinking" not in call_kwargs
+
+    def test_output_config_effort_is_validated_and_preserved(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
         provider = self._make_provider_with_mock_client()
         provider._client.messages.create.return_value = self._make_response()
 
         provider.chat(
             [{"role": "user", "content": "Hi"}],
-            model="claude-sonnet-5",
-            effort="low",
-            temperature=0.3,
+            model="claude-opus-4-8",
+            output_config={"effort": "xhigh", "trace": "none"},
         )
 
         call_kwargs = provider._client.messages.create.call_args[1]
-        assert call_kwargs["output_config"] == {"effort": "low"}
+        assert call_kwargs["output_config"] == {"effort": "xhigh", "trace": "none"}
         assert "temperature" not in call_kwargs
-        assert "thinking" not in call_kwargs
 
     def test_sonnet_5_rejects_invalid_effort_before_sdk_call(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
@@ -356,7 +373,7 @@ class TestChat:
 
         provider._client.messages.create.assert_not_called()
 
-    def test_sonnet_5_drops_legacy_thinking_config(self, monkeypatch):
+    def test_sonnet_5_allows_disabling_adaptive_thinking(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
         provider = self._make_provider_with_mock_client()
         provider._client.messages.create.return_value = self._make_response()
@@ -364,11 +381,68 @@ class TestChat:
         provider.chat(
             [{"role": "user", "content": "Hi"}],
             model="claude-sonnet-5",
-            thinking={"budget_tokens": 5000},
+            thinking={"type": "disabled"},
         )
 
         call_kwargs = provider._client.messages.create.call_args[1]
-        assert "thinking" not in call_kwargs
+        assert call_kwargs["thinking"] == {"type": "disabled"}
+
+    def test_sonnet_5_allows_adaptive_thinking_display_config(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        provider = self._make_provider_with_mock_client()
+        provider._client.messages.create.return_value = self._make_response()
+
+        provider.chat(
+            [{"role": "user", "content": "Hi"}],
+            model="claude-sonnet-5",
+            thinking={"type": "adaptive", "display": "none"},
+        )
+
+        call_kwargs = provider._client.messages.create.call_args[1]
+        assert call_kwargs["thinking"] == {"type": "adaptive", "display": "none"}
+
+    def test_new_adaptive_models_drop_legacy_manual_thinking_config(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        provider = self._make_provider_with_mock_client()
+        provider._client.messages.create.return_value = self._make_response()
+
+        for model in ("claude-sonnet-5", "claude-opus-4-8"):
+            provider._client.messages.create.reset_mock()
+            provider.chat(
+                [{"role": "user", "content": "Hi"}],
+                model=model,
+                thinking={"type": "enabled", "budget_tokens": 5000},
+            )
+
+            call_kwargs = provider._client.messages.create.call_args[1]
+            assert "thinking" not in call_kwargs
+
+    def test_thinking_must_be_dict(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        provider = self._make_provider_with_mock_client()
+
+        with pytest.raises(ValueError, match="Anthropic thinking"):
+            provider.chat(
+                [{"role": "user", "content": "Hi"}],
+                model="claude-sonnet-5",
+                thinking="disabled",
+            )
+
+        provider._client.messages.create.assert_not_called()
+
+    def test_sonnet_4_6_preserves_legacy_thinking_config(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+        provider = self._make_provider_with_mock_client()
+        provider._client.messages.create.return_value = self._make_response()
+
+        provider.chat(
+            [{"role": "user", "content": "Hi"}],
+            model="claude-sonnet-4-6",
+            thinking={"type": "enabled", "budget_tokens": 5000},
+        )
+
+        call_kwargs = provider._client.messages.create.call_args[1]
+        assert call_kwargs["thinking"] == {"type": "enabled", "budget_tokens": 5000}
 
     def test_reset_usage(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
@@ -546,8 +620,11 @@ class TestSonnet5CapabilityGates:
 
     def test_output_config_effort_models(self):
         assert _supports_output_config_effort("claude-sonnet-5") is True
-        assert _supports_output_config_effort("claude-sonnet-4-6") is False
+        assert _supports_output_config_effort("claude-sonnet-4-6") is True
+        assert _supports_output_config_effort("claude-opus-4-8") is True
+        assert _supports_output_config_effort("claude-haiku-4-5") is False
 
     def test_manual_thinking_gate(self):
         assert _rejects_manual_thinking_config("claude-sonnet-5") is True
-        assert _rejects_manual_thinking_config("claude-opus-4-8") is False
+        assert _rejects_manual_thinking_config("claude-opus-4-8") is True
+        assert _rejects_manual_thinking_config("claude-sonnet-4-6") is False

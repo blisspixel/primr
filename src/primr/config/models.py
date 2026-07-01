@@ -5,7 +5,7 @@ Centralized Model Configuration for Primr
 THIS IS THE SINGLE SOURCE OF TRUTH FOR ALL AI MODELS.
 UPDATE HERE TO CHANGE MODELS GLOBALLY.
 
-Last audited: June 30, 2026 (refresh of the June 29 audit), checked against
+Last audited: July 1, 2026 (refresh of the June 29 audit), checked against
 current provider docs (developers.openai.com, ai.google.dev, docs.x.ai) and the
 Anthropic model catalog. Re-audit before each major eval — see ROADMAP "Model
 Adaptability".
@@ -22,7 +22,8 @@ KEY CHANGES (June 29, 2026 audit):
   rates filled in for the 3.x/2.5 entries.
 - Anthropic: claude-haiku-3-5 retired Feb 19, 2026 (404) — marked deprecated.
   Sonnet 5 is the balanced default; Opus 4.7+/Sonnet 5/Fable-5 reject
-  temperature (handled in ai/providers/anthropic.py).
+  temperature, current effort values include max/xhigh, and adaptive-thinking
+  tiers reject manual thinking budgets (handled in ai/providers/anthropic.py).
 - xAI Grok 4.3 reasoning is NOT always-on — reasoning_effort has four levels
   (none/low/medium/high, default low); published output cap is unverified.
 

@@ -43,6 +43,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with conservative post-intro price estimates, 128k max output, Sonnet 4.6
   back-compat registration, request guards for models that reject sampling
   parameters, and Sonnet 5 `output_config.effort` support.
+- Expanded Anthropic Messages request shaping for current adaptive-thinking
+  models: `output_config.effort` now accepts `max` and `xhigh`, Sonnet 5 can
+  explicitly disable adaptive thinking, adaptive display config is preserved,
+  and legacy manual thinking budgets are omitted on tiers that reject them.
+- Raised the optional Anthropic SDK floor to `anthropic>=0.109.1` so installed
+  Claude support matches the current Messages API request shape.
 - Redacted xAI browse/search logs to scheme and host only, and stopped logging
   provider error-body snippets on failed browse calls so customer URL paths,
   query strings, userinfo, and provider diagnostics do not enter logs.

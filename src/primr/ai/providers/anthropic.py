@@ -8,7 +8,7 @@ SDK. Handles:
 - Quota/billing exhaustion detection → raises ``QuotaExhaustedError``
 - Cache-aware token tracking (``cache_read_input_tokens``, ``cache_creation_input_tokens``)
 - Passthrough of Anthropic-specific kwargs where supported (``thinking``,
-  Sonnet 5 ``output_config.effort``)
+  ``output_config.effort``)
 
 Prompt caching note: Anthropic's prompt caching is configured via ``cache_control``
 directives embedded *inside* message content blocks (not as a top-level API
@@ -72,7 +72,7 @@ def _is_retryable_status(status_code: int) -> bool:
 
 
 # Model families that reject sampling parameters (temperature/top_p/top_k) with
-# a 400. As of June 2026 this is Opus 4.7+, Sonnet 5, and the Fable/Mythos 5
+# a 400. As of July 2026 this is Opus 4.7+, Sonnet 5, and the Fable/Mythos 5
 # line. Matched by substring so dated or aliased IDs (claude-opus-4-8,
 # claude-fable-5, ...) are all covered. Keep in sync with config/models.py when
 # new tiers land.
@@ -84,9 +84,24 @@ _SAMPLING_PARAM_REJECTORS: tuple[str, ...] = (
     "mythos-5",
 )
 
-_OUTPUT_CONFIG_EFFORT_MODELS: tuple[str, ...] = ("sonnet-5",)
-_MANUAL_THINKING_REJECTORS: tuple[str, ...] = ("sonnet-5",)
-_VALID_EFFORT_LEVELS: frozenset[str] = frozenset({"low", "medium", "high"})
+_OUTPUT_CONFIG_EFFORT_MODELS: tuple[str, ...] = (
+    "opus-4-6",
+    "opus-4-7",
+    "opus-4-8",
+    "sonnet-4-6",
+    "sonnet-5",
+    "fable-5",
+    "mythos-5",
+)
+_MANUAL_THINKING_REJECTORS: tuple[str, ...] = (
+    "opus-4-7",
+    "opus-4-8",
+    "sonnet-5",
+    "fable-5",
+    "mythos-5",
+)
+_VALID_EFFORT_LEVELS: frozenset[str] = frozenset({"low", "medium", "high", "max", "xhigh"})
+_ADAPTIVE_THINKING_TYPES: frozenset[str] = frozenset({"adaptive", "disabled"})
 
 
 def _rejects_sampling_params(model: str) -> bool:
@@ -105,11 +120,33 @@ def _rejects_manual_thinking_config(model: str) -> bool:
 
 
 def _validated_effort(value: object) -> str:
-    """Validate Sonnet 5 effort strings before sending them to the SDK."""
+    """Validate Anthropic effort strings before sending them to the SDK."""
     if not isinstance(value, str) or value not in _VALID_EFFORT_LEVELS:
         valid = ", ".join(sorted(_VALID_EFFORT_LEVELS))
         raise ValueError(f"Anthropic effort must be one of: {valid}")
     return value
+
+
+def _normalized_thinking_config(model: str, value: object) -> dict[str, Any] | None:
+    """Return an API-valid thinking config for ``model``.
+
+    New adaptive-thinking tiers reject legacy manual budget controls such as
+    ``{"type": "enabled", "budget_tokens": ...}``. They still allow explicitly
+    disabling thinking, and adaptive display configuration. Legacy manual
+    configs are dropped so those models keep their default adaptive behavior.
+    """
+    if not isinstance(value, dict):
+        raise ValueError("Anthropic thinking must be a dict when provided")
+
+    if not _rejects_manual_thinking_config(model):
+        return dict(value)
+
+    thinking_type = value.get("type")
+    if thinking_type in _ADAPTIVE_THINKING_TYPES:
+        return dict(value)
+
+    logger.debug("Dropping unsupported manual Anthropic thinking config for model=%s", model)
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -125,9 +162,9 @@ class AnthropicProvider(Provider):
     - user/assistant messages → ``messages`` array
 
     Provider-specific kwargs:
-    - thinking: dict — Extended thinking configuration on models that support it
-    - effort: "low" | "medium" | "high" — maps to Sonnet 5 output_config.effort
-    - output_config: dict — passed through for Sonnet 5, after effort validation
+    - thinking: dict - extended or adaptive thinking configuration where valid
+    - effort: "low" | "medium" | "high" | "max" | "xhigh" - maps to output_config.effort
+    - output_config: dict - passed through for models with effort support after validation
 
     Prompt caching is not exposed as a kwarg here; callers embed
     ``cache_control`` directives inside the structured message content they
@@ -292,8 +329,10 @@ class AnthropicProvider(Provider):
                     "effort": _validated_effort(provider_kwargs["effort"])
                 }
 
-        if "thinking" in provider_kwargs and not _rejects_manual_thinking_config(model):
-            sdk_kwargs["thinking"] = provider_kwargs["thinking"]
+        if "thinking" in provider_kwargs:
+            thinking_config = _normalized_thinking_config(model, provider_kwargs["thinking"])
+            if thinking_config is not None:
+                sdk_kwargs["thinking"] = thinking_config
 
         last_error: Exception | None = None
         backoff_delays = [1.0, 2.0, 4.0, 8.0]  # Exponential backoff

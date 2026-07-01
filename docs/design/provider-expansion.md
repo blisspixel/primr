@@ -116,10 +116,11 @@ Full citations live in the research transcripts; key integration facts:
   Fable, Opus, and both Sonnet generations with no long-context premium.
 - Integration traps that MUST be capability-flagged in the registry:
   Fable 5 / Opus 4.7+ / Sonnet 5 **reject temperature/top_p/top_k**; Sonnet 5
-  uses adaptive thinking by default and accepts `output_config.effort` instead
-  of legacy `thinking.budget_tokens`; Fable 5's new tokenizer uses ~30-35% more
-  tokens (re-baseline cost estimates); Fable 5 can return `stop_reason:
-  "refusal"`.
+  uses adaptive thinking by default, accepts `output_config.effort` values
+  `low`, `medium`, `high`, `max`, and `xhigh`, allows explicit
+  `thinking: {"type": "disabled"}`, and rejects legacy manual
+  `thinking.budget_tokens`; Fable 5's new tokenizer uses ~30-35% more tokens
+  (re-baseline cost estimates); Fable 5 can return `stop_reason: "refusal"`.
 - Web search: server-side `web_search_20260209` ($10/1k) plus
   `web_fetch_20260209` (free per-call, token costs only). Both Messages-API
   tools.

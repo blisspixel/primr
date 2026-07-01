@@ -2335,7 +2335,7 @@ security = [
 [package.metadata]
 requires-dist = [
     { name = "a2a-sdk", extras = ["http-server"], marker = "extra == 'a2a'", specifier = ">=0.3.20,<0.4.0" },
-    { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.40.0" },
+    { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.109.1" },
     { name = "azure-cosmos", marker = "extra == 'azure'", specifier = ">=4.5.0" },
     { name = "azure-identity", marker = "extra == 'azure'", specifier = ">=1.16.1" },
     { name = "azure-keyvault-secrets", marker = "extra == 'azure'", specifier = ">=4.7.0" },
