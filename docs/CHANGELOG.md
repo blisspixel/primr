@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a body-free offline page-access classifier eval helper. Labeled local
+  fixtures or trace-derived predictions now produce true/false positive and
+  false-negative metrics, tag-level breakdowns, and JSON/Markdown review
+  artifacts without copying raw HTML, URLs, or page bodies.
 - Added first-party PDF recovery to the blocked-origin fallback fan-out. The
   new source discovers same-site PDFs from priority investor/news/about/help
   landing pages, adds bounded direct PDF probes, ranks likely annual reports,

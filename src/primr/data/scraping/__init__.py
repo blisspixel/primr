@@ -138,6 +138,19 @@ from .page_access import (
     classify_page_access,
     infer_page_kind,
 )
+from .page_access_eval import (
+    PageAccessEvalCase,
+    PageAccessEvalMetrics,
+    PageAccessEvalReport,
+    PageAccessEvalRow,
+    PageAccessPrediction,
+    evaluate_page_access_cases,
+    page_access_eval_payload,
+    prediction_from_access_assessment,
+    score_page_access_predictions,
+    write_page_access_eval_json,
+    write_page_access_eval_markdown,
+)
 from .page_snapshots import (
     compare_render_snapshots,
     html_to_snapshot_text,
@@ -244,6 +257,11 @@ __all__ = [
     "NoOpRateLimiter",
     "OrganizationProfile",
     "PageAccessAssessment",
+    "PageAccessEvalCase",
+    "PageAccessEvalMetrics",
+    "PageAccessEvalReport",
+    "PageAccessEvalRow",
+    "PageAccessPrediction",
     "PageAccessState",
     "QualityScore",
     # Config
@@ -278,6 +296,7 @@ __all__ = [
     "detect_soft_block",
     "discover_links",
     "estimate_content_quality",
+    "evaluate_page_access_cases",
     "extract_clean_text",
     "extract_host",
     "extract_links_from_homepage",
@@ -313,11 +332,14 @@ __all__ = [
     # Cache
     "normalize_url",
     "normalize_url_for_request",
+    "page_access_eval_payload",
+    "prediction_from_access_assessment",
     "prune_dom",
     "read_trace_file",
     "register_block_template",
     "score_container",
     "score_links_heuristically",
+    "score_page_access_predictions",
     # Vertical slice
     "scrape_single_url",
     "scrape_with_curl_cffi",
@@ -335,4 +357,6 @@ __all__ = [
     "validate_content",
     "validate_content_density",
     "verify_urls_exist",
+    "write_page_access_eval_json",
+    "write_page_access_eval_markdown",
 ]

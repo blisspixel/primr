@@ -179,7 +179,10 @@ to confirm the discount (~$0.50-0.80).
 ### Also in this band
 
 - **#3 remainder** (live-site dependent, opportunistic): page-access trace
-  analytics/evals, hiring signals in `--premium`, BambooHR/iCIMS
+  analytics/evals now have the body-free fixture/prediction scoring foundation;
+  remaining work is a representative sanitized protected-site corpus and
+  operator-facing eval command. Hiring signals in `--premium` and BambooHR/iCIMS
+  remain open.
 - **Panel medium tier**: meeting-brief one-pager output mode, `--json`
   output for the main run, `primr replay` (record/replay run transcripts for
   demos), install extras (`primr[browser]`, `primr[ocr]`), sample gallery
