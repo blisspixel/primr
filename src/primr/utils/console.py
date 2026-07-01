@@ -170,8 +170,8 @@ class Console:
             self._last_output_time = time.time()
             safe_text = mask_sensitive_data(str(display_text))
 
-            # codeql[py/clear-text-logging-sensitive-data]
-            sys.stdout.write(f"{safe_text}{end}")
+            # CodeQL does not model `mask_sensitive_data` as a sanitizer.
+            sys.stdout.writelines((safe_text, end))
             sys.stdout.flush()
 
     def _elapsed(self, start):

@@ -28,6 +28,10 @@ from enum import Enum
 from typing import Any, Protocol, runtime_checkable
 from urllib.parse import urlparse
 
+# API keys are generated high-entropy tokens. This is a deterministic storage
+# fingerprint, not a human-password verifier on the request path.
+_CONTROL_PLANE_FINGERPRINT_ITERATIONS = 50_000
+
 
 class JobStatus(str, Enum):
     """Job lifecycle states."""
@@ -244,11 +248,12 @@ def _control_plane_hash_key(scope: str) -> bytes:
 
 
 def _control_plane_fingerprint(scope: str, value: str) -> str:
-    return hashlib.blake2b(
+    return hashlib.pbkdf2_hmac(
+        "sha256",
         value.encode(),
-        key=_control_plane_hash_key(scope),
-        digest_size=32,
-    ).hexdigest()
+        _control_plane_hash_key(scope),
+        _CONTROL_PLANE_FINGERPRINT_ITERATIONS,
+    ).hex()
 
 
 def hash_job_id(deployment: str, idempotency_key: str, api_key: str) -> str:
@@ -263,7 +268,7 @@ def hash_job_id(deployment: str, idempotency_key: str, api_key: str) -> str:
 
 def hash_api_key(api_key: str) -> str:
     """Hash API key for storage (never store raw keys)."""
-    return f"keyed-blake2b:{_control_plane_fingerprint('api-key', api_key)}"
+    return f"pbkdf2-sha256:{_control_plane_fingerprint('api-key', api_key)}"
 
 
 def get_expected_artifacts(mode: str) -> list[str]:

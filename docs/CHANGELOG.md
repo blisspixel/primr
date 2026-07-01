@@ -19,7 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   helper scripts no longer print or write generated search API keys directly to
   `.env`; the user key store now uses the same low-level restrictive write path
   across platforms; Cosmos status queries are parameterized; and API-key
-  fingerprints use keyed BLAKE2b digests where compatibility allows.
+  fingerprints use deterministic PBKDF2-HMAC-SHA256 digests where compatibility
+  allows.
 - Cleaned up credential-shaped test fixtures and public Azure role-definition
   literals so local secret scanning now passes on current `src/`, `docs/`,
   `tests/`, and `deploy/` paths without masking real leaks. GitHub secret

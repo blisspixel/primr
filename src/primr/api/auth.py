@@ -26,6 +26,10 @@ DEFAULT_ROTATION_GRACE_HOURS = 24
 # Default key expiration (0 = never expires)
 DEFAULT_KEY_EXPIRATION_DAYS = 0
 
+# API keys are generated high-entropy tokens. This is a deterministic lookup
+# fingerprint, not a human-password verifier on the request path.
+_API_KEY_HASH_ITERATIONS = 50_000
+
 
 @dataclass
 class APIKeyInfo:
@@ -390,11 +394,12 @@ class APIKeyAuth:
 
     def _hash_key(self, key: str) -> str:
         """Fingerprint a generated high-entropy API key for in-memory lookup."""
-        return hashlib.blake2b(
+        return hashlib.pbkdf2_hmac(
+            "sha256",
             key.encode(),
-            key=self._hash_key_secret,
-            digest_size=32,
-        ).hexdigest()
+            self._hash_key_secret,
+            _API_KEY_HASH_ITERATIONS,
+        ).hex()
 
 
 # =============================================================================
