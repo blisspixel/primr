@@ -161,6 +161,19 @@ Use only sanitized, consented fixtures in this file. Keep real page bodies and
 raw URLs out of committed corpora; store working corpora under the gitignored
 `.agent/` directory until they are scrubbed into canonical test fixtures.
 
+The canonical protected-site corpus is
+`tests/fixtures/page_access/protected_site_trace_corpus.json`. It contains
+sanitized trace `access_assessment` records only, with raw URLs, raw HTML, page
+bodies, company names, and provider payloads removed. Run it with:
+
+```bash
+primr --eval --eval-id protected-site-trace-corpus-v1 --eval-page-access-fixture tests/fixtures/page_access/protected_site_trace_corpus.json
+```
+
+The corpus is review evidence, not a promotion gate. It deliberately includes
+known historical false-positive and false-negative cases so the eval artifacts
+continue to measure both failure directions as classifier behavior changes.
+
 ## 2) Track the same metrics for every profile
 
 - Trust gate (must-pass): citation coverage + section completeness + confidence-label quality

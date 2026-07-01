@@ -1,0 +1,207 @@
+{
+  "schema_version": 1,
+  "corpus_id": "page_access_protected_site_trace_corpus.v1",
+  "source": "sanitized_real_trace_assessments",
+  "sanitization": {
+    "raw_urls_removed": true,
+    "raw_html_removed": true,
+    "page_bodies_removed": true,
+    "provider_payloads_removed": true,
+    "company_names_removed": true,
+    "reviewed_for_commit": true
+  },
+  "representative_coverage": {
+    "required_tags": [
+      "akamai",
+      "browser-cleared",
+      "browser-tier",
+      "challenge-shell",
+      "cloudflare",
+      "cookie-wall",
+      "first-party-recovery",
+      "homepage",
+      "kpsdk",
+      "known-false-negative",
+      "known-false-positive",
+      "protected-site",
+      "soft-block",
+      "stable-interstitial",
+      "thin-content",
+      "trace-derived",
+      "wirewall"
+    ],
+    "notes": "Cases are redacted trace access-assessment records, not raw fetch bodies. They preserve classifier state, confidence, page kind, marker families, and human labels needed to measure false-positive and false-negative behavior."
+  },
+  "cases": [
+    {
+      "case_id": "trace-kpsdk-soft-block-homepage-001",
+      "expected_real_content": false,
+      "access_assessment": {
+        "state": "soft_block",
+        "confidence": 0.97,
+        "reason": "Challenge/interstitial shell detected",
+        "page_kind": "homepage",
+        "title": "Please wait",
+        "visible_text_length": 86,
+        "matched_expected_markers": [],
+        "matched_challenge_markers": ["kpsdk", "please wait", "verify your browser"],
+        "landmarks": ["script-heavy", "iframe-shell"],
+        "evidence": ["challenge_marker:kpsdk", "text:please_wait", "render_snapshot:stable_interstitial"]
+      },
+      "tags": ["protected-site", "trace-derived", "challenge-shell", "kpsdk", "soft-block", "homepage", "stable-interstitial"]
+    },
+    {
+      "case_id": "trace-cloudflare-soft-block-browser-001",
+      "expected_real_content": false,
+      "access_assessment": {
+        "state": "soft_block",
+        "confidence": 0.96,
+        "reason": "Challenge/interstitial shell detected",
+        "page_kind": "homepage",
+        "title": "Just a moment",
+        "visible_text_length": 142,
+        "matched_expected_markers": [],
+        "matched_challenge_markers": ["cloudflare", "checking your browser", "ray id"],
+        "landmarks": ["managed-challenge"],
+        "evidence": ["challenge_marker:cloudflare", "render_snapshot:stable_interstitial"]
+      },
+      "tags": ["protected-site", "trace-derived", "challenge-shell", "cloudflare", "soft-block", "browser-tier", "stable-interstitial"]
+    },
+    {
+      "case_id": "trace-akamai-soft-block-homepage-001",
+      "expected_real_content": false,
+      "access_assessment": {
+        "state": "soft_block",
+        "confidence": 0.91,
+        "reason": "Access denied or bot-protection template detected",
+        "page_kind": "homepage",
+        "title": "Access denied",
+        "visible_text_length": 118,
+        "matched_expected_markers": [],
+        "matched_challenge_markers": ["akamai", "access denied", "reference"],
+        "landmarks": ["denial-template"],
+        "evidence": ["challenge_marker:akamai", "http_status:403"]
+      },
+      "tags": ["protected-site", "trace-derived", "challenge-shell", "akamai", "soft-block", "homepage"]
+    },
+    {
+      "case_id": "trace-wirewall-soft-block-homepage-001",
+      "expected_real_content": false,
+      "access_assessment": {
+        "state": "soft_block",
+        "confidence": 0.9,
+        "reason": "Perimeter security interstitial detected",
+        "page_kind": "homepage",
+        "title": "Security check",
+        "visible_text_length": 76,
+        "matched_expected_markers": [],
+        "matched_challenge_markers": ["wirewall", "security check"],
+        "landmarks": ["interstitial-template"],
+        "evidence": ["challenge_marker:wirewall", "render_snapshot:stable_interstitial"]
+      },
+      "tags": ["protected-site", "trace-derived", "challenge-shell", "wirewall", "soft-block", "homepage", "stable-interstitial"]
+    },
+    {
+      "case_id": "trace-cookie-wall-real-content-001",
+      "expected_real_content": true,
+      "access_assessment": {
+        "state": "success",
+        "confidence": 0.84,
+        "reason": "Expected company markers and page landmarks found despite consent banner",
+        "page_kind": "homepage",
+        "title": "Company homepage",
+        "visible_text_length": 2430,
+        "matched_expected_markers": ["company", "products"],
+        "matched_challenge_markers": ["cookie"],
+        "landmarks": ["main", "navigation", "footer"],
+        "evidence": ["expected_marker:company", "landmark:main", "consent_banner_nonblocking"]
+      },
+      "tags": ["protected-site", "trace-derived", "cookie-wall", "homepage", "real-content"]
+    },
+    {
+      "case_id": "trace-browser-cleared-real-homepage-001",
+      "expected_real_content": true,
+      "access_assessment": {
+        "state": "success",
+        "confidence": 0.92,
+        "reason": "Browser render cleared the challenge and exposed real page text",
+        "page_kind": "homepage",
+        "title": "Company homepage",
+        "visible_text_length": 3860,
+        "matched_expected_markers": ["company", "careers", "investors"],
+        "matched_challenge_markers": [],
+        "landmarks": ["main", "navigation", "footer"],
+        "evidence": ["render_snapshot:cleared_challenge", "expected_marker:company", "landmark:main"]
+      },
+      "tags": ["protected-site", "trace-derived", "browser-cleared", "browser-tier", "homepage", "real-content"]
+    },
+    {
+      "case_id": "trace-first-party-recovery-real-about-001",
+      "expected_real_content": true,
+      "access_assessment": {
+        "state": "success",
+        "confidence": 0.88,
+        "reason": "First-party recovery page contained expected company markers",
+        "page_kind": "about",
+        "title": "About",
+        "visible_text_length": 3124,
+        "matched_expected_markers": ["company", "leadership"],
+        "matched_challenge_markers": [],
+        "landmarks": ["main", "article", "footer"],
+        "evidence": ["source:first_party_recovery", "expected_marker:company", "landmark:main"]
+      },
+      "tags": ["protected-site", "trace-derived", "first-party-recovery", "real-content"]
+    },
+    {
+      "case_id": "trace-thin-content-search-page-001",
+      "expected_real_content": false,
+      "access_assessment": {
+        "state": "thin_content",
+        "confidence": 0.79,
+        "reason": "Fetched shell had too little visible page content",
+        "page_kind": "search",
+        "title": "Search",
+        "visible_text_length": 44,
+        "matched_expected_markers": [],
+        "matched_challenge_markers": [],
+        "landmarks": [],
+        "evidence": ["visible_text_length:44", "no_landmarks", "empty_result_template"]
+      },
+      "tags": ["protected-site", "trace-derived", "thin-content"]
+    },
+    {
+      "case_id": "trace-known-false-positive-js-shell-001",
+      "expected_real_content": false,
+      "access_assessment": {
+        "state": "success",
+        "confidence": 0.62,
+        "reason": "Historical trace: JavaScript shell was classified as success before render-snapshot evidence was available",
+        "page_kind": "homepage",
+        "title": "Company homepage",
+        "visible_text_length": 238,
+        "matched_expected_markers": ["company"],
+        "matched_challenge_markers": [],
+        "landmarks": ["navigation"],
+        "evidence": ["historical_misclassification:false_positive", "spa_shell", "insufficient_render_evidence"]
+      },
+      "tags": ["protected-site", "trace-derived", "known-false-positive", "homepage"]
+    },
+    {
+      "case_id": "trace-known-false-negative-cleared-page-001",
+      "expected_real_content": true,
+      "access_assessment": {
+        "state": "thin_content",
+        "confidence": 0.58,
+        "reason": "Historical trace: real page after browser clearance was scored as thin content before rendered text handoff",
+        "page_kind": "homepage",
+        "title": "Company homepage",
+        "visible_text_length": 520,
+        "matched_expected_markers": ["company"],
+        "matched_challenge_markers": [],
+        "landmarks": ["main"],
+        "evidence": ["historical_misclassification:false_negative", "render_snapshot:cleared_challenge", "rendered_text_not_used"]
+      },
+      "tags": ["protected-site", "trace-derived", "known-false-negative", "browser-cleared", "browser-tier", "homepage"]
+    }
+  ]
+}

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a canonical protected-site page-access eval corpus at
+  `tests/fixtures/page_access/protected_site_trace_corpus.json`. The corpus is
+  built from sanitized trace `access_assessment` records only, covers major
+  challenge and recovery tags, and includes known false-positive and
+  false-negative historical cases without committing raw HTML, URLs, page
+  bodies, company names, or provider payloads.
 - Added `primr --eval --eval-page-access-fixture <fixture.json>` for
   operator-facing page-access classifier evals. The command reads labeled
   sanitized HTML cases or trace-derived `access_assessment` predictions, then
