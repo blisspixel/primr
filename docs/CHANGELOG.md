@@ -20,7 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `.env`; the user key store now uses the same low-level restrictive write path
   across platforms; Cosmos status queries are parameterized; and API-key
   fingerprints use deterministic PBKDF2-HMAC-SHA256 digests where compatibility
-  allows.
+  allows. GitHub Actions workflows now default to read-only token permissions,
+  CI checkouts no longer persist credentials, and Dependabot is configured for
+  uv and GitHub Actions dependency updates.
 - Cleaned up credential-shaped test fixtures and public Azure role-definition
   literals so local secret scanning now passes on current `src/`, `docs/`,
   `tests/`, and `deploy/` paths without masking real leaks. GitHub secret
