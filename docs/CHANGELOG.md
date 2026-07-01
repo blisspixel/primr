@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.41] - 2026-07-01
+
 ### Security
 
 - Hardened security-scan posture for current code scanning: CodeQL now uses a
@@ -137,18 +139,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   gap markers.
 - Added bounded body-free run pointers to tracked company profiles so exports
   include run history when local run metadata has been recorded.
-
-## [1.34.41] - 2026-06-30
-
-### Changed
-
-- MCP `check_jobs`, `primr://output/latest`, and
-  `primr://output/by_job/{job_id}` now separate status/metadata reads from
-  report-body consumption for authenticated HTTP callers. Full report and
-  strategy text requires the explicit `report` scope and
-  `primr://output/report/by_job/{job_id}` read path with
-  `content_mode` / `artifact_type` / `max_chars` output negotiation; local
-  stdio keeps backwards-compatible inline artifact behavior.
 
 ## [1.34.40] - 2026-06-30
 
