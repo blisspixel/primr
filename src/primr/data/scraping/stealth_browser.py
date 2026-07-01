@@ -43,6 +43,7 @@ from .headed_budget import (
     try_consume_headed_budget,
 )
 from .models import Attempt, ErrorType, ScrapeResult
+from .page_snapshots import compare_render_snapshots
 
 logger = logging.getLogger(__name__)
 
@@ -617,9 +618,11 @@ def _scrape_with_patchright_attempts(
             http_status=status,
             content_type="text/html",
             elapsed_ms=(time.time() - start_time) * 1000,
+            render_snapshot=compare_render_snapshots(final_text=body_text, final_html=html),
             attempts=attempts,
         )
 
+    headless_html, headless_body_text = html, body_text
     attempts.append(
         Attempt(
             tier=f"{tier_name}:headless",
@@ -740,6 +743,12 @@ def _scrape_with_patchright_attempts(
             http_status=status,
             content_type="text/html",
             elapsed_ms=(time.time() - start_time) * 1000,
+            render_snapshot=compare_render_snapshots(
+                initial_text=headless_body_text,
+                final_text=body_text,
+                initial_html=headless_html,
+                final_html=html,
+            ),
             attempts=attempts,
         )
 

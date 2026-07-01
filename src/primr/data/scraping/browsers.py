@@ -33,6 +33,7 @@ from .config import (
 )
 from .models import Attempt, ErrorType, ScrapeResult
 from .net import extract_host
+from .page_snapshots import compare_render_snapshots, html_to_snapshot_text
 from .profiles import (
     BrowserContextProfile,
     get_browser_compatible_http_profile,
@@ -922,11 +923,6 @@ class DrissionPageSession(BrowserSession):
             logger.debug(f"Error closing browser: {e}")
 
 
-# =============================================================================
-# Scrape Functions (Tier Entry Points)
-# =============================================================================
-
-
 def scrape_with_playwright(
     url: str,
     timeout: float = DEFAULT_TIMEOUT_PLAYWRIGHT,
@@ -1011,6 +1007,7 @@ def _scrape_with_playwright_impl(
     browser = None
     context = None
     page = None
+    initial_html = ""
     _using_shared = False
     _using_persistent_context = False
     _fresh_pw = None  # Only set if we fall back to a fresh browser
@@ -1100,9 +1097,10 @@ def _scrape_with_playwright_impl(
         install_playwright_egress_guard(context, tier_name)
         page = context.new_page()
 
-        # Navigate
         timeout_ms = int(timeout * 1000)
         page.goto(url, timeout=timeout_ms, wait_until="domcontentloaded")
+        with contextlib.suppress(Exception):
+            initial_html = page.content()
 
         # Wait for JS frameworks (React, Vue, Visual Composer) to hydrate.
         # networkidle fires when no network requests for 500ms, ideal for
@@ -1129,7 +1127,6 @@ def _scrape_with_playwright_impl(
         # Trigger lazy-loaded content for scroll-driven page builders.
         _trigger_lazy_load(page)
 
-        # Get HTML
         html = page.content()
         cookies = {c["name"]: c["value"] for c in context.cookies()}
         final_url = page.url
@@ -1163,12 +1160,14 @@ def _scrape_with_playwright_impl(
             url=url,
             success=True,
             raw_content=html.encode("utf-8") if html else b"",
+            extracted_text=html_to_snapshot_text(html),
             content_type="text/html",
             http_status=200,
             final_url=final_url,
             tier=tier_name,
             elapsed_ms=elapsed_ms,
             cookies=cookies,
+            render_snapshot=compare_render_snapshots(initial_html=initial_html, final_html=html),
             attempts=[
                 Attempt(tier=tier_name, success=True, elapsed_ms=elapsed_ms, http_status=200)
             ],
@@ -1212,7 +1211,6 @@ def _scrape_with_playwright_impl(
         )
 
     finally:
-        # Always clean up page and context
         if page:
             try:
                 page.close()
@@ -1223,7 +1221,6 @@ def _scrape_with_playwright_impl(
                 context.close()
             except Exception as e:
                 logger.debug(f"Error closing context: {e}")
-        # Only close browser/playwright if we launched a fresh one
         if not _using_shared:
             if browser:
                 try:
@@ -1279,6 +1276,7 @@ def scrape_with_playwright_aggressive(
     tier_name = "playwright_aggressive"
     session = None
     egress_proxy = None
+    initial_html = ""
 
     try:
         egress_proxy = BrowserEgressProxy().start()
@@ -1291,7 +1289,6 @@ def scrape_with_playwright_aggressive(
             tier_name=tier_name,
         )
 
-        # Navigate
         timeout_ms = int(timeout * 1000)
         if not session.navigate(url, timeout_ms=timeout_ms):
             elapsed_ms = (time.time() - start_time) * 1000
@@ -1312,13 +1309,12 @@ def scrape_with_playwright_aggressive(
                 ],
             )
 
-        # Wait for page to stabilize
+        initial_html = session.get_page_html()
+
         time.sleep(1)
 
-        # Dismiss consent
         session.dismiss_consent()
 
-        # Expand content
         expansions = session.expand_content(max_clicks=max_expand_clicks)
         logger.debug(f"Expanded {expansions} elements")
 
@@ -1326,7 +1322,6 @@ def scrape_with_playwright_aggressive(
         if session._page:
             _trigger_lazy_load(session._page, steps=5, pause_ms=300)
 
-        # Get HTML
         html = session.get_page_html()
         cookies = session.get_cookies()
         final_url = session.get_current_url()
@@ -1360,12 +1355,14 @@ def scrape_with_playwright_aggressive(
             url=url,
             success=True,
             raw_content=html.encode("utf-8") if html else b"",
+            extracted_text=html_to_snapshot_text(html),
             content_type="text/html",
             http_status=200,
             final_url=final_url,
             tier=tier_name,
             elapsed_ms=elapsed_ms,
             cookies=cookies,
+            render_snapshot=compare_render_snapshots(initial_html=initial_html, final_html=html),
             attempts=[
                 Attempt(tier=tier_name, success=True, elapsed_ms=elapsed_ms, http_status=200)
             ],
@@ -1450,6 +1447,7 @@ def scrape_with_drissionpage(
     tier_name = "drissionpage"
     session = None
     egress_proxy = None
+    initial_html = ""
 
     try:
         egress_proxy = BrowserEgressProxy().start()
@@ -1460,7 +1458,6 @@ def scrape_with_drissionpage(
             egress_proxy=egress_proxy,
         )
 
-        # Navigate
         timeout_ms = int(timeout * 1000)
         if not session.navigate(url, timeout_ms=timeout_ms):
             elapsed_ms = (time.time() - start_time) * 1000
@@ -1481,13 +1478,12 @@ def scrape_with_drissionpage(
                 ],
             )
 
-        # Wait for page
+        initial_html = session.get_page_html()
+
         time.sleep(1)
 
-        # Dismiss consent
         session.dismiss_consent()
 
-        # Get HTML
         html = session.get_page_html()
         cookies = session.get_cookies()
         final_url = session.get_current_url()
@@ -1521,12 +1517,14 @@ def scrape_with_drissionpage(
             url=url,
             success=True,
             raw_content=html.encode("utf-8") if html else b"",
+            extracted_text=html_to_snapshot_text(html),
             content_type="text/html",
             http_status=200,
             final_url=final_url,
             tier=tier_name,
             elapsed_ms=elapsed_ms,
             cookies=cookies,
+            render_snapshot=compare_render_snapshots(initial_html=initial_html, final_html=html),
             attempts=[
                 Attempt(tier=tier_name, success=True, elapsed_ms=elapsed_ms, http_status=200)
             ],
@@ -1654,7 +1652,8 @@ def scrape_with_drissionpage_stealth(
                     ],
                 )
 
-            # Calculate remaining time budget for challenge wait
+            initial_html = session.get_page_html()
+
             nav_elapsed = time.time() - nav_start
             remaining_budget = timeout - nav_elapsed
             effective_challenge_wait = min(max_challenge_wait, int(remaining_budget))
@@ -1679,7 +1678,6 @@ def scrape_with_drissionpage_stealth(
                     ],
                 )
 
-            # Wait for challenge to clear with remaining budget
             if not session.wait_for_clearance(max_wait_seconds=effective_challenge_wait):
                 elapsed_ms = (time.time() - start_time) * 1000
                 return ScrapeResult(
@@ -1700,10 +1698,8 @@ def scrape_with_drissionpage_stealth(
                     ],
                 )
 
-            # Dismiss consent
             session.dismiss_consent()
 
-            # Get HTML
             html = session.get_page_html()
             cookies = session.get_cookies()
             final_url = session.get_current_url()
@@ -1737,12 +1733,16 @@ def scrape_with_drissionpage_stealth(
                 url=url,
                 success=True,
                 raw_content=html.encode("utf-8") if html else b"",
+                extracted_text=html_to_snapshot_text(html),
                 content_type="text/html",
                 http_status=200,
                 final_url=final_url,
                 tier=tier_name,
                 elapsed_ms=elapsed_ms,
                 cookies=cookies,
+                render_snapshot=compare_render_snapshots(
+                    initial_html=initial_html, final_html=html
+                ),
                 attempts=[
                     Attempt(tier=tier_name, success=True, elapsed_ms=elapsed_ms, http_status=200)
                 ],

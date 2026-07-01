@@ -663,7 +663,6 @@ class ScrapeOrchestrator:
                 self._random_delay()
                 continue
 
-            # 3e-f. Classify whether transport success produced real content.
             access_assessment = classify_page_access(
                 tier_result.raw_content or b"",
                 url=url,
@@ -671,6 +670,7 @@ class ScrapeOrchestrator:
                 content_type=tier_result.content_type,
                 final_url=tier_result.final_url,
                 expected_markers=expected_markers,
+                render_snapshot=tier_result.render_snapshot,
             )
 
             if access_assessment.state == PageAccessState.SOFT_BLOCK:
@@ -711,6 +711,7 @@ class ScrapeOrchestrator:
                         content_type=retry_result.content_type,
                         final_url=retry_result.final_url,
                         expected_markers=expected_markers,
+                        render_snapshot=retry_result.render_snapshot,
                     )
                     if retry_assessment.state == PageAccessState.SUCCESS:
                         tier_result = retry_result
@@ -776,6 +777,7 @@ class ScrapeOrchestrator:
                         content_type=retry_result.content_type,
                         final_url=retry_result.final_url,
                         expected_markers=expected_markers,
+                        render_snapshot=retry_result.render_snapshot,
                     )
                     if retry_assessment.state == PageAccessState.SUCCESS:
                         tier_result = retry_result
@@ -816,10 +818,7 @@ class ScrapeOrchestrator:
                     self._random_delay()
                     continue
 
-            # 3f2. Check for wrong-page (canonical URL mismatch)
-            # Some sites redirect category pages to a child or serve a blog
-            # post instead of the requested page.  Detect this by comparing
-            # the <link rel="canonical"> or final URL with the requested URL.
+            # Detect canonical/final-URL mismatches that serve a different page.
             if tier_result.raw_content:
                 wrong, canonical = _detect_wrong_page(
                     url, tier_result.raw_content, tier_result.final_url
@@ -861,8 +860,9 @@ class ScrapeOrchestrator:
                 self.cache.set_raw(url, tier_result.raw_content)
 
             # Extract text - route by content type
-            if tier.name == "vision" and tier_result.extracted_text:
-                # Vision tier already extracted text via LLM
+            if tier_result.extracted_text and (
+                tier.name == "vision" or tier_result.render_snapshot
+            ):
                 extracted = tier_result.extracted_text
             else:
                 # Detect content type from header + magic bytes

@@ -2,6 +2,7 @@
 
 from primr.data.scraping.models import PageAccessState
 from primr.data.scraping.page_access import classify_page_access, infer_page_kind
+from primr.data.scraping.page_snapshots import compare_render_snapshots
 
 REAL_HOMEPAGE = b"""<!DOCTYPE html>
 <html>
@@ -86,3 +87,42 @@ def test_classifies_thin_history_page_as_success():
 
     assert result.state == PageAccessState.SUCCESS
     assert "history" in result.matched_expected_markers
+
+
+def test_render_snapshot_can_confirm_sparse_browser_homepage():
+    snapshot = compare_render_snapshots(
+        initial_html="<html><body>Checking your browser</body></html>",
+        final_html="<html><body>"
+        + ("ExampleCo product catalog and support. " * 30)
+        + "</body></html>",
+    )
+
+    result = classify_page_access(
+        b"<html><body><main><h1>ExampleCo</h1></main></body></html>",
+        url="https://www.example.com/",
+        http_status=200,
+        content_type="text/html",
+        expected_markers=["exampleco"],
+        render_snapshot=snapshot,
+    )
+
+    assert result.state == PageAccessState.SUCCESS
+    assert "render_snapshot:cleared_challenge" in result.evidence
+
+
+def test_render_snapshot_interstitial_keeps_sparse_browser_page_blocked():
+    snapshot = compare_render_snapshots(
+        initial_html="<html><body>Please wait while we verify your browser</body></html>",
+        final_html="<html><body>Please wait while we verify your browser</body></html>",
+    )
+
+    result = classify_page_access(
+        b"<html><body>Please wait while we verify your browser</body></html>",
+        url="https://www.example.com/",
+        http_status=200,
+        content_type="text/html",
+        render_snapshot=snapshot,
+    )
+
+    assert result.state == PageAccessState.SOFT_BLOCK
+    assert "render_snapshot:stable_interstitial" in result.evidence

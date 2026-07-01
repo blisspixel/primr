@@ -34,6 +34,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Added browser render-snapshot comparison to page-access classification.
+  Playwright, DrissionPage, and Patchright browser tiers now compare initial
+  and final rendered DOM text as compact evidence, so cleared challenges and
+  stable real pages are less likely to be mistaken for thin interstitials while
+  persistent challenge templates still escalate.
 - Updated the Anthropic balanced model to Claude Sonnet 5 (`claude-sonnet-5`)
   with conservative post-intro price estimates, 128k max output, Sonnet 4.6
   back-compat registration, request guards for models that reject sampling

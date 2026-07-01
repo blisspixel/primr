@@ -9,6 +9,7 @@ from primr.data.scraping.models import (
     HostState,
     PageAccessAssessment,
     PageAccessState,
+    RenderSnapshotComparison,
     ScrapeResult,
     ScrapeTier,
     ValidationResult,
@@ -92,6 +93,15 @@ class TestPageAccessAssessment:
         assert result.confidence == 0.9
         assert result.page_kind == "generic"
         assert result.matched_expected_markers == []
+
+
+class TestRenderSnapshotComparison:
+    """Tests for render snapshot comparison metadata."""
+
+    def test_minimal_snapshot(self):
+        snapshot = RenderSnapshotComparison(state="inconclusive")
+        assert snapshot.state == "inconclusive"
+        assert snapshot.evidence == []
 
 
 class TestValidationResult:

@@ -15,35 +15,10 @@ from bs4 import BeautifulSoup
 
 from .content import extract_clean_text, extract_main_content
 from .detection import detect_soft_block
-from .models import PageAccessAssessment, PageAccessState
-
-_CHALLENGE_MARKERS = (
-    "verify you are human",
-    "checking your browser",
-    "enable javascript",
-    "enable javascript and cookies",
-    "press and hold",
-    "security check",
-    "browser check",
-    "challenge",
-    "access denied",
-    "please wait while we verify",
-    "please enable cookies",
-)
-
-_CHALLENGE_SCRIPT_MARKERS = (
-    "window.kpsdk",
-    "kpsdk",
-    "ips.js",
-    "__cf_chl",
-    "challenge-platform",
-    "cf-browser-verification",
-    "turnstile",
-    "arkose",
-    "funcaptcha",
-    "datadome",
-    "perimeterx",
-    "_pxhd",
+from .models import PageAccessAssessment, PageAccessState, RenderSnapshotComparison
+from .page_snapshots import (
+    CHALLENGE_SCRIPT_MARKERS,
+    CHALLENGE_TEXT_MARKERS,
 )
 
 _PAGE_KIND_MARKERS: dict[str, tuple[str, ...]] = {
@@ -123,6 +98,7 @@ def classify_page_access(
     content_type: str | None = None,
     final_url: str | None = None,
     expected_markers: list[str] | None = None,
+    render_snapshot: RenderSnapshotComparison | None = None,
 ) -> PageAccessAssessment:
     """
     Classify whether fetched content is likely a real page or a challenge shell.
@@ -145,6 +121,12 @@ def classify_page_access(
         final_url=final_url,
         host=urlparse(url).netloc,
     )
+    snapshot_positive = bool(
+        render_snapshot and render_snapshot.state in {"cleared_challenge", "stable_real_page"}
+    )
+    if blocked and snapshot_positive and "content too short" in (blocked_reason or "").lower():
+        blocked = False
+        blocked_reason = None
 
     soup = _parse_html(raw_content)
     html = raw_content.decode("utf-8", errors="ignore")
@@ -153,7 +135,8 @@ def classify_page_access(
     title_lower = (title or "").lower()
     visible_text = _best_visible_text(raw_content)
     visible_lower = visible_text.lower()
-    visible_len = len(visible_text)
+    snapshot_visible_len = render_snapshot.final_text_length if render_snapshot else 0
+    visible_len = max(len(visible_text), snapshot_visible_len)
 
     expected = [m.lower() for m in (expected_markers or [])]
     expected.extend(_PAGE_KIND_MARKERS.get(page_kind, ()))
@@ -165,13 +148,13 @@ def classify_page_access(
     matched_challenge = sorted(
         {
             marker
-            for marker in _CHALLENGE_MARKERS
+            for marker in CHALLENGE_TEXT_MARKERS
             if marker in visible_lower or marker in title_lower or marker in html_lower
         }
     )
     matched_challenge.extend(
         marker
-        for marker in _CHALLENGE_SCRIPT_MARKERS
+        for marker in CHALLENGE_SCRIPT_MARKERS
         if marker in html_lower and marker not in matched_challenge
     )
 
@@ -208,6 +191,8 @@ def classify_page_access(
         evidence.append(f"landmarks:{', '.join(landmarks)}")
     if link_count or button_count:
         evidence.append(f"interaction_elements:{link_count} links, {button_count} buttons")
+    if render_snapshot:
+        evidence.extend(render_snapshot.evidence)
     evidence.append(f"visible_text_length:{visible_len}")
 
     real_structure_score = 0
@@ -223,6 +208,8 @@ def classify_page_access(
         real_structure_score += 1
     if matched_expected:
         real_structure_score += min(3, len(matched_expected))
+    if snapshot_positive:
+        real_structure_score += 2
     if visible_len >= 900:
         real_structure_score += 2
     elif visible_len >= 250:
@@ -241,6 +228,8 @@ def classify_page_access(
         shell_score += 1
     if script_count >= 3 and visible_len < 250:
         shell_score += 1
+    if render_snapshot and render_snapshot.state == "stable_interstitial":
+        shell_score += 2
 
     if blocked or shell_score >= 3:
         return PageAccessAssessment(

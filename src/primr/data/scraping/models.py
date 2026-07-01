@@ -43,6 +43,19 @@ class PageAccessState(Enum):
 
 
 @dataclass
+class RenderSnapshotComparison:
+    """Compact comparison of initial and final browser-rendered page state."""
+
+    state: str
+    initial_text_length: int = 0
+    final_text_length: int = 0
+    text_delta: int = 0
+    initial_challenge_markers: list[str] = field(default_factory=list)
+    final_challenge_markers: list[str] = field(default_factory=list)
+    evidence: list[str] = field(default_factory=list)
+
+
+@dataclass
 class Attempt:
     """Single tier attempt record (typed, not dict)."""
 
@@ -166,6 +179,7 @@ class ScrapeResult:
     # Content validation (filled after extraction, separate from soft block)
     validation: ValidationResult | None = None
     access_assessment: PageAccessAssessment | None = None
+    render_snapshot: RenderSnapshotComparison | None = None
 
     # Tier attempt history (typed records)
     attempts: list = field(default_factory=list)  # list[Attempt]

@@ -587,7 +587,14 @@ The shared page-access classifier, evidence-backed classification, Kasada/KPSDK 
 
 - Expand first-party fallback probing beyond current sitemap/guessed-path recovery: investor/news/about/help PDFs, feeds, and structured data endpoints with better prioritization. **DONE:** RSS/Atom feeds now join the fan-out as `source="feed"`; first-party JSON-LD now joins as `source="structured_data"`; first-party PDFs now join as `source="first_party_pdf"`, with bounded priority landing-page discovery plus direct investor/news/about/help PDF probes, same-site filtering, byte/entity/output caps, and local PyMuPDF extraction only through the SSRF-safe `_http_get` seam. No paid provider path is invoked by this fallback.
 - Add host-level learning so once Primr sees a confirmed real page for a host it can persist useful positive markers for later pages. **DONE:** verified homepage classification now learns only explicit matched company/host markers from confirmed real pages, filters generic and secret-like values, persists a bounded host marker set under user data (`PRIMR_DATA_DIR`), and reuses those markers in orchestrator page-access classification for later pages without provider calls.
-- Add optional screenshot/text-snapshot comparison for browser tiers to distinguish stable real homepages from interstitial templates
+- Add optional screenshot/text-snapshot comparison for browser tiers to
+  distinguish stable real homepages from interstitial templates. **DONE:**
+  Playwright, aggressive Playwright, DrissionPage, DrissionPage stealth, and
+  Patchright now record compact render-snapshot evidence from initial/final DOM
+  text. The page-access classifier uses that body-free evidence to distinguish
+  cleared challenges and stable real pages from persistent interstitials, and
+  browser tiers can hand rendered text to the existing extraction path when the
+  snapshot confirms the render.
 - Surface a clearer user-facing blocked-site summary in the CLI with evidence snippets and recommended next actions. **DONE:** when homepage access and first-party recovery both fail, the CLI now prints sanitized evidence snippets, the same-site recovery candidate count, and the public-fallback / `--mode deep` next action before routing through Wayback, subdomains, EDGAR, and Wikipedia.
 - Extend trace analytics and eval suites to score false-positive and false-negative rates for access classification on protected sites
 - Hiring-signal extensions: Workday + Workable + Recruitee + Jobvite providers landed with a corpus-driven Workday URL discovery path and a DuckDuckGo web-search fallback when every ATS plus the careers crawl misses. Remaining: BambooHR and iCIMS providers (both lack clean public JSON APIs - handled by HTML fallback for now), wire hiring signals into `--premium` (fast-mode only today), and consider host-level memory so subsequent runs of the same company skip re-probing providers that already missed

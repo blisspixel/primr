@@ -178,9 +178,8 @@ to confirm the discount (~$0.50-0.80).
 
 ### Also in this band
 
-- **#3 remainder** (live-site dependent, opportunistic): host-level positive
-  markers, blocked-site CLI summary, hiring signals in `--premium`,
-  BambooHR/iCIMS
+- **#3 remainder** (live-site dependent, opportunistic): page-access trace
+  analytics/evals, hiring signals in `--premium`, BambooHR/iCIMS
 - **Panel medium tier**: meeting-brief one-pager output mode, `--json`
   output for the main run, `primr replay` (record/replay run transcripts for
   demos), install extras (`primr[browser]`, `primr[ocr]`), sample gallery

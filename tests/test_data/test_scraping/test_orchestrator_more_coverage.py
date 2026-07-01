@@ -37,6 +37,7 @@ from primr.data.scraping.orchestrator import (
     _safe_for_log,
     _score_extracted_text,
 )
+from primr.data.scraping.page_snapshots import compare_render_snapshots
 from primr.data.scraping.rate_limiter import NoOpRateLimiter
 
 GOOD_HTML = b"""<!DOCTYPE html>
@@ -56,11 +57,13 @@ def make_tier(name, *, success=True, content=GOOD_HTML, content_type="text/html"
                 url=url,
                 success=True,
                 raw_content=content,
+                extracted_text=extra.get("extracted_text"),
                 content_type=content_type,
                 http_status=200,
                 final_url=extra.get("final_url", url),
                 tier=name,
                 elapsed_ms=10,
+                render_snapshot=extra.get("render_snapshot"),
                 attempts=[Attempt(tier=name, success=True, elapsed_ms=10, http_status=200)],
             )
         return ScrapeResult(
@@ -328,6 +331,31 @@ class TestThinContentEscalation:
             result = orch.scrape_url("https://example.com/page")
         assert result.success is True
         assert result.tier == "t2"
+
+    def test_browser_snapshot_can_prevent_false_thin_escalation(self):
+        snapshot = compare_render_snapshots(
+            initial_html="<html><body>Loading</body></html>",
+            final_html="<html><body>"
+            + ("ExampleCo rendered homepage content. " * 35)
+            + "</body></html>",
+        )
+        sparse_html = b"<html><body><div>Loading</div></body></html>"
+        rendered_text = "ExampleCo rendered homepage content. " * 35
+        t1 = make_tier(
+            "playwright",
+            content=sparse_html,
+            extracted_text=rendered_text,
+            render_snapshot=snapshot,
+        )
+        t2 = make_tier("requests")
+        orch = build([t1, t2])
+
+        result = orch.scrape_url("https://example.com/")
+
+        assert result.success is True
+        assert result.tier == "playwright"
+        assert result.access_assessment is not None
+        assert "render_snapshot:stable_real_page" in result.access_assessment.evidence
 
     def test_soft_block_classified_as_hard_marks_host(self):
         """A SOFT_BLOCK whose reason names a hard block escalates to host-block."""
