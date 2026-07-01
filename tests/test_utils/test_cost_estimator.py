@@ -541,13 +541,21 @@ class TestFastModeAIStrategy:
         grok_notes = [n for n in estimate.notes if "Grok" in n]
         assert len(grok_notes) >= 1
 
-    def test_fast_mode_returns_default_mode_label(self):
-        """Fast mode estimate should report mode as 'standard (Grok 4.3 hybrid)' by default."""
+    def test_fast_mode_returns_default_mode_label(self, monkeypatch):
+        """Fast mode estimate should report Grok mode when xAI is the routed provider."""
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.setenv("XAI_API_KEY", "fake-test-key")
         estimate = estimate_cost("complete", fast_mode=True, use_historical=False)
         assert estimate.mode == "standard (Grok 4.3 hybrid)"
 
-    def test_fast_mode_explicit_fast_tier_label(self):
+    def test_fast_mode_explicit_fast_tier_label(self, monkeypatch):
         """Fast mode with explicit fast tier should report 'standard (Grok 4.3 (low-effort))'."""
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.setenv("XAI_API_KEY", "fake-test-key")
         estimate = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="fast")
         assert estimate.mode == "standard (Grok 4.3 (low-effort))"
 
@@ -682,12 +690,27 @@ class TestGrokTier:
         # legacy $4+ band — guard against regression of the v1.24.x routing fix.
         assert hybrid_est.total_cost < 2.00
 
-    def test_hybrid_tier_mode_label(self):
-        """Hybrid tier estimate should have correct mode label."""
+    def test_hybrid_tier_mode_label(self, monkeypatch):
+        """Hybrid tier estimate should have correct xAI-routed mode label."""
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.setenv("XAI_API_KEY", "fake-test-key")
         estimate = estimate_cost(
             "complete", fast_mode=True, use_historical=False, grok_tier="hybrid"
         )
         assert estimate.mode == "standard (Grok 4.3 hybrid)"
+
+    def test_hybrid_tier_mode_label_with_gemini(self, monkeypatch):
+        """Hybrid tier estimate should name Gemini when routed through Gemini."""
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.setenv("GEMINI_API_KEY", "fake-test-key")
+        estimate = estimate_cost(
+            "complete", fast_mode=True, use_historical=False, grok_tier="hybrid"
+        )
+        assert estimate.mode == "standard (Gemini routed)"
 
     def test_max_tier_mode_label(self):
         """Max tier estimate should have correct mode label."""

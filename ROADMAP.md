@@ -71,7 +71,13 @@ Current priority order:
    report-only gate recommendation from the per-report Confirmed traceability
    floor, including the exact environment-variable assignment an operator can
    review before choosing whether to arm a hard gate. The measured
-   operator-curated multi-report baseline itself is still next.
+   operator-curated multi-report baseline itself is still next. Calibration
+   baseline artifacts and inspections now also include a body-free
+   operator-review block that keeps automatic gate arming disabled, names the
+   exact review items for representative coverage, evidence dimensions,
+   judge disagreement, false-positive and false-negative risk, and the
+   threshold decision, and distinguishes gate candidates from report-only
+   recommendations without returning report bodies or raw claims.
 2. **Backend freedom production wiring.** Provider abstractions and pure routing
    foundations exist, and `core/stage_inventory.py` now records router-ready
    capability requirements and promotion gates for fast-mode and premium
@@ -398,7 +404,11 @@ per-module coverage ratchet unlocked by the refactor:
   ready until a curated selection with required representative tags is present.
   Calibration
   sidecars and eval/baseline summaries now also flag source-copied
-  `(Estimated)`/`(Hypothesis)` claims as a report-only signal. Remaining:
+  `(Estimated)`/`(Hypothesis)` claims as a report-only signal. Baseline
+  artifacts now include a body-free operator-review block that keeps
+  automatic gate arming disabled and names the exact review items for
+  representative coverage, evidence dimensions, judge disagreement,
+  false-positive and false-negative risk, and threshold selection. Remaining:
   gather a multi-report, agreement-validated baseline (cloud-vs-local
   concordance), then set the threshold from those numbers; a single small run is too
   judge-noisy to arm a hard gate on (judge variance is itself a documented

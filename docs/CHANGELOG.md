@@ -31,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a body-free operator-review block to calibration baseline artifacts and
+  baseline inspection output. Ready baselines now state that automatic gate
+  arming is disallowed, list the measured review items an operator must check,
+  surface cloud-vs-local disagreement counts, and distinguish gate candidates
+  from report-only recommendations without exposing report bodies or raw claims.
 - Added dedicated public-board hiring-signal adapters for iCIMS and BambooHR.
   Because their official job APIs require authenticated customer or partner
   access, Primr now probes their public hosted career portals through bounded

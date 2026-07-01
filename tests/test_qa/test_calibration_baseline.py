@@ -183,6 +183,9 @@ def test_build_baseline_flags_small_unvalidated_pack() -> None:
     assert "missing_evidence_reviews" in baseline["reasons"]
     assert "missing_judge_agreement" in baseline["reasons"]
     assert "missing_representative_selection" in baseline["reasons"]
+    assert baseline["operator_review"]["decision_status"] == "blocked_by_readiness"
+    assert baseline["operator_review"]["operator_may_arm_after_review"] is False
+    assert baseline["operator_review"]["items"][0]["id"] == "readiness_blockers"
     actions = baseline["next_actions"]
     assert actions["missing_reports"] == 4
     assert actions["missing_sidecars"] == 0
@@ -253,6 +256,21 @@ def test_build_baseline_ready_when_pack_has_required_evidence() -> None:
             "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY."
         ),
     }
+    review = baseline["operator_review"]
+    assert review["decision_status"] == "pending_operator_review"
+    assert review["human_review_required"] is True
+    assert review["automatic_gate_arming_allowed"] is False
+    assert review["operator_may_arm_after_review"] is True
+    assert review["disagreement_cases"] == 0
+    assert {item["id"] for item in review["items"]} == {
+        "representative_coverage",
+        "evidence_review_dimensions",
+        "judge_agreement",
+        "false_positive_false_negative_spot_check",
+        "threshold_decision",
+    }
+    assert review["items"][2]["evidence"]["agreement_rate"] == 1.0
+    assert review["items"][3]["evidence"]["measured_floor"] == 1.0
     assert baseline["next_actions"]["spend_preview_required"] is False
     assert baseline["next_actions"]["items"] == [
         {
@@ -356,6 +374,8 @@ def test_inspect_baseline_flags_mutated_fingerprinted_artifacts(tmp_path: Path) 
     assert inspection["gate_recommendation"]["status"] == "not_recommended"
     assert inspection["gate_recommendation"]["reason"] == "inspection_not_ready"
     assert inspection["gate_recommendation"]["recommended_threshold"] is None
+    assert inspection["operator_review"]["decision_status"] == "blocked_by_inspection"
+    assert inspection["operator_review"]["operator_may_arm_after_review"] is False
     assert inspection["artifact_integrity"] == {
         "checked": 1,
         "unfingerprinted": 8,
@@ -505,10 +525,15 @@ def test_write_baseline_json_and_markdown(tmp_path: Path) -> None:
     assert "## Inference Label Checks" in markdown
     assert "## Representative Coverage" in markdown
     assert "## Gate Recommendation" in markdown
+    assert "## Operator Review" in markdown
     assert "## Next Actions" in markdown
     assert "## Suggested Commands" in markdown
     assert "| candidate | ready_baseline_measured_floor | 100% |" in markdown
     assert "`PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=1.000`" in markdown
+    assert "Decision status: pending_operator_review" in markdown
+    assert "Automatic gate arming allowed: no" in markdown
+    assert "Operator may arm after review: yes" in markdown
+    assert "| threshold_decision | yes |" in markdown
     assert "Judge agreement: 10 / 10 (100%)" in markdown
     assert "Evidence-reviewed reports: 5 / 5" in markdown
     assert "Judge-agreement reports: 5 / 5" in markdown

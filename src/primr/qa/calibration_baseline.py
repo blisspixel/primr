@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from primr.core.eval_calibration import calibration_counts_from_payload, percent_or_dash
+from primr.qa.calibration_baseline_actions import calibration_baseline_next_actions
 from primr.qa.calibration_baseline_gate import (
     baseline_gate_recommendation,
     inspection_gate_recommendation,
@@ -17,13 +18,17 @@ from primr.qa.calibration_baseline_integrity import (
     artifact_integrity_summary,
     inspection_status,
 )
+from primr.qa.calibration_baseline_review import (
+    inspection_operator_review,
+    operator_review_summary,
+    render_operator_review_markdown,
+)
 
 BASELINE_FORMAT = "primr.calibration_baseline.v1"
 INSPECTION_FORMAT = "primr.calibration_readiness_inspection.v1"
 PACK_FORMAT = "primr.calibration_pack.v1"
 SELECTION_FORMAT = "primr.calibration_pack_selection.v1"
 DEFAULT_MINIMUM_REPORTS = 5
-DEFAULT_AGENT_SELECTION_PATH = ".agent/calibration-selection.json"
 
 _COUNT_KEYS = (
     "confirmed_traceable",
@@ -127,6 +132,11 @@ def inspect_calibration_baseline(
         baseline.get("gate_recommendation"),
         ready=ready,
     )
+    operator_review = inspection_operator_review(
+        baseline.get("operator_review"),
+        ready=ready,
+        reasons=reasons,
+    )
 
     return {
         "inspection_format": INSPECTION_FORMAT,
@@ -137,6 +147,7 @@ def inspect_calibration_baseline(
         "spend_preview_required": bool(next_actions.get("spend_preview_required")),
         "gate_policy": next_actions.get("gate_policy"),
         "gate_recommendation": gate_recommendation,
+        "operator_review": operator_review,
         "artifact_integrity": artifact_integrity["counts"],
         "counts": {
             "reports": _safe_int(totals.get("reports"), default=len(reports)),
@@ -215,7 +226,7 @@ def build_calibration_baseline(
         representative_selection_ready=bool(representation["selection_ready"]),
         representation_missing_tags=representation["missing_tags"],
     )
-    next_actions = _next_actions(
+    next_actions = calibration_baseline_next_actions(
         reasons=reasons,
         manifest_path=manifest_path,
         report_count=report_count,
@@ -230,6 +241,14 @@ def build_calibration_baseline(
     )
     report_summaries = [_report_summary(report) for report in reports]
     ready = not reasons
+    gate_recommendation = baseline_gate_recommendation(
+        ready=ready,
+        reports=report_summaries,
+        traceability=label_summary,
+        evidence=evidence_summary,
+        agreement=judge_agreement,
+        representation=representation,
+    )
 
     return {
         "baseline_format": BASELINE_FORMAT,
@@ -259,13 +278,19 @@ def build_calibration_baseline(
         "representation": representation,
         "evidence_review": evidence_summary,
         "judge_agreement": judge_agreement,
-        "gate_recommendation": baseline_gate_recommendation(
+        "gate_recommendation": gate_recommendation,
+        "operator_review": operator_review_summary(
             ready=ready,
-            reports=report_summaries,
-            traceability=label_summary,
+            reasons=reasons,
+            totals={
+                "reports": report_count,
+                "reports_with_evidence_reviews": coverage_counts["reports_with_evidence_reviews"],
+                "reports_with_judge_agreement": coverage_counts["reports_with_judge_agreement"],
+            },
             evidence=evidence_summary,
             agreement=judge_agreement,
             representation=representation,
+            gate_recommendation=gate_recommendation,
         ),
         "reports": report_summaries,
     }
@@ -279,6 +304,7 @@ def render_calibration_baseline_markdown(baseline: dict[str, Any]) -> str:
     representation = _dict_value(baseline, "representation")
     traceability = _dict_value(baseline, "traceability")
     gate = _dict_value(baseline, "gate_recommendation")
+    operator_review = _dict_value(baseline, "operator_review")
     reasons = baseline.get("reasons", [])
     reason_text = ", ".join(str(reason) for reason in reasons) if reasons else "none"
     lines = [
@@ -391,6 +417,8 @@ def render_calibration_baseline_markdown(baseline: dict[str, Any]) -> str:
             _rate_row(evidence, "High Relevance", "high_relevance_reviews", "high_relevance_rate"),
             "",
             *render_gate_recommendation_markdown(gate),
+            "",
+            *render_operator_review_markdown(operator_review),
             "",
             "## Next Actions",
             "",
@@ -660,204 +688,6 @@ def _readiness_reasons(
     if representation_missing_tags:
         reasons.append("missing_representative_coverage")
     return reasons
-
-
-def _next_actions(
-    *,
-    reasons: list[str],
-    manifest_path: Path | None,
-    report_count: int,
-    minimum_reports: int,
-    reports_with_payloads: int,
-    failures: int,
-    reports_with_evidence_reviews: int,
-    reports_with_judge_agreement: int,
-    representative_selection_ready: bool,
-    representation_missing_tags: list[str],
-    selection_path: Any,
-) -> dict[str, Any]:
-    manifest_ref = manifest_path.as_posix() if manifest_path is not None else "<pack-manifest.json>"
-    baseline_md_ref = _default_markdown_ref(manifest_ref)
-    target_report_count = max(report_count, minimum_reports)
-    missing_reports = max(0, minimum_reports - report_count)
-    missing_sidecars = max(0, report_count - reports_with_payloads)
-    missing_evidence_reviews = max(0, report_count - reports_with_evidence_reviews)
-    missing_judge_agreement = max(0, report_count - reports_with_judge_agreement)
-    selection_ref = selection_path if isinstance(selection_path, str) and selection_path else None
-    selection_command = (
-        f"--pack-selection {selection_ref}"
-        if selection_ref
-        else f"--calibrate-recent {target_report_count}"
-    )
-    spend_preview_required = any(
-        reason
-        in {
-            "missing_calibration_sidecars",
-            "calibration_failures",
-            "missing_evidence_reviews",
-            "missing_judge_agreement",
-        }
-        for reason in reasons
-    )
-    items: list[dict[str, Any]] = []
-
-    if "empty_pack" in reasons:
-        items.append(
-            {
-                "reason": "empty_pack",
-                "action": (
-                    "Select current-format Strategic Overview reports before building a "
-                    "baseline pack."
-                ),
-            }
-        )
-    if "insufficient_reports" in reasons:
-        items.append(
-            {
-                "reason": "insufficient_reports",
-                "missing_reports": missing_reports,
-                "action": (
-                    f"Add {missing_reports} more current-format Strategic Overview "
-                    f"report(s) to reach the minimum of {minimum_reports}."
-                ),
-            }
-        )
-    if "missing_calibration_sidecars" in reasons:
-        items.append(
-            {
-                "reason": "missing_calibration_sidecars",
-                "missing_sidecars": missing_sidecars,
-                "action": (
-                    "Run calibration for every selected report so each pack entry has a "
-                    "sidecar payload."
-                ),
-            }
-        )
-    if "calibration_failures" in reasons:
-        items.append(
-            {
-                "reason": "calibration_failures",
-                "failures": failures,
-                "action": (
-                    "Fix each failed report or judge failure, then rebuild the pack "
-                    "without calibration errors."
-                ),
-            }
-        )
-    if "missing_evidence_reviews" in reasons:
-        items.append(
-            {
-                "reason": "missing_evidence_reviews",
-                "missing_reports": missing_evidence_reviews,
-                "action": (
-                    "Regenerate calibration sidecars with evidence-review-capable "
-                    "judging so every selected report has source review dimensions."
-                ),
-            }
-        )
-    if "missing_judge_agreement" in reasons:
-        items.append(
-            {
-                "reason": "missing_judge_agreement",
-                "missing_reports": missing_judge_agreement,
-                "action": (
-                    "Run cloud-vs-local judge comparison on the same sampled claims "
-                    "so every selected report has an agreement record before trusting "
-                    "the baseline."
-                ),
-            }
-        )
-    if "missing_representative_selection" in reasons:
-        items.append(
-            {
-                "reason": "missing_representative_selection",
-                "action": (
-                    "Create a curated calibration pack selection with non-empty required "
-                    "representative tags before treating the pack as a baseline."
-                ),
-            }
-        )
-    if "missing_representative_coverage" in reasons:
-        items.append(
-            {
-                "reason": "missing_representative_coverage",
-                "missing_tags": representation_missing_tags,
-                "action": (
-                    "Add selected reports tagged for the missing representative "
-                    "coverage dimensions, then rebuild the pack manifest."
-                ),
-            }
-        )
-
-    if not items:
-        items.append(
-            {
-                "reason": "ready",
-                "action": (
-                    "Review the measured floor with the pack context before selecting "
-                    "any hard threshold."
-                ),
-            }
-        )
-
-    commands = []
-    if not representative_selection_ready:
-        commands.append(
-            {
-                "purpose": "Create representative selection template",
-                "command": (
-                    "primr calibrate "
-                    f"--calibrate-recent {target_report_count} "
-                    f"--pack-selection-template {DEFAULT_AGENT_SELECTION_PATH}"
-                ),
-            }
-        )
-    commands.extend(
-        [
-            {
-                "purpose": "Preview report selection and judge-call cost",
-                "command": (
-                    f"primr calibrate {selection_command} --dry-run --pack-manifest {manifest_ref}"
-                ),
-            },
-            {
-                "purpose": "Build agreement-validated pack",
-                "command": (
-                    f"primr calibrate {selection_command} --judge-compare "
-                    f"--pack-manifest {manifest_ref}"
-                ),
-            },
-            {
-                "purpose": "Rebuild readiness summary",
-                "command": (
-                    f"primr calibrate --baseline-from {manifest_ref} "
-                    f"--baseline-md {baseline_md_ref}"
-                ),
-            },
-        ]
-    )
-
-    return {
-        "missing_reports": missing_reports,
-        "missing_sidecars": missing_sidecars,
-        "missing_evidence_review_reports": missing_evidence_reviews,
-        "missing_judge_agreement_reports": missing_judge_agreement,
-        "missing_representative_selection": not representative_selection_ready,
-        "missing_representative_tags": representation_missing_tags,
-        "spend_preview_required": spend_preview_required,
-        "gate_policy": (
-            "Keep PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY unset until this artifact "
-            "is ready and the measured floor has been reviewed."
-        ),
-        "items": items,
-        "commands": commands,
-    }
-
-
-def _default_markdown_ref(manifest_ref: str) -> str:
-    if manifest_ref == "<pack-manifest.json>":
-        return "<baseline.md>"
-    return str(default_baseline_markdown_path(Path(manifest_ref)).as_posix())
 
 
 def _report_summary(report: dict[str, Any]) -> dict[str, Any]:

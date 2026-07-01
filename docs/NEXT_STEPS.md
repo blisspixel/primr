@@ -202,7 +202,12 @@ Do next:
   baseline artifacts now publish a report-only gate recommendation from the
   per-report Confirmed traceability floor, including the exact
   `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` assignment to review before arming a
-  hard gate.
+  hard gate. Baseline artifacts and inspections now also include a body-free
+  operator-review block that keeps automatic gate arming disabled, names the
+  required checks for representative coverage, evidence dimensions, judge
+  disagreement, false-positive and false-negative risk, and threshold
+  selection, and distinguishes gate candidates from report-only
+  recommendations without exposing report bodies or raw claims.
 - Set `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` only from the measured floor of
   that agreement-validated baseline.
 - Surface contradicted `--verify` claims in the report trust summary. First
@@ -218,7 +223,8 @@ Done when:
   agreement. The sidecar and scorecard slices are shipped, including the
   report-only inference source-copy check; the multi-report pack-manifest,
   selection-template, selection-inspection, curated selection, and
-  baseline-readiness artifact slices are shipped; readiness now refuses
+  baseline-readiness artifact slices are shipped; baseline artifacts now carry
+  explicit body-free operator-review requirements; readiness now refuses
   non-curated latest-N packs, but the measured representative multi-report
   baseline itself is still pending.
 - The hard gate is either armed from a defensible baseline or deliberately left
