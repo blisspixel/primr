@@ -323,6 +323,13 @@ def _fast_gap_analysis(
             ext_summary_parts.append(block[:500])
     ext_summary = "\n\n".join(ext_summary_parts) if ext_summary_parts else external_sources[:5_000]
 
+    # T1 boundary: both summaries are assembled from raw scraped text and
+    # enter the gap-analysis prompt only as fenced data (sliced before fencing).
+    from primr.utils.content_sanitizer import fence_untrusted
+
+    corpus_summary = fence_untrusted("WEBSITE_CORPUS", corpus_summary)
+    ext_summary = fence_untrusted("EXTERNAL_SOURCES", ext_summary)
+
     if hypothesis_block:
         # Hypothesis-steered (tradecraft Step 4): queries test branches, not data gaps.
         prompt = f"""You've reviewed primary sources for {company_name}. As a strategic analyst,

@@ -17,12 +17,14 @@ from __future__ import annotations
 import os
 from collections.abc import Sequence
 
+from primr.utils.content_sanitizer import fence_untrusted
 from primr.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
 __all__ = [
     "AI_STRATEGY_ARTIFACTS",
+    "UNTRUSTED_ARTIFACTS",
     "YAML_STRATEGY_ARTIFACTS",
     "build_strategy_context_prefix",
     "build_strategy_prompt_parts",
@@ -47,6 +49,15 @@ YAML_STRATEGY_ARTIFACTS: tuple[tuple[str, int], ...] = (
     ("_hiring/hiring_signals.md", 15_000),
 )
 
+# Trust boundary for the working-folder artifacts above. insights.txt fences
+# its verbatim scraped-external block at assembly (insights_assembly), so
+# re-fencing it here would corrupt the inner markers; gap_analysis.md and
+# analysis_workbook.md are LLM-generated intermediates (the accepted
+# "laundered injection" residual in docs/SECURITY.md). These two carry
+# verbatim externally-derived text - scraped posting titles/URLs and
+# DNS-derived recon lines - and enter prompts only as fenced data.
+UNTRUSTED_ARTIFACTS: frozenset[str] = frozenset({"_hiring/hiring_signals.md", "_recon_context.txt"})
+
 _CONTEXT_HEADER = "Use the following context documents to inform your analysis:\n\n"
 _REPORT_CHAR_LIMIT = 50_000
 
@@ -70,6 +81,8 @@ def read_artifact_blocks(folder_path: str, artifact_specs: Sequence[tuple[str, i
             logger.warning("Failed to read artifact %s: %s", artifact_name, e)
             continue
         if artifact_content.strip():
+            if artifact_name in UNTRUSTED_ARTIFACTS:
+                artifact_content = fence_untrusted("ARTIFACT", artifact_content)
             blocks.append(f"--- {artifact_name} ---\n{artifact_content}")
     return blocks
 

@@ -285,12 +285,10 @@ class TestCachedPrefixSharing:
         assert suffixes == {"\n\n---\n\nazure prompt", "\n\n---\n\naws prompt"}
 
     def test_yaml_strategies_share_context_prefix(self, seams):
-        from primr.core.strategy_prompt_parts import (
-            YAML_STRATEGY_ARTIFACTS,
-            build_strategy_context_prefix,
-            read_artifact_blocks,
-        )
-
+        # _recon_context.txt is an UNTRUSTED_ARTIFACTS member: it is fenced
+        # with a per-call nonce, so the expected prefix cannot be recomputed
+        # out-of-band. Instead pin that both sent prompts carry a byte-identical
+        # context prefix (everything before the parts divider) built ONCE.
         (seams["tmp"] / "_recon_context.txt").write_text("recon block", encoding="utf-8")
         seams["build_yaml_prompt"].side_effect = lambda config, company, notes: (
             f"{config['meta']['name']} prompt"
@@ -305,9 +303,11 @@ class TestCachedPrefixSharing:
 
         prompts = self._sent_prompts(seams)
         assert len(prompts) == 2
-        expected_prefix = build_strategy_context_prefix(
-            "## Report\nbody",
-            read_artifact_blocks(str(seams["tmp"]), YAML_STRATEGY_ARTIFACTS),
-        )
-        assert all(p.startswith(expected_prefix) for p in prompts)
+        prefixes = {p.split("\n\n---\n\n")[0] for p in prompts}
+        assert len(prefixes) == 1  # byte-identical cached prefix across types
+        (shared_prefix,) = prefixes
+        assert shared_prefix.startswith("Use the following context documents")
+        assert "recon block" in shared_prefix
+        # The scraped-adjacent artifact is fenced as data inside the prefix.
+        assert "UNTRUSTED_ARTIFACT_BEGIN" in shared_prefix
         assert prompts[0] != prompts[1]

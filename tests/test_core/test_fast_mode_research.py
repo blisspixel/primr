@@ -540,9 +540,13 @@ class TestGapAnalysisCorpusParsing:
 
         _fast_gap_analysis("Co", None, corpus, "(no external sources)", [])
 
-        # Prompt should contain truncated page summaries, not the full 1000+ char content
+        # Prompt should contain truncated page summaries (each block capped at
+        # 500 chars), not the full 1000+ char page bodies. The summaries are
+        # data-fenced, so compare content presence rather than gross length.
         assert "[Page: https://example.com]" in captured["prompt"]
-        assert len(captured["prompt"]) < len(corpus)
+        assert "x" * 500 not in captured["prompt"]
+        assert "y" * 500 not in captured["prompt"]
+        assert "UNTRUSTED_WEBSITE_CORPUS_BEGIN" in captured["prompt"]
 
     def test_falls_back_on_no_page_blocks(self, monkeypatch):
         """Gap analysis should use raw corpus truncation when no [Page:] blocks found."""

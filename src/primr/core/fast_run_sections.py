@@ -134,6 +134,16 @@ def write_report_sections(
     else:
         raw_corpus_subset = raw_corpus[:_CORPUS_BUDGET]
 
+    # Fence the scraped material ONCE, after slicing and before any prompt
+    # build: slices of a fenced string would tear the markers, and fencing
+    # inside the per-section builders would break the byte-identical cached
+    # prefix (each fence carries a per-call nonce). Fenced once here, the same
+    # string flows to every section write and regeneration in this run.
+    from primr.utils.content_sanitizer import fence_untrusted
+
+    raw_corpus_subset = fence_untrusted("WEBSITE_CORPUS", raw_corpus_subset)
+    external_sources_raw = fence_untrusted("EXTERNAL_SOURCES", external_sources_raw)
+
     report_system = REPORT_SYSTEM_PROMPT
 
     from concurrent.futures import ThreadPoolExecutor, as_completed

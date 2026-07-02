@@ -23,7 +23,7 @@ MCP/A2A tool surfaces, and (4) provider secrets + the dependency supply chain.
 
 | # | Threat | Vector | Control(s) | Status |
 |---|--------|--------|-----------|--------|
-| T1 | Indirect prompt injection | Instructions embedded in scraped pages / postings / sitemaps | `sanitize_for_llm` (injection-pattern + control-char stripping) + `fence_untrusted` data-fencing at every external-content→prompt boundary ("data, never instructions") | Shipped |
+| T1 | Indirect prompt injection | Instructions embedded in scraped pages / postings / sitemaps | `sanitize_for_llm` (injection-pattern + control-char stripping) + `fence_untrusted` data-fencing at the external-content→prompt boundaries. Fenced: insights extraction, deep research, the fast-run analysis-workbook and section-writer corpus/external-source blocks, hypothesis-tree inputs, gap-analysis summaries, report and strategy regeneration evidence, hiring-signal triage and JD extraction, the scraped-external block inside `insights.txt`, and the scraped-adjacent strategy context artifacts (hiring signals, recon context). Sanitize-only (deliberately unfenced): website summarization and composer notes, where the surrounding framing is the instruction boundary. LLM-generated working artifacts (gap analysis, workbook) enter downstream prompts unfenced - the accepted "laundered injection" residual below | Shipped |
 | T2 | SSRF / internal pivot | Attacker page or redirect points primr at loopback / RFC1918 / link-local / cloud-metadata | `is_safe_url` on every egress helper; IP-pinned per-hop redirect validation through `data/safe_http.py` for `fallback_sources._http_get`, `hiring_signals._http_get`, Wayback CDX/replay fetches, async citation-resolution HEAD requests, the tiered httpx scraper, pooled `HTTPClient` GET/HEAD calls, the tiered requests scraper, and the curl_cffi scraper; browser egress planning for Chromium-backed tiers with initial-host resolver pins, local loopback egress proxying for dynamic browser hosts, QUIC disabled, and Playwright/Patchright request route guards; manual per-hop validation in `data/scraping/net.py`; `SSRFGuardHook` on tool calls | Shipped |
 | T3 | Secret leakage | API key in a log line, prompt, or persisted artifact | `SecretMaskingFilter` on all log handlers; `mask_sensitive_data` (incl. xAI) applied in `chat_logger` before persist; research memory rejects secret-like payloads before durable YAML writes; company profiles reject URL userinfo and secret-like values before durable JSON writes; hardcoded-secret CI gate | Shipped |
 | T4 | Cost / resource exhaustion | Runaway tool invocation | `CostGuardHook` budget; `estimate_run`/A2A `estimate_research` first; `PRIMR_ENFORCE_MCP_COST_CAPS`; server-issued approval tokens for MCP cost-cap-governed tools and A2A research execution; explicit budget-enforcement payloads; MCP and A2A runtime budget propagation for fast optional stages and non-fast optional strategy documents; run manifests and compact usage summaries expose approved ceiling, active checkpoint status, and non-interruptible required provider tasks without manifest bodies; remote skill-pack icons require `--remote-icons` / `remote_icons`; vendor-research generation/refresh requires `--refresh-vendor-research`, `primr --generate-vendor-research`, or `PRIMR_ALLOW_VENDOR_REFRESH=1`; Gemini PDF extraction defaults to local PyMuPDF unless `PRIMR_PDF_LLM_MAX_CALLS` is set; single-job model; rate limiting | Shipped, with required Deep Research tasks still estimate-gated mid-flight |
@@ -35,6 +35,13 @@ MCP/A2A tool surfaces, and (4) provider secrets + the dependency supply chain.
 ### Residual risks (accepted)
 - **T1** is mitigated, not eliminated - a novel phrasing could evade the pattern
   set; the data-fence is the backstop, and an injection red-team eval is tracked.
+- **T1 laundered injection**: LLM-generated working artifacts (gap analysis,
+  the analysis workbook) are built FROM fenced scraped inputs but enter later
+  prompts unfenced; an injection that survives into the model's own output
+  re-enters downstream prompts as trusted text. Accepted because re-fencing
+  model output would fence the pipeline's own analysis, and the upstream
+  fences plus sanitization make survival unlikely; the red-team eval covers
+  this path.
 - **T2** has complete pre-request SSRF validation and per-hop redirect
   validation on the shared safe HTTP seam, async citation HEAD requests,
   preflight website HEAD checks, provider-hosted skill-pack image fetches,
@@ -170,10 +177,16 @@ See [SECURITY_OPS.md](SECURITY_OPS.md) for operational security guidance.
 - January 2026: Initial security review (XXE, SSRF fixes)
 - February 2026: JWT verification, CORS hardening, input sanitization
 - May 2026: AI/agent security posture - indirect prompt-injection fencing
-  (`fence_untrusted`) at all external-content boundaries, sink-level secret
-  redaction (`SecretMaskingFilter`) + chat-log redaction, egress-guardrail
-  invariant tests across all fetch helpers, supply-chain gates (pip-audit,
-  bandit, Dependabot, SLSA provenance), and this scoped threat model.
+  (`fence_untrusted`) at the insights-extraction, deep-research, and composer
+  boundaries, sink-level secret redaction (`SecretMaskingFilter`) + chat-log
+  redaction, egress-guardrail invariant tests across all fetch helpers,
+  supply-chain gates (pip-audit, bandit, Dependabot, SLSA provenance), and
+  this scoped threat model.
+- July 2026: fencing extended to the remaining fast-run scraped-text→prompt
+  boundaries (workbook/section corpus blocks, hypothesis tree, gap-analysis
+  summaries, regeneration evidence, hiring triage/extraction, `insights.txt`
+  external block, strategy context artifacts); the T1 row now enumerates
+  fenced vs sanitize-only boundaries instead of claiming blanket coverage.
 
 ## Acknowledgments
 

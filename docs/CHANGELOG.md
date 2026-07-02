@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Fast-mode prompts now fence scraped text as data at these previously
+  unfenced boundaries: the analysis-workbook and section-writer
+  corpus/external-source blocks, hypothesis-tree inputs, gap-analysis
+  summaries, report and strategy regeneration evidence, hiring-signal triage
+  and extraction prompts (raw titles and job-description bodies were
+  interpolated unfenced), and the verbatim scraped-external block inside
+  `insights.txt` - which also covers the workbook-fallback and strategy
+  context paths that embed it. Strategy context additionally fences the
+  scraped-adjacent working artifacts (hiring signals, recon context).
+  Fencing happens once per run after slicing, so the byte-identical cached
+  prompt prefix is preserved. `docs/SECURITY.md` T1 now enumerates fenced vs
+  sanitize-only boundaries instead of claiming blanket coverage, and
+  documents the laundered-injection residual explicitly.
+
 ### Fixed
 
 - `--dry-run` and the `--budget` pre-flight gate now price `--strategy-type`

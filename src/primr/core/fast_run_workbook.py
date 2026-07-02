@@ -61,13 +61,15 @@ def build_day1_hypothesis_tree(
         return "", None
 
     from primr.core.hypothesis_tree import generate_hypothesis_tree, save_hypothesis_tree
+    from primr.utils.content_sanitizer import fence_untrusted
 
     try:
+        # Sliced BEFORE fencing (a slice of a fenced string tears the markers).
         tree = generate_hypothesis_tree(
             company=company_label,
             core_question=framing.core_question,
-            homepage_text=raw_corpus[:8000],
-            hiring_summary=external_sources_raw[:8000],
+            homepage_text=fence_untrusted("WEBSITE_CORPUS", raw_corpus[:8000]),
+            hiring_summary=fence_untrusted("EXTERNAL_SOURCES", external_sources_raw[:8000]),
             llm=lambda prompt: call_with_failover(LLMRole.WRITING, prompt, temperature=0.4),
         )
         save_hypothesis_tree(tree, folder_path)
@@ -124,11 +126,15 @@ def generate_analysis_workbook(
             company_label, framing, raw_corpus, external_sources_raw, folder_path
         )
 
+    # T1 boundary: the raw corpus and external sources are scraped text and
+    # enter the workbook prompt only as fenced data (fenced after any slicing).
+    from primr.utils.content_sanitizer import fence_untrusted
+
     analysis_prompt = _build_fast_analysis_prompt(
         company_label,
         website,
-        raw_corpus,
-        external_sources_raw,
+        fence_untrusted("WEBSITE_CORPUS", raw_corpus),
+        fence_untrusted("EXTERNAL_SOURCES", external_sources_raw),
         framing_block=framing_block,
     )
     if tree_block:
