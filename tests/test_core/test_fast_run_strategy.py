@@ -224,3 +224,62 @@ class TestYamlStrategies:
         result = _call(seams, ai_strategy=False, platforms=None, strategy_types=["ai"])
         assert result.strategy_paths == {}
         seams["build_yaml_prompt"].assert_not_called()
+
+
+class TestCachedPrefixSharing:
+    """Roadmap #8: strategy calls in one run share a byte-identical cached prefix."""
+
+    def _sent_prompts(self, seams):
+        # call_with_failover(LLMRole.WRITING, prompt, ...) - prompt is arg 1.
+        return [c.args[1] for c in seams["failover"].call_args_list]
+
+    def test_ai_vendors_share_context_prefix(self, seams):
+        from primr.core.strategy_prompt_parts import (
+            AI_STRATEGY_ARTIFACTS,
+            build_strategy_context_prefix,
+            read_artifact_blocks,
+        )
+
+        (seams["tmp"] / "insights.txt").write_text("shared insight", encoding="utf-8")
+        seams["build_ai_prompt"].side_effect = lambda company, vendor, notes: f"{vendor} prompt"
+
+        _call(seams, platforms=["azure", "aws"])
+
+        prompts = self._sent_prompts(seams)
+        assert len(prompts) == 2
+        expected_prefix = build_strategy_context_prefix(
+            "## Report\nbody",
+            read_artifact_blocks(str(seams["tmp"]), AI_STRATEGY_ARTIFACTS),
+        )
+        assert all(p.startswith(expected_prefix) for p in prompts)
+        # The suffixes differ (vendor-specific prompts) - only the prefix is shared.
+        suffixes = {p[len(expected_prefix) :] for p in prompts}
+        assert suffixes == {"\n\n---\n\nazure prompt", "\n\n---\n\naws prompt"}
+
+    def test_yaml_strategies_share_context_prefix(self, seams):
+        from primr.core.strategy_prompt_parts import (
+            YAML_STRATEGY_ARTIFACTS,
+            build_strategy_context_prefix,
+            read_artifact_blocks,
+        )
+
+        (seams["tmp"] / "_recon_context.txt").write_text("recon block", encoding="utf-8")
+        seams["build_yaml_prompt"].side_effect = lambda config, company, notes: (
+            f"{config['meta']['name']} prompt"
+        )
+
+        _call(
+            seams,
+            ai_strategy=False,
+            platforms=None,
+            strategy_types=["customer_experience", "data_strategy"],
+        )
+
+        prompts = self._sent_prompts(seams)
+        assert len(prompts) == 2
+        expected_prefix = build_strategy_context_prefix(
+            "## Report\nbody",
+            read_artifact_blocks(str(seams["tmp"]), YAML_STRATEGY_ARTIFACTS),
+        )
+        assert all(p.startswith(expected_prefix) for p in prompts)
+        assert prompts[0] != prompts[1]

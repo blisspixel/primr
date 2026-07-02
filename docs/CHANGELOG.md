@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Strategy generation prompts are now split into a run-shared cached prefix
+  (company report + working-folder artifacts, built once per stage loop) and a
+  per-strategy volatile suffix (vendor research docs + strategy prompt),
+  extending roadmap #8's prompt-cache preparation from section writing to the
+  strategy stage. The assembled prompts are byte-identical to before, so
+  providers' implicit prefix caching keys on the shared context across
+  multi-vendor and multi-strategy runs; artifacts are also read once per run
+  instead of once per strategy.
+
 - Windows working-directory hardening (roadmap #14): all temp-write + rename
   state-persistence paths now go through the single `atomic_replace` seam that
   retries transient sync-client/antivirus file locks - run-state checkpoints,

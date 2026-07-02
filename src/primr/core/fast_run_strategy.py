@@ -22,6 +22,13 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from primr.core.strategy_prompt_parts import (
+    AI_STRATEGY_ARTIFACTS,
+    YAML_STRATEGY_ARTIFACTS,
+    build_strategy_context_prefix,
+    build_strategy_prompt_parts,
+    read_artifact_blocks,
+)
 from primr.pipeline.llm_failover import LLMRole, call_with_failover
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
@@ -99,6 +106,12 @@ def run_strategy_phase(
     # research docs differ. Running them in parallel roughly halves
     # wall-clock time on multi-platform runs.
     if ai_strategy and platforms:
+        # Built once so the cached prefix is byte-identical across vendors
+        # (roadmap #8: providers' implicit prefix caching keys on it) and the
+        # parallel vendor closures don't re-read the same artifacts.
+        ai_context_prefix = build_strategy_context_prefix(
+            report_content, read_artifact_blocks(folder_path, AI_STRATEGY_ARTIFACTS)
+        )
 
         def _run_ai_strategy_for_vendor(vendor: str):
             """Run the full per-platform AI strategy pipeline.
@@ -112,43 +125,24 @@ def run_strategy_phase(
                 company_label, vendor, discovery_notes_content
             )
 
-            context_parts = [f"--- Company Report ---\n{report_content[:50_000]}"]
-
-            # Enrich with working-folder artifacts (insights, gap analysis, workbook)
-            for artifact_name, artifact_limit in [
-                ("insights.txt", 20_000),
-                ("gap_analysis.md", 15_000),
-                ("analysis_workbook.md", 20_000),
-            ]:
-                artifact_path = os.path.join(folder_path, artifact_name)
-                if os.path.exists(artifact_path):
-                    try:
-                        with open(artifact_path, encoding="utf-8") as fh:
-                            artifact_content = fh.read()[:artifact_limit]
-                            if artifact_content.strip():
-                                context_parts.append(f"--- {artifact_name} ---\n{artifact_content}")
-                    except Exception as e:
-                        logger.warning("Failed to read artifact %s: %s", artifact_name, e)
-
             vendor_doc_paths = (
                 _get_or_generate_vendor_research(vendor) if vendor.lower() != "agnostic" else []
             )
+            vendor_blocks: list[str] = []
             for vdp in vendor_doc_paths:
                 if vdp and os.path.exists(vdp):
                     try:
                         with open(vdp, encoding="utf-8") as fh:
-                            context_parts.append(
+                            vendor_blocks.append(
                                 f"--- {os.path.basename(vdp)} ---\n{fh.read()[:30_000]}"
                             )
                     except Exception as e:
                         logger.warning("Failed to read vendor doc %s: %s", vdp, e)
 
-            combined_strategy_prompt = (
-                "Use the following context documents to inform your analysis:\n\n"
-                + "\n\n".join(context_parts)
-                + "\n\n---\n\n"
-                + strategy_prompt
+            cached_prefix, volatile_suffix = build_strategy_prompt_parts(
+                ai_context_prefix, strategy_prompt, vendor_blocks
             )
+            combined_strategy_prompt = cached_prefix + volatile_suffix
 
             vendor_label = f" ({vendor.upper()})" if len(platforms) > 1 else ""
             try:
@@ -305,6 +299,14 @@ def run_strategy_phase(
     if strategy_types:
         import yaml as _yaml
 
+        # Built once, lazily on the first strategy that actually runs:
+        # byte-identical cached prefix across all YAML strategies (roadmap #8),
+        # artifacts read once instead of once per strategy type, and no file IO
+        # when every type is skipped. Recon + hiring signals are included -
+        # they particularly strengthen the `skills` strategy (and generally
+        # the CX, security, and data-fabric strategies as well).
+        yaml_context_prefix: str | None = None
+
         for stype in strategy_types:
             if stype == "ai":
                 continue  # already handled above
@@ -347,36 +349,14 @@ def run_strategy_phase(
                 strategy_config, company_label, discovery_notes_content
             )
 
-            # Build context with report + working-folder artifacts.
-            # Recon + hiring signals are particularly important for the
-            # `skills` strategy (and generally strengthen CX, security,
-            # and data-fabric strategies as well).
-            yaml_context_parts = [f"--- Company Report ---\n{report_content[:50_000]}"]
-            for artifact_name, artifact_limit in [
-                ("insights.txt", 20_000),
-                ("gap_analysis.md", 15_000),
-                ("analysis_workbook.md", 20_000),
-                ("_recon_context.txt", 10_000),
-                ("_hiring/hiring_signals.md", 15_000),
-            ]:
-                artifact_path = os.path.join(folder_path, artifact_name)
-                if os.path.exists(artifact_path):
-                    try:
-                        with open(artifact_path, encoding="utf-8") as fh:
-                            artifact_content = fh.read()[:artifact_limit]
-                            if artifact_content.strip():
-                                yaml_context_parts.append(
-                                    f"--- {artifact_name} ---\n{artifact_content}"
-                                )
-                    except Exception as e:
-                        logger.warning("Failed to read artifact %s: %s", artifact_name, e)
-
-            combined_prompt = (
-                "Use the following context documents to inform your analysis:\n\n"
-                + "\n\n".join(yaml_context_parts)
-                + "\n\n---\n\n"
-                + strategy_prompt
+            if yaml_context_prefix is None:
+                yaml_context_prefix = build_strategy_context_prefix(
+                    report_content, read_artifact_blocks(folder_path, YAML_STRATEGY_ARTIFACTS)
+                )
+            cached_prefix, volatile_suffix = build_strategy_prompt_parts(
+                yaml_context_prefix, strategy_prompt
             )
+            combined_prompt = cached_prefix + volatile_suffix
 
             try:
                 from primr.pipeline.integration import strategy_with_recovery
