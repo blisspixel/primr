@@ -7,6 +7,7 @@ shared pending-research-jobs JSON file.
 from __future__ import annotations
 
 import json
+import os
 from unittest.mock import patch
 
 import pytest
@@ -79,19 +80,38 @@ class TestSavePendingJob:
 
     def test_save_raises_when_disk_write_fails(self, job_path):
         save_pending_job("iid-1", "vendor_research", "X")
-        # Force the second write to fail at os.replace/rename.
+        # Force the second write to fail at the atomic-replace seam.
         with (
             patch(
-                "primr.ai.job_persistence.os.replace",
-                side_effect=OSError("disk full"),
-            ),
-            patch(
-                "primr.ai.job_persistence.os.rename",
+                "primr.ai.job_persistence.atomic_replace",
                 side_effect=OSError("disk full"),
             ),
             pytest.raises(OSError),
         ):
             save_pending_job("iid-2", "vendor_research", "Y")
+
+    def test_save_survives_transient_lock(self, job_path):
+        # A sync-client lock that clears within atomic_replace's retry budget
+        # must not surface: the save succeeds and no temp file is left behind.
+        real_replace = os.replace
+        calls = {"n": 0}
+
+        def flaky_replace(src, dst):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise PermissionError("locked by sync client")
+            real_replace(src, dst)
+
+        with (
+            patch("primr.utils.atomic_io.os.replace", side_effect=flaky_replace),
+            patch("primr.utils.atomic_io.time.sleep"),
+        ):
+            save_pending_job("iid-1", "vendor_research", "X")
+
+        loaded = json.loads(job_path.read_text(encoding="utf-8"))
+        assert "iid-1" in loaded
+        assert calls["n"] == 3
+        assert not job_path.with_name(job_path.name + ".tmp").exists()
 
 
 class TestRemovePendingJob:

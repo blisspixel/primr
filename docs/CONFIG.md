@@ -241,6 +241,20 @@ Controls file paths.
 | `logs_dir` | Path | `{root}/logs` | Log files directory |
 | `cache_dir` | Path | `{root}/logs/scrape_cache` | Scrape cache directory |
 
+#### Synced folders (OneDrive, Dropbox, Google Drive)
+
+Keep high-churn paths - `working/`, `logs/`, and the scrape cache - outside
+cloud-synced folders when possible. Sync clients briefly lock files while
+uploading them, which collides with the frequent checkpoint writes a run makes
+(`_run_state.json` alone is rewritten on every phase transition). Primr
+retries these atomic writes when a lock blocks them (the run-state checkpoint
+additionally falls back to a direct overwrite), so a synced folder will not
+corrupt state, but runs are slower and noisier there. Run from a plain local
+directory (for example `C:\research\` rather than `C:\Users\you\OneDrive\...`),
+and let only the final deliverables in `output/` live in a synced location if
+you want them backed up. `primr doctor` probes the same atomic write path a
+real run uses, so it will surface this contention before a long run does.
+
 ### PricingConfig
 
 Controls cost estimation. Prices are per 1 million tokens.

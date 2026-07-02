@@ -744,9 +744,9 @@ to 7 days (weekly). All three gaps closed:
 
 Reduce false negatives and transient failures on Windows machines where the repo lives inside OneDrive or similar synced folders. Bumped up from the bottom of the queue because it actively bites this very dev environment (transient `PermissionError` on atomic renames, CRLF warnings on every git operation, OneDrive-driven race conditions on `_run_state.json`).
 
-- Make checkpoint/state writes tolerant of transient `PermissionError` during atomic rename
-- Update `primr doctor` to probe the same atomic write path used during real runs
-- Add explicit docs for keeping high-churn `working/` paths outside synced folders when possible
+- Make checkpoint/state writes tolerant of transient `PermissionError` during atomic rename. **DONE:** every temp-write + rename persistence path now goes through the single `utils.atomic_io.atomic_replace` seam (retry with backoff on `PermissionError`, then re-raise): `_run_state.json` saves (`run_state_io`, which additionally keeps its direct-overwrite last-resort fallback), pending Deep Research jobs (`ai/job_persistence`, whose redundant exists/rename branch also collapsed into the seam), the update-check cache (`utils/version_check`), host-marker state (`data/scraping/host_markers`), plus the already-wired chat logger, agentic memory, company profiles, MCP job store, and usage tracker. The former inline retry loop in `run_state_io` was a second copy of the seam's logic and is gone. Wiring pinned by transient-lock tests in `test_run_state_io.py` and `test_job_persistence.py`.
+- Update `primr doctor` to probe the same atomic write path used during real runs. **DONE:** doctor's filesystem probe (`_atomic_write_probe`) now performs temp write + `atomic_replace` - the identical seam state saves use - against `output/` and `working/`, so sync-client lock contention surfaces in doctor before it bites a live run.
+- Add explicit docs for keeping high-churn `working/` paths outside synced folders when possible. **DONE:** `docs/CONFIG.md` PathConfig section now has a "Synced folders" subsection explaining the lock-contention mechanism, the safe-by-design retry/fallback behavior, and the recommended layout (high-churn dirs local, only `output/` synced).
 - Longer term: support a configurable working directory separate from the repo root
 
 ### 15. Skill Pack: Deeper Anthropic Best-Practices

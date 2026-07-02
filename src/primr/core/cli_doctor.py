@@ -29,6 +29,7 @@ from primr.ai.provider_availability_collectors import (
 )
 from primr.config.config import LOGS_DIR, OUTPUT_DIR, WORKING_DIR
 from primr.config.models import PrimrModels
+from primr.utils.atomic_io import atomic_replace
 from primr.utils.console import console
 
 logger = logging.getLogger(__name__)
@@ -273,6 +274,9 @@ def _check_filesystem(all_passed: bool, warnings_count: int) -> tuple[bool, int]
     """Check filesystem access."""
 
     def _atomic_write_probe(directory: str) -> None:
+        # Probe the same temp-write + atomic_replace path real runs use for
+        # state files, so doctor surfaces the sync-client/antivirus lock
+        # contention (OneDrive et al.) that would bite a live pipeline.
         os.makedirs(directory, exist_ok=True)
         target = os.path.join(directory, ".primr_test")
         tmp = f"{target}.tmp"
@@ -280,7 +284,7 @@ def _check_filesystem(all_passed: bool, warnings_count: int) -> tuple[bool, int]
             f.write("test")
             f.flush()
             os.fsync(f.fileno())
-        os.replace(tmp, target)
+        atomic_replace(tmp, target)
         os.remove(target)
 
     try:

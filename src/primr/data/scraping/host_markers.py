@@ -12,6 +12,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from primr.data.scraping.models import PageAccessAssessment, PageAccessState
+from primr.utils.atomic_io import atomic_replace
 from primr.utils.user_cache import get_user_data_subdir
 
 logger = logging.getLogger(__name__)
@@ -148,7 +149,7 @@ def _save_state(state: dict[str, dict[str, object]]) -> None:
     try:
         tmp = path.with_suffix(f"{path.suffix}.tmp")
         tmp.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
-        tmp.replace(path)
+        atomic_replace(tmp, path)
     except OSError as e:
         logger.debug("failed to write host marker state: %s", e)
 

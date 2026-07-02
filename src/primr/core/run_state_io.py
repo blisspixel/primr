@@ -8,8 +8,9 @@ resilience signals (model health / recovery events / background aborts).
 
 All helpers are crash-tolerant: corrupt or missing files return an empty
 state rather than raising, and `_save_run_state` retries an atomic
-replace before falling back to a direct overwrite so Windows file-lock
-contention does not abort a long-running pipeline.
+replace (via `primr.utils.atomic_io.atomic_replace`) before falling back
+to a direct overwrite so Windows file-lock contention does not abort a
+long-running pipeline.
 """
 
 from __future__ import annotations
@@ -17,9 +18,10 @@ from __future__ import annotations
 import json
 import logging
 import os
-import time
 from datetime import datetime
 from typing import Any
+
+from primr.utils.atomic_io import atomic_replace
 
 logger = logging.getLogger(__name__)
 
@@ -57,22 +59,16 @@ def _save_run_state(folder_path: str, state: dict[str, Any]) -> None:
         f.flush()
         os.fsync(f.fileno())
 
-    last_error: PermissionError | None = None
-    for attempt in range(5):
-        try:
-            os.replace(tmp, path)
-            return
-        except PermissionError as exc:
-            last_error = exc
-            if attempt == 4:
-                break
-            time.sleep(0.05 * (attempt + 1))
+    try:
+        atomic_replace(tmp, path)
+        return
+    except PermissionError as exc:
+        logger.warning(
+            "Atomic run state save failed for %s; falling back to direct overwrite: %s",
+            path,
+            exc,
+        )
 
-    logger.warning(
-        "Atomic run state save failed for %s; falling back to direct overwrite: %s",
-        path,
-        last_error,
-    )
     try:
         with open(path, "w", encoding="utf-8") as f:
             f.write(payload)

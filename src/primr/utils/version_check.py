@@ -26,6 +26,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from primr.utils.atomic_io import atomic_replace
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("utils.version_check")
@@ -104,7 +105,7 @@ def _write_cache(latest: str) -> None:
         tmp = path.with_suffix(".tmp")
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(payload, fh)
-        tmp.replace(path)
+        atomic_replace(tmp, path)
     except Exception as exc:  # pragma: no cover - defensive
         logger.debug("update-check cache write failed: %s", exc)
 

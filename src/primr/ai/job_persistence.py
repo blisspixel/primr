@@ -5,8 +5,9 @@ Extracted from `primr.ai.deep_research` for isolated unit testing.
 These helpers manage the `pending_research_jobs.json` file under
 `LOGS_DIR`, using a module-level file lock to prevent concurrent-write
 corruption when the same process kicks off multiple research runs.
-Atomic writes go via temp file + replace to keep the file consistent
-even if the process dies mid-write.
+Atomic writes go via temp file + `atomic_replace` (which retries
+transient Windows file locks) to keep the file consistent even if the
+process dies mid-write.
 """
 
 from __future__ import annotations
@@ -18,6 +19,8 @@ import os
 import threading
 from datetime import datetime
 from typing import Any
+
+from primr.utils.atomic_io import atomic_replace
 
 logger = logging.getLogger(__name__)
 
@@ -71,10 +74,7 @@ def save_pending_job(
         try:
             with open(temp_file, "w", encoding="utf-8") as f:
                 json.dump(jobs, f, indent=2)
-            if os.path.exists(jobs_file):
-                os.replace(temp_file, jobs_file)
-            else:
-                os.rename(temp_file, jobs_file)
+            atomic_replace(temp_file, jobs_file)
         except OSError as e:
             logger.error(f"Failed to save jobs file: {e}")
             if os.path.exists(temp_file):
@@ -111,7 +111,7 @@ def remove_pending_job(interaction_id: str) -> None:
                 temp_file = jobs_file + ".tmp"
                 with open(temp_file, "w", encoding="utf-8") as f:
                     json.dump(jobs, f, indent=2)
-                os.replace(temp_file, jobs_file)
+                atomic_replace(temp_file, jobs_file)
                 logger.info(f"Removed completed job: {interaction_id}")
         except (OSError, json.JSONDecodeError) as e:
             logger.warning(f"Failed to remove job {interaction_id}: {e}")

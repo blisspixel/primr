@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Windows working-directory hardening (roadmap #14): all temp-write + rename
+  state-persistence paths now go through the single `atomic_replace` seam that
+  retries transient sync-client/antivirus file locks - run-state checkpoints,
+  pending Deep Research jobs, the update-check cache, and host-marker state
+  previously carried their own rename logic.
+  `primr doctor` now probes that same atomic write path against `output/` and
+  `working/`, so OneDrive-style lock contention surfaces in doctor before it
+  bites a live run. `docs/CONFIG.md` documents keeping high-churn `working/`
+  and `logs/` paths outside synced folders.
+
 ## [1.34.42] - 2026-07-01
 
 ### Changed

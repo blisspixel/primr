@@ -7,6 +7,7 @@ state, plus the resilience-array helpers added for pipeline recovery.
 from __future__ import annotations
 
 import json
+import os
 from unittest.mock import patch
 
 import pytest
@@ -77,7 +78,7 @@ class TestSaveRunState:
         path.write_text('{"old": true}', encoding="utf-8")
 
         with patch(
-            "primr.core.run_state_io.os.replace",
+            "primr.core.run_state_io.atomic_replace",
             side_effect=PermissionError("locked"),
         ):
             _save_run_state(str(tmp_path), {"new": True})
@@ -87,13 +88,35 @@ class TestSaveRunState:
 
     def test_fallback_cleans_up_temp_file(self, tmp_path):
         with patch(
-            "primr.core.run_state_io.os.replace",
+            "primr.core.run_state_io.atomic_replace",
             side_effect=PermissionError("locked"),
         ):
             _save_run_state(str(tmp_path), {"x": 1})
         # No leftover *.tmp files
         leftovers = list(tmp_path.glob("*.tmp"))
         assert leftovers == []
+
+    def test_survives_transient_lock_via_atomic_io_seam(self, tmp_path):
+        # The retry itself lives in utils.atomic_io; this pins the wiring so a
+        # lock that clears within the retry budget never triggers the fallback.
+        real_replace = os.replace
+        calls = {"n": 0}
+
+        def flaky_replace(src, dst):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise PermissionError("locked by sync client")
+            real_replace(src, dst)
+
+        with (
+            patch("primr.utils.atomic_io.os.replace", side_effect=flaky_replace),
+            patch("primr.utils.atomic_io.time.sleep"),
+        ):
+            _save_run_state(str(tmp_path), {"phase": "scrape"})
+
+        assert json.loads((tmp_path / "_run_state.json").read_text()) == {"phase": "scrape"}
+        assert calls["n"] == 3
+        assert list(tmp_path.glob("*.tmp")) == []
 
 
 class TestUpdateRunState:
