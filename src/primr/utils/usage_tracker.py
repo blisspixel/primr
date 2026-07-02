@@ -68,6 +68,7 @@ class UsageRecord:
         pipeline_cost: float | None = None,
         deep_research_cost: float = 0.0,
         cached_input_tokens: int = 0,
+        search_cost_per_query: float | None = None,
     ) -> "UsageRecord":
         """Create a usage record with costs.
 
@@ -80,10 +81,16 @@ class UsageRecord:
             cached_input_tokens: Subset of input_tokens served from the
                 provider prompt cache. Cache hit rate is load-bearing on the
                 sub-$1 default recipe, so it is persisted per run.
+            search_cost_per_query: Billing rate for the run's search provider
+                (0.0 for free DDG). None falls back to the legacy Gemini
+                grounding rate for callers that predate provider-aware
+                pricing.
         """
         from primr.config.models import SEARCH_COST_PER_QUERY
 
-        search_cost = search_queries * SEARCH_COST_PER_QUERY
+        if search_cost_per_query is None:
+            search_cost_per_query = SEARCH_COST_PER_QUERY
+        search_cost = search_queries * search_cost_per_query
         cached_input_tokens = max(0, min(cached_input_tokens, input_tokens))
 
         if pipeline_cost is not None:
@@ -170,6 +177,11 @@ class UsageTracker:
         self.storage_path = storage_path or USAGE_FILE
         self.session = SessionUsage()
         self.history: list[dict] = []
+        # Count of session records already flushed into history by save().
+        # The tracker is a process-lifetime singleton, so without this a
+        # multi-run process (MCP server, batch eval) re-appends every prior
+        # run's records on each save - quadratic duplication in the history.
+        self._flushed_session_records = 0
         self._load_history()
 
     def _load_history(self):
@@ -194,6 +206,7 @@ class UsageTracker:
         pipeline_cost: float | None = None,
         deep_research_cost: float = 0.0,
         cached_input_tokens: int = 0,
+        search_cost_per_query: float | None = None,
     ) -> None:
         """
         Record API usage for the current session.
@@ -208,6 +221,8 @@ class UsageTracker:
             pipeline_cost: Pre-calculated accurate cost from AI client
             deep_research_cost: Flat per-task Deep Research cost
             cached_input_tokens: Subset of input_tokens served from prompt cache
+            search_cost_per_query: Billing rate for the run's search provider
+                (0.0 for free DDG; None = legacy Gemini grounding rate)
         """
         record = UsageRecord.create(
             mode=mode,
@@ -219,6 +234,7 @@ class UsageTracker:
             pipeline_cost=pipeline_cost,
             deep_research_cost=deep_research_cost,
             cached_input_tokens=cached_input_tokens,
+            search_cost_per_query=search_cost_per_query,
         )
 
         self.session.add(record)
@@ -240,9 +256,12 @@ class UsageTracker:
         import tempfile
 
         try:
-            # Add session records to history
-            for record in self.session.records:
-                self.history.append(asdict(record))
+            # Only session records not yet flushed by an earlier save join the
+            # history; the in-memory state is committed only after the file
+            # swap succeeds, so a failed write can be retried without
+            # duplicating records.
+            unflushed = self.session.records[self._flushed_session_records :]
+            new_history = self.history + [asdict(record) for record in unflushed]
 
             # Ensure directory exists
             self.storage_path.parent.mkdir(parents=True, exist_ok=True)
@@ -256,7 +275,7 @@ class UsageTracker:
             )
             try:
                 with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    json.dump(self.history, f, indent=2)
+                    json.dump(new_history, f, indent=2)
                 atomic_replace(tmp_name, self.storage_path)
             except Exception:
                 # Clean up the partial temp file if the swap never happened.
@@ -264,7 +283,12 @@ class UsageTracker:
                     os.unlink(tmp_name)
                 raise
 
-            logger.info(f"Saved {len(self.session.records)} usage records")
+            self.history = new_history
+            # Increment by what was actually written, not len(session.records):
+            # a record added by another thread between the slice above and this
+            # commit must stay unflushed for the next save.
+            self._flushed_session_records += len(unflushed)
+            logger.info(f"Saved {len(unflushed)} usage records")
         except PermissionError as e:
             logger.error(
                 "Could not save usage history (permission denied — file may be locked "
@@ -416,14 +440,15 @@ class UsageTracker:
             ]
         )
 
-        # Show search cost projection (after Jan 5, 2026)
+        # Recorded search cost, summed from what each run actually persisted.
+        # Records price searches by the run's provider (DDG free, Google CSE
+        # paid), so a flat projection over query counts would resurrect the
+        # phantom cost the provider-aware pricing removed.
         if total_searches > 0:
-            from primr.config.models import SEARCH_COST_PER_QUERY
-
-            projected_search_cost = total_searches * SEARCH_COST_PER_QUERY
+            recorded_search_cost = sum(r.get("search_cost", 0) for r in self.history)
             lines.extend(
                 [
-                    f"  Search Cost (after Jan 5): +${projected_search_cost:.2f}",
+                    f"  Search Cost:    ${recorded_search_cost:.2f} ({total_searches} queries)",
                     "",
                 ]
             )

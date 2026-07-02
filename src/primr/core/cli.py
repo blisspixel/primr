@@ -1817,7 +1817,7 @@ def _handle_orchestrate(config: CLIConfig) -> int:
     import asyncio
     from pathlib import Path
 
-    from primr.agentic.hooks import CostGuardHook, HookSystem, SSRFGuardHook
+    from primr.agentic import CostGuardHook, HookSystem, SSRFGuardHook
     from primr.agentic.memory import ResearchMemory
     from primr.agentic.orchestrator import OrchestratorConfig, ResearchOrchestrator
 

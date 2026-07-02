@@ -166,6 +166,54 @@ class TestUsageTracker:
             assert len(tracker2.history) == 1
             assert tracker2.history[0]["company"] == "TestCo"
 
+    def test_repeated_save_does_not_duplicate_records(self):
+        """save() flushes each session record into history exactly once.
+
+        The tracker is a process-lifetime singleton, so a multi-run process
+        (MCP server, batch eval) calls save() after every run; each save must
+        append only the records added since the previous save.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage_path = Path(tmpdir) / "usage.json"
+            tracker = UsageTracker(storage_path=storage_path)
+
+            tracker.record_usage(
+                mode="fast", company="AcmeCo", input_tokens=1_000, output_tokens=500
+            )
+            tracker.save()
+            tracker.save()  # e.g. a second run in the same process saving again
+            assert len(tracker.history) == 1
+            assert len(UsageTracker(storage_path=storage_path).history) == 1
+
+            tracker.record_usage(
+                mode="fast", company="ExampleCo", input_tokens=2_000, output_tokens=800
+            )
+            tracker.save()
+            reloaded = UsageTracker(storage_path=storage_path)
+            assert len(reloaded.history) == 2
+            assert [r["company"] for r in reloaded.history] == ["AcmeCo", "ExampleCo"]
+
+    def test_failed_save_can_retry_without_duplication(self):
+        """A save that fails at the file swap leaves state retryable."""
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage_path = Path(tmpdir) / "usage.json"
+            tracker = UsageTracker(storage_path=storage_path)
+            tracker.record_usage(
+                mode="fast", company="AcmeCo", input_tokens=1_000, output_tokens=500
+            )
+
+            with patch(
+                "primr.utils.usage_tracker.atomic_replace",
+                side_effect=PermissionError("locked"),
+            ):
+                tracker.save()  # swallowed and logged; nothing committed
+
+            assert tracker.history == []
+            tracker.save()  # retry succeeds and flushes exactly once
+            assert len(UsageTracker(storage_path=storage_path).history) == 1
+
     def test_get_session_summary(self):
         """Get session summary string."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -276,6 +324,34 @@ class TestPipelineCostPassthrough:
         )
         # $0.25 + 10 * $0.035 = $0.60
         assert abs(record.total_cost - 0.60) < 0.001
+
+    def test_free_search_provider_records_zero_search_cost(self):
+        """DDG searches are free; the record keeps the count but not the cost."""
+        record = UsageRecord.create(
+            mode="fast",
+            company="TestCo",
+            input_tokens=100_000,
+            output_tokens=50_000,
+            search_queries=30,
+            pipeline_cost=0.25,
+            search_cost_per_query=0.0,
+        )
+        assert record.search_queries == 30
+        assert record.search_cost == 0.0
+        assert abs(record.total_cost - 0.25) < 0.001
+
+    def test_search_rate_defaults_to_legacy_when_unspecified(self):
+        """Callers that predate provider-aware pricing keep the old behavior."""
+        record = UsageRecord.create(
+            mode="fast",
+            company="TestCo",
+            input_tokens=0,
+            output_tokens=0,
+            search_queries=10,
+            pipeline_cost=0.0,
+            search_cost_per_query=None,
+        )
+        assert abs(record.search_cost - 0.35) < 0.001
 
     def test_create_with_deep_research_cost(self):
         """deep_research_cost included in total."""

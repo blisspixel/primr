@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Multi-vendor AI-strategy runs now re-check an active `--budget` ceiling at
+  each vendor dispatch instead of only at stage entry, so spend that accrues
+  while other vendors run can no longer push the run past the ceiling by a
+  full strategy per remaining vendor.
+- Session token counters are now mutated under a lock; the parallel section
+  writers and strategy vendor threads could previously lose a call's tokens
+  to a read-modify-write race, silently understating the spend that budget
+  checkpoints read.
+- `show-usage` history no longer duplicates records when one process saves
+  after multiple runs (MCP server, batch evals): each session record is
+  flushed into `usage_history.json` exactly once, and a failed save can be
+  retried without duplication.
+- Fast-mode usage records no longer price free DDG searches at the paid
+  grounding rate (a typical run persisted about $1 of phantom search cost,
+  more than doubling the recorded spend of a sub-$0.80 run). Search cost is
+  now priced by the active provider; query counts are still recorded, and
+  `show-usage` sums the recorded per-run search cost instead of projecting
+  all historical queries at the paid rate.
+- `RunBudget.sync_spend` is now a single atomic write. The per-vendor budget
+  checkpoints run from parallel strategy threads, and the previous
+  reset-then-record pair could interleave to double the recorded spend and
+  falsely skip strategies that had headroom.
+
 ### Changed
 
 - Strategy generation prompts are now split into a run-shared cached prefix

@@ -21,9 +21,9 @@ import types
 from pathlib import Path
 from types import SimpleNamespace
 
+from primr.agentic.cost_guard import CostGuardHook
 from primr.agentic.hooks import (
     ContentSanitizationHook,
-    CostGuardHook,
     Hook,
     HookContext,
     HookResponse,

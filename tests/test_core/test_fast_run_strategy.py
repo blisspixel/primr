@@ -149,6 +149,34 @@ class TestYAMLBudgetCheckpoint:
         assert seams["failover"].call_count == 2
 
 
+class TestVendorBudgetCheckpoint:
+    """Each AI-strategy vendor re-checks --budget at dispatch (bug-hunt
+    finding: the stage-entry gate alone let multi-vendor runs overrun)."""
+
+    def test_vendors_skipped_when_budget_reached_after_stage_entry(self, seams, monkeypatch):
+        budget = MagicMock()
+        budget.max_cost = 1.50
+        # Stage entry sees headroom; by vendor dispatch the ceiling is hit.
+        checks = iter([False])
+        budget.exceeded.side_effect = lambda: next(checks, True)
+        monkeypatch.setattr("primr.utils.run_budget.get_run_budget", lambda: budget)
+
+        result = _call(seams, platforms=["azure", "aws"])
+
+        assert result.strategy_paths == {}
+        seams["failover"].assert_not_called()
+
+    def test_vendors_proceed_with_headroom(self, seams, monkeypatch):
+        budget = MagicMock()
+        budget.exceeded.return_value = False
+        monkeypatch.setattr("primr.utils.run_budget.get_run_budget", lambda: budget)
+
+        result = _call(seams, platforms=["azure", "aws"])
+
+        assert set(result.strategy_paths) == {"ai_azure", "ai_aws"}
+        assert seams["failover"].call_count == 2
+
+
 class TestAIStrategySingleVendor:
     def test_full_pipeline_saves_with_ai_key(self, seams):
         result = _call(seams)

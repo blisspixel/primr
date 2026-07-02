@@ -1,6 +1,6 @@
 """Per-run cost ceiling for the research pipeline (``--budget`` flag).
 
-Activates the existing :class:`~primr.agentic.hooks.CostGuardHook` accounting
+Activates the existing :class:`~primr.agentic.cost_guard.CostGuardHook` accounting
 for standard (non-orchestrated) runs. The CLI sets a budget before
 ``perform_research`` starts. Supported execution paths sync actual session
 spend into it at optional-stage checkpoints and skip those stages once the
@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import threading
 
-from primr.agentic.hooks import CostGuardHook
+from primr.agentic.cost_guard import CostGuardHook
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("utils.run_budget")
@@ -47,9 +47,13 @@ class RunBudget:
         return self._hook.remaining
 
     def sync_spend(self, total_spent_usd: float) -> None:
-        """Set the absolute spend observed so far (idempotent per checkpoint)."""
-        self._hook.reset()
-        self._hook.record_cost(max(0.0, total_spent_usd))
+        """Set the absolute spend observed so far (idempotent per checkpoint).
+
+        Atomic single write: checkpoints run concurrently from strategy vendor
+        threads, and a reset-then-record pair could interleave to double the
+        recorded spend and falsely skip stages that had headroom.
+        """
+        self._hook.set_spent(total_spent_usd)
 
     def exceeded(self) -> bool:
         """True when spend has reached or passed the ceiling."""

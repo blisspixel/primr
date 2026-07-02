@@ -21,9 +21,9 @@ import pytest
 from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
+from primr.agentic.cost_guard import CostGuardHook
 from primr.agentic.hooks import (
     ContentSanitizationHook,
-    CostGuardHook,
     Hook,
     HookContext,
     HookResponse,

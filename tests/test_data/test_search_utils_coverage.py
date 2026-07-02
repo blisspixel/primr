@@ -315,3 +315,29 @@ class TestLookupCompanyWebsite:
         with patch("ddgs.DDGS") as MockDDGS:
             MockDDGS.return_value.text.side_effect = RuntimeError("boom")
             assert search_utils.lookup_company_website("Acme") is None
+
+
+class TestActiveSearchCostPerQuery:
+    """Provider-aware search pricing (bug-hunt finding: free DDG searches were
+    recorded at the paid grounding rate, inflating usage history)."""
+
+    def test_ddg_is_free(self, monkeypatch):
+        from primr.data import search_utils
+
+        monkeypatch.setattr(search_utils, "SEARCH_PROVIDER", "auto")
+        assert search_utils.active_search_cost_per_query() == 0.0
+
+    def test_google_bills_at_configured_rate(self, monkeypatch):
+        from primr.config.models import SEARCH_COST_PER_QUERY
+        from primr.data import search_utils
+
+        monkeypatch.setattr(search_utils, "SEARCH_PROVIDER", "google")
+        monkeypatch.setattr(search_utils, "_google_api_available", True)
+        assert search_utils.active_search_cost_per_query() == SEARCH_COST_PER_QUERY
+
+    def test_google_without_keys_falls_back_to_free_ddg(self, monkeypatch):
+        from primr.data import search_utils
+
+        monkeypatch.setattr(search_utils, "SEARCH_PROVIDER", "google")
+        monkeypatch.setattr(search_utils, "_google_api_available", False)
+        assert search_utils.active_search_cost_per_query() == 0.0

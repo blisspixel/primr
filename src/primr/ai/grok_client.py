@@ -23,6 +23,7 @@ Usage::
 
 import random
 import re
+import threading
 from typing import Any
 
 from primr.ai.providers import XAIProvider
@@ -33,6 +34,10 @@ logger = get_logger("grok_client")
 # ---------------------------------------------------------------------------
 # Session-level token tracking (per-model for accurate cost reporting)
 # ---------------------------------------------------------------------------
+# The counters are mutated concurrently by the parallel section writers and
+# strategy vendor threads; the lock keeps each read-modify-write whole so a
+# lost update cannot silently drop a call's tokens from budget checkpoints.
+_session_lock = threading.Lock()
 _session_input_tokens: int = 0
 _session_output_tokens: int = 0
 _session_cached_input_tokens: int = 0
@@ -46,11 +51,12 @@ def get_grok_session_usage() -> dict[str, int]:
     provider's prompt cache. This is load-bearing on the sub-$1 default (Grok 4.3
     cached input at $0.20/M), so it is threaded through to usage records.
     """
-    return {
-        "input_tokens": _session_input_tokens,
-        "output_tokens": _session_output_tokens,
-        "cached_input_tokens": _session_cached_input_tokens,
-    }
+    with _session_lock:
+        return {
+            "input_tokens": _session_input_tokens,
+            "output_tokens": _session_output_tokens,
+            "cached_input_tokens": _session_cached_input_tokens,
+        }
 
 
 def get_grok_session_usage_by_model() -> dict[str, dict[str, int]]:
@@ -60,17 +66,19 @@ def get_grok_session_usage_by_model() -> dict[str, dict[str, int]]:
         {"model-name": {"input_tokens": N, "output_tokens": N,
         "cached_input_tokens": N}, ...}
     """
-    return dict(_session_tokens_by_model)
+    with _session_lock:
+        return {model: dict(bucket) for model, bucket in _session_tokens_by_model.items()}
 
 
 def reset_grok_session() -> None:
     """Reset session token counters (useful for testing)."""
     global _session_input_tokens, _session_output_tokens
     global _session_cached_input_tokens, _session_tokens_by_model
-    _session_input_tokens = 0
-    _session_output_tokens = 0
-    _session_cached_input_tokens = 0
-    _session_tokens_by_model = {}
+    with _session_lock:
+        _session_input_tokens = 0
+        _session_output_tokens = 0
+        _session_cached_input_tokens = 0
+        _session_tokens_by_model = {}
 
 
 def _mirror_session_usage(
@@ -86,16 +94,17 @@ def _mirror_session_usage(
     grok_browse_and_summarize) so cost reporting stays uniform.
     """
     global _session_input_tokens, _session_output_tokens, _session_cached_input_tokens
-    _session_input_tokens += input_tokens
-    _session_output_tokens += output_tokens
-    _session_cached_input_tokens += cached_input_tokens
-    bucket = _session_tokens_by_model.setdefault(
-        model, {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens": 0}
-    )
-    bucket["input_tokens"] += input_tokens
-    bucket["output_tokens"] += output_tokens
-    # Older buckets predate the cached counter; setdefault keeps them safe.
-    bucket["cached_input_tokens"] = bucket.get("cached_input_tokens", 0) + cached_input_tokens
+    with _session_lock:
+        _session_input_tokens += input_tokens
+        _session_output_tokens += output_tokens
+        _session_cached_input_tokens += cached_input_tokens
+        bucket = _session_tokens_by_model.setdefault(
+            model, {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens": 0}
+        )
+        bucket["input_tokens"] += input_tokens
+        bucket["output_tokens"] += output_tokens
+        # Older buckets predate the cached counter; setdefault keeps them safe.
+        bucket["cached_input_tokens"] = bucket.get("cached_input_tokens", 0) + cached_input_tokens
 
 
 # ---------------------------------------------------------------------------

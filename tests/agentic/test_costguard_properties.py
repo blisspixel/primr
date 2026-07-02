@@ -16,7 +16,8 @@ import asyncio
 from hypothesis import given
 from hypothesis import strategies as st
 
-from primr.agentic.hooks import CostGuardHook, HookContext, HookResult, HookType
+from primr.agentic.cost_guard import CostGuardHook
+from primr.agentic.hooks import HookContext, HookResult, HookType
 
 _costs = st.lists(
     st.floats(min_value=0.0, max_value=100.0, allow_nan=False, allow_infinity=False),

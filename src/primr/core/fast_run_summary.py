@@ -162,6 +162,7 @@ def finalize_fast_run(
     console.summary(summary_items)
 
     # Save usage to history
+    from primr.data.search_utils import active_search_cost_per_query
     from primr.utils.usage_tracker import get_usage_tracker
 
     tracker = get_usage_tracker()
@@ -174,6 +175,10 @@ def finalize_fast_run(
         duration_seconds=elapsed,
         pipeline_cost=actual_cost,
         cached_input_tokens=grok_usage.get("cached_input_tokens", 0),
+        # Fast mode defaults to free DDG search; only a paid provider (Google
+        # CSE) bills per query. Without this, ~30 free searches persist ~$1 of
+        # phantom cost into the history that feeds future estimates.
+        search_cost_per_query=active_search_cost_per_query(),
     )
     tracker.save()
 

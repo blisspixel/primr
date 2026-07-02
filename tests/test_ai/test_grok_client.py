@@ -258,3 +258,46 @@ def test_mirror_session_usage_tolerates_legacy_bucket_shape():
     assert bucket["output_tokens"] == 7
     assert bucket["cached_input_tokens"] == 6
     grok_client.reset_grok_session()
+
+
+def test_mirror_session_usage_is_thread_safe():
+    """Concurrent mirrors from parallel section/strategy threads lose no tokens.
+
+    Budget checkpoints read these counters; a lost read-modify-write would
+    silently understate spend (bug-hunt finding). On GIL builds of CPython
+    3.12+ straight-line increments cannot be preempted mid-operation, so this
+    pins the exact-total semantics rather than provoking the race; the lock
+    exists for free-threaded builds and for consistent multi-field snapshots
+    in the getters.
+    """
+    import sys
+    import threading
+
+    grok_client.reset_grok_session()
+    workers, per_worker = 8, 500
+    barrier = threading.Barrier(workers)
+
+    def hammer():
+        barrier.wait()
+        for _ in range(per_worker):
+            grok_client._mirror_session_usage("grok-4.3", 1, 2, cached_input_tokens=1)
+
+    old_interval = sys.getswitchinterval()
+    sys.setswitchinterval(1e-5)
+    try:
+        threads = [threading.Thread(target=hammer) for _ in range(workers)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+    finally:
+        sys.setswitchinterval(old_interval)
+
+    usage = grok_client.get_grok_session_usage()
+    expected = workers * per_worker
+    assert usage["input_tokens"] == expected
+    assert usage["output_tokens"] == 2 * expected
+    assert usage["cached_input_tokens"] == expected
+    bucket = grok_client.get_grok_session_usage_by_model()["grok-4.3"]
+    assert bucket["input_tokens"] == expected
+    grok_client.reset_grok_session()

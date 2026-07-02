@@ -250,7 +250,7 @@ MODE_ESTIMATES = {
         "pro_input_tokens": 0,
         "pro_output_tokens": 0,
         # Split Grok tokens into reasoning (gap analysis, workbook, cross-val) and writing (sections, coherence, polish)
-        # Calibrated from actual Litehouse Foods run: 84K/4K reasoning, 1.7M/81K writing
+        # Calibrated from a real production run: 84K/4K reasoning, 1.7M/81K writing
         "grok_reasoning_input_tokens": 100_000,  # gap analysis + analysis workbook + cross-val (~84K actual + margin)
         "grok_reasoning_output_tokens": 5_000,  # gap + workbook + cross-val output (~4K actual + margin)
         "grok_writing_input_tokens": 1_750_000,  # 21 x ~60k per section + coherence + polish (~1.7M actual + margin)

@@ -399,6 +399,18 @@ def search_web(query, company_name, website, num_results=NUM_SEARCH_RESULTS):
 search_google = search_web
 
 
+def active_search_cost_per_query() -> float:
+    """Per-query billing rate for the active search provider.
+
+    DDG (the default) is free; only Google Custom Search bills per query.
+    Usage records price searches with this rate so free-provider runs do
+    not persist phantom search cost into the history that feeds estimates.
+    """
+    from primr.config.models import SEARCH_COST_PER_QUERY
+
+    return SEARCH_COST_PER_QUERY if _get_active_provider() == "google" else 0.0
+
+
 def lookup_company_website(company_name: str, context: dict | None = None) -> str | None:
     """
     Search DDG for a company, then use an LLM to pick the correct homepage URL.

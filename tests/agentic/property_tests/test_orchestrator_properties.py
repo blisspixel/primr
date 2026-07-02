@@ -524,7 +524,8 @@ def test_orchestrator_with_memory():
 
 def test_orchestrator_with_hooks():
     """Orchestrator integrates with HookSystem."""
-    from primr.agentic.hooks import CostGuardHook, HookSystem
+    from primr.agentic.cost_guard import CostGuardHook
+    from primr.agentic.hooks import HookSystem
 
     with tempfile.TemporaryDirectory() as tmpdir:
         hooks = HookSystem()

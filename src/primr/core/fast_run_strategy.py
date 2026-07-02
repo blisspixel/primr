@@ -116,11 +116,20 @@ def run_strategy_phase(
         def _run_ai_strategy_for_vendor(vendor: str):
             """Run the full per-platform AI strategy pipeline.
 
-            Returns (strategy_path, trust_stats_tuple, path_key) on
-            success, or None on failure. All console output is
-            prefixed with the vendor label so concurrent runs remain
+            Records results by mutating the closure's strategy_paths /
+            strategy_trust_stats; returns None early on budget stop or
+            failure so other vendors run independently. All console output
+            is prefixed with the vendor label so concurrent runs remain
             distinguishable in the CLI.
             """
+            # --budget checkpoint: each vendor strategy is a full WRITING call
+            # plus enrichment (real spend), and the stage-entry gate cannot see
+            # spend that accrues while other vendors run. Re-check per vendor,
+            # mirroring the per-document check in the YAML loop; strategies
+            # already produced still ship.
+            if skip_stage_if_over_budget(_compute_session_llm_cost(), f"AI strategy ({vendor})"):
+                return None
+
             strategy_prompt = _build_ai_strategy_prompt(
                 company_label, vendor, discovery_notes_content
             )

@@ -29,6 +29,7 @@ from primr.agentic.company_profiles import (
     CompanyProfileStore,
     CompanyRunPointer,
 )
+from primr.agentic.cost_guard import CostGuardHook
 from primr.agentic.errors import (
     AgenticError,
     HookError,
@@ -39,7 +40,6 @@ from primr.agentic.errors import (
 )
 from primr.agentic.hooks import (
     ContentSanitizationHook,
-    CostGuardHook,
     Hook,
     HookContext,
     HookResponse,

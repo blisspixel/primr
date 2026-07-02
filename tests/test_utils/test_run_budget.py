@@ -83,3 +83,57 @@ class TestActiveBudgetRegistry:
         with pytest.raises(ValueError):
             set_run_budget(0.0)
         assert get_run_budget() is None
+
+
+class TestSyncSpendConcurrency:
+    """sync_spend is an absolute set and must stay atomic: the per-vendor
+    strategy checkpoints call it from parallel worker threads, and a
+    reset-then-record pair could interleave to double the recorded spend
+    and falsely skip stages that had headroom (bug-hunt finding)."""
+
+    def test_concurrent_syncs_never_double_count(self):
+        import sys
+        import threading
+
+        from primr.utils.run_budget import RunBudget
+
+        budget = RunBudget(10.0)
+        workers = 16
+        barrier = threading.Barrier(workers + 1)  # +1 for the watcher
+        stop = threading.Event()
+        max_observed = 0.0
+
+        def hammer():
+            barrier.wait()
+            for _ in range(200):
+                budget.sync_spend(0.5)
+
+        def watch():
+            # The old reset-then-record pair exposed transient inflated values
+            # (a checkpoint in another thread could see 1.0+ and falsely skip).
+            # A final-state assertion alone cannot see that; the watcher can.
+            nonlocal max_observed
+            barrier.wait()
+            while not stop.is_set():
+                max_observed = max(max_observed, budget.spent)
+
+        old_interval = sys.getswitchinterval()
+        sys.setswitchinterval(1e-5)
+        try:
+            threads = [threading.Thread(target=hammer) for _ in range(workers)]
+            watcher = threading.Thread(target=watch)
+            watcher.start()
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            stop.set()
+            watcher.join()
+        finally:
+            sys.setswitchinterval(old_interval)
+
+        # Absolute semantics: every sync reported the same observed spend, so
+        # neither the final value nor any mid-run observation may exceed it.
+        assert budget.spent == 0.5
+        assert max_observed <= 0.5
+        assert not budget.exceeded()
