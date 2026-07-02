@@ -63,6 +63,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reset-then-record pair could interleave to double the recorded spend and
   falsely skip strategies that had headroom.
 
+### Added
+
+- `primr show-usage` now includes a "Cost Variability" section per observed
+  mode: prior-history average cost with lifetime standard deviation, recent-5
+  average with percent delta, and prior-vs-recent cache hit rates, with a
+  report-only SIGNAL line when recent runs cost >25% more or cache >10 points
+  less than prior history - the continuous-reasoning / prompt-cache
+  regression surface the sub-$1 default depends on. Fast runs also persist
+  `cache_hit_rate` into `_run_state.json` for post-hoc analysis.
+
 ### Changed
 
 - Strategy generation prompts are now split into a run-shared cached prefix

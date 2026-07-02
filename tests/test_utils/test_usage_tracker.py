@@ -7,6 +7,8 @@ Verifies usage tracking and cost calculation.
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from primr.utils.usage_tracker import (
     SessionUsage,
     UsageRecord,
@@ -778,3 +780,113 @@ class TestCachedInputTokens:
 
             assert "OldCo" in output
             assert "Cached Input" not in output
+
+
+class TestCostVariability:
+    """Report-only cost-variability and regression signal (roadmap #5).
+
+    The baseline is PRIOR history only - including the recent window in the
+    baseline drags the mean toward the regression being measured."""
+
+    @staticmethod
+    def _record(
+        cost: float, input_tokens: int = 100_000, cached: int = 50_000, ts: str = ""
+    ) -> dict:
+        return {
+            "mode": "fast",
+            "company": "AcmeCo",
+            "total_cost": cost,
+            "input_tokens": input_tokens,
+            "cached_input_tokens": cached,
+            "timestamp": ts,
+        }
+
+    def _tracker_with(self, records: list[dict]) -> UsageTracker:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracker = UsageTracker(storage_path=Path(tmpdir) / "usage.json")
+        # Stamp increasing timestamps so list order matches chronology.
+        for i, r in enumerate(records):
+            r.setdefault("timestamp", "")
+            if not r["timestamp"]:
+                r["timestamp"] = f"2026-07-01T00:{i:02d}:00"
+        tracker.history = records
+        return tracker
+
+    def test_needs_history_beyond_the_recent_window(self):
+        tracker = self._tracker_with([self._record(0.8) for _ in range(5)])
+        assert tracker.get_cost_variability("fast", recent_n=5) is None
+
+    def test_rejects_non_positive_window(self):
+        tracker = self._tracker_with([self._record(0.8) for _ in range(8)])
+        with pytest.raises(ValueError):
+            tracker.get_cost_variability("fast", recent_n=0)
+
+    def test_stable_costs_produce_no_signal(self):
+        tracker = self._tracker_with([self._record(0.80) for _ in range(10)])
+        stats = tracker.get_cost_variability("fast", recent_n=5)
+        assert stats is not None
+        assert stats["regression_signal"] is False
+        assert stats["cost_stddev"] == pytest.approx(0.0)
+        assert stats["cost_delta_pct"] == pytest.approx(0.0)
+
+    def test_recent_cost_jump_raises_signal(self):
+        history = [self._record(0.80) for _ in range(10)] + [self._record(1.60) for _ in range(5)]
+        tracker = self._tracker_with(history)
+        stats = tracker.get_cost_variability("fast", recent_n=5)
+        assert stats is not None
+        assert stats["regression_signal"] is True
+        assert stats["baseline_avg_cost"] == pytest.approx(0.80)
+        assert stats["recent_avg_cost"] == pytest.approx(1.60)
+        assert stats["cost_delta_pct"] == pytest.approx(100.0)
+
+    def test_signal_fires_at_minimum_sample_size(self):
+        """One prior run + the recent window: the prior-history baseline
+        keeps the threshold honest (a lifetime baseline could never cross
+        25% here no matter how large the regression)."""
+        history = [self._record(0.80)] + [self._record(8.00) for _ in range(5)]
+        tracker = self._tracker_with(history)
+        stats = tracker.get_cost_variability("fast", recent_n=5)
+        assert stats is not None
+        assert stats["regression_signal"] is True
+        assert stats["cost_delta_pct"] == pytest.approx(900.0)
+
+    def test_cache_rate_drop_raises_signal_even_at_stable_cost(self):
+        history = [self._record(0.80, cached=50_000) for _ in range(10)] + [
+            self._record(0.80, cached=0) for _ in range(5)
+        ]
+        tracker = self._tracker_with(history)
+        stats = tracker.get_cost_variability("fast", recent_n=5)
+        assert stats is not None
+        assert stats["regression_signal"] is True
+        assert stats["recent_cache_hit_rate"] == pytest.approx(0.0)
+
+    def test_out_of_order_history_is_sorted_by_timestamp(self):
+        """Multi-writer histories are not guaranteed chronological on disk."""
+        cheap = [self._record(0.80, ts=f"2026-07-01T00:{i:02d}:00") for i in range(10)]
+        expensive = [self._record(1.60, ts=f"2026-07-02T00:{i:02d}:00") for i in range(5)]
+        tracker = self._tracker_with(expensive + cheap)  # newest first on disk
+        stats = tracker.get_cost_variability("fast", recent_n=5)
+        assert stats is not None
+        assert stats["recent_avg_cost"] == pytest.approx(1.60)
+        assert stats["regression_signal"] is True
+
+    def test_display_surfaces_variability_and_signal(self):
+        history = [self._record(0.80) for _ in range(10)] + [self._record(1.60) for _ in range(5)]
+        tracker = self._tracker_with(history)
+        output = tracker.display_usage_history()
+        assert "Cost Variability" in output
+        assert "SIGNAL:" in output
+
+    def test_stable_display_has_no_signal_line(self):
+        tracker = self._tracker_with([self._record(0.80) for _ in range(10)])
+        output = tracker.display_usage_history()
+        assert "Cost Variability" in output
+        assert "SIGNAL:" not in output
+
+    def test_legacy_records_without_cache_fields_are_safe(self):
+        history = [{"mode": "fast", "total_cost": 0.5} for _ in range(8)]
+        tracker = self._tracker_with(history)
+        stats = tracker.get_cost_variability("fast", recent_n=5)
+        assert stats is not None
+        assert stats["baseline_cache_hit_rate"] == 0.0
+        assert stats["regression_signal"] is False

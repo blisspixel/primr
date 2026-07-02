@@ -360,6 +360,70 @@ class UsageTracker:
             "avg_duration_seconds": avg_duration,
         }
 
+    def get_cost_variability(self, mode: str, recent_n: int = 5) -> dict | None:
+        """Cost-variability and efficiency-regression signals for one mode.
+
+        Report-only analytics (roadmap #5): compares the most recent
+        ``recent_n`` runs against the PRIOR history so a continuous-reasoning
+        or cache-efficiency regression surfaces in ``show-usage`` instead of
+        silently eroding the sub-$1 default. Never a gate. Returns None when
+        fewer than ``recent_n + 1`` runs exist (the comparison needs history
+        that predates the recent window).
+        """
+        if recent_n <= 0:
+            raise ValueError(f"recent_n must be positive, got {recent_n}")
+        # Sort by timestamp: multi-writer histories (CLI + MCP) are not
+        # guaranteed chronological on disk, and "recent" must mean recent.
+        mode_records = sorted(
+            (r for r in self.history if r.get("mode") == mode),
+            key=lambda r: r.get("timestamp", ""),
+        )
+        if len(mode_records) <= recent_n:
+            return None
+
+        def _cache_hit_rate(records: list[dict]) -> float:
+            total_in = sum(r.get("input_tokens", 0) for r in records)
+            cached = sum(r.get("cached_input_tokens", 0) for r in records)
+            return cached / total_in if total_in > 0 else 0.0
+
+        # Baseline = PRIOR history only. Including the recent window in the
+        # baseline drags the mean toward the regression being measured: with
+        # one prior run, even a 10x cost jump could not cross a 25% threshold.
+        prior = mode_records[:-recent_n]
+        recent = mode_records[-recent_n:]
+        prior_costs = [r.get("total_cost", 0) for r in prior]
+        baseline_avg = sum(prior_costs) / len(prior_costs)
+        recent_costs = [r.get("total_cost", 0) for r in recent]
+        recent_avg = sum(recent_costs) / len(recent_costs)
+
+        all_costs = prior_costs + recent_costs
+        lifetime_avg = sum(all_costs) / len(all_costs)
+        variance = sum((c - lifetime_avg) ** 2 for c in all_costs) / len(all_costs)
+        cost_stddev = variance**0.5
+
+        cost_delta_pct = (
+            (recent_avg - baseline_avg) / baseline_avg * 100 if baseline_avg > 0 else 0.0
+        )
+        baseline_cache = _cache_hit_rate(prior)
+        recent_cache = _cache_hit_rate(recent)
+
+        # Signal thresholds are deliberately coarse: this flags "look at it",
+        # never blocks anything. Cost up >25% or cache rate down >10 points.
+        regression = cost_delta_pct > 25.0 or (baseline_cache - recent_cache) > 0.10
+
+        return {
+            "mode": mode,
+            "sample_size": len(mode_records),
+            "recent_n": recent_n,
+            "baseline_avg_cost": baseline_avg,
+            "recent_avg_cost": recent_avg,
+            "cost_stddev": cost_stddev,
+            "cost_delta_pct": cost_delta_pct,
+            "baseline_cache_hit_rate": baseline_cache,
+            "recent_cache_hit_rate": recent_cache,
+            "regression_signal": regression,
+        }
+
     def get_updated_estimates(self) -> dict[str, dict]:
         """
         Get updated cost estimates based on historical usage.
@@ -479,6 +543,41 @@ class UsageTracker:
                         "",
                     ]
                 )
+
+        # Cost variability + regression signal per observed mode (report-only;
+        # a rising fast-mode cost or falling cache hit rate silently erodes
+        # the sub-$1 default unless it is surfaced here).
+        variability_lines: list[str] = []
+        for mode in observed_modes:
+            stats = self.get_cost_variability(mode)
+            if not stats:
+                continue
+            variability_lines.extend(
+                [
+                    f"  {mode}:",
+                    (
+                        f"    Cost: prior avg ${stats['baseline_avg_cost']:.2f} "
+                        f"(stddev ${stats['cost_stddev']:.2f}), "
+                        f"recent-{stats['recent_n']} avg ${stats['recent_avg_cost']:.2f} "
+                        f"({stats['cost_delta_pct']:+.0f}%)"
+                    ),
+                    (
+                        f"    Cache hit rate: prior "
+                        f"{stats['baseline_cache_hit_rate']:.0%}, "
+                        f"recent-{stats['recent_n']} {stats['recent_cache_hit_rate']:.0%}"
+                    ),
+                ]
+            )
+            if stats["regression_signal"]:
+                variability_lines.append(
+                    "    SIGNAL: recent runs cost more or cache less than history - "
+                    "check provider pricing, prompt-cache recipe, and continuous reasoning"
+                )
+            variability_lines.append("")
+        if variability_lines:
+            lines.append("-" * 40)
+            lines.append("Cost Variability (recent vs lifetime):")
+            lines.extend(variability_lines)
 
         # Per-company history (top 10 by total spend)
         company_totals: dict[str, dict] = {}

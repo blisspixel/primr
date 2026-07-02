@@ -106,6 +106,15 @@ def finalize_fast_run(
     )
     console.ok(f"{completion_label} in {time_str}")
 
+    # Cache hit rate rides along for post-hoc analysis (roadmap #5): the
+    # sub-$1 default depends on it, and the show-usage regression signal
+    # needs the per-run value preserved outside usage_history too.
+    _cache_hit_rate = (
+        min(grok_usage.get("cached_input_tokens", 0), grok_usage["input_tokens"])
+        / grok_usage["input_tokens"]
+        if grok_usage.get("input_tokens")
+        else 0.0
+    )
     _update_run_state(
         folder_path,
         report_sections=written_sections_count,
@@ -114,6 +123,7 @@ def finalize_fast_run(
         strategy_artifacts=len(strategy_paths),
         artifact_gate_passed=artifacts_passed,
         actual_cost_usd=round(actual_cost, 4),
+        cache_hit_rate=round(_cache_hit_rate, 4),
     )
 
     if report_trust_stats:
