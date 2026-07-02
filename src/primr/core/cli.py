@@ -2579,10 +2579,10 @@ def _handle_research(config: CLIConfig) -> int:
             return 1
         context_files = [str(p) for p in validation_result.valid_files]
 
-    # Build strategy types list from --strategy-type (non-AI strategies for Grok/DR)
-    strategy_types = None
-    if config.strategy_type and config.strategy_type != "ai":
-        strategy_types = [config.strategy_type]
+    # Same helper the --budget gate and dry-run price with (estimate = run).
+    from primr.core.cli_budget import estimate_strategy_types
+
+    strategy_types = estimate_strategy_types(config) or None
 
     os.environ["PRIMR_BROWSER_SESSION_MODE"] = config.browser_session_mode
     os.environ["PRIMR_INFERENCE_PROFILE"] = config.inference_profile

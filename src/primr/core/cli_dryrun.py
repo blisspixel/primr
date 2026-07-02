@@ -78,7 +78,7 @@ def run_dry_run(config: CLIConfig) -> int:
     else:
         mode_label = config.mode
 
-    from primr.core.cli_budget import estimate_vendor_count
+    from primr.core.cli_budget import estimate_strategy_types, estimate_vendor_count
 
     estimate = estimate_cost(
         config.mode,
@@ -88,6 +88,7 @@ def run_dry_run(config: CLIConfig) -> int:
         fast_mode=use_fast_mode,
         premium_mode=use_premium_mode,
         grok_tier=config.grok_tier,
+        strategy_types=estimate_strategy_types(config),
     )
 
     # Machine-readable path: emit the estimate as JSON and stop.

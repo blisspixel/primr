@@ -218,6 +218,66 @@ class TestEstimateCost:
         assert any("Historical cache hits included" in note for note in estimate.notes)
 
 
+class TestStrategyTypeEstimates:
+    """--strategy-type documents must be priced (bug-hunt finding: the
+    pre-flight --budget gate and dry-run previously omitted them entirely,
+    understating spend by a full strategy per document). Pricing mirrors the
+    runtime: non-fast paths REPLACE the AI strategy with the explicit types
+    and only generate Deep-Research-backed types; fast mode runs both."""
+
+    def test_deep_research_strategy_replaces_ai_strategy_on_non_fast(self):
+        base = estimate_cost("complete", use_historical=False, include_ai_strategy=False)
+        with_strategy = estimate_cost(
+            "complete",
+            use_historical=False,
+            include_ai_strategy=True,  # runtime ignores this when strategies are explicit
+            strategy_types=["customer_experience"],
+        )
+        assert (
+            with_strategy.deep_research_cost
+            == base.deep_research_cost + DEEP_RESEARCH_COST.standard_task_cost
+        )
+        assert any("customer_experience" in n for n in with_strategy.notes)
+
+    def test_placeholder_strategy_priced_at_zero_with_note(self):
+        """Non-DR types warn-skip at runtime on non-fast paths; pricing them
+        would tell the user they pay for a document they will not get."""
+        base = estimate_cost("complete", use_historical=False, include_ai_strategy=False)
+        with_strategy = estimate_cost(
+            "complete", use_historical=False, include_ai_strategy=False, strategy_types=["skills"]
+        )
+        assert with_strategy.total_cost == base.total_cost
+        assert any("skip" in n and "skills" in n for n in with_strategy.notes)
+
+    def test_fast_mode_strategy_adds_writing_bundle(self, monkeypatch):
+        # Pin provider keys so routing (and therefore pricing) is deterministic.
+        for key in ("GEMINI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
+            monkeypatch.delenv(key, raising=False)
+        monkeypatch.setenv("XAI_API_KEY", "fake-key-for-estimate-shape")
+
+        base = estimate_cost("complete", fast_mode=True, use_historical=False)
+        with_strategy = estimate_cost(
+            "complete",
+            fast_mode=True,
+            use_historical=False,
+            strategy_types=["customer_experience"],
+        )
+        # Fast mode has no Deep Research; every strategy doc is a writing
+        # bundle, generated IN ADDITION to the AI strategy.
+        assert with_strategy.deep_research_cost == base.deep_research_cost
+        assert with_strategy.estimated_input_tokens > base.estimated_input_tokens
+        assert with_strategy.total_cost > base.total_cost
+        assert any("customer_experience" in n for n in with_strategy.notes)
+
+    def test_ai_type_is_not_double_priced(self):
+        """ "ai" is covered by include_ai_strategy; the list must ignore it."""
+        base = estimate_cost("complete", use_historical=False, include_ai_strategy=True)
+        with_ai_listed = estimate_cost(
+            "complete", use_historical=False, include_ai_strategy=True, strategy_types=["ai"]
+        )
+        assert with_ai_listed.total_cost == base.total_cost
+
+
 class TestGetCostSummary:
     """Tests for get_cost_summary function."""
 

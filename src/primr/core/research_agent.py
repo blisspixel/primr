@@ -3941,7 +3941,6 @@ def perform_deep_research(
 
             actual_cost = pipeline_cost + dr_cost
 
-            # Get pre-run estimate for comparison
             from primr.utils.cost_estimator import estimate_cost
 
             pre_estimate = estimate_cost(
@@ -3950,6 +3949,7 @@ def perform_deep_research(
                 use_historical=False,
                 num_vendors=len(platforms),
                 lite_strategy=lite_strategy,
+                strategy_types=strategies,  # replace-vs-add mirrored in estimator
             )
 
             # Use sections_written for accurate count

@@ -20,6 +20,7 @@ groundingMetadata.webSearchQueries. Typical reports use 10-30 searches,
 not the 100+ that "thinking steps" might suggest.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
 from math import ceil
@@ -278,6 +279,58 @@ AI_STRATEGY_OVERHEAD = {
     "duration_max": 15,
 }
 
+# One strategy document in fast mode = one Grok WRITING bundle (shared
+# context prefix + strategy prompt + enrichment + cross-validation + polish).
+# Shared by the AI-vendor and YAML-strategy estimate branches so the two
+# cannot drift apart.
+FAST_STRATEGY_BUNDLE = {
+    "writing_input_tokens": 200_000,
+    "writing_output_tokens": 50_000,
+    "duration_min": 3,
+    "duration_max": 6,
+}
+
+
+def _yaml_strategy_overhead(
+    yaml_strategy_types: Sequence[str], lite_strategy: bool
+) -> tuple[int, int, int, list[str], list[str]]:
+    """Price YAML strategy documents for the non-fast estimate paths.
+
+    Returns (dr_tasks, duration_min, duration_max, priced, unavailable)
+    deltas. On the non-fast runtime only Deep-Research-backed types are
+    implemented (each is a single flat-cost DR task); every other type is a
+    placeholder the run warn-skips at $0, so pricing it would tell the user
+    they are paying for a document they will not get.
+    """
+    # Lazy: utils stays import-light; deep_budget owns which strategies use DR.
+    from primr.core.deep_budget import strategy_uses_deep_research
+
+    dr_tasks, dmin, dmax = 0, 0, 0
+    priced: list[str] = []
+    unavailable: list[str] = []
+    for stype in yaml_strategy_types:
+        if strategy_uses_deep_research(stype, lite_strategy=lite_strategy):
+            dr_tasks += 1
+            dmin += AI_STRATEGY_OVERHEAD["duration_min"]
+            dmax += AI_STRATEGY_OVERHEAD["duration_max"]
+            priced.append(stype)
+        else:
+            unavailable.append(stype)
+    return dr_tasks, dmin, dmax, priced, unavailable
+
+
+def _strategy_type_notes(priced: Sequence[str], unavailable: Sequence[str]) -> list[str]:
+    """Estimate notes for YAML strategy documents (priced vs runtime-skipped)."""
+    notes: list[str] = []
+    if priced:
+        notes.append(f"Strategy documents included: {', '.join(priced)}")
+    if unavailable:
+        notes.append(
+            "Strategy type(s) not generated in this mode (the run will skip them): "
+            + ", ".join(unavailable)
+        )
+    return notes
+
 
 def estimate_cost(
     mode: str,
@@ -290,6 +343,7 @@ def estimate_cost(
     premium_mode: bool = False,
     verify: bool = False,
     grok_tier: str = "hybrid",
+    strategy_types: Sequence[str] | None = None,
 ) -> CostEstimate:
     """
     Estimate the cost of a research task.
@@ -307,16 +361,35 @@ def estimate_cost(
         lite_strategy: If True, strategy uses Pro model instead of Deep Research
         fast_mode: If True, use Grok fast mode estimates
         premium_mode: If True, force Gemini + Deep Research estimates
+        strategy_types: YAML strategy documents to generate (``--strategy-type``,
+            excluding "ai" which is covered by ``include_ai_strategy``). Each is
+            a full writing+enrichment bundle; on Deep Research paths some types
+            consume a flat-cost Deep Research task. Omitting them understates
+            the estimate the ``--budget`` pre-flight gate approves against.
 
     Returns:
         CostEstimate with breakdown
     """
+    yaml_strategy_types = [s for s in (strategy_types or []) if s and s != "ai"]
+
     # Fast mode: completely different cost model (Flash + Grok, no DR, no Pro)
     # premium_mode overrides fast_mode (explicit Gemini + DR request)
     if fast_mode and not premium_mode:
         return _estimate_fast_mode_cost(
-            include_ai_strategy, num_vendors, search_free, verify=verify, grok_tier=grok_tier
+            include_ai_strategy,
+            num_vendors,
+            search_free,
+            verify=verify,
+            grok_tier=grok_tier,
+            yaml_strategy_types=yaml_strategy_types,
         )
+
+    # The non-fast runtime treats explicit strategies as REPLACING the default
+    # AI strategy (`if strategies: ... elif ai_strategy: ["ai"]` in
+    # research_agent), while fast mode runs both. Mirror that precedence here
+    # or the gate double-prices the AI strategy on --strategy-type runs.
+    if yaml_strategy_types:
+        include_ai_strategy = False
 
     estimates = MODE_ESTIMATES.get(mode, MODE_ESTIMATES["scrape-only"])
 
@@ -396,6 +469,20 @@ def estimate_cost(
                 duration_min += AI_STRATEGY_OVERHEAD["duration_min"] * num_vendors
                 duration_max += AI_STRATEGY_OVERHEAD["duration_max"] * num_vendors
 
+    # Add YAML strategy documents (--strategy-type). Deep-Research-backed
+    # types consume a flat-cost DR task; the rest are placeholders this
+    # runtime warn-skips at $0, surfaced in the notes instead of priced.
+    (
+        dr_delta,
+        dmin_delta,
+        dmax_delta,
+        priced_strategy_types,
+        unavailable_strategy_types,
+    ) = _yaml_strategy_overhead(yaml_strategy_types, lite_strategy)
+    dr_tasks += dr_delta
+    duration_min += dmin_delta
+    duration_max += dmax_delta
+
     # Add verification overhead
     if verify:
         flash_in += VERIFICATION_OVERHEAD["flash_input_tokens"]
@@ -407,6 +494,8 @@ def estimate_cost(
     duration = f"{duration_min}-{duration_max} min"
     if include_ai_strategy:
         duration += " + AI strategy (Pro)" if lite_strategy else " + AI strategy"
+    if priced_strategy_types:
+        duration += f" + {len(priced_strategy_types)} strategy doc(s)"
     if verify:
         duration += " + verification"
 
@@ -463,6 +552,7 @@ def estimate_cost(
         notes.append("AI Strategy using Pro model (lite mode)")
     elif include_ai_strategy and ai_strategy_hist and ai_strategy_hist["sample_size"] >= 3:
         notes.append(f"AI Strategy based on {ai_strategy_hist['sample_size']} runs")
+    notes.extend(_strategy_type_notes(priced_strategy_types, unavailable_strategy_types))
 
     if verify:
         notes.append("Includes claim verification (~$0.01, DDG searches are free)")
@@ -515,6 +605,7 @@ def _estimate_fast_mode_cost(
     search_free: bool,
     verify: bool = False,
     grok_tier: str = "hybrid",
+    yaml_strategy_types: Sequence[str] = (),
 ) -> CostEstimate:
     """Estimate cost for fast mode (Grok pipeline)."""
     fast = MODE_ESTIMATES["fast"]
@@ -530,10 +621,20 @@ def _estimate_fast_mode_cost(
 
     # AI strategy adds Grok writing tokens per vendor (enriched context + CV + polish)
     if include_ai_strategy:
-        grok_writing_in += 200_000 * num_vendors
-        grok_writing_out += 50_000 * num_vendors
-        duration_min += 3 * num_vendors
-        duration_max += 6 * num_vendors
+        grok_writing_in += FAST_STRATEGY_BUNDLE["writing_input_tokens"] * num_vendors
+        grok_writing_out += FAST_STRATEGY_BUNDLE["writing_output_tokens"] * num_vendors
+        duration_min += FAST_STRATEGY_BUNDLE["duration_min"] * num_vendors
+        duration_max += FAST_STRATEGY_BUNDLE["duration_max"] * num_vendors
+
+    # YAML strategy documents (--strategy-type): fast mode has no Deep
+    # Research, so each is the same writing bundle as one AI-strategy vendor,
+    # and unlike the non-fast path they run IN ADDITION to the AI strategy.
+    if yaml_strategy_types:
+        n = len(yaml_strategy_types)
+        grok_writing_in += FAST_STRATEGY_BUNDLE["writing_input_tokens"] * n
+        grok_writing_out += FAST_STRATEGY_BUNDLE["writing_output_tokens"] * n
+        duration_min += FAST_STRATEGY_BUNDLE["duration_min"] * n
+        duration_max += FAST_STRATEGY_BUNDLE["duration_max"] * n
 
     # Verification overhead (Flash model for claim extraction + classification)
     if verify:
@@ -637,6 +738,8 @@ def _estimate_fast_mode_cost(
     duration = f"{duration_min}-{duration_max} min"
     if include_ai_strategy:
         duration += f" + AI strategy ({strategy_provider})"
+    if yaml_strategy_types:
+        duration += f" + {len(yaml_strategy_types)} strategy doc(s)"
 
     tier_labels = {
         "fast": "Grok 4.3 (low-effort)",
@@ -661,6 +764,8 @@ def _estimate_fast_mode_cost(
     notes = [f"Standard mode: {tier_desc}"]
     if include_ai_strategy:
         notes.append(f"AI Strategy via {strategy_provider} ({num_vendors} vendor(s))")
+    if yaml_strategy_types:
+        notes.append(f"Strategy documents included: {', '.join(yaml_strategy_types)}")
     if verify:
         notes.append("Claim verification via Flash (~$0.01, 3-5 min)")
     notes.append(

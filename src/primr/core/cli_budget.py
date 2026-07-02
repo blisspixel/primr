@@ -27,6 +27,17 @@ def estimate_vendor_count(config: CLIConfig) -> int:
     return max(len(config.cloud_vendors), 1)
 
 
+def estimate_strategy_types(config: CLIConfig) -> list[str]:
+    """Return the YAML strategy documents (``--strategy-type``) to price.
+
+    The "ai" type is covered by the ``include_ai_strategy`` estimate flag;
+    everything else is a full strategy document the run will generate, so
+    the pre-flight gate and dry-run must price it or they understate spend.
+    """
+    stype = getattr(config, "strategy_type", "ai")
+    return [stype] if stype and stype != "ai" else []
+
+
 def activate_run_budget(
     config: CLIConfig, *, fast_mode: bool, premium_mode: bool
 ) -> BudgetActivation:
@@ -48,6 +59,7 @@ def activate_run_budget(
         fast_mode=fast_mode,
         premium_mode=premium_mode,
         grok_tier=config.grok_tier,
+        strategy_types=estimate_strategy_types(config),
     )
     if estimate.total_cost > config.budget_usd:
         console.error(

@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `--dry-run` and the `--budget` pre-flight gate now price `--strategy-type`
+  documents, mirroring the runtime exactly: fast mode adds one writing bundle
+  per document on top of the AI strategy, non-fast modes replace the AI
+  strategy with the explicit type and add a flat Deep Research task for the
+  types that consume one, and placeholder types the run would skip are
+  called out in the estimate notes instead of being priced. A YAML strategy
+  previously appeared nowhere in the estimate, so a run could be approved
+  under a ceiling it would predictably exceed. The post-run
+  estimate-vs-actual summary uses the same pricing.
+
 - Multi-vendor AI-strategy runs now re-check an active `--budget` ceiling at
   each vendor dispatch instead of only at stage entry, so spend that accrues
   while other vendors run can no longer push the run past the ceiling by a
