@@ -254,9 +254,58 @@ WORKING_DIR = str(PROJECT_ROOT / "working")
 LOGS_DIR = str(PROJECT_ROOT / "logs" / "chat_history")
 FAST_FEEDBACK_RULES_PATH = str(PROJECT_ROOT / "output" / "evals" / "_fast_feedback_current.md")
 
+# Self-documenting folders (roadmap #12): a pip-installed primr run from an
+# arbitrary directory scatters output/ and working/ into the invocation
+# directory; a top-level README in each tells the user what is safe to
+# delete vs preserve. Written once, never overwritten.
+_OUTPUT_README = """\
+# primr output/
+
+Final deliverables written by primr runs: the Strategic Overview and any
+strategy documents (Markdown / TXT / DOCX / best-effort PDF), QA scorecards,
+and eval artifacts under `evals/`.
+
+Safe to move, archive, or delete once you have what you need - no resume
+state lives here (that is in `working/`). Two files worth keeping: MCP/A2A
+runs write a `run_manifest.json` audit record next to their deliverables,
+and `evals/_fast_feedback_current.md` feeds writer guidance into future
+runs.
+"""
+
+_WORKING_README = """\
+# primr working/
+
+Per-run intermediate artifacts: `working/<Company>/<run-id>/` holds the
+scraped corpus, insights, gap analysis, the analysis workbook, hiring
+signals, diagnostics, and `_run_state.json` (resume / recovery state).
+
+Safe to delete when you no longer need to resume or audit a run - finished
+deliverables live in `output/`, not here. Deleting a company's folder
+removes its resume state and diagnostics only.
+
+Tip: keep this high-churn folder outside cloud-synced locations (OneDrive,
+Dropbox); sync-client file locks slow runs down. See docs/CONFIG.md.
+"""
+
+
+def _ensure_dir_readme(directory: str, content: str) -> None:
+    """Write the folder's self-description once; user edits are preserved."""
+    readme = Path(directory) / "README.md"
+    if readme.exists():
+        return
+    try:
+        readme.write_text(content, encoding="utf-8")
+    except OSError:
+        # Import must never fail on a read-only or locked directory; the
+        # README is a courtesy, not load-bearing state.
+        pass
+
+
 # Ensure necessary directories exist (safe operation)
 for directory in [OUTPUT_DIR, WORKING_DIR, LOGS_DIR]:
     Path(directory).mkdir(parents=True, exist_ok=True)
+_ensure_dir_readme(OUTPUT_DIR, _OUTPUT_README)
+_ensure_dir_readme(WORKING_DIR, _WORKING_README)
 
 ### **Document Processing Settings** ###
 SUPPORTED_FILE_TYPES = [".pdf", ".docx", ".txt", ".xlsx"]

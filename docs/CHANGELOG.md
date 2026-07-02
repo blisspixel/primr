@@ -65,6 +65,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `output/` and `working/` now document themselves: primr writes a top-level
+  `README.md` into each when it creates them (once; user edits are never
+  overwritten) explaining what lives there and what is safe to delete -
+  `working/` holds resumable per-run intermediates including
+  `_run_state.json`, while `output/` holds finished deliverables plus the
+  MCP/A2A `run_manifest.json` audit records, with no resume state.
 - `primr show-usage` now includes a "Cost Variability" section per observed
   mode: prior-history average cost with lifetime standard deviation, recent-5
   average with percent delta, and prior-vs-recent cache hit rates, with a

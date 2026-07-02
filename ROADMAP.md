@@ -701,10 +701,15 @@ invoked the command. Running back-to-back in `companyname/`, then
 `company2name/`, then `company3name/` leaves a messy filesystem with
 duplicated state. Tighten the story:
 
-- Default `output/` and `working/` paths should resolve relative to the
-  invocation directory consistently, and the on-disk shape should
-  document itself with a top-level README per output folder so the user
-  knows what's safe to delete vs preserve.
+- **Self-documenting folders - DONE.** `output/` and `working/` now receive a
+  top-level `README.md` when primr creates them (written once, user edits
+  preserved, read-only directories tolerated): what lives there, what is safe
+  to delete vs preserve (`working/` = resumable intermediates including
+  `_run_state.json`; `output/` = finished deliverables with no run state),
+  and the synced-folder caution. Both paths already resolve from the same
+  `PROJECT_ROOT` (pyproject/.env anchor, else the invocation directory), so
+  a pip install run from an arbitrary folder gets both dirs side by side
+  with their explanations.
 - **Per-user cache directory - DONE.** `primr.utils.user_cache` resolves
   `PRIMR_CACHE_DIR` override → `%LOCALAPPDATA%\primr\` (Windows) →
   `$XDG_CACHE_HOME/primr` → `~/.cache/primr`, with a `migrate_legacy_file`
