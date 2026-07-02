@@ -102,6 +102,16 @@ class PipelineRunner:
             budget_active = True
 
         try:
+            # Defensive per-job accounting reset: the fast path resets in its
+            # own setup, but the non-fast/orchestrator paths do not - without
+            # this a long-lived server bleeds prior jobs' spend into this
+            # job's checkpoints and usage records. Inside the try so a broken
+            # reset marks THIS job failed instead of wedging the single-job
+            # store with a forever-running job.
+            from primr.ai.client import reset_run_usage_accounting
+
+            reset_run_usage_accounting()
+
             import os
 
             # Map MCP mode to orchestrator mode

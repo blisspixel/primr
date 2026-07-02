@@ -593,6 +593,22 @@ _client: AIClient | None = None
 _client_lock = threading.Lock()
 
 
+def reset_run_usage_accounting() -> None:
+    """Reset every per-run LLM usage counter (Gemini client + Grok session).
+
+    Call at run start. A long-lived process (MCP server, A2A, batch evals)
+    runs sequential jobs; without this, job N's cost checkpoints and usage
+    records include prior jobs' spend - checkpoints trip early (skipping
+    stages the operator paid for) and persisted per-run costs inflate.
+    """
+    from primr.ai.grok_client import reset_grok_session
+
+    reset_grok_session()
+    with _client_lock:
+        if _client is not None:
+            _client.reset_usage()
+
+
 def get_client() -> AIClient:
     """
     Get the global AI client instance (thread-safe).

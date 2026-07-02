@@ -427,3 +427,34 @@ class TestAIClientThreadSafety:
             t.join()
 
         assert len(errors) == 0, f"Errors during concurrent reset: {errors}"
+
+
+class TestResetRunUsageAccounting:
+    """Per-run accounting reset (bug-hunt finding: AIClient.reset_usage had
+    no production caller, so sequential jobs in one process accumulated
+    Gemini spend into later jobs' checkpoints and records)."""
+
+    def test_resets_grok_session_and_singleton_client(self, monkeypatch):
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock
+
+        from primr.ai import client as client_mod
+        from primr.ai import grok_client
+
+        grok_client.reset_grok_session()
+        grok_client._mirror_session_usage("grok-4.3", 100, 50, cached_input_tokens=10)
+        fake_client = SimpleNamespace(reset_usage=MagicMock())
+        monkeypatch.setattr(client_mod, "_client", fake_client)
+
+        client_mod.reset_run_usage_accounting()
+
+        usage = grok_client.get_grok_session_usage()
+        assert usage["input_tokens"] == 0
+        assert usage["output_tokens"] == 0
+        fake_client.reset_usage.assert_called_once()
+
+    def test_no_singleton_is_a_clean_no_op(self, monkeypatch):
+        from primr.ai import client as client_mod
+
+        monkeypatch.setattr(client_mod, "_client", None)
+        client_mod.reset_run_usage_accounting()  # must not raise

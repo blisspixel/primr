@@ -203,3 +203,31 @@ class TestHeartbeatIntegration:
 
         updated_job = server.job_store.get(job.job_id)
         assert updated_job.stage_progress_percent == 50
+
+
+class TestPerJobAccountingReset:
+    """Every job starts with fresh usage accounting (bug-hunt finding: a
+    long-lived server bled prior jobs' Gemini spend into later jobs'
+    checkpoints and usage records)."""
+
+    @pytest.mark.asyncio
+    async def test_run_research_resets_usage_accounting_first(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        # The reset is the first act inside the job's try block: raising from
+        # it proves the call AND that a broken reset fails THIS job (recorded
+        # FAILED) instead of escaping and wedging the single-job store.
+        sentinel = MagicMock(side_effect=RuntimeError("stop-after-reset"))
+        monkeypatch.setattr("primr.ai.client.reset_run_usage_accounting", sentinel)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            journal_path = str(Path(tmpdir) / "journal.json")
+            server = create_mcp_server(journal_path=journal_path, skip_background_tasks=True)
+            runner = PipelineRunner(server)
+
+            job = server.job_store.create(company_name="Acme Corp", mode="full")
+            await runner.run_research(job, "https://acme.example", "full")
+
+            sentinel.assert_called_once()
+            assert job.current_stage == ResearchStage.FAILED
+            assert "stop-after-reset" in (job.error_message or "")

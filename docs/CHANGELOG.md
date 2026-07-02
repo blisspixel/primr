@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Long-lived server processes (MCP, A2A) no longer bleed a prior job's
+  Gemini spend into later jobs: every job now starts with a full usage
+  accounting reset (Grok session + Gemini client) via a single seam, so
+  budget checkpoints stop tripping early on inherited spend and persisted
+  per-run costs stop inflating.
 - `--dry-run` and the `--budget` pre-flight gate now price `--strategy-type`
   documents, mirroring the runtime exactly: fast mode adds one writing bundle
   per document on top of the AI strategy, non-fast modes replace the AI
