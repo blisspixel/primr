@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Cost estimates now price `--verify` (post-QA claim verification) on all three
+  surfaces that price a run for approval - the interactive `Proceed?` confirm
+  prompt, `--dry-run`, and the `--budget` pre-flight gate. Previously none of
+  the three priced it, so a `--verify` run was approved against a number that
+  omitted its verification overhead. The two CLI-config surfaces (`--dry-run`
+  and the `--budget` gate) now share a single estimate-shaping helper so they
+  cannot drift apart again.
+- The interactive confirm prompt now also prices `--grok-tier`, which it
+  ignored while `--dry-run` and the `--budget` gate already accounted for it; a
+  `--grok-tier max` run no longer confirms against a hybrid-tier price.
+
 ### Added
 
 - A deterministic, judge-free label-citation coverage signal: how many

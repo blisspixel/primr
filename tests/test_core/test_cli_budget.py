@@ -13,6 +13,7 @@ import pytest
 
 from primr.core.cli_budget import (
     activate_run_budget,
+    build_run_estimate,
     estimate_strategy_types,
     estimate_vendor_count,
 )
@@ -28,6 +29,7 @@ def _config(**overrides) -> SimpleNamespace:
         "lite_strategy": False,
         "grok_tier": "hybrid",
         "strategy_type": "ai",
+        "verify": False,
     }
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -62,6 +64,57 @@ class TestEstimateVendorCount:
     def test_vendor_count_floors_at_one(self):
         assert estimate_vendor_count(_config(ai_strategy=True, cloud_vendors=[])) == 1
         assert estimate_vendor_count(_config(ai_strategy=True, cloud_vendors=["azure", "aws"])) == 2
+
+
+class TestBuildRunEstimate:
+    """The single estimate-shaping seam. Every surface that quotes a run -
+    ``--dry-run``, the ``--budget`` gate, and (by mirroring these flags) the
+    interactive confirm prompt - prices through here, so a shaping flag omitted
+    here understates spend on every surface at once. These pin the forwarding.
+    """
+
+    def test_forwards_every_shaping_flag(self, monkeypatch):
+        captured: dict = {}
+
+        def fake_estimate_cost(mode, ai_strategy=False, **kwargs):
+            captured["mode"] = mode
+            captured["ai_strategy"] = ai_strategy
+            captured.update(kwargs)
+            return SimpleNamespace(total_cost=1.0)
+
+        monkeypatch.setattr("primr.utils.cost_estimator.estimate_cost", fake_estimate_cost)
+        config = _config(
+            ai_strategy=True,
+            cloud_vendors=["aws", "azure"],
+            lite_strategy=True,
+            grok_tier="max",
+            strategy_type="customer_experience",
+            verify=True,
+        )
+        build_run_estimate(config, fast_mode=True, premium_mode=False)
+
+        assert captured["mode"] == "complete"
+        assert captured["ai_strategy"] is True
+        assert captured["fast_mode"] is True
+        assert captured["premium_mode"] is False
+        assert captured["lite_strategy"] is True
+        assert captured["grok_tier"] == "max"
+        assert captured["num_vendors"] == 2
+        assert captured["strategy_types"] == ["customer_experience"]
+        # The flag this cycle closed: verify was dropped by dry-run and the gate.
+        assert captured["verify"] is True
+
+    def test_verify_flag_is_forwarded_false_by_default(self, monkeypatch):
+        captured: dict = {}
+
+        def fake_estimate_cost(mode, ai_strategy=False, **kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(total_cost=1.0)
+
+        monkeypatch.setattr("primr.utils.cost_estimator.estimate_cost", fake_estimate_cost)
+        build_run_estimate(_config(), fast_mode=False, premium_mode=True)
+        assert captured["verify"] is False
+        assert captured["premium_mode"] is True
 
 
 class TestActivateRunBudget:

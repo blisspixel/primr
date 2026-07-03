@@ -10,6 +10,7 @@ from primr.utils.console import console
 
 if TYPE_CHECKING:
     from primr.core.cli import CLIConfig
+    from primr.utils.cost_estimator import CostEstimate
 
 
 @dataclass(frozen=True)
@@ -38,6 +39,35 @@ def estimate_strategy_types(config: CLIConfig) -> list[str]:
     return [stype] if stype and stype != "ai" else []
 
 
+def build_run_estimate(config: CLIConfig, *, fast_mode: bool, premium_mode: bool) -> CostEstimate:
+    """Price a run the way it will actually execute.
+
+    The single source of the estimate-shaping kwargs, so every surface that
+    quotes a run -- ``--dry-run``, the ``--budget`` pre-flight gate, and (by
+    mirroring these flags) the interactive confirm prompt -- prices the same run
+    identically. Each cost-shaping input the runtime honours (vendor fan-out,
+    lite strategy, fast/premium routing, Grok tier, post-QA ``--verify``, and
+    ``--strategy-type`` documents) is forwarded here; anything omitted would let
+    one surface silently understate spend, which is exactly the drift this
+    helper exists to prevent. ``fast_mode``/``premium_mode`` stay explicit
+    because callers resolve them differently (dry-run auto-promotes; the gate
+    receives the already-resolved values).
+    """
+    from primr.utils.cost_estimator import estimate_cost
+
+    return estimate_cost(
+        config.mode,
+        config.ai_strategy,
+        num_vendors=estimate_vendor_count(config),
+        lite_strategy=config.lite_strategy,
+        fast_mode=fast_mode,
+        premium_mode=premium_mode,
+        verify=config.verify,
+        grok_tier=config.grok_tier,
+        strategy_types=estimate_strategy_types(config),
+    )
+
+
 def activate_run_budget(
     config: CLIConfig, *, fast_mode: bool, premium_mode: bool
 ) -> BudgetActivation:
@@ -48,19 +78,9 @@ def activate_run_budget(
         console.error(f"--budget must be positive, got {config.budget_usd}")
         return BudgetActivation(ok=False, active=False)
 
-    from primr.utils.cost_estimator import estimate_cost
     from primr.utils.run_budget import set_run_budget
 
-    estimate = estimate_cost(
-        config.mode,
-        config.ai_strategy,
-        num_vendors=estimate_vendor_count(config),
-        lite_strategy=config.lite_strategy,
-        fast_mode=fast_mode,
-        premium_mode=premium_mode,
-        grok_tier=config.grok_tier,
-        strategy_types=estimate_strategy_types(config),
-    )
+    estimate = build_run_estimate(config, fast_mode=fast_mode, premium_mode=premium_mode)
     if estimate.total_cost > config.budget_usd:
         console.error(
             f"Estimated cost ${estimate.total_cost:.2f} exceeds "

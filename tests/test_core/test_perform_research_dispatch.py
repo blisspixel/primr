@@ -151,6 +151,24 @@ class TestCostConfirmationGate:
         _run(skip_confirm=True)
         seams["confirm"].assert_not_called()
 
+    def test_confirm_gate_receives_full_shaping_flags(self, seams):
+        """The interactive confirm number must reflect the same premium/verify/
+        grok-tier/strategy shaping the run and the --budget gate price with, or
+        the approved number diverges from actual spend (roadmap follow-up)."""
+        _run(
+            skip_confirm=False,
+            mode="complete",
+            premium_mode=True,
+            verify=True,
+            grok_tier="max",
+            strategies=["customer_experience"],
+        )
+        kwargs = seams["confirm"].call_args.kwargs
+        assert kwargs["premium_mode"] is True
+        assert kwargs["verify"] is True
+        assert kwargs["grok_tier"] == "max"
+        assert kwargs["strategy_types"] == ["customer_experience"]
+
 
 class TestReconPreflight:
     def _recon(self, monkeypatch, slugs=("aws",), detected=("aws",)):

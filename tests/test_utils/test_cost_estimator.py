@@ -133,6 +133,20 @@ class TestEstimateCost:
         deep_estimate = estimate_cost("deep-research", use_historical=False)
         assert estimate.total_cost > deep_estimate.total_cost
 
+    def test_verify_raises_estimate(self):
+        """--verify adds post-QA claim-verification tokens, so its estimate must
+        exceed the unverified base run. This is what makes pricing --verify
+        load-bearing: every surface that quotes it must forward the flag."""
+        base = estimate_cost("complete", use_historical=False, verify=False)
+        verified = estimate_cost("complete", use_historical=False, verify=True)
+        assert verified.total_cost > base.total_cost
+
+    def test_verify_raises_estimate_in_fast_mode(self):
+        """The fast (Grok) path prices --verify too, not just the deep path."""
+        base = estimate_cost("complete", use_historical=False, fast_mode=True, verify=False)
+        verified = estimate_cost("complete", use_historical=False, fast_mode=True, verify=True)
+        assert verified.total_cost > base.total_cost
+
     def test_estimate_hybrid_mode(self):
         """Estimate cost for hybrid mode."""
         estimate = estimate_cost("hybrid")

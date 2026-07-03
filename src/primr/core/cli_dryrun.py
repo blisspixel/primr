@@ -44,8 +44,6 @@ def _standard_mode_label(grok_tier: str) -> str:
 
 def run_dry_run(config: CLIConfig) -> int:
     """Show the cost estimate for a run without executing it."""
-    from primr.utils.cost_estimator import estimate_cost
-
     # Resolve mode: same logic as _handle_research.
     if config.premium_mode and config.fast_mode:
         console.error("Cannot use both --fast and --premium. Choose one.")
@@ -78,18 +76,9 @@ def run_dry_run(config: CLIConfig) -> int:
     else:
         mode_label = config.mode
 
-    from primr.core.cli_budget import estimate_strategy_types, estimate_vendor_count
+    from primr.core.cli_budget import build_run_estimate
 
-    estimate = estimate_cost(
-        config.mode,
-        config.ai_strategy,
-        num_vendors=estimate_vendor_count(config),
-        lite_strategy=config.lite_strategy,
-        fast_mode=use_fast_mode,
-        premium_mode=use_premium_mode,
-        grok_tier=config.grok_tier,
-        strategy_types=estimate_strategy_types(config),
-    )
+    estimate = build_run_estimate(config, fast_mode=use_fast_mode, premium_mode=use_premium_mode)
 
     # Machine-readable path: emit the estimate as JSON and stop.
     if getattr(config, "json_output", False):

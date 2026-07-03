@@ -2866,6 +2866,9 @@ def perform_research(
             num_vendors=len(platforms),
             lite_strategy=lite_strategy,
             fast_mode=fast_mode,
+            premium_mode=premium_mode,
+            verify=verify,
+            grok_tier=grok_tier,
             strategy_types=strategies,
         ):
             console.info("Research cancelled by user")
