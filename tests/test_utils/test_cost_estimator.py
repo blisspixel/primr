@@ -899,3 +899,64 @@ class TestDeepPathHiringOverhead:
         for mode in ("hybrid", "scrape-only"):
             estimate = estimate_cost(mode, use_historical=False)
             assert not any("Hiring signals" in n for n in estimate.notes), mode
+
+
+class TestDisplayCostEstimateStrategyTypes:
+    """The interactive confirm gate must price --strategy-type documents the
+    same as --dry-run and the --budget gate, or the approval number diverges
+    from the run's actual spend (bug-hunt finding)."""
+
+    def test_forwards_strategy_types_to_estimate(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        import primr.utils.cost_estimator as ce
+
+        captured = {}
+
+        def fake_estimate(mode, include_ai_strategy=False, **kwargs):
+            captured["mode"] = mode
+            captured["strategy_types"] = kwargs.get("strategy_types")
+            return ce.CostEstimate(
+                mode=mode,
+                estimated_input_tokens=0,
+                estimated_output_tokens=0,
+                estimated_search_queries=0,
+                input_cost=0.0,
+                output_cost=0.0,
+                search_cost=0.0,
+                total_cost=1.23,
+                duration_minutes="5-10 min",
+                notes=[],
+            )
+
+        monkeypatch.setattr(ce, "estimate_cost", fake_estimate)
+        # Decline at the prompt so the function returns without side effects.
+        monkeypatch.setattr("builtins.input", MagicMock(return_value="n"))
+
+        result = ce.display_cost_estimate(
+            "complete",
+            "AcmeCo",
+            include_ai_strategy=True,
+            strategy_types=["customer_experience"],
+        )
+        assert result is False
+        assert captured["strategy_types"] == ["customer_experience"]
+
+
+class TestStrategyTypePrecedenceWithExplicitAi:
+    """When the explicit list also names 'ai', the runtime runs the AI strategy
+    too, so the estimate must keep pricing it (not drop it)."""
+
+    def test_ai_plus_yaml_prices_both(self):
+        base = estimate_cost("complete", use_historical=False, include_ai_strategy=False)
+        ai_only = estimate_cost("complete", use_historical=False, include_ai_strategy=True)
+        both = estimate_cost(
+            "complete",
+            use_historical=False,
+            include_ai_strategy=True,
+            strategy_types=["ai", "customer_experience"],
+        )
+        # 'ai' stays priced (via include_ai_strategy) AND the DR-backed yaml
+        # type adds its own flat task, so both cost strictly more than either.
+        assert both.total_cost > ai_only.total_cost > base.total_cost
+        assert both.deep_research_cost > ai_only.deep_research_cost

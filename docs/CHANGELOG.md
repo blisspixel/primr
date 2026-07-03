@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- The hiring-signal block inside `insights.txt` is now fenced as data. It
+  carries verbatim scraped posting titles/locations (raw on the triage and
+  extraction fallback paths), and `insights.txt` is read unfenced by the
+  AI-strategy prompt and becomes the analysis workbook on the
+  workbook-fallback section-writing path - so it was the one hiring→prompt
+  boundary still reaching the model unfenced and unsanitized. `docs/SECURITY.md`
+  T1 updated accordingly.
+
+### Fixed
+
+- The interactive cost-confirmation gate (`display_cost_estimate`) now prices
+  `--strategy-type` documents, like `--dry-run` and the `--budget` pre-flight
+  gate already do. It previously understated fast-mode runs (a whole strategy
+  bundle) and overstated non-fast placeholder/multi-vendor runs, so the number
+  the user approved diverged from both the dry-run and the actual spend. (The
+  confirm gate still omits `--premium`/`--verify`/`--grok-tier` shaping that
+  the `--budget` gate passes; full parity is tracked on the roadmap.)
+- Cost estimates that list `ai` alongside another `--strategy-type` no longer
+  silently drop the AI-strategy cost: when the explicit list names `ai`, the
+  runtime runs it too, so it stays priced instead of being replaced.
+
+### Documentation
+
+- Fixed two `docs/API.md` hook examples that imported `CostGuardHook` from
+  `primr.agentic.hooks` after it moved to `primr.agentic.cost_guard`
+  (re-exported from the `primr.agentic` package).
+
 ## [1.34.43] - 2026-07-03
 
 ### Security

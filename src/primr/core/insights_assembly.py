@@ -47,7 +47,14 @@ def build_combined_insights(
         fenced_external = fence_untrusted("EXTERNAL_SOURCES", "\n\n".join(external_text_parts))
         all_insights_parts.append(f"=== EXTERNAL SOURCES ===\n{fenced_external}")
     if hiring_block:
-        all_insights_parts.append(hiring_block)
+        # The hiring block carries verbatim scraped posting titles/locations
+        # (raw on the triage/extraction fallback paths). insights.txt is read
+        # UNFENCED by the AI-strategy prompt and becomes the workbook on the
+        # workbook-fallback path, so fence it here (T1). The copy that rides in
+        # build_external_sources_raw is fenced by that bundle's downstream
+        # fence, so only this insights.txt copy needs it - fencing both would
+        # double-fence and redact the inner markers.
+        all_insights_parts.append(fence_untrusted("HIRING_SIGNALS", hiring_block))
     return "\n\n".join(all_insights_parts) if all_insights_parts else fallback
 
 

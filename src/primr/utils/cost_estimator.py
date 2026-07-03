@@ -405,8 +405,11 @@ def estimate_cost(
     # The non-fast runtime treats explicit strategies as REPLACING the default
     # AI strategy (`if strategies: ... elif ai_strategy: ["ai"]` in
     # research_agent), while fast mode runs both. Mirror that precedence here
-    # or the gate double-prices the AI strategy on --strategy-type runs.
-    if yaml_strategy_types:
+    # or the gate double-prices the AI strategy on --strategy-type runs. But
+    # when the explicit list ALSO names "ai", the runtime runs the AI strategy
+    # too, so keep it priced (via include_ai_strategy) rather than dropping it.
+    lists_ai_explicitly = any(s == "ai" for s in (strategy_types or []))
+    if yaml_strategy_types and not lists_ai_explicitly:
         include_ai_strategy = False
 
     estimates = MODE_ESTIMATES.get(mode, MODE_ESTIMATES["scrape-only"])
@@ -847,6 +850,7 @@ def display_cost_estimate(
     premium_mode: bool = False,
     verify: bool = False,
     grok_tier: str = "hybrid",
+    strategy_types: Sequence[str] | None = None,
 ) -> bool:
     """
     Display cost estimate and ask for confirmation.
@@ -859,6 +863,9 @@ def display_cost_estimate(
         lite_strategy: If True, strategy uses Pro model instead of DR
         fast_mode: If True, use Grok fast mode estimates
         premium_mode: If True, force Gemini + Deep Research estimates
+        strategy_types: YAML strategy documents to price (must match what
+            ``--dry-run`` and the ``--budget`` gate price, or the interactive
+            approval number diverges from the run's actual spend)
 
     Returns:
         True if user confirms, False to cancel
@@ -874,6 +881,7 @@ def display_cost_estimate(
         premium_mode=premium_mode,
         verify=verify,
         grok_tier=grok_tier,
+        strategy_types=strategy_types,
     )
 
     # Clean single line with visible text

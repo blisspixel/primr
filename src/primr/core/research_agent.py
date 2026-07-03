@@ -2867,6 +2867,7 @@ def perform_research(
             num_vendors=len(platforms),
             lite_strategy=lite_strategy,
             fast_mode=fast_mode,
+            strategy_types=strategies,
         ):
             console.info("Research cancelled by user")
             _update_run_state(folder_path, status="cancelled", current_phase="initializing")
@@ -3414,8 +3415,7 @@ def perform_deep_research(
         )
         return None
 
-    # Pre-run: clean up any orphaned resources from prior crashed runs
-    # File Search Stores have NO TTL and cost money if left behind
+    # Pre-run cleanup: leaked File Search Stores have NO TTL and cost money.
     try:
         from primr.ai.deep_research import cleanup_orphaned_resources
 

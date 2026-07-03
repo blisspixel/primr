@@ -2720,7 +2720,7 @@ for version, feature in results:
 Register governance hooks for cost control and security.
 
 ```python
-from primr.agentic.hooks import (
+from primr.agentic import (
     HookSystem,
     CostGuardHook,
     SSRFGuardHook,
@@ -2822,7 +2822,7 @@ from primr.agentic.orchestrator import (
     OrchestratorResult,
 )
 from primr.agentic.memory import ResearchMemory
-from primr.agentic.hooks import HookSystem, CostGuardHook
+from primr.agentic import HookSystem, CostGuardHook
 
 # Configure orchestrator
 config = OrchestratorConfig(
