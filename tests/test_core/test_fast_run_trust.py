@@ -233,24 +233,26 @@ class TestLabelHonestyHelper:
 
 
 class TestLabelCitationTrustRow:
-    """The deterministic, judge-free label-citation coverage row appears in the
-    report trust summary whenever the report has Confirmed/Reported claims."""
-
-    _REPORT = (
-        "## Findings\n"
-        "Revenue hit $9M. (Confirmed) [cite: 1]\n"
-        "A bold claim with no citation. (Confirmed)\n\n"
-        "## Sources\n1. https://acme.example/ir\n"
-    )
+    """The report trust summary renders the deterministic label-citation
+    coverage row from the QA metrics (computed once in the QA pass)."""
 
     def test_row_present_with_coverage_ratio(self, seams):
-        result = seams["call"](report_content=self._REPORT)
+        seams["qa"].return_value = {
+            **dict(CLEAN_QA),
+            "traceable_labeled_claims": 9,
+            "traceable_labeled_claims_cited": 7,
+            "label_citation_coverage_rate": 7 / 9,
+        }
+        result = seams["call"]()
         stats = dict(result.report_trust_stats)
-        assert "Label Citations" in stats
-        # One of two Confirmed claims carries a resolvable citation.
-        assert stats["Label Citations"].startswith("1/2")
+        assert stats.get("Label Citations", "").startswith("7/9")
 
     def test_row_omitted_when_no_traceable_claims(self, seams):
-        result = seams["call"](report_content="## S\nMarket may shift. (Estimated)\n")
-        stats = dict(result.report_trust_stats)
-        assert "Label Citations" not in stats
+        seams["qa"].return_value = {
+            **dict(CLEAN_QA),
+            "traceable_labeled_claims": 0,
+            "traceable_labeled_claims_cited": 0,
+            "label_citation_coverage_rate": 1.0,
+        }
+        result = seams["call"]()
+        assert "Label Citations" not in dict(result.report_trust_stats)

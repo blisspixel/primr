@@ -107,6 +107,25 @@ class TestComputeFastReportQaMetrics:
         assert m["duplicate_sections"] == 0
         assert m["thin_sections"] == 0
 
+    def test_carries_label_citation_coverage(self):
+        # The clean report's 8 Reported claims each cite a resolvable source.
+        m = _compute_fast_report_qa_metrics(self._clean_report())
+        assert m["traceable_labeled_claims"] == 8
+        assert m["traceable_labeled_claims_cited"] == 8
+        assert m["label_citation_coverage_rate"] == 1.0
+
+    def test_uncited_confirmed_claim_lowers_coverage(self):
+        content = (
+            "## Section\n\n" + ("word " * 110) + "A revenue figure. (Confirmed) [cite: 1]\n"
+            "An unsourced boast. (Confirmed)\n"
+            "What to validate: x\n\n"
+            "## Sources\n\n[cite: 1] https://example.com/ir\n"
+        )
+        m = _compute_fast_report_qa_metrics(content)
+        assert m["traceable_labeled_claims"] == 2
+        assert m["traceable_labeled_claims_cited"] == 1
+        assert m["label_citation_coverage_rate"] == 0.5
+
     def test_unresolved_contradictions_fails_gate(self):
         report = self._clean_report()
         m = _compute_fast_report_qa_metrics(report, unresolved_contradictions=1)

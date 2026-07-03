@@ -175,16 +175,15 @@ def polish_and_gate_fast_report(
     # Deterministic, judge-free label-honesty signal (the no_source slice): how
     # many Confirmed/Reported claims carry a resolvable citation. Always on -
     # gives a label-traceability signal for free when the paid label-honesty
-    # pass is off. Report-only, omitted when there are no such claims.
-    from primr.qa.label_calibration import summarize_label_citation_coverage
-
-    coverage = summarize_label_citation_coverage(report_content)
-    if coverage["traceable_total"]:
+    # pass is off. Computed once in the QA metrics; omitted when there are no
+    # such claims. Report-only.
+    traceable_total = int(qa_metrics.get("traceable_labeled_claims", 0))
+    if traceable_total:
+        traceable_cited = int(qa_metrics.get("traceable_labeled_claims_cited", 0))
         report_trust_stats.append(
             (
                 "Label Citations",
-                f"{coverage['traceable_cited']}/{coverage['traceable_total']} "
-                f"Confirmed/Reported cite a source",
+                f"{traceable_cited}/{traceable_total} Confirmed/Reported cite a source",
             )
         )
     if qa_metrics.get("unresolved_contradictions", 0) > 0:

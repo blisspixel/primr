@@ -121,6 +121,14 @@ def _compute_fast_report_qa_metrics(
         and unresolved_contradictions == 0
     )
 
+    # Deterministic, judge-free label-citation coverage (the no_source slice):
+    # how many (Confirmed)/(Reported) claims carry a resolvable citation. Cheap
+    # (pure text, no LLM/network) and carried in the metrics so every consumer
+    # (the trust row, the QA line, eval) reads one computed value. Report-only.
+    from primr.qa.label_calibration import summarize_label_citation_coverage
+
+    coverage = summarize_label_citation_coverage(report_content)
+
     return {
         "word_count": len(report_content.split()),
         "confidence_labels": confidence_labels,
@@ -133,6 +141,9 @@ def _compute_fast_report_qa_metrics(
         "thin_sections": thin_sections,
         "unresolved_contradictions": unresolved_contradictions,
         "qa_gate_passed": qa_passed,
+        "traceable_labeled_claims": coverage["traceable_total"],
+        "traceable_labeled_claims_cited": coverage["traceable_cited"],
+        "label_citation_coverage_rate": coverage["coverage_rate"],
     }
 
 

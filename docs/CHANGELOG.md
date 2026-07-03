@@ -9,14 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- The fast-run report trust summary now shows a deterministic, judge-free
-  "Label Citations" signal: how many `(Confirmed)`/`(Reported)` claims carry
-  a resolvable citation. It is the always-on, zero-cost complement to the
-  opt-in paid label-honesty pass (which judges whether a source *supports* a
-  claim) - a `(Confirmed)` claim citing nothing is a structural honesty
-  defect regardless of phrasing, so the ratio is surfaced on every run. It is
-  report-only (a signal, never a gate) and reuses the existing label/citation
-  extraction, so it adds no LLM calls and no network requests.
+- A deterministic, judge-free label-citation coverage signal: how many
+  `(Confirmed)`/`(Reported)` claims carry a resolvable citation (the
+  `no_source` slice). It is the always-on, zero-cost complement to the opt-in
+  paid label-honesty pass (which judges whether a source *supports* a claim) -
+  a `(Confirmed)` claim citing nothing is a structural honesty defect
+  regardless of phrasing. It is computed once in the fast-run QA metrics
+  (`traceable_labeled_claims`, `traceable_labeled_claims_cited`,
+  `label_citation_coverage_rate`) so it is machine-readable for eval, and the
+  report trust summary renders it as a "Label Citations" row. Report-only (a
+  signal, never a gate), reusing existing label/citation extraction with no
+  LLM calls and no network requests.
 
 ## [1.34.44] - 2026-07-03
 
