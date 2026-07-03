@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.34.43
+Current State: v1.34.44
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -1557,6 +1557,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.34.44 | Jul 2026 | **Post-release hardening.** A maintenance bug hunt over the 1.34.43 surfaces closed the last unfenced hiring-signal→prompt boundary (the block inside `insights.txt`, read unfenced by the AI-strategy and workbook-fallback prompts), made the interactive cost-confirm gate price `--strategy-type` documents like `--dry-run` already does, stopped estimates from dropping the AI-strategy cost when a strategy list also names `ai`, and fixed two stale `CostGuardHook` import examples in `docs/API.md`. |
 | 1.34.43 | Jul 2026 | **Cost-accounting integrity, prompt-injection fencing, and observability.** A cost-control bug hunt fixed a per-vendor `--budget` overrun, an unlocked token-counter race, quadratic usage-history duplication, phantom DDG search cost, and a `sync_spend` double-count; `--dry-run` and the pre-flight gate now price `--strategy-type` documents. Remaining fast-run scraped-text prompt boundaries are now data-fenced, and hiring signals ride into the CLI Deep Research paths. `show-usage` gains a cost-variability regression signal, `output/` and `working/` self-document, and Windows state writes consolidate on the retrying `atomic_replace` seam. |
 | 1.34.42 | Jul 2026 | **Agent-profile cost safety for remaining routed utility stages.** Explicit `agent` profile unavailability now fails closed for `fast.scrape_summary` and `fast.hiring_signals`: scrape summary writes deterministic source excerpts, hiring signals uses deterministic triage plus posting metadata, both stages record body-free `agent_profile_unavailable` route fallbacks, and neither stage silently calls a cloud LLM when no official host runner qualifies. |
 | 1.34.41 | Jul 2026 | **Sonnet 5, cost guardrails, and metadata-first output reads.** Claude Sonnet 5 is now registered and routed with conservative pricing, adaptive-thinking request shaping, assistant-prefill rejection, and a 30% dry-run tokenizer safety factor. xAI image generation and other hidden-spend paths now require explicit opt-in, security scanning remains clean for current code and secrets, authenticated MCP/A2A output reads stay metadata-first, and full report text moves to explicit report-body read paths with ownership and output negotiation. |
