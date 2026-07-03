@@ -8,6 +8,7 @@ from primr.qa.label_calibration import (
     LabeledClaim,
     calibrate_claims,
     extract_labeled_claims,
+    label_citations_trust_row,
     parse_evidence_review,
     parse_sources_appendix,
     summarize_label_citation_coverage,
@@ -461,3 +462,20 @@ class TestLabelCitationCoverage:
         assert cov["traceable_total"] == 1
         assert cov["traceable_cited"] == 1
         assert cov["coverage_rate"] == 1.0
+
+
+class TestLabelCitationsTrustRow:
+    """The shared row formatter behind both report-trust surfaces (fast +
+    deep), so the 'Label Citations' row reads identically wherever it renders."""
+
+    def test_none_when_no_traceable_claims(self):
+        assert label_citations_trust_row(0, 0) is None
+
+    def test_none_when_total_non_positive(self):
+        assert label_citations_trust_row(3, -1) is None
+
+    def test_row_when_traceable_present(self):
+        assert label_citations_trust_row(2, 3) == (
+            "Label Citations",
+            "2/3 Confirmed/Reported cite a source",
+        )

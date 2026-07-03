@@ -23,6 +23,7 @@ from primr.core.fast_mode_helpers import (
 )
 from primr.core.report_cleanup import _clean_fast_report_output, compute_repair_report
 from primr.core.strategy_artifacts import _normalize_fast_citations
+from primr.qa.label_calibration import label_citations_trust_row
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
 
@@ -176,16 +177,13 @@ def polish_and_gate_fast_report(
     # many Confirmed/Reported claims carry a resolvable citation. Always on -
     # gives a label-traceability signal for free when the paid label-honesty
     # pass is off. Computed once in the QA metrics; omitted when there are no
-    # such claims. Report-only.
-    traceable_total = int(qa_metrics.get("traceable_labeled_claims", 0))
-    if traceable_total:
-        traceable_cited = int(qa_metrics.get("traceable_labeled_claims_cited", 0))
-        report_trust_stats.append(
-            (
-                "Label Citations",
-                f"{traceable_cited}/{traceable_total} Confirmed/Reported cite a source",
-            )
-        )
+    # such claims. Report-only; shares the deep path's row formatter.
+    _label_row = label_citations_trust_row(
+        int(qa_metrics.get("traceable_labeled_claims_cited", 0)),
+        int(qa_metrics.get("traceable_labeled_claims", 0)),
+    )
+    if _label_row:
+        report_trust_stats.append(_label_row)
     if qa_metrics.get("unresolved_contradictions", 0) > 0:
         report_trust_stats.append(("Contradictions", str(qa_metrics["unresolved_contradictions"])))
 

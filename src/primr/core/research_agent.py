@@ -3273,11 +3273,6 @@ def perform_research(
             usage = client.get_usage_summary()
             actual_cost = usage.get("total_cost", 0)
 
-            # Get estimated cost for comparison
-            from primr.utils.cost_estimator import estimate_cost
-
-            estimate_cost(mode, ai_strategy, use_historical=False)
-
             # Summary stats
             summary_items = [
                 ("Duration", time_str),
@@ -3795,8 +3790,6 @@ def perform_deep_research(
 
             # Count unique citations from generated content ([cite: N] format)
             citation_count = 0
-            import re
-
             all_content = result.raw_content or ""
             if not all_content and result.section_results:
                 all_content = "\n".join(result.section_results.values())
@@ -3808,6 +3801,13 @@ def perform_deep_research(
                         if num:
                             cite_numbers.add(num)
                 citation_count = len(cite_numbers)
+
+            # Always-on judge-free label-citation trust signal (fast-path parity).
+            from primr.core.deep_run_trust import build_deep_report_trust_stats
+
+            _deep_trust = build_deep_report_trust_stats(all_content)
+            if _deep_trust:
+                console.trust_summary("Report Trust", _deep_trust)
 
             # Summary stats with estimated vs actual comparison
             summary_items = [

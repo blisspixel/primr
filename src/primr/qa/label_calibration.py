@@ -265,6 +265,24 @@ def summarize_label_citation_coverage(report_content: str) -> dict[str, int | fl
     }
 
 
+def label_citations_trust_row(traceable_cited: int, traceable_total: int) -> tuple[str, str] | None:
+    """The always-on "Label Citations" report-trust row, or ``None`` when there
+    are no traceable-class (``Confirmed``/``Reported``) claims to under-cite.
+
+    The single source of this row's label and wording, so the fast-run and
+    deep-run report-trust surfaces render it identically instead of each
+    hand-formatting the string (the drift that hand-copied format strings
+    invite). Callers pass the counts they already hold - the fast path from its
+    QA metrics, the deep path from ``summarize_label_citation_coverage``.
+    """
+    if traceable_total <= 0:
+        return None
+    return (
+        "Label Citations",
+        f"{traceable_cited}/{traceable_total} Confirmed/Reported cite a source",
+    )
+
+
 def parse_sources_appendix(report_content: str) -> dict[int, str]:
     """Map citation numbers to URLs from the Sources/References appendix."""
     appendix_match = re.search(

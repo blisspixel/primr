@@ -33,6 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   report trust summary renders it as a "Label Citations" row. Report-only (a
   signal, never a gate), reusing existing label/citation extraction with no
   LLM calls and no network requests.
+- The deep and `--premium` Deep-Research paths now show the same report trust
+  summary the fast path does - an always-on "Label Citations" row counting how
+  many `(Confirmed)`/`(Reported)` claims cite a resolvable source. Previously
+  only fast-mode runs surfaced any trust signal; a deep or premium run finished
+  with no label-traceability visibility at all. Both paths render the identical
+  row through a single shared formatter (`label_citations_trust_row`), so they
+  cannot describe the signal differently. Report-only, no LLM calls, no network.
 
 ## [1.34.44] - 2026-07-03
 
