@@ -97,3 +97,33 @@ class TestStageNeverFailsRun:
         state = seams["run_state"]["hiring_signals"]
         assert state["source"] == "skipped"
         assert state["postings_found"] == 0
+
+
+class TestFencedVariantForDeepResearch:
+    """The Deep Research paths consume the stage via collect_fenced_hiring_block:
+    the block carries scraped posting titles, and stage-1 context is otherwise
+    trusted LLM output, so it crosses that boundary only as fenced data."""
+
+    def test_non_empty_block_is_fenced(self, seams):
+        from primr.core.fast_run_hiring import collect_fenced_hiring_block
+
+        block = collect_fenced_hiring_block(
+            company_label="AcmeCo",
+            website="https://acme.example",
+            scraped_data={},
+            folder_path=str(seams["tmp"]),
+        )
+        assert "UNTRUSTED_HIRING_SIGNALS_BEGIN" in block
+        assert "rendered signals" in block
+
+    def test_no_signals_returns_empty_unfenced(self, seams):
+        from primr.core.fast_run_hiring import collect_fenced_hiring_block
+
+        seams["gather"].return_value = None
+        block = collect_fenced_hiring_block(
+            company_label="AcmeCo",
+            website="https://acme.example",
+            scraped_data={},
+            folder_path=str(seams["tmp"]),
+        )
+        assert block == ""

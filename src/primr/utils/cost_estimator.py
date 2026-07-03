@@ -319,6 +319,24 @@ def _yaml_strategy_overhead(
     return dr_tasks, dmin, dmax, priced, unavailable
 
 
+def _deep_path_hiring_overhead(mode: str) -> tuple[int, int, list[str]]:
+    """Duration deltas + note for the hiring stage on the Deep Research paths.
+
+    Hybrid is excluded: its legacy parallel path neither gathers nor consumes
+    the block, so billing it would claim a stage that never runs.
+    """
+    if mode not in ("deep-research", "complete"):
+        return 0, 0, []
+    return (
+        1,
+        2,
+        [
+            "Hiring signals via ATS / careers page (~$0.01 on the routed utility model, "
+            "+1-2 min; skip with PRIMR_SKIP_HIRING_SIGNALS=1)"
+        ],
+    )
+
+
 def _strategy_type_notes(priced: Sequence[str], unavailable: Sequence[str]) -> list[str]:
     """Estimate notes for YAML strategy documents (priced vs runtime-skipped)."""
     notes: list[str] = []
@@ -490,6 +508,13 @@ def estimate_cost(
         duration_min += VERIFICATION_OVERHEAD["duration_min"]
         duration_max += VERIFICATION_OVERHEAD["duration_max"]
 
+    # Hiring signals ride on the Deep Research paths too (fenced stage-1
+    # context). Sub-cent LLM cost on the routed utility model - noted rather
+    # than tokenized (it degrades to $0 when no routed key is present).
+    hiring_dmin, hiring_dmax, hiring_notes = _deep_path_hiring_overhead(mode)
+    duration_min += hiring_dmin
+    duration_max += hiring_dmax
+
     # Format duration string
     duration = f"{duration_min}-{duration_max} min"
     if include_ai_strategy:
@@ -556,6 +581,7 @@ def estimate_cost(
 
     if verify:
         notes.append("Includes claim verification (~$0.01, DDG searches are free)")
+    notes.extend(hiring_notes)
 
     # Note tiered pricing when active model has it
     if active_pro.has_tiered_pricing:

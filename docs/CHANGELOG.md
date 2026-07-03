@@ -65,6 +65,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Hiring signals now ride into the CLI Deep Research paths (`--premium` and
+  `--mode deep`), not just fast mode: the same ATS/careers-page stage runs
+  before the deep phase and its block joins the stage-1 context the
+  comprehensive report call consumes - fenced as data, recorded in run state
+  and `_hiring/` artifacts, still reaching the deep call when a run
+  continues past a failed structured phase, and skipped for strategy-only
+  and legacy hybrid runs (hybrid never consumes stage-1 context). Deep and
+  complete dry-run estimates note the hiring stage and carry its 1-2 minute
+  duration bump; MCP/A2A jobs run the orchestrator directly and are not yet
+  wired (tracked on the roadmap).
 - `output/` and `working/` now document themselves: primr writes a top-level
   `README.md` into each when it creates them (once; user edits are never
   overwritten) explaining what lives there and what is safe to delete -

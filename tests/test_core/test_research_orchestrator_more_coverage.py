@@ -787,3 +787,155 @@ class TestRunCompleteResearch:
         assert result.error == "unexpected explosion"
         # Partial structured results preserved from the except branch.
         assert result.section_results == {"company_overview": "scraped"}
+
+
+class TestSupplementalContext:
+    """ResearchConfig.supplemental_context (fenced hiring signals from the
+    premium/deep paths) must reach the Deep Research stage-1 context."""
+
+    @staticmethod
+    def _deep_result():
+        deep_result = Mock()
+        deep_result.success = True
+        deep_result.content = "raw"
+        deep_result.api_calls = 1
+        deep_result.sections_written = 3
+        deep_result.search_queries_count = 4
+        deep_result.citations = []
+        return deep_result
+
+    @staticmethod
+    def _formatted():
+        formatted = Mock()
+        formatted.markdown = "# Report"
+        formatted.table_of_contents = "TOC"
+        formatted.word_count = 100
+        formatted.chapters = ["c"]
+        formatted.citations = []
+        return formatted
+
+    @pytest.mark.asyncio
+    async def test_deep_research_mode_passes_supplemental_as_stage1(self):
+        orch = ResearchOrchestrator()
+        cfg = ResearchConfig(
+            mode=ResearchMode.DEEP_RESEARCH, supplemental_context="FENCED HIRING BLOCK"
+        )
+        captured: dict = {}
+
+        mock_orch = MagicMock()
+
+        async def gen(**kwargs):
+            captured.update(kwargs)
+            return self._deep_result()
+
+        mock_orch.generate_comprehensive_report = gen
+
+        with (
+            patch(f"{MODULE}.get_deep_research_orchestrator", return_value=mock_orch),
+            patch(f"{MODULE}.ReportFormatter") as MockFmt,
+        ):
+            MockFmt.return_value.format_report.return_value = self._formatted()
+            await orch._run_deep_research_with_context("Acme Corp", None, cfg, None, None)
+
+        assert captured["stage1_context"] == "FENCED HIRING BLOCK"
+
+    @pytest.mark.asyncio
+    async def test_complete_mode_appends_supplemental_to_stage1(self):
+        orch = ResearchOrchestrator()
+        cfg = ResearchConfig(mode=ResearchMode.COMPLETE, supplemental_context="FENCED HIRING BLOCK")
+        structured = OrchestratorResult(
+            company_name="Acme Corp",
+            website="https://acme.example",
+            mode=ResearchMode.STRUCTURED,
+            section_results={"company_overview": "scraped overview"},
+            success=True,
+        )
+
+        async def fake_struct(*a):
+            return structured
+
+        captured: dict = {}
+        mock_dr_orch = MagicMock()
+
+        async def gen(**kwargs):
+            captured.update(kwargs)
+            return self._deep_result()
+
+        mock_dr_orch.generate_comprehensive_report = gen
+
+        with (
+            _make_console_patch(),
+            patch.object(orch, "_run_structured_research", side_effect=fake_struct),
+            patch(f"{MODULE}.get_deep_research_orchestrator", return_value=mock_dr_orch),
+            patch(f"{MODULE}.ReportFormatter") as MockFmt,
+        ):
+            MockFmt.return_value.format_report.return_value = self._formatted()
+            await orch._run_complete_research("Acme Corp", "https://acme.example", cfg, None, None)
+
+        stage1 = captured["stage1_context"]
+        assert stage1 is not None
+        assert stage1.endswith("FENCED HIRING BLOCK")
+        # The structured phase's content precedes the supplemental block.
+        assert "scraped overview" in stage1
+
+    @pytest.mark.asyncio
+    async def test_complete_mode_supplemental_survives_structured_failure(self):
+        orch = ResearchOrchestrator()
+        cfg = ResearchConfig(
+            mode=ResearchMode.COMPLETE,
+            fail_on_low_scrape=False,
+            supplemental_context="FENCED HIRING BLOCK",
+        )
+        structured = OrchestratorResult(
+            company_name="Acme Corp",
+            website=None,
+            mode=ResearchMode.STRUCTURED,
+            section_results={},
+            success=False,
+        )
+
+        async def fake_struct(*a):
+            return structured
+
+        captured: dict = {}
+        mock_dr_orch = MagicMock()
+
+        async def gen(**kwargs):
+            captured.update(kwargs)
+            return self._deep_result()
+
+        mock_dr_orch.generate_comprehensive_report = gen
+
+        with (
+            _make_console_patch(),
+            patch.object(orch, "_run_structured_research", side_effect=fake_struct),
+            patch(f"{MODULE}.get_deep_research_orchestrator", return_value=mock_dr_orch),
+            patch(f"{MODULE}.ReportFormatter") as MockFmt,
+        ):
+            MockFmt.return_value.format_report.return_value = self._formatted()
+            await orch._run_complete_research("Acme Corp", None, cfg, None, None)
+
+        assert captured["stage1_context"] == "FENCED HIRING BLOCK"
+
+    @pytest.mark.asyncio
+    async def test_no_supplemental_keeps_deep_research_stage1_none(self):
+        orch = ResearchOrchestrator()
+        cfg = ResearchConfig(mode=ResearchMode.DEEP_RESEARCH)
+        captured: dict = {}
+
+        mock_orch = MagicMock()
+
+        async def gen(**kwargs):
+            captured.update(kwargs)
+            return self._deep_result()
+
+        mock_orch.generate_comprehensive_report = gen
+
+        with (
+            patch(f"{MODULE}.get_deep_research_orchestrator", return_value=mock_orch),
+            patch(f"{MODULE}.ReportFormatter") as MockFmt,
+        ):
+            MockFmt.return_value.format_report.return_value = self._formatted()
+            await orch._run_deep_research_with_context("Acme Corp", None, cfg, None, None)
+
+        assert captured["stage1_context"] is None

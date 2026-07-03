@@ -95,7 +95,6 @@ def temp_context_file(company_name: str, content: str) -> Generator[str, None, N
     fd = None
     filepath = None
     try:
-        # Create temp file with .txt extension
         safe_name = company_name.replace(" ", "_").replace("/", "_")
         fd, filepath = tempfile.mkstemp(suffix=".txt", prefix=f"{safe_name}_step1_")
 
@@ -139,6 +138,10 @@ class ResearchConfig:
     include_web_search: bool = True
     sections: list | None = None  # Specific sections to research
     fail_on_low_scrape: bool = True
+    # Extra evidence appended to the Deep Research stage-1 context (COMPLETE
+    # and DEEP_RESEARCH modes). Callers own fencing: anything derived from
+    # scraped text must arrive already fenced (hiring signals do).
+    supplemental_context: str | None = None
 
 
 @dataclass
@@ -229,7 +232,6 @@ class ResearchOrchestrator:
         config = config or ResearchConfig(mode=mode)
         start_time = asyncio.get_running_loop().time()
 
-        # Use operation_context for observability
         with operation_context(
             "research", company=company_name, mode=mode.value, website=website or "none"
         ):
@@ -258,7 +260,6 @@ class ResearchOrchestrator:
                 result.duration_seconds = asyncio.get_running_loop().time() - start_time
                 logger.info(f"Research completed in {result.duration_seconds:.0f}s")
 
-                # Emit metrics on successful completion
                 self._emit_research_metrics(
                     operation="research",
                     company_name=company_name,
@@ -275,7 +276,6 @@ class ResearchOrchestrator:
                 duration = asyncio.get_running_loop().time() - start_time
                 logger.error(f"Research failed: {e}", exc_info=True)
 
-                # Emit metrics on failure
                 self._emit_research_metrics(
                     operation="research",
                     company_name=company_name,
@@ -347,7 +347,6 @@ class ResearchOrchestrator:
                 msg = progress.message or progress.thought or "Processing..."
                 on_progress(msg)
 
-        # Execute deep research with website as priority URL
         priority_urls = [website] if website else None
 
         result = await self.deep_research_client.research(
@@ -366,7 +365,6 @@ class ResearchOrchestrator:
         if not result.success:
             raise ResearchError(f"Deep research failed: {result.error}")
 
-        # Normalize the result to section format
         section_results = self._normalize_deep_research_result(result)
 
         return OrchestratorResult(
@@ -395,7 +393,6 @@ class ResearchOrchestrator:
         # Import here to avoid circular imports
         from primr.core.research_agent import run_research
 
-        # Run the existing pipeline
         # Note: run_research is synchronous, so we run it in executor
         # Pass the progress callback so updates display during execution
         loop = asyncio.get_running_loop()
@@ -514,7 +511,6 @@ class ResearchOrchestrator:
                     step1_context_file = self._prepare_step1_context(
                         company_name, structured_result.section_results
                     )
-                    # Read the context file content
                     with open(step1_context_file, encoding="utf-8") as f:
                         stage1_context = f.read()
                     logger.info(f"Stage 1 context prepared: {len(stage1_context)} chars")
@@ -522,6 +518,16 @@ class ResearchOrchestrator:
                     logger.warning(f"Failed to prepare Stage 1 context: {e}", exc_info=True)
                     if on_progress:
                         on_progress("Warning: Could not prepare context, proceeding without it")
+
+            # Supplemental evidence (e.g. hiring signals) rides into the same
+            # stage-1 context - even when the structured phase failed, so the
+            # Deep Research call still sees it.
+            if config.supplemental_context:
+                stage1_context = (
+                    f"{stage1_context}\n\n{config.supplemental_context}"
+                    if stage1_context
+                    else config.supplemental_context
+                )
 
             # ================================================================
             # PHASE 2: Comprehensive Deep Research (Sequential Elaboration)
@@ -535,7 +541,6 @@ class ResearchOrchestrator:
                 expected_duration="15-30 minutes",
             )
 
-            # Use the new comprehensive report generation with sequential elaboration
             orchestrator = get_deep_research_orchestrator()
 
             def progress_wrapper(msg: str) -> None:
@@ -576,7 +581,6 @@ class ResearchOrchestrator:
                     duration_seconds=time_module.time() - total_start,
                 )
 
-            # Format the report (clean TOC, no failure markers)
             formatter = ReportFormatter()
             formatted = formatter.format_report(
                 raw_content=deep_result.content,
@@ -599,7 +603,6 @@ class ResearchOrchestrator:
             # ================================================================
             total_duration = time_module.time() - total_start
 
-            # Clean up temp file
             if step1_context_file:
                 try:
                     import os
@@ -610,7 +613,6 @@ class ResearchOrchestrator:
                         "Failed to clean up temp file %s", step1_context_file, exc_info=True
                     )
 
-            # Build section results for compatibility
             section_results = {
                 "strategic_overview": formatted.markdown,
                 "table_of_contents": formatted.table_of_contents,
@@ -643,7 +645,6 @@ class ResearchOrchestrator:
         except Exception as e:
             logger.error(f"Complete research failed: {e}", exc_info=True)
 
-            # Cleanup on error
             if step1_context_file:
                 try:
                     import os
@@ -687,7 +688,6 @@ class ResearchOrchestrator:
 
         summary_parts = []
 
-        # Key sections to include in summary
         priority_sections = [
             "company_overview",
             "detailed_products_services",
@@ -700,7 +700,6 @@ class ResearchOrchestrator:
         for section in priority_sections:
             if section in section_results:
                 content = section_results[section]
-                # Truncate long sections
                 if len(content) > 500:
                     content = content[:500] + "..."
                 title = section.replace("_", " ").title()
@@ -799,12 +798,13 @@ class ResearchOrchestrator:
             if on_progress:
                 on_progress(msg)
 
-        # Generate comprehensive report using Accordion Method
-        # Pass None for stage1_context since we're skipping Stage 1
+        # Generate comprehensive report using Accordion Method. No Stage 1
+        # scraping here, so the only stage-1 context is supplemental evidence
+        # (e.g. hiring signals) when the caller provided it.
         deep_result = await orchestrator.generate_comprehensive_report(
             company_name=company_name,
             website_url=website,
-            stage1_context=None,  # No Stage 1 - Deep Research will gather all facts
+            stage1_context=config.supplemental_context or None,
             on_progress=progress_wrapper,
             target_pages=30,  # Target 30+ pages
         )

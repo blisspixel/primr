@@ -34,9 +34,6 @@ warnings.filterwarnings("ignore", message=".*found in sys.modules.*", category=R
 # These imports ensure existing code that imports from research_agent.py continues to work.
 # New code should import directly from the specialized modules.
 
-# From workspace module
-
-# From structured_research module
 
 # From cli module
 # From ai_strategy module
@@ -69,7 +66,7 @@ from primr.core.fast_mode_helpers import (
 )
 from primr.core.fast_run_collection import collect_research_data
 from primr.core.fast_run_gaps import deepen_research
-from primr.core.fast_run_hiring import collect_hiring_block
+from primr.core.fast_run_hiring import collect_fenced_hiring_block, collect_hiring_block
 from primr.core.fast_run_sections import write_report_sections
 from primr.core.fast_run_strategy import run_strategy_phase
 from primr.core.fast_run_trust import polish_and_gate_fast_report
@@ -3384,11 +3381,9 @@ def perform_deep_research(
     # =================================================================
     preflight_errors = []
 
-    # 1. Must have company name or website
     if not company_name and not website:
         preflight_errors.append("Must provide company name or website")
 
-    # 2. Validate context files exist and are readable
     if context_files:
         for f in context_files:
             if not os.path.exists(f):
@@ -3398,14 +3393,12 @@ def perform_deep_research(
             elif os.path.getsize(f) == 0:
                 preflight_errors.append(f"Context file is empty: {f}")
 
-    # 3. Validate API key is configured
     from primr.config.settings import get_settings
 
     settings = get_settings()
     if not settings.api.gemini_key:
         preflight_errors.append("GEMINI_API_KEY not configured")
 
-    # ABORT if any pre-flight errors
     if preflight_errors:
         console.error("Pre-flight validation failed:")
         for err in preflight_errors:
@@ -3421,8 +3414,6 @@ def perform_deep_research(
         )
         return None
 
-    # =================================================================
-
     # Pre-run: clean up any orphaned resources from prior crashed runs
     # File Search Stores have NO TTL and cost money if left behind
     try:
@@ -3437,7 +3428,6 @@ def perform_deep_research(
     except Exception as e:
         logger.debug(f"Pre-run resource cleanup check failed (non-fatal): {e}")
 
-    # Map mode string to enum
     mode_map = {
         "deep-research": (ResearchMode.DEEP_RESEARCH, "Deep Research"),
         "complete": (ResearchMode.COMPLETE, "Complete (Two-Step)"),
@@ -3445,7 +3435,6 @@ def perform_deep_research(
     }
     research_mode, mode_label = mode_map.get(mode, (ResearchMode.DEEP_RESEARCH, "Deep Research"))
 
-    # Wrap deep research in correlation context
     with correlation_scope("deep_research", company=display_name, mode=mode):
         log_structured("info", "Starting deep research", company=display_name, mode=mode)
 
@@ -3463,7 +3452,6 @@ def perform_deep_research(
         _update_run_state(folder_path, current_phase="deep_research", status="running")
         _append_run_event(folder_path, "deep_research", "started", f"{mode_label} started")
 
-        # Track last phase to only print on phase changes
         last_phase: list[str | None] = [None]  # list = mutable cell for closure
         last_update_time = [time.time()]
 
@@ -3471,7 +3459,6 @@ def perform_deep_research(
             # Extract phase from message (e.g., "Searching sources (2m 30s)")
             phase = msg.split(" (")[0].strip() if " (" in msg else msg.strip()
 
-            # Strip leading dots (heartbeat-style updates)
             display_msg = msg.lstrip(". ")
 
             # Show indented sub-status messages (e.g. "  Uploading Stage 1 context")
@@ -3480,20 +3467,32 @@ def perform_deep_research(
                 log_structured("debug", f"Deep research progress: {msg}")
                 return
 
-            # Show on phase change
             if phase and phase != last_phase[0] and not phase.startswith("  "):
                 last_phase[0] = phase
                 last_update_time[0] = time.time()
                 console.info(display_msg)
-            # Also show periodic updates every 2 minutes even if phase unchanged
             elif time.time() - last_update_time[0] > 120:
                 last_update_time[0] = time.time()
                 console.muted(f"  Still working... {display_msg}")
 
             log_structured("debug", f"Deep research progress: {msg}")
 
+        # Hiring signals ride into the Deep Research stage-1 context, fenced
+        # (roadmap #3). Strategy-only runs skip (no overview to enrich), and
+        # the legacy parallel hybrid path skips too - it never consumes
+        # stage-1 context, so gathering would spend the stage and drop it.
+        hiring_context = (
+            ""
+            if strategy_only or mode == "hybrid"
+            else collect_fenced_hiring_block(
+                company_label=display_name,
+                website=website,
+                scraped_data={},
+                folder_path=folder_path,
+            )
+        )
+
         try:
-            # Run async orchestrator with heartbeat for long operations
             orchestrator = get_orchestrator()
 
             from primr.utils.async_utils import run_sync
@@ -3504,7 +3503,9 @@ def perform_deep_research(
                     website=website,
                     mode=research_mode,
                     config=ResearchConfig(
-                        mode=research_mode, fail_on_low_scrape=fail_on_low_scrape
+                        mode=research_mode,
+                        fail_on_low_scrape=fail_on_low_scrape,
+                        supplemental_context=hiring_context or None,
                     ),
                     on_progress=progress_callback,
                     context_files=context_files,
@@ -3577,12 +3578,10 @@ def perform_deep_research(
             )
             _update_run_state(folder_path, current_phase="processing_results", status="running")
 
-            # Save section results to working folder
             with console.timed_operation("Saving results"):
                 for section_key, content in result.section_results.items():
                     save_section_output(folder_path, section_key, content)
 
-            # Save raw markdown for reference
             raw_md_path = None
             if result.raw_content:
                 raw_md_path = os.path.join(folder_path, "deep_research_output.md")

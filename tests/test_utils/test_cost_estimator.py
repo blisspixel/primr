@@ -878,3 +878,24 @@ class TestGrokTier:
             "complete", fast_mode=True, use_historical=False, grok_tier="hybrid"
         )
         assert abs(default_est.total_cost - hybrid_est.total_cost) < 0.001
+
+
+class TestDeepPathHiringOverhead:
+    """Deep Research paths now run hiring signals; the estimate notes it and
+    carries the duration bump so dry-run stays the source of truth."""
+
+    def test_deep_modes_note_hiring_and_bump_duration(self):
+        for mode in ("deep-research", "complete"):
+            base = MODE_ESTIMATES[mode]
+            estimate = estimate_cost(mode, use_historical=False)
+            assert any("Hiring signals" in n for n in estimate.notes), mode
+            low, high = estimate.duration_minutes.split(" min")[0].split("-")
+            assert int(low) == base["duration_min"] + 1, mode
+            assert int(high) == base["duration_max"] + 2, mode
+
+    def test_hybrid_and_scrape_only_have_no_hiring_note(self):
+        """Hybrid's legacy parallel path neither gathers nor consumes the
+        block, so its estimate must not claim the stage."""
+        for mode in ("hybrid", "scrape-only"):
+            estimate = estimate_cost(mode, use_historical=False)
+            assert not any("Hiring signals" in n for n in estimate.notes), mode
