@@ -48,8 +48,24 @@ jobs:
       id-token: write # OIDC token for the deploy
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.deployment_retry.outputs.page_url }}
     steps:
+      # The Pages API intermittently rejects a deploy with "Deployment failed,
+      # try again later" even when the build + artifact upload succeed; a manual
+      # re-run then works. Absorb that transient with one automatic retry so the
+      # check does not false-red on GitHub-side flakiness. The strict `build`
+      # job above remains the real docs gate; if BOTH attempts fail (a genuine
+      # Pages outage or misconfiguration) the job still goes red.
       - name: Deploy to GitHub Pages
         id: deployment
+        uses: actions/deploy-pages@v5
+        continue-on-error: true
+
+      - name: Wait before deploy retry
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 30
+
+      - name: Deploy to GitHub Pages (retry)
+        id: deployment_retry
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v5
