@@ -37,6 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed two `docs/API.md` hook examples that imported `CostGuardHook` from
   `primr.agentic.hooks` after it moved to `primr.agentic.cost_guard`
   (re-exported from the `primr.agentic` package).
+- Refreshed docs for the 1.34.43 "hiring signals on the Deep Research paths"
+  change: RUN_MODES deep/premium rows, the deep-mode architecture diagram,
+  and the CLI epilog now reflect the hiring pre-stage and its time bump, and
+  the `show-usage` cost-variability section is documented in RUN_MODES.
 
 ## [1.34.43] - 2026-07-03
 

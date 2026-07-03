@@ -34,8 +34,8 @@ _SKILLS: list[dict] = [
             "Estimate the cost, time, and page count for a company research run. "
             "Call this before starting research.\n\n"
             'Input (JSON or natural language): {"url": "https://example.com", "mode": "full"}\n'
-            "Modes: scrape (~$0.10, 5-10 min), deep (~$2.50, 10-15 min), "
-            "full (~$0.55, ~30 min, default), premium (~$5, 50-75 min)\n\n"
+            "Modes: scrape (~$0.10, 5-10 min), deep (~$2.50, 11-17 min), "
+            "full (~$0.89-$1.01, 34-59 min, default), premium (~$5, 50-75 min)\n\n"
             "Output: JSON with estimated_cost_usd, estimated_time_minutes, "
             "planned_pages, budget_enforcement, approval_token, "
             "approval_token_id, and approval_expires_at"

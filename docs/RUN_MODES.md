@@ -19,8 +19,8 @@ Dry-run output is the source of truth for the next run. The numbers below are cu
 | XAI-only default | `primr "Company" url` with no Gemini key | Strategic Overview plus AI Strategy | 37-59 min | ~$5.76 |
 | XAI-only base | `primr "Company" url --no-ai-strategy` with no Gemini key | Strategic Overview | 31-47 min | ~$4.36 |
 | Scrape | `primr "Company" url --mode scrape` | Site corpus plus insights | 5-10 min | ~$0.10 |
-| Deep | `primr "Company" url --mode deep` | External research only | 10-15 min | ~$2.50 |
-| Premium | `primr "Company" url --premium` | Deep Research plus strategy | 50-75 min | ~$5 |
+| Deep | `primr "Company" url --mode deep` | Deep Research plus hiring signals | 11-17 min | ~$2.50 |
+| Premium | `primr "Company" url --premium` | Deep Research plus hiring signals plus strategy | 50-75 min | ~$5 |
 | Premium lite | `primr "Company" url --premium --lite` | Premium strategy with lighter model path | 50-80 min | ~$4 |
 | Recon | `primr recon company.com` | DNS intelligence | 2-3 sec | $0.00 |
 | Skill pack | `primr skills "Company" url` | Agent Skills tree plus Cowork zip | ~3 min | ~$0.30 |
@@ -102,6 +102,12 @@ Cost behavior:
 - `primr skills` emits local Cowork icons by default. Remote image generation
   requires `--remote-icons` or MCP `remote_icons=true`, and the estimate
   includes a conservative image allowance only when that opt-in is set.
+- `primr show-usage` ends with a per-mode "Cost Variability" section: it
+  compares each mode's recent runs against its prior history (average cost,
+  spread, and cache hit rate) and prints a report-only SIGNAL line when
+  recent runs cost more or cache less than history. It never blocks a run;
+  it surfaces continuous-reasoning or prompt-cache regressions that would
+  otherwise erode the sub-$1 default silently.
 
 ## Output Locations
 

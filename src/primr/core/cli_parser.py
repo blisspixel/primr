@@ -33,7 +33,7 @@ CLI_EPILOG = """
 Research Modes:
   full     Scrape + standard research + AI strategy (~34-59 min, ~$0.89-$1.01 with XAI+Gemini) [DEFAULT]
   scrape   Scrape website + extract insights only (~5-10 min, ~$0.10)
-  deep     Autonomous AI web research, 8 sections (~10-15 min, ~$2.50)
+  deep     Autonomous AI web research + hiring signals (~11-17 min, ~$2.50)
   parallel Both engines in parallel (legacy, ~25 min)
 
 Examples:

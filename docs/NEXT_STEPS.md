@@ -1,6 +1,6 @@
 # Next Steps
 
-Last research refresh: 2026-06-30.
+Last research refresh: 2026-07-03.
 
 This page answers the working question: what should Primr do next, and why?
 `ROADMAP.md` remains the ordered backlog. This page is the shorter execution

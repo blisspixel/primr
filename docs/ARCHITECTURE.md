@@ -108,10 +108,17 @@ Website-focused research using the `build_site_corpus` workflow with AI-powered 
 ### Deep Mode
 
 Autonomous research using Gemini's Deep Research Agent with built-in Google Search.
+Before the deep phase, the ATS/careers hiring-signal stage runs and its fenced
+block is threaded into the Deep Research stage-1 context (roadmap #3).
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        Deep Mode Pipeline                            │
+└─────────────────────────────────────────────────────────────────────┘
+                                   │
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│           Hiring Signals (ATS / careers) → fenced stage-1 context    │
 └─────────────────────────────────────────────────────────────────────┘
                                    │
                                    ▼
