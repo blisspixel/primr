@@ -225,6 +225,46 @@ class CalibrationReport:
         }
 
 
+def summarize_label_citation_coverage(report_content: str) -> dict[str, int | float]:
+    """Deterministic, judge-free label-citation coverage for one report.
+
+    The paid label-honesty / calibration pass judges whether a cited source
+    *supports* a claim (faithfulness). This is its cheap always-on
+    complement: for the traceable-class labels (``Confirmed``/``Reported``),
+    how many claims carry ANY resolvable citation at all - the ``no_source``
+    slice, which needs no LLM and no network. A ``(Confirmed)`` claim that
+    cites nothing is a structural honesty defect regardless of phrasing, so
+    surfacing the ratio on every run gives users a label-honesty signal for
+    free when the paid pass is off. Report-only: a signal, never a gate.
+
+    Returns per-label and combined totals plus a ``coverage_rate`` in [0, 1]
+    (1.0 when there are no traceable-class claims - nothing to under-cite).
+    """
+    claims = extract_labeled_claims(report_content, max_per_label=None)
+    per_label_total: dict[str, int] = dict.fromkeys(TRACEABLE_LABELS, 0)
+    per_label_cited: dict[str, int] = dict.fromkeys(TRACEABLE_LABELS, 0)
+    for claim in claims:
+        if claim.label not in TRACEABLE_LABELS:
+            continue
+        per_label_total[claim.label] += 1
+        if claim.source_urls:
+            per_label_cited[claim.label] += 1
+
+    traceable_total = sum(per_label_total.values())
+    traceable_cited = sum(per_label_cited.values())
+    coverage_rate = traceable_cited / traceable_total if traceable_total else 1.0
+
+    return {
+        "confirmed_total": per_label_total["Confirmed"],
+        "confirmed_cited": per_label_cited["Confirmed"],
+        "reported_total": per_label_total["Reported"],
+        "reported_cited": per_label_cited["Reported"],
+        "traceable_total": traceable_total,
+        "traceable_cited": traceable_cited,
+        "coverage_rate": coverage_rate,
+    }
+
+
 def parse_sources_appendix(report_content: str) -> dict[int, str]:
     """Map citation numbers to URLs from the Sources/References appendix."""
     appendix_match = re.search(

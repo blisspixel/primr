@@ -230,3 +230,27 @@ class TestLabelHonestyHelper:
         assert "[honesty]" in result.report_content
         # QA recomputed once for the base report and again after the downgrade.
         assert seams["qa"].call_count == 2
+
+
+class TestLabelCitationTrustRow:
+    """The deterministic, judge-free label-citation coverage row appears in the
+    report trust summary whenever the report has Confirmed/Reported claims."""
+
+    _REPORT = (
+        "## Findings\n"
+        "Revenue hit $9M. (Confirmed) [cite: 1]\n"
+        "A bold claim with no citation. (Confirmed)\n\n"
+        "## Sources\n1. https://acme.example/ir\n"
+    )
+
+    def test_row_present_with_coverage_ratio(self, seams):
+        result = seams["call"](report_content=self._REPORT)
+        stats = dict(result.report_trust_stats)
+        assert "Label Citations" in stats
+        # One of two Confirmed claims carries a resolvable citation.
+        assert stats["Label Citations"].startswith("1/2")
+
+    def test_row_omitted_when_no_traceable_claims(self, seams):
+        result = seams["call"](report_content="## S\nMarket may shift. (Estimated)\n")
+        stats = dict(result.report_trust_stats)
+        assert "Label Citations" not in stats

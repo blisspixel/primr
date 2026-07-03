@@ -524,6 +524,13 @@ Each step unblocks the ones after it; items within a step are independent.
    and shipping is never blocked. Default-off until an agreement-validated
    calibration baseline and broader validation rubric justify promotion; arming
    a hard gate stays bound to step 1's instruments, never a lone judge.
+   **Also shipped (always-on, judge-free):** the deterministic complement -
+   `summarize_label_citation_coverage()` surfaces a "Label Citations" trust row
+   (how many `(Confirmed)`/`(Reported)` claims carry a resolvable citation, the
+   `no_source` slice) on every fast run at zero cost, so a label-traceability
+   signal is visible even when the paid pass is off. Report-only, structural
+   (a labeled claim citing nothing is a defect regardless of phrasing), never a
+   gate.
 4. **Cost levers** (#9 batch API, #19 pipeline overlap) (1.x): mechanical
    after step 2; each validated with one cheap live run.
 5. **Control plane** (T8 + #21) (2.0): per-tool authz is now shipped for MCP

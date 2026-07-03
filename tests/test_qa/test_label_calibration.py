@@ -10,6 +10,7 @@ from primr.qa.label_calibration import (
     extract_labeled_claims,
     parse_evidence_review,
     parse_sources_appendix,
+    summarize_label_citation_coverage,
 )
 
 REPORT = """## Executive Summary
@@ -421,3 +422,42 @@ class TestEndToEndFile:
             str(path), fetch_fn=lambda u: "text", judge_fn=lambda c, t: True
         )
         assert report.precision("Reported") is not None
+
+
+class TestLabelCitationCoverage:
+    """Deterministic, judge-free label-citation coverage (the no_source slice
+    surfaced for free on every run)."""
+
+    def test_counts_traceable_claims_with_and_without_citations(self):
+        cov = summarize_label_citation_coverage(REPORT)
+        # Confirmed: revenue [cite:1] (cited) + "no citation at all" (uncited).
+        assert cov["confirmed_total"] == 2
+        assert cov["confirmed_cited"] == 1
+        # Reported: headcount [cite:2,3] (cited) + market [cite:9] (9 does not
+        # resolve against the 1-3 appendix, so no source).
+        assert cov["reported_total"] == 2
+        assert cov["reported_cited"] == 1
+        assert cov["traceable_total"] == 4
+        assert cov["traceable_cited"] == 2
+        assert cov["coverage_rate"] == 0.5
+
+    def test_estimated_and_hypothesis_labels_are_excluded(self):
+        cov = summarize_label_citation_coverage(REPORT)
+        # Only Confirmed/Reported count toward traceable; the (Estimated) and
+        # (Hypothesis) lines in REPORT must not inflate the totals.
+        assert cov["traceable_total"] == cov["confirmed_total"] + cov["reported_total"]
+
+    def test_no_traceable_claims_is_full_coverage(self):
+        report = "## S\nMargins may compress. (Estimated)\nNew line coming. (Hypothesis)\n"
+        cov = summarize_label_citation_coverage(report)
+        assert cov["traceable_total"] == 0
+        assert cov["coverage_rate"] == 1.0
+
+    def test_all_cited_is_perfect_coverage(self):
+        report = (
+            "## S\nRevenue hit $9M. (Confirmed) [cite: 1]\n\n## Sources\n1. https://a.example/x\n"
+        )
+        cov = summarize_label_citation_coverage(report)
+        assert cov["traceable_total"] == 1
+        assert cov["traceable_cited"] == 1
+        assert cov["coverage_rate"] == 1.0
