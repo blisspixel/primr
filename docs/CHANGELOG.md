@@ -5,6 +5,18 @@ All notable changes to Primr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.34.46] - 2026-07-04
+
+### Changed
+
+- Internal refactor (no behavior change): the deep-research run's finalization
+  stage - cost reconciliation, the estimated-vs-actual summary, the report
+  trust row, usage recording, and the job summary - moved out of
+  `research_agent.py` into a dedicated, unit-tested `deep_run_summary` module,
+  mirroring the existing fast-run seam. Output, cost, and usage behavior are
+  identical; this keeps the orchestrator under its size ceiling and gives the
+  deep path a tested home for future trust and cost surfaces.
+
 ## [1.34.45] - 2026-07-03
 
 ### Fixed

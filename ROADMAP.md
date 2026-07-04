@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.34.45
+Current State: v1.34.46
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -1567,6 +1567,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.34.46 | Jul 2026 | **Internal: deep-run finalization seam (no behavior change).** The deep-research run's finalization tail - cost reconciliation, the estimated-vs-actual summary, the report trust row, usage recording, and the job summary - moved out of `research_agent.py` into a dedicated, unit-tested `deep_run_summary` module, mirroring the existing fast-run seam. Output, cost, and usage behavior are byte-identical; the extraction keeps the orchestrator under its size ceiling and gives the deep path a tested home for future trust/cost surfaces. |
 | 1.34.45 | Jul 2026 | **Cost-estimate parity and deep-path trust visibility.** `--verify` (post-QA claim verification) is now priced by all three run-approval surfaces - the interactive confirm prompt, `--dry-run`, and the `--budget` pre-flight gate - through one shared estimate-shaping helper, and the confirm prompt now also prices `--grok-tier`. The always-on, judge-free "Label Citations" trust row (how many `(Confirmed)`/`(Reported)` claims cite a resolvable source) is machine-readable in the fast-run QA metrics and now renders on the deep and `--premium` paths too, which previously shipped with no trust summary at all. |
 | 1.34.44 | Jul 2026 | **Post-release hardening.** A maintenance bug hunt over the 1.34.43 surfaces closed the last unfenced hiring-signal→prompt boundary (the block inside `insights.txt`, read unfenced by the AI-strategy and workbook-fallback prompts), made the interactive cost-confirm gate price `--strategy-type` documents like `--dry-run` already does, stopped estimates from dropping the AI-strategy cost when a strategy list also names `ai`, and fixed two stale `CostGuardHook` import examples in `docs/API.md`. |
 | 1.34.43 | Jul 2026 | **Cost-accounting integrity, prompt-injection fencing, and observability.** A cost-control bug hunt fixed a per-vendor `--budget` overrun, an unlocked token-counter race, quadratic usage-history duplication, phantom DDG search cost, and a `sync_spend` double-count; `--dry-run` and the pre-flight gate now price `--strategy-type` documents. Remaining fast-run scraped-text prompt boundaries are now data-fenced, and hiring signals ride into the CLI Deep Research paths. `show-usage` gains a cost-variability regression signal, `output/` and `working/` self-document, and Windows state writes consolidate on the retrying `atomic_replace` seam. |
