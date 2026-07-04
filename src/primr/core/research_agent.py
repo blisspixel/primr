@@ -3749,106 +3749,23 @@ def perform_deep_research(
                     f"{strat_display_name}{vendor_suffix}", str(Path(strategy_path).resolve())
                 )
 
-            # Get actual usage from AI client (per-model accurate cost)
-            from primr.ai.client import get_client
-            from primr.core.deep_budget import (
-                count_main_deep_research_tasks,
-                deep_research_flat_cost,
-            )
+            # Cost reconciliation, summary display, usage record, job summary.
+            from primr.core.deep_run_summary import finalize_deep_run
 
-            client = get_client()
-            usage = client.get_usage_summary()
-
-            # Pipeline portion (Flash + Pro, per-model accurate)
-            pipeline_cost = usage.get("total_cost", 0.0)
-            total_input = usage.get("total_input_tokens", 0)
-            total_output = usage.get("total_output_tokens", 0)
-
-            # Deep Research portion (flat per-task cost, API doesn't expose tokens)
-            dr_tasks = count_main_deep_research_tasks(mode) + strategy_deep_research_tasks_started
-            dr_cost = deep_research_flat_cost(dr_tasks)
-
-            actual_cost = pipeline_cost + dr_cost
-
-            from primr.utils.cost_estimator import estimate_cost
-
-            pre_estimate = estimate_cost(
-                mode,
-                ai_strategy,
-                use_historical=False,
-                num_vendors=len(platforms),
+            finalize_deep_run(
+                mode=mode,
+                mode_label=mode_label,
+                result=result,
+                ai_strategy=ai_strategy,
+                platforms=platforms,
                 lite_strategy=lite_strategy,
-                strategy_types=strategies,  # replace-vs-add mirrored in estimator
+                strategies=strategies,
+                strategy_deep_research_tasks_started=strategy_deep_research_tasks_started,
+                time_str=time_str,
+                elapsed=elapsed,
+                display_name=display_name,
+                docx_path=docx_path,
             )
-
-            # Use sections_written for accurate count
-            section_count = (
-                result.sections_written
-                if result.sections_written > 0
-                else len(result.section_results)
-            )
-
-            # Count unique citations from generated content ([cite: N] format)
-            citation_count = 0
-            all_content = result.raw_content or ""
-            if not all_content and result.section_results:
-                all_content = "\n".join(result.section_results.values())
-            if all_content:
-                cite_numbers = set()
-                for match in re.findall(r"\[cite:\s*([\d,\s]+)\]", all_content):
-                    for num in match.split(","):
-                        num = num.strip()
-                        if num:
-                            cite_numbers.add(num)
-                citation_count = len(cite_numbers)
-
-            # Always-on judge-free label-citation trust signal (fast-path parity).
-            from primr.core.deep_run_trust import build_deep_report_trust_stats
-
-            _deep_trust = build_deep_report_trust_stats(all_content)
-            if _deep_trust:
-                console.trust_summary("Report Trust", _deep_trust)
-
-            # Summary stats with estimated vs actual comparison
-            summary_items = [
-                ("Mode", mode_label),
-                ("Chapters", str(section_count)),
-                ("Citations", str(citation_count)),
-                ("Duration", time_str),
-                ("Est. Cost", f"${pre_estimate.total_cost:.2f}"),
-                ("Actual Cost", f"~${actual_cost:.2f}"),
-            ]
-            if ai_strategy:
-                summary_items.append(("AI Strategy", "Yes"))
-            console.summary(summary_items)
-
-            # Save usage to history
-            from primr.utils.usage_tracker import get_usage_tracker
-
-            tracker = get_usage_tracker()
-            tracker.record_usage(
-                mode=mode,
-                company=display_name,
-                input_tokens=total_input,
-                output_tokens=total_output,
-                search_queries=result.search_queries_count,  # Actual count from API
-                duration_seconds=elapsed,
-                pipeline_cost=pipeline_cost,
-                deep_research_cost=dr_cost,
-            )
-            tracker.save()
-
-            # Log job summary for observability
-            job_summary = JobSummary.create(
-                company=display_name,
-                mode=mode,
-                duration_seconds=elapsed,
-                api_calls=0,  # Deep Research doesn't expose API call count
-                total_tokens=total_input + total_output,
-                sections_generated=section_count,
-                output_path=docx_path,
-            )
-            log_job_summary(job_summary)
 
             return docx_path
 

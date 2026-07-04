@@ -37,7 +37,7 @@ NEW_FILE_MAX_LINES = 1000
 # When a file is split and shrinks, lower its ceiling (or drop it once under
 # NEW_FILE_MAX_LINES). Never raise a ceiling to make a growing file pass.
 FILE_LINE_CEILINGS: dict[str, int] = {
-    "core/research_agent.py": 4497,
+    "core/research_agent.py": 4414,
     "core/cli.py": 3497,
     "ai/deep_research.py": 3892,
     "data/scraping/browsers.py": 1835,

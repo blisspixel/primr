@@ -84,7 +84,10 @@ def seams(monkeypatch, tmp_path):
     tracker = MagicMock()
     monkeypatch.setattr("primr.utils.usage_tracker.get_usage_tracker", lambda: tracker)
     job_log = MagicMock()
-    monkeypatch.setattr(research_agent, "log_job_summary", job_log)
+    # The finalization tail (cost/summary/usage/job-summary) now lives in the
+    # extracted deep_run_summary seam, so patch log_job_summary where it is
+    # called from, not research_agent's (no-longer-invoked) namespace binding.
+    monkeypatch.setattr("primr.core.deep_run_summary.log_job_summary", job_log)
 
     captured = {
         "folder": run_folder,
