@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.34.46
+Current State: v1.34.47
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -70,8 +70,11 @@ Current priority order:
    existing path-allowlist boundary. Ready baseline artifacts now publish a
    report-only gate recommendation from the per-report Confirmed traceability
    floor, including the exact environment-variable assignment an operator can
-   review before choosing whether to arm a hard gate. The measured
-   operator-curated multi-report baseline itself is still next. Calibration
+   review before choosing whether to arm a hard gate, and ready curated
+   multi-report baselines now carry
+   `measurement.status=measured_operator_curated_multi_report_baseline` when
+   representative coverage, evidence review, and judge agreement are complete.
+   Calibration
    baseline artifacts and inspections now also include a body-free
    operator-review block that keeps automatic gate arming disabled, names the
    exact review items for representative coverage, evidence dimensions,
@@ -453,7 +456,12 @@ The step-change that earns the major bump is three pillars landing together:
   shipped), a structured audit log for tool calls and resource reads,
   job-scoped artifact metadata and QA, usage/cost, source appendix, scrape
   trace, verification, and calibration summary resources,
-  A2A output negotiation (#21). Design doc:
+  A2A output negotiation (#21). The MCP `2026-07-28` release candidate is a
+  watch item for this pillar, not a current compatibility promise until the
+  final specification ships: its stateless HTTP core, explicit task handles,
+  Apps extension, JSON Schema 2020-12 tool schemas, protocol-level cache hints,
+  trace propagation, and auth hardening should shape the next HTTP MCP
+  compatibility review. Design doc:
   [`docs/design/2.0-agent-control-plane.md`](docs/design/2.0-agent-control-plane.md).
 
 **Exit criteria:** a downstream agent can delegate to primr unattended - on a
@@ -1567,6 +1575,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.34.47 | Jul 2026 | **Report punctuation and baseline measurement.** Final Markdown shipping now normalizes long dash punctuation at the artifact boundary, including the old Deep Research runner path, while preserving URL semantics by percent-encoding long dash code points inside links. DOCX conversion strips the fast-report header metadata line before body rendering so the Strategic Overview date and website appear once. Calibration baseline artifacts and inspections now include an explicit measurement status block, and ready operator-curated multi-report baselines report `measured_operator_curated_multi_report_baseline` with representative coverage, evidence review, and judge agreement checks visible in JSON and Markdown. |
 | 1.34.46 | Jul 2026 | **Internal: deep-run finalization seam (no behavior change).** The deep-research run's finalization tail - cost reconciliation, the estimated-vs-actual summary, the report trust row, usage recording, and the job summary - moved out of `research_agent.py` into a dedicated, unit-tested `deep_run_summary` module, mirroring the existing fast-run seam. Output, cost, and usage behavior are byte-identical; the extraction keeps the orchestrator under its size ceiling and gives the deep path a tested home for future trust/cost surfaces. |
 | 1.34.45 | Jul 2026 | **Cost-estimate parity and deep-path trust visibility.** `--verify` (post-QA claim verification) is now priced by all three run-approval surfaces - the interactive confirm prompt, `--dry-run`, and the `--budget` pre-flight gate - through one shared estimate-shaping helper, and the confirm prompt now also prices `--grok-tier`. The always-on, judge-free "Label Citations" trust row (how many `(Confirmed)`/`(Reported)` claims cite a resolvable source) is machine-readable in the fast-run QA metrics and now renders on the deep and `--premium` paths too, which previously shipped with no trust summary at all. |
 | 1.34.44 | Jul 2026 | **Post-release hardening.** A maintenance bug hunt over the 1.34.43 surfaces closed the last unfenced hiring-signal→prompt boundary (the block inside `insights.txt`, read unfenced by the AI-strategy and workbook-fallback prompts), made the interactive cost-confirm gate price `--strategy-type` documents like `--dry-run` already does, stopped estimates from dropping the AI-strategy cost when a strategy list also names `ai`, and fixed two stale `CostGuardHook` import examples in `docs/API.md`. |

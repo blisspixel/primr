@@ -128,6 +128,11 @@ def inspect_calibration_baseline(
         and not artifact_integrity["mismatched"]
     )
     status = inspection_status(baseline.get("status"), artifact_integrity)
+    measurement = _inspection_measurement_summary(
+        baseline.get("measurement"),
+        ready=ready,
+        status=status,
+    )
     gate_recommendation = inspection_gate_recommendation(
         baseline.get("gate_recommendation"),
         ready=ready,
@@ -144,6 +149,7 @@ def inspect_calibration_baseline(
         "ready": ready,
         "status": status,
         "reasons": reasons,
+        "measurement": measurement,
         "spend_preview_required": bool(next_actions.get("spend_preview_required")),
         "gate_policy": next_actions.get("gate_policy"),
         "gate_recommendation": gate_recommendation,
@@ -241,6 +247,15 @@ def build_calibration_baseline(
     )
     report_summaries = [_report_summary(report) for report in reports]
     ready = not reasons
+    measurement = _measurement_summary(
+        ready=ready,
+        reasons=reasons,
+        report_count=report_count,
+        minimum_reports=minimum_reports,
+        coverage_counts=coverage_counts,
+        failures=failures,
+        representation=representation,
+    )
     gate_recommendation = baseline_gate_recommendation(
         ready=ready,
         reports=report_summaries,
@@ -276,6 +291,7 @@ def build_calibration_baseline(
         "traceability": label_summary,
         "inference_label_checks": _inference_label_summary(label_totals, sidecar_counts),
         "representation": representation,
+        "measurement": measurement,
         "evidence_review": evidence_summary,
         "judge_agreement": judge_agreement,
         "gate_recommendation": gate_recommendation,
@@ -303,6 +319,7 @@ def render_calibration_baseline_markdown(baseline: dict[str, Any]) -> str:
     agreement = _dict_value(baseline, "judge_agreement")
     representation = _dict_value(baseline, "representation")
     traceability = _dict_value(baseline, "traceability")
+    measurement = _dict_value(baseline, "measurement")
     gate = _dict_value(baseline, "gate_recommendation")
     operator_review = _dict_value(baseline, "operator_review")
     reasons = baseline.get("reasons", [])
@@ -340,6 +357,19 @@ def render_calibration_baseline_markdown(baseline: dict[str, Any]) -> str:
         (
             "Judge-agreement reports: "
             f"{totals.get('reports_with_judge_agreement', 0)} / {totals.get('reports', 0)}"
+        ),
+        "",
+        "## Measurement Status",
+        "",
+        "| Status | Measured | Operator Curated | Multi-Report | Evidence Complete | Judge Agreement Complete |",
+        "|---|---:|---:|---:|---:|---:|",
+        (
+            f"| {measurement.get('status', 'unknown')} | "
+            f"{'yes' if measurement.get('measured') else 'no'} | "
+            f"{'yes' if measurement.get('operator_curated') else 'no'} | "
+            f"{'yes' if measurement.get('multi_report') else 'no'} | "
+            f"{'yes' if measurement.get('evidence_review_complete') else 'no'} | "
+            f"{'yes' if measurement.get('judge_agreement_complete') else 'no'} |"
         ),
         "",
         "## Traceability",
@@ -688,6 +718,65 @@ def _readiness_reasons(
     if representation_missing_tags:
         reasons.append("missing_representative_coverage")
     return reasons
+
+
+def _measurement_summary(
+    *,
+    ready: bool,
+    reasons: list[str],
+    report_count: int,
+    minimum_reports: int,
+    coverage_counts: dict[str, int],
+    failures: int,
+    representation: dict[str, Any],
+) -> dict[str, Any]:
+    operator_curated = bool(representation.get("selection_ready"))
+    missing_tags = _string_list(representation.get("missing_tags"))
+    evidence_complete = report_count > 0 and (
+        _safe_int(coverage_counts.get("reports_with_evidence_reviews")) >= report_count
+    )
+    agreement_complete = report_count > 0 and (
+        _safe_int(coverage_counts.get("reports_with_judge_agreement")) >= report_count
+    )
+    representative_complete = operator_curated and not missing_tags
+    multi_report = report_count >= max(2, minimum_reports)
+    if ready and operator_curated and multi_report:
+        status = "measured_operator_curated_multi_report_baseline"
+    elif ready:
+        status = "measured_baseline_ready"
+    else:
+        status = reasons[0] if reasons else "not_ready"
+    return {
+        "status": status,
+        "measured": ready,
+        "operator_curated": operator_curated,
+        "multi_report": multi_report,
+        "report_count": report_count,
+        "minimum_reports": minimum_reports,
+        "calibration_failures": failures,
+        "representative_coverage_complete": representative_complete,
+        "evidence_review_complete": evidence_complete,
+        "judge_agreement_complete": agreement_complete,
+        "required_tags": _string_list(representation.get("required_tags")),
+        "present_tags": _string_list(representation.get("present_tags")),
+        "missing_tags": missing_tags,
+    }
+
+
+def _inspection_measurement_summary(
+    measurement: Any,
+    *,
+    ready: bool,
+    status: str,
+) -> dict[str, Any]:
+    if isinstance(measurement, dict):
+        summary = dict(measurement)
+    else:
+        summary = {"status": "missing_measurement"}
+    summary["measured"] = ready
+    if not ready:
+        summary["status"] = status
+    return summary
 
 
 def _report_summary(report: dict[str, Any]) -> dict[str, Any]:

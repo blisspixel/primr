@@ -5,6 +5,30 @@ All notable changes to Primr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.34.47] - 2026-07-08
+
+### Fixed
+
+- Final Markdown shipping now normalizes long dash punctuation at the artifact
+  boundary, including the old Deep Research runner path. Long dash characters
+  in prose are converted before write, while source URLs percent-encode long
+  dash code points instead of mutating URL semantics.
+- DOCX conversion now removes the fast report header metadata line before
+  rendering subtitles, so the Strategic Overview date and website appear once
+  instead of once in the generated subtitle and again in the body.
+
+### Added
+
+- Calibration baseline artifacts and inspections now include a `measurement`
+  status block. Ready operator-curated multi-report baselines report
+  `measured_operator_curated_multi_report_baseline` with representative
+  coverage, evidence review, and judge agreement checks made explicit in JSON
+  and Markdown.
+- Roadmap and next-step docs now track the MCP `2026-07-28` release candidate
+  as a post-final compatibility review item for Primr's HTTP MCP transport,
+  task lifecycle, schema handling, trace propagation, Apps extension posture,
+  and authorization model.
+
 ## [1.34.46] - 2026-07-04
 
 ### Changed

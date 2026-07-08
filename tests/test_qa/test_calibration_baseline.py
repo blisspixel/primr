@@ -180,6 +180,21 @@ def test_build_baseline_flags_small_unvalidated_pack() -> None:
     assert baseline["ready"] is False
     assert baseline["status"] == "insufficient_reports"
     assert "insufficient_reports" in baseline["reasons"]
+    assert baseline["measurement"] == {
+        "status": "insufficient_reports",
+        "measured": False,
+        "operator_curated": False,
+        "multi_report": False,
+        "report_count": 1,
+        "minimum_reports": 5,
+        "calibration_failures": 0,
+        "representative_coverage_complete": False,
+        "evidence_review_complete": False,
+        "judge_agreement_complete": False,
+        "required_tags": [],
+        "present_tags": [],
+        "missing_tags": [],
+    }
     assert "missing_evidence_reviews" in baseline["reasons"]
     assert "missing_judge_agreement" in baseline["reasons"]
     assert "missing_representative_selection" in baseline["reasons"]
@@ -220,6 +235,21 @@ def test_build_baseline_ready_when_pack_has_required_evidence() -> None:
     assert baseline["ready"] is True
     assert baseline["status"] == "ready"
     assert baseline["representation"]["selection_ready"] is True
+    assert baseline["measurement"] == {
+        "status": "measured_operator_curated_multi_report_baseline",
+        "measured": True,
+        "operator_curated": True,
+        "multi_report": True,
+        "report_count": 5,
+        "minimum_reports": 5,
+        "calibration_failures": 0,
+        "representative_coverage_complete": True,
+        "evidence_review_complete": True,
+        "judge_agreement_complete": True,
+        "required_tags": ["clean", "blocked_origin", "strategy_module"],
+        "present_tags": ["clean", "blocked_origin", "strategy_module"],
+        "missing_tags": [],
+    }
     assert baseline["totals"]["reports_with_evidence_reviews"] == 5
     assert baseline["totals"]["reports_with_judge_agreement"] == 5
     assert baseline["traceability"]["Confirmed"]["traceability_rate"] == 1.0
@@ -369,6 +399,8 @@ def test_inspect_baseline_flags_mutated_fingerprinted_artifacts(tmp_path: Path) 
     assert baseline["ready"] is True
     assert inspection["ready"] is False
     assert inspection["status"] == "fingerprinted_artifact_missing"
+    assert inspection["measurement"]["measured"] is False
+    assert inspection["measurement"]["status"] == "fingerprinted_artifact_missing"
     assert "fingerprinted_artifact_missing" in inspection["reasons"]
     assert "artifact_fingerprint_mismatch" in inspection["reasons"]
     assert inspection["gate_recommendation"]["status"] == "not_recommended"
@@ -521,6 +553,11 @@ def test_write_baseline_json_and_markdown(tmp_path: Path) -> None:
     assert json.loads(baseline_path.read_text(encoding="utf-8")) == payload
     markdown = markdown_path.read_text(encoding="utf-8")
     assert "Status: ready" in markdown
+    assert "## Measurement Status" in markdown
+    assert (
+        "| measured_operator_curated_multi_report_baseline | yes | yes | yes | yes | yes |"
+        in markdown
+    )
     assert "## Evidence Review" in markdown
     assert "## Inference Label Checks" in markdown
     assert "## Representative Coverage" in markdown
@@ -577,6 +614,8 @@ def test_inspect_baseline_lists_report_level_blockers() -> None:
 
     assert inspection["inspection_format"] == "primr.calibration_readiness_inspection.v1"
     assert inspection["ready"] is False
+    assert inspection["measurement"]["measured"] is False
+    assert inspection["measurement"]["status"] == "missing_calibration_sidecars"
     assert inspection["counts"] == {
         "reports": 5,
         "minimum_reports": 5,

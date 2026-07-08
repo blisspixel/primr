@@ -10,8 +10,16 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from primr.utils.formatting import remove_em_dashes
+
 _REFERENCE_HEADINGS = {"sources", "citations", "references"}
 _SECTION_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
+_URL_RE = re.compile(r"https?://[^\s)\]]+")
+_URL_DASH_REPLACEMENTS = {
+    "\u2014": "%E2%80%94",
+    "\u2013": "%E2%80%93",
+    "\u2012": "%E2%80%92",
+}
 
 
 @dataclass(slots=True)
@@ -127,6 +135,28 @@ def _looks_collapsed(content: str) -> bool:
     return False
 
 
+def _normalize_url_punctuation(url: str) -> str:
+    for dash, replacement in _URL_DASH_REPLACEMENTS.items():
+        url = url.replace(dash, replacement)
+    return url
+
+
+def _remove_em_dashes_around_urls(text: str) -> str:
+    parts: list[str] = []
+    cursor = 0
+    for match in _URL_RE.finditer(text):
+        parts.append(remove_em_dashes(text[cursor : match.start()]))
+        parts.append(_normalize_url_punctuation(match.group(0)))
+        cursor = match.end()
+    parts.append(remove_em_dashes(text[cursor:]))
+    return "".join(parts)
+
+
+def normalize_final_punctuation(markdown_content: str) -> str:
+    """Normalize style-prohibited punctuation in final artifacts."""
+    return _remove_em_dashes_around_urls(markdown_content)
+
+
 def _restore_collapsed_markdown(content: str) -> str:
     """Reinsert missing line breaks around structural markers in a collapsed
     markdown blob. Only applied when ``_looks_collapsed`` returns True — in
@@ -176,4 +206,5 @@ def _restore_collapsed_markdown(content: str) -> str:
 
 def canonicalize_final_markdown(markdown_content: str) -> str:
     repaired = _restore_collapsed_markdown(markdown_content)
+    repaired = normalize_final_punctuation(repaired)
     return parse_final_markdown(repaired).to_markdown()

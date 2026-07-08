@@ -178,6 +178,21 @@ def test_strip_markdown_header_block_removes_header():
     assert "Body content here" in out
 
 
+def test_strip_markdown_header_block_removes_fast_report_metadata():
+    md = (
+        "# Strategic Company Overview: Acme\n\n"
+        "*July 07, 2026* | [https://acme.example](https://acme.example)\n\n"
+        "---\n\n"
+        "## Executive Summary\n\n"
+        "Body content here"
+    )
+    out = strip_markdown_header_block(md)
+    assert "Strategic Company Overview" not in out
+    assert "July 07, 2026" not in out
+    assert "https://acme.example" not in out
+    assert "## Executive Summary" in out
+
+
 def test_strip_markdown_header_block_no_heading_returns_same():
     md = "Just body text\nMore text"
     out = strip_markdown_header_block(md)
@@ -209,6 +224,28 @@ def test_markdown_to_docx_full(tmp_path):
     result = markdown_to_docx(md, out, title="My Title", subtitle="My Subtitle")
     assert result == out
     assert out.exists()
+
+
+def test_markdown_to_docx_does_not_duplicate_fast_report_subtitle(tmp_path):
+    md = (
+        "# Strategic Company Overview: Acme\n\n"
+        "*July 07, 2026* | [https://acme.example](https://acme.example)\n\n"
+        "---\n\n"
+        "## Executive Summary\n\n"
+        "Body content here"
+    )
+    out = tmp_path / "subtitle.docx"
+    markdown_to_docx(
+        md,
+        out,
+        title="Strategic Company Overview: Acme",
+        subtitle="July 07, 2026 | https://acme.example",
+    )
+    doc = Document(out)
+    full_text = "\n".join(p.text for p in doc.paragraphs)
+    assert full_text.count("July 07, 2026") == 1
+    assert full_text.count("https://acme.example") == 1
+    assert "Executive Summary" in full_text
 
 
 def test_markdown_to_docx_table_at_end(tmp_path):

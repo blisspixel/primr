@@ -34,6 +34,14 @@ for Primr's shape:
   scope-consent semantics through `WWW-Authenticate`, which fits the existing
   small `read`/`research`/`delegate`/`admin` vocabulary and should shape the
   next HTTP parity slice.
+- Track the MCP `2026-07-28` release candidate as a post-final compatibility
+  review item, not an immediate implementation target before July 28, 2026.
+  The stateless HTTP core, server discovery, `Mcp-Method` and `Mcp-Name`
+  routing headers, resource and list cache hints, Tasks extension, Apps
+  extension, JSON Schema 2020-12 tool schemas, W3C trace context propagation,
+  and authorization hardening map directly onto Primr's HTTP MCP transport,
+  long-running job handles, metadata-first resources, audit spans, and
+  protected-resource model.
 - For A2A, keep the Agent Card as a discovery contract and enforce actual
   authorization at the server-side skill boundary. The protocol advertises
   security schemes, but Primr-owned scope decisions must still happen before
@@ -63,6 +71,9 @@ Reference anchors:
   <https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization>
 - MCP 2025-11-25 changelog:
   <https://modelcontextprotocol.io/specification/2025-11-25/changelog>
+- MCP 2026-07-28 release candidate blog, published 2026-05-21, final spec
+  scheduled for 2026-07-28:
+  <https://blog.modelcontextprotocol.io/posts/2026-07-28-release-candidate/>
 - A2A protocol specification, latest snapshot accessed 2026-06-29:
   <https://a2a-protocol.org/latest/specification/>
 - OWASP Agentic AI Threats and Mitigations: <https://genai.owasp.org/resource/agentic-ai-threats-and-mitigations/>
@@ -207,7 +218,10 @@ Do next:
   required checks for representative coverage, evidence dimensions, judge
   disagreement, false-positive and false-negative risk, and threshold
   selection, and distinguishes gate candidates from report-only
-  recommendations without exposing report bodies or raw claims.
+  recommendations without exposing report bodies or raw claims. Ready curated
+  multi-report baselines now also publish a `measurement` block with
+  `measured_operator_curated_multi_report_baseline` status when representative
+  coverage, evidence review, and judge agreement are complete.
 - Set `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` only from the measured floor of
   that agreement-validated baseline.
 - Surface contradicted `--verify` claims in the report trust summary. First
@@ -225,8 +239,9 @@ Done when:
   selection-template, selection-inspection, curated selection, and
   baseline-readiness artifact slices are shipped; baseline artifacts now carry
   explicit body-free operator-review requirements; readiness now refuses
-  non-curated latest-N packs, but the measured representative multi-report
-  baseline itself is still pending.
+  non-curated latest-N packs; and ready curated multi-report baselines now carry
+  explicit measurement status in JSON and Markdown. Hard-gate arming is still
+  pending operator review of the measured floor.
 - The hard gate is either armed from a defensible baseline or deliberately left
   report-only with documented evidence.
 - Contradicted claims are visible in the human-facing report trust surface for
@@ -422,6 +437,12 @@ Do next:
   runtime-budget flag, and compact usage-summary readback exposes that metadata
   including non-interruptible required Deep Research tasks without returning
   company URLs, approval tokens, manifest bodies, or artifact lists.
+- MCP `2026-07-28` release candidate watch: after the final spec ships on
+  July 28, 2026, audit Primr's HTTP MCP server against the stateless transport
+  model, server discovery, operation routing headers, cache hints, explicit
+  task-handle lifecycle, Apps extension security model, JSON Schema 2020-12
+  schema handling, trace-context `_meta`, and authorization hardening. Keep
+  this as compatibility planning until the final spec and SDK support settle.
 
 Done when:
 

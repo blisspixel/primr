@@ -36,6 +36,23 @@ def test_convert_to_docx_success(tmp_path, monkeypatch):
     assert list(tmp_path.glob("*.txt"))
 
 
+def test_convert_to_docx_normalizes_saved_markdown_punctuation(tmp_path, monkeypatch):
+    monkeypatch.setattr("primr.core.deep_research_runner.OUTPUT_DIR", str(tmp_path))
+    with patch("primr.output.markdown_converter.markdown_to_docx"):
+        out = _convert_deep_research_to_docx(
+            "## Executive Summary\n\nThe company\u2014a leader\u2013is expanding.",
+            "Acme",
+            "https://a.com",
+        )
+    assert out is not None
+    md_files = list(tmp_path.glob("*.md"))
+    assert md_files
+    markdown = md_files[0].read_text(encoding="utf-8")
+    assert "\u2014" not in markdown
+    assert "\u2013" not in markdown
+    assert "The company, a leader, is expanding." in markdown
+
+
 def test_convert_to_docx_no_website(tmp_path, monkeypatch):
     monkeypatch.setattr("primr.core.deep_research_runner.OUTPUT_DIR", str(tmp_path))
     with patch("primr.output.markdown_converter.markdown_to_docx"):

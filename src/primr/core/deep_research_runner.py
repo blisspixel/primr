@@ -542,6 +542,10 @@ def _convert_deep_research_to_docx(
     base_name = f"{company_name}_Strategic_Overview_{date_str}"
 
     try:
+        from primr.output.final_artifact import normalize_final_punctuation
+
+        markdown_content = normalize_final_punctuation(markdown_content)
+
         # Save markdown
         md_path = Path(OUTPUT_DIR) / f"{base_name}.md"
         md_path.write_text(markdown_content, encoding="utf-8")

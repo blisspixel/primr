@@ -184,6 +184,14 @@ def strip_heading_markers(text: str) -> str:
     return text.strip()
 
 
+def _is_header_metadata_line(line: str) -> bool:
+    if line.startswith("**") and ":**" in line:
+        return True
+    if re.match(r"^\*[^*\n]+\*(?:\s*\|.*)?$", line):
+        return True
+    return bool(re.match(r"^(?:Date|Website|Generated):\s+\S", line, re.IGNORECASE))
+
+
 def strip_markdown_header_block(markdown_text: str) -> str:
     """
     Strip the header block from markdown content.
@@ -226,10 +234,10 @@ def strip_markdown_header_block(markdown_text: str) -> str:
         while i < len(lines) and not lines[i].strip():
             i += 1
 
-        # Skip metadata lines (**Prepared by:**, **Date:**)
+        # Skip metadata lines.
         while i < len(lines):
             line = lines[i].strip()
-            if (line.startswith("**") and ":**" in line) or not line:
+            if _is_header_metadata_line(line) or not line:
                 i += 1
             elif line == "---":
                 i += 1

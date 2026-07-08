@@ -18,6 +18,7 @@ from primr.core.research_agent import (
 from primr.output.final_artifact import (
     GeneratedSection,
     canonicalize_final_markdown,
+    normalize_final_punctuation,
     parse_final_markdown,
 )
 
@@ -366,6 +367,37 @@ def test_canonicalize_final_markdown_merges_reference_sections_at_end():
     assert normalized.rstrip().endswith("[cite: 1] https://example.com/a")
     assert "## References" not in normalized
     assert normalized.index("## Products and Services") < normalized.index("## Sources")
+
+
+def test_normalize_final_punctuation_removes_long_dashes_from_prose():
+    content = (
+        "# Report\n\n"
+        "## Executive Summary\n\n"
+        "The company\u2014a leader in its segment\u2013is expanding.\n"
+    )
+
+    normalized = canonicalize_final_markdown(content)
+
+    assert "\u2014" not in normalized
+    assert "\u2013" not in normalized
+    assert "The company, a leader in its segment, is expanding." in normalized
+
+
+def test_normalize_final_punctuation_removes_long_dashes_from_urls_and_code():
+    content = (
+        "Prose\u2014clean this.\n\n"
+        "https://example.com/path\u2014kept\n\n"
+        "```text\n"
+        "code\u2014cleaned\n"
+        "```\n"
+    )
+
+    normalized = normalize_final_punctuation(content)
+
+    assert "\u2014" not in normalized
+    assert "Prose, clean this." in normalized
+    assert "https://example.com/path%E2%80%94kept" in normalized
+    assert "code, cleaned" in normalized
 
 
 def test_parse_final_markdown_preserves_preamble_and_content_section_order():
