@@ -91,6 +91,9 @@ Current priority order:
    gate decision without recording one automatically. The calibration CLI now
    writes an explicit body-free decision record only when the inspected template
    allows the requested decision; it never sets the environment variable itself.
+   Decision records can now be re-inspected with a body-free readback that
+   verifies the baseline fingerprint still matches and the current template
+   still allows the recorded decision before agents trust the record.
 2. **Backend freedom production wiring.** Provider abstractions and pure routing
    foundations exist, and `core/stage_inventory.py` now records router-ready
    capability requirements and promotion gates for fast-mode and premium

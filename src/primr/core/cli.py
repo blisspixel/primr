@@ -309,6 +309,7 @@ class CLIConfig:
     calibrate_baseline_md: str | None = None
     calibrate_baseline_min_reports: int = 5
     calibrate_inspect_baseline: str | None = None
+    calibrate_inspect_baseline_decision: str | None = None
     calibrate_baseline_decision_from: str | None = None
     calibrate_baseline_decision_out: str | None = None
     calibrate_baseline_decision: str | None = None
@@ -446,7 +447,6 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
     else:
         continuous_reasoning = getattr(parsed, "continuous_reasoning", True)
 
-    # Build context files tuple
     context_files = tuple(getattr(parsed, "context", None) or [])
 
     banner_arg = getattr(parsed, "banner", None)
@@ -475,7 +475,6 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         print("WARNING: --cloud-vendor is deprecated, use --platform instead", file=_sys.stderr)
         platforms = tuple(dict.fromkeys(raw_cloud_vendor))
     elif raw_platforms is not None:
-        # Normalize aliases and expand shorthands
         _PLATFORM_ALIASES: dict[str, str] = {
             "microsoft": "azure",
             "amazon": "aws",
@@ -490,7 +489,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
                 expanded.append(_PLATFORM_ALIASES.get(p, p))
         platforms = tuple(dict.fromkeys(expanded))
     else:
-        platforms = None  # Will be resolved from recon auto-detection or default
+        platforms = None
 
     return CLIConfig(
         command=command,
@@ -563,6 +562,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         calibrate_baseline_md=get(parsed, "baseline_md", None),
         calibrate_baseline_min_reports=get(parsed, "baseline_min_reports", 5),
         calibrate_inspect_baseline=get(parsed, "inspect_baseline", None),
+        calibrate_inspect_baseline_decision=get(parsed, "inspect_baseline_decision", None),
         calibrate_baseline_decision_from=get(parsed, "baseline_decision_from", None),
         calibrate_baseline_decision_out=get(parsed, "baseline_decision_out", None),
         calibrate_baseline_decision=get(parsed, "baseline_decision", None),

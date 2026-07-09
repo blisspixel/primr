@@ -647,6 +647,13 @@ class TestCLIWiring:
 
         assert config.calibrate_inspect_baseline == "baseline.json"
 
+    def test_inspect_baseline_decision_flag(self):
+        from primr.core.cli import parse_args
+
+        config = parse_args(["calibrate", "--inspect-baseline-decision", "decision.json"])
+
+        assert config.calibrate_inspect_baseline_decision == "decision.json"
+
     def test_baseline_decision_flags(self):
         from primr.core.cli import parse_args
 
@@ -821,6 +828,53 @@ class TestCLIWiring:
             "Leave PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY unset."
         )
         assert payload["evidence"]["reports_without_decidable_confirmed"] == 1
+
+    def test_handler_prints_baseline_decision_inspection_json(self, tmp_path, capsys):
+        from primr.core.cli import CLIConfig, Command, _handle_calibrate
+        from primr.qa.calibration_baseline import build_calibration_baseline
+        from primr.qa.calibration_baseline_decision import write_operator_decision_record
+
+        baseline = build_calibration_baseline(
+            _partial_confirmed_floor_manifest(),
+            minimum_reports=5,
+        )
+        baseline_path = tmp_path / "baseline.json"
+        baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+        decision_path = tmp_path / "decision.json"
+        write_operator_decision_record(
+            decision_path,
+            baseline_path=baseline_path,
+            baseline=baseline,
+            decision="keep_report_only",
+            reviewer="qa-owner",
+            rationale="Keep report-only until every selected report has a Confirmed floor.",
+        )
+
+        config = CLIConfig(
+            command=Command.CALIBRATE,
+            calibrate_inspect_baseline_decision=str(decision_path),
+        )
+
+        assert _handle_calibrate(config) == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["inspection_format"] == "primr.calibration_gate_decision_inspection.v1"
+        assert payload["ready_to_trust"] is True
+        assert payload["status"] == "current"
+        assert payload["decision"] == "keep_report_only"
+        assert payload["baseline"]["content_hash_matches"] is True
+        assert payload["decision_template"]["allowed_decisions"] == ["keep_report_only"]
+
+    def test_handler_rejects_baseline_decision_inspection_modifiers(self, tmp_path):
+        from primr.core.cli import CLIConfig, Command, _handle_calibrate
+
+        config = CLIConfig(
+            command=Command.CALIBRATE,
+            calibrate_inspect_baseline_decision=str(tmp_path / "decision.json"),
+            calibrate_dry_run=True,
+            calibrate_judge_compare=True,
+        )
+
+        assert _handle_calibrate(config) == 1
 
     def test_handler_rejects_baseline_decision_run_mode_conflict(self, tmp_path):
         from primr.core.cli import CLIConfig, Command, _handle_calibrate

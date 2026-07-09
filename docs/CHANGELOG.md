@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   allowed decisions. The command records reviewer, rationale, selected-report
   evidence, and baseline fingerprint metadata, but never applies or exports the
   hard-gate environment variable.
+- `primr calibrate --inspect-baseline-decision ...` now prints a body-free
+  `primr.calibration_gate_decision_inspection.v1` readback that checks a saved
+  decision record against the current baseline fingerprint and allowed-decision
+  evidence before downstream loops trust it.
 
 ## [1.34.47] - 2026-07-08
 

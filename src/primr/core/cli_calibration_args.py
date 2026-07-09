@@ -120,6 +120,14 @@ def add_calibration_arguments(parser: argparse.ArgumentParser) -> None:
         ),
     )
     parser.add_argument(
+        "--inspect-baseline-decision",
+        metavar="PATH",
+        help=(
+            "With 'calibrate', print a zero-spend JSON inspection of an operator "
+            "decision record against its recorded baseline artifact."
+        ),
+    )
+    parser.add_argument(
         "--baseline-decision-from",
         metavar="PATH",
         help=(

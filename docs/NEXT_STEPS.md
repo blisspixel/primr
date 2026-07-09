@@ -232,7 +232,9 @@ Do next:
   `primr calibrate --baseline-decision-from ... --baseline-decision-out ...`
   now writes a body-free operator decision record only when the inspected
   template allows the requested decision, and never sets the hard-gate
-  environment variable itself.
+  environment variable itself. `primr calibrate --inspect-baseline-decision ...`
+  revalidates a saved decision against the current baseline fingerprint and
+  allowed-decision evidence before downstream loops trust it.
 - Set `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` only from the measured floor of
   that agreement-validated baseline.
 - Surface contradicted `--verify` claims in the report trust summary. First

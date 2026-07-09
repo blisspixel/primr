@@ -263,6 +263,11 @@ continue to measure both failure directions as classifier behavior changes.
   Use `--baseline-decision arm_gate` only when the inspected template lists that
   decision as allowed; Primr still only writes the record and never sets the
   environment variable itself.
+  Later, run
+  `primr calibrate --inspect-baseline-decision path/to/decision.json` to
+  re-check that the saved record still matches the baseline artifact fingerprint
+  and that the current baseline inspection still allows the recorded decision.
+  The readback omits report bodies, raw claims, and operator rationale text.
   Run `primr calibrate --inspect-baseline path/to/baseline.json` to print the
   same blockers as machine-readable JSON for agents or automation. MCP clients
   can read `primr://calibration/baseline/inspection?path=<baseline.json>` when

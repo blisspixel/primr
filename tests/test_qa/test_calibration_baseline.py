@@ -14,7 +14,11 @@ from primr.qa.calibration_baseline import (
     read_calibration_baseline,
     write_calibration_baseline,
 )
-from primr.qa.calibration_baseline_decision import write_operator_decision_record
+from primr.qa.calibration_baseline_decision import (
+    inspect_operator_decision_record,
+    read_operator_decision_record,
+    write_operator_decision_record,
+)
 
 
 def _sidecar(
@@ -865,6 +869,182 @@ def test_write_operator_decision_record_for_candidate_does_not_apply_gate(
     assert record["baseline"]["content_hash"].startswith("sha256:")
     assert record["evidence"]["reports_total"] == 5
     assert record["decision_template"]["allowed_decisions"] == ["arm_gate", "keep_report_only"]
+
+
+def test_inspect_operator_decision_record_trusts_matching_baseline(
+    tmp_path: Path,
+) -> None:
+    baseline = build_calibration_baseline(
+        _manifest(
+            5,
+            required_tags=["clean", "blocked_origin"],
+            present_tags=["clean", "blocked_origin"],
+        ),
+        minimum_reports=5,
+    )
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+    decision_path = tmp_path / "decision.json"
+    write_operator_decision_record(
+        decision_path,
+        baseline_path=baseline_path,
+        baseline=baseline,
+        decision="arm_gate",
+        reviewer="qa-owner",
+        rationale="Representative coverage and threshold evidence reviewed.",
+        reviewed_at_utc="2026-07-09T00:00:00Z",
+    )
+
+    record = read_operator_decision_record(decision_path)
+    record["manual_action_required"] = "SECRET REPORT BODY SHOULD NOT ECHO"
+    inspection = inspect_operator_decision_record(record, decision_path=decision_path)
+
+    assert inspection["inspection_format"] == "primr.calibration_gate_decision_inspection.v1"
+    assert inspection["ready_to_trust"] is True
+    assert inspection["status"] == "current"
+    assert inspection["blockers"] == []
+    assert inspection["baseline"]["content_hash_matches"] is True
+    assert inspection["baseline"]["size_bytes_matches"] is True
+    assert inspection["decision_template"]["allowed_decisions"] == [
+        "arm_gate",
+        "keep_report_only",
+    ]
+    assert inspection["decision_template"]["env_assignment"] == (
+        "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=1.000"
+    )
+    assert inspection["record"]["rationale_present"] is True
+    assert inspection["record"]["manual_action_present"] is True
+    assert "Representative coverage" not in json.dumps(inspection)
+    assert "SECRET REPORT BODY" not in json.dumps(inspection)
+
+
+def test_inspect_operator_decision_record_flags_changed_or_disallowed_baseline(
+    tmp_path: Path,
+) -> None:
+    baseline = build_calibration_baseline(
+        _manifest(
+            5,
+            required_tags=["clean", "blocked_origin"],
+            present_tags=["clean", "blocked_origin"],
+        ),
+        minimum_reports=5,
+    )
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+    decision_path = tmp_path / "decision.json"
+    write_operator_decision_record(
+        decision_path,
+        baseline_path=baseline_path,
+        baseline=baseline,
+        decision="arm_gate",
+        reviewer="qa-owner",
+        rationale="Gate candidate was reviewed before the baseline changed.",
+        reviewed_at_utc="2026-07-09T00:00:00Z",
+    )
+    changed_baseline = build_calibration_baseline(
+        _manifest(
+            5,
+            required_tags=["clean", "blocked_origin"],
+            present_tags=["clean", "blocked_origin"],
+            confirmed_traceable=0,
+            confirmed_untraceable=0,
+        ),
+        minimum_reports=5,
+    )
+    baseline_path.write_text(json.dumps(changed_baseline), encoding="utf-8")
+
+    inspection = inspect_operator_decision_record(read_operator_decision_record(decision_path))
+
+    assert inspection["ready_to_trust"] is False
+    assert inspection["status"] == "decision_not_allowed"
+    assert inspection["baseline"]["content_hash_matches"] is False
+    assert "decision_not_allowed_for_current_baseline" in inspection["blockers"]
+    assert "baseline_content_hash_changed" in inspection["blockers"]
+    assert inspection["decision_template"]["allowed_decisions"] == ["keep_report_only"]
+
+
+def test_inspect_operator_decision_record_rejects_unpinned_or_incomplete_record(
+    tmp_path: Path,
+) -> None:
+    baseline = build_calibration_baseline(
+        _manifest(
+            5,
+            required_tags=["clean", "blocked_origin"],
+            present_tags=["clean", "blocked_origin"],
+        ),
+        minimum_reports=5,
+    )
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+    decision_path = tmp_path / "decision.json"
+    write_operator_decision_record(
+        decision_path,
+        baseline_path=baseline_path,
+        baseline=baseline,
+        decision="arm_gate",
+        reviewer="qa-owner",
+        rationale="Representative coverage and threshold evidence reviewed.",
+        reviewed_at_utc="2026-07-09T00:00:00Z",
+    )
+    record = read_operator_decision_record(decision_path)
+    record.pop("reviewer")
+    record.pop("rationale")
+    record.pop("manual_action_required")
+    record["baseline"]["content_hash"] = "SECRET REPORT BODY SHOULD NOT ECHO"
+    record["baseline"].pop("size_bytes")
+
+    inspection = inspect_operator_decision_record(record)
+    serialized = json.dumps(inspection)
+
+    assert inspection["ready_to_trust"] is False
+    assert inspection["status"] == "invalid_record"
+    assert inspection["baseline"]["recorded_content_hash_present"] is True
+    assert inspection["baseline"]["recorded_content_hash_valid"] is False
+    assert inspection["baseline"]["recorded_size_bytes_present"] is False
+    assert inspection["baseline"]["content_hash_matches"] is False
+    assert inspection["record"]["reviewer_present"] is False
+    assert inspection["record"]["rationale_present"] is False
+    assert inspection["record"]["manual_action_present"] is False
+    assert "missing_reviewer" in inspection["blockers"]
+    assert "missing_rationale" in inspection["blockers"]
+    assert "missing_manual_action_required" in inspection["blockers"]
+    assert "invalid_baseline_content_hash" in inspection["blockers"]
+    assert "missing_baseline_size_bytes" in inspection["blockers"]
+    assert "recorded_content_hash" in serialized
+    assert "SECRET REPORT BODY" not in serialized
+
+
+def test_inspect_operator_decision_record_requires_current_baseline_file(
+    tmp_path: Path,
+) -> None:
+    baseline = build_calibration_baseline(
+        _manifest(
+            5,
+            required_tags=["clean", "blocked_origin"],
+            present_tags=["clean", "blocked_origin"],
+        ),
+        minimum_reports=5,
+    )
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+    decision_path = tmp_path / "decision.json"
+    record = write_operator_decision_record(
+        decision_path,
+        baseline_path=baseline_path,
+        baseline=baseline,
+        decision="arm_gate",
+        reviewer="qa-owner",
+        rationale="Representative coverage and threshold evidence reviewed.",
+        reviewed_at_utc="2026-07-09T00:00:00Z",
+    )
+    baseline_path.unlink()
+
+    inspection = inspect_operator_decision_record(record, baseline=baseline)
+
+    assert inspection["ready_to_trust"] is False
+    assert inspection["status"] == "baseline_unavailable"
+    assert "baseline_unavailable" in inspection["blockers"]
+    assert inspection["baseline"]["content_hash_matches"] is False
 
 
 def test_write_operator_decision_record_rejects_arm_gate_when_not_allowed(

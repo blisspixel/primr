@@ -12,7 +12,11 @@ from primr.qa.calibration_baseline import (
     read_calibration_baseline,
     write_calibration_baseline,
 )
-from primr.qa.calibration_baseline_decision import write_operator_decision_record
+from primr.qa.calibration_baseline_decision import (
+    inspect_operator_decision_record,
+    read_operator_decision_record,
+    write_operator_decision_record,
+)
 from primr.qa.calibration_runner import (
     JudgeAgreement,
     JudgeSelection,
@@ -84,6 +88,9 @@ class CalibrateConfig(Protocol):
     def calibrate_inspect_baseline(self) -> str | None: ...
 
     @property
+    def calibrate_inspect_baseline_decision(self) -> str | None: ...
+
+    @property
     def calibrate_baseline_decision_from(self) -> str | None: ...
 
     @property
@@ -119,6 +126,8 @@ def handle_calibrate(config: CalibrateConfig, console: ConsoleSink) -> int:
     if config.calibrate_baseline_min_reports < 1:
         console.error("--baseline-min-reports must be at least 1")
         return 1
+    if config.calibrate_inspect_baseline_decision:
+        return _handle_inspect_baseline_decision(config, console)
     if _has_baseline_decision_fields(config):
         if not config.calibrate_baseline_decision_from:
             console.error("--baseline-decision options require --baseline-decision-from")
@@ -285,24 +294,27 @@ def _handle_inspect_baseline(config: CalibrateConfig, console: ConsoleSink) -> i
     return 0
 
 
-def _handle_baseline_decision(config: CalibrateConfig, console: ConsoleSink) -> int:
+def _handle_inspect_baseline_decision(config: CalibrateConfig, console: ConsoleSink) -> int:
     if (
-        config.calibrate_target
-        or config.calibrate_recent is not None
-        or config.calibrate_pack_selection
-        or config.calibrate_pack_selection_template
-        or config.calibrate_inspect_selection
-        or config.calibrate_inspect_baseline
-        or config.calibrate_baseline_from
-        or config.calibrate_pack_manifest
-        or config.calibrate_baseline_out
-        or config.calibrate_baseline_md
-        or config.calibrate_dry_run
-        or config.calibrate_judge != "cloud"
-        or config.calibrate_judge_model
-        or config.calibrate_judge_compare
-        or config.calibrate_max_per_label != 10
+        _has_baseline_decision_fields(config)
+        or _has_calibration_work(config)
+        or _has_calibration_run_modifiers(config)
     ):
+        console.error("--inspect-baseline-decision cannot be combined with calibration run modes")
+        return 1
+    decision_path = Path(config.calibrate_inspect_baseline_decision or "")
+    try:
+        record = read_operator_decision_record(decision_path)
+        inspection = inspect_operator_decision_record(record, decision_path=decision_path)
+    except (OSError, ValueError) as exc:
+        console.error(str(exc))
+        return 1
+    print(json.dumps(inspection, indent=2, ensure_ascii=False))
+    return 0
+
+
+def _handle_baseline_decision(config: CalibrateConfig, console: ConsoleSink) -> int:
+    if _has_calibration_work(config) or _has_calibration_run_modifiers(config):
         console.error("--baseline-decision-from cannot be combined with calibration run modes")
         return 1
     if not config.calibrate_baseline_decision_out:
@@ -353,6 +365,31 @@ def _has_baseline_decision_fields(config: CalibrateConfig) -> bool:
             config.calibrate_baseline_decision_rationale,
             config.calibrate_baseline_decision_notes,
         )
+    )
+
+
+def _has_calibration_work(config: CalibrateConfig) -> bool:
+    return bool(
+        config.calibrate_target
+        or config.calibrate_recent is not None
+        or config.calibrate_pack_selection
+        or config.calibrate_pack_selection_template
+        or config.calibrate_inspect_selection
+        or config.calibrate_inspect_baseline
+        or config.calibrate_baseline_from
+        or config.calibrate_pack_manifest
+        or config.calibrate_baseline_out
+        or config.calibrate_baseline_md
+    )
+
+
+def _has_calibration_run_modifiers(config: CalibrateConfig) -> bool:
+    return bool(
+        config.calibrate_dry_run
+        or config.calibrate_judge != "cloud"
+        or config.calibrate_judge_model
+        or config.calibrate_judge_compare
+        or config.calibrate_max_per_label != 10
     )
 
 
