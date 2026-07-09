@@ -246,9 +246,12 @@ continue to measure both failure directions as classifier behavior changes.
   operator-review item documenting why the hard gate remains unset. The artifact
   includes structured `next_actions` with missing counts, remediation,
   suggested commands, and the policy to keep the hard calibration gate unset
-  until the pack is ready. Its per-report summaries include evidence-review
-  counts, inference source-copy counts, and judge-agreement compared-claim
-  counts so operators can identify the exact selected artifacts still blocking
+  until the pack is ready. For ready-but-report-only packs, `next_actions` also
+  names the hard-gate action, gate-recommendation reason, selected-report counts,
+  and absent, incomplete, or zero Confirmed-floor state that keeps the
+  environment variable unset. Its per-report summaries include evidence-review
+  counts, inference source-copy counts, and judge-agreement compared-claim counts
+  so operators can identify the exact selected artifacts still blocking
   readiness.
   Run `primr calibrate --inspect-baseline path/to/baseline.json` to print the
   same blockers as machine-readable JSON for agents or automation. MCP clients

@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   lacking decidable `(Confirmed)` claims remains report-only with the explicit
   `incomplete_confirmed_traceability_floor` reason, report counts, and an
   operator-review item documenting why the hard gate should stay unset.
+- Calibration baseline `next_actions` now carries the same body-free hard-gate
+  action state as baseline inspection JSON. Ready-but-report-only baselines name
+  whether the Confirmed floor is absent, incomplete, or zero, including the
+  selected-report counts that explain why `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY`
+  stays unset.
 
 ## [1.34.47] - 2026-07-08
 

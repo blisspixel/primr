@@ -1563,6 +1563,17 @@ class TestCalibrationBaselineInspectionResource:
         assert review["decision_status"] == "report_only_recommended"
         assert review["operator_may_arm_after_review"] is False
         assert any(item["id"] == "report_only_gate_decision" for item in review["items"])
+        assert data["next_actions"]["hard_gate_action"] == (
+            "keep_gate_unset_until_confirmed_floor_complete"
+        )
+        assert data["next_actions"]["gate_recommendation_reason"] == (
+            "incomplete_confirmed_traceability_floor"
+        )
+        assert data["next_actions"]["reports_without_decidable_confirmed"] == 1
+        assert any(
+            item["reason"] == "incomplete_confirmed_traceability_floor"
+            for item in data["next_actions"]["items"]
+        )
 
     @pytest.mark.asyncio
     async def test_rejects_path_outside_allowed_roots(self, server):

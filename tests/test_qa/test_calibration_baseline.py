@@ -358,6 +358,17 @@ def test_ready_baseline_without_decidable_confirmed_claims_has_no_gate_candidate
     assert review["decision_status"] == "report_only_recommended"
     assert review["operator_may_arm_after_review"] is False
     assert any(item["id"] == "report_only_gate_decision" for item in review["items"])
+    actions = baseline["next_actions"]
+    assert actions["hard_gate_action"] == "keep_gate_unset_no_decidable_confirmed_claims"
+    assert actions["gate_recommendation_reason"] == "no_decidable_confirmed_claims"
+    assert actions["reports_considered_for_confirmed_floor"] == 0
+    assert actions["reports_without_decidable_confirmed"] == 5
+    assert not any(item["reason"] == "ready" for item in actions["items"])
+    assert any(
+        item["reason"] == "no_decidable_confirmed_claims"
+        and "leave PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY unset" in item["action"]
+        for item in actions["items"]
+    )
     floor_item = next(
         item for item in review["items"] if item["id"] == "false_positive_false_negative_spot_check"
     )
@@ -406,6 +417,56 @@ def test_ready_baseline_with_partial_confirmed_floor_stays_report_only() -> None
         "incomplete_confirmed_traceability_floor"
     )
     assert report_only_item["evidence"]["reports_without_decidable_confirmed"] == 1
+    actions = baseline["next_actions"]
+    assert actions["hard_gate_action"] == "keep_gate_unset_until_confirmed_floor_complete"
+    assert actions["gate_recommendation_status"] == "not_recommended"
+    assert actions["gate_recommendation_reason"] == "incomplete_confirmed_traceability_floor"
+    assert actions["confirmed_traceability_floor_complete"] is False
+    assert actions["reports_considered_for_confirmed_floor"] == 4
+    assert actions["reports_without_decidable_confirmed"] == 1
+    assert not any(item["reason"] == "ready" for item in actions["items"])
+    assert any(
+        item["reason"] == "incomplete_confirmed_traceability_floor"
+        and "complete per-report floor" in item["action"]
+        for item in actions["items"]
+    )
+    inspection = inspect_calibration_baseline(baseline)
+    assert inspection["next_actions"]["hard_gate_action"] == (
+        "keep_gate_unset_until_confirmed_floor_complete"
+    )
+    assert inspection["next_actions"]["reports_without_decidable_confirmed"] == 1
+    assert (
+        sum(
+            item["reason"] == "incomplete_confirmed_traceability_floor"
+            for item in inspection["next_actions"]["items"]
+        )
+        == 1
+    )
+
+    legacy_baseline = json.loads(json.dumps(baseline))
+    legacy_baseline["next_actions"] = {
+        "spend_preview_required": False,
+        "gate_policy": baseline["next_actions"]["gate_policy"],
+        "items": [
+            {
+                "reason": "ready",
+                "action": (
+                    "Review the measured floor with the pack context before selecting "
+                    "any hard threshold."
+                ),
+            }
+        ],
+        "commands": [],
+    }
+    legacy_inspection = inspect_calibration_baseline(legacy_baseline)
+    assert legacy_inspection["next_actions"]["hard_gate_action"] == (
+        "keep_gate_unset_until_confirmed_floor_complete"
+    )
+    assert legacy_inspection["next_actions"]["gate_recommendation_reason"] == (
+        "incomplete_confirmed_traceability_floor"
+    )
+    assert legacy_inspection["next_actions"]["reports_without_decidable_confirmed"] == 1
+    assert not any(item["reason"] == "ready" for item in legacy_inspection["next_actions"]["items"])
     threshold_item = next(item for item in review["items"] if item["id"] == "threshold_decision")
     assert threshold_item["required"] is False
     assert threshold_item["evidence"]["gate_reason"] == ("incomplete_confirmed_traceability_floor")
@@ -711,6 +772,9 @@ def test_inspect_baseline_lists_report_level_blockers() -> None:
     assert inspection["ready"] is False
     assert inspection["measurement"]["measured"] is False
     assert inspection["measurement"]["status"] == "missing_calibration_sidecars"
+    assert inspection["gate_recommendation"]["reason"] == "inspection_not_ready"
+    assert inspection["next_actions"]["gate_recommendation_reason"] == "inspection_not_ready"
+    assert inspection["next_actions"]["hard_gate_action"] == "keep_gate_unset_until_baseline_ready"
     assert inspection["counts"] == {
         "reports": 5,
         "minimum_reports": 5,

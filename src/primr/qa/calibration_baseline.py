@@ -8,7 +8,10 @@ from pathlib import Path
 from typing import Any
 
 from primr.core.eval_calibration import calibration_counts_from_payload, percent_or_dash
-from primr.qa.calibration_baseline_actions import calibration_baseline_next_actions
+from primr.qa.calibration_baseline_actions import (
+    add_gate_recommendation_next_actions,
+    calibration_baseline_next_actions,
+)
 from primr.qa.calibration_baseline_gate import (
     baseline_gate_recommendation,
     inspection_gate_recommendation,
@@ -154,6 +157,7 @@ def inspect_calibration_baseline(
         "gate_policy": next_actions.get("gate_policy"),
         "gate_recommendation": gate_recommendation,
         "operator_review": operator_review,
+        "next_actions": _inspection_next_actions(next_actions, gate_recommendation),
         "artifact_integrity": artifact_integrity["counts"],
         "counts": {
             "reports": _safe_int(totals.get("reports"), default=len(reports)),
@@ -232,19 +236,6 @@ def build_calibration_baseline(
         representative_selection_ready=bool(representation["selection_ready"]),
         representation_missing_tags=representation["missing_tags"],
     )
-    next_actions = calibration_baseline_next_actions(
-        reasons=reasons,
-        manifest_path=manifest_path,
-        report_count=report_count,
-        minimum_reports=minimum_reports,
-        reports_with_payloads=reports_with_payloads,
-        failures=failures,
-        reports_with_evidence_reviews=coverage_counts["reports_with_evidence_reviews"],
-        reports_with_judge_agreement=coverage_counts["reports_with_judge_agreement"],
-        representative_selection_ready=bool(representation["selection_ready"]),
-        representation_missing_tags=representation["missing_tags"],
-        selection_path=representation.get("selection_path"),
-    )
     report_summaries = [_report_summary(report) for report in reports]
     ready = not reasons
     measurement = _measurement_summary(
@@ -263,6 +254,22 @@ def build_calibration_baseline(
         evidence=evidence_summary,
         agreement=judge_agreement,
         representation=representation,
+    )
+    next_actions = add_gate_recommendation_next_actions(
+        calibration_baseline_next_actions(
+            reasons=reasons,
+            manifest_path=manifest_path,
+            report_count=report_count,
+            minimum_reports=minimum_reports,
+            reports_with_payloads=reports_with_payloads,
+            failures=failures,
+            reports_with_evidence_reviews=coverage_counts["reports_with_evidence_reviews"],
+            reports_with_judge_agreement=coverage_counts["reports_with_judge_agreement"],
+            representative_selection_ready=bool(representation["selection_ready"]),
+            representation_missing_tags=representation["missing_tags"],
+            selection_path=representation.get("selection_path"),
+        ),
+        gate_recommendation,
     )
 
     return {
@@ -866,6 +873,36 @@ def _command_items(next_actions: dict[str, Any]) -> list[dict[str, str]]:
         for command in commands
         if isinstance(command, dict)
     ]
+
+
+def _inspection_next_actions(
+    next_actions: dict[str, Any],
+    gate_recommendation: dict[str, Any],
+) -> dict[str, Any]:
+    normalized = add_gate_recommendation_next_actions(next_actions, gate_recommendation)
+    items = normalized.get("items", [])
+    return {
+        "hard_gate_action": normalized.get("hard_gate_action"),
+        "gate_recommendation_status": normalized.get("gate_recommendation_status"),
+        "gate_recommendation_reason": normalized.get("gate_recommendation_reason"),
+        "confirmed_traceability_floor_complete": bool(
+            normalized.get("confirmed_traceability_floor_complete")
+        ),
+        "reports_considered_for_confirmed_floor": _safe_int(
+            normalized.get("reports_considered_for_confirmed_floor")
+        ),
+        "reports_without_decidable_confirmed": _safe_int(
+            normalized.get("reports_without_decidable_confirmed")
+        ),
+        "items": [
+            {
+                "reason": str(item.get("reason", "")),
+                "action": str(item.get("action", "")),
+            }
+            for item in items
+            if isinstance(item, dict)
+        ],
+    }
 
 
 def _rate(numerator: int, denominator: int) -> float | None:

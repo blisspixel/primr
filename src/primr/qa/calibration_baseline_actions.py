@@ -201,6 +201,94 @@ def calibration_baseline_next_actions(
     }
 
 
+def add_gate_recommendation_next_actions(
+    next_actions: dict[str, Any],
+    gate_recommendation: dict[str, Any],
+) -> dict[str, Any]:
+    """Add hard-gate guidance after the measured floor recommendation is known."""
+    actions = dict(next_actions)
+    items = [dict(item) for item in actions.get("items", []) if isinstance(item, dict)]
+    reason = str(gate_recommendation.get("reason") or "")
+    status = str(gate_recommendation.get("status") or "not_recommended")
+    missing_floor_reports = _safe_int(
+        gate_recommendation.get("reports_without_decidable_confirmed")
+    )
+    actions.update(
+        {
+            "gate_recommendation_status": status,
+            "gate_recommendation_reason": reason,
+            "confirmed_traceability_floor_complete": bool(
+                gate_recommendation.get("confirmed_traceability_floor_complete")
+            ),
+            "reports_considered_for_confirmed_floor": _safe_int(
+                gate_recommendation.get("reports_considered")
+            ),
+            "reports_without_decidable_confirmed": missing_floor_reports,
+            "hard_gate_action": _hard_gate_action(status, reason),
+        }
+    )
+
+    gate_item = _gate_action_item(reason, missing_floor_reports)
+    if gate_item is not None:
+        items = [item for item in items if item.get("reason") not in {"ready", gate_item["reason"]}]
+        items.append(gate_item)
+    actions["items"] = items
+    return actions
+
+
+def _hard_gate_action(status: str, reason: str) -> str:
+    if status == "candidate":
+        return "operator_review_before_setting_threshold"
+    if reason == "no_decidable_confirmed_claims":
+        return "keep_gate_unset_no_decidable_confirmed_claims"
+    if reason == "incomplete_confirmed_traceability_floor":
+        return "keep_gate_unset_until_confirmed_floor_complete"
+    if reason == "zero_confirmed_traceability_floor":
+        return "keep_gate_unset_zero_confirmed_floor"
+    return "keep_gate_unset_until_baseline_ready"
+
+
+def _gate_action_item(reason: str, missing_floor_reports: int) -> dict[str, Any] | None:
+    if reason == "no_decidable_confirmed_claims":
+        return {
+            "reason": reason,
+            "reports_without_decidable_confirmed": missing_floor_reports,
+            "action": (
+                "Document that the selected pack has no decidable Confirmed floor, "
+                "then leave PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY unset or rebuild "
+                "the representative pack with reports that include decidable "
+                "Confirmed claims."
+            ),
+        }
+    if reason == "incomplete_confirmed_traceability_floor":
+        return {
+            "reason": reason,
+            "reports_without_decidable_confirmed": missing_floor_reports,
+            "action": (
+                "Review the selected reports lacking decidable Confirmed claims, "
+                "then either rebuild the representative pack with a complete "
+                "per-report floor or document why the hard gate remains report-only."
+            ),
+        }
+    if reason == "zero_confirmed_traceability_floor":
+        return {
+            "reason": reason,
+            "reports_without_decidable_confirmed": missing_floor_reports,
+            "action": (
+                "Leave the hard gate unset because the measured Confirmed floor is "
+                "zero; inspect sampled failures before building a new baseline."
+            ),
+        }
+    return None
+
+
+def _safe_int(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _default_markdown_ref(manifest_ref: str) -> str:
     if manifest_ref == "<pack-manifest.json>":
         return "<baseline.md>"

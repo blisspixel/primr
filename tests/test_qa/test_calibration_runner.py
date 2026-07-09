@@ -738,6 +738,17 @@ class TestCLIWiring:
         assert review["decision_status"] == "report_only_recommended"
         assert review["operator_may_arm_after_review"] is False
         assert any(item["id"] == "report_only_gate_decision" for item in review["items"])
+        assert payload["next_actions"]["hard_gate_action"] == (
+            "keep_gate_unset_until_confirmed_floor_complete"
+        )
+        assert payload["next_actions"]["gate_recommendation_reason"] == (
+            "incomplete_confirmed_traceability_floor"
+        )
+        assert payload["next_actions"]["reports_without_decidable_confirmed"] == 1
+        assert any(
+            item["reason"] == "incomplete_confirmed_traceability_floor"
+            for item in payload["next_actions"]["items"]
+        )
 
     def test_handler_prints_selection_inspection_json(self, tmp_path, capsys):
         from primr.core.cli import CLIConfig, Command, _handle_calibrate

@@ -81,7 +81,11 @@ Current priority order:
    exact review items for representative coverage, evidence dimensions,
    judge disagreement, false-positive and false-negative risk, and the
    threshold decision, and distinguishes gate candidates from report-only
-   recommendations without returning report bodies or raw claims.
+   recommendations without returning report bodies or raw claims. Baseline
+   `next_actions` now carries the body-free hard-gate action state and
+   selected-report counts for absent, incomplete, or zero Confirmed floors, so
+   ready-but-report-only baselines explain why the environment variable remains
+   unset.
 2. **Backend freedom production wiring.** Provider abstractions and pure routing
    foundations exist, and `core/stage_inventory.py` now records router-ready
    capability requirements and promotion gates for fast-mode and premium
@@ -423,7 +427,8 @@ per-module coverage ratchet unlocked by the refactor:
   incomplete per-report Confirmed floor; a ready pack with reports lacking
   decidable `(Confirmed)` claims stays report-only with
   `incomplete_confirmed_traceability_floor` until an operator reviews that
-  coverage gap. Remaining:
+  coverage gap, and `next_actions` carries the same hard-gate action state and
+  selected-report counts for agent control planes. Remaining:
   gather a multi-report, agreement-validated baseline (cloud-vs-local
   concordance), then set the threshold from those numbers; a single small run is too
   judge-noisy to arm a hard gate on (judge variance is itself a documented
