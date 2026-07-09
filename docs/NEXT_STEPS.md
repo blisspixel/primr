@@ -229,6 +229,10 @@ Do next:
   `operator_decision_template` with allowed decisions, required review items,
   selected-report counts, and operator-supplied fields for documenting a later
   report-only or manual gate decision without recording one automatically.
+  `primr calibrate --baseline-decision-from ... --baseline-decision-out ...`
+  now writes a body-free operator decision record only when the inspected
+  template allows the requested decision, and never sets the hard-gate
+  environment variable itself.
 - Set `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` only from the measured floor of
   that agreement-validated baseline.
 - Surface contradicted `--verify` claims in the report trust summary. First
@@ -249,8 +253,9 @@ Done when:
   non-curated latest-N packs; and ready curated multi-report baselines now carry
   explicit measurement status in JSON and Markdown; ready-but-report-only
   baselines now publish explicit hard-gate next actions; baseline artifacts now
-  include a decision template for operator-supplied gate evidence. Hard-gate
-  arming is still pending operator review of the measured floor.
+  include a decision template, and the CLI can write a separate operator-created
+  decision record for gate evidence. Hard-gate arming is still pending operator
+  review of the measured floor.
 - The hard gate is either armed from a defensible baseline or deliberately left
   report-only with documented evidence.
 - Contradicted claims are visible in the human-facing report trust surface for

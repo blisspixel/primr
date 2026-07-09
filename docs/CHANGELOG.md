@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before documenting either a deliberate report-only decision or a manual hard
   gate assignment. The template does not record a decision and still forbids
   automatic gate arming.
+- `primr calibrate --baseline-decision-from ... --baseline-decision-out ...`
+  now writes a body-free `primr.calibration_gate_decision_record.v1` artifact
+  after validating the requested decision against the inspected baseline's
+  allowed decisions. The command records reviewer, rationale, selected-report
+  evidence, and baseline fingerprint metadata, but never applies or exports the
+  hard-gate environment variable.
 
 ## [1.34.47] - 2026-07-08
 

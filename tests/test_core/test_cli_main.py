@@ -76,6 +76,43 @@ class TestMainHandlerRouting:
         monkeypatch.setattr("primr.core.cli._handle_show_usage", handler)
         assert main(["--show-usage"]) == 0
 
+    def test_calibration_decision_bypasses_api_key_validation(self, stub_logging, monkeypatch):
+        validation_calls = []
+
+        def validate_config(**kwargs):
+            validation_calls.append(kwargs)
+            result = MagicMock()
+            result.valid = True
+            result.errors = []
+            result.warnings = []
+            return result
+
+        handler = MagicMock(return_value=0)
+        monkeypatch.setattr("primr.utils.config_validation.validate_config", validate_config)
+        monkeypatch.setattr("primr.utils.config_validation.reset_config", lambda: None)
+        monkeypatch.setattr("primr.core.cli._handle_calibrate", handler)
+
+        assert (
+            main(
+                [
+                    "calibrate",
+                    "--baseline-decision-from",
+                    "baseline.json",
+                    "--baseline-decision-out",
+                    "decision.json",
+                    "--baseline-decision",
+                    "keep_report_only",
+                    "--baseline-decision-reviewer",
+                    "qa-owner",
+                    "--baseline-decision-rationale",
+                    "Keep report-only after review.",
+                ]
+            )
+            == 0
+        )
+        assert validation_calls[0]["include_api_keys"] is False
+        handler.assert_called_once()
+
 
 class TestMainValidationFailure:
     def test_invalid_config_returns_1(self, stub_logging, monkeypatch):

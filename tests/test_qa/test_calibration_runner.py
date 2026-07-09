@@ -647,6 +647,37 @@ class TestCLIWiring:
 
         assert config.calibrate_inspect_baseline == "baseline.json"
 
+    def test_baseline_decision_flags(self):
+        from primr.core.cli import parse_args
+
+        config = parse_args(
+            [
+                "calibrate",
+                "--baseline-decision-from",
+                "baseline.json",
+                "--baseline-decision-out",
+                "decision.json",
+                "--baseline-decision",
+                "keep_report_only",
+                "--baseline-decision-reviewer",
+                "qa-owner",
+                "--baseline-decision-rationale",
+                "Keep the hard gate report-only for now.",
+                "--baseline-decision-note",
+                "Reviewed representative coverage.",
+            ]
+        )
+
+        assert config.calibrate_baseline_decision_from == "baseline.json"
+        assert config.calibrate_baseline_decision_out == "decision.json"
+        assert config.calibrate_baseline_decision == "keep_report_only"
+        assert config.calibrate_baseline_decision_reviewer == "qa-owner"
+        assert (
+            config.calibrate_baseline_decision_rationale
+            == "Keep the hard gate report-only for now."
+        )
+        assert config.calibrate_baseline_decision_notes == ("Reviewed representative coverage.",)
+
     def test_invalid_judge_choice_rejected(self):
         from primr.core.cli import parse_args
 
@@ -756,6 +787,84 @@ class TestCLIWiring:
             "keep_gate_unset_until_confirmed_floor_complete"
         )
         assert decision_template["evidence"]["reports_without_decidable_confirmed"] == 1
+
+    def test_handler_writes_baseline_decision_record(self, tmp_path):
+        from primr.core.cli import CLIConfig, Command, _handle_calibrate
+        from primr.qa.calibration_baseline import build_calibration_baseline
+
+        baseline = build_calibration_baseline(
+            _partial_confirmed_floor_manifest(),
+            minimum_reports=5,
+        )
+        baseline_path = tmp_path / "baseline.json"
+        baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+        decision_path = tmp_path / "decision.json"
+
+        config = CLIConfig(
+            command=Command.CALIBRATE,
+            calibrate_baseline_decision_from=str(baseline_path),
+            calibrate_baseline_decision_out=str(decision_path),
+            calibrate_baseline_decision="keep_report_only",
+            calibrate_baseline_decision_reviewer="qa-owner",
+            calibrate_baseline_decision_rationale=(
+                "Keep report-only until every selected report has a Confirmed floor."
+            ),
+            calibrate_baseline_decision_notes=("Reviewed the selected report counts.",),
+        )
+
+        assert _handle_calibrate(config) == 0
+        payload = json.loads(decision_path.read_text(encoding="utf-8"))
+        assert payload["decision_format"] == "primr.calibration_gate_decision_record.v1"
+        assert payload["decision"] == "keep_report_only"
+        assert payload["applied"] is False
+        assert payload["manual_action_required"] == (
+            "Leave PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY unset."
+        )
+        assert payload["evidence"]["reports_without_decidable_confirmed"] == 1
+
+    def test_handler_rejects_baseline_decision_run_mode_conflict(self, tmp_path):
+        from primr.core.cli import CLIConfig, Command, _handle_calibrate
+
+        config = CLIConfig(
+            command=Command.CALIBRATE,
+            calibrate_target="Acme",
+            calibrate_baseline_decision_from=str(tmp_path / "baseline.json"),
+            calibrate_baseline_decision_out=str(tmp_path / "decision.json"),
+            calibrate_baseline_decision="keep_report_only",
+            calibrate_baseline_decision_reviewer="qa-owner",
+            calibrate_baseline_decision_rationale="Conflict should fail.",
+        )
+
+        assert _handle_calibrate(config) == 1
+
+    def test_handler_rejects_baseline_decision_modifiers(self, tmp_path):
+        from primr.core.cli import CLIConfig, Command, _handle_calibrate
+
+        config = CLIConfig(
+            command=Command.CALIBRATE,
+            calibrate_baseline_decision_from=str(tmp_path / "baseline.json"),
+            calibrate_baseline_decision_out=str(tmp_path / "decision.json"),
+            calibrate_baseline_decision="keep_report_only",
+            calibrate_baseline_decision_reviewer="qa-owner",
+            calibrate_baseline_decision_rationale="Modifier conflict should fail.",
+            calibrate_dry_run=True,
+            calibrate_judge_compare=True,
+        )
+
+        assert _handle_calibrate(config) == 1
+
+    def test_handler_rejects_baseline_decision_flags_without_source(self, tmp_path):
+        from primr.core.cli import CLIConfig, Command, _handle_calibrate
+
+        config = CLIConfig(
+            command=Command.CALIBRATE,
+            calibrate_baseline_decision_out=str(tmp_path / "decision.json"),
+            calibrate_baseline_decision="keep_report_only",
+            calibrate_baseline_decision_reviewer="qa-owner",
+            calibrate_baseline_decision_rationale="Decision flags need a source baseline.",
+        )
+
+        assert _handle_calibrate(config) == 1
 
     def test_handler_prints_selection_inspection_json(self, tmp_path, capsys):
         from primr.core.cli import CLIConfig, Command, _handle_calibrate

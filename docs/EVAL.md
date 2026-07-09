@@ -257,6 +257,12 @@ continue to measure both failure directions as classifier behavior changes.
   items, selected-report counts, and operator-supplied fields needed to document
   either a report-only decision or a manual hard-gate assignment. It is a
   template, not a recorded decision, and it never arms the gate automatically.
+  When an operator has reviewed the template, run
+  `primr calibrate --baseline-decision-from path/to/baseline.json --baseline-decision-out path/to/decision.json --baseline-decision keep_report_only --baseline-decision-reviewer "<name-or-role>" --baseline-decision-rationale "<why>"`
+  to write a body-free `primr.calibration_gate_decision_record.v1` artifact.
+  Use `--baseline-decision arm_gate` only when the inspected template lists that
+  decision as allowed; Primr still only writes the record and never sets the
+  environment variable itself.
   Run `primr calibrate --inspect-baseline path/to/baseline.json` to print the
   same blockers as machine-readable JSON for agents or automation. MCP clients
   can read `primr://calibration/baseline/inspection?path=<baseline.json>` when

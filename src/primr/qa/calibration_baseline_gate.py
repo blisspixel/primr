@@ -109,6 +109,36 @@ def inspection_gate_recommendation(
     return blocked
 
 
+def gate_with_report_floor_consistency(
+    gate_recommendation: dict[str, Any],
+    reports: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Downgrade stale candidate gates that no longer match report summaries."""
+    if gate_recommendation.get("status") != "candidate":
+        return gate_recommendation
+    floor = _confirmed_floor_summary(reports)
+    expected_threshold = floor["measured_floor"]
+    if (
+        floor["confirmed_traceability_floor_complete"]
+        and expected_threshold is not None
+        and _optional_rate(gate_recommendation.get("recommended_threshold")) == expected_threshold
+        and _optional_rate(gate_recommendation.get("measured_floor")) == expected_threshold
+        and _safe_int(gate_recommendation.get("reports_total")) == floor["reports_total"]
+        and _safe_int(gate_recommendation.get("reports_considered")) == floor["reports_considered"]
+        and _safe_int(gate_recommendation.get("reports_without_decidable_confirmed"))
+        == floor["reports_without_decidable_confirmed"]
+    ):
+        return gate_recommendation
+
+    blocked = dict(gate_recommendation)
+    blocked.update(floor)
+    blocked["status"] = "not_recommended"
+    blocked["reason"] = "stale_gate_recommendation"
+    blocked["recommended_threshold"] = None
+    blocked["env_assignment"] = None
+    return blocked
+
+
 def render_gate_recommendation_markdown(gate: dict[str, Any]) -> list[str]:
     """Render the compact Markdown section for a gate recommendation."""
 
@@ -131,6 +161,20 @@ def render_gate_recommendation_markdown(gate: dict[str, Any]) -> list[str]:
 def _dict_value(source: dict[str, Any], key: str) -> dict[str, Any]:
     value = source.get(key, {})
     return value if isinstance(value, dict) else {}
+
+
+def _confirmed_floor_summary(reports: list[dict[str, Any]]) -> dict[str, Any]:
+    rates = [_optional_rate(report.get("confirmed_traceability")) for report in reports]
+    measured_rates = [rate for rate in rates if rate is not None]
+    reports_total = len(rates)
+    reports_without_floor = reports_total - len(measured_rates)
+    return {
+        "reports_total": reports_total,
+        "reports_considered": len(measured_rates),
+        "reports_without_decidable_confirmed": reports_without_floor,
+        "confirmed_traceability_floor_complete": reports_without_floor == 0,
+        "measured_floor": round(min(measured_rates), 3) if measured_rates else None,
+    }
 
 
 def _optional_rate(value: Any) -> float | None:

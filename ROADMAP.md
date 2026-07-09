@@ -88,7 +88,9 @@ Current priority order:
    unset. A body-free `operator_decision_template` now lists the allowed
    decisions, required review items, selected-report counts, and
    operator-supplied fields needed to document a later report-only or manual
-   gate decision without recording one automatically.
+   gate decision without recording one automatically. The calibration CLI now
+   writes an explicit body-free decision record only when the inspected template
+   allows the requested decision; it never sets the environment variable itself.
 2. **Backend freedom production wiring.** Provider abstractions and pure routing
    foundations exist, and `core/stage_inventory.py` now records router-ready
    capability requirements and promotion gates for fast-mode and premium
@@ -432,8 +434,9 @@ per-module coverage ratchet unlocked by the refactor:
   `incomplete_confirmed_traceability_floor` until an operator reviews that
   coverage gap, and `next_actions` carries the same hard-gate action state and
   selected-report counts for agent control planes. Baseline artifacts now also
-  include a body-free decision template for operator-supplied gate evidence.
-  Remaining:
+  include a body-free decision template for operator-supplied gate evidence, and
+  the calibration CLI can now write a body-free operator decision record bound
+  to the inspected baseline fingerprint. Remaining:
   gather a multi-report, agreement-validated baseline (cloud-vs-local
   concordance), then set the threshold from those numbers; a single small run is too
   judge-noisy to arm a hard gate on (judge variance is itself a documented

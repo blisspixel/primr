@@ -12,6 +12,7 @@ from primr.qa.calibration_baseline import (
     read_calibration_baseline,
     write_calibration_baseline,
 )
+from primr.qa.calibration_baseline_decision import write_operator_decision_record
 from primr.qa.calibration_runner import (
     JudgeAgreement,
     JudgeSelection,
@@ -82,6 +83,24 @@ class CalibrateConfig(Protocol):
     @property
     def calibrate_inspect_baseline(self) -> str | None: ...
 
+    @property
+    def calibrate_baseline_decision_from(self) -> str | None: ...
+
+    @property
+    def calibrate_baseline_decision_out(self) -> str | None: ...
+
+    @property
+    def calibrate_baseline_decision(self) -> str | None: ...
+
+    @property
+    def calibrate_baseline_decision_reviewer(self) -> str | None: ...
+
+    @property
+    def calibrate_baseline_decision_rationale(self) -> str | None: ...
+
+    @property
+    def calibrate_baseline_decision_notes(self) -> tuple[str, ...]: ...
+
 
 class ConsoleSink(Protocol):
     def banner(self, title: str) -> None: ...
@@ -100,6 +119,11 @@ def handle_calibrate(config: CalibrateConfig, console: ConsoleSink) -> int:
     if config.calibrate_baseline_min_reports < 1:
         console.error("--baseline-min-reports must be at least 1")
         return 1
+    if _has_baseline_decision_fields(config):
+        if not config.calibrate_baseline_decision_from:
+            console.error("--baseline-decision options require --baseline-decision-from")
+            return 1
+        return _handle_baseline_decision(config, console)
     if config.calibrate_inspect_selection:
         return _handle_inspect_selection(config, console)
     if config.calibrate_pack_selection_template:
@@ -259,6 +283,77 @@ def _handle_inspect_baseline(config: CalibrateConfig, console: ConsoleSink) -> i
     inspection = inspect_calibration_baseline(baseline, baseline_path=baseline_path)
     print(json.dumps(inspection, indent=2, ensure_ascii=False))
     return 0
+
+
+def _handle_baseline_decision(config: CalibrateConfig, console: ConsoleSink) -> int:
+    if (
+        config.calibrate_target
+        or config.calibrate_recent is not None
+        or config.calibrate_pack_selection
+        or config.calibrate_pack_selection_template
+        or config.calibrate_inspect_selection
+        or config.calibrate_inspect_baseline
+        or config.calibrate_baseline_from
+        or config.calibrate_pack_manifest
+        or config.calibrate_baseline_out
+        or config.calibrate_baseline_md
+        or config.calibrate_dry_run
+        or config.calibrate_judge != "cloud"
+        or config.calibrate_judge_model
+        or config.calibrate_judge_compare
+        or config.calibrate_max_per_label != 10
+    ):
+        console.error("--baseline-decision-from cannot be combined with calibration run modes")
+        return 1
+    if not config.calibrate_baseline_decision_out:
+        console.error("--baseline-decision-from requires --baseline-decision-out")
+        return 1
+    if not config.calibrate_baseline_decision:
+        console.error("--baseline-decision-from requires --baseline-decision")
+        return 1
+    if not config.calibrate_baseline_decision_reviewer:
+        console.error("--baseline-decision-from requires --baseline-decision-reviewer")
+        return 1
+    if not config.calibrate_baseline_decision_rationale:
+        console.error("--baseline-decision-from requires --baseline-decision-rationale")
+        return 1
+
+    baseline_path = Path(config.calibrate_baseline_decision_from)
+    try:
+        baseline = read_calibration_baseline(baseline_path)
+        record = write_operator_decision_record(
+            Path(config.calibrate_baseline_decision_out),
+            baseline_path=baseline_path,
+            baseline=baseline,
+            decision=config.calibrate_baseline_decision,
+            reviewer=config.calibrate_baseline_decision_reviewer,
+            rationale=config.calibrate_baseline_decision_rationale,
+            notes=config.calibrate_baseline_decision_notes,
+        )
+    except (OSError, ValueError) as exc:
+        console.error(str(exc))
+        return 1
+
+    console.ok(
+        f"Calibration gate decision record written: {config.calibrate_baseline_decision_out}"
+    )
+    console.info(f"Decision: {record['decision']}")
+    console.info(f"Applied automatically: {'yes' if record['applied'] else 'no'}")
+    console.info(str(record["manual_action_required"]))
+    return 0
+
+
+def _has_baseline_decision_fields(config: CalibrateConfig) -> bool:
+    return any(
+        (
+            config.calibrate_baseline_decision_from,
+            config.calibrate_baseline_decision_out,
+            config.calibrate_baseline_decision,
+            config.calibrate_baseline_decision_reviewer,
+            config.calibrate_baseline_decision_rationale,
+            config.calibrate_baseline_decision_notes,
+        )
+    )
 
 
 def _handle_inspect_selection(config: CalibrateConfig, console: ConsoleSink) -> int:

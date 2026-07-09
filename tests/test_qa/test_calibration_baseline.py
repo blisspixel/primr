@@ -14,6 +14,7 @@ from primr.qa.calibration_baseline import (
     read_calibration_baseline,
     write_calibration_baseline,
 )
+from primr.qa.calibration_baseline_decision import write_operator_decision_record
 
 
 def _sidecar(
@@ -344,6 +345,17 @@ def test_build_baseline_ready_when_pack_has_required_evidence() -> None:
     assert stale_inspection["operator_decision_template"]["recommended_decision"] == (
         "keep_report_only"
     )
+    inconsistent_candidate = json.loads(json.dumps(baseline))
+    inconsistent_candidate["gate_recommendation"]["reports_considered"] = 4
+    inconsistent_candidate["gate_recommendation"]["reports_without_decidable_confirmed"] = 1
+    inconsistent_candidate["gate_recommendation"]["confirmed_traceability_floor_complete"] = False
+    inconsistent_inspection = inspect_calibration_baseline(inconsistent_candidate)
+    assert inconsistent_inspection["operator_decision_template"]["allowed_decisions"] == []
+    stale_report_candidate = json.loads(json.dumps(baseline))
+    stale_report_candidate["reports"][0]["confirmed_traceability"] = None
+    stale_report_inspection = inspect_calibration_baseline(stale_report_candidate)
+    assert stale_report_inspection["gate_recommendation"]["reason"] == ("stale_gate_recommendation")
+    assert stale_report_inspection["operator_decision_template"]["allowed_decisions"] == []
     assert baseline["next_actions"]["spend_preview_required"] is False
     assert baseline["next_actions"]["items"] == [
         {
@@ -793,6 +805,166 @@ def test_write_baseline_json_and_markdown(tmp_path: Path) -> None:
     assert "Representative coverage: 2 / 2 required tags" in markdown
     assert "--pack-selection .agent/calibration-selection.json" in markdown
     assert "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY" in markdown
+
+
+def test_write_operator_decision_record_for_candidate_does_not_apply_gate(
+    tmp_path: Path,
+) -> None:
+    manifest_path = tmp_path / "pack.json"
+    manifest_path.write_text(
+        json.dumps(
+            _manifest(
+                5,
+                required_tags=["clean", "blocked_origin"],
+                present_tags=["clean", "blocked_origin"],
+            )
+        ),
+        encoding="utf-8",
+    )
+    baseline_path = default_baseline_json_path(manifest_path)
+    baseline = write_calibration_baseline(
+        baseline_path,
+        manifest_path,
+        minimum_reports=5,
+    )
+    decision_path = tmp_path / "baseline-decision.json"
+
+    with pytest.raises(ValueError, match="must not overwrite the baseline artifact"):
+        write_operator_decision_record(
+            baseline_path,
+            baseline_path=baseline_path,
+            baseline=baseline,
+            decision="arm_gate",
+            reviewer="qa-owner",
+            rationale="This must not overwrite the baseline.",
+            reviewed_at_utc="2026-07-09T00:00:00Z",
+        )
+
+    record = write_operator_decision_record(
+        decision_path,
+        baseline_path=baseline_path,
+        baseline=baseline,
+        decision="arm_gate",
+        reviewer="qa-owner",
+        rationale="Representative coverage, evidence reviews, agreement, and floor reviewed.",
+        reviewed_at_utc="2026-07-09T00:00:00Z",
+        notes=["Reviewed false-positive and false-negative examples."],
+    )
+
+    assert json.loads(decision_path.read_text(encoding="utf-8")) == record
+    assert record["decision_format"] == "primr.calibration_gate_decision_record.v1"
+    assert record["decision"] == "arm_gate"
+    assert record["reviewer"] == "qa-owner"
+    assert record["reviewed_at_utc"] == "2026-07-09T00:00:00Z"
+    assert record["applied"] is False
+    assert record["automatic_gate_arming_allowed"] is False
+    assert record["manual_action_required"] == (
+        "Set PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY outside Primr only after reviewing this record."
+    )
+    assert record["env_assignment"] == "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=1.000"
+    assert record["baseline"]["content_hash"].startswith("sha256:")
+    assert record["evidence"]["reports_total"] == 5
+    assert record["decision_template"]["allowed_decisions"] == ["arm_gate", "keep_report_only"]
+
+
+def test_write_operator_decision_record_rejects_arm_gate_when_not_allowed(
+    tmp_path: Path,
+) -> None:
+    baseline = build_calibration_baseline(
+        _manifest(
+            5,
+            required_tags=["clean", "blocked_origin"],
+            present_tags=["clean", "blocked_origin"],
+            confirmed_traceable=0,
+            confirmed_untraceable=0,
+        ),
+        minimum_reports=5,
+    )
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Decision 'arm_gate' is not allowed"):
+        write_operator_decision_record(
+            tmp_path / "decision.json",
+            baseline_path=baseline_path,
+            baseline=baseline,
+            decision="arm_gate",
+            reviewer="qa-owner",
+            rationale="Tried to arm a report-only baseline.",
+            reviewed_at_utc="2026-07-09T00:00:00Z",
+        )
+
+    record = write_operator_decision_record(
+        tmp_path / "decision.json",
+        baseline_path=baseline_path,
+        baseline=baseline,
+        decision="keep_report_only",
+        reviewer="qa-owner",
+        rationale="No decidable Confirmed floor is available.",
+        reviewed_at_utc="2026-07-09T00:00:00Z",
+    )
+
+    assert record["decision"] == "keep_report_only"
+    assert record["env_assignment"] is None
+    assert record["manual_action_required"] == "Leave PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY unset."
+    assert record["decision_template"]["allowed_decisions"] == ["keep_report_only"]
+    assert record["evidence"]["reports_without_decidable_confirmed"] == 5
+
+
+def test_write_operator_decision_record_rejects_inconsistent_candidate(
+    tmp_path: Path,
+) -> None:
+    baseline = build_calibration_baseline(
+        _manifest(
+            5,
+            required_tags=["clean", "blocked_origin"],
+            present_tags=["clean", "blocked_origin"],
+        ),
+        minimum_reports=5,
+    )
+    baseline["gate_recommendation"]["reports_considered"] = 4
+    baseline["gate_recommendation"]["reports_without_decidable_confirmed"] = 1
+    baseline["gate_recommendation"]["confirmed_traceability_floor_complete"] = False
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Decision 'arm_gate' is not allowed"):
+        write_operator_decision_record(
+            tmp_path / "decision.json",
+            baseline_path=baseline_path,
+            baseline=baseline,
+            decision="arm_gate",
+            reviewer="qa-owner",
+            rationale="The stale candidate metadata should not be accepted.",
+            reviewed_at_utc="2026-07-09T00:00:00Z",
+        )
+
+
+def test_write_operator_decision_record_rejects_stale_report_floor_candidate(
+    tmp_path: Path,
+) -> None:
+    baseline = build_calibration_baseline(
+        _manifest(
+            5,
+            required_tags=["clean", "blocked_origin"],
+            present_tags=["clean", "blocked_origin"],
+        ),
+        minimum_reports=5,
+    )
+    baseline["reports"][0]["confirmed_traceability"] = None
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Decision 'arm_gate' is not allowed"):
+        write_operator_decision_record(
+            tmp_path / "decision.json",
+            baseline_path=baseline_path,
+            baseline=baseline,
+            decision="arm_gate",
+            reviewer="qa-owner",
+            rationale="The report summaries contradict the stale gate block.",
+            reviewed_at_utc="2026-07-09T00:00:00Z",
+        )
 
 
 def test_inspect_baseline_lists_report_level_blockers() -> None:

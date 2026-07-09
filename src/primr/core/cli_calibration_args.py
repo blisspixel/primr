@@ -119,3 +119,38 @@ def add_calibration_arguments(parser: argparse.ArgumentParser) -> None:
             "baseline readiness artifact, including report-level blockers."
         ),
     )
+    parser.add_argument(
+        "--baseline-decision-from",
+        metavar="PATH",
+        help=(
+            "With 'calibrate', record an explicit body-free operator decision from "
+            "an existing baseline readiness artifact. Does not set environment variables."
+        ),
+    )
+    parser.add_argument(
+        "--baseline-decision-out",
+        metavar="PATH",
+        help="With '--baseline-decision-from', write the operator decision JSON artifact.",
+    )
+    parser.add_argument(
+        "--baseline-decision",
+        choices=["arm_gate", "keep_report_only"],
+        help=("With '--baseline-decision-from', the explicit operator decision to record."),
+    )
+    parser.add_argument(
+        "--baseline-decision-reviewer",
+        metavar="TEXT",
+        help="With '--baseline-decision-from', reviewer name or role for the decision record.",
+    )
+    parser.add_argument(
+        "--baseline-decision-rationale",
+        metavar="TEXT",
+        help="With '--baseline-decision-from', operator rationale for the decision record.",
+    )
+    parser.add_argument(
+        "--baseline-decision-note",
+        action="append",
+        default=[],
+        metavar="TEXT",
+        help="With '--baseline-decision-from', optional body-free review note. Repeatable.",
+    )

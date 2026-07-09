@@ -14,6 +14,7 @@ from primr.qa.calibration_baseline_actions import (
 )
 from primr.qa.calibration_baseline_gate import (
     baseline_gate_recommendation,
+    gate_with_report_floor_consistency,
     inspection_gate_recommendation,
     render_gate_recommendation_markdown,
 )
@@ -142,6 +143,7 @@ def inspect_calibration_baseline(
         baseline.get("gate_recommendation"),
         ready=ready,
     )
+    gate_recommendation = gate_with_report_floor_consistency(gate_recommendation, reports)
     operator_review = inspection_operator_review(
         baseline.get("operator_review"),
         ready=ready,

@@ -10,6 +10,7 @@ BLOCKING_GATE_REASONS = frozenset(
         "baseline_not_ready",
         "inspection_not_ready",
         "missing_gate_recommendation",
+        "stale_gate_recommendation",
     }
 )
 
@@ -342,8 +343,25 @@ def _can_arm_after_review(
     return (
         bool(operator_review.get("operator_may_arm_after_review"))
         and gate_recommendation.get("status") == "candidate"
+        and _candidate_floor_complete(gate_recommendation)
         and isinstance(gate_recommendation.get("env_assignment"), str)
         and bool(gate_recommendation.get("env_assignment"))
+    )
+
+
+def _candidate_floor_complete(gate_recommendation: dict[str, Any]) -> bool:
+    reports_total = _safe_int(gate_recommendation.get("reports_total"))
+    reports_considered = _safe_int(gate_recommendation.get("reports_considered"))
+    reports_without_floor = _safe_int(
+        gate_recommendation.get("reports_without_decidable_confirmed")
+    )
+    return (
+        gate_recommendation.get("confirmed_traceability_floor_complete") is True
+        and reports_total > 0
+        and reports_considered == reports_total
+        and reports_without_floor == 0
+        and _optional_rate(gate_recommendation.get("measured_floor")) is not None
+        and _optional_rate(gate_recommendation.get("recommended_threshold")) is not None
     )
 
 

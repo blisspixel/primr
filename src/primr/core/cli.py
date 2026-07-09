@@ -139,6 +139,7 @@ from primr.core.cli_recovery import (
 from primr.core.cli_recovery import (
     _show_latest_run_state_hint as _show_latest_run_state_hint,
 )
+from primr.core.cli_validation_policy import should_include_api_keys
 from primr.core.cli_vendor import run_generate_vendor
 from primr.utils.banner import maybe_show_startup_banner
 from primr.utils.console import console
@@ -308,6 +309,12 @@ class CLIConfig:
     calibrate_baseline_md: str | None = None
     calibrate_baseline_min_reports: int = 5
     calibrate_inspect_baseline: str | None = None
+    calibrate_baseline_decision_from: str | None = None
+    calibrate_baseline_decision_out: str | None = None
+    calibrate_baseline_decision: str | None = None
+    calibrate_baseline_decision_reviewer: str | None = None
+    calibrate_baseline_decision_rationale: str | None = None
+    calibrate_baseline_decision_notes: tuple[str, ...] = ()
     banner_mode: str = "auto"
     banner_explicit: bool = False
     memory_company: str | None = None
@@ -419,6 +426,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
     """
     parser = _create_parser()
     parsed = parser.parse_args(_rewrite_company_command_args(args, parser))
+    get = getattr
 
     command = _determine_command(parsed)
 
@@ -548,17 +556,19 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         calibrate_judge_compare=getattr(parsed, "judge_compare", False),
         calibrate_pack_manifest=getattr(parsed, "pack_manifest", None),
         calibrate_pack_selection=getattr(parsed, "pack_selection", None),
-        calibrate_pack_selection_template=getattr(
-            parsed,
-            "pack_selection_template",
-            None,
-        ),
-        calibrate_inspect_selection=getattr(parsed, "inspect_selection", None),
-        calibrate_baseline_from=getattr(parsed, "baseline_from", None),
-        calibrate_baseline_out=getattr(parsed, "baseline_out", None),
-        calibrate_baseline_md=getattr(parsed, "baseline_md", None),
-        calibrate_baseline_min_reports=getattr(parsed, "baseline_min_reports", 5),
-        calibrate_inspect_baseline=getattr(parsed, "inspect_baseline", None),
+        calibrate_pack_selection_template=get(parsed, "pack_selection_template", None),
+        calibrate_inspect_selection=get(parsed, "inspect_selection", None),
+        calibrate_baseline_from=get(parsed, "baseline_from", None),
+        calibrate_baseline_out=get(parsed, "baseline_out", None),
+        calibrate_baseline_md=get(parsed, "baseline_md", None),
+        calibrate_baseline_min_reports=get(parsed, "baseline_min_reports", 5),
+        calibrate_inspect_baseline=get(parsed, "inspect_baseline", None),
+        calibrate_baseline_decision_from=get(parsed, "baseline_decision_from", None),
+        calibrate_baseline_decision_out=get(parsed, "baseline_decision_out", None),
+        calibrate_baseline_decision=get(parsed, "baseline_decision", None),
+        calibrate_baseline_decision_reviewer=get(parsed, "baseline_decision_reviewer", None),
+        calibrate_baseline_decision_rationale=get(parsed, "baseline_decision_rationale", None),
+        calibrate_baseline_decision_notes=tuple(get(parsed, "baseline_decision_note", ())),
         banner_mode=banner_mode,
         banner_explicit=banner_explicit,
         resume_latest=getattr(parsed, "resume_latest", False),
@@ -712,23 +722,8 @@ def main(args: list[str] | None = None) -> int:
 
     config = parse_args(args)
 
-    # Validate configuration early (skip API key check for utility commands)
-    utility_commands = {
-        Command.INIT,
-        Command.DOCTOR,
-        Command.LIST_RECENT,
-        Command.CLEAN_TEMP,
-        Command.CHECK_JOBS,
-        Command.CLEAR_JOBS,
-        Command.LIST_STRATEGIES,
-        Command.SHOW_USAGE,
-        Command.ENRICH,
-        Command.EVAL,
-        Command.IMPROVE,
-    }
-    include_api_keys = config.command not in utility_commands
-    if config.command == Command.EVAL and config.eval_run_missing:
-        include_api_keys = True
+    # Validate configuration early, requiring provider keys only for command paths that use them.
+    include_api_keys = should_include_api_keys(config)
 
     validation_result = validate_config(include_api_keys=include_api_keys)
     if not validation_result.valid:
