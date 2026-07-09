@@ -224,7 +224,11 @@ Do next:
   coverage, evidence review, and judge agreement are complete. Baseline
   `next_actions` now mirrors the body-free hard-gate state exposed by inspection
   JSON, including the absent, incomplete, or zero Confirmed-floor reason and the
-  selected-report counts that keep the environment variable unset.
+  selected-report counts that keep the environment variable unset. Baseline
+  artifacts and inspections now also carry a body-free
+  `operator_decision_template` with allowed decisions, required review items,
+  selected-report counts, and operator-supplied fields for documenting a later
+  report-only or manual gate decision without recording one automatically.
 - Set `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` only from the measured floor of
   that agreement-validated baseline.
 - Surface contradicted `--verify` claims in the report trust summary. First
@@ -244,8 +248,9 @@ Done when:
   explicit body-free operator-review requirements; readiness now refuses
   non-curated latest-N packs; and ready curated multi-report baselines now carry
   explicit measurement status in JSON and Markdown; ready-but-report-only
-  baselines now publish explicit hard-gate next actions. Hard-gate arming is
-  still pending operator review of the measured floor.
+  baselines now publish explicit hard-gate next actions; baseline artifacts now
+  include a decision template for operator-supplied gate evidence. Hard-gate
+  arming is still pending operator review of the measured floor.
 - The hard gate is either armed from a defensible baseline or deliberately left
   report-only with documented evidence.
 - Contradicted claims are visible in the human-facing report trust surface for

@@ -252,7 +252,11 @@ continue to measure both failure directions as classifier behavior changes.
   environment variable unset. Its per-report summaries include evidence-review
   counts, inference source-copy counts, and judge-agreement compared-claim counts
   so operators can identify the exact selected artifacts still blocking
-  readiness.
+  readiness. The artifact and inspection JSON also include a body-free
+  `operator_decision_template` naming the allowed decisions, required review
+  items, selected-report counts, and operator-supplied fields needed to document
+  either a report-only decision or a manual hard-gate assignment. It is a
+  template, not a recorded decision, and it never arms the gate automatically.
   Run `primr calibrate --inspect-baseline path/to/baseline.json` to print the
   same blockers as machine-readable JSON for agents or automation. MCP clients
   can read `primr://calibration/baseline/inspection?path=<baseline.json>` when

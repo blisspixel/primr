@@ -321,6 +321,29 @@ def test_build_baseline_ready_when_pack_has_required_evidence() -> None:
         "gate_reason": "ready_baseline_measured_floor",
         "reports_without_decidable_confirmed": 0,
     }
+    decision_template = baseline["operator_decision_template"]
+    assert decision_template["template_format"] == ("primr.calibration_gate_decision_template.v1")
+    assert decision_template["recommended_decision"] == "arm_gate"
+    assert decision_template["recommended_workflow"] == "operator_review_before_arm_gate"
+    assert decision_template["allowed_decisions"] == ["arm_gate", "keep_report_only"]
+    assert decision_template["automatic_gate_arming_allowed"] is False
+    assert decision_template["env_assignment"] == "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=1.000"
+    assert decision_template["required_review_items"] == [
+        "representative_coverage",
+        "evidence_review_dimensions",
+        "judge_agreement",
+        "false_positive_false_negative_spot_check",
+        "threshold_decision",
+    ]
+    stale_candidate = json.loads(json.dumps(baseline))
+    stale_candidate["gate_recommendation"]["env_assignment"] = None
+    stale_inspection = inspect_calibration_baseline(stale_candidate)
+    assert stale_inspection["operator_decision_template"]["allowed_decisions"] == [
+        "keep_report_only"
+    ]
+    assert stale_inspection["operator_decision_template"]["recommended_decision"] == (
+        "keep_report_only"
+    )
     assert baseline["next_actions"]["spend_preview_required"] is False
     assert baseline["next_actions"]["items"] == [
         {
@@ -369,6 +392,14 @@ def test_ready_baseline_without_decidable_confirmed_claims_has_no_gate_candidate
         and "leave PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY unset" in item["action"]
         for item in actions["items"]
     )
+    decision_template = baseline["operator_decision_template"]
+    assert decision_template["recommended_decision"] == "keep_report_only"
+    assert decision_template["recommended_workflow"] == "keep_report_only"
+    assert decision_template["allowed_decisions"] == ["keep_report_only"]
+    assert decision_template["env_assignment"] is None
+    assert decision_template["hard_gate_action"] == "keep_gate_unset_no_decidable_confirmed_claims"
+    assert "report_only_gate_decision" in decision_template["required_review_items"]
+    assert decision_template["evidence"]["reports_without_decidable_confirmed"] == 5
     floor_item = next(
         item for item in review["items"] if item["id"] == "false_positive_false_negative_spot_check"
     )
@@ -444,6 +475,8 @@ def test_ready_baseline_with_partial_confirmed_floor_stays_report_only() -> None
     )
 
     legacy_baseline = json.loads(json.dumps(baseline))
+    legacy_baseline["operator_review"]["operator_may_arm_after_review"] = True
+    legacy_baseline["operator_review"]["decision_status"] = "pending_operator_review"
     legacy_baseline["next_actions"] = {
         "spend_preview_required": False,
         "gate_policy": baseline["next_actions"]["gate_policy"],
@@ -467,6 +500,15 @@ def test_ready_baseline_with_partial_confirmed_floor_stays_report_only() -> None
     )
     assert legacy_inspection["next_actions"]["reports_without_decidable_confirmed"] == 1
     assert not any(item["reason"] == "ready" for item in legacy_inspection["next_actions"]["items"])
+    assert legacy_inspection["operator_decision_template"]["recommended_decision"] == (
+        "keep_report_only"
+    )
+    assert legacy_inspection["operator_decision_template"]["hard_gate_action"] == (
+        "keep_gate_unset_until_confirmed_floor_complete"
+    )
+    assert legacy_inspection["operator_decision_template"]["allowed_decisions"] == [
+        "keep_report_only"
+    ]
     threshold_item = next(item for item in review["items"] if item["id"] == "threshold_decision")
     assert threshold_item["required"] is False
     assert threshold_item["evidence"]["gate_reason"] == ("incomplete_confirmed_traceability_floor")
@@ -564,6 +606,12 @@ def test_inspect_baseline_flags_mutated_fingerprinted_artifacts(tmp_path: Path) 
     assert inspection["gate_recommendation"]["recommended_threshold"] is None
     assert inspection["operator_review"]["decision_status"] == "blocked_by_inspection"
     assert inspection["operator_review"]["operator_may_arm_after_review"] is False
+    assert inspection["operator_decision_template"]["recommended_decision"] is None
+    assert inspection["operator_decision_template"]["recommended_workflow"] == (
+        "resolve_blockers_before_gate_decision"
+    )
+    assert inspection["operator_decision_template"]["allowed_decisions"] == []
+    assert inspection["operator_decision_template"]["gate_reason"] == "inspection_not_ready"
     assert inspection["artifact_integrity"] == {
         "checked": 1,
         "unfingerprinted": 8,
@@ -719,6 +767,7 @@ def test_write_baseline_json_and_markdown(tmp_path: Path) -> None:
     assert "## Representative Coverage" in markdown
     assert "## Gate Recommendation" in markdown
     assert "## Operator Review" in markdown
+    assert "## Operator Decision Template" in markdown
     assert "## Next Actions" in markdown
     assert "## Suggested Commands" in markdown
     assert "| candidate | ready_baseline_measured_floor | 100% |" in markdown
@@ -726,6 +775,11 @@ def test_write_baseline_json_and_markdown(tmp_path: Path) -> None:
     assert "Decision status: pending_operator_review" in markdown
     assert "Automatic gate arming allowed: no" in markdown
     assert "Operator may arm after review: yes" in markdown
+    assert "Recommended decision: arm_gate" in markdown
+    assert "Recommended workflow: operator_review_before_arm_gate" in markdown
+    assert "Allowed decisions: arm_gate, keep_report_only" in markdown
+    assert "Selected reports: 5 total, 5 with decidable Confirmed floor, 0 without" in markdown
+    assert "Operator-supplied fields: decision, reviewed_at_utc, reviewer" in markdown
     assert "| threshold_decision | yes |" in markdown
     assert "Judge agreement: 10 / 10 (100%)" in markdown
     assert "Evidence-reviewed reports: 5 / 5" in markdown
@@ -775,6 +829,12 @@ def test_inspect_baseline_lists_report_level_blockers() -> None:
     assert inspection["gate_recommendation"]["reason"] == "inspection_not_ready"
     assert inspection["next_actions"]["gate_recommendation_reason"] == "inspection_not_ready"
     assert inspection["next_actions"]["hard_gate_action"] == "keep_gate_unset_until_baseline_ready"
+    assert inspection["operator_decision_template"]["recommended_decision"] is None
+    assert inspection["operator_decision_template"]["recommended_workflow"] == (
+        "resolve_blockers_before_gate_decision"
+    )
+    assert inspection["operator_decision_template"]["allowed_decisions"] == []
+    assert inspection["operator_decision_template"]["gate_reason"] == "inspection_not_ready"
     assert inspection["counts"] == {
         "reports": 5,
         "minimum_reports": 5,

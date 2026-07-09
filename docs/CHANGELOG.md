@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   whether the Confirmed floor is absent, incomplete, or zero, including the
   selected-report counts that explain why `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY`
   stays unset.
+- Calibration baseline artifacts and inspection JSON now include a body-free
+  `operator_decision_template` that lists the allowed gate decisions,
+  required review items, and selected-report counts an operator must review
+  before documenting either a deliberate report-only decision or a manual hard
+  gate assignment. The template does not record a decision and still forbids
+  automatic gate arming.
 
 ## [1.34.47] - 2026-07-08
 

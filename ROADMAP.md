@@ -85,7 +85,10 @@ Current priority order:
    `next_actions` now carries the body-free hard-gate action state and
    selected-report counts for absent, incomplete, or zero Confirmed floors, so
    ready-but-report-only baselines explain why the environment variable remains
-   unset.
+   unset. A body-free `operator_decision_template` now lists the allowed
+   decisions, required review items, selected-report counts, and
+   operator-supplied fields needed to document a later report-only or manual
+   gate decision without recording one automatically.
 2. **Backend freedom production wiring.** Provider abstractions and pure routing
    foundations exist, and `core/stage_inventory.py` now records router-ready
    capability requirements and promotion gates for fast-mode and premium
@@ -428,7 +431,9 @@ per-module coverage ratchet unlocked by the refactor:
   decidable `(Confirmed)` claims stays report-only with
   `incomplete_confirmed_traceability_floor` until an operator reviews that
   coverage gap, and `next_actions` carries the same hard-gate action state and
-  selected-report counts for agent control planes. Remaining:
+  selected-report counts for agent control planes. Baseline artifacts now also
+  include a body-free decision template for operator-supplied gate evidence.
+  Remaining:
   gather a multi-report, agreement-validated baseline (cloud-vs-local
   concordance), then set the threshold from those numbers; a single small run is too
   judge-noisy to arm a hard gate on (judge variance is itself a documented

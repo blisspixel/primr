@@ -176,7 +176,15 @@ class TestAnsiStripping:
         stripped = theme.strip_ansi(colored)
 
         assert visible == len(stripped)
-        assert visible == len(text)
+        assert visible == len(theme.strip_ansi(text))
+
+    def test_visible_len_handles_user_supplied_reset_sequence(self):
+        """User text can contain ANSI sequences that are not visible."""
+        theme = Theme()
+        colored = f"{theme.ERROR}\x1b[m{theme.RESET}"
+
+        assert theme.visible_len(colored) == 0
+        assert theme.strip_ansi(colored) == ""
 
 
 class TestThemeFactory:

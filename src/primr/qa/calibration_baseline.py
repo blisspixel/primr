@@ -23,7 +23,9 @@ from primr.qa.calibration_baseline_integrity import (
 )
 from primr.qa.calibration_baseline_review import (
     inspection_operator_review,
+    operator_decision_template,
     operator_review_summary,
+    render_operator_decision_template_markdown,
     render_operator_review_markdown,
 )
 
@@ -145,6 +147,13 @@ def inspect_calibration_baseline(
         ready=ready,
         reasons=reasons,
     )
+    inspection_next_actions = _inspection_next_actions(next_actions, gate_recommendation)
+    decision_template = operator_decision_template(
+        gate_recommendation=gate_recommendation,
+        operator_review=operator_review,
+        measurement=measurement,
+        next_actions=inspection_next_actions,
+    )
 
     return {
         "inspection_format": INSPECTION_FORMAT,
@@ -157,7 +166,8 @@ def inspect_calibration_baseline(
         "gate_policy": next_actions.get("gate_policy"),
         "gate_recommendation": gate_recommendation,
         "operator_review": operator_review,
-        "next_actions": _inspection_next_actions(next_actions, gate_recommendation),
+        "operator_decision_template": decision_template,
+        "next_actions": inspection_next_actions,
         "artifact_integrity": artifact_integrity["counts"],
         "counts": {
             "reports": _safe_int(totals.get("reports"), default=len(reports)),
@@ -271,6 +281,25 @@ def build_calibration_baseline(
         ),
         gate_recommendation,
     )
+    operator_review = operator_review_summary(
+        ready=ready,
+        reasons=reasons,
+        totals={
+            "reports": report_count,
+            "reports_with_evidence_reviews": coverage_counts["reports_with_evidence_reviews"],
+            "reports_with_judge_agreement": coverage_counts["reports_with_judge_agreement"],
+        },
+        evidence=evidence_summary,
+        agreement=judge_agreement,
+        representation=representation,
+        gate_recommendation=gate_recommendation,
+    )
+    decision_template = operator_decision_template(
+        gate_recommendation=gate_recommendation,
+        operator_review=operator_review,
+        measurement=measurement,
+        next_actions=next_actions,
+    )
 
     return {
         "baseline_format": BASELINE_FORMAT,
@@ -302,19 +331,8 @@ def build_calibration_baseline(
         "evidence_review": evidence_summary,
         "judge_agreement": judge_agreement,
         "gate_recommendation": gate_recommendation,
-        "operator_review": operator_review_summary(
-            ready=ready,
-            reasons=reasons,
-            totals={
-                "reports": report_count,
-                "reports_with_evidence_reviews": coverage_counts["reports_with_evidence_reviews"],
-                "reports_with_judge_agreement": coverage_counts["reports_with_judge_agreement"],
-            },
-            evidence=evidence_summary,
-            agreement=judge_agreement,
-            representation=representation,
-            gate_recommendation=gate_recommendation,
-        ),
+        "operator_review": operator_review,
+        "operator_decision_template": decision_template,
         "reports": report_summaries,
     }
 
@@ -329,6 +347,7 @@ def render_calibration_baseline_markdown(baseline: dict[str, Any]) -> str:
     measurement = _dict_value(baseline, "measurement")
     gate = _dict_value(baseline, "gate_recommendation")
     operator_review = _dict_value(baseline, "operator_review")
+    decision_template = _dict_value(baseline, "operator_decision_template")
     reasons = baseline.get("reasons", [])
     reason_text = ", ".join(str(reason) for reason in reasons) if reasons else "none"
     lines = [
@@ -456,6 +475,8 @@ def render_calibration_baseline_markdown(baseline: dict[str, Any]) -> str:
             *render_gate_recommendation_markdown(gate),
             "",
             *render_operator_review_markdown(operator_review),
+            "",
+            *render_operator_decision_template_markdown(decision_template),
             "",
             "## Next Actions",
             "",

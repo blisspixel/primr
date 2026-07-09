@@ -749,6 +749,13 @@ class TestCLIWiring:
             item["reason"] == "incomplete_confirmed_traceability_floor"
             for item in payload["next_actions"]["items"]
         )
+        decision_template = payload["operator_decision_template"]
+        assert decision_template["recommended_decision"] == "keep_report_only"
+        assert decision_template["allowed_decisions"] == ["keep_report_only"]
+        assert decision_template["hard_gate_action"] == (
+            "keep_gate_unset_until_confirmed_floor_complete"
+        )
+        assert decision_template["evidence"]["reports_without_decidable_confirmed"] == 1
 
     def test_handler_prints_selection_inspection_json(self, tmp_path, capsys):
         from primr.core.cli import CLIConfig, Command, _handle_calibrate
