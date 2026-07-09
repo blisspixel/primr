@@ -25,7 +25,8 @@ def baseline_gate_recommendation(
 
     rates = [_optional_rate(report.get("confirmed_traceability")) for report in reports]
     measured_rates = [rate for rate in rates if rate is not None]
-    missing_confirmed = len(rates) - len(measured_rates)
+    report_count = len(rates)
+    missing_confirmed = report_count - len(measured_rates)
     aggregate_confirmed = _optional_rate(
         _dict_value(traceability, "Confirmed").get("traceability_rate")
     )
@@ -34,8 +35,10 @@ def baseline_gate_recommendation(
         "recommended_threshold": None,
         "measured_floor": None,
         "aggregate_confirmed_traceability": aggregate_confirmed,
+        "reports_total": report_count,
         "reports_considered": len(measured_rates),
         "reports_without_decidable_confirmed": missing_confirmed,
+        "confirmed_traceability_floor_complete": missing_confirmed == 0,
         "evidence_source_reviews": _safe_int(evidence.get("source_reviews")),
         "judge_agreement_rate": _optional_rate(agreement.get("agreement_rate")),
         "required_tags": _string_list(representation.get("required_tags")),
@@ -46,20 +49,21 @@ def baseline_gate_recommendation(
     }
     if not ready:
         return {"status": "not_recommended", "reason": "baseline_not_ready", **base}
+    if not measured_rates:
+        return {
+            "status": "not_recommended",
+            "reason": "no_decidable_confirmed_claims",
+            **base,
+        }
     if missing_confirmed:
         return {
             "status": "not_recommended",
-            "reason": "no_decidable_confirmed_claims",
+            "reason": "incomplete_confirmed_traceability_floor",
             **base,
+            "measured_floor": round(min(measured_rates), 3),
         }
 
-    measured_floor = min(measured_rates) if measured_rates else None
-    if measured_floor is None:
-        return {
-            "status": "not_recommended",
-            "reason": "no_decidable_confirmed_claims",
-            **base,
-        }
+    measured_floor = min(measured_rates)
     if measured_floor <= 0:
         return {
             "status": "not_recommended",

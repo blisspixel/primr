@@ -239,12 +239,17 @@ continue to measure both failure directions as classifier behavior changes.
   report-only `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` recommendation from the
   per-report Confirmed traceability floor; operators still have to review the
   representative pack, disagreement cases, and false-positive risk before
-  arming a hard gate. The artifact includes structured `next_actions` with
-  missing counts, remediation, suggested commands, and the policy to keep the
-  hard calibration gate unset until the pack is ready. Its per-report summaries
-  include evidence-review counts, inference source-copy counts, and
-  judge-agreement compared-claim counts so operators can identify the exact
-  selected artifacts still blocking readiness.
+  arming a hard gate. The floor is complete only when every selected report has
+  decidable `(Confirmed)` claims. If some reports lack a decidable Confirmed
+  floor, the artifact stays report-only with
+  `incomplete_confirmed_traceability_floor`, the affected counts, and an
+  operator-review item documenting why the hard gate remains unset. The artifact
+  includes structured `next_actions` with missing counts, remediation,
+  suggested commands, and the policy to keep the hard calibration gate unset
+  until the pack is ready. Its per-report summaries include evidence-review
+  counts, inference source-copy counts, and judge-agreement compared-claim
+  counts so operators can identify the exact selected artifacts still blocking
+  readiness.
   Run `primr calibrate --inspect-baseline path/to/baseline.json` to print the
   same blockers as machine-readable JSON for agents or automation. MCP clients
   can read `primr://calibration/baseline/inspection?path=<baseline.json>` when

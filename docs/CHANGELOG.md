@@ -5,6 +5,16 @@ All notable changes to Primr will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Calibration baseline gate recommendations now report whether the per-report
+  Confirmed traceability floor is complete. A ready baseline with some reports
+  lacking decidable `(Confirmed)` claims remains report-only with the explicit
+  `incomplete_confirmed_traceability_floor` reason, report counts, and an
+  operator-review item documenting why the hard gate should stay unset.
+
 ## [1.34.47] - 2026-07-08
 
 ### Fixed

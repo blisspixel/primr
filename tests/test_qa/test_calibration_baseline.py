@@ -272,8 +272,10 @@ def test_build_baseline_ready_when_pack_has_required_evidence() -> None:
         "recommended_threshold": 1.0,
         "measured_floor": 1.0,
         "aggregate_confirmed_traceability": 1.0,
+        "reports_total": 5,
         "reports_considered": 5,
         "reports_without_decidable_confirmed": 0,
+        "confirmed_traceability_floor_complete": True,
         "evidence_source_reviews": 10,
         "judge_agreement_rate": 1.0,
         "required_tags": ["clean", "blocked_origin", "strategy_module"],
@@ -300,7 +302,25 @@ def test_build_baseline_ready_when_pack_has_required_evidence() -> None:
         "threshold_decision",
     }
     assert review["items"][2]["evidence"]["agreement_rate"] == 1.0
-    assert review["items"][3]["evidence"]["measured_floor"] == 1.0
+    floor_item = next(
+        item for item in review["items"] if item["id"] == "false_positive_false_negative_spot_check"
+    )
+    assert floor_item["evidence"] == {
+        "gate_reason": "ready_baseline_measured_floor",
+        "measured_floor": 1.0,
+        "reports_total": 5,
+        "reports_considered": 5,
+        "reports_without_decidable_confirmed": 0,
+        "confirmed_traceability_floor_complete": True,
+    }
+    threshold_item = next(item for item in review["items"] if item["id"] == "threshold_decision")
+    assert threshold_item["evidence"] == {
+        "environment_variable": "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY",
+        "env_assignment": "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY=1.000",
+        "gate_status": "candidate",
+        "gate_reason": "ready_baseline_measured_floor",
+        "reports_without_decidable_confirmed": 0,
+    }
     assert baseline["next_actions"]["spend_preview_required"] is False
     assert baseline["next_actions"]["items"] == [
         {
@@ -330,8 +350,83 @@ def test_ready_baseline_without_decidable_confirmed_claims_has_no_gate_candidate
     assert baseline["gate_recommendation"]["status"] == "not_recommended"
     assert baseline["gate_recommendation"]["reason"] == "no_decidable_confirmed_claims"
     assert baseline["gate_recommendation"]["recommended_threshold"] is None
+    assert baseline["gate_recommendation"]["reports_total"] == 5
     assert baseline["gate_recommendation"]["reports_without_decidable_confirmed"] == 5
+    assert baseline["gate_recommendation"]["confirmed_traceability_floor_complete"] is False
     assert baseline["gate_recommendation"]["env_assignment"] is None
+    review = baseline["operator_review"]
+    assert review["decision_status"] == "report_only_recommended"
+    assert review["operator_may_arm_after_review"] is False
+    assert any(item["id"] == "report_only_gate_decision" for item in review["items"])
+    floor_item = next(
+        item for item in review["items"] if item["id"] == "false_positive_false_negative_spot_check"
+    )
+    assert floor_item["evidence"] == {
+        "gate_reason": "no_decidable_confirmed_claims",
+        "measured_floor": None,
+        "reports_total": 5,
+        "reports_considered": 0,
+        "reports_without_decidable_confirmed": 5,
+        "confirmed_traceability_floor_complete": False,
+    }
+
+
+def test_ready_baseline_with_partial_confirmed_floor_stays_report_only() -> None:
+    manifest = _manifest(
+        5,
+        required_tags=["clean", "blocked_origin"],
+        present_tags=["clean", "blocked_origin"],
+    )
+    reports = manifest["reports"]
+    assert isinstance(reports, list)
+    first_report = reports[0]
+    assert isinstance(first_report, dict)
+    first_report["sidecar"] = _sidecar(confirmed_traceable=0, confirmed_untraceable=0)
+
+    baseline = build_calibration_baseline(manifest, minimum_reports=5)
+
+    assert baseline["ready"] is True
+    assert baseline["gate_recommendation"]["status"] == "not_recommended"
+    assert baseline["gate_recommendation"]["reason"] == ("incomplete_confirmed_traceability_floor")
+    assert baseline["gate_recommendation"]["reports_total"] == 5
+    assert baseline["gate_recommendation"]["reports_considered"] == 4
+    assert baseline["gate_recommendation"]["reports_without_decidable_confirmed"] == 1
+    assert baseline["gate_recommendation"]["confirmed_traceability_floor_complete"] is False
+    assert baseline["gate_recommendation"]["recommended_threshold"] is None
+    assert baseline["gate_recommendation"]["measured_floor"] == 1.0
+    assert baseline["gate_recommendation"]["env_assignment"] is None
+    review = baseline["operator_review"]
+    assert review["decision_status"] == "report_only_recommended"
+    assert review["operator_may_arm_after_review"] is False
+    report_only_item = next(
+        item for item in review["items"] if item["id"] == "report_only_gate_decision"
+    )
+    assert report_only_item["required"] is True
+    assert report_only_item["evidence"]["gate_reason"] == (
+        "incomplete_confirmed_traceability_floor"
+    )
+    assert report_only_item["evidence"]["reports_without_decidable_confirmed"] == 1
+    threshold_item = next(item for item in review["items"] if item["id"] == "threshold_decision")
+    assert threshold_item["required"] is False
+    assert threshold_item["evidence"]["gate_reason"] == ("incomplete_confirmed_traceability_floor")
+    assert threshold_item["evidence"] == {
+        "environment_variable": "PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY",
+        "env_assignment": None,
+        "gate_status": "not_recommended",
+        "gate_reason": "incomplete_confirmed_traceability_floor",
+        "reports_without_decidable_confirmed": 1,
+    }
+    floor_item = next(
+        item for item in review["items"] if item["id"] == "false_positive_false_negative_spot_check"
+    )
+    assert floor_item["evidence"] == {
+        "gate_reason": "incomplete_confirmed_traceability_floor",
+        "measured_floor": 1.0,
+        "reports_total": 5,
+        "reports_considered": 4,
+        "reports_without_decidable_confirmed": 1,
+        "confirmed_traceability_floor_complete": False,
+    }
 
 
 def test_build_baseline_preserves_manifest_artifact_fingerprints() -> None:

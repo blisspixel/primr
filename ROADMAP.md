@@ -69,8 +69,9 @@ Current priority order:
    `primr://calibration/baseline/inspection?path=<baseline.json>` under the
    existing path-allowlist boundary. Ready baseline artifacts now publish a
    report-only gate recommendation from the per-report Confirmed traceability
-   floor, including the exact environment-variable assignment an operator can
-   review before choosing whether to arm a hard gate, and ready curated
+   floor, including an environment-variable assignment only when every selected
+   report contributes a decidable Confirmed floor; otherwise they remain
+   report-only and name the missing floor evidence. Ready curated
    multi-report baselines now carry
    `measurement.status=measured_operator_curated_multi_report_baseline` when
    representative coverage, evidence review, and judge agreement are complete.
@@ -417,7 +418,12 @@ per-module coverage ratchet unlocked by the refactor:
   artifacts now include a body-free operator-review block that keeps
   automatic gate arming disabled and names the exact review items for
   representative coverage, evidence dimensions, judge disagreement,
-  false-positive and false-negative risk, and threshold selection. Remaining:
+  false-positive and false-negative risk, and threshold selection. Gate
+  recommendations now also distinguish a zero Confirmed floor from an
+  incomplete per-report Confirmed floor; a ready pack with reports lacking
+  decidable `(Confirmed)` claims stays report-only with
+  `incomplete_confirmed_traceability_floor` until an operator reviews that
+  coverage gap. Remaining:
   gather a multi-report, agreement-validated baseline (cloud-vs-local
   concordance), then set the threshold from those numbers; a single small run is too
   judge-noisy to arm a hard gate on (judge variance is itself a documented

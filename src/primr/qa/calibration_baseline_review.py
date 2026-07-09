@@ -23,6 +23,7 @@ def operator_review_summary(
     gate_candidate = gate_recommendation.get("status") == "candidate" and isinstance(
         gate_recommendation.get("env_assignment"), str
     )
+    gate_status = str(gate_recommendation.get("status") or "not_recommended")
     if not ready:
         return {
             "decision_status": "blocked_by_readiness",
@@ -99,6 +100,14 @@ def operator_review_summary(
             "evidence": {
                 "gate_reason": gate_recommendation.get("reason"),
                 "measured_floor": _optional_rate(gate_recommendation.get("measured_floor")),
+                "reports_total": _safe_int(gate_recommendation.get("reports_total")),
+                "reports_considered": _safe_int(gate_recommendation.get("reports_considered")),
+                "reports_without_decidable_confirmed": _safe_int(
+                    gate_recommendation.get("reports_without_decidable_confirmed")
+                ),
+                "confirmed_traceability_floor_complete": bool(
+                    gate_recommendation.get("confirmed_traceability_floor_complete")
+                ),
             },
         },
         {
@@ -111,9 +120,34 @@ def operator_review_summary(
             "evidence": {
                 "environment_variable": gate_recommendation.get("environment_variable"),
                 "env_assignment": gate_recommendation.get("env_assignment"),
+                "gate_status": gate_status,
+                "gate_reason": gate_recommendation.get("reason"),
+                "reports_without_decidable_confirmed": _safe_int(
+                    gate_recommendation.get("reports_without_decidable_confirmed")
+                ),
             },
         },
     ]
+    if not gate_candidate:
+        items.append(
+            {
+                "id": "report_only_gate_decision",
+                "required": True,
+                "action": (
+                    "Document why the baseline remains report-only and leave the "
+                    "hard calibration gate unset."
+                ),
+                "evidence": {
+                    "gate_status": gate_status,
+                    "gate_reason": gate_recommendation.get("reason"),
+                    "reports_total": _safe_int(gate_recommendation.get("reports_total")),
+                    "reports_considered": _safe_int(gate_recommendation.get("reports_considered")),
+                    "reports_without_decidable_confirmed": _safe_int(
+                        gate_recommendation.get("reports_without_decidable_confirmed")
+                    ),
+                },
+            }
+        )
     return {
         "decision_status": decision_status,
         "reason": gate_recommendation.get("reason"),

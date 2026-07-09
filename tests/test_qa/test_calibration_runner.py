@@ -29,6 +29,78 @@ A confirmed claim with no citation. (Confirmed)
 """
 
 
+def _agreement_sidecar(*, confirmed_claims: bool = True) -> dict[str, object]:
+    confirmed_sampled = 1 if confirmed_claims else 0
+    return {
+        "judge": {"kind": "cloud", "model": "fast-tier"},
+        "per_label": {
+            "Confirmed": {
+                "sampled": confirmed_sampled,
+                "traceable": confirmed_sampled,
+                "untraceable": 0,
+                "no_source": 0,
+                "unfetchable": 0,
+                "exempt": 0,
+                "source_copied": 0,
+            },
+            "Reported": {
+                "sampled": 1,
+                "traceable": 1,
+                "untraceable": 0,
+                "no_source": 0,
+                "unfetchable": 0,
+                "exempt": 0,
+                "source_copied": 0,
+            },
+        },
+        "validation_rubric": {
+            "source_reviews": 1,
+            "support": {"supported": 1},
+            "contradiction": {"none": 1},
+            "source_independence": {"independent": 1},
+            "source_authority": {"high": 1},
+            "reasoning_strength": {"strong": 1},
+            "uncertainty_honesty": {"honest": 1},
+            "business_relevance": {"high": 1},
+        },
+        "judge_agreement": {
+            "scope": "report",
+            "local_model": "qwen2.5:14b",
+            "compared": 1,
+            "agreed": 1,
+            "agreement": 1.0,
+        },
+    }
+
+
+def _partial_confirmed_floor_manifest(report_count: int = 5) -> dict[str, object]:
+    reports = []
+    for index in range(report_count):
+        reports.append(
+            {
+                "report_path": f"output/Company{index}_Strategic_Overview.md",
+                "report_file": f"Company{index}_Strategic_Overview.md",
+                "sidecar_exists": True,
+                "claims_sampled": 2,
+                "judgeable_claims": 2,
+                "coverage_tags": ["clean"] if index % 2 == 0 else ["blocked_origin"],
+                "sidecar": _agreement_sidecar(confirmed_claims=index != 0),
+            }
+        )
+    return {
+        "manifest_format": "primr.calibration_pack.v1",
+        "totals": {"reports": report_count, "sidecars_present": report_count, "failures": 0},
+        "representation": {
+            "selection_format": "primr.calibration_pack_selection.v1",
+            "selection_path": ".agent/calibration-selection.json",
+            "required_tags": ["clean", "blocked_origin"],
+            "present_tags": ["clean", "blocked_origin"],
+            "missing_tags": [],
+        },
+        "reports": reports,
+    }
+
+
 def _write_report(directory: Path, name: str, content: str = REPORT, mtime: float | None = None):
     path = directory / name
     path.write_text(content, encoding="utf-8")
@@ -633,6 +705,39 @@ class TestCLIWiring:
         assert payload["blockers"]["missing_sidecars"][0]["report_file"] == (
             "Acme_Strategic_Overview.md"
         )
+
+    def test_handler_prints_partial_confirmed_floor_inspection_json(self, tmp_path, capsys):
+        from primr.core.cli import CLIConfig, Command, _handle_calibrate
+        from primr.qa.calibration_baseline import build_calibration_baseline
+
+        baseline = build_calibration_baseline(
+            _partial_confirmed_floor_manifest(),
+            minimum_reports=5,
+        )
+        baseline_path = tmp_path / "baseline.json"
+        baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+
+        config = CLIConfig(
+            command=Command.CALIBRATE,
+            calibrate_inspect_baseline=str(baseline_path),
+        )
+
+        assert _handle_calibrate(config) == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["ready"] is True
+        assert payload["gate_recommendation"]["status"] == "not_recommended"
+        assert payload["gate_recommendation"]["reason"] == (
+            "incomplete_confirmed_traceability_floor"
+        )
+        assert payload["gate_recommendation"]["reports_total"] == 5
+        assert payload["gate_recommendation"]["reports_considered"] == 4
+        assert payload["gate_recommendation"]["reports_without_decidable_confirmed"] == 1
+        assert payload["gate_recommendation"]["confirmed_traceability_floor_complete"] is False
+        assert payload["gate_recommendation"]["env_assignment"] is None
+        review = payload["operator_review"]
+        assert review["decision_status"] == "report_only_recommended"
+        assert review["operator_may_arm_after_review"] is False
+        assert any(item["id"] == "report_only_gate_decision" for item in review["items"])
 
     def test_handler_prints_selection_inspection_json(self, tmp_path, capsys):
         from primr.core.cli import CLIConfig, Command, _handle_calibrate

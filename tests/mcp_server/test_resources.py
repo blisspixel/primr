@@ -1416,6 +1416,80 @@ class TestCalibrationBaselineInspectionResource:
         server.path_validator = PathValidator(allowed_roots=[str(tmp_path)])
         return server
 
+    @staticmethod
+    def _agreement_sidecar(*, confirmed_claims: bool = True) -> dict[str, object]:
+        confirmed_sampled = 1 if confirmed_claims else 0
+        return {
+            "judge": {"kind": "cloud", "model": "fast-tier"},
+            "per_label": {
+                "Confirmed": {
+                    "sampled": confirmed_sampled,
+                    "traceable": confirmed_sampled,
+                    "untraceable": 0,
+                    "no_source": 0,
+                    "unfetchable": 0,
+                    "exempt": 0,
+                    "source_copied": 0,
+                },
+                "Reported": {
+                    "sampled": 1,
+                    "traceable": 1,
+                    "untraceable": 0,
+                    "no_source": 0,
+                    "unfetchable": 0,
+                    "exempt": 0,
+                    "source_copied": 0,
+                },
+            },
+            "validation_rubric": {
+                "source_reviews": 1,
+                "support": {"supported": 1},
+                "contradiction": {"none": 1},
+                "source_independence": {"independent": 1},
+                "source_authority": {"high": 1},
+                "reasoning_strength": {"strong": 1},
+                "uncertainty_honesty": {"honest": 1},
+                "business_relevance": {"high": 1},
+            },
+            "judge_agreement": {
+                "scope": "report",
+                "local_model": "qwen2.5:14b",
+                "compared": 1,
+                "agreed": 1,
+                "agreement": 1.0,
+            },
+        }
+
+    def _partial_confirmed_floor_baseline(self) -> dict[str, object]:
+        reports = []
+        for index in range(5):
+            reports.append(
+                {
+                    "report_path": f"output/Company{index}_Strategic_Overview.md",
+                    "report_file": f"Company{index}_Strategic_Overview.md",
+                    "sidecar_exists": True,
+                    "claims_sampled": 2,
+                    "judgeable_claims": 2,
+                    "coverage_tags": ["clean"] if index % 2 == 0 else ["blocked_origin"],
+                    "sidecar": self._agreement_sidecar(confirmed_claims=index != 0),
+                }
+            )
+        return build_calibration_baseline(
+            {
+                "manifest_format": "primr.calibration_pack.v1",
+                "totals": {"reports": 5, "sidecars_present": 5, "failures": 0},
+                "representation": {
+                    "selection_format": "primr.calibration_pack_selection.v1",
+                    "selection_path": ".agent/calibration-selection.json",
+                    "required_tags": ["clean", "blocked_origin"],
+                    "present_tags": ["clean", "blocked_origin"],
+                    "missing_tags": [],
+                },
+                "reports": reports,
+            },
+            minimum_reports=5,
+        )
+
     @pytest.mark.asyncio
     async def test_reads_baseline_inspection_from_allowed_path(self, server, tmp_path):
         baseline = build_calibration_baseline(
@@ -1455,6 +1529,40 @@ class TestCalibrationBaselineInspectionResource:
         assert data["blockers"]["missing_sidecars"][0]["report_file"] == (
             "Acme_Strategic_Overview.md"
         )
+
+    @pytest.mark.asyncio
+    async def test_reads_partial_confirmed_floor_inspection_contract(self, server, tmp_path):
+        baseline_path = tmp_path / "baseline.json"
+        baseline_path.write_text(
+            json.dumps(self._partial_confirmed_floor_baseline()),
+            encoding="utf-8",
+        )
+        uri = (
+            "primr://calibration/baseline/inspection?path="
+            f"{quote(baseline_path.as_posix(), safe='')}"
+        )
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(uri=uri),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        assert data["ready"] is True
+        assert data["gate_recommendation"]["status"] == "not_recommended"
+        assert data["gate_recommendation"]["reason"] == ("incomplete_confirmed_traceability_floor")
+        assert data["gate_recommendation"]["reports_total"] == 5
+        assert data["gate_recommendation"]["reports_considered"] == 4
+        assert data["gate_recommendation"]["reports_without_decidable_confirmed"] == 1
+        assert data["gate_recommendation"]["confirmed_traceability_floor_complete"] is False
+        assert data["gate_recommendation"]["env_assignment"] is None
+        review = data["operator_review"]
+        assert review["decision_status"] == "report_only_recommended"
+        assert review["operator_may_arm_after_review"] is False
+        assert any(item["id"] == "report_only_gate_decision" for item in review["items"])
 
     @pytest.mark.asyncio
     async def test_rejects_path_outside_allowed_roots(self, server):
