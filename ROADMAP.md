@@ -1570,8 +1570,9 @@ primr recon example.co --full                                   # Everything
 primr --ai-strategy-only "output/ExampleCo_Strategic_Overview.md"
 
 # Job management
-primr --check-jobs
-primr --clear-jobs
+primr --check-jobs      # Read-only cloud and latest-local status
+primr --resume-latest   # Finalize completed cloud outputs
+primr --clear-jobs      # Discard stale pending records
 
 # Operations
 primr doctor

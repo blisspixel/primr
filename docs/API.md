@@ -489,7 +489,7 @@ from primr.ai.deep_research import (
     remove_pending_job,
 )
 
-# Check status of a specific job
+# Check status of a specific job without mutating pending state
 client = get_deep_research_client()
 result = client.check_job("v1_abc123...")
 print(f"Status: {result['status']}")  # in_progress, completed, failed
@@ -508,14 +508,15 @@ save_pending_job(
     description="AI Strategy for Acme Corp"
 )
 
-# Remove a completed job from tracking
+# Remove a completed job only after its output is durably saved
 remove_pending_job("v1_abc123...")
 ```
 
 **CLI commands for job management:**
 ```bash
-primr --check-jobs   # Check status of all pending jobs
-primr --clear-jobs   # Clear stale/old pending jobs
+primr --check-jobs     # Read-only cloud and latest-local status
+primr --resume-latest  # Finalize completed cloud jobs, then acknowledge them
+primr --clear-jobs     # Clear stale/old pending records without recovery
 ```
 
 ## Scraping
