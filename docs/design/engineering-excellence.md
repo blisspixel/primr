@@ -35,7 +35,7 @@ make slop fail a gate, not a review comment.
 ## Where primr already stands (don't re-litigate)
 
 Measured, not assumed. Already in place and load-bearing - see the ROADMAP
-standards section for detail: uv.lock + `uv sync --frozen` + 3.12/3.13/3.14
+standards section for detail: uv.lock + `uv sync --locked` + 3.12/3.13/3.14
 hard matrix; Ruff (14 rule groups, line-length 100, `C901` budget 25); mypy
 incremental strict allowlist; bandit + pip-audit + Trivy **hard** gates;
 CycloneDX SBOM + SLSA provenance + OIDC publish per release; 81% branch

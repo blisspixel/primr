@@ -36,6 +36,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   decision record against the current baseline fingerprint and allowed-decision
   evidence before downstream loops trust it.
 
+### Fixed
+
+- Release integrity now pins the editable Primr version in `uv.lock` to the
+  canonical package version. Every CI install and the release SBOM export use
+  uv's locked mode, so stale project metadata cannot be silently installed or
+  published.
+- The source-distribution manifest no longer requests removed dependency and
+  pytest configuration files or absent documentation example formats, reducing
+  avoidable packaging warnings while preserving the existing agent, test, log,
+  output, and build-artifact exclusions. CI now builds and inspects the actual
+  source archive to enforce that inventory rather than trusting manifest text.
+
 ## [1.34.47] - 2026-07-08
 
 ### Fixed

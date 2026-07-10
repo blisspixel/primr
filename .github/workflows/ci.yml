@@ -53,7 +53,7 @@ jobs:
         # gate in this job (they importorskip without the SDK), instead of only
         # in the separate uncovered a2a-tests job, this counts the a2a package
         # in the global coverage ratchet.
-        run: uv sync --frozen --extra dev --extra api --extra a2a
+        run: uv sync --locked --extra dev --extra api --extra a2a
 
       # Lint / type-check / security gates are version-independent, so run them
       # once on the primary interpreter to save matrix minutes.
@@ -82,6 +82,13 @@ jobs:
         # dependency, and only the py3.13 runner image ships the affected
         # version; newer images pick up the fix. Non-actionable for primr.
         run: uv run --no-sync pip-audit --ignore-vuln PYSEC-2026-196
+
+      - name: Build and inspect source distribution
+        timeout-minutes: 5
+        if: matrix.python-version == '3.13'
+        env:
+          PRIMR_VALIDATE_SDIST: "1"
+        run: uv run --no-sync pytest tests/test_release_integrity.py::test_built_sdist_matches_release_inventory -q
 
       - name: Recovery Regression Suite
         timeout-minutes: 10
@@ -177,7 +184,7 @@ jobs:
 
       - name: Install dependencies
         timeout-minutes: 10
-        run: uv sync --frozen --extra dev --extra api --extra a2a
+        run: uv sync --locked --extra dev --extra api --extra a2a
 
       - name: Test
         timeout-minutes: 25
@@ -215,7 +222,7 @@ jobs:
 
       - name: Install dependencies (with A2A SDK)
         timeout-minutes: 10
-        run: uv sync --frozen --extra dev --extra api --extra a2a
+        run: uv sync --locked --extra dev --extra api --extra a2a
 
       - name: A2A Tests
         timeout-minutes: 5
