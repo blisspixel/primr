@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Fixed
+
+## [1.34.48] - 2026-07-10
+
+### Added
+
 - Calibration baseline gate recommendations now report whether the per-report
   Confirmed traceability floor is complete. A ready baseline with some reports
   lacking decidable `(Confirmed)` claims remains report-only with the explicit
