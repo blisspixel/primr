@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 from primr.core import cli_parser
 from primr.core.cli import Command, _create_parser  # we need the real enum to compare
+from primr.core.cli_help import _create_scoped_help_parser
 from primr.core.cli_parser import (
     _determine_command,
     _discover_strategies,
@@ -29,7 +30,7 @@ def test_scoped_init_doctor_options_match_the_main_parser() -> None:
     main_actions = {action.dest: action for action in _create_parser()._actions}
 
     for command in ("init", "doctor"):
-        scoped_parser = cli_parser._create_scoped_help_parser(command)
+        scoped_parser = _create_scoped_help_parser(command)
         for scoped_action in scoped_parser._actions:
             if scoped_action.dest == "help":
                 continue

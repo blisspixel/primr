@@ -82,6 +82,7 @@ from primr.core.cli_doctor import (
 from primr.core.cli_dryrun import run_dry_run
 from primr.core.cli_errors import guard_dispatch
 from primr.core.cli_eval_args import add_eval_arguments
+from primr.core.cli_help import add_init_doctor_arguments, maybe_print_scoped_help
 from primr.core.cli_init import (
     _ensure_project_env_file as _ensure_project_env_file,
 )
@@ -115,10 +116,8 @@ from primr.core.cli_memory import (
 from primr.core.cli_parser import (
     CLI_EPILOG,
     _determine_command,
-    add_init_doctor_arguments,
     add_research_input_arguments,
     enable_shell_completion,
-    maybe_print_scoped_help,
 )
 from primr.core.cli_parser import (
     _discover_strategies as _discover_strategies,
