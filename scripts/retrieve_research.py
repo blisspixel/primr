@@ -62,7 +62,10 @@ def retrieve_research(interaction_id: str) -> None:
 
         print(f"\nSaved to: {output_file}")
         if not remove_pending_job(interaction_id):
-            print("Pending job state could not be updated; the saved report is unchanged.")
+            print(
+                "Report saved, but its pending job record could not be removed; "
+                "a later status check may list it again."
+            )
 
     elif status == "failed":
         error = result.get("error", "Unknown error")

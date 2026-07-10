@@ -482,24 +482,24 @@ result = await client.research(
 Deep Research jobs run asynchronously. If a connection drops, the job continues on Google's servers.
 
 ```python
-from primr.ai.deep_research import (
-    get_deep_research_client,
+from primr.ai.deep_research import get_deep_research_client
+from primr.ai.job_persistence import (
     get_pending_jobs,
-    save_pending_job,
     remove_pending_job,
+    save_pending_job,
 )
 
 # Check status of a specific job without mutating pending state
 client = get_deep_research_client()
 result = client.check_job("v1_abc123...")
-print(f"Status: {result['status']}")  # in_progress, completed, failed
+print(f"Status: {result['status']}")  # active, completed, terminal, or check_error
 if result['content']:
     print(f"Content: {result['content'][:500]}...")
 
 # List all pending jobs
 jobs = get_pending_jobs()
 for job_id, info in jobs.items():
-    print(f"{job_id}: {info['description']} ({info['status']})")
+    print(f"{job_id}: {info['description']} (saved {info['started']})")
 
 # Manually save a job for later recovery
 save_pending_job(

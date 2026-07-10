@@ -1571,7 +1571,7 @@ primr --ai-strategy-only "output/ExampleCo_Strategic_Overview.md"
 
 # Job management
 primr --check-jobs      # Read-only cloud and latest-local status
-primr --resume-latest   # Finalize completed cloud outputs
+primr --resume-latest   # Finalize completed or acknowledge terminal cloud jobs
 primr --clear-jobs      # Discard stale pending records
 
 # Operations
