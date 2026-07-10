@@ -292,15 +292,23 @@ async def test_poll_for_completion_completed():
     fake_dr = MagicMock()
     client = MagicMock()
     client.check_job.return_value = {"status": "completed", "content": "DONE"}
+    on_recovery_ready = MagicMock()
 
     with (
         patch.dict("sys.modules", {"primr.ai.deep_research": fake_dr}),
         patch("primr.core.ai_strategy.asyncio.sleep", new=AsyncMock()),
     ):
-        out = await _poll_for_completion(client, "iid-1", "prompt", poll_interval=0)
+        out = await _poll_for_completion(
+            client,
+            "iid-1",
+            "prompt",
+            poll_interval=0,
+            on_recovery_ready=on_recovery_ready,
+        )
 
     assert out == "DONE"
     assert fake_dr.save_pending_job.called
+    on_recovery_ready.assert_called_once_with("iid-1")
 
 
 @pytest.mark.asyncio

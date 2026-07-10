@@ -1074,12 +1074,10 @@ Frame everything as hypotheses to explore, not conclusions."""
                 result["content"] = self._extract_content(interaction)
                 result["citations"] = self._extract_citations(interaction)
                 result["terminal"] = True
-                remove_pending_job(interaction_id)
             elif status in {"failed", "error", "cancelled", "canceled", "expired"}:
                 result["error"] = self._format_interaction_error(interaction)
                 result["terminal"] = True
                 result["error_source"] = "provider"
-                remove_pending_job(interaction_id)
 
             return result
 

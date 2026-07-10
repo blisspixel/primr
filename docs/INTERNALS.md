@@ -395,11 +395,14 @@ def save_pending_job(interaction_id, job_type, description):
     save_jobs(jobs)
 ```
 
-On startup, pending jobs can be resumed:
+Status inspection is read-only. Completed jobs are finalized explicitly:
 
 ```bash
 primr --check-jobs
+primr --resume-latest
 ```
+
+The pending record is removed only after recovered outputs are saved. Provider-terminal jobs are acknowledged by explicit resume; transient status-check errors remain pending.
 
 ### File Search Store
 

@@ -150,6 +150,10 @@ def test_save_strategy_outputs_docx_permission_retry(tmp_path, monkeypatch):
 async def test_generate_ai_strategy_success(tmp_path, monkeypatch):
     monkeypatch.setattr("primr.core.ai_strategy.OUTPUT_DIR", str(tmp_path))
 
+    async def execute_with_recovered_job(**kwargs):
+        kwargs["on_recovery_ready"]("iid-recovered")
+        return "# Strategy content"
+
     with (
         patch("primr.core.ai_strategy._validate_preflight", return_value=[]),
         patch(
@@ -162,7 +166,7 @@ async def test_generate_ai_strategy_success(tmp_path, monkeypatch):
         ),
         patch(
             "primr.core.ai_strategy._execute_strategy_research",
-            new=AsyncMock(return_value="# Strategy content"),
+            new=AsyncMock(side_effect=execute_with_recovered_job),
         ),
         patch(
             "primr.core.ai_strategy._save_strategy_outputs",
@@ -172,12 +176,47 @@ async def test_generate_ai_strategy_success(tmp_path, monkeypatch):
                 "txt": str(tmp_path / "s.txt"),
             },
         ),
+        patch("primr.ai.job_persistence.remove_pending_job") as remove_mock,
     ):
         result = await generate_ai_strategy(company_name="Acme", platform="azure")
 
     assert result.success is True
     assert result.content == "# Strategy content"
     assert result.vendor_research_paths == ["/v/azure.txt"]
+    remove_mock.assert_called_once_with("iid-recovered")
+
+
+@pytest.mark.asyncio
+async def test_generate_ai_strategy_retains_recovered_job_when_outputs_are_partial(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr("primr.core.ai_strategy.OUTPUT_DIR", str(tmp_path))
+
+    async def execute_with_recovered_job(**kwargs):
+        kwargs["on_recovery_ready"]("iid-recovered")
+        return "# Strategy content"
+
+    with (
+        patch("primr.core.ai_strategy._validate_preflight", return_value=[]),
+        patch(
+            "primr.core.ai_strategy._gather_context",
+            new=AsyncMock(return_value=([], [])),
+        ),
+        patch("primr.core.ai_strategy.build_ai_strategy_prompt", return_value="PROMPT"),
+        patch(
+            "primr.core.ai_strategy._execute_strategy_research",
+            new=AsyncMock(side_effect=execute_with_recovered_job),
+        ),
+        patch(
+            "primr.core.ai_strategy._save_strategy_outputs",
+            return_value={"docx": None, "md": str(tmp_path / "s.md"), "txt": None},
+        ),
+        patch("primr.ai.job_persistence.remove_pending_job") as remove_mock,
+    ):
+        result = await generate_ai_strategy(company_name="Acme", platform="azure")
+
+    assert result.success is False
+    remove_mock.assert_not_called()
 
 
 @pytest.mark.asyncio

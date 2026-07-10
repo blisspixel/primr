@@ -255,6 +255,23 @@ class TestShowLatestRunStateHint:
         all_calls = " ".join(str(call) for call in console_mock.info.call_args_list)
         assert "ExampleCo" in all_calls
 
+    def test_derives_company_from_path_and_omits_unknown_fields(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cli_recovery, "WORKING_DIR", str(tmp_path))
+        run_dir = tmp_path / "ExampleCo" / "run"
+        run_dir.mkdir(parents=True)
+        (run_dir / "_run_state.json").write_text(
+            json.dumps({"updated_at": "2026-07-10T12:00:00"}),
+            encoding="utf-8",
+        )
+
+        with patch("primr.core.cli_recovery.console") as console_mock:
+            _show_latest_run_state_hint()
+
+        all_calls = " ".join(str(call) for call in console_mock.info.call_args_list)
+        assert "Company: ExampleCo" in all_calls
+        assert "Updated: 2026-07-10T12:00:00" in all_calls
+        assert "unknown" not in all_calls.lower()
+
 
 # ---------------------------------------------------------------------------
 # resume_pending_jobs (orchestration paths)
@@ -307,6 +324,65 @@ class TestResumePendingJobs:
         monkeypatch.setattr(dr, "get_deep_research_client", lambda: client)
         # No finalized, one failed -> returns 1
         assert resume_pending_jobs() == 1
+
+    def test_removes_completed_job_only_after_outputs_are_saved(self, monkeypatch):
+        client = Mock()
+        client.check_job.return_value = {"status": "completed", "content": "Final content"}
+        import primr.ai.deep_research as dr
+
+        monkeypatch.setattr(
+            dr, "get_pending_jobs", lambda: {"j1": {"description": "x", "type": "deep_research"}}
+        )
+        monkeypatch.setattr(dr, "get_deep_research_client", lambda: client)
+        with (
+            patch(
+                "primr.core.cli_recovery._save_recovered_outputs",
+                return_value={"md": "a.md", "docx": "a.docx", "txt": "a.txt"},
+            ),
+            patch("primr.ai.job_persistence.remove_pending_job") as remove_mock,
+        ):
+            assert resume_pending_jobs() == 0
+
+        remove_mock.assert_called_once_with("j1")
+
+    def test_keeps_completed_job_when_finalization_fails(self, tmp_path, monkeypatch):
+        client = Mock()
+        client.check_job.return_value = {"status": "completed", "content": "Final content"}
+        import primr.ai.deep_research as dr
+
+        monkeypatch.setattr(cli_recovery, "OUTPUT_DIR", str(tmp_path))
+        monkeypatch.setattr(
+            dr, "get_pending_jobs", lambda: {"j1": {"description": "x", "type": "deep_research"}}
+        )
+        monkeypatch.setattr(dr, "get_deep_research_client", lambda: client)
+        with (
+            patch(
+                "primr.core.cli_recovery._save_recovered_outputs",
+                side_effect=RuntimeError("docx fail"),
+            ),
+            patch("primr.ai.job_persistence.remove_pending_job") as remove_mock,
+        ):
+            assert resume_pending_jobs() == 1
+
+        remove_mock.assert_not_called()
+
+    def test_removes_provider_terminal_failure_during_explicit_resume(self, monkeypatch):
+        client = Mock()
+        client.check_job.return_value = {
+            "status": "failed",
+            "error": "provider error",
+            "terminal": True,
+        }
+        import primr.ai.deep_research as dr
+
+        monkeypatch.setattr(
+            dr, "get_pending_jobs", lambda: {"j1": {"description": "x", "type": "deep_research"}}
+        )
+        monkeypatch.setattr(dr, "get_deep_research_client", lambda: client)
+        with patch("primr.ai.job_persistence.remove_pending_job") as remove_mock:
+            assert resume_pending_jobs() == 1
+
+        remove_mock.assert_called_once_with("j1")
 
     def test_unknown_status_counts_as_failure(self, monkeypatch):
         client = Mock()
