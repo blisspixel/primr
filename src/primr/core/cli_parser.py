@@ -14,6 +14,7 @@ not gain meaningful test coverage from extraction.
 
 from __future__ import annotations
 
+import argparse
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -21,8 +22,6 @@ from typing import TYPE_CHECKING
 import yaml  # type: ignore[import-untyped]
 
 if TYPE_CHECKING:
-    import argparse
-
     from primr.core.cli import Command
 
 logger = logging.getLogger(__name__)
@@ -38,6 +37,7 @@ Research Modes:
 
 Examples:
   primr init                                         # Guided first-run setup
+  primr "Acme Corp" https://acme.example --dry-run  # Estimate cost and time only
   primr "Acme Corp" https://acme.example
   primr "Acme Corp" acme.example --mode deep
   primr "Acme Corp" acme.example --mode scrape       # Build Site Corpus + Extract Insights

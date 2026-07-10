@@ -16,7 +16,7 @@ param identityPrincipalId string
 @description('Principal ID of the deploying user (for secret management). Empty = skip.')
 param deployerPrincipalId string = ''
 
-@description('MCP server JWT signing secret (HS256 bearer-token verification). MUST be a cryptographically random value of 32+ characters supplied by the caller — main.bicep auto-generates one per deployment via newGuid(). Never seed a literal placeholder: the MCP server fails closed on known placeholder values when AZURE_CLIENT_ID is set (see src/primr/mcp_server/auth.py).')
+@description('MCP server JWT signing secret (HS256 bearer-token verification). MUST be a cryptographically random value of 32+ characters supplied by the caller - main.bicep auto-generates one per deployment via newGuid(). Never seed a literal placeholder: the MCP server fails closed on known placeholder values when AZURE_CLIENT_ID is set (see src/primr/mcp_server/auth.py).')
 @secure()
 @minLength(32)
 param mcpJwtSecret string
@@ -103,7 +103,7 @@ resource anthropicSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
 // its auth middleware only when require_auth=true; the middleware uses
 // MCP_JWT_SECRET to verify HS256 tokens. The value is the random secret
 // supplied by main.bicep (defaulting to a fresh newGuid()-derived value per
-// deployment), NOT a repo-known literal — a public placeholder here would let
+// deployment), NOT a repo-known literal - a public placeholder here would let
 // anyone forge admin bearer tokens. To pin a stable secret you rotate
 // out-of-band, override the mcpJwtSecret parameter at deploy time, or set it
 // directly afterward:

@@ -520,6 +520,18 @@ class TestRunDoctor:
         self._stub_all_checks(monkeypatch, all_passed=True, warnings=0)
         assert run_doctor(fix=False) == 0
 
+    def test_python_311_returns_one(self, monkeypatch):
+        self._stub_all_checks(monkeypatch, all_passed=True, warnings=0)
+
+        class _VI(tuple):
+            major = 3
+            minor = 11
+            micro = 9
+
+        monkeypatch.setattr("sys.version_info", _VI((3, 11, 9, "final", 0)))
+
+        assert run_doctor(fix=False) == 1
+
     def test_failures_return_one(self, monkeypatch):
         self._stub_all_checks(monkeypatch, all_passed=False, warnings=0)
         assert run_doctor(fix=False) == 1

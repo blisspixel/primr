@@ -144,6 +144,15 @@ docs = [
     "pymdown-extensions>=10.0",
 ]
 
+[dependency-groups]
+release = [
+    "build>=1.2.2",
+    "cyclonedx-bom>=7.0.0",
+    "setuptools>=77.0",
+    "twine>=6.1.0",
+    "wheel>=0.45.0",
+]
+
 [project.scripts]
 primr = "primr.core.cli:main"
 primr-mcp = "primr.mcp_server.cli:main"

@@ -157,12 +157,21 @@ def run_dry_run(config: CLIConfig) -> int:
         classification = STAGE_CLASSIFICATIONS[stage].value
         actions = ", ".join(a.action_type.value for a in hierarchy.actions)
         print(f"  {stage.value} ({classification}): {actions}")
-    print("")
-    print("Recovery Table JSON:")
-    print(recovery_table.to_json())
+    if config.verbose:
+        print("")
+        print("Recovery Table JSON:")
+        print(recovery_table.to_json())
 
+    print("")
+    print("NEXT STEPS")
+    print("-" * 40)
+    print("  1. Launch: repeat this command without --dry-run.")
+    print("     Optional: add --budget <usd> to enforce a run ceiling.")
+    print("  2. Monitor: follow the phase markers in this terminal.")
+    print("  3. Recover interrupted cloud work: primr --check-jobs, then primr --resume-latest.")
+    print("  4. Retrieve: use the artifact path printed when the run completes.")
+    print("     For the default output directory, primr --list-recent also lists recent reports.")
     print("")
     print("=" * 60)
     print("")
-    print("To run research, remove --dry-run flag")
     return 0
