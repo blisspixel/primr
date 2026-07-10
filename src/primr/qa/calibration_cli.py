@@ -24,7 +24,7 @@ from primr.qa.calibration_runner import (
     aggregate_per_label,
     aggregate_precision,
     compare_judges,
-    estimate_cost_usd,
+    estimate_cloud_cost_usd,
     resolve_judge,
     resolve_reports,
     run_calibration,
@@ -181,9 +181,10 @@ def handle_calibrate(config: CalibrateConfig, console: ConsoleSink) -> int:
                 reports, max_per_label=config.calibrate_max_per_label, dry_run=True
             )
             total_calls = sum(outcome.estimated_judge_calls for outcome in outcomes)
+            cloud_cost = estimate_cloud_cost_usd(total_calls, judge_kind="compare")
             console.info(
                 f"Dry run: ~{total_calls} cloud judge calls "
-                f"(${estimate_cost_usd(total_calls):.2f}) + ~{total_calls} local judge calls "
+                f"({_format_cloud_cost(cloud_cost)}) + ~{total_calls} local judge calls "
                 "($0.00)"
             )
             _write_pack_manifest_if_requested(
@@ -240,8 +241,19 @@ def handle_calibrate(config: CalibrateConfig, console: ConsoleSink) -> int:
                 f"{outcome.judgeable_claims} judgeable, "
                 f"~{outcome.estimated_judge_calls} judge calls"
             )
+        cloud_cost = estimate_cloud_cost_usd(
+            total_calls,
+            judge_kind=judge_selection.kind,
+            requested_judge_mode=config.calibrate_judge,
+        )
+        cost_label = (
+            "estimated cloud fallback ceiling"
+            if config.calibrate_judge == "auto" and judge_selection.kind == "local"
+            else "estimated cloud spend"
+        )
         console.info(
-            f"Dry run: ~{total_calls} judge calls, estimated ${estimate_cost_usd(total_calls):.2f}"
+            f"Dry run: ~{total_calls} {judge_selection.kind} judge calls, "
+            f"{cost_label} {_format_cloud_cost(cloud_cost)}"
         )
         _write_pack_manifest_if_requested(
             config,
@@ -483,6 +495,7 @@ def _write_pack_manifest_if_requested(
         judge_agreement=judge_agreement,
         judge_metadata=judge_metadata,
         selection=selection,
+        requested_judge_mode=(None if config.calibrate_judge_compare else config.calibrate_judge),
     )
     console.ok(f"Calibration pack manifest written: {config.calibrate_pack_manifest}")
     _write_baseline_from_manifest_if_requested(config, manifest_path, console)
@@ -545,3 +558,7 @@ def _judge_compare_metadata(local_selection: JudgeSelection) -> dict[str, object
         "cloud": {"kind": "cloud", "model": "fast-tier"},
         "local": local_selection.to_metadata(),
     }
+
+
+def _format_cloud_cost(cost_usd: float) -> str:
+    return f"${cost_usd:.4f}" if cost_usd > 0 else "$0.00"
