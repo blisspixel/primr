@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.34.48
+Current State: v1.34.49
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -1600,6 +1600,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.34.49 | Jul 2026 | **Recovery status clarity and durable explicit finalization.** `--check-jobs` is now read-only and shows both pending cloud work and the latest local run state. `--resume-latest` owns canonical output finalization and provider-terminal acknowledgement, retains recoverability on empty or partial output, reports mixed failures through nonzero exit codes, and keeps CLI help, dry-run guidance, API examples, and recovery documentation aligned. |
 | 1.34.48 | Jul 2026 | **CLI clarity, runtime consistency, and release integrity.** Default dry-runs now end with concise lifecycle guidance, long phases show their supplied duration expectations, and init/doctor help is command-specific. Python 3.12 is enforced consistently across setup, diagnostics, containers, cloud templates, Ruff, CI, and release builds. Releases now require an immutable tag commit on green `main`, locked tooling, non-empty notes, strict documentation, and exact PyPI filename/hash verification. Calibration baseline decision artifacts and inspections also gain body-free gate recommendations, operator decision templates, explicit local/cloud cost policy, and trustworthy readback without applying a gate automatically. |
 | 1.34.47 | Jul 2026 | **Report punctuation and baseline measurement.** Final Markdown shipping now normalizes long dash punctuation at the artifact boundary, including the old Deep Research runner path, while preserving URL semantics by percent-encoding long dash code points inside links. DOCX conversion strips the fast-report header metadata line before body rendering so the Strategic Overview date and website appear once. Calibration baseline artifacts and inspections now include an explicit measurement status block, and ready operator-curated multi-report baselines report `measured_operator_curated_multi_report_baseline` with representative coverage, evidence review, and judge agreement checks visible in JSON and Markdown. |
 | 1.34.46 | Jul 2026 | **Internal: deep-run finalization seam (no behavior change).** The deep-research run's finalization tail - cost reconciliation, the estimated-vs-actual summary, the report trust row, usage recording, and the job summary - moved out of `research_agent.py` into a dedicated, unit-tested `deep_run_summary` module, mirroring the existing fast-run seam. Output, cost, and usage behavior are byte-identical; the extraction keeps the orchestrator under its size ceiling and gives the deep path a tested home for future trust/cost surfaces. |
