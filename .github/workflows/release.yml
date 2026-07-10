@@ -97,7 +97,7 @@ jobs:
         # (human-diffable) and a CycloneDX JSON SBOM (machine/standard).
         run: |
           mkdir -p sbom
-          pipx run uv export --frozen --no-dev --no-emit-project \
+          pipx run uv export --locked --no-dev --no-emit-project \
             --format requirements-txt -o "sbom/primr-${TAG_VERSION}-requirements.txt"
           pipx run --spec cyclonedx-bom cyclonedx-py requirements \
             "sbom/primr-${TAG_VERSION}-requirements.txt" \

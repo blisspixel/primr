@@ -11,17 +11,18 @@ Thanks for your interest in contributing to Primr! This document provides guidel
    **Option A - uv (recommended, fastest, reproducible):**
    ```bash
    cd primr
-   uv sync --frozen --extra dev --extra api   # installs from uv.lock
+   uv sync --locked --extra dev --extra api   # validates and installs uv.lock
    uv run playwright install chromium
    # run tooling without activating a venv:
    uv run pytest tests/ -q
    uv run ruff check src/primr/
    uv run mypy src/primr/ --ignore-missing-imports
    ```
-   `uv sync --frozen` installs the exact pinned set from `uv.lock`, so your
-   environment matches CI and other contributors byte-for-byte. After changing
-   dependencies in `pyproject.toml`, run `uv lock` and commit the updated
-   `uv.lock`. Install uv from https://docs.astral.sh/uv/ if you don't have it.
+   `uv sync --locked` rejects a lockfile that is stale relative to
+   `pyproject.toml`, then installs its exact pinned set so your environment
+   matches CI and other contributors. After changing dependencies in
+   `pyproject.toml`, run `uv lock` and commit the updated `uv.lock`. Install uv
+   from https://docs.astral.sh/uv/ if you don't have it.
 
    **Option B - manual pip (cross-platform):**
    ```bash
@@ -181,5 +182,3 @@ Feel free to open an issue for questions or discussions about the project.
 ## License
 
 By contributing, you agree that your contributions will be licensed under the Apache License 2.0.
-
-

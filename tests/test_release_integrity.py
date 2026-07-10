@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import os
 import re
+import subprocess
+import tarfile
 import tomllib
 from pathlib import Path
 
@@ -31,6 +34,11 @@ def _read_pyproject_version() -> str:
 def _read_pyproject() -> dict:
     pyproject_path = REPO_ROOT / "pyproject.toml"
     return tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+
+
+def _read_uv_lock() -> dict:
+    lock_path = REPO_ROOT / "uv.lock"
+    return tomllib.loads(lock_path.read_text(encoding="utf-8"))
 
 
 def _read_pyproject_python_floor() -> str:
@@ -86,6 +94,17 @@ def test_citation_version_matches_package_version() -> None:
     assert _read_citation_version() == primr.__version__
 
 
+def test_lockfile_project_version_matches_package_version() -> None:
+    editable_packages = [
+        package
+        for package in _read_uv_lock()["package"]
+        if package.get("name") == "primr" and package.get("source") == {"editable": "."}
+    ]
+
+    assert len(editable_packages) == 1, "uv.lock must contain one editable primr package"
+    assert editable_packages[0]["version"] == primr.__version__
+
+
 def test_package_metadata_declares_pep639_apache_license() -> None:
     pyproject = _read_pyproject()
     classifiers = pyproject["project"]["classifiers"]
@@ -109,11 +128,80 @@ def test_release_workflow_builds_on_supported_python_floor() -> None:
     assert "python-version: '3.11'" not in release_workflow
 
 
+def test_automation_rejects_stale_lockfile() -> None:
+    ci_workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    release_workflow = (REPO_ROOT / ".github" / "workflows" / "release.yml").read_text(
+        encoding="utf-8"
+    )
+
+    sync_commands = re.findall(r"^\s*run:\s*(uv sync .+)$", ci_workflow, re.MULTILINE)
+    export_commands = re.findall(r"^\s*pipx run (uv export .+)$", release_workflow, re.MULTILINE)
+    assert sync_commands
+    assert export_commands
+    assert all("--locked" in command and "--frozen" not in command for command in sync_commands)
+    assert all("--locked" in command and "--frozen" not in command for command in export_commands)
+
+    assert 'PRIMR_VALIDATE_SDIST: "1"' in ci_workflow
+    assert "::test_built_sdist_matches_release_inventory" in ci_workflow
+
+
 def test_package_manifest_excludes_agent_working_files() -> None:
     manifest = (REPO_ROOT / "MANIFEST.in").read_text(encoding="utf-8")
 
     assert "prune .agent" in manifest
     assert "prune docs/.agent" in manifest
+
+
+def test_package_manifest_has_no_removed_root_inputs() -> None:
+    manifest = (REPO_ROOT / "MANIFEST.in").read_text(encoding="utf-8")
+
+    assert "include requirements.txt" not in manifest
+    assert "include pytest.ini" not in manifest
+    assert "recursive-include docs/examples" not in manifest
+
+
+def test_built_sdist_matches_release_inventory(tmp_path: Path) -> None:
+    if os.environ.get("PRIMR_VALIDATE_SDIST") != "1":
+        pytest.skip("Set PRIMR_VALIDATE_SDIST=1 to run the behavior-level packaging gate")
+
+    build = subprocess.run(
+        ["uv", "build", "--sdist", "--out-dir", str(tmp_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=240,
+    )
+    assert build.returncode == 0, build.stdout + build.stderr
+
+    build_log = (build.stdout + build.stderr).lower()
+    assert "warning: no files found matching" not in build_log
+    assert "warning: no previously-included files found matching" not in build_log
+
+    archives = list(tmp_path.glob("*.tar.gz"))
+    assert len(archives) == 1
+    with tarfile.open(archives[0], mode="r:gz") as archive:
+        members = [Path(member.name) for member in archive.getmembers() if member.isfile()]
+
+    roots = {member.parts[0] for member in members}
+    assert len(roots) == 1
+    paths = {Path(*member.parts[1:]).as_posix() for member in members}
+
+    required_paths = {
+        ".env.example",
+        "LICENSE",
+        "README.md",
+        "ROADMAP.md",
+        "docs/images/primr-demo.png",
+        "pyproject.toml",
+        "src/primr/py.typed",
+    }
+    assert required_paths <= paths
+
+    forbidden_paths = {"requirements.txt", "pytest.ini", "setup_env.py"}
+    forbidden_prefixes = (".agent/", "build/", "dist/", "output/", "tests/")
+    assert forbidden_paths.isdisjoint(paths)
+    assert not any(path.startswith(forbidden_prefixes) for path in paths)
 
 
 def test_cli_epilog_uses_current_default_cost_band() -> None:

@@ -22,7 +22,7 @@ primr turns a company URL into a sourced strategic brief. It is a CLI-first,
 local-first Python package (`src/` layout), an LLM API **client** + adaptive
 scraper + MCP/A2A agent - it trains and serves no models. To work on it:
 
-1. Set up the dev env (`uv sync --frozen --extra dev --extra api`, then
+1. Set up the dev env (`uv sync --locked --extra dev --extra api`, then
    `uv run playwright install chromium`) - see
    [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md).
 2. Put code in the package that owns it (see Architecture Pointers). Use the
