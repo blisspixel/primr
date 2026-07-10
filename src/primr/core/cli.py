@@ -82,6 +82,7 @@ from primr.core.cli_doctor import (
 from primr.core.cli_dryrun import run_dry_run
 from primr.core.cli_errors import guard_dispatch
 from primr.core.cli_eval_args import add_eval_arguments
+from primr.core.cli_help import add_init_doctor_arguments, maybe_print_scoped_help
 from primr.core.cli_init import (
     _ensure_project_env_file as _ensure_project_env_file,
 )
@@ -425,6 +426,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
     Returns:
         CLIConfig with parsed values
     """
+    maybe_print_scoped_help(args)
     parser = _create_parser()
     parsed = parser.parse_args(_rewrite_company_command_args(args, parser))
     get = getattr
@@ -906,40 +908,7 @@ def _create_parser() -> argparse.ArgumentParser:
         help="Emit machine-readable JSON to stdout (research result, or estimate with --dry-run)",
     )
     parser.add_argument("--verbose", "-v", action="store_true", help="Detailed output")
-    parser.add_argument(
-        "--fix",
-        action="store_true",
-        help="With 'doctor', launch guided setup for missing keys and browser dependencies",
-    )
-    parser.add_argument(
-        "--scraper-stats",
-        action="store_true",
-        help=(
-            "With 'doctor', show per-tier scrape success rate, latency p95, and "
-            "content quality across recent runs"
-        ),
-    )
-    parser.add_argument(
-        "--non-interactive",
-        action="store_true",
-        help="With 'init', print missing setup steps without prompting",
-    )
-    parser.add_argument(
-        "--yes",
-        "-y",
-        action="store_true",
-        help="With 'init', accept safe defaults such as browser installation",
-    )
-    parser.add_argument(
-        "--skip-browsers",
-        action="store_true",
-        help="With 'init', skip Playwright browser installation",
-    )
-    parser.add_argument(
-        "--no-doctor",
-        action="store_true",
-        help="With 'init', skip the final doctor verification",
-    )
+    add_init_doctor_arguments(parser)
     parser.add_argument(
         "--banner",
         nargs="?",

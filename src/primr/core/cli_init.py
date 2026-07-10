@@ -200,10 +200,10 @@ def _run_init_flow(
     console.blank()
 
     py_version = sys.version_info
-    if py_version >= (3, 11):
+    if py_version >= (3, 12):
         console.ok(f"Python {py_version.major}.{py_version.minor}.{py_version.micro}")
     else:
-        console.error(f"Python {py_version.major}.{py_version.minor} (need 3.11+)")
+        console.error(f"Python {py_version.major}.{py_version.minor} (need 3.12+)")
         all_ready = False
 
     console.step("Project config")

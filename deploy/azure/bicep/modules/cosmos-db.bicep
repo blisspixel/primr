@@ -63,7 +63,7 @@ resource database 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-05-15
   }
 }
 
-// Jobs container — serverless (no throughput settings) or autoscale
+// Jobs container - serverless (no throughput settings) or autoscale
 resource jobsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = {
   parent: database
   name: jobsContainerName
@@ -84,7 +84,7 @@ resource jobsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/conta
   }
 }
 
-// Budget container — organization tier only
+// Budget container - organization tier only
 resource budgetContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = if (isOrgTier) {
   parent: database
   name: budgetContainerName

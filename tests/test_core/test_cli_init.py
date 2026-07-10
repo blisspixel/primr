@@ -275,10 +275,10 @@ class TestRunInitFlow:
 
         class _VI(tuple):
             major = 3
-            minor = 11
+            minor = 12
             micro = 0
 
-        monkeypatch.setattr("sys.version_info", _VI((3, 11, 0, "final", 0)))
+        monkeypatch.setattr("sys.version_info", _VI((3, 12, 0, "final", 0)))
         del real_vi  # silence flake8
 
         fake_env = MagicMock()
@@ -305,6 +305,26 @@ class TestRunInitFlow:
             run_doctor_after=False,
         )
         assert result == 0
+
+    def test_python_311_is_rejected(self, tmp_path, monkeypatch):
+        self._setup_fake_env(monkeypatch, tmp_path)
+        from primr.core.cli_init import _run_init_flow
+
+        class _VI(tuple):
+            major = 3
+            minor = 11
+            micro = 9
+
+        monkeypatch.setattr("sys.version_info", _VI((3, 11, 9, "final", 0)))
+
+        result = _run_init_flow(
+            non_interactive=True,
+            assume_yes=False,
+            skip_browsers=False,
+            run_doctor_after=False,
+        )
+
+        assert result == 1
 
     def test_non_interactive_missing_keys_returns_nonzero(self, tmp_path, monkeypatch):
         # No env vars set -> keys aren't configured, non-interactive can't fix it
@@ -406,10 +426,10 @@ class TestRunInitFlow:
         # Force Python version check to pass.
         class _VI(tuple):
             major = 3
-            minor = 11
+            minor = 12
             micro = 0
 
-        monkeypatch.setattr("sys.version_info", _VI((3, 11, 0, "final", 0)))
+        monkeypatch.setattr("sys.version_info", _VI((3, 12, 0, "final", 0)))
         monkeypatch.setattr("sys.stdin.isatty", lambda: True)
 
         # Validate-key always succeeds; getpass returns real-looking key.
@@ -440,10 +460,10 @@ class TestRunInitFlow:
 
         class _VI(tuple):
             major = 3
-            minor = 11
+            minor = 12
             micro = 0
 
-        monkeypatch.setattr("sys.version_info", _VI((3, 11, 0, "final", 0)))
+        monkeypatch.setattr("sys.version_info", _VI((3, 12, 0, "final", 0)))
         monkeypatch.setattr("sys.stdin.isatty", lambda: True)
 
         monkeypatch.setattr(cli_init, "_validate_key_live", lambda p, v: (False, "rejected"))
@@ -470,10 +490,10 @@ class TestRunInitFlow:
 
         class _VI(tuple):
             major = 3
-            minor = 11
+            minor = 12
             micro = 0
 
-        monkeypatch.setattr("sys.version_info", _VI((3, 11, 0, "final", 0)))
+        monkeypatch.setattr("sys.version_info", _VI((3, 12, 0, "final", 0)))
         monkeypatch.setattr("sys.stdin.isatty", lambda: True)
 
         # User presses enter at the getpass prompt -> empty string -> skipped

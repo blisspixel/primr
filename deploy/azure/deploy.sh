@@ -319,7 +319,7 @@ create_reconciler_function() {
         --storage-account "$FUNCTION_STORAGE" \
         --consumption-plan-location "$AZURE_LOCATION" \
         --runtime python \
-        --runtime-version 3.10 \
+        --runtime-version 3.12 \
         --functions-version 4 \
         --os-type Linux \
         --assign-identity "$identity_id" \

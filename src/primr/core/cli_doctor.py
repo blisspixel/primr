@@ -492,10 +492,10 @@ def run_doctor(*, fix: bool = False) -> int:
 
     console.step("Environment")
     py_version = sys.version_info
-    if py_version >= (3, 10):
+    if py_version >= (3, 12):
         console.ok(f"Python {py_version.major}.{py_version.minor}.{py_version.micro}")
     else:
-        console.error(f"Python {py_version.major}.{py_version.minor} (need 3.10+)")
+        console.error(f"Python {py_version.major}.{py_version.minor} (need 3.12+)")
         all_passed = False
     _show_install_source()
 

@@ -67,7 +67,7 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
   properties: {
     serverFarmId: hostingPlan.id
     siteConfig: {
-      linuxFxVersion: 'PYTHON|3.10'
+      linuxFxVersion: 'PYTHON|3.12'
       appSettings: [
         { name: 'AzureWebJobsStorage__accountName', value: functionStorage.name }
         { name: 'FUNCTIONS_EXTENSION_VERSION', value: '~4' }

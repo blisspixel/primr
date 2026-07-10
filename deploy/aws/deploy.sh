@@ -690,7 +690,7 @@ def handler(event, context):
     aws lambda create-function \
         --function-name "$RECONCILER_FUNCTION_NAME" \
         --region "$AWS_REGION" \
-        --runtime python3.10 \
+        --runtime python3.12 \
         --role "$role_arn" \
         --handler "lambda_handler.handler" \
         --zip-file "fileb://$zip_file" \

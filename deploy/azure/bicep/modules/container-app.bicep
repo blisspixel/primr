@@ -18,7 +18,7 @@ param resourcePrefix string
 @description('Minimum number of replicas (0 for scale-to-zero)')
 param minReplicas int = 0
 
-@description('Maximum number of replicas (default 5 for team tier, 10 for organization — higher values increase cost)')
+@description('Maximum number of replicas (default 5 for team tier, 10 for organization - higher values increase cost)')
 param maxReplicas int = 5
 
 @description('ACR login server (e.g., myacr.azurecr.io)')
@@ -45,7 +45,7 @@ param storageAccountName string
 @description('Key Vault name')
 param keyVaultName string
 
-// SECURITY: corsOrigins must be explicitly set during deployment — do not use '*' in production
+// SECURITY: corsOrigins must be explicitly set during deployment - do not use '*' in production
 @description('CORS allowed origins (must be explicitly configured, empty by default)')
 param corsOrigins string = ''
 
@@ -112,7 +112,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
           // Run the MCP server with authentication required. The previous
           // command included --no-auth, which made the public Container
           // App ingress hand out research_company / check_jobs /
-          // cancel_job without any authorization — that flag is removed
+          // cancel_job without any authorization - that flag is removed
           // and the server defaults to require_auth=true.
           //
           // --allow-plaintext is intentional here: Azure Container Apps
@@ -133,7 +133,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'PRIMR_CORS_ORIGINS', value: corsOrigins }
             // AuthConfig.from_env reads MCP_JWT_SECRET to verify HS256
             // bearer tokens. Sourced from Key Vault via the container
-            // app's `mcp-jwt-secret` secretRef — never inline a literal.
+            // app's `mcp-jwt-secret` secretRef - never inline a literal.
             { name: 'MCP_JWT_SECRET', secretRef: 'mcp-jwt-secret' }
           ]
           probes: [

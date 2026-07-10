@@ -4,15 +4,17 @@ on:
   push:
     tags:
       - 'v*'
-  # Manual trigger from the Actions tab — useful for the first release of an
-  # already-tagged version, or for re-running a failed publish without
-  # recreating the tag.
+  # Manual trigger from the Actions tab for re-running a release tag created
+  # with this workflow without recreating the tag.
   workflow_dispatch:
     inputs:
       ref:
-        description: 'Tag to publish (e.g. v1.20.0)'
+        description: 'Tag to publish (e.g. v1.34.48)'
         required: true
-        default: 'v1.20.0'
+
+concurrency:
+  group: primr-release
+  cancel-in-progress: false
 
 # Strict semver regex applied to every tag/ref consumed by a shell step.
 # Tag names can legally contain shell metacharacters (quotes, $, ;, #, braces)
@@ -22,13 +24,20 @@ env:
   TAG_PATTERN: '^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$'
 
 permissions:
+  actions: read
   contents: read
 
 jobs:
   build:
     name: Build sdist + wheel
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      version: ${{ steps.meta.outputs.version }}
+      tag_sha: ${{ steps.provenance.outputs.tag_sha }}
     permissions:
+      actions: read
       contents: read
       # Required for actions/attest-build-provenance to mint a signed SLSA
       # provenance attestation via the GitHub attestations API + Sigstore.
@@ -54,27 +63,66 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ steps.meta.outputs.tag }}
+          ref: "refs/tags/${{ steps.meta.outputs.tag }}"
           # Full history so setuptools-scm or anything reading commits works.
           fetch-depth: 0
           # We only need to read the tree; no push from this job.
           persist-credentials: false
+
+      - name: Require exact tag on green main commit
+        id: provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          if ! git show-ref --verify --quiet "refs/tags/$TAG"; then
+            echo "::error::Exact tag refs/tags/$TAG does not exist"
+            exit 1
+          fi
+          TAG_SHA="$(git rev-parse "refs/tags/$TAG^{commit}")"
+          echo "tag_sha=$TAG_SHA" >> "$GITHUB_OUTPUT"
+          git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main"
+          if ! git merge-base --is-ancestor "$TAG_SHA" origin/main; then
+            echo "::error::Tag $TAG does not point to a commit contained in origin/main"
+            exit 1
+          fi
+
+          for attempt in $(seq 1 135); do
+            RUNS_JSON="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&head_sha=${TAG_SHA}&event=push&per_page=10")"
+            SUCCESS_COUNT="$(jq --arg sha "$TAG_SHA" '[.workflow_runs[] | select(.head_sha == $sha and .event == "push" and .head_branch == "main" and .status == "completed" and .conclusion == "success")] | length' <<<"$RUNS_JSON")"
+            if [ "$SUCCESS_COUNT" -gt 0 ]; then
+              echo "Verified successful main CI for $TAG_SHA"
+              break
+            fi
+            FAILED_COUNT="$(jq --arg sha "$TAG_SHA" '[.workflow_runs[] | select(.head_sha == $sha and .event == "push" and .head_branch == "main" and .status == "completed" and .conclusion != "success")] | length' <<<"$RUNS_JSON")"
+            if [ "$FAILED_COUNT" -gt 0 ]; then
+              echo "::error::CI completed unsuccessfully for tag commit $TAG_SHA"
+              exit 1
+            fi
+            if [ "$attempt" -eq 135 ]; then
+              echo "::error::No successful main CI run found for tag commit $TAG_SHA"
+              exit 1
+            fi
+            echo "Waiting for main CI on $TAG_SHA (attempt $attempt/135)"
+            sleep 20
+          done
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
-      - name: Install build tooling
-        run: |
-          python -m pip install --upgrade pip
-          pip install build twine
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install locked release tooling
+        run: uv sync --locked --only-group release --no-install-project --python 3.12
 
       - name: Verify version matches tag
         env:
           TAG_VERSION: ${{ steps.meta.outputs.version }}
         run: |
-          PKG_VERSION=$(python -c "import tomllib; print(tomllib.loads(open('pyproject.toml','rb').read().decode())['project']['version'])")
+          PKG_VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
           echo "Tag version:     $TAG_VERSION"
           echo "Package version: $PKG_VERSION"
           if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
@@ -82,11 +130,40 @@ jobs:
             exit 1
           fi
 
+      - name: Extract required release notes
+        env:
+          RELEASE_VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          python - <<'PY'
+          import re, os, pathlib
+          version = os.environ["RELEASE_VERSION"]
+          text = pathlib.Path("docs/CHANGELOG.md").read_text(encoding="utf-8")
+          pat = re.compile(r"^## \[" + re.escape(version) + r"\][^\n]*\n(.*?)(?=\n## \[|\Z)", re.M | re.S)
+          m = pat.search(text)
+          if m is None:
+              raise SystemExit(f"No changelog section found for release {version}")
+          body = m.group(1).strip()
+          if not body:
+              raise SystemExit(f"Changelog section for release {version} is empty")
+          pathlib.Path("RELEASE_NOTES.md").write_text(body, encoding="utf-8")
+          print(f"Extracted {len(body)} chars of notes for {version}")
+          PY
+
       - name: Build sdist + wheel
-        run: python -m build
+        run: .venv/bin/python -m build --no-isolation
 
       - name: Validate distribution metadata
-        run: twine check dist/*
+        run: .venv/bin/python -m twine check dist/*
+
+      - name: Check for an existing PyPI release before publishing
+        env:
+          RELEASE_VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          .venv/bin/python scripts/verify_release_artifacts.py \
+            --package primr \
+            --version "$RELEASE_VERSION" \
+            --dist-dir dist \
+            --allow-absent
 
       - name: Generate SBOM (pinned manifest + CycloneDX)
         env:
@@ -97,9 +174,9 @@ jobs:
         # (human-diffable) and a CycloneDX JSON SBOM (machine/standard).
         run: |
           mkdir -p sbom
-          pipx run uv export --locked --no-dev --no-emit-project \
+          uv export --locked --no-dev --no-emit-project \
             --format requirements-txt -o "sbom/primr-${TAG_VERSION}-requirements.txt"
-          pipx run --spec cyclonedx-bom cyclonedx-py requirements \
+          .venv/bin/cyclonedx-py requirements \
             "sbom/primr-${TAG_VERSION}-requirements.txt" \
             --of JSON -o "sbom/primr-${TAG_VERSION}-sbom.cdx.json"
 
@@ -131,6 +208,13 @@ jobs:
           path: sbom/
           retention-days: 7
 
+      - name: Upload release notes
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-notes
+          path: RELEASE_NOTES.md
+          retention-days: 7
+
   publish:
     name: Publish to PyPI
     needs: build
@@ -141,13 +225,32 @@ jobs:
     permissions:
       # Required for trusted-publisher OIDC token exchange with PyPI.
       id-token: write
+      contents: read
 
     steps:
+      - name: Checkout immutable release commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.build.outputs.tag_sha }}
+          persist-credentials: false
+
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
+
+      - name: Require tag unchanged before publication
+        env:
+          TAG: ${{ needs.build.outputs.tag }}
+          EXPECTED_TAG_SHA: ${{ needs.build.outputs.tag_sha }}
+        run: |
+          git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+          REMOTE_TAG_SHA="$(git rev-parse "refs/tags/$TAG^{commit}")"
+          if [ "$REMOTE_TAG_SHA" != "$EXPECTED_TAG_SHA" ]; then
+            echo "::error::Tag $TAG moved from $EXPECTED_TAG_SHA to $REMOTE_TAG_SHA before publication"
+            exit 1
+          fi
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -155,8 +258,9 @@ jobs:
           # Re-pushing an already-tagged version (e.g. after a git history
           # rewrite that moves the tag) hits PyPI's immutable-version rule and
           # would otherwise fail with 400 File already exists. skip-existing
-          # lets the workflow exit cleanly in that case — the wheels on PyPI
-          # stay as the originally-published artifacts.
+          # lets the workflow continue to the mandatory filename/hash equality
+          # check. The build job fails before publication if an existing
+          # release has different filenames or hashes.
           skip-existing: true
           # PEP 740 digital attestations (Sigstore) for each artifact — default
           # on for Trusted Publishing, set explicit so it can't silently regress.
@@ -164,31 +268,15 @@ jobs:
 
   github-release:
     name: Create GitHub Release
-    needs: publish
+    needs: [build, publish]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Resolve and validate tag
-        id: meta
-        env:
-          RAW_REF: ${{ github.event.inputs.ref || github.ref }}
-        run: |
-          TAG="${RAW_REF#refs/tags/}"
-          if ! [[ "$TAG" =~ $TAG_PATTERN ]]; then
-            echo "::error::Tag '$TAG' does not match required semver pattern $TAG_PATTERN"
-            exit 1
-          fi
-          VERSION="${TAG#v}"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout
+      - name: Checkout immutable release commit
         uses: actions/checkout@v6
         with:
-          ref: ${{ steps.meta.outputs.tag }}
-          fetch-depth: 0
-          # gh release uses GH_TOKEN env, not the checkout-persisted credential.
+          ref: ${{ needs.build.outputs.tag_sha }}
           persist-credentials: false
 
       - name: Set up Python 3.12
@@ -208,26 +296,27 @@ jobs:
           name: sbom
           path: sbom/
 
-      - name: Extract release notes from CHANGELOG.md
+      - name: Download release notes
+        uses: actions/download-artifact@v8
+        with:
+          name: release-notes
+
+      - name: Verify published PyPI artifact hashes
         env:
-          RELEASE_VERSION: ${{ steps.meta.outputs.version }}
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
         run: |
-          python - <<'PY'
-          import re, os, pathlib
-          version = os.environ["RELEASE_VERSION"]
-          text = pathlib.Path("docs/CHANGELOG.md").read_text(encoding="utf-8")
-          pat = re.compile(r"^## \[" + re.escape(version) + r"\][^\n]*\n(.*?)(?=\n## \[|\Z)", re.M | re.S)
-          m = pat.search(text)
-          body = (m.group(1).strip() if m else f"Release {version}.")
-          out = pathlib.Path(os.environ["GITHUB_WORKSPACE"]) / "RELEASE_NOTES.md"
-          out.write_text(body, encoding="utf-8")
-          print(f"Extracted {len(body)} chars of notes for {version}")
-          PY
+          python scripts/verify_release_artifacts.py \
+            --package primr \
+            --version "$RELEASE_VERSION" \
+            --dist-dir dist \
+            --attempts 6 \
+            --delay-seconds 10
 
       - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.meta.outputs.tag }}
+          TAG: ${{ needs.build.outputs.tag }}
+          EXPECTED_TAG_SHA: ${{ needs.build.outputs.tag_sha }}
           # Opt-in escape hatch for the rare case where an operator
           # genuinely needs to replace release assets (e.g. a yanked
           # wheel). Default is fail-closed so a force-moved tag or a
@@ -235,6 +324,12 @@ jobs:
           # swap out artifacts that downstream consumers already trust.
           ALLOW_ASSET_REPLACE: ${{ vars.ALLOW_RELEASE_ASSET_REPLACE || 'false' }}
         run: |
+          git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+          REMOTE_TAG_SHA="$(git rev-parse "refs/tags/$TAG^{commit}")"
+          if [ "$REMOTE_TAG_SHA" != "$EXPECTED_TAG_SHA" ]; then
+            echo "::error::Tag $TAG moved from $EXPECTED_TAG_SHA to $REMOTE_TAG_SHA during release"
+            exit 1
+          fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             if [ "$ALLOW_ASSET_REPLACE" != "true" ]; then
               echo "::error::Release $TAG already exists. Refusing to replace assets."
@@ -245,7 +340,7 @@ jobs:
               exit 1
             fi
             # Opt-in path: refresh notes and replace artifacts in place.
-            echo "::warning::ALLOW_RELEASE_ASSET_REPLACE=true — replacing assets for $TAG"
+            echo "::warning::ALLOW_RELEASE_ASSET_REPLACE=true: replacing assets for $TAG"
             gh release edit "$TAG" --notes-file RELEASE_NOTES.md
             gh release upload "$TAG" dist/* sbom/* --clobber
           else

@@ -85,7 +85,7 @@ def _require_genai_dependency() -> None:
         return
     raise AIError(
         "google.genai is not available. Install compatible dependencies "
-        "(Python 3.11+ and project requirements).",
+        "(Python 3.12+ and project requirements).",
         cause=_GENAI_IMPORT_ERROR,
     ) from _GENAI_IMPORT_ERROR
 

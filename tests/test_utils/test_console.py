@@ -261,13 +261,18 @@ class TestPhaseBanner:
         assert "Doing stuff" in captured.out
 
     def test_phase_banner_with_duration(self, capsys):
-        """phase_banner() accepts expected_duration parameter (not displayed in minimal design)."""
+        """phase_banner() displays a supplied duration expectation."""
         c = Console()
-        # expected_duration is accepted but not displayed in the modern minimal design
         c.phase_banner(1, 2, "Phase", expected_duration="5-10 minutes")
         captured = capsys.readouterr()
-        # Just verify the banner is displayed (duration is not shown in minimal design)
-        assert "Phase" in captured.out
+        assert "Expected duration: 5-10 minutes" in captured.out
+
+    def test_phase_banner_without_duration_has_no_empty_label(self, capsys):
+        c = Console()
+        c.phase_banner(1, 2, "Phase")
+
+        captured = capsys.readouterr()
+        assert "Expected duration:" not in captured.out
 
     def test_phase_banner_quiet_mode(self, capsys):
         """phase_banner() should be suppressed in quiet mode."""

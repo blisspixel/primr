@@ -1,5 +1,5 @@
 // =============================================================================
-// Primr Azure Deployment — Main Orchestrator
+// Primr Azure Deployment - Main Orchestrator
 // Declarative IaC that produces the same topology as deploy.sh
 // Requirements: 7.1, 7.2, 7.7, 7.8
 // =============================================================================
@@ -54,7 +54,7 @@ param azureOpenaiDeployment string = ''
 @description('Principal ID of the deploying user (for Key Vault access). Get via: az ad signed-in-user show --query id -o tsv')
 param deployerPrincipalId string = ''
 
-@description('MCP server JWT signing secret (HS256). Leave unset to auto-generate a cryptographically random secret on every deployment; pass an explicit 32+ character random value to pin a stable secret you rotate out-of-band. Marked @secure() so it never appears in deployment history/logs. Do NOT pass a guessable or placeholder string — the MCP server fails closed on known placeholders in cloud mode.')
+@description('MCP server JWT signing secret (HS256). Leave unset to auto-generate a cryptographically random secret on every deployment; pass an explicit 32+ character random value to pin a stable secret you rotate out-of-band. Marked @secure() so it never appears in deployment history/logs. Do NOT pass a guessable or placeholder string - the MCP server fails closed on known placeholders in cloud mode.')
 @secure()
 @minLength(32)
 param mcpJwtSecret string = '${newGuid()}-${newGuid()}'
@@ -108,7 +108,7 @@ module storage 'modules/storage.bicep' = {
   }
 }
 
-// ACR Pull role for managed identity — assigned in container-app module via acrName param
+// ACR Pull role for managed identity - assigned in container-app module via acrName param
 // Container App (MCP + Control Plane)
 module containerApp 'modules/container-app.bicep' = {
   name: '${deploymentName}-container-app'
@@ -171,7 +171,7 @@ module serviceBus 'modules/service-bus.bicep' = if (isOrgTier) {
   }
 }
 
-// Monitoring — Application Insights + alerts (org tier)
+// Monitoring - Application Insights + alerts (org tier)
 module monitoring 'modules/monitoring.bicep' = if (isOrgTier) {
   name: '${deploymentName}-monitoring'
   params: {

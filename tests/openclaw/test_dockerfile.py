@@ -35,8 +35,8 @@ class TestDockerfileSyntax:
         assert "FROM " in dockerfile_content
 
     def test_uses_python_base_image(self, dockerfile_content: str) -> None:
-        """Uses Python 3.11 base image."""
-        assert "python:3.11" in dockerfile_content
+        """Uses the supported Python 3.12 base image."""
+        assert "python:3.12" in dockerfile_content
 
 
 class TestNonRootUser:
