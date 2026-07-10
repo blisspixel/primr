@@ -432,6 +432,8 @@ class Console:
         )
         if description:
             self._print(f"  {self._dim}{description}{self._reset}")
+        if expected_duration:
+            self._print(f"  {self._dim}Expected duration: {expected_duration}{self._reset}")
         self._print()
 
     def phase_complete(self, title, stats=None):

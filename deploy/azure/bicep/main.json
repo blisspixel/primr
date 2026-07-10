@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "16602581056456447693"
+      "templateHash": "6761947290005315128"
     }
   },
   "parameters": {
@@ -123,6 +123,14 @@
       "defaultValue": "",
       "metadata": {
         "description": "Principal ID of the deploying user (for Key Vault access). Get via: az ad signed-in-user show --query id -o tsv"
+      }
+    },
+    "mcpJwtSecret": {
+      "type": "securestring",
+      "defaultValue": "[format('{0}-{1}', newGuid(), newGuid())]",
+      "minLength": 32,
+      "metadata": {
+        "description": "MCP server JWT signing secret (HS256). Leave unset to auto-generate a cryptographically random secret on every deployment; pass an explicit 32+ character random value to pin a stable secret you rotate out-of-band. Marked @secure() so it never appears in deployment history/logs. Do NOT pass a guessable or placeholder string - the MCP server fails closed on known placeholders in cloud mode."
       }
     }
   },
@@ -255,6 +263,9 @@
           },
           "deployerPrincipalId": {
             "value": "[parameters('deployerPrincipalId')]"
+          },
+          "mcpJwtSecret": {
+            "value": "[parameters('mcpJwtSecret')]"
           }
         },
         "template": {
@@ -264,7 +275,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "15964571762457612194"
+              "templateHash": "12819807304451748738"
             }
           },
           "parameters": {
@@ -291,6 +302,13 @@
               "defaultValue": "",
               "metadata": {
                 "description": "Principal ID of the deploying user (for secret management). Empty = skip."
+              }
+            },
+            "mcpJwtSecret": {
+              "type": "securestring",
+              "minLength": 32,
+              "metadata": {
+                "description": "MCP server JWT signing secret (HS256 bearer-token verification). MUST be a cryptographically random value of 32+ characters supplied by the caller - main.bicep auto-generates one per deployment via newGuid(). Never seed a literal placeholder: the MCP server fails closed on known placeholder values when AZURE_CLIENT_ID is set (see src/primr/mcp_server/auth.py)."
               }
             }
           },
@@ -389,6 +407,17 @@
               "dependsOn": [
                 "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
               ]
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', variables('keyVaultName'), 'MCP-JWT-SECRET')]",
+              "properties": {
+                "value": "[parameters('mcpJwtSecret')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+              ]
             }
           ],
           "outputs": {
@@ -450,7 +479,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "5285925014007198291"
+              "templateHash": "10664888831944434168"
             }
           },
           "parameters": {
@@ -512,7 +541,7 @@
                 ],
                 "capabilities": "[if(variables('isOrgTier'), createArray(), createArray(createObject('name', 'EnableServerless')))]",
                 "enableAutomaticFailover": false,
-                "enableFreeTier": "[not(variables('isOrgTier'))]"
+                "enableFreeTier": false
               }
             },
             {
@@ -836,6 +865,9 @@
           "keyVaultName": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-keyvault', parameters('deploymentName'))), '2025-04-01').outputs.keyVaultName.value]"
           },
+          "keyVaultUri": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-keyvault', parameters('deploymentName'))), '2025-04-01').outputs.keyVaultUri.value]"
+          },
           "corsOrigins": {
             "value": "[parameters('corsOrigins')]"
           }
@@ -847,7 +879,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "11768354551499689104"
+              "templateHash": "12664887038645606014"
             }
           },
           "parameters": {
@@ -874,7 +906,7 @@
               "type": "int",
               "defaultValue": 5,
               "metadata": {
-                "description": "Maximum number of replicas (default 5 for team tier, 10 for organization — higher values increase cost)"
+                "description": "Maximum number of replicas (default 5 for team tier, 10 for organization - higher values increase cost)"
               }
             },
             "acrLoginServer": {
@@ -932,11 +964,18 @@
               "metadata": {
                 "description": "CORS allowed origins (must be explicitly configured, empty by default)"
               }
+            },
+            "keyVaultUri": {
+              "type": "string",
+              "metadata": {
+                "description": "Key Vault URI used to source the MCP JWT signing secret (must contain MCP-JWT-SECRET)"
+              }
             }
           },
           "variables": {
             "envName": "[format('{0}-env', parameters('resourcePrefix'))]",
-            "appName": "[format('{0}-api', parameters('resourcePrefix'))]"
+            "appName": "[format('{0}-api', parameters('resourcePrefix'))]",
+            "mcpJwtSecretUri": "[format('{0}secrets/MCP-JWT-SECRET', parameters('keyVaultUri'))]"
           },
           "resources": [
             {
@@ -986,6 +1025,13 @@
                       "server": "[parameters('acrLoginServer')]",
                       "identity": "[parameters('identityId')]"
                     }
+                  ],
+                  "secrets": [
+                    {
+                      "name": "mcp-jwt-secret",
+                      "keyVaultUrl": "[variables('mcpJwtSecretUri')]",
+                      "identity": "[parameters('identityId')]"
+                    }
                   ]
                 },
                 "template": {
@@ -998,7 +1044,9 @@
                         "--http",
                         "--port",
                         "8000",
-                        "--no-auth"
+                        "--host",
+                        "0.0.0.0",
+                        "--allow-plaintext"
                       ],
                       "resources": {
                         "cpu": "[json('0.5')]",
@@ -1024,6 +1072,10 @@
                         {
                           "name": "PRIMR_CORS_ORIGINS",
                           "value": "[parameters('corsOrigins')]"
+                        },
+                        {
+                          "name": "MCP_JWT_SECRET",
+                          "secretRef": "mcp-jwt-secret"
                         }
                       ],
                       "probes": [
@@ -1886,7 +1938,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "5177109058500819227"
+              "templateHash": "4258337195508050215"
             }
           },
           "parameters": {
@@ -1977,7 +2029,7 @@
               "properties": {
                 "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
                 "siteConfig": {
-                  "linuxFxVersion": "PYTHON|3.10",
+                  "linuxFxVersion": "PYTHON|3.12",
                   "appSettings": [
                     {
                       "name": "AzureWebJobsStorage__accountName",

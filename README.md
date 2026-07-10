@@ -89,9 +89,12 @@ Current dry-run shape for the common setup:
 | `primr recon` | DNS intelligence only | 2-3 sec | $0.00 |
 
 Costs change with provider configuration, strategy count, cache hits, model pricing, and run mode. Treat `--dry-run` as the source of truth for the next run.
+Human dry-runs end with concise launch, monitoring, recovery, and artifact-retrieval steps. Add `--verbose` to inspect the serialized recovery policy, or `--json` to receive one machine-readable estimate object.
 `primr skills` generates Cowork icons locally by default; remote image APIs are used only with `--remote-icons`.
 Cached vendor research is reused when present. Fresh vendor-research generation or refresh requires `--refresh-vendor-research`, `primr --generate-vendor-research`, or `PRIMR_ALLOW_VENDOR_REFRESH=1`.
 PDF text extraction uses local PyMuPDF by default; Gemini PDF extraction is opt-in with `PRIMR_PDF_LLM_MAX_CALLS=N`.
+
+`primr init --help` and `primr doctor --help` show focused one-screen guidance for onboarding and diagnostics. Use `primr --help` for the complete command reference.
 
 See [Run Modes and Costs](docs/RUN_MODES.md) for the full mode matrix, platform selection, strategy types, premium modes, and output examples.
 

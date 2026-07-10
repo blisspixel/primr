@@ -6,7 +6,7 @@ Primr Setup - Interactive setup wizard
 # Postpone annotation evaluation so PEP 604 unions (e.g. `str | None`) used in
 # this module's function signatures don't raise TypeError at definition time on
 # Python < 3.10 — otherwise the script crashes during import, before its own
-# friendly "need 3.10+" version check can run.
+# friendly "need 3.12+" version check can run.
 from __future__ import annotations
 
 import os
@@ -45,7 +45,7 @@ def find_best_python():
     """Find the best Python interpreter (3.12+) on the system."""
     # Check current interpreter first
     v = sys.version_info
-    if v.major >= 3 and v.minor >= 12:
+    if (v.major, v.minor) >= (3, 12):
         return sys.executable
 
     # On Windows, try py launcher
@@ -462,7 +462,7 @@ def _ensure_supported_python_or_exit():
     v = sys.version_info
     current_python = sys.executable
 
-    if v.major >= 3 and v.minor >= 11:
+    if (v.major, v.minor) >= (3, 12):
         console.print(f"  [green]✓[/green] Python {v.major}.{v.minor}")
         return
 
@@ -716,7 +716,7 @@ def main_basic():
     print("\nPrimr Setup\n")
 
     v = sys.version_info
-    if v.major < 3 or (v.major == 3 and v.minor < 11):
+    if (v.major, v.minor) < (3, 12):
         print(f"  x Python {v.major}.{v.minor} (need 3.12+)")
         print()
         print("  Python 3.12 or newer is required")

@@ -7,6 +7,8 @@ continuous-reasoning toggle.
 
 from __future__ import annotations
 
+import pytest
+
 from primr.core.cli import Command, parse_args
 
 
@@ -24,6 +26,43 @@ class TestPositionalArgs:
     def test_init_positional_routes_to_init(self):
         config = parse_args(["init"])
         assert config.command == Command.INIT
+
+
+class TestScopedHelp:
+    def test_init_help_is_short_and_command_specific(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            parse_args(["init", "--help"])
+
+        assert exc_info.value.code == 0
+        output = capsys.readouterr().out
+        assert "usage: primr init" in output
+        assert "--non-interactive" in output
+        assert "--skip-browsers" in output
+        assert "--no-doctor" in output
+        assert "--eval" not in output
+        assert "--mode" not in output
+
+    def test_doctor_help_is_short_and_command_specific(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            parse_args(["doctor", "--help"])
+
+        assert exc_info.value.code == 0
+        output = capsys.readouterr().out
+        assert "usage: primr doctor" in output
+        assert "--fix" in output
+        assert "--scraper-stats" in output
+        assert "--eval" not in output
+        assert "--mode" not in output
+
+    def test_normal_init_and_doctor_options_still_parse(self):
+        init = parse_args(["init", "--no-doctor", "--skip-browsers"])
+        doctor = parse_args(["doctor", "--scraper-stats"])
+
+        assert init.command == Command.INIT
+        assert init.init_no_doctor is True
+        assert init.init_skip_browsers is True
+        assert doctor.command == Command.DOCTOR
+        assert doctor.doctor_scraper_stats is True
 
 
 class TestCompanyCommand:

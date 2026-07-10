@@ -6,14 +6,14 @@
 #
 # Security:
 # - Non-root user (primr, uid 1000)
-# - Minimal runtime image (python:3.11-slim)
+# - Minimal runtime image (python:3.12-slim)
 #
 # Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.8, 1.9
 
 # =============================================================================
 # Stage 1: Builder - Build wheel from source
 # =============================================================================
-FROM python:3.11-slim AS builder
+FROM python:3.12-slim AS builder
 
 WORKDIR /build
 
@@ -32,7 +32,7 @@ RUN python -m build --wheel --outdir /build/dist
 # =============================================================================
 # Stage 2: Runtime - Install wheel in minimal image
 # =============================================================================
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 # Create non-root user (primr, uid 1000)
 # Requirements: 1.4 (non-root execution)

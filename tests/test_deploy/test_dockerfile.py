@@ -60,24 +60,24 @@ class TestMultiStageBuild:
         from_matches = re.findall(r"^FROM\s+", dockerfile_content, re.MULTILINE)
         assert len(from_matches) >= 2, "Multi-stage build requires at least 2 FROM directives"
 
-    def test_builder_uses_python_311(self, dockerfile_content: str) -> None:
-        """Builder stage uses Python 3.11."""
+    def test_builder_uses_supported_python_floor(self, dockerfile_content: str) -> None:
+        """Builder stage uses the supported Python 3.12 floor."""
         # Find builder stage FROM line
         builder_match = re.search(
             r"FROM\s+(python:\S+)\s+AS\s+builder", dockerfile_content, re.IGNORECASE
         )
         assert builder_match is not None, "Builder stage not found"
-        assert "3.11" in builder_match.group(1), "Builder should use Python 3.11"
+        assert "3.12" in builder_match.group(1), "Builder should use Python 3.12"
 
-    def test_runtime_uses_python_311_slim(self, dockerfile_content: str) -> None:
-        """Runtime stage uses Python 3.11-slim."""
+    def test_runtime_uses_supported_python_floor(self, dockerfile_content: str) -> None:
+        """Runtime stage uses the supported Python 3.12 slim image."""
         # Find the second FROM (runtime stage)
         from_matches = list(re.finditer(r"^FROM\s+(\S+)", dockerfile_content, re.MULTILINE))
         assert len(from_matches) >= 2, "Need at least 2 FROM directives"
 
         runtime_image = from_matches[1].group(1)
-        assert "python:3.11-slim" in runtime_image, (
-            f"Runtime should use python:3.11-slim, got {runtime_image}"
+        assert "python:3.12-slim" in runtime_image, (
+            f"Runtime should use python:3.12-slim, got {runtime_image}"
         )
 
     def test_builder_builds_wheel(self, dockerfile_content: str) -> None:

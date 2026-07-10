@@ -99,6 +99,28 @@ class TestDryRunFlags:
         result = run_dry_run(_config(mode="scrape"))
         assert result == 0
 
+    def test_default_output_uses_compact_lifecycle_handoff(self, mocks, capsys):
+        result = run_dry_run(_config(mode="scrape"))
+
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "RECOVERY TABLE" in out
+        assert "Recovery Table JSON" not in out
+        assert "NEXT STEPS" in out
+        assert "--budget <usd>" in out
+        assert "--check-jobs" in out
+        assert "--resume-latest" in out
+        assert "--list-recent" in out
+        assert "For the default output directory" in out
+
+    def test_verbose_output_retains_recovery_json(self, mocks, capsys):
+        result = run_dry_run(_config(mode="scrape", verbose=True))
+
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "Recovery Table JSON" in out
+        assert "{}" in out
+
     def test_budget_policy_prints_optional_strategy_checkpoint_for_premium(self, mocks, capsys):
         result = run_dry_run(_config(mode="complete", premium_mode=True, budget_usd=2.0))
 

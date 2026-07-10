@@ -128,6 +128,145 @@ def test_release_workflow_builds_on_supported_python_floor() -> None:
     assert "python-version: '3.11'" not in release_workflow
 
 
+def test_release_requires_exact_tag_on_green_main_commit() -> None:
+    release_workflow = (REPO_ROOT / ".github" / "workflows" / "release.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "group: primr-release" in release_workflow
+    assert release_workflow.count('ref: "refs/tags/${{ steps.meta.outputs.tag }}"') == 1
+    assert "tag_sha: ${{ steps.provenance.outputs.tag_sha }}" in release_workflow
+    assert "ref: ${{ needs.build.outputs.tag_sha }}" in release_workflow
+    assert 'git show-ref --verify --quiet "refs/tags/$TAG"' in release_workflow
+    assert 'git merge-base --is-ancestor "$TAG_SHA" origin/main' in release_workflow
+    assert "runs?branch=main&head_sha=${TAG_SHA}&event=push" in release_workflow
+    assert "gh api --paginate --slurp" not in release_workflow
+    assert "seq 1 135" in release_workflow
+    assert ".head_sha == $sha" in release_workflow
+    assert '.event == "push"' in release_workflow
+    assert '.head_branch == "main"' in release_workflow
+    assert 'if [ "$REMOTE_TAG_SHA" != "$EXPECTED_TAG_SHA" ]' in release_workflow
+    publish_step = "      - name: Publish to PyPI"
+    assert release_workflow.index("Require tag unchanged before publication") < (
+        release_workflow.index(publish_step)
+    )
+
+
+def test_release_requires_changelog_notes_and_verifies_pypi_hashes() -> None:
+    release_workflow = (REPO_ROOT / ".github" / "workflows" / "release.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'body = (m.group(1).strip() if m else f"Release {version}.")' not in release_workflow
+    assert "No changelog section found" in release_workflow
+    assert "scripts/verify_release_artifacts.py" in release_workflow
+    assert "Verify published PyPI artifact hashes" in release_workflow
+    assert "Check for an existing PyPI release before publishing" in release_workflow
+    assert "--allow-absent" in release_workflow
+    assert "uv sync --locked --only-group release --no-install-project --python 3.12" in (
+        release_workflow
+    )
+    assert "python -m build --no-isolation" in release_workflow
+    assert release_workflow.index("Extract required release notes") < release_workflow.index(
+        "Publish to PyPI"
+    )
+    assert release_workflow.index(
+        "Check for an existing PyPI release before publishing"
+    ) < release_workflow.index("Publish to PyPI")
+    assert "path: .agent/release-automation" not in release_workflow
+
+
+def test_changelog_contains_current_package_version() -> None:
+    version = _read_pyproject_version()
+    changelog = (REPO_ROOT / "docs" / "CHANGELOG.md").read_text(encoding="utf-8")
+
+    match = re.search(
+        rf"^## \[{re.escape(version)}\](?:\s+-[^\n]*)?\n(?P<body>.*?)(?=\n## \[|\Z)",
+        changelog,
+        re.MULTILINE | re.DOTALL,
+    )
+
+    assert match is not None
+    assert match.group("body").strip()
+
+
+def test_ci_builds_documentation_strictly() -> None:
+    ci_workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert "--extra docs" in ci_workflow
+    assert "mkdocs build --strict" in ci_workflow
+
+
+def test_all_runtime_surfaces_use_supported_python_floor() -> None:
+    floor = _read_pyproject_python_floor()
+    compact_floor = floor.replace(".", "")
+    pyproject = _read_pyproject()
+
+    deploy_dockerfile = (REPO_ROOT / "deploy" / "Dockerfile").read_text(encoding="utf-8")
+    openclaw_dockerfile = (REPO_ROOT / "openclaw" / "Dockerfile.primr").read_text(encoding="utf-8")
+    aws_deploy = (REPO_ROOT / "deploy" / "aws" / "deploy.sh").read_text(encoding="utf-8")
+    azure_deploy = (REPO_ROOT / "deploy" / "azure" / "deploy.sh").read_text(encoding="utf-8")
+    azure_function = (
+        REPO_ROOT / "deploy" / "azure" / "bicep" / "modules" / "function.bicep"
+    ).read_text(encoding="utf-8")
+    compiled_azure_template = (REPO_ROOT / "deploy" / "azure" / "bicep" / "main.json").read_text(
+        encoding="utf-8"
+    )
+    setup_script = (REPO_ROOT / "setup_env.py").read_text(encoding="utf-8")
+    init_module = (REPO_ROOT / "src" / "primr" / "core" / "cli_init.py").read_text(encoding="utf-8")
+    doctor_module = (REPO_ROOT / "src" / "primr" / "core" / "cli_doctor.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert deploy_dockerfile.count(f"FROM python:{floor}-slim") == 2
+    assert f"FROM python:{floor}-slim" in openclaw_dockerfile
+    assert f"--runtime python{floor}" in aws_deploy
+    assert f"--runtime-version {floor}" in azure_deploy
+    assert f"linuxFxVersion: 'PYTHON|{floor}'" in azure_function
+    assert f'"linuxFxVersion": "PYTHON|{floor}"' in compiled_azure_template
+    assert pyproject["tool"]["ruff"]["target-version"] == f"py{compact_floor}"
+
+    major, minor = floor.split(".")
+    assert f"(v.major, v.minor) >= ({major}, {minor})" in setup_script
+    assert f"(v.major, v.minor) < ({major}, {minor})" in setup_script
+    for module_text in (init_module, doctor_module):
+        assert f"py_version >= ({major}, {minor})" in module_text
+        assert f"need {floor}+" in module_text
+
+
+def test_ci_matrix_matches_declared_python_classifiers() -> None:
+    classifiers = _read_pyproject()["project"]["classifiers"]
+    supported_versions = {
+        classifier.rsplit(" :: ", 1)[-1]
+        for classifier in classifiers
+        if re.fullmatch(r"Programming Language :: Python :: 3\.\d+", classifier)
+    }
+    ci_workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    matrix_match = re.search(r"python-version:\s*\[(?P<versions>[^\]]+)\]", ci_workflow)
+
+    assert matrix_match is not None
+    matrix_versions = set(re.findall(r'"(3\.\d+)"', matrix_match.group("versions")))
+    assert matrix_versions == supported_versions
+
+
+def test_dependency_guidance_uses_supported_python_floor() -> None:
+    floor = _read_pyproject_python_floor()
+    ai_dir = REPO_ROOT / "src" / "primr" / "ai"
+    guidance_files = (
+        "client.py",
+        "async_client.py",
+        "deep_research.py",
+        "llm.py",
+        "report_architect.py",
+        "report_aggregator.py",
+        "research_executor.py",
+    )
+
+    for name in guidance_files:
+        text = (ai_dir / name).read_text(encoding="utf-8")
+        assert f"Python {floor}+ and project requirements" in text, name
+
+
 def test_automation_rejects_stale_lockfile() -> None:
     ci_workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     release_workflow = (REPO_ROOT / ".github" / "workflows" / "release.yml").read_text(
@@ -135,7 +274,7 @@ def test_automation_rejects_stale_lockfile() -> None:
     )
 
     sync_commands = re.findall(r"^\s*run:\s*(uv sync .+)$", ci_workflow, re.MULTILINE)
-    export_commands = re.findall(r"^\s*pipx run (uv export .+)$", release_workflow, re.MULTILINE)
+    export_commands = re.findall(r"^\s*(uv export .+)$", release_workflow, re.MULTILINE)
     assert sync_commands
     assert export_commands
     assert all("--locked" in command and "--frozen" not in command for command in sync_commands)
@@ -208,6 +347,9 @@ def test_cli_epilog_uses_current_default_cost_band() -> None:
     assert "~$0.89-$1.01" in CLI_EPILOG
     assert "~$6" not in CLI_EPILOG
     assert "60-90 min" not in CLI_EPILOG
+    assert CLI_EPILOG.index("--dry-run") < CLI_EPILOG.index(
+        'primr "Acme Corp" https://acme.example\n'
+    )
 
 
 def test_keys_set_help_mentions_all_common_llm_providers(

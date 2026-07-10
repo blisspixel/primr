@@ -38,6 +38,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Release automation now accepts only an exact tag contained in `main` after a
+  successful CI run for that commit. Same-tag runs are serialized, versioned
+  changelog notes are mandatory, release tooling is lockfile-backed, and PyPI
+  filenames and SHA-256 hashes must match the built wheel and source archive
+  before the GitHub release is created.
+- CI now builds the documentation site in strict mode, and the locally testable
+  release verifier rejects missing, extra, or mismatched distribution files.
+- The locked development toolchain now uses pip 26.1.2, and CI no longer carries
+  the obsolete pip advisory exception.
+- Python support is now consistent at 3.12+ across setup, `primr init`,
+  `primr doctor`, both container images, AWS Lambda, Azure Functions, Ruff,
+  dependency guidance, CI, and release builds. New cross-surface integrity tests
+  derive their assertions from package metadata so unsupported runtimes cannot
+  silently return.
+- Human dry-runs now keep the recovery preview concise by default and end with
+  explicit launch, monitoring, interruption-recovery, and artifact-retrieval
+  steps. `--verbose` retains the serialized recovery policy, while `--json`
+  remains one machine-readable object.
+- Long-running phase banners now display caller-supplied duration expectations,
+  making existing 5-30 minute waits visible without changing quiet-mode output.
+- `primr init --help` and `primr doctor --help` now show concise command-specific
+  options and examples instead of the full global research and evaluation flag
+  inventory. Root help remains unchanged as the complete reference.
 - Explicit local-only calibration dry runs and pack manifests now report zero
   estimated cloud spend. Auto mode quotes its cloud fallback ceiling, while
   cloud and cloud-vs-local comparison plans retain their bounded paid-call
