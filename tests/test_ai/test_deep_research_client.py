@@ -271,7 +271,7 @@ class TestCheckJob:
         assert result["content"] == "full body"
         assert result["citations"] == [{"url": "x"}]
         assert result["terminal"] is True
-        remove_mock.assert_called_once_with("iid-1")
+        remove_mock.assert_not_called()
 
     @pytest.mark.parametrize(
         "terminal_status",
@@ -283,13 +283,14 @@ class TestCheckJob:
         client._client.interactions.get.return_value = interaction
         with (
             patch.object(client, "_format_interaction_error", return_value="provider error"),
-            patch("primr.ai.deep_research.remove_pending_job"),
+            patch("primr.ai.deep_research.remove_pending_job") as remove_mock,
         ):
             result = client.check_job("iid-2")
         assert result["status"] == terminal_status
         assert result["terminal"] is True
         assert result["error"] == "provider error"
         assert result["error_source"] == "provider"
+        remove_mock.assert_not_called()
 
     def test_in_progress_not_terminal(self, client):
         interaction = MagicMock()

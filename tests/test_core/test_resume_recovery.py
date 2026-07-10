@@ -7,7 +7,7 @@ import os
 from datetime import datetime
 from unittest.mock import Mock, patch
 
-from primr.core import cli
+from primr.core import cli, cli_recovery
 
 
 def test_build_recovered_basename_ai_strategy_includes_company_vendor_and_date():
@@ -20,7 +20,7 @@ def test_build_recovered_basename_ai_strategy_includes_company_vendor_and_date()
         },
     }
     date_str = datetime.now().strftime("%m-%d-%Y")
-    name = cli._build_recovered_basename("interaction-123", job_info)
+    name = cli_recovery._build_recovered_basename("interaction-123", job_info)
     assert name == f"ExampleCo_AI_Strategy_AWS_{date_str}"
 
 
@@ -30,13 +30,11 @@ def test_build_recovered_basename_strategic_overview():
         "metadata": {"company_name": "ExampleCo", "report_kind": "strategic_overview"},
     }
     date_str = datetime.now().strftime("%m-%d-%Y")
-    name = cli._build_recovered_basename("interaction-123", job_info)
+    name = cli_recovery._build_recovered_basename("interaction-123", job_info)
     assert name == f"ExampleCo_Strategic_Overview_{date_str}"
 
 
 def test_save_recovered_outputs_writes_md_txt_and_docx(tmp_path, monkeypatch):
-    from primr.core import cli_recovery
-
     monkeypatch.setattr(cli, "OUTPUT_DIR", str(tmp_path))
     monkeypatch.setattr(cli_recovery, "OUTPUT_DIR", str(tmp_path))
     job_info = {
@@ -50,7 +48,7 @@ def test_save_recovered_outputs_writes_md_txt_and_docx(tmp_path, monkeypatch):
     content = "# Title\n\nRecovered content."
 
     with patch("primr.output.markdown_converter.markdown_to_docx") as mock_to_docx:
-        outputs = cli._save_recovered_outputs("interaction-123", job_info, content)
+        outputs = cli_recovery._save_recovered_outputs("interaction-123", job_info, content)
 
     assert outputs["md"].endswith(".md")
     assert outputs["txt"].endswith(".txt")
@@ -63,8 +61,6 @@ def test_save_recovered_outputs_writes_md_txt_and_docx(tmp_path, monkeypatch):
 
 
 def test_find_latest_run_state_returns_most_recent(tmp_path, monkeypatch):
-    from primr.core import cli_recovery
-
     monkeypatch.setattr(cli, "WORKING_DIR", str(tmp_path))
     monkeypatch.setattr(cli_recovery, "WORKING_DIR", str(tmp_path))
     older = tmp_path / "ExampleCo" / "2026-02-24_1700"
@@ -82,7 +78,7 @@ def test_find_latest_run_state_returns_most_recent(tmp_path, monkeypatch):
     os.utime(older_state, (100, 100))
     os.utime(newer_state, (200, 200))
 
-    found = cli._find_latest_run_state()
+    found = cli_recovery._find_latest_run_state()
     assert found is not None
     path, state = found
     assert path.endswith(str(newer_state))
@@ -107,8 +103,6 @@ def test_resume_pending_jobs_returns_error_when_check_error(monkeypatch):
 def test_resume_pending_jobs_finalizes_completed(monkeypatch):
     import importlib
 
-    from primr.core import cli_recovery
-
     deep_research_module = importlib.import_module("primr.ai.deep_research")
     jobs = {"job-1": {"description": "ExampleCo AI strategy", "type": "deep_research"}}
     client = Mock()
@@ -128,8 +122,6 @@ def test_resume_pending_jobs_finalizes_completed(monkeypatch):
 
 def test_resume_pending_jobs_falls_back_to_txt_when_finalize_fails(tmp_path, monkeypatch):
     import importlib
-
-    from primr.core import cli_recovery
 
     deep_research_module = importlib.import_module("primr.ai.deep_research")
     jobs = {"job-1": {"description": "ExampleCo AI strategy", "type": "deep_research"}}
@@ -154,22 +146,68 @@ def test_resume_pending_jobs_falls_back_to_txt_when_finalize_fails(tmp_path, mon
     assert exit_code == 1
 
 
-def test_find_latest_run_state_returns_none_for_malformed_json(tmp_path, monkeypatch):
-    from primr.core import cli_recovery
+def test_resume_pending_jobs_returns_error_for_mixed_batch(monkeypatch):
+    import importlib
 
+    deep_research_module = importlib.import_module("primr.ai.deep_research")
+    jobs = {
+        "completed-job": {"description": "Completed", "type": "deep_research"},
+        "failed-job": {"description": "Failed", "type": "deep_research"},
+    }
+    client = Mock()
+    client.check_job.side_effect = [
+        {"status": "completed", "content": "Final content"},
+        {"status": "failed", "error": "Provider failed", "terminal": True},
+    ]
+
+    monkeypatch.setattr(deep_research_module, "get_pending_jobs", lambda: jobs)
+    monkeypatch.setattr(deep_research_module, "get_deep_research_client", lambda: client)
+    monkeypatch.setattr(
+        cli_recovery,
+        "_save_recovered_outputs",
+        lambda *_args: {"md": "a.md", "docx": "a.docx", "txt": "a.txt"},
+    )
+    monkeypatch.setattr("primr.ai.job_persistence.remove_pending_job", lambda _job_id: True)
+
+    assert cli.resume_pending_jobs() == 1
+
+
+def test_resume_pending_jobs_returns_error_when_acknowledgement_fails(monkeypatch, capsys):
+    import importlib
+
+    deep_research_module = importlib.import_module("primr.ai.deep_research")
+    client = Mock()
+    client.check_job.return_value = {"status": "completed", "content": "Final content"}
+
+    monkeypatch.setattr(
+        deep_research_module,
+        "get_pending_jobs",
+        lambda: {"job-1": {"description": "Completed", "type": "deep_research"}},
+    )
+    monkeypatch.setattr(deep_research_module, "get_deep_research_client", lambda: client)
+    monkeypatch.setattr(
+        cli_recovery,
+        "_save_recovered_outputs",
+        lambda *_args: {"md": "a.md", "docx": "a.docx", "txt": "a.txt"},
+    )
+    monkeypatch.setattr("primr.ai.job_persistence.remove_pending_job", lambda _job_id: False)
+
+    assert cli.resume_pending_jobs() == 1
+    assert "pending job record could not be updated" in capsys.readouterr().out
+
+
+def test_find_latest_run_state_returns_none_for_malformed_json(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "WORKING_DIR", str(tmp_path))
     monkeypatch.setattr(cli_recovery, "WORKING_DIR", str(tmp_path))
     bad = tmp_path / "ExampleCo" / "2026-02-25_0200"
     bad.mkdir(parents=True)
     (bad / "_run_state.json").write_text("{not-json", encoding="utf-8")
 
-    found = cli._find_latest_run_state()
+    found = cli_recovery._find_latest_run_state()
     assert found is None
 
 
 def test_find_latest_run_state_skips_bad_newest_file(tmp_path, monkeypatch):
-    from primr.core import cli_recovery
-
     monkeypatch.setattr(cli, "WORKING_DIR", str(tmp_path))
     monkeypatch.setattr(cli_recovery, "WORKING_DIR", str(tmp_path))
     older = tmp_path / "ExampleCo" / "2026-02-24_1700"
@@ -185,7 +223,7 @@ def test_find_latest_run_state_skips_bad_newest_file(tmp_path, monkeypatch):
     os.utime(older_state, (100, 100))
     os.utime(newer_state, (200, 200))
 
-    found = cli._find_latest_run_state()
+    found = cli_recovery._find_latest_run_state()
     assert found is not None
     path, state = found
     assert path.endswith(str(older_state))

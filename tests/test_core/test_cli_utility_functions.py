@@ -129,13 +129,23 @@ class TestCheckApiQuota:
 
 
 class TestCheckPendingJobs:
-    def test_no_pending_jobs_prints_message(self, monkeypatch, capsys):
+    def test_no_pending_jobs_also_shows_latest_local_state(self, monkeypatch, tmp_path, capsys):
         import primr.ai.deep_research as dr
+        from primr.core import cli_recovery
 
         monkeypatch.setattr(dr, "get_pending_jobs", dict)
-        check_pending_jobs()
+        run_dir = tmp_path / "ExampleCo" / "run"
+        run_dir.mkdir(parents=True)
+        (run_dir / "_run_state.json").write_text(
+            '{"status":"running","current_phase":"scrape"}',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(cli_recovery, "WORKING_DIR", str(tmp_path))
+        assert check_pending_jobs() == 0
         captured = capsys.readouterr()
-        assert "No pending jobs" in captured.out
+        assert "No pending cloud jobs" in captured.out
+        assert "Latest local run state" in captured.out
+        assert "Company: ExampleCo" in captured.out
 
     def test_in_progress_status_logged(self, monkeypatch):
         import primr.ai.deep_research as dr
@@ -148,7 +158,7 @@ class TestCheckPendingJobs:
         client = MagicMock()
         client.check_job.return_value = {"status": "in_progress", "error": None}
         monkeypatch.setattr(dr, "get_deep_research_client", lambda: client)
-        check_pending_jobs()
+        assert check_pending_jobs() == 0
 
     def test_failed_status_logged(self, monkeypatch):
         import primr.ai.deep_research as dr
@@ -165,9 +175,30 @@ class TestCheckPendingJobs:
             "error_source": "provider",
         }
         monkeypatch.setattr(dr, "get_deep_research_client", lambda: client)
-        check_pending_jobs()
+        assert check_pending_jobs() == 1
 
-    def test_completed_status_finalizes(self, monkeypatch, tmp_path):
+    def test_status_check_error_returns_nonzero_and_keeps_retry_guidance(self, monkeypatch, capsys):
+        import primr.ai.deep_research as dr
+
+        monkeypatch.setattr(
+            dr,
+            "get_pending_jobs",
+            lambda: {"j1": {"description": "ExampleCo", "started": "now"}},
+        )
+        client = MagicMock()
+        client.check_job.return_value = {
+            "status": "check_error",
+            "error": "network down",
+            "error_source": "local",
+        }
+        monkeypatch.setattr(dr, "get_deep_research_client", lambda: client)
+
+        assert check_pending_jobs() == 1
+        output = capsys.readouterr().out
+        assert "CHECK ERROR" in output
+        assert "Re-run `primr --check-jobs` later" in output
+
+    def test_completed_status_is_read_only_and_points_to_resume(self, monkeypatch, capsys):
         import primr.ai.deep_research as dr
 
         monkeypatch.setattr(
@@ -182,6 +213,7 @@ class TestCheckPendingJobs:
         }
         monkeypatch.setattr(dr, "get_deep_research_client", lambda: client)
         save_mock = MagicMock(return_value={"md": "/x.md", "txt": "/x.txt", "docx": "/x.docx"})
-        monkeypatch.setattr("primr.core.cli._save_recovered_outputs", save_mock)
-        check_pending_jobs()
-        save_mock.assert_called_once()
+        monkeypatch.setattr("primr.core.cli_recovery._save_recovered_outputs", save_mock)
+        assert check_pending_jobs() == 0
+        save_mock.assert_not_called()
+        assert "primr --resume-latest" in capsys.readouterr().out

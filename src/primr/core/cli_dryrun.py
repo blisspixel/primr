@@ -168,7 +168,10 @@ def run_dry_run(config: CLIConfig) -> int:
     print("  1. Launch: repeat this command without --dry-run.")
     print("     Optional: add --budget <usd> to enforce a run ceiling.")
     print("  2. Monitor: follow the phase markers in this terminal.")
-    print("  3. Recover interrupted cloud work: primr --check-jobs, then primr --resume-latest.")
+    print(
+        "  3. Recover interrupted cloud work: primr --check-jobs; when completed, "
+        "run primr --resume-latest."
+    )
     print("  4. Retrieve: use the artifact path printed when the run completes.")
     print("     For the default output directory, primr --list-recent also lists recent reports.")
     print("")

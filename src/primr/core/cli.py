@@ -125,20 +125,8 @@ from primr.core.cli_parser import (
 from primr.core.cli_plan import run_plan
 from primr.core.cli_preflight import _run_preflight_checks
 from primr.core.cli_recovery import (
-    _build_recovered_basename as _build_recovered_basename,
-)
-from primr.core.cli_recovery import (
-    _find_latest_run_state as _find_latest_run_state,
-)
-from primr.core.cli_recovery import (
-    _sanitize_output_stem as _sanitize_output_stem,
-)
-from primr.core.cli_recovery import (
-    _save_recovered_outputs,
+    check_pending_jobs,
     resume_pending_jobs,
-)
-from primr.core.cli_recovery import (
-    _show_latest_run_state_hint as _show_latest_run_state_hint,
 )
 from primr.core.cli_validation_policy import should_include_api_keys
 from primr.core.cli_vendor import run_generate_vendor
@@ -1057,12 +1045,16 @@ def _create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--generate-vendor-research", type=str, choices=["azure", "aws", "gcp", "agnostic", "all"]
     )
-    parser.add_argument("--check-jobs", action="store_true", help="Check pending research jobs")
+    parser.add_argument(
+        "--check-jobs",
+        action="store_true",
+        help="Read pending cloud job status and show the latest local run state",
+    )
     parser.add_argument(
         "--resume-latest",
         "--resume-jobs",
         action="store_true",
-        help="Recover completed pending jobs and finalize canonical output files",
+        help="Finalize completed jobs and acknowledge provider-terminal jobs",
     )
     parser.add_argument("--clear-jobs", action="store_true", help="Clear stale pending jobs")
     parser.add_argument(
@@ -1298,8 +1290,7 @@ def _handle_check_quota(config: CLIConfig) -> int:
 
 def _handle_check_jobs(config: CLIConfig) -> int:
     """Handle check-jobs command."""
-    check_pending_jobs()
-    return 0
+    return check_pending_jobs()
 
 
 def _handle_resume_latest(config: CLIConfig) -> int:
@@ -2714,69 +2705,6 @@ def check_api_quota() -> None:
             console.error("Invalid API key")
         else:
             console.error(f"API check failed: {e}")
-
-
-def check_pending_jobs() -> None:
-    """Check pending research jobs."""
-    from primr.ai.deep_research import get_deep_research_client, get_pending_jobs
-
-    console.banner("Pending Research Jobs")
-    jobs = get_pending_jobs()
-
-    if not jobs:
-        console.info("No pending jobs found.")
-        return
-
-    console.info(f"Found {len(jobs)} pending job(s)")
-    client = get_deep_research_client()
-
-    for interaction_id, job_info in jobs.items():
-        console.step(f"Checking: {job_info.get('description', 'Unknown')[:60]}...")
-        console.info(f"  ID: {interaction_id}")
-        console.info(f"  Started: {job_info.get('started', 'Unknown')}")
-
-        result = client.check_job(interaction_id)
-        status = result.get("status", "unknown")
-        error = result.get("error")
-        error_source = result.get("error_source")
-        is_terminal = bool(result.get("terminal", False))
-
-        if status == "completed":
-            console.ok("  Status: COMPLETED")
-            content = result.get("content", "")
-            if content:
-                try:
-                    outputs = _save_recovered_outputs(interaction_id, job_info, content)
-                    console.ok(f"  Finalized MD: {outputs['md']}")
-                    console.ok(f"  Finalized DOCX: {outputs['docx']}")
-                except Exception as e:
-                    job_type = job_info.get("type", "research")
-                    output_file = os.path.join(
-                        OUTPUT_DIR, f"recovered_{job_type}_{interaction_id[:8]}.txt"
-                    )
-                    with open(output_file, "w", encoding="utf-8") as f:
-                        f.write(content)
-                    console.warn(f"  Canonical finalize failed: {e}")
-                    console.ok(f"  Saved fallback TXT: {output_file}")
-        elif status in {"failed", "error", "cancelled", "canceled", "expired"}:
-            console.error("  Status: FAILED")
-            if error_source == "provider":
-                console.error("  Source: Cloud provider reported terminal failure")
-            console.error(f"  Error: {error or 'Unknown'}")
-        elif status == "check_error":
-            console.error("  Status: CHECK ERROR")
-            if error_source == "local":
-                console.error("  Source: Local API connectivity/status check")
-            console.error(f"  Error: {error or 'Unknown'}")
-            console.info("  Job may still be running in the cloud. Re-run `primr --check-jobs`.")
-        elif status == "in_progress":
-            console.info("  Status: IN PROGRESS (still running)")
-        else:
-            console.info(f"  Status: {status}")
-            if error:
-                console.info(f"  Detail: {error}")
-            if is_terminal:
-                console.info("  Terminal state reached; job removed from pending list.")
 
 
 def _handle_list_strategies(config: CLIConfig) -> int:

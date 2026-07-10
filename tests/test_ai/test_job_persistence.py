@@ -118,31 +118,31 @@ class TestRemovePendingJob:
     def test_removes_existing_job(self, job_path):
         save_pending_job("iid-1", "vendor_research", "X")
         save_pending_job("iid-2", "vendor_research", "Y")
-        remove_pending_job("iid-1")
+        assert remove_pending_job("iid-1") is True
         loaded = json.loads(job_path.read_text(encoding="utf-8"))
         assert "iid-1" not in loaded
         assert "iid-2" in loaded
 
     def test_no_op_when_file_missing(self, job_path):
-        # File doesn't exist yet — should silently return
-        remove_pending_job("iid-1")
+        # File does not exist yet, so removal should succeed without creating it.
+        assert remove_pending_job("iid-1") is True
         assert not job_path.exists()
 
     def test_no_op_for_unknown_id(self, job_path):
         save_pending_job("iid-1", "vendor_research", "X")
-        remove_pending_job("non-existent")
+        assert remove_pending_job("non-existent") is True
         loaded = json.loads(job_path.read_text(encoding="utf-8"))
         assert "iid-1" in loaded
 
     def test_handles_empty_file_gracefully(self, job_path):
         job_path.write_text("", encoding="utf-8")
-        remove_pending_job("iid-anything")
+        assert remove_pending_job("iid-anything") is True
         # No exception, file unchanged.
 
     def test_handles_corrupt_file_gracefully(self, job_path):
         job_path.write_text("{not-json", encoding="utf-8")
         # Should log a warning and return without raising.
-        remove_pending_job("iid-anything")
+        assert remove_pending_job("iid-anything") is False
 
 
 class TestGetPendingJobs:

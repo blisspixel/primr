@@ -836,7 +836,7 @@ The pipeline resilience layer formalizes Primr's retry and recovery logic into t
 
 The resilience layer sits between the pipeline orchestrator (`research_agent.py`) and the AI clients (`grok_client.py`, `llm.py`). It shares no mutable global state and is fully unit-testable. On successful runs, it adds no observable behavior change (NFR 1).
 
-- **Recovery Table** (`recovery.py`): Declarative mapping from each of the six pipeline stages to its recovery hierarchy. Pure data - serializable to JSON, inspectable via `--dry-run` (`primr --dry-run` includes the full recovery table).
+- **Recovery Table** (`recovery.py`): Declarative mapping from each of the six pipeline stages to its recovery hierarchy. Pure data, serializable to JSON and summarized by `--dry-run`; `--verbose` includes the full serialized table.
 - **Stage Classifier** (`stages.py`): Static foreground/background classification. Foreground: scraping, external search, analysis, section writing. Background: cross-validation, strategy generation.
 - **Model Circuit Breaker** (`model_breaker.py`): Per-model health tracking with provider-aware fallback chains (e.g., Grok 4.3 → Grok 4.20 → Grok 4.1 → Gemini Flash). Verifies API key availability before cross-provider fallback.
 - **Recovery Executor** (`executor.py`): Integration glue that wraps stage callables, consults the classifier and recovery table on failure, and logs all recovery events to `_run_state.json`.

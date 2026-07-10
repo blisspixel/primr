@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `primr --check-jobs` is now a read-only cloud and local status view. Completed jobs remain recoverable until `--resume-latest` durably finalizes their outputs, and provider-terminal or connectivity failures return a nonzero status instead of a false success.
+- Recovery output now derives a missing company name from the working path, omits absent fields instead of printing `unknown`, and documents platform-neutral inspection, explicit finalization, and retry behavior consistently.
+
 ## [1.34.48] - 2026-07-10
 
 ### Added

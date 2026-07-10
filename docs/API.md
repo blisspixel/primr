@@ -482,24 +482,24 @@ result = await client.research(
 Deep Research jobs run asynchronously. If a connection drops, the job continues on Google's servers.
 
 ```python
-from primr.ai.deep_research import (
-    get_deep_research_client,
+from primr.ai.deep_research import get_deep_research_client
+from primr.ai.job_persistence import (
     get_pending_jobs,
-    save_pending_job,
     remove_pending_job,
+    save_pending_job,
 )
 
-# Check status of a specific job
+# Check status of a specific job without mutating pending state
 client = get_deep_research_client()
 result = client.check_job("v1_abc123...")
-print(f"Status: {result['status']}")  # in_progress, completed, failed
+print(f"Status: {result['status']}")  # active, completed, terminal, or check_error
 if result['content']:
     print(f"Content: {result['content'][:500]}...")
 
 # List all pending jobs
 jobs = get_pending_jobs()
 for job_id, info in jobs.items():
-    print(f"{job_id}: {info['description']} ({info['status']})")
+    print(f"{job_id}: {info['description']} (saved {info['started']})")
 
 # Manually save a job for later recovery
 save_pending_job(
@@ -508,14 +508,15 @@ save_pending_job(
     description="AI Strategy for Acme Corp"
 )
 
-# Remove a completed job from tracking
+# Remove a completed job only after its output is durably saved
 remove_pending_job("v1_abc123...")
 ```
 
 **CLI commands for job management:**
 ```bash
-primr --check-jobs   # Check status of all pending jobs
-primr --clear-jobs   # Clear stale/old pending jobs
+primr --check-jobs     # Read-only cloud and latest-local status
+primr --resume-latest  # Finalize completed cloud jobs, then acknowledge them
+primr --clear-jobs     # Clear stale/old pending records without recovery
 ```
 
 ## Scraping

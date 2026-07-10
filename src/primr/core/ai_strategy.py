@@ -271,12 +271,19 @@ async def generate_ai_strategy(
     # Build prompt
     prompt = build_ai_strategy_prompt(company_name, vendor)
 
+    recovered_interaction_id: str | None = None
+
+    def capture_recovered_interaction(interaction_id: str) -> None:
+        nonlocal recovered_interaction_id
+        recovered_interaction_id = interaction_id
+
     # Execute Deep Research
     content = await _execute_strategy_research(
         prompt=prompt,
         context_files=context_files,
         timeout=config.timeout_seconds,
         on_progress=on_progress,
+        on_recovery_ready=capture_recovered_interaction,
     )
 
     if not content:
@@ -294,6 +301,13 @@ async def generate_ai_strategy(
     output_paths = _save_strategy_outputs(
         content=content, company_name=company_name, platform=vendor
     )
+    if recovered_interaction_id and all(output_paths.values()):
+        from primr.ai.job_persistence import remove_pending_job
+
+        if not remove_pending_job(recovered_interaction_id):
+            console.warn(
+                "AI Strategy outputs were saved, but the pending job record could not be updated."
+            )
 
     # Record usage for standalone invocations (MCP generate_strategy and
     # CLI --ai-strategy-only do not flow through the main research
@@ -458,7 +472,12 @@ async def _gather_context(
 
 
 async def _poll_for_completion(
-    client, interaction_id: str, prompt: str, max_poll_time: int = 1800, poll_interval: int = 120
+    client,
+    interaction_id: str,
+    prompt: str,
+    max_poll_time: int = 1800,
+    poll_interval: int = 120,
+    on_recovery_ready: Callable[[str], None] | None = None,
 ) -> str | None:
     """Poll for job completion after streaming interruption."""
     from primr.ai.deep_research import save_pending_job
@@ -482,6 +501,8 @@ async def _poll_for_completion(
             content = check_result.get("content", "")
             if content:
                 console.ok("AI Strategy: Job completed!")
+                if on_recovery_ready:
+                    on_recovery_ready(interaction_id)
                 return content
             console.warn("AI Strategy: Job completed but no content returned")
             return None
@@ -501,6 +522,7 @@ async def _execute_strategy_research(
     context_files: list[str],
     timeout: int,
     on_progress: Callable[[str], None] | None = None,
+    on_recovery_ready: Callable[[str], None] | None = None,
 ) -> str | None:
     """Execute Deep Research for AI strategy with polling fallback."""
     from primr.ai.deep_research import ResearchStatus, get_deep_research_client, save_pending_job
@@ -535,7 +557,12 @@ async def _execute_strategy_research(
 
         # Poll for completion if we have an interaction ID
         if interaction_id:
-            return await _poll_for_completion(client, interaction_id, prompt)
+            return await _poll_for_completion(
+                client,
+                interaction_id,
+                prompt,
+                on_recovery_ready=on_recovery_ready,
+            )
 
         error_msg = result.error if hasattr(result, "error") and result.error else "Unknown error"
         console.error(f"AI Strategy research failed: {error_msg}")

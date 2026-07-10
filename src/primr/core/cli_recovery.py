@@ -25,6 +25,9 @@ from primr.utils.console import console
 
 logger = logging.getLogger(__name__)
 
+_ACTIVE_JOB_STATUSES = frozenset({"in_progress", "pending", "queued", "running"})
+_TERMINAL_FAILURE_STATUSES = frozenset({"failed", "error", "cancelled", "canceled", "expired"})
+
 
 def _sanitize_output_stem(value: str) -> str:
     """Convert user/model-provided names into safe filename stems."""
@@ -143,24 +146,104 @@ def _show_latest_run_state_hint() -> None:
     if not latest:
         return
     path, state = latest
-    company = state.get("company_name", "Unknown")
-    mode = state.get("mode", "unknown")
-    status = state.get("status", "unknown")
-    phase = state.get("current_phase", "unknown")
-    updated = state.get("updated_at", "unknown")
+    company = str(state.get("company_name", "")).strip()
+    if not company or company.lower() == "unknown":
+        company = Path(path).parent.parent.name
+    fields = (
+        ("Company", company),
+        ("Mode", state.get("mode")),
+        ("Status", state.get("status")),
+        ("Phase", state.get("current_phase")),
+        ("Updated", state.get("updated_at")),
+    )
     console.blank()
     console.info("Latest local run state:")
-    console.info(f"  Company: {company}")
-    console.info(f"  Mode: {mode}")
-    console.info(f"  Status: {status}")
-    console.info(f"  Phase: {phase}")
-    console.info(f"  Updated: {updated}")
+    for label, value in fields:
+        rendered = str(value or "").strip()
+        if rendered and rendered.lower() != "unknown":
+            console.info(f"  {label}: {rendered}")
     console.info(f"  File: {path}")
+
+
+def check_pending_jobs() -> int:
+    """Inspect cloud and local recovery state without writing artifacts."""
+    from primr.ai.deep_research import get_deep_research_client, get_pending_jobs
+
+    console.banner("Research Job Status")
+    jobs = get_pending_jobs()
+    if not jobs:
+        console.info("No pending cloud jobs found.")
+        _show_latest_run_state_hint()
+        return 0
+
+    console.info(f"Found {len(jobs)} pending cloud job(s)")
+    client = get_deep_research_client()
+    completed = 0
+    active = 0
+    terminal_failures = 0
+    check_errors = 0
+
+    for interaction_id, job_info in jobs.items():
+        description = str(job_info.get("description", "Unknown"))[:60]
+        console.step(f"Checking: {description}...")
+        console.info(f"  ID: {interaction_id}")
+        started = str(job_info.get("started", "")).strip()
+        if started:
+            console.info(f"  Started: {started}")
+
+        result = client.check_job(interaction_id)
+        status = str(result.get("status", "unknown")).lower()
+        error = result.get("error")
+        error_source = result.get("error_source")
+
+        if status == "completed":
+            completed += 1
+            console.ok("  Status: COMPLETED")
+            if not result.get("content"):
+                console.warn("  Result content is empty; the job remains recoverable.")
+            console.info("  Next: run `primr --resume-latest` to finalize available outputs.")
+            continue
+
+        if status in _TERMINAL_FAILURE_STATUSES:
+            terminal_failures += 1
+            console.error(f"  Status: {status.upper()}")
+            if error_source == "provider":
+                console.error("  Source: Cloud provider reported terminal failure")
+            console.error(f"  Error: {error or 'Unknown'}")
+            console.info("  Next: run `primr --resume-latest` to acknowledge terminal jobs.")
+            continue
+
+        if status == "check_error":
+            check_errors += 1
+            console.error("  Status: CHECK ERROR")
+            if error_source == "local":
+                console.error("  Source: Local API connectivity/status check")
+            console.error(f"  Error: {error or 'Unknown'}")
+            console.info("  Job may still be running. Re-run `primr --check-jobs` later.")
+            continue
+
+        if status in _ACTIVE_JOB_STATUSES:
+            active += 1
+            console.info(f"  Status: {status.upper()} (still running)")
+            continue
+
+        console.info(f"  Status: {status.upper()}")
+        if error:
+            console.info(f"  Detail: {error}")
+
+    console.blank()
+    console.info(
+        f"Cloud summary: completed={completed}, active={active}, "
+        f"terminal={terminal_failures}, check_errors={check_errors}"
+    )
+    _show_latest_run_state_hint()
+    return 1 if terminal_failures or check_errors else 0
 
 
 def resume_pending_jobs() -> int:
     """Recover and finalize pending jobs into canonical outputs."""
     from primr.ai.deep_research import get_deep_research_client, get_pending_jobs
+    from primr.ai.job_persistence import remove_pending_job
 
     console.banner("Resume Pending Jobs")
     jobs = get_pending_jobs()
@@ -196,6 +279,11 @@ def resume_pending_jobs() -> int:
                 console.ok("  Status: COMPLETED")
                 console.ok(f"  Finalized MD: {outputs['md']}")
                 console.ok(f"  Finalized DOCX: {outputs['docx']}")
+                if not remove_pending_job(interaction_id):
+                    console.error(
+                        "  Outputs saved, but the pending job record could not be updated"
+                    )
+                    check_errors += 1
                 finalized += 1
             except Exception as e:
                 fallback_path = os.path.join(
@@ -208,8 +296,8 @@ def resume_pending_jobs() -> int:
                 failed += 1
             continue
 
-        if status == "in_progress":
-            console.info("  Status: IN PROGRESS")
+        if status in _ACTIVE_JOB_STATUSES:
+            console.info(f"  Status: {status.upper()}")
             still_running += 1
             continue
 
@@ -219,8 +307,14 @@ def resume_pending_jobs() -> int:
             check_errors += 1
             continue
 
-        console.error(f"  Status: {status}")
+        console.error(f"  Status: {status.upper()}")
         console.error(f"  Error: {error or 'Unknown'}")
+        if bool(result.get("terminal", False)) or status in _TERMINAL_FAILURE_STATUSES:
+            if remove_pending_job(interaction_id):
+                console.info("  Removed terminal job from the pending list.")
+            else:
+                console.error("  The terminal job could not be removed from the pending list")
+                check_errors += 1
         failed += 1
 
     console.blank()
@@ -234,10 +328,6 @@ def resume_pending_jobs() -> int:
             "Network/API issue detected during resume. Re-run `primr --resume-latest` "
             "when connectivity is stable."
         )
-        # Only signal failure when nothing was finalized — a transient check
-        # error on one job must not mask other jobs that completed successfully.
-        if finalized == 0:
-            return 1
-    if failed > 0 and finalized == 0:
+    if failed > 0 or check_errors > 0:
         return 1
     return 0

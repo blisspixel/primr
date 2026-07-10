@@ -8,6 +8,7 @@ Usage:
 import sys
 
 from primr.ai.deep_research import DeepResearchClient
+from primr.ai.job_persistence import remove_pending_job
 
 
 def retrieve_research(interaction_id: str) -> None:
@@ -25,6 +26,10 @@ def retrieve_research(interaction_id: str) -> None:
     if status == "completed":
         content = result.get("content", "")
         citations = result.get("citations", [])
+
+        if not content:
+            print("\nResearch completed without content. The pending job was retained for retry.")
+            return
 
         print(f"\nContent length: {len(content)} characters")
         print(f"Citations: {len(citations)}")
@@ -55,18 +60,23 @@ def retrieve_research(interaction_id: str) -> None:
                         f"{i}. [{citation.get('title', 'Untitled')}]({citation.get('url', '')})\n"
                     )
 
-        print(f"\n✓ Saved to: {output_file}")
+        print(f"\nSaved to: {output_file}")
+        if not remove_pending_job(interaction_id):
+            print(
+                "Report saved, but its pending job record could not be removed; "
+                "a later status check may list it again."
+            )
 
     elif status == "failed":
         error = result.get("error", "Unknown error")
-        print(f"\n✗ Research failed: {error}")
+        print(f"\nResearch failed: {error}")
 
     elif status == "in_progress":
-        print("\n⏳ Research is still in progress. Try again later.")
+        print("\nResearch is still in progress. Try again later.")
 
     else:
         error = result.get("error")
-        print(f"\n✗ Error: {error if error else 'Unknown status'}")
+        print(f"\nError: {error if error else 'Unknown status'}")
 
 
 if __name__ == "__main__":

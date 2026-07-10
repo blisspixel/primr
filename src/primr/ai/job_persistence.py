@@ -85,26 +85,28 @@ def save_pending_job(
     logger.info(f"Saved pending job: {interaction_id} ({job_type})")
 
 
-def remove_pending_job(interaction_id: str) -> None:
+def remove_pending_job(interaction_id: str) -> bool:
     """Remove a job from the pending list (after completion or failure).
 
     Thread-safe: Uses file locking to prevent concurrent write corruption.
+    Returns ``True`` when the job is absent after the operation and ``False``
+    when persistence could not be read or updated safely.
     """
     jobs_file = _get_jobs_file_path()
 
     with _jobs_file_lock:
         if not os.path.exists(jobs_file):
-            return
+            return True
 
         try:
             with open(jobs_file, encoding="utf-8") as f:
                 content = f.read().strip()
                 if not content:
-                    return
+                    return True
                 jobs = json.loads(content)
                 if not isinstance(jobs, dict):
                     logger.warning("Jobs file corrupted, cannot remove job")
-                    return
+                    return False
 
             if interaction_id in jobs:
                 del jobs[interaction_id]
@@ -113,8 +115,10 @@ def remove_pending_job(interaction_id: str) -> None:
                     json.dump(jobs, f, indent=2)
                 atomic_replace(temp_file, jobs_file)
                 logger.info(f"Removed completed job: {interaction_id}")
+            return True
         except (OSError, json.JSONDecodeError) as e:
             logger.warning(f"Failed to remove job {interaction_id}: {e}")
+            return False
 
 
 def get_pending_jobs() -> dict[str, dict[str, Any]]:

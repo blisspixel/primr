@@ -104,10 +104,10 @@ class TestHandleCheckQuota:
 
 
 class TestHandleCheckJobs:
-    def test_calls_check_pending_and_returns_zero(self, monkeypatch):
-        mock = MagicMock()
+    def test_delegates_check_pending_exit_code(self, monkeypatch):
+        mock = MagicMock(return_value=1)
         monkeypatch.setattr("primr.core.cli.check_pending_jobs", mock)
-        assert _handle_check_jobs(_config()) == 0
+        assert _handle_check_jobs(_config()) == 1
         mock.assert_called_once()
 
 
@@ -170,7 +170,7 @@ class TestHandleShowUsage:
 )
 def test_simple_handlers_call_their_service(handler, patch_path, monkeypatch):
     """All four utility handlers should call their service exactly once and return 0."""
-    mock = MagicMock()
+    mock = MagicMock(return_value=0)
     monkeypatch.setattr(patch_path, mock)
     assert handler(_config()) == 0
     mock.assert_called_once()
