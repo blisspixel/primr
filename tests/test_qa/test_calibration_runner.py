@@ -272,6 +272,7 @@ class TestPackManifest:
         assert payload["manifest_format"] == "primr.calibration_pack.v1"
         assert payload["totals"]["reports"] == 1
         assert payload["totals"]["estimated_judge_calls"] == 2
+        assert payload["totals"]["estimated_cloud_cost_usd"] == pytest.approx(0.001)
         assert payload["totals"]["sidecars_present"] == 0
         assert payload["reports"][0]["report_file"] == path.name
         assert payload["reports"][0]["report_size_bytes"] == path.stat().st_size
@@ -327,6 +328,64 @@ class TestPackManifest:
 
         assert payload["judge"]["kind"] == "compare"
         assert payload["judge"]["local"] == {"kind": "local", "model": "qwen2.5:14b"}
+        assert payload["totals"]["estimated_cloud_cost_usd"] == pytest.approx(0.001)
+
+    def test_manifest_local_plan_has_zero_cloud_cost(self, tmp_path):
+        from primr.qa.calibration_runner import JudgeSelection
+
+        path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        outcomes = run_calibration([path], dry_run=True)
+
+        payload = write_calibration_pack_manifest(
+            tmp_path / "calibration-pack.json",
+            [path],
+            outcomes,
+            max_per_label=10,
+            judge_selection=JudgeSelection(kind="local", model="qwen2.5:14b"),
+        )
+
+        assert payload["totals"]["estimated_judge_calls"] == 2
+        assert payload["totals"]["estimated_cloud_cost_usd"] == 0.0
+
+    def test_manifest_auto_local_plan_keeps_cloud_fallback_ceiling(self, tmp_path):
+        from primr.qa.calibration_runner import JudgeSelection
+
+        path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        outcomes = run_calibration([path], dry_run=True)
+
+        payload = write_calibration_pack_manifest(
+            tmp_path / "calibration-pack.json",
+            [path],
+            outcomes,
+            max_per_label=10,
+            judge_selection=JudgeSelection(kind="local", model="qwen2.5:14b"),
+            requested_judge_mode="auto",
+        )
+
+        assert payload["judge"] == {"kind": "local", "model": "qwen2.5:14b"}
+        assert payload["totals"]["estimated_cloud_cost_usd"] == pytest.approx(0.001)
+
+    @pytest.mark.parametrize(
+        "judge_metadata",
+        [
+            {},
+            {"kind": "typo", "model": "fast-tier"},
+            {"kind": "local"},
+            {"kind": "compare", "cloud": {}, "local": {}},
+        ],
+    )
+    def test_manifest_rejects_malformed_judge_metadata(self, tmp_path, judge_metadata):
+        path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        outcomes = run_calibration([path], dry_run=True)
+
+        with pytest.raises(ValueError, match="judge"):
+            write_calibration_pack_manifest(
+                tmp_path / "calibration-pack.json",
+                [path],
+                outcomes,
+                max_per_label=10,
+                judge_metadata=judge_metadata,
+            )
 
     def test_manifest_includes_selection_representation(self, tmp_path):
         from primr.qa.calibration_selection import CalibrationPackSelection
@@ -697,6 +756,91 @@ class TestCLIWiring:
         monkeypatch.chdir(tmp_path)  # empty cwd: no output/ directory
         config = CLIConfig(command=Command.CALIBRATE, calibrate_target="NoSuchCo")
         assert _handle_calibrate(config) == 1
+
+    def test_local_dry_run_reports_zero_cloud_spend(self, tmp_path, monkeypatch, capsys):
+        from primr.core.cli import CLIConfig, Command, _handle_calibrate
+        from primr.qa import calibration_cli
+        from primr.qa.calibration_runner import JudgeSelection
+
+        report = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        monkeypatch.setattr(
+            calibration_cli,
+            "resolve_judge",
+            lambda *args, **kwargs: JudgeSelection(kind="local", model="qwen2.5:14b"),
+        )
+        config = CLIConfig(
+            command=Command.CALIBRATE,
+            calibrate_target=str(report),
+            calibrate_dry_run=True,
+            calibrate_judge="local",
+            calibrate_judge_model="qwen2.5:14b",
+        )
+
+        assert _handle_calibrate(config) == 0
+        output = capsys.readouterr().out
+        assert "~2 local judge calls" in output
+        assert "estimated cloud spend $0.00" in output
+
+    def test_auto_local_dry_run_reports_cloud_fallback_ceiling(self, tmp_path, monkeypatch, capsys):
+        from primr.core.cli import CLIConfig, Command, _handle_calibrate
+        from primr.qa import calibration_cli
+        from primr.qa.calibration_runner import JudgeSelection
+
+        report = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        monkeypatch.setattr(
+            calibration_cli,
+            "resolve_judge",
+            lambda *args, **kwargs: JudgeSelection(kind="local", model="qwen2.5:14b"),
+        )
+        config = CLIConfig(
+            command=Command.CALIBRATE,
+            calibrate_target=str(report),
+            calibrate_dry_run=True,
+            calibrate_judge="auto",
+        )
+
+        assert _handle_calibrate(config) == 0
+        output = capsys.readouterr().out
+        assert "~2 local judge calls" in output
+        assert "estimated cloud fallback ceiling $0.0010" in output
+
+    def test_cloud_dry_run_does_not_round_paid_spend_to_zero(self, tmp_path, capsys):
+        from primr.core.cli import CLIConfig, Command, _handle_calibrate
+
+        report = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        config = CLIConfig(
+            command=Command.CALIBRATE,
+            calibrate_target=str(report),
+            calibrate_dry_run=True,
+            calibrate_judge="cloud",
+        )
+
+        assert _handle_calibrate(config) == 0
+        output = capsys.readouterr().out
+        assert "estimated cloud spend $0.0010" in output
+
+    def test_compare_dry_run_does_not_round_paid_spend_to_zero(self, tmp_path, monkeypatch, capsys):
+        from primr.core.cli import CLIConfig, Command, _handle_calibrate
+        from primr.qa import calibration_cli
+        from primr.qa.calibration_runner import JudgeSelection
+
+        report = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        monkeypatch.setattr(
+            calibration_cli,
+            "resolve_judge",
+            lambda *args, **kwargs: JudgeSelection(kind="local", model="qwen2.5:14b"),
+        )
+        config = CLIConfig(
+            command=Command.CALIBRATE,
+            calibrate_target=str(report),
+            calibrate_dry_run=True,
+            calibrate_judge_compare=True,
+        )
+
+        assert _handle_calibrate(config) == 0
+        output = capsys.readouterr().out
+        assert "~2 cloud judge calls ($0.0010)" in output
+        assert "~2 local judge calls ($0.00)" in output
 
     def test_handler_errors_when_selection_conflicts_with_target(self, tmp_path, monkeypatch):
         from primr.core.cli import CLIConfig, Command, _handle_calibrate

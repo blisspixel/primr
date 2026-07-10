@@ -266,6 +266,51 @@ def estimate_cost_usd(judge_calls: int) -> float:
     return round(judge_calls * _EST_COST_PER_JUDGE_CALL_USD, 4)
 
 
+def estimate_cloud_cost_usd(
+    judge_calls: int,
+    *,
+    judge_kind: str,
+    requested_judge_mode: str | None = None,
+) -> float:
+    """Estimate paid cloud spend for a resolved calibration judge plan."""
+    if judge_kind not in {"cloud", "local", "compare"}:
+        raise ValueError(f"Unknown calibration judge kind: {judge_kind!r}")
+    if requested_judge_mode not in {None, "cloud", "local", "auto"}:
+        raise ValueError(f"Unknown requested calibration judge mode: {requested_judge_mode!r}")
+    if judge_kind == "compare" or requested_judge_mode == "auto":
+        return estimate_cost_usd(judge_calls)
+    if requested_judge_mode is not None and requested_judge_mode != judge_kind:
+        raise ValueError(
+            "Resolved calibration judge kind does not match the explicitly requested mode"
+        )
+    if judge_kind == "local":
+        return 0.0
+    return estimate_cost_usd(judge_calls)
+
+
+def _validate_judge_metadata(metadata: dict[str, Any]) -> str:
+    kind = metadata.get("kind")
+    if kind in {"cloud", "local"}:
+        model = metadata.get("model")
+        if not isinstance(model, str) or not model.strip():
+            raise ValueError(f"Calibration judge metadata for {kind!r} requires a model")
+        return kind
+    if kind == "compare":
+        for expected_kind in ("cloud", "local"):
+            nested = metadata.get(expected_kind)
+            if not isinstance(nested, dict):
+                raise ValueError(
+                    f"Calibration compare judge metadata requires a {expected_kind!r} plan"
+                )
+            nested_kind = _validate_judge_metadata(nested)
+            if nested_kind != expected_kind:
+                raise ValueError(
+                    f"Calibration compare judge {expected_kind!r} plan has kind {nested_kind!r}"
+                )
+        return kind
+    raise ValueError(f"Calibration judge metadata has unknown kind: {kind!r}")
+
+
 def run_calibration(
     report_paths: list[Path],
     *,
@@ -524,6 +569,7 @@ def write_calibration_pack_manifest(
     judge_agreement: JudgeAgreement | None = None,
     judge_metadata: dict[str, Any] | None = None,
     selection: CalibrationPackSelection | None = None,
+    requested_judge_mode: str | None = None,
 ) -> dict[str, Any]:
     """Write a manifest freezing the selected calibration pack."""
     by_report = {outcome.report_path: outcome for outcome in outcomes}
@@ -535,6 +581,7 @@ def write_calibration_pack_manifest(
         judge_meta = judge_selection.to_metadata()
     else:
         judge_meta = None
+    judge_kind = _validate_judge_metadata(judge_meta) if judge_meta is not None else "cloud"
     payload: dict[str, Any] = {
         "manifest_format": "primr.calibration_pack.v1",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -545,7 +592,11 @@ def write_calibration_pack_manifest(
             "claims_sampled": sum(outcome.claims_sampled for outcome in outcomes),
             "judgeable_claims": sum(outcome.judgeable_claims for outcome in outcomes),
             "estimated_judge_calls": total_calls,
-            "estimated_cloud_cost_usd": estimate_cost_usd(total_calls),
+            "estimated_cloud_cost_usd": estimate_cloud_cost_usd(
+                total_calls,
+                judge_kind=judge_kind,
+                requested_judge_mode=requested_judge_mode,
+            ),
             "failures": sum(1 for outcome in outcomes if outcome.error),
             "sidecars_present": sum(1 for path in report_paths if sidecar_path_for(path).exists()),
         },

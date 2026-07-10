@@ -331,6 +331,14 @@ Design rules (these hold for any setup, not a particular machine):
   Local call failures produce no sidecar for that report and are reported as
   calibration failures.
 - **Trust is measured, not assumed.** `--judge-compare` runs cloud and local over the same claims (cloud verdicts are the result of record and are billed exactly once) and reports the agreement rate. If your local model agrees ~90%+, future calibration runs can go local-first and recurring judge cost drops to zero.
+- **Dry-run spend follows the requested judge policy.** Explicit local-only
+  previews report `$0.00` estimated cloud spend and write
+  `estimated_cloud_cost_usd: 0.0` in pack manifests. `--judge auto` always
+  quotes the bounded cloud fallback ceiling, even when the preview resolves to
+  a local model, because availability can change before execution. Cloud and
+  comparison previews likewise price their bounded cloud calls before
+  approval. Nonzero sub-cent estimates retain four decimal places instead of
+  rendering as `$0.00`.
 - The agreement rate is persisted in sidecars, so later `primr eval` scorecards
   can show whether a profile's calibration data came from an agreement-checked
   judge setup.

@@ -38,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Explicit local-only calibration dry runs and pack manifests now report zero
+  estimated cloud spend. Auto mode quotes its cloud fallback ceiling, while
+  cloud and cloud-vs-local comparison plans retain their bounded paid-call
+  estimate. Nonzero sub-cent estimates no longer render as `$0.00`.
 - Release integrity now pins the editable Primr version in `uv.lock` to the
   canonical package version. Every CI install and the release SBOM export use
   uv's locked mode, so stale project metadata cannot be silently installed or
