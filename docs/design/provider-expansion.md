@@ -1,7 +1,7 @@
-# Provider Expansion: OpenAI, Anthropic, Account-Capacity Agents, Gateways, and Local
+# Provider Expansion: OpenAI, Anthropic, Billing-Verifiable Hosts, Gateways, and Local
 
-Status: PLANNED (provider pricing refreshed June 29, 2026; account-capacity
-agent runner research refreshed June 17, 2026)
+Status: STARTED (provider pricing refreshed June 29, 2026; internal/eval-only
+Codex transport and host-native plan handoff shipped)
 ROADMAP anchor: Active Queue #26. Companion to
 [`2.0-backend-freedom.md`](2.0-backend-freedom.md) (routing architecture);
 this doc is the concrete provider catalog and delivery plan that routing
@@ -38,15 +38,17 @@ will route over.
    a 27B model that "exists" but needs 19.5 GiB when 11 GiB is free
    produces per-call failures, not a clean error.
 7. **Default to least incremental spend that passes quality.** A free or
-   already-paid tier must exist, even if measurably worse and labeled that way.
+   billing-verifiable tier must exist, even if measurably worse and labeled that way.
    DDG search is already free, scraping is already local; with local inference
    the whole run is $0 API plus electricity, which changes what "run it on the
    whole portfolio" costs. For users already paying for an agent subscription,
-   an official host-account runner should let compatible LLM stages draw from
-   plan allocation rather than separate API credits. If no validated zero-
-   incremental route is configured, the default should be the best validated
-   sub-dollar direct API recipe. Premium recipes are opt-in and must document
-   the marginal quality or coverage they buy.
+   `primr-zero` is the supported plan-native path after the host is verified not
+   to bill API usage or overages. An embedded host runner may join routing only
+   when its billing basis can be proven or the operator explicitly acknowledges
+   potentially metered API use. If no validated zero-incremental route is
+   configured, the default should be the best validated sub-dollar direct API
+   recipe. Premium recipes are opt-in and must document the marginal quality or
+   coverage they buy.
 8. **Caching must prove savings before it runs.** Provider prompt caching is a
    cost optimization only when a paid write is likely to be reused inside the
    provider's supported cache window. Do not enable cache writes, pre-warming,
@@ -81,11 +83,15 @@ will route over.
 - The typed host-account runner contract now exists in
   `ai/host_agent_runner.py`: bounded `HostAgentStagePacket`, billing policy,
   normalized result/provenance, and a prompt renderer that fences evidence with
-  the existing content-sanitizer. No concrete official-host process runner is
-  wired yet. Agent-host integrations today operate primr through MCP/skills,
-  while the full internal report pipeline still uses provider keys. The seam
-  below is a stage runner, not a claim that subscription credentials are
-  interchangeable with API keys.
+  the existing content-sanitizer. The first concrete official-host process
+  runner uses `codex exec` for an internal/eval-only
+  `fast.source_relevance` pilot. The public CLI remains
+  `--inference cloud|hybrid` because Codex authentication does not prove whether
+  execution is plan-backed or API-key billed. Other stages still use their
+  declared backends.
+  Separately, `primr prep` plus `primr-zero` provides a host-native evidence
+  handoff without passing subscription credentials into Primr. Neither path
+  treats subscription credentials as interchangeable with API keys.
 
 ## Verified provider facts (June 29, 2026)
 
@@ -137,11 +143,12 @@ Full citations live in the research transcripts; key integration facts:
   reads, TTL choice, gateway support, and cache-hit expectations before enabling
   this for any Primr stage.
 
-### Account-capacity agent runners
+### Billing-verifiable agent runners
 
 These are not provider SDKs. They are host-agent execution surfaces that can
-consume already-paid or already-allocated capacity when official auth and
-automation support it.
+consume already-paid or already-allocated capacity only when official auth,
+automation, and trustworthy billing provenance support that claim. Otherwise
+the operator must explicitly acknowledge that metered API billing may apply.
 
 - Candidate host surfaces are tracked as sanctioned execution hosts, not
   provider APIs. A host can become a Primr runner only where it provides an
@@ -149,9 +156,9 @@ automation support it.
   invoked with a bounded packet and audited result.
 - Authentication must come from the user's own configured host surface. Primr
   must not ship repo-owned tokens, account ids, private endpoint knowledge, or
-  hidden credential reuse. If a host can transition from plan allocation to API
-  credit spend, that transition must remain explicit in the host and visible in
-  Primr's estimate.
+  hidden credential reuse. Authentication type alone is not billing proof. If a
+  host can transition from plan allocation to API credit spend, that transition
+  must remain explicit in the host and visible in Primr's estimate.
 - Integration shape for primr: emit a bounded stage packet, call the host runner
   through its official CLI/SDK/automation surface, parse structured output, and
   validate with the same structural checks and semantic evals as direct API
@@ -267,32 +274,40 @@ automation support it.
    caching is disabled for one-off or volatile prompts that would pay repeated
    writes without hits.
 
-### Phase B: account-capacity host runners
+### Phase B: billing-verifiable host runners
 
-1. **Foundation seam - STARTED:** `HostAgentRunner` accepts a typed stage
+1. **Foundation seam - SHIPPED:** `HostAgentRunner` accepts a typed stage
    packet (`role`, prompt, evidence bundle, output schema, budget/plan policy)
    and returns structured text plus runner metadata. It is covered with fake
-   runner tests. Remaining: concrete process runners and explicit
-   `--inference agent` opt-in.
-2. First official-host runner: use only the host's documented local
-   authentication, automation, or connector modes. Fail open to other configured
-   profiles when unavailable unless the operator explicitly selected
-   `--inference agent`.
-3. Add capability probes before any runner. A surface is eligible only if it can
+   runner tests.
+2. **First official-host transport - INTERNAL/EVAL-ONLY:** the Codex CLI adapter
+   handles `fast.source_relevance` through documented `codex exec` automation.
+   It fails closed against silent API fallback when the eval harness selects the
+   internal agent profile. It is not exposed by the CLI because Primr cannot
+   prove whether Codex auth is plan-backed or API-key billed. Additional hosts
+   and stages remain eval-gated.
+3. **Host-native handoff - SHIPPED:** `primr prep` emits a bounded evidence
+   packet under a hard no-model-call policy, and `primr-zero` lets the
+   surrounding host research and synthesize from its own plan allowance after
+   the host is verified not to bill API usage or overages. This is not an
+   internal stage runner and is labeled host-assisted.
+4. Add capability probes before any runner. A surface is eligible only if it can
    be invoked through official automation, returns or stores schema-constrained
    output, exposes enough provenance to stamp the sidecar, and can be bounded by
    wall-clock plus task-count policy. If any of those are missing, it remains an
    operating host for Primr, not an internal stage runner.
-4. Budget model: API dollars are unknown for account-capacity stages, so the
-   preflight estimate must show "host plan usage" with bounded stage count,
-   wall-clock cap, and optional token/task ceilings. Any handoff to API credits
-   must remain explicit in the host, never hidden by primr.
-5. Validation: one cheap or plan-backed recipe eval per runner on the standing
-   corpus. It must pass the same label calibration and trust checks as direct
-   provider recipes before README promotion. Once promoted and explicitly
-   enabled, compatible host-runner stages should beat paid API stages in default
-   routing because their incremental API cost is zero; wall-clock and plan-limit
-   behavior still appears in the estimate.
+5. Budget model: API dollars are unknown unless the host exposes trustworthy
+   billing provenance. The preflight estimate may show "host plan usage" only
+   when that basis is proven; otherwise it must show unknown or potentially
+   metered billing, bounded stage count, wall-clock cap, optional token/task
+   ceilings, and an acknowledgment gate. Any handoff to API credits must remain
+   explicit in the host, never hidden by primr.
+6. Validation: one cheap or verified plan-backed recipe eval per runner on the
+   standing corpus. It must pass the same label calibration and trust checks as
+   direct provider recipes before README promotion. A promoted runner may outrank
+   paid API stages only when zero incremental API spend is proven. An explicitly
+   acknowledged, potentially metered runner remains a distinct opt-in route;
+   wall-clock, plan-limit, and billing uncertainty still appear in the estimate.
 
 ### Phase C: gateway support (Bedrock + Foundry)
 

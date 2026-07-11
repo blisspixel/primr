@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import pytest
 
 from primr.ai.provider_availability import (
+    MAX_RETRY_AFTER_SECONDS,
+    AvailabilityState,
+    LocalCapacityBusyError,
     ProviderQuotaSnapshot,
     QuotaWindow,
     availability_decision,
     binding_window,
+    bounded_retry_after_seconds,
     provider_headroom,
     provider_with_most_headroom,
 )
@@ -117,3 +122,83 @@ def test_window_validation_and_clamping() -> None:
 
     with pytest.raises(ValueError, match="label is required"):
         QuotaWindow(" ")
+
+
+def test_busy_snapshot_returns_bounded_machine_readable_retry_guidance() -> None:
+    snapshot = ProviderQuotaSnapshot(
+        provider="local_openai_compatible",
+        ok=False,
+        error="local_openai_compatible_busy",
+        state=AvailabilityState.BUSY,
+        retry_after_seconds=1_800,
+    )
+
+    decision = availability_decision(snapshot, NOW)
+
+    assert decision.available is False
+    assert decision.state is AvailabilityState.BUSY
+    assert decision.retry_after_seconds == 1_800
+    assert decision.retry_at == NOW + timedelta(minutes=30)
+
+
+def test_exhausted_window_with_future_reset_is_busy_and_caps_retry() -> None:
+    snapshot = ProviderQuotaSnapshot(
+        provider="local_openai_compatible",
+        windows=(
+            QuotaWindow(
+                "runtime_capacity",
+                used_percent=100,
+                resets_at=NOW + timedelta(days=2),
+            ),
+        ),
+    )
+
+    decision = availability_decision(snapshot, NOW)
+
+    assert decision.state is AvailabilityState.BUSY
+    assert decision.retry_after_seconds == MAX_RETRY_AFTER_SECONDS
+    assert decision.retry_at == NOW + timedelta(seconds=MAX_RETRY_AFTER_SECONDS)
+
+
+def test_retry_guidance_uses_product_sequence_and_bounded_server_hint() -> None:
+    assert bounded_retry_after_seconds(attempt=0) == 1_800
+    assert bounded_retry_after_seconds(attempt=1) == 7_200
+    assert bounded_retry_after_seconds(attempt=2) == MAX_RETRY_AFTER_SECONDS
+    assert bounded_retry_after_seconds(attempt=99) == MAX_RETRY_AFTER_SECONDS
+    assert bounded_retry_after_seconds(requested_seconds=5) == 30
+    assert bounded_retry_after_seconds(requested_seconds=90_000) == MAX_RETRY_AFTER_SECONDS
+
+    with pytest.raises(ValueError, match="attempt"):
+        bounded_retry_after_seconds(attempt=-1)
+
+
+def test_local_capacity_busy_error_exposes_safe_execution_retry_metadata() -> None:
+    error = RuntimeError("raw operator endpoint detail")
+    error.response = SimpleNamespace(  # type: ignore[attr-defined]
+        status_code=503,
+        headers={"retry-after": "120"},
+    )
+
+    busy_error = LocalCapacityBusyError.from_exception(error, now=NOW)
+
+    assert busy_error is not None
+    assert busy_error.retry_after_seconds == 120
+    assert busy_error.retry_at == NOW + timedelta(seconds=120)
+    assert busy_error.as_metadata() == {
+        "error": "local_capacity_busy",
+        "reason": "local_capacity_http_503_busy",
+        "retry_after_seconds": 120,
+        "retry_at": (NOW + timedelta(seconds=120)).isoformat(),
+        "retryable": True,
+        "state": "busy",
+        "status_code": 503,
+    }
+    assert "operator endpoint" not in str(busy_error)
+
+
+def test_local_capacity_busy_error_sanitizes_caller_supplied_reason() -> None:
+    busy_error = LocalCapacityBusyError(reason="http://private-host.example/retry")
+
+    assert busy_error.reason == "local_capacity_busy"
+    assert busy_error.as_metadata()["reason"] == "local_capacity_busy"
+    assert "private-host" not in str(busy_error.as_metadata())

@@ -1,6 +1,6 @@
 ---
 name: primr
-description: Generate a consultant-grade strategic intelligence brief on a company. Long-running (35-120 min) and metered ($0.10-$5). Use when the user asks for a primr report / full strategic dossier / deep company brief, or names a company alongside research-it-with-primr / generate-the-strategic-overview / build-the-AI-strategy / get-the-full-report language. Skip for quick web research (use the host's built-in search and reasoning instead) or DNS-only intelligence (shell out to dig or a passive-recon tool - primr's recon stage is bundled into the full pipeline, not a standalone path).
+description: Generate a consultant-grade strategic intelligence brief on a company through Primr's metered pipeline. Use for a named Primr report, full strategic dossier, Strategic Overview, or strategy module. Route zero-incremental-spend dossier requests to primr-zero, quick briefs to host web research, and DNS-only requests to primr recon.
 argument-hint: "Company Name" https://company.url [--mode full|premium|scrape|deep] [--platform aws|ms|gcp] [--strategy-type ai|customer_experience|...]
 allowed-tools: Bash(primr:*), Read
 ---
@@ -17,11 +17,15 @@ Use primr when the user wants the full pipeline:
 - "Build me the full strategic dossier for Acme - I have a discovery in two weeks"
 - "Generate the AI strategy module for the Acme report"
 - "Reload the hypotheses we have on Acme and refresh weak ones"
+- "Build the fullest dossier you can for $0 using my existing agent plan" -
+  use `primr prep` plus the portable `primr-zero` skill.
 
 **Do not** use primr for:
 
 - A quick pre-call brief with no API budget - use the host's built-in web search and reasoning. primr is wrong for "give me two paragraphs on Acme."
-- DNS / tenant / email-security only - primr's recon stage is bundled into the full pipeline, not a standalone path. For passive lookups, shell out to `dig`, `host`, or a passive-recon tool.
+- DNS / tenant / email-security only - use `primr recon company.com`, which is
+  keyless and standalone. A host-native passive lookup is also fine when Primr
+  is not installed.
 - Reviewing an existing primr report's quality - still primr (`run_qa` MCP tool or `primr --qa <company>` CLI), but invoke that path directly without estimating a new run.
 
 If the user is ambiguous ("research Acme"), default to the host's built-in research path and offer primr as the upgrade for "I want the full dossier." primr's cost and runtime mean it should never auto-fire on a vague trigger.
@@ -37,9 +41,11 @@ primr doctor
 
 If `primr` is not on `PATH`:
 
-> "primr isn't installed. It's a Python CLI from github.com/blisspixel/primr. Use `pip install primr` on Python 3.12+. After install, run `primr init` to set provider keys. Grok + Gemini is the measured default, but OpenAI, Anthropic, and local OpenAI-compatible paths are also supported or tracked in the roadmap. Want me to walk through it?"
+> "primr isn't installed. It's a Python CLI from github.com/blisspixel/primr. Use `pip install primr` on Python 3.12+. For the hard-zero path, install only and then run `primr prep`; no provider setup is needed. For a provider-backed run, use `primr init` after installation. Want me to walk through it?"
 
-Wait for explicit approval before running `pip install`. If `primr doctor` reports missing keys, do not attempt to set them yourself - surface the gap and let the user run `primr init` or `primr keys set <provider>`.
+Wait for explicit approval before running `pip install`. If `primr doctor`
+reports missing keys, do not attempt to set them yourself. Missing keys block
+provider-backed research, but they do not block `primr prep` or `primr recon`.
 
 ## Detecting MCP vs CLI
 
@@ -50,7 +56,26 @@ Look at your own available-tools list before choosing transport:
 
 Do not call an MCP tool speculatively to test connectivity. To get from CLI-only to MCP, the user adds primr to their host's MCP config (the snippet is `{ "command": "primr", "args": ["mcp"] }`; see the `clients/` directory in the primr repo for per-host paths).
 
-## The cost gate (non-negotiable)
+## Zero-cost host handoff
+
+When the user wants a substantial dossier with no provider key, GPU, or
+incremental API spend, prefer the dedicated `primr-zero` skill. Its collection
+step is:
+
+```bash
+primr prep "Company" https://company.example --dry-run
+primr prep "Company" https://company.example
+```
+
+The dry run must report `$0.00` and zero model calls. The real command performs
+public network requests, emits a bounded evidence bundle and portable skill,
+and fails closed against model egress even when keys are configured. Disclose
+the network activity, but do not require spend approval for this zero-dollar
+collection. The surrounding host then researches and writes from its own plan
+allowance. Never pass host OAuth tokens or cookies into Primr, and never switch
+to a paid run silently.
+
+## The billable cost gate (non-negotiable)
 
 primr runs cost real money and real time. **Never** launch a run without:
 

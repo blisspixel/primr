@@ -5,6 +5,7 @@ Tests chapter plan generation and validation.
 """
 
 import json
+from collections.abc import Iterator
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -17,6 +18,13 @@ from primr.ai.report_architect import (
     get_master_architect,
     reset_master_architect,
 )
+
+
+@pytest.fixture(autouse=True)
+def _stub_genai_client() -> Iterator[None]:
+    """Avoid constructing a real SDK client in every Hypothesis example."""
+    with patch("primr.ai.report_architect.genai.Client"):
+        yield
 
 
 class TestChapterPlan:

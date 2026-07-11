@@ -5,6 +5,8 @@ what the user actually has, absence is the silent default (never an error),
 and selection works with whatever is installed — including nothing.
 """
 
+from urllib.error import HTTPError
+
 import pytest
 
 from primr.ai.local_inference import (
@@ -12,7 +14,9 @@ from primr.ai.local_inference import (
     is_local_inference_available,
     list_local_models,
     pick_local_judge_model,
+    probe_local_capacity,
 )
+from primr.ai.provider_availability import AvailabilityState
 
 
 @pytest.fixture(autouse=True)
@@ -73,6 +77,46 @@ class TestDetection:
         list_local_models("http://x:1234", fetch_json_fn=counting_fetch, use_cache=False)
         list_local_models("http://x:1234", fetch_json_fn=counting_fetch, use_cache=False)
         assert len(calls) == 2
+
+    def test_busy_probe_is_not_cached_and_preserves_retry_after(self):
+        calls = []
+
+        def busy_fetch(url, timeout):
+            calls.append(url)
+            raise HTTPError(url, 503, "busy", {"Retry-After": "120"}, None)
+
+        first = probe_local_capacity("http://x:1234", fetch_json_fn=busy_fetch)
+        second = probe_local_capacity("http://x:1234", fetch_json_fn=busy_fetch)
+
+        assert first.state is AvailabilityState.BUSY
+        assert first.reason == "local_capacity_http_503_busy"
+        assert first.retry_after_seconds == 120
+        assert first.status_code == 503
+        assert second.state is AvailabilityState.BUSY
+        assert len(calls) == 2
+
+    def test_timeout_busy_guidance_backs_off_by_caller_attempt(self):
+        def timeout_fetch(url, timeout):
+            raise TimeoutError("local endpoint did not answer")
+
+        probe = probe_local_capacity(
+            "http://x:1234",
+            fetch_json_fn=timeout_fetch,
+            attempt=2,
+        )
+
+        assert probe.state is AvailabilityState.BUSY
+        assert probe.reason == "local_capacity_timeout_busy"
+        assert probe.retry_after_seconds == 21_600
+
+    def test_connection_refusal_is_unavailable_without_retry_guidance(self):
+        def unavailable_fetch(url, timeout):
+            raise ConnectionRefusedError("refused")
+
+        probe = probe_local_capacity("http://x:1234", fetch_json_fn=unavailable_fetch)
+
+        assert probe.state is AvailabilityState.UNAVAILABLE
+        assert probe.retry_after_seconds is None
 
     def test_env_chain_resolves_base_url(self, monkeypatch):
         monkeypatch.setenv("LOCAL_LLM_BASE_URL", "http://gpu-box:8080")

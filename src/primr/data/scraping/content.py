@@ -486,6 +486,10 @@ def extract_text_from_pdf_via_llm(pdf_bytes: bytes) -> str | None:
 
     if not pdf_bytes:
         return None
+    from primr.utils.model_policy import model_calls_disabled
+
+    if model_calls_disabled():
+        return extract_text_from_pdf(pdf_bytes)
 
     # Limit PDF size to 20MB to avoid excessive API costs
     if len(pdf_bytes) > 20 * 1024 * 1024:

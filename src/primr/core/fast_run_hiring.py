@@ -11,12 +11,14 @@ context boundary (the fast path fences it later, inside the corpus bundles).
 
 Side effects preserved from the original: console announcements, run-state
 update (postings found/selected/extracted + slug), and the ``_hiring/``
-artifacts written by ``gather_hiring_signals`` itself. The stage never fails
-the run — any error degrades to an empty hiring block.
+artifacts written by ``gather_hiring_signals`` itself. Ordinary discovery and
+extraction errors degrade to an empty hiring block. A typed local-capacity busy
+result propagates so an external caller can honor its bounded retry guidance.
 """
 
 from __future__ import annotations
 
+from primr.ai.provider_availability import LocalCapacityBusyError
 from primr.core.run_state_io import _update_run_state
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
@@ -43,6 +45,8 @@ def collect_hiring_block(
             corpus=scraped_data,
             working_folder=folder_path,
         )
+    except LocalCapacityBusyError:
+        raise
     except Exception as e:
         logger.warning("Hiring signals stage failed: %s", e)
         hiring_signals = None

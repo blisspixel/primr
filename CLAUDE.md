@@ -47,6 +47,8 @@ new `core/ai/data` imports). Design docs live in
 - `core/` - pipeline orchestration, CLI, research agent, strategy
 - `ai/` - LLM clients, providers, routing, deep research
 - `data/` - scraping engine (`data/scraping/`), hiring signals, fallback sources
+- `pipeline/` - recovery policy, retries, failover, and model circuit breakers
+- `prompts/` - YAML prompt composition, shared rules, and strategy registry
 - `output/` - report/strategy rendering (MD/TXT/DOCX), validation
 - `qa/` - report analysis, calibration, scoring
 - `agentic/` - hypothesis tracking, hooks, subagents, orchestrator
@@ -125,16 +127,24 @@ uv run pytest tests/ -q      # the full suite
 ```
 
 <details>
-<summary>Full pre-PR gate (matches CI)</summary>
+<summary>Full local pre-PR gate (mirrors the primary-interpreter CI gates)</summary>
 
 ```bash
-uv run ruff check src/primr/
-uv run ruff format --check src/ tests/
-uv run mypy src/primr/ --ignore-missing-imports
-uv run bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium
-uv run pip-audit
-uv run pytest tests/ -q
+uv run --no-sync ruff check src/primr/
+uv run --no-sync ruff format --check src/ tests/
+uv run --no-sync mypy src/primr/ --ignore-missing-imports --disable-error-code=import-untyped --exclude 'src/primr/api/'
+uv run --no-sync mkdocs build --strict
+uv run --no-sync bandit -r src/primr -c .bandit --severity-level medium --confidence-level medium -q
+uv run --no-sync pip-audit
+PRIMR_VALIDATE_SDIST=1 uv run --no-sync pytest tests/test_release_integrity.py::test_built_sdist_matches_release_inventory -q
+GEMINI_API_KEY=fake-key-for-ci-tests uv run --no-sync pytest -q tests/test_core/test_resume_recovery.py tests/test_core/test_research_agent_resume.py tests/test_data/test_scrape_resume.py --cov=primr.core.cli --cov=primr.core.research_agent --cov=primr.data.scrape --cov-fail-under=13 --cov-report=term
+GEMINI_API_KEY=fake-key-for-ci-tests uv run --no-sync pytest tests/ --ignore=tests/manual -x --tb=short -q -k "not test_wait_times_out_when_no_change" -m "not integration" --cov=src/primr --cov-branch --cov-fail-under=81
 ```
+
+The environment assignments above use POSIX shell syntax because CI runs on
+Ubuntu. Use the equivalent environment syntax in PowerShell when validating on
+Windows. The non-primary Python matrix legs run the same filtered test command
+without the global coverage gate.
 
 Then ask the slop question: **did this add a second way to do something that
 already has a seam?** If yes, fix it before review. Don't lower the coverage

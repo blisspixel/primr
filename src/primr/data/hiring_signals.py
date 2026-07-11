@@ -21,6 +21,7 @@ from typing import Any
 from urllib.parse import urljoin, urlparse
 
 from primr.ai import stage_routing
+from primr.ai.provider_availability import LocalCapacityBusyError
 from primr.data import hiring_public_boards as public_boards
 from primr.data.hiring_career_urls import discover_career_url_postings, normalize_career_urls
 from primr.data.hiring_extraction import (
@@ -42,6 +43,9 @@ from primr.data.hiring_signal_artifacts import (
 from primr.data.hiring_signal_artifacts import (
     render_for_prompt as _render_for_prompt,
 )
+from primr.data.hiring_signal_routing import (
+    record_hiring_capacity_busy as _record_hiring_capacity_busy,
+)
 from primr.data.hiring_signal_routing import record_hiring_route as _record_hiring_route
 from primr.data.hiring_signal_selection import (
     clean_web_search_title as _clean_web_search_title,
@@ -49,6 +53,7 @@ from primr.data.hiring_signal_selection import (
 from primr.data.hiring_signal_selection import (
     deterministic_triage as _deterministic_triage_impl,
 )
+from primr.data.hiring_signal_selection import llm_triage as _llm_triage_impl
 from primr.data.hiring_signal_selection import (
     metadata_roles_from_postings as _metadata_roles_from_postings,
 )
@@ -1241,64 +1246,13 @@ def _llm_triage(
     *,
     model: str | None = None,
 ) -> list[int]:
-    """Ask Grok to pick up to ``k`` indices that yield the richest signals.
-    Falls back to the deterministic ranker on any parse / API failure.
-    """
-    from primr.ai.grok_client import grok_llm
-
-    # Show the model a compact list, not full JDs — we want a selection,
-    # not a summary.
-    listing_lines: list[str] = []
-    for i, p in enumerate(postings):
-        dept_frag = f" [{p.department}]" if p.department else ""
-        loc_frag = f" — {p.location}" if p.location else ""
-        listing_lines.append(f"{i}. {p.title}{dept_frag}{loc_frag}")
-    # T1 boundary: titles/departments/locations are scraped verbatim; fenced
-    # so a planted instruction can at worst bias which postings get read.
-    from primr.utils.content_sanitizer import fence_untrusted
-
-    listing = fence_untrusted("JOB_POSTING_TITLES", "\n".join(listing_lines))
-
-    prompt = f"""You are triaging open job postings at {company_name or "a target company"} for a strategic research brief.
-
-Pick up to {k} postings whose descriptions are most likely to reveal:
-- Tech stack and platforms in use
-- Strategic initiatives ("building AI/ML platform", "expanding EMEA")
-- Organizational shape (who reports to whom, maturity of the function)
-- Culture and operating model signals
-
-Prefer senior, engineering, product, platform, data, security, and leadership roles.
-Down-weight retail, entry-level, support, and high-volume sales roles unless no other signal exists.
-
-Respond with ONLY valid JSON matching this schema:
-{{"selected": [<index>, <index>, ...]}}
-
-Postings:
-{listing}
-"""
-    try:
-        raw = grok_llm(
-            prompt,
-            model=model or "grok-4.20-non-reasoning",
-            temperature=0.2,
-            max_tokens=1_500,
-            retries=1,
-        )
-    except Exception as e:
-        logger.info("Hiring-signals triage LLM call failed: %s — using deterministic fallback", e)
-        return _deterministic_triage(postings, k)
-
-    parsed = _parse_json_blob(raw)
-    if not isinstance(parsed, dict):
-        return _deterministic_triage(postings, k)
-    selected = parsed.get("selected")
-    if not isinstance(selected, list):
-        return _deterministic_triage(postings, k)
-    valid = [int(i) for i in selected if isinstance(i, int) and 0 <= int(i) < len(postings)]
-    if not valid:
-        return _deterministic_triage(postings, k)
-    # Respect the user-facing cap even if the LLM overshoots.
-    return valid[:k]
+    return _llm_triage_impl(
+        postings,
+        company_name,
+        k,
+        model=model,
+        stale_days_threshold=_STALE_DAYS_THRESHOLD,
+    )
 
 
 # =============================================================================
@@ -1508,11 +1462,24 @@ def gather_hiring_signals(
             input_count=len(postings),
             output_count=len(metadata_roles),
             duration_seconds=time.monotonic() - route_start,
-            failure_class="agent_profile_unavailable",
+            failure_class=stage_routing.stage_route_failure_class(route),
         )
         return fallback_signals
 
-    selected_idx = _llm_triage(postings, company_name, max_selected, model=routed_model)
+    try:
+        selected_idx = _llm_triage(postings, company_name, max_selected, model=routed_model)
+    except LocalCapacityBusyError as error:
+        _record_hiring_capacity_busy(
+            working_folder,
+            route,
+            error,
+            input_count=len(postings),
+            duration_seconds=time.monotonic() - route_start,
+            usage_delta=stage_routing.stage_usage_delta(usage_before)
+            if usage_before is not None
+            else None,
+        )
+        raise
     selected = [postings[i] for i in selected_idx]
 
     _fetch_html_posting_bodies(selected)
@@ -1554,12 +1521,25 @@ def gather_hiring_signals(
             )
         return skeleton
 
-    parsed = _extract_signals(selected_with_body, company_name, model=routed_model)
+    try:
+        parsed = _extract_signals(selected_with_body, company_name, model=routed_model)
+    except LocalCapacityBusyError as error:
+        _record_hiring_capacity_busy(
+            working_folder,
+            route,
+            error,
+            input_count=len(postings),
+            duration_seconds=time.monotonic() - route_start,
+            usage_delta=stage_routing.stage_usage_delta(usage_before)
+            if usage_before is not None
+            else None,
+        )
+        raise
     coerced = (
         _coerce_extraction(parsed)
         if isinstance(parsed, dict)
         else {
-            "roles": [],
+            "roles": _metadata_roles_from_postings(selected_with_body),
             "tech_stack": {},
             "strategic_initiatives": [],
             "culture_signals": [],

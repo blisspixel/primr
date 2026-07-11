@@ -6,7 +6,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from primr.core.fast_run_hiring import collect_hiring_block
+from primr.ai.provider_availability import LocalCapacityBusyError
+from primr.core.fast_run_hiring import collect_fenced_hiring_block, collect_hiring_block
 
 
 def _signals(
@@ -90,13 +91,28 @@ class TestNoSignals:
         assert state["postings_found"] == 0
 
 
-class TestStageNeverFailsRun:
+class TestStageFailurePolicy:
     def test_gather_exception_degrades_to_empty_block(self, seams):
         seams["gather"].side_effect = RuntimeError("ATS fan-out exploded")
         assert _call(seams) == ""
         state = seams["run_state"]["hiring_signals"]
         assert state["source"] == "skipped"
         assert state["postings_found"] == 0
+
+    def test_fast_wrapper_propagates_local_capacity_busy_without_logging_raw_error(
+        self, seams, monkeypatch
+    ):
+        busy_error = LocalCapacityBusyError(reason="local_capacity_timeout_busy")
+        busy_error.__cause__ = RuntimeError("private endpoint detail")
+        seams["gather"].side_effect = busy_error
+        logger = MagicMock()
+        monkeypatch.setattr("primr.core.fast_run_hiring.logger", logger)
+
+        with pytest.raises(LocalCapacityBusyError) as caught:
+            _call(seams)
+
+        assert caught.value is busy_error
+        logger.warning.assert_not_called()
 
 
 class TestFencedVariantForDeepResearch:
@@ -105,8 +121,6 @@ class TestFencedVariantForDeepResearch:
     trusted LLM output, so it crosses that boundary only as fenced data."""
 
     def test_non_empty_block_is_fenced(self, seams):
-        from primr.core.fast_run_hiring import collect_fenced_hiring_block
-
         block = collect_fenced_hiring_block(
             company_label="AcmeCo",
             website="https://acme.example",
@@ -117,8 +131,6 @@ class TestFencedVariantForDeepResearch:
         assert "rendered signals" in block
 
     def test_no_signals_returns_empty_unfenced(self, seams):
-        from primr.core.fast_run_hiring import collect_fenced_hiring_block
-
         seams["gather"].return_value = None
         block = collect_fenced_hiring_block(
             company_label="AcmeCo",
@@ -127,3 +139,23 @@ class TestFencedVariantForDeepResearch:
             folder_path=str(seams["tmp"]),
         )
         assert block == ""
+
+    def test_deep_wrapper_propagates_local_capacity_busy_without_logging_raw_error(
+        self, seams, monkeypatch
+    ):
+        busy_error = LocalCapacityBusyError(reason="local_capacity_timeout_busy")
+        busy_error.__cause__ = RuntimeError("private endpoint detail")
+        seams["gather"].side_effect = busy_error
+        logger = MagicMock()
+        monkeypatch.setattr("primr.core.fast_run_hiring.logger", logger)
+
+        with pytest.raises(LocalCapacityBusyError) as caught:
+            collect_fenced_hiring_block(
+                company_label="AcmeCo",
+                website="https://acme.example",
+                scraped_data={},
+                folder_path=str(seams["tmp"]),
+            )
+
+        assert caught.value is busy_error
+        logger.warning.assert_not_called()

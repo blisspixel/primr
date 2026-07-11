@@ -16,6 +16,7 @@ from primr.ai.host_agent_cli import (
 from primr.ai.host_agent_runner import (
     HostAgentBillingMode,
     HostAgentKind,
+    HostAgentPolicy,
     HostAgentStagePacket,
     HostAgentUnavailableError,
 )
@@ -65,6 +66,7 @@ def test_codex_cli_runner_invokes_bounded_exec_command(tmp_path: Path) -> None:
             role="utility",
             instructions="Return source ids.",
             output_schema={"type": "array", "items": {"type": "integer"}},
+            policy=HostAgentPolicy(billing_mode=HostAgentBillingMode.HOST_PLAN_USAGE),
         )
     )
 
@@ -93,6 +95,33 @@ def test_codex_cli_runner_invokes_bounded_exec_command(tmp_path: Path) -> None:
     assert result.metadata["shell_tool"] is False
 
 
+def test_codex_cli_runner_does_not_invoke_exec_with_unknown_billing(tmp_path: Path) -> None:
+    invoked = False
+
+    def fake_run(
+        args: Sequence[str],
+        *,
+        input: str,
+        text: bool,
+        capture_output: bool,
+        timeout: int,
+    ) -> subprocess.CompletedProcess[str]:
+        nonlocal invoked
+        invoked = True
+        return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+    runner = CodexCliHostAgentRunner(
+        workdir=tmp_path,
+        which=lambda _: "codex",
+        run_command=fake_run,
+    )
+
+    with pytest.raises(HostAgentUnavailableError, match="billing mode is unverified"):
+        runner.run(HostAgentStagePacket(stage_id="s", role="utility", instructions="Run."))
+
+    assert invoked is False
+
+
 def test_codex_cli_runner_raises_on_failed_exec(tmp_path: Path) -> None:
     def fake_run(
         args: Sequence[str],
@@ -111,15 +140,34 @@ def test_codex_cli_runner_raises_on_failed_exec(tmp_path: Path) -> None:
     )
 
     with pytest.raises(HostAgentExecutionError, match="exit code 2"):
-        runner.run(HostAgentStagePacket(stage_id="s", role="utility", instructions="Run."))
+        runner.run(
+            HostAgentStagePacket(
+                stage_id="s",
+                role="utility",
+                instructions="Run.",
+                policy=HostAgentPolicy(billing_mode=HostAgentBillingMode.HOST_PLAN_USAGE),
+            )
+        )
 
 
 def test_codex_cli_backend_is_official_host_runner() -> None:
-    backend = codex_cli_backend(available=True)
+    backend = codex_cli_backend(
+        available=True,
+        billing_mode=BillingMode.UNKNOWN,
+    )
 
     assert backend.backend_id == "codex-cli"
     assert backend.kind is BackendKind.HOST_AGENT
-    assert backend.billing_mode is BillingMode.HOST_PLAN_USAGE
+    assert backend.billing_mode is BillingMode.UNKNOWN
     assert backend.official_host_runner is True
     assert backend.available is True
     assert backend.metadata["runner"] == "codex"
+
+
+def test_codex_cli_backend_preserves_explicit_plan_billing() -> None:
+    backend = codex_cli_backend(
+        available=True,
+        billing_mode=BillingMode.HOST_PLAN_USAGE,
+    )
+
+    assert backend.billing_mode is BillingMode.HOST_PLAN_USAGE

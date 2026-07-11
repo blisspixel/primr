@@ -44,9 +44,13 @@ path. `--inference hybrid` enables the backend-freedom utility-stage pilots:
 `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals`
 resolve their legacy utility models through the capability router, log safe
 route metadata, append body-free `stage_routes` entries to `_run_state.json`,
-and then execute through existing provider seams. Agent and local profiles are not
-exposed yet; they require official runners or local execution adapters plus
-stage evals before promotion.
+and then execute through existing provider seams. The public CLI exposes only
+`cloud` and `hybrid`. An internal/eval-only Codex adapter exists, but Codex CLI
+authentication does not tell Primr whether a run uses plan allowance or metered
+API-key billing. It is therefore not a supported inference profile. Use
+`primr-zero` inside a verified plan-backed host for the supported plan-native
+path. Local profiles also remain unexposed until stage adapters and evals clear
+the promotion bar.
 
 ## Strategy Generation
 

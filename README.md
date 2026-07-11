@@ -37,7 +37,8 @@ you want the full evidence pipeline and durable artifacts.
 Requirements:
 
 - Python 3.12 or newer.
-- API keys for the model providers you want to use. The measured low-cost default uses xAI plus Gemini.
+- No model API key or GPU is required for `primr recon` or `primr prep`.
+- API keys are required only for provider-backed research. The measured low-cost default uses xAI plus Gemini.
 - Browser dependencies installed by `primr init` for browser-backed scraping tiers.
 
 Install with the script:
@@ -68,7 +69,43 @@ primr doctor
 
 On Windows, use the installer or pipx if `primr` is not found after `pip install`; a bare pip install can place scripts in a user Scripts directory that is not on `PATH`.
 
-## First Run
+## Keyless Quick Start
+
+If you already have a research-capable agent plan but no model API key or GPU,
+prepare a bounded evidence bundle locally and let that host do the synthesis:
+
+```bash
+primr prep "ExampleCo" https://example.co --dry-run
+primr prep "ExampleCo" https://example.co
+```
+
+`primr prep` performs public network requests but makes no model calls. Its
+hard-zero guard remains active even when provider keys are configured. The
+bundle contains first-party pages, typed fallback provenance, a source index,
+hashes, a fenced host packet, a host workflow, and an installable copy of the
+`primr-zero` Agent Skill. DNS, public hiring signals, and scrape traces are
+included when their collectors return evidence. Use the skill to research
+external gaps and write the dossier with the host allowance you already have,
+but verify that the host is plan-backed and will not bill API usage or overages
+before calling the whole workflow zero incremental spend.
+
+Install the packaged skill globally when you do not want a repository copy:
+
+```bash
+primr prep --install-skill ~/.agents/skills/primr-zero
+```
+
+Claude Code uses `~/.claude/skills/primr-zero` instead.
+
+Prep collection is `$0.00` in model API spend. Host synthesis is also zero
+incremental only when the host is verified to use included plan allowance with
+no API billing or overages. Subscription terms, plan limits, electricity, and
+network access still apply. See
+[Zero-Cost and Host-Assisted Research](docs/ZERO_COST.md) for install paths,
+capability fallbacks, and the difference between this host-native path and the
+internal/eval-only in-pipeline Codex runner.
+
+## Provider-Backed First Run
 
 Always estimate before a billable run:
 
@@ -81,12 +118,13 @@ Current dry-run shape for the common setup:
 
 | Run | What it does | Typical time | Typical cost |
 |-----|--------------|--------------|--------------|
+| `primr recon` | DNS intelligence only | 2-3 sec | $0.00 |
+| `primr prep` + `primr-zero` | Keyless Primr collection plus synthesis in an existing agent plan | 5-15 min collection, then host-dependent | $0.00 incremental model API spend |
 | Default with xAI plus Gemini | Strategic Overview plus AI Strategy | 34-59 min | ~$0.89-$1.01 |
 | Base report only | Strategic Overview, no AI Strategy | 31-47 min | ~$0.76-$0.79 |
 | `primr skills` | Agent Skills pack from company evidence | ~3 min | ~$0.30 |
 | `--mode scrape` | Site corpus and extracted insights only | 5-10 min | ~$0.10 |
 | `--premium` | Gemini plus Deep Research for maximum depth | 50-75 min | ~$5 |
-| `primr recon` | DNS intelligence only | 2-3 sec | $0.00 |
 
 Costs change with provider configuration, strategy count, cache hits, model pricing, and run mode. Treat `--dry-run` as the source of truth for the next run.
 Human dry-runs end with concise launch, monitoring, recovery, and artifact-retrieval steps. Add `--verbose` to inspect the serialized recovery policy, or `--json` to receive one machine-readable estimate object.
@@ -102,6 +140,7 @@ See [Run Modes and Costs](docs/RUN_MODES.md) for the full mode matrix, platform 
 
 | Need | Command |
 |------|---------|
+| Keyless evidence bundle for an existing agent plan | `primr prep "Company" https://company.com` |
 | Estimate the next run | `primr "Company" https://company.com --dry-run` |
 | Standard Strategic Overview plus AI Strategy | `primr "Company" https://company.com` |
 | Strategic Overview only | `primr "Company" https://company.com --no-ai-strategy` |
@@ -221,9 +260,17 @@ See [API Key Setup](docs/API_KEYS.md) and [Configuration Reference](docs/CONFIG.
 
 ## Agent and Tool Integration
 
-Primr can be operated from MCP-compatible agent hosts, local CLI workflows, OpenClaw, and Microsoft agent surfaces. The same rule applies everywhere: estimate first, get explicit approval, launch, then monitor asynchronously.
+Primr can be operated from MCP-compatible agent hosts, local CLI workflows,
+OpenClaw, and Microsoft agent surfaces. Billable research follows the same rule
+everywhere: estimate first, get explicit approval, launch, then monitor
+asynchronously. `primr prep` is a separate hard-zero collection path: disclose
+its public network access, but no spend approval is required because model calls
+are disabled for the workflow.
 
-Start with [Agent Integration](docs/AGENT_INTEGRATION.md). Programmatic MCP and A2A details live in [MCP and A2A API](docs/API.md). Skill-pack generation is covered in [Skill Pack Guide](docs/SKILL_PACK.md).
+Start with [Agent Integration](docs/AGENT_INTEGRATION.md). The no-key, no-GPU
+path is covered in [Zero-Cost and Host-Assisted Research](docs/ZERO_COST.md).
+Programmatic MCP and A2A details live in [MCP and A2A API](docs/API.md).
+Skill-pack generation is covered in [Skill Pack Guide](docs/SKILL_PACK.md).
 
 `primr --check-jobs --json` returns `primr.job-status-list` v1.0. Each row is a
 body-free `primr.job-status` v1.0 snapshot with normalized lifecycle, progress,
@@ -245,6 +292,7 @@ formatting, mypy checks, Bandit, pip-audit, and strict documentation builds.
 | Topic | Guide |
 |-------|-------|
 | Run modes and costs | [Run Modes and Costs](docs/RUN_MODES.md) |
+| Zero-cost and host-assisted research | [Zero-Cost Research](docs/ZERO_COST.md) |
 | API keys | [API Key Setup](docs/API_KEYS.md) |
 | Configuration | [Configuration Reference](docs/CONFIG.md) |
 | Skill packs | [Skill Pack Guide](docs/SKILL_PACK.md) |

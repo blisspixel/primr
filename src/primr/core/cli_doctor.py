@@ -22,7 +22,11 @@ from primr.ai.availability_sanitize import (
     safe_env_label,
 )
 from primr.ai.genai_factory import default_genai_http_options
-from primr.ai.provider_availability import ProviderQuotaSnapshot, availability_decision
+from primr.ai.provider_availability import (
+    AvailabilityState,
+    ProviderQuotaSnapshot,
+    availability_decision,
+)
 from primr.ai.provider_availability_collectors import (
     LOCAL_OPENAI_COMPATIBLE_PROVIDER,
     collect_provider_availability_snapshots,
@@ -236,6 +240,13 @@ def _provider_availability_status(snapshot: ProviderQuotaSnapshot) -> tuple[str,
             return (
                 "ok",
                 f"{display_name}: available ({model_count} local model(s), $0 API runtime)",
+            )
+        if decision.state is AvailabilityState.BUSY:
+            retry_seconds = decision.retry_after_seconds or 0
+            retry_at = decision.retry_at.isoformat() if decision.retry_at is not None else "unknown"
+            return (
+                "warn",
+                f"{display_name}: busy (retry after {retry_seconds}s, no earlier than {retry_at})",
             )
         return (
             "info",

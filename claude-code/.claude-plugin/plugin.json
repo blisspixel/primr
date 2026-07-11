@@ -1,15 +1,15 @@
 {
   "name": "primr",
-  "version": "1.31.0",
+  "version": "1.35.0",
   "_version_note": "Kept in sync with pyproject.toml; bump together",
-  "description": "Strategic intelligence briefs from any company URL — adaptive scraping, AI-powered research and synthesis (Grok / Gemini Deep Research), and structured report generation. Bundles the primr MCP server and two skills: 'primr' (drives the full metered pipeline with a cost gate and async lifecycle handling) and 'company-brief' (the primr research method as a standalone skill using only the host's own tools — no install, no API keys).",
+  "description": "Strategic intelligence briefs from any company URL through keyless evidence collection, host-assisted research, or the full metered Primr pipeline. Bundles the Primr MCP server and three skills: 'primr', 'primr-zero', and 'company-brief'.",
   "author": {
     "name": "blisspixel",
     "url": "https://github.com/blisspixel"
   },
   "homepage": "https://github.com/blisspixel/primr",
   "repository": "https://github.com/blisspixel/primr",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "keywords": [
     "primr",
     "company-research",

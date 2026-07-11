@@ -28,6 +28,7 @@ from typing import Any
 
 from primr.ai.providers import XAIProvider
 from primr.utils.logging_config import get_logger
+from primr.utils.model_policy import require_model_calls_allowed
 
 logger = get_logger("grok_client")
 
@@ -282,6 +283,7 @@ def grok_llm(
         ConfigurationError: If XAI_API_KEY is not set.
         RuntimeError: If the API call fails after retries.
     """
+    require_model_calls_allowed("chat generation")
     if model is None:
         model = _DEFAULT_MODEL
 
@@ -419,6 +421,7 @@ class ContinuousReasoningSession:
         retries: int = 4,
     ) -> str:
         """Append a user turn, call Grok, append the assistant reply, return it."""
+        require_model_calls_allowed("continuous reasoning generation")
         self.history.append({"role": "user", "content": prompt})
 
         # Delegate the chat call (with retry/error handling) to the shared
@@ -495,6 +498,7 @@ def grok_browse_and_summarize(
     citations**, not direct page scrape content; downstream pipelines should
     tag it as "grok-surrogate" so it isn't confused with first-party text.
     """
+    require_model_calls_allowed("Grok browse generation")
     summary = _get_provider().browse_and_summarize(
         url,
         context=context,
