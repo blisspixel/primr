@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+### Documentation
+
+- Refreshed the next-steps guidance with the shipped durable background-job
+  lifecycle and the verified Trusted Publishing release contract.
+
 ## [1.34.50] - 2026-07-10
 
 ### Added
