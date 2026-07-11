@@ -1,6 +1,6 @@
 # Next Steps
 
-Last research refresh: 2026-07-03.
+Last research refresh: 2026-07-10.
 
 This page answers the working question: what should Primr do next, and why?
 `ROADMAP.md` remains the ordered backlog. This page is the shorter execution
@@ -49,6 +49,14 @@ for Primr's shape:
 - Treat GenAI observability as structured telemetry: model calls, tool calls,
   token/cost metadata, outcome, and trace ids. Full prompt/output capture
   should stay opt-in and privacy-aware.
+- Treat provider background execution as a durable lifecycle, not a long HTTP
+  request. Persist the provider interaction id immediately, reconnect by id,
+  and acknowledge completion only after Primr's owning output boundary proves
+  the required artifacts are durable. Version 1.34.50 applies that contract to
+  normal completion and recovery paths.
+- Keep package publication on PyPI Trusted Publishing. Build once from an
+  immutable tag on green `main`, publish that exact artifact set through OIDC,
+  and verify registry filenames and hashes before creating the GitHub release.
 - Treat validation as layered evidence and reasoning evaluation. Citation
   parsing, source fetches, and sidecar schemas are deterministic input
   assembly. They are not quality validation. Validation has to judge support,
@@ -71,6 +79,12 @@ Reference anchors:
   <https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization>
 - MCP 2025-11-25 changelog:
   <https://modelcontextprotocol.io/specification/2025-11-25/changelog>
+- Gemini Interactions API overview, accessed 2026-07-10:
+  <https://ai.google.dev/gemini-api/docs/interactions-overview>
+- Gemini background execution, accessed 2026-07-10:
+  <https://ai.google.dev/gemini-api/docs/background-execution>
+- PyPA Trusted Publishing release workflow guide, updated 2026-06-22:
+  <https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/>
 - MCP 2026-07-28 release candidate blog, published 2026-05-21, final spec
   scheduled for 2026-07-28:
   <https://blog.modelcontextprotocol.io/posts/2026-07-28-release-candidate/>
