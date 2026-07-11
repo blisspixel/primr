@@ -1272,8 +1272,7 @@ def _handle_doctor(config: CLIConfig) -> int:
 
 def _handle_list_recent(config: CLIConfig) -> int:
     """Handle list-recent command."""
-    list_recent_outputs()
-    return 0
+    return list_recent_outputs(output_dir=config.output_dir, json_output=config.json_output)
 
 
 def _handle_clean_temp(config: CLIConfig) -> int:
@@ -1290,7 +1289,7 @@ def _handle_check_quota(config: CLIConfig) -> int:
 
 def _handle_check_jobs(config: CLIConfig) -> int:
     """Handle check-jobs command."""
-    return check_pending_jobs()
+    return check_pending_jobs(json_output=config.json_output)
 
 
 def _handle_resume_latest(config: CLIConfig) -> int:
@@ -2608,34 +2607,16 @@ def _handle_research(config: CLIConfig) -> int:
     return 0 if result_path else 1
 
 
-# =============================================================================
-# INTERNAL FUNCTIONS - Doctor Checks
-# =============================================================================
-
-
-def list_recent_outputs() -> None:
+def list_recent_outputs(output_dir: str | None = None, *, json_output: bool = False) -> int:
     """List recent research outputs from the output directory."""
-    import glob
-    from datetime import datetime
+    from primr.core.cli_artifacts import list_recent_outputs as render_recent_outputs
 
-    output_files = glob.glob(os.path.join(OUTPUT_DIR, "*.docx"))
-    if not output_files:
-        print("No recent outputs found.")
-        return
-
-    output_files.sort(key=os.path.getmtime, reverse=True)
-
-    print("\nRECENT RESEARCH OUTPUTS")
-    print("-" * 60)
-    for i, filepath in enumerate(output_files[:20], 1):
-        filename = os.path.basename(filepath)
-        mtime = datetime.fromtimestamp(os.path.getmtime(filepath))
-        size_kb = os.path.getsize(filepath) / 1024
-        print(f"{i:2}. {filename}")
-        print(f"    {mtime.strftime('%Y-%m-%d %H:%M')} | {size_kb:.1f} KB")
-    if len(output_files) > 20:
-        print(f"... and {len(output_files) - 20} more files")
-    print("-" * 60)
+    return render_recent_outputs(
+        output_dir or OUTPUT_DIR,
+        working_dir=WORKING_DIR,
+        logs_dir=os.path.dirname(LOGS_DIR),
+        json_output=json_output,
+    )
 
 
 def clean_temp_files() -> None:

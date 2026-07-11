@@ -109,14 +109,35 @@ def build_job_response(
 ) -> dict[str, Any]:
     """Build a `check_jobs` response without leaking report bodies by default."""
     status = job.get_status().value
-    response: dict[str, Any] = {
-        "job_id": job.job_id,
-        "status": status,
-        "company_name": job.company_name,
-        "output_path": job.output_paths[0] if job.output_paths else None,
-        "error_type": job.error_type,
-        "error_message": job.error_message,
-    }
+    from primr.job_status import build_job_status
+
+    response: dict[str, Any] = build_job_status(
+        job_id=job.job_id,
+        source="agent_job",
+        status=status,
+        company_name=job.company_name,
+        mode=job.mode,
+        stage=job.current_stage,
+        percent=job.stage_progress_percent,
+        possibly_stuck=job.is_possibly_stuck() if not job.is_terminal() else False,
+        started_at=job.start_time,
+        updated_at=job.last_heartbeat_time,
+        completed_at=job.completion_time,
+        artifacts_available=bool(job.output_paths) if status == "completed" else None,
+        error_message=job.error_message,
+        error_code=job.error_type,
+        error_source="agent_job" if job.error_message else None,
+    )
+    response.update(
+        {
+            "job_id": job.job_id,
+            "status": status,
+            "company_name": job.company_name,
+            "output_path": job.output_paths[0] if job.output_paths else None,
+            "error_type": job.error_type,
+            "error_message": job.error_message,
+        }
+    )
 
     if status != "completed" or not job.output_paths:
         return response

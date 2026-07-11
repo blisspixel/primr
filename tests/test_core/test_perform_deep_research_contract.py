@@ -34,6 +34,7 @@ def _result(**overrides):
         "sections_written": 8,
         "raw_content": "## Report\nfull markdown [cite: 1] and [cite: 2]",
         "search_queries_count": 12,
+        "pending_interaction_id": "interaction-123",
     }
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -63,8 +64,22 @@ def seams(monkeypatch, tmp_path):
 
     save_section = MagicMock()
     monkeypatch.setattr(research_agent, "save_section_output", save_section)
-    docx = MagicMock(return_value=str(out_dir / "deep.docx"))
+
+    def write_report_outputs(*_args, written_paths, **_kwargs):
+        out_dir.mkdir(parents=True, exist_ok=True)
+        paths = [out_dir / "deep.md", out_dir / "deep.txt", out_dir / "deep.docx"]
+        for path in paths:
+            path.write_text("content", encoding="utf-8")
+        written_paths.extend(paths)
+        return str(paths[-1])
+
+    docx = MagicMock(side_effect=write_report_outputs)
     monkeypatch.setattr(research_agent, "_convert_deep_research_to_docx", docx)
+    acknowledge = MagicMock(return_value=True)
+    monkeypatch.setattr(
+        "primr.ai.job_persistence.acknowledge_pending_job_after_outputs",
+        acknowledge,
+    )
     final_report = MagicMock(return_value=str(out_dir / "assembled.docx"))
     monkeypatch.setattr(research_agent, "generate_final_report", final_report)
     strategy_gen = MagicMock(side_effect=lambda **k: str(out_dir / f"{k['platform']}.docx"))
@@ -96,6 +111,7 @@ def seams(monkeypatch, tmp_path):
         "cleanup": cleanup,
         "save_section": save_section,
         "docx": docx,
+        "acknowledge": acknowledge,
         "final_report": final_report,
         "strategy_gen": strategy_gen,
         "tracker": tracker,
@@ -197,6 +213,14 @@ class TestSuccessPath:
         state = _read_state(seams["folder"])
         assert state["status"] == "completed"
         assert state["duration_seconds"] >= 90
+        seams["acknowledge"].assert_called_once_with(
+            "interaction-123",
+            [
+                seams["out_dir"] / "deep.md",
+                seams["out_dir"] / "deep.txt",
+                seams["out_dir"] / "deep.docx",
+            ],
+        )
 
     def test_docx_conversion_receives_output_routing(self, seams, tmp_path):
         custom = tmp_path / "custom-out"
@@ -204,6 +228,12 @@ class TestSuccessPath:
         kwargs = seams["docx"].call_args.kwargs
         assert kwargs["output_dir"] == custom
         assert kwargs["write_txt"] is False
+
+    def test_docx_conversion_failure_retains_pending_interaction(self, seams):
+        seams["docx"].side_effect = None
+        seams["docx"].return_value = None
+        assert _run(seams) is None
+        seams["acknowledge"].assert_not_called()
 
     def test_no_raw_content_uses_structured_assembly(self, seams):
         seams["result"].raw_content = ""

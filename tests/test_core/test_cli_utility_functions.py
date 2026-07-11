@@ -23,6 +23,12 @@ def output_dir(tmp_path, monkeypatch):
     monkeypatch.setattr("primr.config.config.OUTPUT_DIR", str(tmp_path / "output"))
     od = tmp_path / "output"
     od.mkdir()
+    working = tmp_path / "working"
+    working.mkdir()
+    logs = tmp_path / "logs" / "chat_history"
+    logs.mkdir(parents=True)
+    monkeypatch.setattr("primr.core.cli.WORKING_DIR", str(working))
+    monkeypatch.setattr("primr.core.cli.LOGS_DIR", str(logs))
     return od
 
 
@@ -57,6 +63,30 @@ class TestListRecentOutputs:
         list_recent_outputs()
         captured = capsys.readouterr()
         assert "and 5 more files" in captured.out
+
+    def test_json_lists_output_run_state_and_trace(self, output_dir, tmp_path, capsys):
+        import json
+
+        (output_dir / "report.md").write_text("body", encoding="utf-8")
+        run_dir = tmp_path / "working" / "Acme" / "run"
+        run_dir.mkdir(parents=True)
+        (run_dir / "_run_state.json").write_text("{}", encoding="utf-8")
+        trace_dir = tmp_path / "logs" / "scrape_traces"
+        trace_dir.mkdir()
+        (trace_dir / "scrape_trace_job.jsonl").write_text("{}\n", encoding="utf-8")
+
+        assert list_recent_outputs(json_output=True) == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["schema"] == "primr.artifact-inventory"
+        assert {row["artifact_type"] for row in payload["artifacts"]} >= {
+            "report_markdown",
+            "run_state",
+            "scrape_trace",
+        }
+
+    def test_missing_custom_output_root_returns_nonzero(self, output_dir, tmp_path, capsys):
+        assert list_recent_outputs(output_dir=str(tmp_path / "missing")) == 1
+        assert "Unable to scan artifact roots" in capsys.readouterr().out
 
 
 class TestCleanTempFiles:
@@ -129,6 +159,49 @@ class TestCheckApiQuota:
 
 
 class TestCheckPendingJobs:
+    def test_json_status_is_one_versioned_object(self, monkeypatch, capsys):
+        import json
+
+        import primr.ai.deep_research as dr
+        from primr.core import cli_recovery
+
+        monkeypatch.setattr(
+            dr,
+            "get_pending_jobs",
+            lambda: {"j1": {"description": "ExampleCo", "started": "2026-07-10T00:00:00Z"}},
+        )
+        client = MagicMock()
+        client.check_job.return_value = {"status": "in_progress", "error": None}
+        monkeypatch.setattr(dr, "get_deep_research_client", lambda: client)
+        monkeypatch.setattr(cli_recovery, "_find_latest_run_state", lambda: None)
+
+        assert check_pending_jobs(json_output=True) == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["schema"] == "primr.job-status-list"
+        assert payload["jobs"][0]["lifecycle_state"] == "in_progress"
+        assert payload["jobs"][0]["source"] == "provider_recovery"
+
+    def test_json_check_error_is_observation_and_nonzero(self, monkeypatch, capsys):
+        import json
+
+        import primr.ai.deep_research as dr
+        from primr.core import cli_recovery
+
+        monkeypatch.setattr(dr, "get_pending_jobs", lambda: {"j1": {}})
+        client = MagicMock()
+        client.check_job.return_value = {
+            "status": "check_error",
+            "error": "network down",
+            "error_source": "local",
+        }
+        monkeypatch.setattr(dr, "get_deep_research_client", lambda: client)
+        monkeypatch.setattr(cli_recovery, "_find_latest_run_state", lambda: None)
+
+        assert check_pending_jobs(json_output=True) == 1
+        job = json.loads(capsys.readouterr().out)["jobs"][0]
+        assert job["lifecycle_state"] == "unknown"
+        assert job["error"]["kind"] == "observation"
+
     def test_no_pending_jobs_also_shows_latest_local_state(self, monkeypatch, tmp_path, capsys):
         import primr.ai.deep_research as dr
         from primr.core import cli_recovery

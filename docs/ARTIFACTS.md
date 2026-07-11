@@ -77,6 +77,15 @@ strict about formatting and structure in the final document pipeline.
   counts, report-only inference source-copy counts, evidence-review count
   buckets, judge provenance, and judge-agreement metadata without returning raw
   claims, source URLs, evidence reviews, rationales, or report body content.
+- **One bounded artifact inventory seam** shared by local and agent-facing
+  surfaces. Explicit paths preserve missing-file state; exact adjacent
+  Markdown, TXT, DOCX, and PDF siblings can be expanded without fuzzy cross-run
+  matching; producers attach job-scoped manifests explicitly. Bounded root
+  scans do not follow directory symlinks or read artifact bodies.
+  `primr --list-recent --json` exposes the local
+  `primr.artifact-inventory` v1.0 form. Explicit MCP inventories cap metadata
+  inspection at 256 paths and report `truncated: true` when more owned paths
+  exist, preventing unbounded hashing work.
 
 The writing and regeneration prompts carry an explicit prohibition against the
 internal-scaffolding markers the cleanup strips, sourced from a single shared

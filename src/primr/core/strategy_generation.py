@@ -233,6 +233,11 @@ def generate_generic_strategy(
             console.error(f"{strategy_display_name} research failed")
             return None
 
+        result_interaction_id = getattr(result, "interaction_id", "")
+        pending_interaction_id = (
+            result_interaction_id if isinstance(result_interaction_id, str) else ""
+        )
+
         date_str = datetime.now().strftime("%m-%d-%Y")
         output_filename = meta.get("output_filename", f"{{company_name}}_{strategy_name}")
         base_name = output_filename.format(company_name=company_name) + f"_{date_str}"
@@ -246,6 +251,7 @@ def generate_generic_strategy(
             handle.write(result.content)
         console.ok(f"{strategy_display_name} MD: {base_name}.md", show_time=False)
 
+        txt_path: Path | None = None
         if write_txt or diagnostics_dir is not None:
             txt_path = (destination_dir if write_txt else internal_dir) / f"{base_name}.txt"
             with open(txt_path, "w", encoding="utf-8") as handle:
@@ -254,6 +260,7 @@ def generate_generic_strategy(
                 console.ok(f"{strategy_display_name} TXT: {base_name}.txt", show_time=False)
 
         docx_path = destination_dir / f"{base_name}.docx"
+        durable_docx_path: Path | None = None
         try:
             subtitle = datetime.now().strftime("%B %d, %Y")
             markdown_to_docx(
@@ -263,6 +270,7 @@ def generate_generic_strategy(
                 subtitle=subtitle,
             )
             console.ok(f"{strategy_display_name} DOCX: {base_name}.docx", show_time=False)
+            durable_docx_path = docx_path
         except PermissionError:
             timestamp = datetime.now().strftime("%H%M%S")
             docx_path = destination_dir / f"{base_name}_{timestamp}.docx"
@@ -273,9 +281,22 @@ def generate_generic_strategy(
                 title=f"{strategy_display_name}: {company_name}",
                 subtitle=subtitle,
             )
+            durable_docx_path = docx_path
         except Exception as exc:
             console.warn(f"DOCX conversion failed: {exc}")
             docx_path = md_path
+
+        from primr.ai.job_persistence import acknowledge_pending_job_after_outputs
+
+        required_outputs = [md_path]
+        if txt_path is not None:
+            required_outputs.append(txt_path)
+        if durable_docx_path is not None:
+            required_outputs.append(durable_docx_path)
+        if durable_docx_path is None or not acknowledge_pending_job_after_outputs(
+            pending_interaction_id, required_outputs
+        ):
+            console.warn(f"{strategy_display_name} was saved, but its pending job remains listed.")
 
         return str(docx_path)
 

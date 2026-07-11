@@ -9,7 +9,8 @@ expensive full pipeline tests. Run these first to catch issues early.
 
 import socket
 import warnings
-from unittest.mock import MagicMock, patch
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -236,15 +237,13 @@ class TestPreflightValidator:
             assert "cost" in est
 
     @pytest.mark.asyncio
-    async def test_deep_research_unknown_error_is_failure(self):
-        """Unknown Deep Research errors should fail preflight."""
+    async def test_deep_research_preflight_does_not_launch_billable_job(self):
+        """Preflight validates configuration without creating background work."""
         from primr.ai.preflight import PreflightValidator
 
         validator = PreflightValidator()
 
         fake_client = MagicMock()
-        fake_client.interactions.create.side_effect = Exception("weird transport blowup")
-
         with patch("google.genai.Client", return_value=fake_client):
             errors: list[str] = []
             warnings_list: list[str] = []
@@ -257,9 +256,74 @@ class TestPreflightValidator:
                 progress=lambda _msg: None,
             )
 
-        assert errors
-        assert checks["deep_research"]["passed"] is False
-        assert checks["deep_research"]["status"] == "error"
+        assert errors == []
+        assert checks["deep_research"]["passed"] is True
+        assert checks["deep_research"]["status"] == "configured"
+        fake_client.interactions.create.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_accordion_acknowledges_after_final_markdown_is_durable(tmp_path, monkeypatch):
+    from primr.ai.accordion_test import AccordionTestConfig, AccordionTestRunner
+
+    runner = object.__new__(AccordionTestRunner)
+    runner._api_call_count = 0
+    runner._execute_deep_research = AsyncMock(
+        return_value={
+            "success": True,
+            "content": "Research dossier",
+            "interaction_id": "interaction-123",
+        }
+    )
+    runner._write_section_gemini = AsyncMock(
+        return_value={"success": True, "content": "Section content"}
+    )
+    monkeypatch.setattr("primr.ai.accordion_test.OUTPUT_DIR", str(tmp_path))
+
+    with patch(
+        "primr.ai.job_persistence.acknowledge_pending_job_after_outputs",
+        return_value=True,
+    ) as acknowledge_mock:
+        result = await runner.run_test(
+            AccordionTestConfig(topic="Example", section_delay_seconds=0)
+        )
+
+    assert result.success is True
+    acknowledge_mock.assert_called_once()
+    interaction_id, paths = acknowledge_mock.call_args.args
+    assert interaction_id == "interaction-123"
+    assert len(paths) == 1
+    assert Path(paths[0]).is_file()
+
+
+@pytest.mark.asyncio
+async def test_accordion_write_failure_retains_pending_interaction(tmp_path, monkeypatch):
+    from primr.ai.accordion_test import AccordionTestConfig, AccordionTestRunner
+
+    runner = object.__new__(AccordionTestRunner)
+    runner._api_call_count = 0
+    runner._execute_deep_research = AsyncMock(
+        return_value={
+            "success": True,
+            "content": "Research dossier",
+            "interaction_id": "interaction-123",
+        }
+    )
+    runner._write_section_gemini = AsyncMock(
+        return_value={"success": True, "content": "Section content"}
+    )
+    monkeypatch.setattr("primr.ai.accordion_test.OUTPUT_DIR", str(tmp_path))
+
+    with (
+        patch("builtins.open", side_effect=OSError("disk full")),
+        patch("primr.ai.job_persistence.acknowledge_pending_job_after_outputs") as acknowledge_mock,
+    ):
+        result = await runner.run_test(
+            AccordionTestConfig(topic="Example", section_delay_seconds=0)
+        )
+
+    assert result.success is False
+    acknowledge_mock.assert_not_called()
 
 
 class TestOrchestratorConfiguration:

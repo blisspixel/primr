@@ -390,6 +390,7 @@ async def test_generate_vendor_research_success(tmp_path: Path):
     fake_result.status = ResearchStatus.COMPLETED
     fake_result.content = "Research body content"
     fake_result.duration_seconds = 120.0
+    fake_result.interaction_id = "interaction-123"
 
     client = MagicMock()
     client.research = AsyncMock(return_value=fake_result)
@@ -401,11 +402,16 @@ async def test_generate_vendor_research_success(tmp_path: Path):
         ),
         patch("primr.core.vendor_research.get_vendor_research_path", return_value=out),
         patch("primr.ai.deep_research.get_deep_research_client", return_value=client),
+        patch(
+            "primr.ai.job_persistence.acknowledge_pending_job_after_outputs",
+            return_value=True,
+        ) as acknowledge_mock,
     ):
         result = await generate_vendor_research("aws")
 
     assert result == str(out)
     assert out.read_text(encoding="utf-8") == "Research body content"
+    acknowledge_mock.assert_called_once_with("interaction-123", [out])
 
 
 @pytest.mark.asyncio
@@ -430,6 +436,30 @@ async def test_generate_vendor_research_failed_status(tmp_path: Path):
     ):
         result = await generate_vendor_research("aws")
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_generate_vendor_research_write_failure_retains_job(tmp_path: Path):
+    fake_result = MagicMock(
+        status=ResearchStatus.COMPLETED,
+        content="Research body",
+        interaction_id="interaction-123",
+    )
+    client = MagicMock(research=AsyncMock(return_value=fake_result))
+    with (
+        patch("primr.core.vendor_research._validate_vendor_research_preflight", return_value=[]),
+        patch(
+            "primr.core.vendor_research.get_vendor_research_path",
+            return_value=tmp_path / "vendor.md",
+        ),
+        patch("primr.ai.deep_research.get_deep_research_client", return_value=client),
+        patch("pathlib.Path.write_text", side_effect=OSError("disk full")),
+        patch("primr.ai.job_persistence.acknowledge_pending_job_after_outputs") as acknowledge_mock,
+    ):
+        result = await generate_vendor_research("aws")
+
+    assert result is None
+    acknowledge_mock.assert_not_called()
 
 
 @pytest.mark.asyncio

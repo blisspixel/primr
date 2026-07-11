@@ -120,6 +120,7 @@ class StatusResponse(BaseModel):
     timing: TimingResponse
     last_event: LastEvent | None = None
     error: str | None = None
+    job_status: dict[str, Any]
 
 
 class CancelResponseModel(BaseModel):
@@ -621,6 +622,24 @@ async def get_status(
     except Exception:
         pass  # Ignore errors reading events
 
+    from primr.job_status import build_job_status
+
+    canonical_status = build_job_status(
+        job_id=job.job_id,
+        source="control_plane",
+        status=job.status,
+        company_name=job.inputs.company_name,
+        mode=job.inputs.mode,
+        stage=last_event.stage if last_event else None,
+        percent=last_event.percent if last_event else None,
+        submitted_at=job.timing.submitted_at,
+        started_at=job.timing.started_at,
+        updated_at=last_event.timestamp if last_event else None,
+        completed_at=job.timing.completed_at,
+        artifacts_available=None,
+        error_message=job.error_message,
+        error_source="control_plane" if job.error_message else None,
+    )
     return StatusResponse(
         job_id=job.job_id,
         status=job.status.value,
@@ -631,6 +650,7 @@ async def get_status(
         ),
         last_event=last_event,
         error=job.error_message,
+        job_status=canonical_status,
     )
 
 

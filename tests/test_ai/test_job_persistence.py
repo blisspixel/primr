@@ -14,6 +14,7 @@ import pytest
 
 from primr.ai.job_persistence import (
     _get_jobs_file_path,
+    acknowledge_pending_job_after_outputs,
     get_pending_jobs,
     remove_pending_job,
     save_pending_job,
@@ -143,6 +144,41 @@ class TestRemovePendingJob:
         job_path.write_text("{not-json", encoding="utf-8")
         # Should log a warning and return without raising.
         assert remove_pending_job("iid-anything") is False
+
+
+class TestAcknowledgePendingJobAfterOutputs:
+    def test_removes_job_only_after_all_outputs_are_nonempty(self, job_path, tmp_path):
+        save_pending_job("iid-1", "deep_research", "ExampleCo")
+        markdown = tmp_path / "report.md"
+        document = tmp_path / "report.docx"
+        markdown.write_text("# Report", encoding="utf-8")
+        document.write_bytes(b"document")
+
+        assert acknowledge_pending_job_after_outputs("iid-1", [markdown, document]) is True
+        assert "iid-1" not in get_pending_jobs()
+
+    @pytest.mark.parametrize("invalid_kind", ["missing", "empty"])
+    def test_retains_job_when_any_required_output_is_not_durable(
+        self, job_path, tmp_path, invalid_kind
+    ):
+        save_pending_job("iid-1", "deep_research", "ExampleCo")
+        markdown = tmp_path / "report.md"
+        markdown.write_text("# Report", encoding="utf-8")
+        document = tmp_path / "report.docx"
+        if invalid_kind == "empty":
+            document.write_bytes(b"")
+
+        assert acknowledge_pending_job_after_outputs("iid-1", [markdown, document]) is False
+        assert "iid-1" in get_pending_jobs()
+
+    def test_rejects_empty_output_contract(self, job_path):
+        save_pending_job("iid-1", "deep_research", "ExampleCo")
+
+        assert acknowledge_pending_job_after_outputs("iid-1", []) is False
+        assert "iid-1" in get_pending_jobs()
+
+    def test_no_interaction_id_is_already_acknowledged(self):
+        assert acknowledge_pending_job_after_outputs("", ["unused.md"]) is True
 
 
 class TestGetPendingJobs:

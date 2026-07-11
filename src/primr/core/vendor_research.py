@@ -433,11 +433,19 @@ async def generate_vendor_research(
             console.error("Vendor research generation failed")
             return None
 
-        # Save to docs folder
         research_path = get_vendor_research_path(vendor)
         research_path.parent.mkdir(parents=True, exist_ok=True)
 
         research_path.write_text(result.content, encoding="utf-8")
+        from primr.ai.job_persistence import acknowledge_pending_job_after_outputs
+
+        result_interaction_id = getattr(result, "interaction_id", "")
+        if (
+            isinstance(result_interaction_id, str)
+            and result_interaction_id
+            and not acknowledge_pending_job_after_outputs(result_interaction_id, [research_path])
+        ):
+            console.warn("Vendor research was saved, but its pending job remains listed.")
 
         # Deep Research is a flat per-task cost (API doesn't expose tokens)
         from primr.config.models import DEEP_RESEARCH_COST

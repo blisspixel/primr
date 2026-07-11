@@ -8,6 +8,9 @@ Primr writes per-run state to the working folder as `_run_state.json` and keeps 
 # 1) Inspect pending cloud jobs and the latest local run without changing them
 primr --check-jobs
 
+# Machine-readable inspection, exactly one versioned JSON object
+primr --check-jobs --json
+
 # 2) Finalize completed cloud jobs and acknowledge provider-terminal jobs
 primr --resume-latest
 
@@ -15,7 +18,11 @@ primr --resume-latest
 primr "Company Name" https://company.com --resume-local
 ```
 
-When a cloud job is complete, `--check-jobs` prints the next command but leaves the pending record intact. `--resume-latest` writes canonical `.md`, `.txt`, and `.docx` outputs, then removes the record only after finalization succeeds. If finalization fails, Primr writes a fallback text artifact and retains the job so the canonical conversion can be retried.
+When a cloud job is complete, `--check-jobs` prints the next command but leaves the pending record intact. Normal runs and `--resume-latest` acknowledge the provider job only after their outer output boundary verifies every required artifact is a nonempty regular file. Recovery writes canonical `.md`, `.txt`, and `.docx` outputs. If finalization fails, Primr writes a fallback text artifact and retains the job so canonical conversion can be retried.
+
+Background interaction creation is persisted immediately. Polling and status
+inspection never acknowledge it. Preflight validation does not launch a
+billable Deep Research interaction merely to test connectivity.
 
 Provider-terminal jobs remain visible during inspection. Explicit resume reports their exact terminal status and removes them from the pending list. Connectivity or status-check errors remain pending and return a nonzero exit code.
 

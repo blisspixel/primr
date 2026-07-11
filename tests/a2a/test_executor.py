@@ -425,6 +425,7 @@ class TestPrimrAgentExecutor:
         data = json.loads(text)
         assert "status" in data
         assert data["status"] == "idle"
+        assert data["job_status"]["schema"] == "primr.job-status"
 
     @pytest.mark.asyncio
     async def test_check_jobs_completed_job_returns_resource_pointers_not_paths(
@@ -460,6 +461,8 @@ class TestPrimrAgentExecutor:
         assert data["artifact_metadata_uri"] == f"primr://output/artifacts/by_job/{job.job_id}"
         assert data["report_read_uri"] == f"primr://output/report/by_job/{job.job_id}"
         assert data["output_paths_available"] is True
+        assert data["job_status"]["lifecycle_state"] == "completed"
+        assert isinstance(data["job_status"]["progress"], dict)
         assert "output_paths" not in data
         assert str(report) not in text
         assert "SECRET REPORT BODY" not in text
@@ -1158,12 +1161,17 @@ class TestPrimrAgentExecutor:
         """read_usage_summary_by_job returns compact manifest metadata without raw details."""
         report_path = tmp_path / "report.md"
         report_path.write_text("SECRET REPORT BODY", encoding="utf-8")
+        job = executor._mcp.job_store.create(
+            company_name="Acme",
+            mode="full",
+            owner_client_id="client-1",
+        )
         manifest = tmp_path / "run_manifest.json"
         manifest.write_text(
             json.dumps(
                 {
                     "schema_version": "1.0",
-                    "job_id": "manifest-secret-job",
+                    "job_id": job.job_id,
                     "company_name": "Acme",
                     "company_url": "https://secret.example",
                     "mode": "full",
@@ -1200,11 +1208,6 @@ class TestPrimrAgentExecutor:
                 }
             ),
             encoding="utf-8",
-        )
-        job = executor._mcp.job_store.create(
-            company_name="Acme",
-            mode="full",
-            owner_client_id="client-1",
         )
         job.output_paths = [str(report_path)]
 
