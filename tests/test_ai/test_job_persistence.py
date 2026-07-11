@@ -177,6 +177,19 @@ class TestAcknowledgePendingJobAfterOutputs:
         assert acknowledge_pending_job_after_outputs("iid-1", []) is False
         assert "iid-1" in get_pending_jobs()
 
+    def test_rejects_symlinked_output(self, job_path, tmp_path):
+        save_pending_job("iid-1", "deep_research", "ExampleCo")
+        target = tmp_path / "report.md"
+        target.write_text("content", encoding="utf-8")
+        link = tmp_path / "report-link.md"
+        try:
+            link.symlink_to(target)
+        except OSError:
+            pytest.skip("file symlinks are unavailable")
+
+        assert acknowledge_pending_job_after_outputs("iid-1", [link]) is False
+        assert "iid-1" in get_pending_jobs()
+
     def test_no_interaction_id_is_already_acknowledged(self):
         assert acknowledge_pending_job_after_outputs("", ["unused.md"]) is True
 

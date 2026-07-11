@@ -34,8 +34,9 @@ primr --check-jobs --json
 ```
 
 The CLI emits exactly one `primr.job-status-list` v1.0 object and preserves a
-nonzero exit when a provider-terminal job or observation error is present.
-Human `--check-jobs` output is unchanged.
+nonzero exit when a provider-terminal failure or observation error is present.
+A completed job remains a successful inspection result. Human `--check-jobs`
+output is unchanged.
 
 MCP `check_jobs` and `primr://research/status` include the canonical fields
 additively. A2A `check_jobs`, hosted `/status/{job_id}`, and the application

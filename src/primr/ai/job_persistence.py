@@ -16,6 +16,7 @@ import contextlib
 import json
 import logging
 import os
+import stat
 import threading
 from collections.abc import Iterable
 from datetime import datetime
@@ -142,7 +143,8 @@ def acknowledge_pending_job_after_outputs(
 
     for path in paths:
         try:
-            if not path.is_file() or path.stat().st_size <= 0:
+            metadata = path.lstat()
+            if not stat.S_ISREG(metadata.st_mode) or metadata.st_size <= 0:
                 logger.warning(
                     "Retaining job %s because required output is not durable: %s",
                     interaction_id,
