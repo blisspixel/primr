@@ -895,7 +895,7 @@ def fetch_web_content(
             # Use LLM to intelligently select the most valuable pages for company research
             # The LLM decides how many pages are worth scraping - no artificial limits
             # Falls back to heuristic scoring if LLM fails
-            from primr.core.research_agent import select_links_with_llm
+            from primr.data.link_selection import select_links_with_llm
 
             console.status(f"Selecting from {len(in_scope_links)} pages...")
             selected_urls = select_links_with_llm(

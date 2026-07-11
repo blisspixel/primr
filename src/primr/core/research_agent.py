@@ -153,7 +153,6 @@ from primr.core.section_prompts import (
 )
 from primr.core.section_prompts import (
     _build_fast_section_prompt,
-    _build_link_selection_prompt,
     _load_fast_feedback_guidance,
 )
 from primr.core.section_regeneration import (
@@ -186,6 +185,7 @@ from primr.core.strategy_generation import (
 from primr.core.strategy_generation import (
     generate_generic_strategy as _generate_generic_strategy_impl,
 )
+from primr.data.link_selection import select_links_with_llm as _select_discovered_links
 from primr.output.artifact_validation import (
     _FORBIDDEN_INTERNAL_TERMS as _FORBIDDEN_INTERNAL_TERMS,
 )
@@ -378,78 +378,16 @@ def select_links_with_llm(
     max_links: int = 50,
     organization_type: str = "commercial",
 ) -> list[str]:
-    """
-    Use LLM to intelligently select the most valuable links for research.
+    """Backward-compatible link-selection entry point."""
 
-    The LLM acts like a business analyst deciding which pages to read to understand
-    a company - prioritizing pages about leadership, strategy, products,
-    financials, and recent news.
-
-    Args:
-        links: List of DiscoveredLink objects (pre-scored heuristically)
-        company_name: Company name for context
-        website: Company website URL
-        max_links: Maximum links to return (passed to LLM so it knows the constraint)
-
-    Returns:
-        List of URLs selected by the LLM
-    """
-    if not links:
-        return []
-    from primr.utils.model_policy import model_calls_disabled
-
-    if len(links) <= max_links or model_calls_disabled():
-        return [link.url for link in links[:max_links]]
-
-    link_list = []
-    for link in links[:200]:  # Cap at 200 to avoid token limits
-        if hasattr(link, "anchor_text") and link.anchor_text:
-            link_list.append(f"{link.url} ({link.anchor_text})")
-        else:
-            link_list.append(link.url)
-
-    links_text = "\n".join(link_list)
-
-    try:
-        prompt = _build_link_selection_prompt(
-            company_name=company_name,
-            website=website,
-            links_text=links_text,
-            max_links=max_links,
-            organization_type=organization_type,
-        )
-
-        # Use link_selection model type (Flash - cheap and fast)
-        response = llm(prompt, model_type="link_selection")
-
-        discovered_urls = {link.url for link in links}
-        selected_urls = []
-        dropped_urls = []
-        for line in response.strip().split("\n"):
-            line = line.strip()
-            if not line or not line.startswith("http"):
-                continue
-            if line in discovered_urls and line not in selected_urls:
-                selected_urls.append(line)
-            else:
-                dropped_urls.append(line)
-
-        if dropped_urls:
-            logger.info(
-                "Dropped %s LLM-selected URLs that were not in the discovered set",
-                len(dropped_urls),
-            )
-
-        # If LLM returned valid URLs, use them (LLM already knows the limit)
-        if selected_urls:
-            logger.info(f"LLM selected {len(selected_urls)} links from {len(links)}")
-            return selected_urls
-
-    except Exception as e:
-        logger.warning(f"LLM link selection failed: {e}, falling back to heuristic scoring")
-
-    # Fallback to heuristic scoring if LLM fails
-    return [link.url for link in links[:max_links]]
+    return _select_discovered_links(
+        links,
+        company_name,
+        website,
+        max_links=max_links,
+        organization_type=organization_type,
+        model_call=llm,
+    )
 
 
 def create_working_folder(company_name, website, reuse_incomplete: bool = False):
