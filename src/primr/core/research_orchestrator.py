@@ -1,22 +1,4 @@
-"""
-Research Orchestrator - Manages both research engines.
-
-This module provides a unified interface for running company research
-using either the Structured Pipeline or Deep Research Agent.
-
-Usage:
-    orchestrator = ResearchOrchestrator()
-
-    # Use structured pipeline (default)
-    result = await orchestrator.research("Acme Corp", "https://acme.example")
-
-    # Use deep research
-    result = await orchestrator.research(
-        "Acme Corp",
-        "https://acme.example",
-        mode=ResearchMode.DEEP_RESEARCH
-    )
-"""
+"""Unified orchestration for structured and Deep Research engines."""
 
 import asyncio
 import os
@@ -160,6 +142,7 @@ class OrchestratorResult:
     timestamp: datetime = field(default_factory=datetime.now)
     sections_written: int = 0  # Actual number of sections written (for accordion method)
     search_queries_count: int = 0  # Actual search count from groundingMetadata
+    pending_interaction_id: str = ""
 
 
 class ResearchOrchestrator:
@@ -376,6 +359,7 @@ class ResearchOrchestrator:
             citations=result.citations,
             success=True,
             search_queries_count=result.search_queries_count,
+            pending_interaction_id=result.interaction_id,
         )
 
     async def _run_structured_research(
@@ -640,6 +624,7 @@ class ResearchOrchestrator:
                 success=True,
                 duration_seconds=total_duration,
                 search_queries_count=deep_result.search_queries_count,
+                pending_interaction_id=deep_result.interaction_id,
             )
 
         except Exception as e:
@@ -850,6 +835,7 @@ class ResearchOrchestrator:
             duration_seconds=total_duration,
             sections_written=deep_result.sections_written,
             search_queries_count=deep_result.search_queries_count,
+            pending_interaction_id=deep_result.interaction_id,
         )
 
     def _merge_research_results(
@@ -971,12 +957,18 @@ class ResearchOrchestrator:
                 if section in structured_result.section_results:
                     section_results[section] = structured_result.section_results[section]
 
+        pending_interaction_id = (
+            deep_result.pending_interaction_id
+            if isinstance(deep_result, OrchestratorResult) and deep_result.success
+            else ""
+        )
         return OrchestratorResult(
             company_name=company_name,
             website=website,
             mode=ResearchMode.HYBRID,
             section_results=section_results,
             success=bool(section_results),
+            pending_interaction_id=pending_interaction_id,
         )
 
     def _normalize_deep_research_result(self, result: DeepResearchResult) -> dict[str, str]:

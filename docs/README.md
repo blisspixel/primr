@@ -43,6 +43,7 @@ understanding.
 | Document | Description |
 |----------|-------------|
 | [API](API.md) | MCP server and A2A protocol, programmatic usage |
+| [Job Status](JOB_STATUS.md) | Versioned CLI, MCP, A2A, and API lifecycle contract |
 | [STRATEGY_PORTFOLIO](STRATEGY_PORTFOLIO.md) | Strategy document types and selection |
 | [NEXT_STEPS](NEXT_STEPS.md) | What to build next, why it comes next, and what not to do yet |
 | [CHANGELOG](CHANGELOG.md) | Version history |

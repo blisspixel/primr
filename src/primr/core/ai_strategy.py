@@ -302,9 +302,12 @@ async def generate_ai_strategy(
         content=content, company_name=company_name, platform=vendor
     )
     if recovered_interaction_id and all(output_paths.values()):
-        from primr.ai.job_persistence import remove_pending_job
+        from primr.ai.job_persistence import acknowledge_pending_job_after_outputs
 
-        if not remove_pending_job(recovered_interaction_id):
+        if not acknowledge_pending_job_after_outputs(
+            recovered_interaction_id,
+            [path for path in output_paths.values() if path],
+        ):
             console.warn(
                 "AI Strategy outputs were saved, but the pending job record could not be updated."
             )
@@ -549,6 +552,13 @@ async def _execute_strategy_research(
         )
 
         if result.status == ResearchStatus.COMPLETED and result.content:
+            result_interaction_id = getattr(result, "interaction_id", "")
+            if (
+                isinstance(result_interaction_id, str)
+                and result_interaction_id
+                and on_recovery_ready
+            ):
+                on_recovery_ready(result_interaction_id)
             return result.content
 
         # Get interaction ID from result if not captured from progress

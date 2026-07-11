@@ -656,7 +656,7 @@ class TestMain:
 
     def test_main_list_recent(self):
         """Test main with list-recent flag."""
-        with patch("primr.core.cli.list_recent_outputs") as mock_list:
+        with patch("primr.core.cli.list_recent_outputs", return_value=0) as mock_list:
             result = main(["--list-recent"])
             assert result == 0
             mock_list.assert_called_once()

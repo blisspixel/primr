@@ -52,12 +52,15 @@ class TestCollectRunArtifacts:
         from datetime import datetime
 
         today = datetime.now().strftime("%m-%d-%Y")
-        primary = tmp_path / "Acme_Corp_Strategic_Overview.md"
+        job_dir = tmp_path / "job-1"
+        job_dir.mkdir()
+        primary = job_dir / "Acme_Corp_Strategic_Overview.md"
         primary.write_text("report", encoding="utf-8")
-        sibling = tmp_path / f"Acme_Corp_AI_Strategy_{today}.md"
+        sibling = job_dir / f"Acme_Corp_AI_Strategy_{today}.md"
         sibling.write_text("strategy", encoding="utf-8")
-        # A non-matching file that should be skipped
-        other = tmp_path / "Unrelated_Company.md"
+        other_dir = tmp_path / "job-2"
+        other_dir.mkdir()
+        other = other_dir / "Acme_Corp_AI_Strategy_other.md"
         other.write_text("nope", encoding="utf-8")
 
         result = _collect_run_artifacts(str(primary), "Acme Corp")
@@ -66,6 +69,22 @@ class TestCollectRunArtifacts:
         assert str(other) not in result
         # primary is always first
         assert result[0] == str(primary)
+
+    def test_logs_partial_inventory(self, tmp_path, caplog):
+        primary = tmp_path / "report.md"
+        primary.write_text("body", encoding="utf-8")
+        with patch(
+            "primr.output.artifact_inventory.scan_artifact_roots",
+            return_value={
+                "artifacts": [],
+                "errors": ["scan failed"],
+                "truncated": True,
+            },
+        ):
+            result = _collect_run_artifacts(str(primary), "Acme")
+
+        assert result == [str(primary)]
+        assert "Artifact inventory" in caplog.text
 
 
 # ---------------------------------------------------------------------------
@@ -237,7 +256,7 @@ class TestRunResearchFastMode:
         )
         updated = server.job_store.get(job.job_id)
         assert updated.get_status().value == "completed"
-        assert (dest / "report.md").exists()
+        assert (dest / job.job_id / "report.md").exists()
 
     @pytest.mark.asyncio
     async def test_fast_mode_verify_copies_verification_artifact(
@@ -270,11 +289,39 @@ class TestRunResearchFastMode:
 
         updated = server.job_store.get(job.job_id)
         assert updated.get_status().value == "completed"
+        job_dest = dest / job.job_id
         assert updated.output_paths == [
-            str(dest / "report.md"),
-            str(dest / "verification.json"),
+            str(job_dest / "report.md"),
+            str(job_dest / "verification.json"),
+            str(job_dest / "run_manifest.json"),
         ]
-        assert (dest / "verification.json").exists()
+        assert (job_dest / "verification.json").exists()
+
+    @pytest.mark.asyncio
+    async def test_shared_destination_keeps_jobs_isolated(
+        self, server, runner, monkeypatch, tmp_path
+    ):
+        monkeypatch.setenv("XAI_API_KEY", "fake-key")
+        destination = tmp_path / "shared"
+        manifest_paths = []
+        for index in range(2):
+            report = tmp_path / f"report-{index}.md"
+            report.write_text(f"run {index}", encoding="utf-8")
+            monkeypatch.setattr(
+                "primr.core.research_agent.perform_fast_research",
+                lambda *args, report=report, **kwargs: str(report),
+            )
+            job = server.job_store.create(f"Acme {index}", "full", owner_client_id="stdio")
+            await runner.run_research(
+                job=job,
+                company_url="https://example.com",
+                mode="full",
+                destination=str(destination),
+            )
+            manifest_paths.append(Path(job.output_paths[-1]))
+
+        assert manifest_paths[0] != manifest_paths[1]
+        assert all(path.is_file() for path in manifest_paths)
 
     @pytest.mark.asyncio
     async def test_fast_mode_activates_and_clears_run_budget(
@@ -346,13 +393,20 @@ class TestRunResearchOrchestrator:
             error=None,
             raw_content="# Report Body",
             section_results={},
+            pending_interaction_id="interaction-123",
         )
         mock_orch = MagicMock()
         mock_orch.research = AsyncMock(return_value=result)
 
-        with patch(
-            "primr.core.research_orchestrator.ResearchOrchestrator",
-            return_value=mock_orch,
+        with (
+            patch(
+                "primr.core.research_orchestrator.ResearchOrchestrator",
+                return_value=mock_orch,
+            ),
+            patch(
+                "primr.ai.job_persistence.acknowledge_pending_job_after_outputs",
+                return_value=True,
+            ) as acknowledge_mock,
         ):
             # Avoid filesystem write churn: patch _save_report + qa + manifest
             runner._save_report = AsyncMock(return_value=str(tmp_path / "report.md"))
@@ -363,6 +417,36 @@ class TestRunResearchOrchestrator:
         updated = server.job_store.get(job.job_id)
         assert updated.get_status().value == "completed"
         assert updated.qa_score == 91
+        acknowledge_mock.assert_called_once_with("interaction-123", [str(tmp_path / "report.md")])
+
+    @pytest.mark.asyncio
+    async def test_report_write_failure_retains_pending_interaction(
+        self, server, runner, monkeypatch
+    ):
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        job = server.job_store.create("Acme", "premium", owner_client_id="stdio")
+        result = SimpleNamespace(
+            success=True,
+            error=None,
+            raw_content="# Report",
+            section_results={},
+            pending_interaction_id="interaction-123",
+        )
+        orchestrator = MagicMock(research=AsyncMock(return_value=result))
+        runner._save_report = AsyncMock(side_effect=OSError("disk full"))
+        with (
+            patch(
+                "primr.core.research_orchestrator.ResearchOrchestrator",
+                return_value=orchestrator,
+            ),
+            patch(
+                "primr.ai.job_persistence.acknowledge_pending_job_after_outputs"
+            ) as acknowledge_mock,
+        ):
+            await runner.run_research(job, "https://example.com", "premium")
+
+        assert job.get_status().value == "failed"
+        acknowledge_mock.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_orchestrator_failure(self, server, runner, monkeypatch):
@@ -426,6 +510,13 @@ class TestSaveReportAndManifest:
         assert "## Overview" in content
         assert "body text" in content
 
+    def test_attach_generated_manifest_is_idempotent(self, server, runner, tmp_path):
+        job = server.job_store.create("Acme", "full", owner_client_id="stdio")
+        manifest = str(tmp_path / "run_manifest.json")
+        runner._attach_generated_manifest(job, manifest)
+        runner._attach_generated_manifest(job, manifest)
+        assert job.output_paths == [manifest]
+
     @pytest.mark.asyncio
     async def test_generate_run_manifest(self, server, runner, monkeypatch, tmp_path):
         monkeypatch.setattr("primr.config.config.OUTPUT_DIR", str(tmp_path))
@@ -436,7 +527,7 @@ class TestSaveReportAndManifest:
         job.advance_stage(ResearchStage.COMPLETED)
         server.job_store.update(job)
 
-        await runner._generate_run_manifest(
+        manifest_path = await runner._generate_run_manifest(
             job,
             "https://example.com",
             "premium",
@@ -445,6 +536,7 @@ class TestSaveReportAndManifest:
             premium_mode=True,
         )
         manifest = tmp_path / "run_manifest.json"
+        assert manifest_path == str(manifest)
         assert manifest.exists()
         payload = json.loads(manifest.read_text(encoding="utf-8"))
         assert payload["budget"]["approved_ceiling_usd"] == 2.0
@@ -455,6 +547,22 @@ class TestSaveReportAndManifest:
         assert payload["budget"]["enforcement"]["non_interruptible_required_tasks"] == [
             "required Deep Research task"
         ]
+
+    @pytest.mark.asyncio
+    async def test_manifests_are_isolated_by_job_output_directory(self, server, runner, tmp_path):
+        paths = []
+        for index in range(2):
+            job = server.job_store.create(f"Acme {index}", "full", owner_client_id="stdio")
+            job_dir = tmp_path / job.job_id
+            job_dir.mkdir()
+            report = job_dir / "report.md"
+            report.write_text("body", encoding="utf-8")
+            job.output_paths = [str(report)]
+            job.advance_stage(ResearchStage.COMPLETED)
+            paths.append(await runner._generate_run_manifest(job, "https://example.com", "full"))
+
+        assert paths[0] != paths[1]
+        assert all(Path(path).name == "run_manifest.json" for path in paths)
 
     @pytest.mark.asyncio
     async def test_run_qa_method_handles_failure(self, runner):

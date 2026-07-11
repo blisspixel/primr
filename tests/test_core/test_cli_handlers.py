@@ -80,7 +80,7 @@ class TestHandleDoctor:
 
 class TestHandleListRecent:
     def test_calls_list_recent_and_returns_zero(self, monkeypatch):
-        mock = MagicMock()
+        mock = MagicMock(return_value=0)
         monkeypatch.setattr("primr.core.cli.list_recent_outputs", mock)
         config = _config()
         assert _handle_list_recent(config) == 0

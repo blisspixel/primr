@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.34.49
+Current State: v1.34.50
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -194,6 +194,13 @@ Current priority order:
    `content_mode`, `artifact_type`, and `max_chars` negotiation.
    A2A research execution also reuses MCP's estimate-first approval-token
    contract and runtime budget propagation for cost-governed research jobs.
+   A transport-neutral `primr.job-status` v1.0 projection now normalizes
+   lifecycle, progress, timestamps, artifact availability, and observation
+   errors across CLI, MCP, A2A, hosted, and application API status surfaces
+   without removing legacy fields. Completed-job artifact inventory now uses a
+   bounded shared seam that preserves explicit missing paths and expands only
+   exact adjacent deliverables and manifests, while MCP fast and standard runs
+   attach their generated run manifest to the owned job.
 4. **Research memory layer 1.** Memory comes after calibrated claims and safer
    artifact consumption so prior-run material can compound value without
    laundering weak claims into fresh findings.
@@ -1600,6 +1607,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.34.50 | Jul 2026 | **Durable background jobs and stable operator contracts.** Background Deep Research interactions remain recoverable until their owning output boundary verifies all required artifacts. CLI, MCP, A2A, hosted, and application APIs share a versioned body-free job-status projection. MCP jobs now write to isolated job directories with correlated manifests, while CLI and MCP artifact reads share a bounded newest-first inventory covering deliverables and diagnostics without fuzzy cross-run ownership. |
 | 1.34.49 | Jul 2026 | **Recovery status clarity and durable explicit finalization.** `--check-jobs` is now read-only and shows both pending cloud work and the latest local run state. `--resume-latest` owns canonical output finalization and provider-terminal acknowledgement, retains recoverability on empty or partial output, reports mixed failures through nonzero exit codes, and keeps CLI help, dry-run guidance, API examples, and recovery documentation aligned. |
 | 1.34.48 | Jul 2026 | **CLI clarity, runtime consistency, and release integrity.** Default dry-runs now end with concise lifecycle guidance, long phases show their supplied duration expectations, and init/doctor help is command-specific. Python 3.12 is enforced consistently across setup, diagnostics, containers, cloud templates, Ruff, CI, and release builds. Releases now require an immutable tag commit on green `main`, locked tooling, non-empty notes, strict documentation, and exact PyPI filename/hash verification. Calibration baseline decision artifacts and inspections also gain body-free gate recommendations, operator decision templates, explicit local/cloud cost policy, and trustworthy readback without applying a gate automatically. |
 | 1.34.47 | Jul 2026 | **Report punctuation and baseline measurement.** Final Markdown shipping now normalizes long dash punctuation at the artifact boundary, including the old Deep Research runner path, while preserving URL semantics by percent-encoding long dash code points inside links. DOCX conversion strips the fast-report header metadata line before body rendering so the Strategic Overview date and website appear once. Calibration baseline artifacts and inspections now include an explicit measurement status block, and ready operator-curated multi-report baselines report `measured_operator_curated_multi_report_baseline` with representative coverage, evidence review, and judge agreement checks visible in JSON and Markdown. |

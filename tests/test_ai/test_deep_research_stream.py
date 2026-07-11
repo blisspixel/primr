@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -101,15 +101,17 @@ async def test_stream_catches_exception(client):
 
 
 @pytest.mark.asyncio
-async def test_stream_ignores_interaction_start(client):
+async def test_stream_persists_and_exposes_interaction_start(client):
+    interaction = MagicMock(id="interaction-123")
     chunks = [
-        _chunk("interaction.start"),
+        _chunk("interaction.start", interaction=interaction),
         _chunk("interaction.complete"),
     ]
     client._start_research_stream = MagicMock(return_value=iter(chunks))
     results = []
-    async for prog in client.research_stream("query"):
-        results.append(prog)
-    # Only the completion event yields
-    assert len(results) == 1
-    assert results[0].status == ResearchStatus.COMPLETED
+    with patch("primr.ai.deep_research.save_pending_job") as save_mock:
+        async for prog in client.research_stream("query"):
+            results.append(prog)
+    assert [result.status for result in results] == [ResearchStatus.COMPLETED]
+    assert all(result.interaction_id == "interaction-123" for result in results)
+    save_mock.assert_called_once()

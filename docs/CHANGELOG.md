@@ -11,6 +11,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [1.34.50] - 2026-07-10
+
+### Added
+
+- A versioned, body-free `primr.job-status` v1.0 contract now normalizes job
+  lifecycle, progress, timestamps, artifact availability, and observation
+  errors across CLI, MCP, A2A, hosted, and application API status surfaces.
+- `primr --list-recent --json` and job-scoped MCP metadata now use a bounded
+  artifact inventory that covers Markdown, TXT, DOCX, PDF, manifests, QA,
+  verification, calibration, trace, run-state, and recovery artifacts.
+
+### Fixed
+
+- Deep Research background IDs are persisted at creation and acknowledged only
+  after the owning output boundary verifies all required files are nonempty.
+  Normal completion, recovery, strategy, vendor, MCP, runner, and Accordion
+  paths now retain recoverability when output finalization is partial.
+- Preflight no longer launches a billable background Deep Research job solely
+  to test connectivity.
+
 ## [1.34.49] - 2026-07-10
 
 ### Fixed

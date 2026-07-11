@@ -16,8 +16,11 @@ import contextlib
 import json
 import logging
 import os
+import stat
 import threading
+from collections.abc import Iterable
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from primr.utils.atomic_io import atomic_replace
@@ -119,6 +122,44 @@ def remove_pending_job(interaction_id: str) -> bool:
         except (OSError, json.JSONDecodeError) as e:
             logger.warning(f"Failed to remove job {interaction_id}: {e}")
             return False
+
+
+def acknowledge_pending_job_after_outputs(
+    interaction_id: str,
+    output_paths: Iterable[str | os.PathLike[str]],
+) -> bool:
+    """Acknowledge a pending job only after every required output is durable.
+
+    A durable output is a closed, regular, non-empty file. Callers define the
+    required artifact contract by passing exactly the paths that must exist.
+    """
+    if not interaction_id:
+        return True
+
+    paths = tuple(Path(path) for path in output_paths)
+    if not paths:
+        logger.warning("Refusing to acknowledge job %s without output paths", interaction_id)
+        return False
+
+    for path in paths:
+        try:
+            metadata = path.lstat()
+            if not stat.S_ISREG(metadata.st_mode) or metadata.st_size <= 0:
+                logger.warning(
+                    "Retaining job %s because required output is not durable: %s",
+                    interaction_id,
+                    path,
+                )
+                return False
+        except OSError as exc:
+            logger.warning(
+                "Retaining job %s because required output could not be inspected: %s",
+                interaction_id,
+                exc,
+            )
+            return False
+
+    return remove_pending_job(interaction_id)
 
 
 def get_pending_jobs() -> dict[str, dict[str, Any]]:

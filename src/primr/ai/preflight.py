@@ -326,36 +326,15 @@ class PreflightValidator:
                     errors.append(f"Gemini connectivity error: {e}")
                 checks["gemini_flash"] = {"passed": False, "status": "error", "detail": str(e)}
 
-        # Deep Research agent - required for full and deep modes
+        # A live Deep Research probe would launch a billable background job.
+        # Validate configuration here; the real run performs the provider check.
         if mode in ("full", "deep"):
-            try:
-                interaction = client.interactions.create(
-                    input="Connectivity test",
-                    agent=self.DEEP_RESEARCH_AGENT,
-                    background=True,
-                )
-                if interaction.id:
-                    checks["deep_research"] = {
-                        "passed": True,
-                        "status": "accessible",
-                        "detail": f"ID: {interaction.id[:16]}...",
-                    }
-                    progress("  ✓ Deep Research agent")
-            except Exception as e:
-                error_str = str(e).lower()
-                if "not found" in error_str or "invalid" in error_str:
-                    errors.append("Deep Research agent not available - check agent ID")
-                    checks["deep_research"] = {"passed": False, "status": "not_found"}
-                elif "quota" in error_str or "429" in error_str:
-                    # Rate limit is a warning for Deep Research (we have fallback)
-                    warnings.append(
-                        "Deep Research may be rate limited - will use fallback if needed"
-                    )
-                    checks["deep_research"] = {"passed": True, "status": "rate_limited"}
-                    progress("  ⚠ Deep Research (rate limited, fallback available)")
-                else:
-                    errors.append(f"Deep Research connectivity error: {e}")
-                    checks["deep_research"] = {"passed": False, "status": "error", "detail": str(e)}
+            checks["deep_research"] = {
+                "passed": True,
+                "status": "configured",
+                "detail": self.DEEP_RESEARCH_AGENT,
+            }
+            progress("  Deep Research agent configured")
 
     async def _check_playwright(
         self,

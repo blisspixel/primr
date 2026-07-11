@@ -115,6 +115,10 @@ def test_resume_pending_jobs_finalizes_completed(monkeypatch):
         "_save_recovered_outputs",
         lambda interaction_id, job_info, content: {"md": "a.md", "docx": "a.docx", "txt": "a.txt"},
     )
+    monkeypatch.setattr(
+        "primr.ai.job_persistence.acknowledge_pending_job_after_outputs",
+        lambda interaction_id, paths: True,
+    )
 
     exit_code = cli.resume_pending_jobs()
     assert exit_code == 0

@@ -12,7 +12,7 @@ import contextlib
 import logging
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from primr.mcp_server.job_store import ResearchJobState
 from primr.mcp_server.types import ResearchStage
@@ -114,6 +114,10 @@ class PipelineRunner:
 
             import os
 
+            from primr.config.config import OUTPUT_DIR
+
+            job_output_dir = Path(OUTPUT_DIR) / job.job_id
+
             # Map MCP mode to orchestrator mode
             from primr.core.research_orchestrator import ResearchMode, ResearchOrchestrator
 
@@ -164,6 +168,9 @@ class PipelineRunner:
                         time.time(),
                         ai_strategy=platform is not None,
                         platforms=(platform,) if platform else ("agnostic",),
+                        output_dir=job_output_dir,
+                        diagnostics_dir=job_output_dir / "_diagnostics",
+                        write_txt=True,
                     )
                 finally:
                     heartbeat_task.cancel()
@@ -200,11 +207,22 @@ class PipelineRunner:
 
                 # If a destination was specified, copy artifacts there
                 if destination:
-                    all_artifacts = _copy_artifacts_to_destination(all_artifacts, destination)
+                    all_artifacts = _copy_artifacts_to_destination(
+                        all_artifacts, str(Path(destination) / job.job_id)
+                    )
 
                 all_artifacts = _with_trace_artifacts(all_artifacts, job)
                 job.output_paths = all_artifacts
                 self.mcp_server.job_store.update(job)
+                manifest_path = await self._generate_run_manifest(
+                    job,
+                    company_url,
+                    mode,
+                    budget_usd=budget_usd,
+                    fast_mode=True,
+                    premium_mode=False,
+                )
+                self._attach_generated_manifest(job, manifest_path)
                 return
 
             # Standard orchestrator pipeline (premium or non-fast full)
@@ -238,8 +256,19 @@ class PipelineRunner:
             on_progress("Writing report...")
 
             # Save the report
-            output_path = await self._save_report(job.company_name, result)
+            output_path = await self._save_report(
+                job.company_name, result, output_dir=job_output_dir
+            )
             job.output_paths = [output_path]
+            pending_interaction_id = getattr(result, "pending_interaction_id", "")
+            if isinstance(pending_interaction_id, str) and pending_interaction_id:
+                from primr.ai.job_persistence import acknowledge_pending_job_after_outputs
+
+                if not acknowledge_pending_job_after_outputs(pending_interaction_id, [output_path]):
+                    logger.warning(
+                        "Report was saved but pending interaction %s remains listed",
+                        pending_interaction_id,
+                    )
 
             # Stage: QA (unless skipped)
             if not skip_qa:
@@ -275,13 +304,15 @@ class PipelineRunner:
 
             # If a destination was specified, copy artifacts there
             if destination and job.output_paths:
-                job.output_paths = _copy_artifacts_to_destination(job.output_paths, destination)
+                job.output_paths = _copy_artifacts_to_destination(
+                    job.output_paths, str(Path(destination) / job.job_id)
+                )
 
             job.output_paths = _with_trace_artifacts(job.output_paths, job)
             self.mcp_server.job_store.update(job)
 
             # Generate run manifest for audit trail (FR-7.1)
-            await self._generate_run_manifest(
+            manifest_path = await self._generate_run_manifest(
                 job,
                 company_url,
                 mode,
@@ -289,6 +320,7 @@ class PipelineRunner:
                 fast_mode=use_fast,
                 premium_mode=mode == "premium",
             )
+            self._attach_generated_manifest(job, manifest_path)
 
             logger.info(f"Research job {job.job_id} completed successfully")
 
@@ -325,10 +357,18 @@ class PipelineRunner:
             self.mcp_server.job_store.update(job)
             logger.debug(f"Heartbeat for job {job.job_id}")
 
+    def _attach_generated_manifest(self, job: ResearchJobState, path: object) -> None:
+        """Attach one generated manifest without duplicating job artifacts."""
+        if isinstance(path, str) and path and path not in job.output_paths:
+            job.output_paths.append(path)
+            self.mcp_server.job_store.update(job)
+
     async def _save_report(
         self,
         company_name: str,
         result,
+        *,
+        output_dir: str | Path | None = None,
     ) -> str:
         """
         Save the research result to a file.
@@ -340,14 +380,14 @@ class PipelineRunner:
 
         from primr.config.config import OUTPUT_DIR
 
-        # Create output directory if needed
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
+        destination = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
+        os.makedirs(destination, exist_ok=True)
 
         # Generate filename
         safe_name = company_name.replace(" ", "_").replace("/", "_")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{safe_name}_{timestamp}.md"
-        output_path = os.path.join(OUTPUT_DIR, filename)
+        output_path = os.path.join(destination, filename)
 
         # Write content
         content = result.raw_content or "\n\n".join(
@@ -406,7 +446,7 @@ class PipelineRunner:
         budget_usd: float | None = None,
         fast_mode: bool | None = None,
         premium_mode: bool | None = None,
-    ) -> None:
+    ) -> str:
         """
         Generate run_manifest.json for audit trail.
 
@@ -491,6 +531,7 @@ class PipelineRunner:
             json.dump(manifest, f, indent=2)
 
         logger.info(f"Run manifest saved to {manifest_path}")
+        return str(manifest_path)
 
     def request_cancel(self) -> None:
         """Request cancellation of the running job."""
@@ -499,22 +540,23 @@ class PipelineRunner:
             self._running_task.cancel()
 
 
-def _collect_run_artifacts(primary_path: str, company_name: str) -> list[str]:
+def _collect_run_artifacts(primary_path: str, _company_name: str) -> list[str]:
     """
     Collect all output artifacts (report + strategy files) for a completed run.
 
-    Scans the output directory for files matching the company name from today's
-    date, returning the primary report first followed by any strategy documents.
+    The MCP runner gives each job an isolated directory, so every recognized
+    direct child belongs to that job. The primary report remains first.
 
     Args:
         primary_path: The primary output path returned by the pipeline.
-        company_name: Company name used to match sibling artifacts.
+        _company_name: Retained for compatibility with older internal callers.
 
     Returns:
         List of artifact paths, primary report first.
     """
-    from datetime import datetime
     from pathlib import Path
+
+    from primr.output.artifact_inventory import inventory_explicit, scan_artifact_roots
 
     primary = Path(primary_path)
     output_dir = primary.parent
@@ -522,22 +564,31 @@ def _collect_run_artifacts(primary_path: str, company_name: str) -> list[str]:
     if not output_dir.exists():
         return [primary_path]
 
-    # Build a safe prefix to match sibling artifacts from the same run
-    safe_name = company_name.replace(" ", "_").replace("/", "_")
-    today_str = datetime.now().strftime("%m-%d-%Y")
-
-    # Collect all .md and .txt files matching this company + today's date
-    artifacts: list[str] = [primary_path]
-    for ext in ("*.md", "*.txt"):
-        for candidate in output_dir.glob(ext):
-            candidate_str = str(candidate)
-            if candidate_str == primary_path:
-                continue
-            # Match by company name prefix and today's date
-            if safe_name in candidate.name and today_str in candidate.name:
-                artifacts.append(candidate_str)
-
-    return artifacts
+    explicit = inventory_explicit([primary], expand_adjacent=True)
+    artifacts = [str(record.path) for record in explicit if record.exists]
+    seen = {Path(path).resolve(strict=False) for path in artifacts}
+    scan = scan_artifact_roots([output_dir], max_depth=0)
+    if scan["errors"] or scan["truncated"]:
+        logger.warning(
+            "Artifact inventory for %s was partial: errors=%s truncated=%s",
+            output_dir,
+            scan["errors"],
+            scan["truncated"],
+        )
+    for record in cast("list", scan["artifacts"]):
+        candidate = record.path
+        normalized_path = candidate.resolve(strict=False)
+        if normalized_path in seen:
+            continue
+        if record.artifact_type in {
+            "calibration_sidecar",
+            "qa_summary",
+            "verification_summary",
+            "run_manifest",
+        } or candidate.suffix.lower() in {".md", ".txt", ".docx", ".pdf"}:
+            artifacts.append(str(candidate))
+            seen.add(normalized_path)
+    return artifacts or [primary_path]
 
 
 def _with_trace_artifacts(

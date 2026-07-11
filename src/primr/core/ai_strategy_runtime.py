@@ -104,6 +104,7 @@ def generate_ai_strategy_section(
             context_files.append(agnostic_path)
             console.info("Using cross-industry AI research as additional context")
 
+        pending_interaction_id = ""
         if lite_strategy:
             console.info("AI Strategy: Starting research (Pro mode)...")
             context_parts: list[str] = []
@@ -172,6 +173,10 @@ def generate_ai_strategy_section(
                 return None
 
             strategy_content = result.content
+            result_interaction_id = getattr(result, "interaction_id", "")
+            pending_interaction_id = (
+                result_interaction_id if isinstance(result_interaction_id, str) else ""
+            )
 
         date_str = datetime.now().strftime("%m-%d-%Y")
         vendor_tag = f"_{platform.upper()}" if platform.lower() != "agnostic" else ""
@@ -186,6 +191,7 @@ def generate_ai_strategy_section(
             handle.write(strategy_content)
         console.ok(f"AI Strategy MD: {base_name}.md", show_time=False)
 
+        txt_path: Path | None = None
         if write_txt or diagnostics_dir is not None:
             txt_path = (destination_dir if write_txt else internal_dir) / f"{base_name}.txt"
             with open(txt_path, "w", encoding="utf-8") as handle:
@@ -194,6 +200,7 @@ def generate_ai_strategy_section(
                 console.ok(f"AI Strategy TXT: {base_name}.txt", show_time=False)
 
         docx_path = destination_dir / f"{base_name}.docx"
+        durable_docx_path: Path | None = None
         try:
             subtitle = " | ".join([datetime.now().strftime("%B %d, %Y"), platform.title()])
             markdown_to_docx(
@@ -203,6 +210,7 @@ def generate_ai_strategy_section(
                 subtitle=subtitle,
             )
             console.ok(f"AI Strategy DOCX: {base_name}.docx", show_time=False)
+            durable_docx_path = docx_path
         except PermissionError:
             timestamp = datetime.now().strftime("%H%M%S")
             docx_path = destination_dir / f"{base_name}_{timestamp}.docx"
@@ -213,9 +221,23 @@ def generate_ai_strategy_section(
                 title=f"AI Strategy: {company_name}",
                 subtitle=subtitle,
             )
+            durable_docx_path = docx_path
         except Exception as exc:
             console.warn(f"DOCX conversion failed: {exc}")
             docx_path = md_path
+
+        if pending_interaction_id:
+            from primr.ai.job_persistence import acknowledge_pending_job_after_outputs
+
+            required_outputs = [md_path]
+            if txt_path is not None:
+                required_outputs.append(txt_path)
+            if durable_docx_path is not None:
+                required_outputs.append(durable_docx_path)
+            if durable_docx_path is None or not acknowledge_pending_job_after_outputs(
+                pending_interaction_id, required_outputs
+            ):
+                console.warn("AI Strategy was saved, but its pending job remains listed.")
 
         return str(docx_path)
 

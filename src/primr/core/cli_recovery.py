@@ -165,12 +165,83 @@ def _show_latest_run_state_hint() -> None:
     console.info(f"  File: {path}")
 
 
-def check_pending_jobs() -> int:
+def _local_run_status_snapshot() -> dict[str, Any] | None:
+    """Return the latest local run as a canonical status snapshot."""
+    latest = _find_latest_run_state()
+    if not latest:
+        return None
+    path, state = latest
+    from primr.job_status import build_job_status
+
+    company = str(state.get("company_name", "")).strip()
+    if not company or company.lower() == "unknown":
+        company = Path(path).parent.parent.name
+    return build_job_status(
+        job_id=state.get("run_id"),
+        source="local_run",
+        status=state.get("status"),
+        company_name=company,
+        mode=state.get("mode"),
+        stage=state.get("current_phase"),
+        percent=state.get("stage_progress_percent"),
+        started_at=state.get("started_at"),
+        updated_at=state.get("updated_at"),
+        completed_at=state.get("completed_at"),
+        artifacts_available=None,
+        error_message=state.get("error"),
+        error_source="local_run" if state.get("error") else None,
+    )
+
+
+def _check_pending_jobs_json(jobs: dict[str, dict[str, Any]]) -> int:
+    """Emit one versioned status-list object for machine consumers."""
+    from primr.ai.deep_research import get_deep_research_client
+    from primr.core.cli_output import emit_json
+    from primr.job_status import build_job_status, build_job_status_list
+
+    snapshots: list[dict[str, Any]] = []
+    terminal_or_observation_error = False
+    client = get_deep_research_client() if jobs else None
+    for interaction_id, job_info in jobs.items():
+        result = client.check_job(interaction_id)
+        status = str(result.get("status", "unknown")).lower()
+        metadata = job_info.get("metadata", {})
+        if not isinstance(metadata, dict):
+            metadata = {}
+        if status in _TERMINAL_FAILURE_STATUSES or status == "check_error":
+            terminal_or_observation_error = True
+        snapshots.append(
+            build_job_status(
+                job_id=interaction_id,
+                source="provider_recovery",
+                status=status,
+                company_name=metadata.get("company_name", job_info.get("company_name")),
+                mode=metadata.get("mode", job_info.get("mode")),
+                stage=result.get("stage"),
+                percent=result.get("stage_progress_percent"),
+                submitted_at=job_info.get("started"),
+                updated_at=result.get("updated_at"),
+                artifacts_available=False if status == "completed" else None,
+                error_message=result.get("error"),
+                error_code=result.get("error_code"),
+                error_source=result.get("error_source"),
+            )
+        )
+    local = _local_run_status_snapshot()
+    if local:
+        snapshots.append(local)
+    emit_json(build_job_status_list(snapshots))
+    return 1 if terminal_or_observation_error else 0
+
+
+def check_pending_jobs(json_output: bool = False) -> int:
     """Inspect cloud and local recovery state without writing artifacts."""
     from primr.ai.deep_research import get_deep_research_client, get_pending_jobs
 
-    console.banner("Research Job Status")
     jobs = get_pending_jobs()
+    if json_output:
+        return _check_pending_jobs_json(jobs)
+    console.banner("Research Job Status")
     if not jobs:
         console.info("No pending cloud jobs found.")
         _show_latest_run_state_hint()
@@ -279,7 +350,9 @@ def resume_pending_jobs() -> int:
                 console.ok("  Status: COMPLETED")
                 console.ok(f"  Finalized MD: {outputs['md']}")
                 console.ok(f"  Finalized DOCX: {outputs['docx']}")
-                if not remove_pending_job(interaction_id):
+                from primr.ai.job_persistence import acknowledge_pending_job_after_outputs
+
+                if not acknowledge_pending_job_after_outputs(interaction_id, outputs.values()):
                     console.error(
                         "  Outputs saved, but the pending job record could not be updated"
                     )

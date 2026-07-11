@@ -7,7 +7,7 @@ Real API integration tests should be run separately.
 
 import tempfile
 from datetime import datetime
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -481,6 +481,34 @@ class TestFileSearch:
                 remove_pending_job("interaction-123")
                 jobs = get_pending_jobs()
                 assert "interaction-123" not in jobs
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_tracks_background_interaction_before_polling():
+    orchestrator = DeepResearchOrchestrator.__new__(DeepResearchOrchestrator)
+    orchestrator.AGENT_ID = "deep-research-preview-04-2026"
+    orchestrator._client = Mock()
+    orchestrator._client.interactions.create.return_value = Mock(id="interaction-123")
+    orchestrator._poll_for_completion = AsyncMock(
+        return_value=ResearchResult(
+            content="research body",
+            interaction_id="interaction-123",
+        )
+    )
+
+    with patch("primr.ai.deep_research.save_pending_job") as save_mock:
+        result = await orchestrator._execute_single("Research ExampleCo")
+
+    assert result.interaction_id == "interaction-123"
+    save_mock.assert_called_once_with(
+        interaction_id="interaction-123",
+        job_type="deep_research",
+        description="Research ExampleCo",
+    )
+    orchestrator._poll_for_completion.assert_awaited_once_with(
+        interaction_id="interaction-123",
+        on_progress=None,
+    )
 
 
 class TestResearchWithContextFiles:

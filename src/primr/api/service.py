@@ -156,6 +156,7 @@ class JobStatus(BaseModel):
     message: str = ""
     created_at: str
     updated_at: str
+    job_status: dict[str, Any]
 
 
 class HealthResponse(BaseModel):
@@ -519,6 +520,8 @@ def create_app(
         api_key: str = Depends(verify_key), limit: int = 100
     ) -> list[JobStatus]:
         """List research jobs for the authenticated user."""
+        from primr.job_status import build_job_status
+
         jobs = app.state.job_manager.list_jobs(api_key, limit)
 
         return [
@@ -529,6 +532,21 @@ def create_app(
                 message=j.message,
                 created_at=j.created_at.isoformat(),
                 updated_at=j.updated_at.isoformat(),
+                job_status=build_job_status(
+                    job_id=j.job_id,
+                    source="api_job",
+                    status=j.status,
+                    company_name=j.company_name,
+                    percent=j.progress,
+                    submitted_at=j.created_at,
+                    updated_at=j.updated_at,
+                    completed_at=j.completed_at,
+                    artifacts_available=(
+                        j.result is not None if j.status == ResearchStatus.COMPLETED else None
+                    ),
+                    error_message=j.error,
+                    error_source="api_job" if j.error else None,
+                ),
             )
             for j in jobs
         ]

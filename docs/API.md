@@ -142,7 +142,21 @@ class OrchestratorResult:
     success: bool
     error: str | None
     timestamp: datetime
+    pending_interaction_id: str  # Internal durable-recovery handoff, or empty
 ```
+
+The interaction ID is persisted when background work starts and is acknowledged
+only by the outer writer after its required output set is durable. Callers that
+invoke the orchestrator directly and write their own artifacts own that final
+acknowledgement boundary.
+
+## Versioned Job Status
+
+Use `primr --check-jobs --json` for the CLI collection contract. MCP
+`check_jobs`, `primr://research/status`, A2A `check_jobs`, hosted status, and the
+application job list expose the same `primr.job-status` v1.0 projection without
+report bodies or paths. See [Job Status](JOB_STATUS.md) for field semantics and
+compatibility rules.
 
 **Accessing results:**
 

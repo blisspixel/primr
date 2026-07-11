@@ -159,7 +159,11 @@ Common deliverables:
 Agent hosts can inventory one completed job with
 `primr://output/artifacts/by_job/{job_id}` before requesting report content.
 That resource returns artifact paths, types, sizes, timestamps, hashes, and
-missing-file state without returning report body content.
+missing-file state without returning report body content. Exact adjacent
+Markdown, TXT, DOCX, and PDF siblings are included even when an older producer
+attached only its primary path; current producers attach their job-scoped run
+manifest explicitly. `primr --list-recent` uses the same bounded inventory
+model locally; add `--json` for a versioned object.
 They can inspect attached QA outcomes with
 `primr://output/qa_summary/by_job/{job_id}`, which returns compact
 score/status/count metadata without detailed QA or report body text.
@@ -221,6 +225,12 @@ Primr can be operated from MCP-compatible agent hosts, local CLI workflows, Open
 
 Start with [Agent Integration](docs/AGENT_INTEGRATION.md). Programmatic MCP and A2A details live in [MCP and A2A API](docs/API.md). Skill-pack generation is covered in [Skill Pack Guide](docs/SKILL_PACK.md).
 
+`primr --check-jobs --json` returns `primr.job-status-list` v1.0. Each row is a
+body-free `primr.job-status` v1.0 snapshot with normalized lifecycle, progress,
+timestamps, artifact availability, and bounded error metadata. MCP, A2A,
+hosted control-plane, and application API status surfaces project the same
+contract additively while preserving their legacy fields.
+
 ## Development
 
 For source checkouts, see [Contributing](docs/CONTRIBUTING.md).
@@ -240,6 +250,7 @@ formatting, mypy checks, Bandit, pip-audit, and strict documentation builds.
 | Skill packs | [Skill Pack Guide](docs/SKILL_PACK.md) |
 | Agent integration | [Agent Integration](docs/AGENT_INTEGRATION.md) |
 | MCP and A2A API | [API Reference](docs/API.md) |
+| Job status contract | [Job Status](docs/JOB_STATUS.md) |
 | Architecture | [System Design](docs/ARCHITECTURE.md) |
 | Security | [Security Policy](docs/SECURITY.md) |
 | Batch runs | [Batch Guide](docs/BATCH.md) |

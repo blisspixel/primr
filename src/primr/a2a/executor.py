@@ -583,10 +583,26 @@ class PrimrAgentExecutor(AgentExecutor):
         """
         active = self._mcp.job_store.get_active()
         result: dict[str, object]
+        from primr.job_status import build_job_status
+
         owner_client_id = _a2a_client_id(self._mcp)
         if active and _caller_owns_job(active, owner_client_id):
             progress = active.stage_progress_percent or 0
+            canonical = build_job_status(
+                job_id=active.job_id,
+                source="agent_job",
+                status=active.get_status(),
+                company_name=active.company_name,
+                mode=active.mode,
+                stage=active.current_stage,
+                percent=active.stage_progress_percent,
+                possibly_stuck=active.is_possibly_stuck(),
+                started_at=active.start_time,
+                updated_at=active.last_heartbeat_time,
+                artifacts_available=None,
+            )
             result = {
+                "job_status": canonical,
                 "job_id": active.job_id,
                 "company": active.company_name,
                 "stage": active.current_stage.value,
@@ -597,7 +613,25 @@ class PrimrAgentExecutor(AgentExecutor):
             terminal = self._mcp.job_store.get_latest_terminal()
             if terminal and _caller_owns_job(terminal, owner_client_id):
                 stage = terminal.current_stage.value
+                canonical = build_job_status(
+                    job_id=terminal.job_id,
+                    source="agent_job",
+                    status=terminal.get_status(),
+                    company_name=terminal.company_name,
+                    mode=terminal.mode,
+                    stage=terminal.current_stage,
+                    percent=terminal.stage_progress_percent,
+                    possibly_stuck=False,
+                    started_at=terminal.start_time,
+                    updated_at=terminal.last_heartbeat_time,
+                    completed_at=terminal.completion_time,
+                    artifacts_available=bool(terminal.output_paths),
+                    error_message=terminal.error_message,
+                    error_code=terminal.error_type,
+                    error_source="agent_job" if terminal.error_message else None,
+                )
                 result = {
+                    "job_status": canonical,
                     "job_id": terminal.job_id,
                     "company": terminal.company_name,
                     "stage": stage,
@@ -609,7 +643,11 @@ class PrimrAgentExecutor(AgentExecutor):
                     "output_paths_available": bool(terminal.output_paths),
                 }
             else:
-                result = {"status": "idle", "message": "No active or recent jobs"}
+                result = {
+                    "job_status": build_job_status(source="agent_job", status="idle"),
+                    "status": "idle",
+                    "message": "No active or recent jobs",
+                }
 
         await event_queue.enqueue_event(new_agent_text_message(json.dumps(result, indent=2)))
         return result
