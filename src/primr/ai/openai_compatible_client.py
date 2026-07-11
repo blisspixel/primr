@@ -12,6 +12,7 @@ import re
 import time
 from dataclasses import dataclass
 
+from primr.ai.provider_availability import LocalCapacityBusyError
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("openai_compatible_client")
@@ -82,6 +83,7 @@ def chat_completion(
     max_tokens: int = 900,
     retries: int = 2,
     system_prompt: str | None = None,
+    capacity_retry_attempt: int = 0,
 ) -> ChatCompletionResult:
     """Call an OpenAI-compatible chat completions endpoint and normalize the result."""
     try:
@@ -122,7 +124,11 @@ def chat_completion(
             )
         except Exception as exc:
             last_error = exc
-            if attempt < retries and _is_retryable_error(exc):
+            capacity_busy = LocalCapacityBusyError.from_exception(
+                exc,
+                attempt=capacity_retry_attempt,
+            )
+            if attempt < retries and (_is_retryable_error(exc) or capacity_busy is not None):
                 wait = _compute_backoff_delay(attempt)
                 logger.warning(
                     "Transient OpenAI-compatible error, retrying in %.1fs (attempt %d/%d): %s",
@@ -134,6 +140,14 @@ def chat_completion(
                 time.sleep(wait)
                 continue
             break
+
+    if last_error is not None:
+        busy_error = LocalCapacityBusyError.from_exception(
+            last_error,
+            attempt=capacity_retry_attempt,
+        )
+        if busy_error is not None:
+            raise busy_error from last_error
 
     raise RuntimeError(
         f"OpenAI-compatible chat completion failed after {retries + 1} attempts: {last_error}"

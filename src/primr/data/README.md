@@ -1,138 +1,69 @@
-# Data Module
+# Data Package
 
-This module handles all data collection in Primr, including web scraping, search, and content extraction.
+`primr.data` owns public-evidence collection and normalization. Its primary
+contract is one site-to-corpus workflow built on one page-level scraping
+primitive. AI synthesis belongs in `primr.ai`; run coordination belongs in
+`primr.core`.
 
-## Components
+## Concern map
 
-### Web Scraping (`scrape.py`)
+| Area | Modules | Responsibility |
+|------|---------|----------------|
+| Site workflow | `scrape.py` | URL discovery, ranking, page collection, corpus assembly, raw scrape storage, and fallback routing |
+| Page primitive | `scraping/orchestrator.py`, `scraping/tier_registry.py` | Tier selection, escalation, sticky host state, cookie handoff, and standardized `ScrapeResult` values |
+| Browser tiers | `scraping/browsers.py`, `scraping/stealth_browser.py`, `scraping/vision_browser.py` | Playwright, Patchright, DrissionPage, and screenshot-based retrieval |
+| HTTP tiers | `scraping/http_clients.py`, `pinned_requests.py`, `safe_http.py` | curl_cffi, httpx, requests, and pinned safe-request handling |
+| Discovery and validation | `scraping/discovery.py`, `scraping/net.py`, `scraping/validation.py`, `link_scorer.py` | Scope checks, link selection, block detection, and content validation |
+| Extraction | `scraping/content.py`, `scraping/structured_content.py`, `content_extractor.py` | Main-text, PDF, metadata, table, and structured-content extraction |
+| Recovery sources | `fallback_sources.py`, `first_party_*.py`, `scraping/wayback.py` | Same-site recovery, first-party documents, Wayback, feeds, filings, and public fallbacks |
+| Hiring signals | `hiring_signals.py`, `hiring_*.py` | ATS discovery, career-page recovery, posting selection, extraction, routing, and artifacts |
+| Search | `search_utils.py` | External search provider selection and normalized result collection |
+| Performance | `parallel_scraper.py`, `adaptive_scraper.py`, `cache.py` | Bounded concurrency, learned host behavior, and content caching |
+| Trace and host state | `scraping/trace.py`, `scraping/trace_stats.py`, `scraping/host_markers.py`, `scraping/rate_limit_state.py` | Attempt records, compact health summaries, positive markers, and rate-limit state |
+| Supporting analysis | `validator.py`, `sentiment.py`, `knowledge_graph.py`, `monitoring.py`, `pagination.py` | Optional fact, tone, entity, change, and pagination utilities |
 
-4-tier scraping engine with fallback:
+## Collection shape
 
-```python
-from primr.data.scrape import (
-    scrape_with_requests,      # Tier 1: Simple HTTP
-    scrape_with_httpx,         # Tier 2: HTTP/2
-    scrape_with_playwright,    # Tier 3: Browser
-    scrape_with_playwright_aggressive  # Tier 4: Stealth browser
-)
-
-content, error = scrape_with_requests(url)
-if content is None:
-    content, error = scrape_with_httpx(url)
-# ... continue through tiers
+```text
+base company URL
+        |
+        v
+discover and rank in-scope links
+        |
+        v
+scrape_page for each selected URL
+        |
+        +-> Playwright
+        +-> Playwright aggressive
+        +-> Patchright
+        +-> curl_cffi
+        +-> DrissionPage stealth
+        +-> DrissionPage
+        +-> Vision when enabled
+        +-> httpx
+        +-> requests
+        |
+        v
+validate and extract content -> corpus, raw pages, links, and trace records
+        |
+        v
+same-site and public fallback sources when live access is insufficient
 ```
 
-### Parallel Scraping (`parallel_scraper.py`)
+`scrape_page` always means one URL. `build_site_corpus`, implemented by
+`fetch_web_content()`, always means the multi-page workflow. New collection
+features extend these seams instead of adding another discovery and scrape
+loop. The registry defines nine ordered tiers; runtime availability and
+configuration can filter optional tiers for a specific call.
 
-Concurrent scraping with rate limiting and circuit breaker:
+## Safety and resource boundaries
 
-```python
-from primr.data import get_parallel_scraper
-
-scraper = get_parallel_scraper()
-results = await scraper.scrape_urls(urls)
-```
-
-### Caching (`cache.py`)
-
-Two-layer caching (memory LRU + disk):
-
-```python
-from primr.data import cache_get, cache_set, cache_clear
-
-cached = cache_get(url)
-if not cached:
-    content = scrape(url)
-    cache_set(url, content)
-```
-
-### Content Extraction (`content_extractor.py`)
-
-Structured extraction of tables, quotes, and financial figures:
-
-```python
-from primr.data import get_content_extractor
-
-extractor = get_content_extractor()
-tables = extractor.extract_tables(html)
-figures = extractor.extract_financial_figures(text)
-```
-
-### Search (`search_utils.py`)
-
-Google Custom Search integration:
-
-```python
-from primr.data.search_utils import search_google
-
-results = search_google(query, company_name, website)
-```
-
-### Link Scoring (`link_scorer.py`)
-
-Prioritizes high-value links for crawling:
-
-```python
-from primr.data import get_link_scorer
-
-scorer = get_link_scorer()
-scored_links = scorer.score_links(links, company_name)
-best = scorer.get_best_links(scored_links, limit=10)
-```
-
-## Additional Components
-
-- `adaptive_scraper.py`: Domain-learning scraper that remembers what works
-- `http_client.py`: HTTP client wrapper with consistent configuration
-- `validator.py`: Fact validation and conflict detection
-- `sentiment.py`: Sentiment and tone analysis
-- `pagination.py`: Pagination detection and handling
-- `monitoring.py`: Change monitoring for tracked companies
-- `knowledge_graph.py`: Entity and relationship extraction
-
-## Key Patterns
-
-### Soft Block Detection
-
-Content is analyzed for block indicators:
-
-```python
-from primr.data.scrape import detect_soft_block
-
-is_blocked, reason = detect_soft_block(content, url)
-if is_blocked:
-    # Escalate to next tier
-```
-
-### Browser Fingerprinting
-
-Random browser profiles for stealth:
-
-```python
-from primr.data.scrape import get_random_profile, create_stealth_context
-
-profile = get_random_profile()
-context = create_stealth_context(browser, profile)
-```
-
-### Resource Cleanup
-
-Playwright browser is shared and cleaned up on exit:
-
-```python
-import atexit
-from primr.data.scrape import _cleanup_playwright_browser
-
-atexit.register(_cleanup_playwright_browser)
-```
-
-## Configuration
-
-Scraping behavior is configured via `ScrapingConfig`:
-
-- `max_retries`: Retry count per tier
-- `timeout`: Request timeout in seconds
-- `max_depth`: Maximum crawl depth
-- `cache_ttl_hours`: Cache lifetime
-- `excluded_sites`: URL patterns to skip
-- `soft_block_indicators`: Block detection keywords
+- Every outbound URL passes SSRF validation before connection and after
+  redirects.
+- The HTTP client set is deliberately closed because tier diversity is part of
+  the retrieval design.
+- Browser and thread-pool lifetimes are owned by their context managers and
+  orchestrators, not by callers reaching into private cleanup functions.
+- Untrusted page and posting text is fenced before model use.
+- Network failures, blocks, and thin content return typed results and traces so
+  the caller can degrade without treating failure as evidence.

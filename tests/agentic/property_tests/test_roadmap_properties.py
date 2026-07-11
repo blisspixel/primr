@@ -26,6 +26,8 @@ from hypothesis import strategies as st
 from primr.agentic.models import VersionStatus
 from primr.agentic.roadmap_api import RoadmapAPI
 
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
 # =============================================================================
 # STRATEGIES
 # =============================================================================
@@ -232,6 +234,62 @@ def test_dependency_graph_acyclic(content: str):
         for node in graph:
             if node not in visited:
                 assert not has_cycle(node, visited, set()), f"Cycle detected starting from {node}"
+
+
+def test_version_band_stops_at_same_level_non_version_heading(tmp_path: Path):
+    """A later roadmap section must not become features of the last version."""
+    roadmap_path = tmp_path / "ROADMAP.md"
+    roadmap_path.write_text(
+        """# Roadmap
+
+### 1.x - Current line (current)
+- Current work
+
+### 2.0 - Next line (planned)
+- Future work
+
+### Intentionally never
+- This is a non-goal, not a 2.0 feature
+
+## Active Queue
+- This is active work, not a 2.0 feature
+""",
+        encoding="utf-8",
+    )
+
+    api = RoadmapAPI(roadmap_path)
+
+    assert [version.number for version in api.list_all_versions()] == ["1.x", "2.0"]
+    version_2 = api.get_version("2.0")
+    current = api.get_current_version()
+    next_version = api.get_next_version()
+    assert version_2 is not None
+    assert current is not None
+    assert next_version is not None
+    assert [feature.name for feature in version_2.features] == ["Future work"]
+    assert current.number == "1.x"
+    assert next_version.number == "2.0"
+    assert api.get_dependency_graph() == {"1.x": [], "2.0": ["1.x"]}
+
+
+def test_repository_roadmap_dependency_graph_matches_major_version_plan():
+    """Keep the MCP roadmap resource aligned with the real ROADMAP structure."""
+    api = RoadmapAPI(PROJECT_ROOT / "ROADMAP.md")
+
+    versions = api.list_all_versions()
+    current = api.get_current_version()
+    next_version = api.get_next_version()
+    assert [version.number for version in versions] == ["1.x", "2.0", "3.0"]
+    assert [len(version.features) for version in versions] == [5, 3, 3]
+    assert current is not None
+    assert next_version is not None
+    assert current.number == "1.x"
+    assert next_version.number == "2.0"
+    assert api.get_dependency_graph() == {
+        "1.x": [],
+        "2.0": ["1.x"],
+        "3.0": ["2.0"],
+    }
 
 
 # =============================================================================

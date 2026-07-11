@@ -253,17 +253,17 @@ regex. Refuse it at review time. A PR that adds a content gate must instead add
 
 The same rule-vs-judgment line applies to provider choice. primr's product is the
 research harness, not a particular model account. API keys, local models,
-enterprise gateways, and host-agent subscriptions are credential transports for
-the same bounded pipeline.
+enterprise gateways, and official host surfaces can all participate in the same
+bounded pipeline, but authentication type alone does not establish billing mode.
 
 The allowed pattern:
 
 - **Direct provider APIs** for reproducible, programmatic runs where primr owns
   the model calls and can estimate token spend before launch.
-- **Host-account runners** for users who already pay for Codex, Claude Code, or
-  a similar agent host. primr may hand a bounded content task to the official
-  local/automation surface, receive structured output, and keep the pipeline
-  sequence, egress, disk writes, and eval checks under primr's harness.
+- **Host-account runners** only when an official local/automation surface can
+  accept a bounded content task and billing provenance can be proven or the
+  operator explicitly acknowledges potentially metered API use. Primr keeps the
+  pipeline sequence, egress, disk writes, and eval checks under its harness.
 - **Local and gateway profiles** where the operator supplies an
   OpenAI-compatible server or enterprise endpoint, with the same capability
   routing and eval validation.
@@ -271,15 +271,21 @@ The allowed pattern:
 The disallowed pattern is treating a consumer subscription as an ordinary hidden
 API key. Do not scrape browser sessions, reverse-engineer private endpoints, or
 proxy through unofficial tools just to avoid API pricing. If Codex or Claude Code
-exposes an official authenticated local or automation surface, primr can use it
-as a runner. If it does not, the path stays API key, gateway, or local.
+exposes an official authenticated local or automation surface, that is necessary
+but not sufficient for a public runner. Primr must also establish the billing
+basis or require an explicit acknowledgment. Until then, the Codex transport is
+internal/eval-only and the path stays API key, gateway, local, or host-native
+`primr-zero`. Host OAuth tokens and session state never enter Primr.
 
 For agentic balance, a host-account runner is just another Level-2 decision
 point. The model may decide the content inside a stage; primr still decides which
 stage runs, what evidence packet it receives, what budget or plan-limit policy
 applies, what URLs may be fetched, where files may be written, and whether the
-result clears semantic eval. This is how subscription-backed execution fits
-without turning primr into a Level-3 agent or weakening the cost gate.
+result clears semantic eval. Route metadata describes the declared policy but is
+not proof of an external host session's billing. This is how a future
+billing-verifiable host route can fit without turning primr into a Level-3 agent
+or weakening the cost gate. Today, `primr-zero` is the supported plan-native
+path after the host is verified not to bill API usage or overages.
 
 ## The coupling the sources don't name: agentic collection needs a budget
 

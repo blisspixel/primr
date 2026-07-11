@@ -16,11 +16,15 @@ Use primr when the user wants the full pipeline:
 - "Build me the full strategic dossier for Acme - I have a discovery in two weeks"
 - "Generate the AI strategy module for the Acme report"
 - "Reload the hypotheses we have on Acme and refresh weak ones"
+- "Build the fullest dossier you can for $0 using my existing agent plan" -
+  use `primr prep` plus the portable `primr-zero` skill.
 
 **Do not** use primr for:
 
 - A quick pre-call brief with no API budget - use the host's built-in web search and reasoning. primr is wrong for "give me two paragraphs on Acme."
-- DNS / tenant / email-security only - primr's recon stage is bundled into the full pipeline, not a standalone path. For passive lookups, shell out to `dig`, `host`, or a passive-recon tool.
+- DNS / tenant / email-security only - use `primr recon company.com`, which is
+  keyless and standalone. A host-native passive lookup is also fine when Primr
+  is not installed.
 - Reviewing an existing primr report's quality - still primr (`run_qa` MCP tool or `primr --qa <company>` CLI), but invoke that path directly without estimating a new run.
 
 If the user is ambiguous ("research Acme"), default to the host's built-in research path and offer primr as the upgrade for "I want the full dossier." primr's cost and runtime mean it should never auto-fire on a vague trigger.
@@ -36,9 +40,11 @@ primr doctor
 
 If `primr` is not on `PATH`:
 
-> "primr isn't installed. It's a Python CLI from github.com/blisspixel/primr. Use `pip install primr` on Python 3.12+. After install, run `primr init` to set provider keys. Grok + Gemini is the measured default, but OpenAI, Anthropic, and local OpenAI-compatible paths are also supported or tracked in the roadmap. Want me to walk through it?"
+> "primr isn't installed. It's a Python CLI from github.com/blisspixel/primr. Use `pip install primr` on Python 3.12+. For the hard-zero path, install only and then run `primr prep`; no provider setup is needed. For a provider-backed run, use `primr init` after installation. Want me to walk through it?"
 
-Wait for explicit approval before running `pip install`. If `primr doctor` reports missing keys, do not attempt to set them yourself - surface the gap and let the user run `primr init` or `primr keys set <provider>`.
+Wait for explicit approval before running `pip install`. If `primr doctor`
+reports missing keys, do not attempt to set them yourself. Missing keys block
+provider-backed research, but they do not block `primr prep` or `primr recon`.
 
 ## Detecting MCP vs CLI
 
@@ -49,7 +55,26 @@ Look at your own available-tools list before choosing transport:
 
 Do not call an MCP tool speculatively to test connectivity. To get from CLI-only to MCP, the user adds primr to their host's MCP config (the snippet is `{ "command": "primr", "args": ["mcp"] }`; see the `clients/` directory in the primr repo for per-host paths).
 
-## The cost gate (non-negotiable)
+## Zero-cost host handoff
+
+When the user wants a substantial dossier with no provider key, GPU, or
+incremental API spend, prefer the dedicated `primr-zero` skill. Its collection
+step is:
+
+```bash
+primr prep "Company" https://company.example --dry-run
+primr prep "Company" https://company.example
+```
+
+The dry run must report `$0.00` and zero model calls. The real command performs
+public network requests, emits a bounded evidence bundle and portable skill,
+and fails closed against model egress even when keys are configured. Disclose
+the network activity, but do not require spend approval for this zero-dollar
+collection. The surrounding host then researches and writes from its own plan
+allowance. Never pass host OAuth tokens or cookies into Primr, and never switch
+to a paid run silently.
+
+## The billable cost gate (non-negotiable)
 
 primr runs cost real money and real time. **Never** launch a run without:
 
@@ -68,13 +93,13 @@ The MCP server enforces this gate via `primr://agent/governance`; the CLI does n
 3. **Launch.** MCP: `research_company(company_name=..., company_url=..., mode=..., platform=..., destination=...)` → returns `job_id`. CLI: drop `--dry-run` and run the same command. Note the `job_id` or output directory.
 4. **Don't block.** Runs take 35-120 minutes. Tell the user the job is running and what file path will hold the report. Do not poll synchronously in a loop.
 5. **Resume on next turn.** When the user comes back ("is the Acme report done?"), check `primr://research/status` or `check_jobs` (MCP), or look for the markdown file at `output/<company>/<Company>_Strategic_Overview_<MM-DD-YYYY>.md` (CLI). If still running, report the stage and `stage_progress_percent`.
-6. **Confirm completion, then hand off.** If using MCP, read `primr://output/artifacts/by_job/{job_id}` first to list the owned job's artifacts without loading report body content. If QA ran, read `primr://output/qa_summary/by_job/{job_id}` for compact score/status/count metadata. Read `primr://output/usage_summary/by_job/{job_id}` when you need cost, timing, approval, or artifact-count metadata without loading the full manifest. Read `primr://output/source_summary/by_job/{job_id}` when you need citation/source appendix counts, domains, missing citations, or duplicate URL metadata without loading report body content. Read `primr://output/trace_summary/by_job/{job_id}` when you need scrape trace health, tier attempts, latency, block, HTTP status, or validation metadata without loading URLs, raw trace entries, or page content. Read `primr://output/verification_summary/by_job/{job_id}` when you need claim verification trust score, claim counts, status counts, first-party downgrade counts, or source-reference counts without loading raw claims, source URLs, search queries, explanations, or report body content. Read `primr://output/calibration_summary/by_job/{job_id}` when you need label-calibration counts, inference source-copy counts, evidence-review count buckets, judge provenance, or judge-agreement metadata without loading raw claims, source URLs, evidence reviews, rationales, or report body content. MCP resource reads and A2A skill calls are audit-logged without raw URI query values, raw resource bodies, raw message text, raw results, or caller ids. Then read the report path or preview needed for the handoff. Do NOT dump the full report into the conversation - it's ~21k words. Summarize the executive summary, list the section count, and offer downstream actions (see [references/downstream-handoff.md](references/downstream-handoff.md)).
+6. **Confirm completion, then hand off.** If using MCP, read `primr://output/artifacts/by_job/{job_id}` first to list the owned job's artifacts without loading report body content. If QA ran, read `primr://output/qa_summary/by_job/{job_id}` for compact score/status/count metadata. Read `primr://output/usage_summary/by_job/{job_id}` when you need cost, timing, approval, or artifact-count metadata without loading the full manifest. Read `primr://output/source_summary/by_job/{job_id}` when you need citation/source appendix counts, domains, missing citations, or duplicate URL metadata without loading report body content. Read `primr://output/trace_summary/by_job/{job_id}` when you need scrape trace health, tier attempts, latency, block, HTTP status, or validation metadata without loading URLs, raw trace entries, or page content. Read `primr://output/verification_summary/by_job/{job_id}` when you need claim verification trust score, claim counts, status counts, first-party downgrade counts, or source-reference counts without loading raw claims, source URLs, search queries, explanations, or report body content. Read `primr://output/calibration_summary/by_job/{job_id}` when you need label-calibration counts, inference source-copy counts, evidence-review count buckets, judge provenance, or judge-agreement metadata without loading raw claims, source URLs, evidence reviews, rationales, or report body content. MCP resource reads and A2A skill calls are audit-logged without raw URI query values, raw resource bodies, raw message text, raw results, or caller ids. Then read the report path or preview needed for the handoff. Do NOT dump the full report into the conversation - it's ~21k words. Summarize the executive summary, list the section count, and offer downstream actions (see [downstream handoff](claude-code/skills/primr/references/downstream-handoff.md)).
 
 ## Mode, tier, platform, strategy
 
 primr exposes four orthogonal levers. Default is `full` mode, recon-driven platform selection, default `--grok-tier`, and the built-in AI Strategy module unless `--no-ai-strategy` is passed.
 
-For the full decision matrix - when to pick each, cost and time per combination, multi-platform behavior - see [references/modes-and-strategies.md](references/modes-and-strategies.md). One-liner heuristics:
+For the full decision matrix - when to pick each, cost and time per combination, multi-platform behavior - see [modes and strategies](claude-code/skills/primr/references/modes-and-strategies.md). One-liner heuristics:
 
 - **Mode**: `full` for almost everything. `scrape` if external research isn't needed. `deep` if the site is blocked. `premium` only when the user asks for board-grade depth.
 - **Platform**: omit unless the user is positioning a specific cloud. Then pass exactly what they're selling against (`--platform aws`, `--platform ms`, etc.). It biases the AI strategy module, not the core report.
@@ -84,7 +109,7 @@ For the full decision matrix - when to pick each, cost and time per combination,
 
 primr discovers any YAML file dropped into `<install>/prompts/strategies/` (or the user's override path). Author one when the user wants a recurring deliverable that doesn't fit the built-ins (e.g., "FinOps assessment for retail clients", "M&A integration playbook").
 
-For the schema and a worked example, see [references/custom-strategy-yaml.md](references/custom-strategy-yaml.md). Keep custom strategies in version control; do not edit a built-in YAML in place.
+For the schema and a worked example, see [custom strategy YAML](claude-code/skills/primr/references/custom-strategy-yaml.md). Keep custom strategies in version control; do not edit a built-in YAML in place.
 
 ## Async monitoring
 
@@ -120,7 +145,7 @@ When the user asks "what did we get": for MCP, prefer `primr://output/artifacts/
 
 primr's outputs are inputs to the rest of the user's toolchain. Do not let a report sit unused. When a run completes, proactively offer the next step the user is likely to need.
 
-For the mapping (Strategic Overview → which next action, AI Strategy module → which next action, hypotheses → which next action), see [references/downstream-handoff.md](references/downstream-handoff.md).
+For the mapping (Strategic Overview → which next action, AI Strategy module → which next action, hypotheses → which next action), see [downstream handoff](claude-code/skills/primr/references/downstream-handoff.md).
 
 ## Hypothesis memory
 

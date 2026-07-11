@@ -13,6 +13,10 @@ include .env.example
 recursive-include docs *.md
 recursive-include docs/images *.png
 
+# Include portable host-agent skills and Claude plugin packaging
+recursive-include .agents *.md *.yaml
+recursive-include claude-code *.md *.json *.yaml
+
 # Include type stubs
 include src/primr/py.typed
 

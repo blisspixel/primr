@@ -18,8 +18,13 @@ from primr.ai.capability_routing import (
     TrustSensitivity,
     backends_with_availability,
     route_stage,
+    sanitized_availability_metadata,
 )
-from primr.ai.provider_availability_collectors import collect_provider_availability_snapshots
+from primr.ai.provider_availability import LocalCapacityBusyError
+from primr.ai.provider_availability_collectors import (
+    LOCAL_OPENAI_COMPATIBLE_PROVIDER,
+    collect_provider_availability_snapshots,
+)
 from primr.ai.routing import Role, pick_model_for_legacy_type
 from primr.config.model_registry import ModelConfig
 from primr.config.models import PrimrModels
@@ -133,7 +138,9 @@ def resolve_stage_model(
     snapshots = (
         tuple(availability_snapshots)
         if availability_snapshots is not None
-        else _default_provider_availability_snapshots()
+        else _default_provider_availability_snapshots(
+            include_local=selected_profile is InferenceProfile.LOCAL
+        )
     )
     if snapshots:
         candidate_backends = list(
@@ -173,6 +180,26 @@ def resolve_stage_model(
             routed=False,
             reasons=("agent_profile_unavailable",),
             rejections=rejection_reasons,
+            execution_mode="unavailable",
+        )
+
+    if selected_profile is InferenceProfile.LOCAL:
+        local_availability = _local_profile_availability(snapshots)
+        backend_id, unavailable_reason = _local_unavailable_route_state(local_availability)
+        return StageModelRoute(
+            stage_id=stage.stage_id,
+            profile=selected_profile,
+            model_name="",
+            backend_id=backend_id,
+            backend_kind=BackendKind.LOCAL.value,
+            billing_mode=BillingMode.ZERO_API_RUNTIME.value,
+            estimated_cost_usd=0.0,
+            expected_input_tokens=stage.expected_input_tokens,
+            expected_output_tokens=stage.expected_output_tokens,
+            routed=False,
+            reasons=(unavailable_reason, "no_paid_fallback"),
+            rejections=rejection_reasons,
+            availability=local_availability,
             execution_mode="unavailable",
         )
 
@@ -275,6 +302,7 @@ def record_stage_route_usage(
     output_items: int | None = None,
     duration_seconds: float | None = None,
     failure_class: str | None = None,
+    failure: Exception | None = None,
     usage_delta: dict[str, Any] | None = None,
 ) -> None:
     """Append body-free route usage metadata to the per-run state file."""
@@ -301,12 +329,55 @@ def record_stage_route_usage(
         record["duration_seconds"] = round(max(0.0, duration_seconds), 3)
     if failure_class:
         record["failure_class"] = failure_class
+    if isinstance(failure, LocalCapacityBusyError):
+        record["capacity_failure"] = failure.as_metadata()
     if usage_delta:
         _apply_usage_delta(record, usage_delta)
     routes.append(record)
     state["stage_routes"] = routes[-200:]
     state["updated_at"] = datetime.now().isoformat()
     _save_run_state(str(folder_path), state)
+
+
+def stage_route_failure_class(
+    route: StageModelRoute | Any,
+    error: Exception | None = None,
+) -> str:
+    """Return a stable body-free failure code for route records."""
+
+    if isinstance(error, LocalCapacityBusyError):
+        return "local_capacity_busy"
+
+    metadata = route.log_metadata()
+    reasons = getattr(route, "reasons", ())
+    if not reasons:
+        raw_reasons = metadata.get("route_reasons", ())
+        reasons = tuple(raw_reasons) if isinstance(raw_reasons, list | tuple) else ()
+    known_unavailable = {
+        "agent_profile_unavailable",
+        "local_adapter_unavailable",
+        "local_capacity_busy",
+        "local_capacity_unavailable",
+        "local_capacity_unknown",
+        "local_profile_unavailable",
+    }
+    for reason in reasons:
+        if reason in known_unavailable:
+            return reason
+
+    if getattr(route, "execution_mode", "llm") == "unavailable":
+        profile = metadata.get("inference_profile")
+        if profile == InferenceProfile.AGENT.value:
+            return "agent_profile_unavailable"
+        if profile == InferenceProfile.LOCAL.value:
+            availability = metadata.get("availability", {})
+            if isinstance(availability, dict) and availability.get("state") == "busy":
+                return "local_capacity_busy"
+            return "local_profile_unavailable"
+        return "route_unavailable"
+    if error is not None:
+        return type(error).__name__
+    return "route_failure"
 
 
 def capture_stage_usage() -> StageUsageByModel:
@@ -405,14 +476,46 @@ def _availability_metadata(backend: BackendCapabilities) -> dict[str, Any] | Non
     return dict(value)
 
 
-def _default_provider_availability_snapshots() -> tuple[ProviderQuotaSnapshot, ...]:
-    """Collect default routing availability without live quota or local probes."""
+def _default_provider_availability_snapshots(
+    *,
+    include_local: bool = False,
+) -> tuple[ProviderQuotaSnapshot, ...]:
+    """Collect routing availability, probing local only for an explicit local profile."""
 
     try:
-        return tuple(collect_provider_availability_snapshots(include_local=False))
+        return tuple(collect_provider_availability_snapshots(include_local=include_local))
     except Exception as exc:
         logger.debug("Provider availability collection skipped: %s", exc, exc_info=True)
         return ()
+
+
+def _local_profile_availability(
+    snapshots: Iterable[ProviderQuotaSnapshot],
+) -> dict[str, Any]:
+    for snapshot in snapshots:
+        if snapshot.provider in {LOCAL_OPENAI_COMPATIBLE_PROVIDER, "ollama"}:
+            return sanitized_availability_metadata(snapshot)
+    return {
+        "available": False,
+        "error": "missing_local_availability_snapshot",
+        "provider": LOCAL_OPENAI_COMPATIBLE_PROVIDER,
+        "quota_source": "not_collected",
+        "retryable": False,
+        "stale": False,
+        "state": "unavailable",
+    }
+
+
+def _local_unavailable_route_state(availability: dict[str, Any]) -> tuple[str, str]:
+    if availability.get("available") is True:
+        return "local-adapter-unavailable", "local_adapter_unavailable"
+    if availability.get("state") == "busy":
+        return "local-capacity-busy", "local_capacity_busy"
+    if availability.get("error") == "missing_local_availability_snapshot":
+        return "local-capacity-unknown", "local_capacity_unknown"
+    if availability.get("state") == "unavailable":
+        return "local-capacity-unavailable", "local_capacity_unavailable"
+    return "local-profile-unavailable", "local_profile_unavailable"
 
 
 def _merge_usage_by_model(

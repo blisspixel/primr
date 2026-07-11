@@ -1,10 +1,20 @@
 # Agent Integration
 
-Primr can be operated from agent hosts through MCP, A2A, packaged skills, and documented host configuration snippets. This guide explains the integration surfaces and the cost-gate rules that apply to all of them.
+Primr can be operated from agent hosts through MCP, A2A, packaged skills, and
+documented host configuration snippets. There are two distinct agent workflows:
 
-## Operating Rule
+- `primr prep` plus the `primr-zero` skill performs hard-zero collection and
+  uses an existing host plan for research and synthesis.
+- MCP, A2A, or CLI launches the provider-backed Primr pipeline after an estimate
+  and explicit spend approval.
 
-Any agent-driven Primr run must follow the same lifecycle:
+Do not describe the first path as an API-key substitute inside Primr. The host
+owns its research and reasoning; Primr owns deterministic evidence collection
+and the handoff artifacts.
+
+## Operating Rules
+
+Any billable agent-driven Primr run must follow this lifecycle:
 
 1. Estimate the exact run.
 2. Show the cost, time, mode, platform, and strategy choice.
@@ -13,7 +23,24 @@ Any agent-driven Primr run must follow the same lifecycle:
 5. Monitor asynchronously.
 6. Read the output artifact before summarizing.
 
-Do not start billable work from a vague request like "research Acme." Use normal web research for quick briefs and reserve Primr for the full pipeline.
+Do not start billable work from a vague request like "research Acme." Use the
+host-native plan path, after verifying that it will not bill API usage or
+overages, or normal web research for quick briefs. Reserve provider-backed Primr
+for requests that need the full pipeline.
+
+For hard-zero collection:
+
+1. Run `primr prep "Company" https://company.example --dry-run` when the user
+   wants to inspect the plan.
+2. Explain that collection costs `$0.00` in model API spend but performs public
+   network requests.
+3. Run `primr prep` without a spend-approval gate.
+4. Read `prep_manifest.json`, `source_index.json`, and `research_packet.md`.
+5. Use `primr-zero` in the current host to close external gaps and write the
+   dossier without silently switching to API billing.
+
+See [Zero-Cost and Host-Assisted Research](ZERO_COST.md) for the complete
+contract and failure behavior.
 
 ## MCP Server
 
@@ -91,6 +118,7 @@ ids.
 
 Per-host snippets live under [`clients/`](https://github.com/blisspixel/primr/tree/main/clients):
 
+- Codex and other repository Agent Skills hosts
 - Cursor
 - Windsurf
 - VS Code and Copilot
@@ -110,17 +138,41 @@ Agent hosts differ in where they store MCP configuration and how they load local
 
 ## Packaged Skills and Agent Guidance
 
-Primr ships three related guidance surfaces:
+Primr ships four related guidance surfaces:
 
 - `AGENTS.md` at the repository root for tools that auto-load the open agents.md format.
-- `claude-code/` plugin files for the Claude Code plugin workflow.
+- `.agents/skills/primr-zero/` as the canonical portable hard-zero skill.
+- `claude-code/` plugin files, including a checked `primr-zero` mirror, for the Claude Code plugin workflow.
 - Generated skill packs from `primr skills`, which are company-specific Agent Skills artifacts for downstream work.
 
-These are operating guides, not alternate implementations. The Primr CLI and MCP server remain the source of truth for cost gates, execution, and output paths.
+The full `primr` operating guidance remains thin over the CLI and MCP server.
+`primr-zero` is intentionally different: it defines a host-native synthesis
+workflow over a versioned Primr evidence packet. Generated skill packs are
+company-specific downstream artifacts and are not Primr operating skills.
 
 ## Skill-Only Install
 
-When a host supports local skill files but not the plugin flow, install the skill guidance from the raw files:
+When a host supports local skill files but not the plugin flow, install the
+entire desired skill directory, including its references.
+
+For hard-zero research, use the canonical package:
+
+```text
+Source: .agents/skills/primr-zero/
+Codex personal install: ~/.agents/skills/primr-zero/
+Claude Code personal install: ~/.claude/skills/primr-zero/
+Repository skill install: <workspace>/.agents/skills/primr-zero/
+```
+
+From an installed wheel, use `primr prep --install-skill <directory>` to copy
+the complete skill and references into any of those explicit destinations.
+
+Claude Code users may copy the checked mirror from
+`claude-code/skills/primr-zero/` or install the Primr plugin. Hosts without
+shell access can consume a prep bundle through their official file-import or
+research UI and use `HOST_WORKFLOW.md` as the task contract.
+
+For provider-backed Primr guidance, install the existing full-pipeline skill:
 
 ```text
 Fetch https://raw.githubusercontent.com/blisspixel/primr/main/claude-code/skills/primr/SKILL.md
@@ -138,7 +190,8 @@ Primr separates credential types:
 
 - Provider API keys, such as `XAI_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, and `ANTHROPIC_API_KEY`, pay for direct model calls inside Primr.
 - Agent-host credentials operate the surrounding host and do not automatically replace provider API keys.
-- Planned account-capacity runners will use official host automation only when that mode is explicitly enabled and eval-validated.
+- `primr-zero` keeps synthesis inside that surrounding host and never passes its credentials into Primr.
+- Primr has an internal/eval-only Codex runner for `fast.source_relevance`, but it is not exposed as an inference profile. Codex authentication can be plan-backed or API-key billed, and Primr cannot prove which billing mode applies.
 - Local and gateway endpoints are first-class paths when configured and measured, but full local report profiles remain roadmap work.
 
 Do not paste browser-session cookies, personal web app tokens, or unofficial subscription proxy credentials into Primr.
@@ -181,6 +234,7 @@ resources before requesting report previews or files.
 
 ## Related Docs
 
+- [Zero-Cost and Host-Assisted Research](ZERO_COST.md)
 - [Run Modes and Costs](RUN_MODES.md)
 - [API Key Setup](API_KEYS.md)
 - [MCP and A2A API](API.md)

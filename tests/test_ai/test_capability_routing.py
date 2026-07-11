@@ -19,7 +19,11 @@ from primr.ai.capability_routing import (
     backends_with_availability,
     route_stage,
 )
-from primr.ai.provider_availability import ProviderQuotaSnapshot, QuotaWindow
+from primr.ai.provider_availability import (
+    AvailabilityState,
+    ProviderQuotaSnapshot,
+    QuotaWindow,
+)
 from primr.ai.provider_availability_collectors import LOCAL_OPENAI_COMPATIBLE_PROVIDER
 from primr.ai.routing import Role
 from primr.config.models import ModelRegistry
@@ -163,6 +167,43 @@ def test_host_agent_requires_stage_opt_in_and_official_runner() -> None:
     assert allowed_plan.primary is not None
     assert allowed_plan.primary.backend.backend_id == "codex"
     assert "host_plan_usage" in allowed_plan.primary.reasons
+
+
+def test_host_agent_with_unverified_billing_is_rejected() -> None:
+    requirements = StageRequirements(
+        stage_id="link-choice",
+        role=Role.UTILITY,
+        accepts_host_agent=True,
+    )
+    backend = _host(billing_mode=BillingMode.UNKNOWN)
+
+    plan = route_stage(
+        requirements,
+        (backend,),
+        RoutingPolicy(profile=InferenceProfile.AGENT),
+    )
+
+    assert backend.billing_mode is BillingMode.UNKNOWN
+    assert plan.primary is None
+    assert plan.rejections[0].reasons == ("host_billing_unverified",)
+
+
+def test_unknown_billing_still_uses_implicit_defaults_for_non_host_backends() -> None:
+    cloud = BackendCapabilities(
+        backend_id="cloud",
+        kind=BackendKind.CLOUD_API,
+        roles=(Role.UTILITY,),
+        billing_mode=BillingMode.UNKNOWN,
+    )
+    local = BackendCapabilities(
+        backend_id="local",
+        kind=BackendKind.LOCAL,
+        roles=(Role.UTILITY,),
+        billing_mode=BillingMode.UNKNOWN,
+    )
+
+    assert cloud.billing_mode is BillingMode.API_DOLLARS
+    assert local.billing_mode is BillingMode.ZERO_API_RUNTIME
 
 
 def test_api_credit_handoff_requires_explicit_policy_approval() -> None:
@@ -314,7 +355,9 @@ def test_provider_availability_marks_missing_cloud_key_unavailable() -> None:
         "available": False,
         "provider": "openai",
         "quota_source": "not_collected",
+        "retryable": False,
         "stale": False,
+        "state": "unavailable",
         "error": "missing_api_key",
         "configured": False,
         "credential_source": None,
@@ -373,6 +416,36 @@ def test_provider_availability_applies_generic_local_snapshot_to_local_backend()
     assert annotated.metadata["availability"]["model_count"] == 2
     assert plan.primary is not None
     assert plan.primary.backend.backend_id == "local-qwen"
+
+
+def test_busy_local_capacity_is_unavailable_with_sanitized_retry_metadata() -> None:
+    local = _local()
+    snapshot = ProviderQuotaSnapshot(
+        provider=LOCAL_OPENAI_COMPATIBLE_PROVIDER,
+        ok=False,
+        error="local_openai_compatible_busy",
+        state=AvailabilityState.BUSY,
+        retry_after_seconds=1_800,
+        metadata={
+            "capacity_reason": "local_capacity_http_503_busy",
+            "capacity_state": "busy",
+            "endpoint_source": "LOCAL_LLM_BASE_URL",
+            "quota_source": "local_probe",
+            "retryable": True,
+            "status_code": 503,
+        },
+    )
+
+    annotated = backend_with_availability(local, (snapshot,), now=NOW)
+    availability = annotated.metadata["availability"]
+
+    assert annotated.available is False
+    assert availability["state"] == "busy"
+    assert availability["retryable"] is True
+    assert availability["retry_after_seconds"] == 1_800
+    assert availability["retry_at"] == (NOW + timedelta(minutes=30)).isoformat()
+    assert availability["capacity_reason"] == "local_capacity_http_503_busy"
+    assert availability["status_code"] == 503
 
 
 def test_provider_availability_honors_injected_reset_time() -> None:

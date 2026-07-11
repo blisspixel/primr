@@ -36,9 +36,13 @@ class HostAgentBillingMode(str, Enum):
 
 @dataclass(frozen=True)
 class HostAgentPolicy:
-    """Budget and billing policy for a single host-agent stage."""
+    """Budget and billing policy for a single host-agent stage.
 
-    billing_mode: HostAgentBillingMode = HostAgentBillingMode.HOST_PLAN_USAGE
+    Billing is unknown until the caller has independently established and
+    explicitly supplied the host's billing boundary.
+    """
+
+    billing_mode: HostAgentBillingMode = HostAgentBillingMode.UNKNOWN
     max_wall_seconds: int = 600
     max_output_chars: int = 100_000
     allow_api_credit_handoff: bool = False
@@ -106,7 +110,10 @@ class HostAgentRunner(Protocol):
         """Return the host-agent family this runner uses."""
 
     def is_available(self) -> bool:
-        """Return True when the host runner is authenticated and callable."""
+        """Return True when the runner transport is present and callable.
+
+        Availability alone does not verify authentication billing mode.
+        """
 
     def run(self, packet: HostAgentStagePacket) -> HostAgentResult:
         """Execute a bounded stage packet and return normalized text."""

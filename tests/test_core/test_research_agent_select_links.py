@@ -10,6 +10,7 @@ from primr.core.research_agent import (
     format_tier_stats,
     select_links_with_llm,
 )
+from primr.utils.model_policy import disable_model_calls
 
 
 def _link(url: str, anchor: str | None = None):
@@ -71,6 +72,22 @@ class TestSelectLinksWithLLM:
         links = [_link(f"https://a.example/{i}") for i in range(5)]
         result = select_links_with_llm(links, "Acme", "https://acme.example", max_links=10)
         assert len(result) == 5
+
+    def test_no_model_policy_uses_bounded_heuristic_selection(self, monkeypatch):
+        links = [_link(f"https://a.example/{i}") for i in range(100)]
+        llm_mock = MagicMock(side_effect=AssertionError("model call attempted"))
+        monkeypatch.setattr("primr.core.research_agent.llm", llm_mock)
+
+        with disable_model_calls():
+            result = select_links_with_llm(
+                links,
+                "Acme",
+                "https://acme.example",
+                max_links=12,
+            )
+
+        assert result == [f"https://a.example/{i}" for i in range(12)]
+        llm_mock.assert_not_called()
 
     def test_llm_returns_valid_subset(self, monkeypatch):
         links = [_link(f"https://a.example/{i}") for i in range(100)]

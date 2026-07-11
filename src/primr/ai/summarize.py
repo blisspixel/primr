@@ -11,6 +11,7 @@ from typing import Any
 
 from primr.ai import stage_routing
 from primr.ai.llm import llm
+from primr.ai.provider_availability import LocalCapacityBusyError
 from primr.config.env import load_primr_env
 from primr.utils.content_sanitizer import sanitize_for_llm
 from primr.utils.formatting import deduplicate_content, get_deduplication_stats
@@ -147,6 +148,8 @@ def _summarize_with_callback(
             response_text = summarize_fn(content, min_length).strip()
             if response_text and len(response_text) >= min_length:
                 return response_text
+        except LocalCapacityBusyError:
+            raise
         except Exception as e:
             logger.warning(f"AI summarization failed: {e}", exc_info=True)
 
@@ -421,7 +424,7 @@ def summarize_scraped_content(
             input_count=_count_nonblank_pages(scraped_data),
             output_count=output_count,
             duration_seconds=time.monotonic() - start_time,
-            failure_class="agent_profile_unavailable",
+            failure_class=stage_routing.stage_route_failure_class(route),
         )
         return summary
 
@@ -450,7 +453,8 @@ def summarize_scraped_content(
                 input_count=_count_nonblank_pages(scraped_data),
                 output_count=0,
                 duration_seconds=time.monotonic() - start_time,
-                failure_class=type(e).__name__,
+                failure_class=stage_routing.stage_route_failure_class(route, e),
+                failure=e,
                 usage_delta=stage_routing.stage_usage_delta(usage_before)
                 if usage_before is not None
                 else None,
@@ -483,6 +487,7 @@ def _record_summary_route(
     output_count: int,
     duration_seconds: float,
     failure_class: str | None = None,
+    failure: Exception | None = None,
     usage_delta: dict[str, Any] | None = None,
 ) -> None:
     stage_routing.record_stage_route_usage(
@@ -493,6 +498,7 @@ def _record_summary_route(
         output_items=output_count,
         duration_seconds=duration_seconds,
         failure_class=failure_class,
+        failure=failure,
         usage_delta=usage_delta,
     )
 

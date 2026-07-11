@@ -1,0 +1,4 @@
+interface:
+  display_name: "Primr Zero"
+  short_description: "Plan-assisted research with no Primr model calls"
+  default_prompt: "Use $primr-zero to build a sourced company dossier with no Primr model API spend. Verify the host billing basis before claiming the entire run costs $0."

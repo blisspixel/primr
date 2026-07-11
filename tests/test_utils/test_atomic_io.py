@@ -6,7 +6,7 @@ import os
 
 import pytest
 
-from primr.utils.atomic_io import atomic_replace
+from primr.utils.atomic_io import atomic_replace, atomic_write_bytes, atomic_write_text
 
 
 def test_replaces_file_on_first_try(tmp_path):
@@ -86,3 +86,19 @@ def test_other_oserror_propagates_immediately(tmp_path, monkeypatch):
 def test_invalid_retries_rejected(tmp_path):
     with pytest.raises(ValueError):
         atomic_replace(tmp_path / "a", tmp_path / "b", retries=0)
+
+
+def test_atomic_write_text_creates_parent_and_replaces_content(tmp_path):
+    target = tmp_path / "nested" / "artifact.md"
+    atomic_write_text(target, "first")
+    atomic_write_text(target, "second")
+
+    assert target.read_text(encoding="utf-8") == "second"
+    assert not list(target.parent.glob("*.tmp"))
+
+
+def test_atomic_write_bytes_preserves_binary_content(tmp_path):
+    target = tmp_path / "artifact.bin"
+    atomic_write_bytes(target, b"\x00\x01payload")
+
+    assert target.read_bytes() == b"\x00\x01payload"

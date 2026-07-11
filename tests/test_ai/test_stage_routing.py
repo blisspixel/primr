@@ -3,9 +3,13 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock
 
-from primr.ai.capability_routing import InferenceProfile
+from primr.ai.capability_routing import BillingMode, InferenceProfile
 from primr.ai.host_agent_cli import codex_cli_backend
-from primr.ai.provider_availability import ProviderQuotaSnapshot, QuotaWindow
+from primr.ai.provider_availability import (
+    AvailabilityState,
+    ProviderQuotaSnapshot,
+    QuotaWindow,
+)
 from primr.ai.stage_routing import (
     INFERENCE_PROFILE_ENV,
     capture_stage_usage,
@@ -93,12 +97,46 @@ def test_hiring_signals_cloud_route_uses_stage_token_budget(monkeypatch) -> None
     assert "meets_context" in route.reasons
 
 
-def test_agent_profile_routes_to_available_codex_host_runner(monkeypatch) -> None:
+def test_agent_profile_rejects_codex_runner_with_unverified_billing(monkeypatch) -> None:
     _clear_provider_env(monkeypatch)
     monkeypatch.setattr(
         "primr.ai.stage_routing._supported_host_agent_backends",
         lambda stage_id: (
             (codex_cli_backend(available=True),) if stage_id == "fast.source_relevance" else ()
+        ),
+    )
+
+    route = resolve_stage_model(
+        "fast.source_relevance",
+        legacy_model_type="fast",
+        profile="agent",
+    )
+
+    assert route.routed is False
+    assert route.profile is InferenceProfile.AGENT
+    assert route.model_name == ""
+    assert route.backend_kind == "host_agent"
+    assert route.billing_mode == "unknown"
+    assert route.execution_mode == "unavailable"
+    assert route.host_agent_kind is None
+    assert route.estimated_cost_usd is None
+    assert route.reasons == ("agent_profile_unavailable",)
+    assert "host_billing_unverified" in route.rejections
+
+
+def test_agent_profile_routes_to_explicitly_qualified_codex_host_runner(monkeypatch) -> None:
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setattr(
+        "primr.ai.stage_routing._supported_host_agent_backends",
+        lambda stage_id: (
+            (
+                codex_cli_backend(
+                    available=True,
+                    billing_mode=BillingMode.HOST_PLAN_USAGE,
+                ),
+            )
+            if stage_id == "fast.source_relevance"
+            else ()
         ),
     )
 
@@ -188,7 +226,7 @@ def test_agent_profile_without_runner_does_not_fall_back_to_cloud(monkeypatch) -
     assert "profile_disallows_backend" in route.rejections
 
 
-def test_local_profile_records_rejection_and_preserves_legacy_model(monkeypatch) -> None:
+def test_local_profile_refuses_paid_legacy_fallback(monkeypatch) -> None:
     _clear_provider_env(monkeypatch)
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
 
@@ -196,12 +234,75 @@ def test_local_profile_records_rejection_and_preserves_legacy_model(monkeypatch)
         "fast.source_relevance",
         legacy_model_type="fast",
         profile="local",
+        availability_snapshots=(),
     )
 
     assert route.routed is False
-    assert route.model_name == PrimrModels.FLASH_MODEL
-    assert route.reasons == ("legacy_fallback",)
+    assert route.model_name == ""
+    assert route.backend_id == "local-capacity-unknown"
+    assert route.backend_kind == "local"
+    assert route.billing_mode == "zero_api_runtime"
+    assert route.estimated_cost_usd == 0.0
+    assert route.execution_mode == "unavailable"
+    assert route.reasons == ("local_capacity_unknown", "no_paid_fallback")
     assert "profile_disallows_backend" in route.rejections
+
+
+def test_local_profile_exposes_busy_retry_without_cloud_fallback(monkeypatch) -> None:
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+    snapshot = ProviderQuotaSnapshot(
+        provider="local_openai_compatible",
+        ok=False,
+        error="local_openai_compatible_busy",
+        state=AvailabilityState.BUSY,
+        retry_after_seconds=1_800,
+        metadata={"quota_source": "local_probe"},
+    )
+
+    route = resolve_stage_model(
+        "fast.source_relevance",
+        legacy_model_type="fast",
+        profile="local",
+        availability_snapshots=(snapshot,),
+    )
+
+    assert route.routed is False
+    assert route.model_name == ""
+    assert route.backend_id == "local-capacity-busy"
+    assert route.execution_mode == "unavailable"
+    assert route.reasons == ("local_capacity_busy", "no_paid_fallback")
+    assert route.availability is not None
+    assert route.availability["state"] == "busy"
+    assert route.availability["retry_after_seconds"] == 1_800
+    assert route.availability["retryable"] is True
+
+
+def test_local_profile_reports_adapter_gap_without_marking_capacity_unavailable(
+    monkeypatch,
+) -> None:
+    _clear_provider_env(monkeypatch)
+    snapshot = ProviderQuotaSnapshot(
+        provider="local_openai_compatible",
+        windows=(QuotaWindow("local_service", used_percent=0),),
+        state=AvailabilityState.AVAILABLE,
+        metadata={"quota_source": "local_probe"},
+    )
+
+    route = resolve_stage_model(
+        "fast.source_relevance",
+        legacy_model_type="fast",
+        profile="local",
+        availability_snapshots=(snapshot,),
+    )
+
+    assert route.routed is False
+    assert route.backend_id == "local-adapter-unavailable"
+    assert route.reasons == ("local_adapter_unavailable", "no_paid_fallback")
+    assert route.execution_mode == "unavailable"
+    assert route.availability is not None
+    assert route.availability["available"] is True
+    assert route.availability["state"] == "available"
 
 
 def test_provider_availability_snapshot_marks_runtime_route_unavailable(monkeypatch) -> None:
@@ -232,7 +333,9 @@ def test_provider_availability_snapshot_marks_runtime_route_unavailable(monkeypa
         "available": False,
         "provider": "google",
         "quota_source": "not_collected",
+        "retryable": False,
         "stale": False,
+        "state": "unavailable",
         "headroom_percent": 0.0,
         "binding_window_label": "requests_per_day",
         "configured": True,

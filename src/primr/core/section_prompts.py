@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 
 from primr.config.config import FAST_FEEDBACK_RULES_PATH
 from primr.core.section_planning import _get_section_word_target
+from primr.data.link_selection import build_link_selection_prompt
 from primr.data.scraping.org_profile import get_focus_areas_for_org_type
 from primr.qa.report_analyzer import SCAFFOLDING_PROHIBITION_GUIDANCE
 
@@ -53,18 +54,13 @@ def _build_link_selection_prompt(
     max_links: int,
     organization_type: str,
 ) -> str:
-    focus_areas = "\n".join(
-        f"- {focus}" for focus in get_focus_areas_for_org_type(organization_type)
-    )
-    return (
-        f"You are selecting pages for intelligence gathering on {company_name} ({website}).\n\n"
-        f"Organization type: {organization_type}.\n"
-        "Choose only from the discovered URLs below. Do not invent, normalize, or rewrite URLs.\n\n"
-        "Prioritize pages that help explain the organization through these focus areas:\n"
-        f"{focus_areas}\n\n"
-        "Discovered URLs:\n"
-        f"{links_text}\n\n"
-        f"Return only URLs from the discovered list, up to {max_links}, one per line."
+    return build_link_selection_prompt(
+        company_name=company_name,
+        website=website,
+        links_text=links_text,
+        max_links=max_links,
+        organization_type=organization_type,
+        focus_areas=get_focus_areas_for_org_type(organization_type),
     )
 
 

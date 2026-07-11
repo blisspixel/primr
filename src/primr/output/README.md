@@ -1,164 +1,59 @@
-# Output Module
+# Output Package
 
-This module handles report generation, converting research results into professional documents.
+`primr.output` turns validated research content into durable deliverables and
+artifact metadata. It owns formatting and shipping checks, not evidence
+collection, model routing, or report-quality judgment.
 
-## Components
+## Concern map
 
-### Document Builder (`document_builder.py`)
+| Area | Modules | Responsibility |
+|------|---------|----------------|
+| Final content contract | `final_artifact.py` | Canonical final sections, Markdown parsing, and normalization |
+| Run output boundary | `output_utils.py` | Output paths, format conversion, and final file placement |
+| Artifact shipping | `artifact_validation.py`, `artifact_inventory.py` | Deterministic validation gates plus bounded metadata and hash inventory |
+| DOCX construction | `document_builder.py`, `markdown_parser.py`, `markdown_converter.py` | Markdown parsing and professional Word document rendering |
+| Report assembly | `report_assembler.py`, `section_writer.py` | Structured report composition and section formatting |
+| Citations | `citation_processor.py` | Citation normalization, numbering, and bibliography handling |
+| Executive summaries | `executive_summary.py`, `executive_summary_generator.py` | Deterministic and premium summary structures |
+| Layout and style | `style_engine.py`, `table_builder.py`, `content_pattern_detector.py`, `polish_elements.py` | Headings, tables, pattern-aware formatting, and executive polish elements |
+| Output models | `models.py`, `templates.py`, `chapter_config.py` | Document data structures, report templates, and chapter configuration |
+| Specialized artifacts | `skills_generator.py`, `qa_report_generator.py` | Legacy generated skill files and QA report rendering |
 
-Main interface for generating DOCX documents:
+The package exports supported building blocks such as `DocumentBuilder`,
+`MarkdownParser`, `ReportAssembler`, `StyleEngine`, and `TableBuilder` from
+`primr.output`. Conversion itself is function- and builder-based; there is no
+package-level converter class.
 
-```python
-from primr.output import DocumentBuilder
-from pathlib import Path
+## Artifact flow
 
-builder = DocumentBuilder()
-doc_path = builder.build_docx(
-    sections=result.section_results,
-    company_name="Acme Corp",
-    output_dir=Path("output")
-)
+```text
+research sections or final Markdown
+        |
+        v
+canonical final-artifact representation
+        |
+        v
+deterministic artifact validation
+        |
+        +-> Markdown and TXT
+        +-> DOCX document builder
+        +-> best-effort PDF when a local converter is available
+        |
+        v
+artifact inventory with paths, sizes, hashes, and classifications
 ```
 
-### Report Assembler (`report_assembler.py`)
+Artifact validation is a shipping boundary. Blocking defects can withhold a
+polished deliverable while preserving diagnostics and source content for
+repair. QA scores and claim-verification judgments are produced by `primr.qa`
+and `primr.core`; output only renders or inventories their artifacts.
 
-Assembles sections into a complete report structure:
+## Package boundaries
 
-```python
-from primr.output import ReportAssembler
-
-assembler = ReportAssembler()
-report = assembler.assemble(sections, company_name)
-```
-
-### Citation Processor (`citation_processor.py`)
-
-Handles citation formatting and bibliography generation:
-
-```python
-from primr.output import CitationProcessor
-
-processor = CitationProcessor(style="numbered")
-processed_content = processor.process(content, citations)
-```
-
-Citation styles:
-- `numbered`: [1] style with bibliography
-- `inline`: URLs preserved in text
-- `sidecar`: Separate sources file
-
-### Markdown Conversion
-
-- `markdown_parser.py`: Parses markdown into structured elements
-- `markdown_converter.py`: Converts markdown to DOCX formatting
-
-```python
-from primr.output import MarkdownConverter
-
-converter = MarkdownConverter()
-converter.convert_to_docx(markdown_content, document)
-```
-
-### Executive Summary (`executive_summary.py`, `executive_summary_generator.py`)
-
-Generates the "so what" summary at the beginning of reports:
-
-```python
-from primr.output import ExecutiveSummaryGenerator
-
-generator = ExecutiveSummaryGenerator()
-summary = generator.generate(sections, company_name)
-```
-
-### Styling (`style_engine.py`)
-
-Applies consistent styling to documents:
-
-```python
-from primr.output import StyleEngine
-
-engine = StyleEngine()
-engine.apply_heading_style(paragraph, level=1)
-engine.apply_body_style(paragraph)
-```
-
-### Tables (`table_builder.py`)
-
-Builds formatted tables in documents:
-
-```python
-from primr.output import TableBuilder
-
-builder = TableBuilder()
-table = builder.build_comparison_table(data, headers)
-```
-
-## Additional Components
-
-- `chapter_config.py`: Chapter structure configuration
-- `content_pattern_detector.py`: Detects content patterns for formatting
-- `models.py`: Output data structures
-- `output_utils.py`: Utility functions
-- `polish_elements.py`: Final polish and cleanup
-- `section_writer.py`: Section formatting
-- `templates.py`: Report templates
-
-## Output Formats
-
-### TXT
-Plain text output for quick review.
-
-### DOCX
-Professional Word document with:
-- Styled headings
-- Formatted tables
-- Citation bibliography
-- Table of contents (for Complete Mode)
-
-### PDF
-Generated from DOCX using Microsoft Word (Windows) or alternative converters.
-
-### ZIP
-Archive containing all output files for a research run.
-
-## Key Patterns
-
-### Section-Based Structure
-
-Output is organized by sections:
-
-```python
-sections = {
-    "company_overview": "Content...",
-    "detailed_products_services": "Content...",
-    "leadership": "Content...",
-    # ...
-}
-```
-
-### Template System
-
-Reports use configurable templates:
-
-```python
-from primr.output.templates import get_template
-
-template = get_template("company_overview")
-content = template.render(data)
-```
-
-### Formatting Rules
-
-All output follows consistent rules:
-- No em-dashes (use commas or periods)
-- No emojis
-- Single-level bullets only
-- Professional tone
-
-## Configuration
-
-Output behavior is configured via:
-
-- `PathConfig`: Output directories
-- Citation style: Command-line flag
-- Platform: For AI strategy sections (`--platform`)
+- Canonicalize content once before rendering multiple formats.
+- Use safe output-path and filename helpers rather than constructing paths from
+  untrusted company names.
+- Keep Markdown, TXT, and DOCX content equivalent at the final artifact seam.
+- Treat PDF as best effort because converter availability is platform-specific.
+- Keep report-body content out of compact inventories and status resources.
+- Skill-pack ZIP packaging belongs to `primr.skill_pack`, not this package.

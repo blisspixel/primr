@@ -74,9 +74,11 @@ class RoadmapAPI:
 
     # Regex patterns for parsing
     VERSION_HEADER_PATTERN = re.compile(
-        r"^###?\s+v?(\d+\.\d+(?:\.\d+)?)\s*[-–—]\s*(.+?)(?:\s*\(([^)]+)\))?\s*$",
+        r"^(#{2,4})\s+v?((?:\d+|x)(?:\.(?:\d+|x)){1,2})\s*[-\u2013\u2014]\s*"
+        r"(.+?)(?:\s*\(([^)]+)\))?\s*$",
         re.IGNORECASE,
     )
+    HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
     FEATURE_PATTERN = re.compile(
         r"^[-*]\s+\*?\*?(.+?)\*?\*?(?::\s*(.+))?$",
     )
@@ -162,6 +164,7 @@ class RoadmapAPI:
 
         lines = content.split("\n")
         current_version: Version | None = None
+        current_version_heading_level: int | None = None
         current_section: str = ""
         line_num = 0
 
@@ -180,9 +183,10 @@ class RoadmapAPI:
                 if current_version:
                     self._versions[current_version.number] = current_version
 
-                version_num = version_match.group(1)
-                title = version_match.group(2).strip()
-                status_hint = version_match.group(3)
+                current_version_heading_level = len(version_match.group(1))
+                version_num = version_match.group(2).lower()
+                title = version_match.group(3).strip()
+                status_hint = version_match.group(4)
 
                 # Determine status from hint or title
                 status = self._parse_status(status_hint or title)
@@ -195,13 +199,30 @@ class RoadmapAPI:
                 current_section = ""
                 continue
 
+            # A same-level or higher-level heading closes the current version
+            # band. ROADMAP.md continues with non-version sections such as
+            # "Intentionally never" and "Active Queue"; without this boundary
+            # every later list item is incorrectly attached to the last version.
+            heading_match = self.HEADING_PATTERN.match(stripped)
+            if heading_match and current_version_heading_level is not None:
+                heading_level = len(heading_match.group(1))
+                if heading_level <= current_version_heading_level:
+                    if current_version:
+                        self._versions[current_version.number] = current_version
+                    current_version = None
+                    current_version_heading_level = None
+                    current_section = ""
+                    continue
+                current_section = heading_match.group(2).strip().lower()
+                continue
+
             # Check for section headers within a version
             if stripped.startswith("**") and stripped.endswith("**"):
                 current_section = stripped.strip("*").lower()
                 continue
 
             # Check for feature items
-            if current_version and (stripped.startswith(("-", "*"))):
+            if current_version and line.startswith(("- ", "* ")):
                 feature = self._parse_feature(stripped, current_section)
                 if feature:
                     current_version.features.append(feature)
@@ -290,13 +311,18 @@ class RoadmapAPI:
         """
         sorted_versions = sorted(
             self._versions.keys(),
-            key=lambda v: [int(x) for x in v.split(".")],
+            key=self._version_sort_key,
         )
 
         for i, version_num in enumerate(sorted_versions):
             if i > 0:
                 prev_version = sorted_versions[i - 1]
                 self._versions[version_num].dependencies = [prev_version]
+
+    @staticmethod
+    def _version_sort_key(version: str) -> tuple[int, ...]:
+        """Sort concrete versions and roadmap bands such as ``1.x``."""
+        return tuple(1_000_000 if part.lower() == "x" else int(part) for part in version.split("."))
 
     def get_version(self, version: str) -> Version | None:
         """
@@ -375,7 +401,7 @@ class RoadmapAPI:
         self._ensure_loaded()
         return sorted(
             self._versions.values(),
-            key=lambda v: [int(x) for x in v.number.split(".")],
+            key=lambda v: self._version_sort_key(v.number),
         )
 
     def get_dependency_graph(self) -> dict[str, list[str]]:
@@ -402,7 +428,7 @@ class RoadmapAPI:
         # Sort by version number and return first
         return sorted(
             planned,
-            key=lambda v: [int(x) for x in v.number.split(".")],
+            key=lambda v: self._version_sort_key(v.number),
         )[0]
 
     def get_current_version(self) -> Version | None:

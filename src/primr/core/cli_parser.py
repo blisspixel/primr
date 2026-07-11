@@ -39,6 +39,7 @@ Examples:
   primr init                                         # Guided first-run setup
   primr "Acme Corp" https://acme.example --dry-run  # Estimate cost and time only
   primr "Acme Corp" https://acme.example
+  primr prep "Acme Corp" https://acme.example       # $0 API evidence bundle for a host agent
   primr "Acme Corp" acme.example --mode deep
   primr "Acme Corp" acme.example --mode scrape       # Build Site Corpus + Extract Insights
   primr keys set gemini                              # Store Gemini key in user config

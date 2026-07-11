@@ -4,6 +4,7 @@ Tests for the ReportAggregator component.
 Tests chapter aggregation, TOC generation, and document formatting.
 """
 
+from collections.abc import Iterator
 from unittest.mock import patch
 
 import pytest
@@ -15,6 +16,13 @@ from primr.ai.report_aggregator import (
     reset_report_aggregator,
 )
 from primr.ai.research_executor import ChapterResult
+
+
+@pytest.fixture(autouse=True)
+def _stub_genai_client() -> Iterator[None]:
+    """Avoid constructing a real SDK client in every Hypothesis example."""
+    with patch("primr.ai.report_aggregator.genai.Client"):
+        yield
 
 
 class TestAggregatedReport:

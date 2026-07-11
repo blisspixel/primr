@@ -15,11 +15,17 @@ from datetime import UTC, datetime
 
 from primr.ai.local_inference import (
     PROBE_TIMEOUT_SECONDS,
-    list_local_models,
+    LocalCapacityProbe,
+    local_capacity_probe_from_exception,
     pick_local_judge_model,
+    probe_local_capacity,
 )
 from primr.ai.openai_compatible_client import normalize_openai_base_url
-from primr.ai.provider_availability import ProviderQuotaSnapshot, QuotaWindow
+from primr.ai.provider_availability import (
+    AvailabilityState,
+    ProviderQuotaSnapshot,
+    QuotaWindow,
+)
 from primr.ai.providers.registry import ProviderEntry, list_known_providers
 
 DEFAULT_LOCAL_OPENAI_BASE_URL = "http://localhost:11434/v1"
@@ -111,6 +117,7 @@ def collect_local_openai_compatible_availability(
     now: datetime | None = None,
     timeout: float = PROBE_TIMEOUT_SECONDS,
     use_cache: bool = True,
+    retry_attempt: int = 0,
 ) -> ProviderQuotaSnapshot:
     """Collect local OpenAI-compatible service availability.
 
@@ -121,43 +128,93 @@ def collect_local_openai_compatible_availability(
 
     resolved_base_url = _local_base_url(base_url, env)
 
-    def default_lister(url: str | None) -> Sequence[str]:
-        return list_local_models(url, timeout=timeout, use_cache=use_cache)
-
-    lister = list_models_fn or default_lister
     metadata = {
+        "capacity_reason": "local_probe_unavailable",
+        "capacity_state": AvailabilityState.UNAVAILABLE.value,
         "chat_model_available": False,
         "configured": True,
         "endpoint_source": _local_endpoint_source(base_url, env),
         "model_count": 0,
         "quota_source": "local_probe",
         "roles": ("utility",),
+        "retryable": False,
         "zero_incremental_api_cost": True,
     }
 
-    try:
-        models = [str(model) for model in lister(resolved_base_url) if str(model).strip()]
-    except Exception:
+    if list_models_fn is None:
+        probe = probe_local_capacity(
+            resolved_base_url,
+            timeout=timeout,
+            use_cache=use_cache,
+            attempt=retry_attempt,
+            now=now,
+        )
+    else:
+        try:
+            listed_models = tuple(
+                str(model) for model in list_models_fn(resolved_base_url) if str(model).strip()
+            )
+            probe = LocalCapacityProbe(
+                state=(
+                    AvailabilityState.AVAILABLE if listed_models else AvailabilityState.UNAVAILABLE
+                ),
+                models=listed_models,
+                reason=("local_models_available" if listed_models else "local_models_not_found"),
+            )
+        except Exception as error:
+            probe = local_capacity_probe_from_exception(
+                error,
+                attempt=retry_attempt,
+                now=now,
+            )
+
+    metadata["capacity_reason"] = probe.reason
+    metadata["capacity_state"] = probe.state.value
+    metadata["model_count"] = len(probe.models)
+    metadata["retryable"] = probe.state is AvailabilityState.BUSY
+    if probe.status_code is not None:
+        metadata["status_code"] = probe.status_code
+
+    if probe.state is AvailabilityState.BUSY:
         return ProviderQuotaSnapshot(
             provider=provider,
             display_name=display_name,
             ok=False,
-            error="local_openai_compatible_probe_failed",
+            error="local_openai_compatible_busy",
             as_of=now or datetime.now(UTC),
+            state=AvailabilityState.BUSY,
+            retry_after_seconds=probe.retry_after_seconds,
             metadata=metadata,
         )
 
-    selected = pick_local_judge_model(models)
+    if probe.state is AvailabilityState.UNAVAILABLE:
+        return ProviderQuotaSnapshot(
+            provider=provider,
+            display_name=display_name,
+            ok=False,
+            error=(
+                "local_openai_compatible_unavailable"
+                if probe.reason == "local_models_not_found"
+                else "local_openai_compatible_probe_failed"
+            ),
+            as_of=now or datetime.now(UTC),
+            state=AvailabilityState.UNAVAILABLE,
+            metadata=metadata,
+        )
+
+    selected = pick_local_judge_model(list(probe.models))
     metadata["chat_model_available"] = selected is not None
-    metadata["model_count"] = len(models)
 
     if selected is None:
+        metadata["capacity_reason"] = "local_chat_model_not_found"
+        metadata["capacity_state"] = AvailabilityState.UNAVAILABLE.value
         return ProviderQuotaSnapshot(
             provider=provider,
             display_name=display_name,
             ok=False,
             error="local_openai_compatible_unavailable",
             as_of=now or datetime.now(UTC),
+            state=AvailabilityState.UNAVAILABLE,
             metadata=metadata,
         )
 
@@ -167,6 +224,7 @@ def collect_local_openai_compatible_availability(
         display_name=display_name,
         ok=True,
         as_of=now or datetime.now(UTC),
+        state=AvailabilityState.AVAILABLE,
         metadata=metadata,
     )
 
@@ -177,6 +235,7 @@ def collect_provider_availability_snapshots(
     env: Mapping[str, str] | None = None,
     include_local: bool = True,
     local_list_models_fn: LocalModelLister | None = None,
+    local_retry_attempt: int = 0,
     now: datetime | None = None,
 ) -> tuple[ProviderQuotaSnapshot, ...]:
     """Collect generic availability snapshots for known providers.
@@ -197,6 +256,7 @@ def collect_provider_availability_snapshots(
             collect_local_openai_compatible_availability(
                 env=env,
                 list_models_fn=local_list_models_fn,
+                retry_attempt=local_retry_attempt,
                 now=now,
             )
         )

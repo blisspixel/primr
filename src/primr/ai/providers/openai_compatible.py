@@ -20,10 +20,12 @@ import re
 import time
 from typing import Any
 
+from primr.ai.provider_availability import LocalCapacityBusyError
 from primr.ai.providers.base import ChatResponse, Provider, ProviderUnavailableError
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("ai.providers.openai_compatible")
+_LOCAL_INTERNAL_RETRY_CAP_SECONDS = 20.0
 
 
 # ---------------------------------------------------------------------------
@@ -153,12 +155,14 @@ class OpenAICompatibleProvider(Provider):
         api_key_env: str,
         api_key_default: str | None = None,
         billing_help_url: str | None = None,
+        local_capacity: bool | None = None,
     ) -> None:
         super().__init__(name)
         self._base_url = base_url
         self._api_key_env = api_key_env
         self._api_key_default = api_key_default
         self._billing_help_url = billing_help_url
+        self._local_capacity = name == "ollama" if local_capacity is None else local_capacity
         self._client: Any = None
 
     # -----------------------------------------------------------------
@@ -226,6 +230,7 @@ class OpenAICompatibleProvider(Provider):
         provider doesn't know about.
         """
         client = self._get_client()
+        capacity_retry_attempt = provider_kwargs.pop("capacity_retry_attempt", 0)
 
         # Whitelist the SDK kwargs we accept; everything else is silently
         # dropped on the floor for this provider.
@@ -311,6 +316,14 @@ class OpenAICompatibleProvider(Provider):
 
             except Exception as e:
                 last_error = e
+                local_busy_error = (
+                    LocalCapacityBusyError.from_exception(
+                        e,
+                        attempt=capacity_retry_attempt,
+                    )
+                    if self._local_capacity
+                    else None
+                )
 
                 # Reasoning models reject a custom temperature - drop it once and
                 # retry the same call rather than failing outright.
@@ -336,7 +349,7 @@ class OpenAICompatibleProvider(Provider):
                         "Your progress has been saved — the same command will resume."
                     ) from e
 
-                if _is_retryable_error(e):
+                if _is_retryable_error(e) or local_busy_error is not None:
                     if attempt < retries:
                         retry_after = _extract_retry_after_seconds(e)
                         wait = (
@@ -344,6 +357,8 @@ class OpenAICompatibleProvider(Provider):
                             if retry_after is not None
                             else _compute_backoff_delay(attempt)
                         )
+                        if self._local_capacity:
+                            wait = min(wait, _LOCAL_INTERNAL_RETRY_CAP_SECONDS)
                         logger.warning(
                             "Transient %s API error, retrying in %.1fs (attempt %d/%d): %s",
                             self.name,
@@ -364,6 +379,14 @@ class OpenAICompatibleProvider(Provider):
                     break
 
                 raise RuntimeError(f"{self.name} API call failed (non-retryable): {e}") from e
+
+        if self._local_capacity and last_error is not None:
+            busy_error = LocalCapacityBusyError.from_exception(
+                last_error,
+                attempt=capacity_retry_attempt,
+            )
+            if busy_error is not None:
+                raise busy_error from last_error
 
         raise RuntimeError(
             f"{self.name} API call failed after {retries + 1} attempts: {last_error}"

@@ -262,6 +262,7 @@ def test_collect_evidence_creates_working_dir_and_delegates(tmp_path: Path) -> N
         "Acme Corp",
         "https://acme.example",
         target,
+        corpus=None,
         career_urls=[],
     )
 
@@ -280,7 +281,30 @@ def test_collect_evidence_with_career_urls_skips_recon_without_company_url(tmp_p
         "Acme Corp",
         "https://jobs.acme.example/corporate",
         tmp_path,
+        corpus=None,
         career_urls=career_urls,
+    )
+
+
+def test_collect_evidence_forwards_existing_corpus(tmp_path: Path) -> None:
+    corpus = {"https://acme.example": "Company page"}
+    with (
+        patch.object(evidence, "_collect_recon", return_value="/recon.txt"),
+        patch.object(evidence, "_collect_hiring", return_value="/hiring.md") as mock_hiring,
+    ):
+        collect_evidence(
+            "Acme Corp",
+            "https://acme.example",
+            tmp_path,
+            corpus=corpus,
+        )
+
+    mock_hiring.assert_called_once_with(
+        "Acme Corp",
+        "https://acme.example",
+        tmp_path,
+        corpus=corpus,
+        career_urls=[],
     )
 
 

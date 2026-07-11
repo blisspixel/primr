@@ -5,6 +5,7 @@ Tests parallel execution, rate limiting, and error handling.
 """
 
 import asyncio
+from collections.abc import Iterator
 from unittest.mock import patch
 
 import pytest
@@ -18,6 +19,13 @@ from primr.ai.research_executor import (
     get_research_executor,
     reset_research_executor,
 )
+
+
+@pytest.fixture(autouse=True)
+def _stub_genai_client() -> Iterator[None]:
+    """Avoid constructing a real SDK client in every Hypothesis example."""
+    with patch("primr.ai.research_executor.genai.Client"):
+        yield
 
 
 class TestChapterResult:

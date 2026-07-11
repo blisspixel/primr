@@ -4,7 +4,7 @@ These are deterministic, zero-network gates that fail CI when the codebase
 drifts away from its stated conventions. They are intentionally cheap and
 boring: their job is to make "slop" fail a gate instead of a review comment.
 
-Two rules enforced here:
+Three rules enforced here:
 
 1. **No new giant files / monsters can't grow.** A rise-only per-file line
    ceiling. New files must stay under ``NEW_FILE_MAX_LINES``; the existing
@@ -15,6 +15,9 @@ Two rules enforced here:
 
 2. **One JSON library.** stdlib ``json`` only; no orjson/ujson/simplejson
    creeping in as a "faster" second way.
+
+3. **Package-map coverage.** Every importable top-level package appears in the
+   concern-level map in ``docs/ARCHITECTURE.md``.
 
 See CLAUDE.md ("Use the one seam") and ROADMAP → Engineering Standards.
 """
@@ -27,6 +30,7 @@ from pathlib import Path
 import pytest
 
 SRC_ROOT = Path(__file__).resolve().parent.parent / "src" / "primr"
+ARCHITECTURE_DOC = SRC_ROOT.parent.parent / "docs" / "ARCHITECTURE.md"
 
 # New files may not exceed this. Existing offenders are pinned below.
 NEW_FILE_MAX_LINES = 1000
@@ -37,11 +41,11 @@ NEW_FILE_MAX_LINES = 1000
 # When a file is split and shrinks, lower its ceiling (or drop it once under
 # NEW_FILE_MAX_LINES). Never raise a ceiling to make a growing file pass.
 FILE_LINE_CEILINGS: dict[str, int] = {
-    "core/research_agent.py": 4414,
-    "core/cli.py": 3370,
+    "core/research_agent.py": 4351,
+    "core/cli.py": 3366,
     "ai/deep_research.py": 3887,
     "data/scraping/browsers.py": 1835,
-    "data/hiring_signals.py": 1602,
+    "data/hiring_signals.py": 1582,
     "core/model_eval.py": 1832,
     "data/scrape.py": 1836,
     "mcp_server/tools.py": 1596,
@@ -119,6 +123,22 @@ def test_single_json_library():
     assert not offenders, (
         "Use stdlib json only (see CLAUDE.md). Found orjson/ujson/simplejson in:\n"
         + "\n".join(offenders)
+    )
+
+
+def test_architecture_package_map_covers_top_level_packages():
+    """Every current top-level package is named in the architecture map."""
+    text = ARCHITECTURE_DOC.read_text(encoding="utf-8")
+    package_map = text.split("## Module Structure", 1)[1].split("## Error Handling Strategy", 1)[0]
+    packages = sorted(
+        path.name
+        for path in SRC_ROOT.iterdir()
+        if path.is_dir() and (path / "__init__.py").is_file()
+    )
+
+    missing = [package for package in packages if f"{package}/" not in package_map]
+    assert not missing, "Packages missing from docs/ARCHITECTURE.md module map:\n" + "\n".join(
+        missing
     )
 
 

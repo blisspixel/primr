@@ -283,8 +283,8 @@ Done when:
 Why next: provider abstraction, capability routing, and availability snapshots
 exist, but the full-report runtime still has xAI/Gemini-era assumptions. This
 is the highest-leverage architectural gap because it unlocks honest
-OpenAI-only, Anthropic-only, host-agent, hybrid, and local profiles without
-forking the pipeline.
+OpenAI-only, Anthropic-only, billing-proven host-agent, hybrid, and local
+profiles without forking the pipeline.
 
 Do next:
 
@@ -310,9 +310,11 @@ Do next:
   now consume `route_stage()` behind `--inference cloud|hybrid`, log safe route
   metadata, append capped body-free `stage_routes` records to
   `_run_state.json`, and execute through existing provider seams with today's
-  role defaults preserved as fallback. `fast.source_relevance` also has an
-  experimental Codex CLI host-agent path behind `--inference agent`; no other
-  utility stage routes to host execution until it has its own adapter. Runtime
+  role defaults preserved as fallback. The public CLI remains
+  `--inference cloud|hybrid`. `fast.source_relevance` also has an
+  internal/eval-only Codex CLI adapter; no utility stage exposes host execution
+  until the adapter has billing provenance or an explicit billing acknowledgment
+  and clears its eval gate. Runtime
   route resolution now consumes sanitized env-only cloud provider availability
   snapshots by default, can accept injected quota snapshots, and records
   body-free availability metadata without adding live quota collection or local
@@ -332,13 +334,16 @@ Do next:
   fixtures now emit body-free precision, recall, F1, exact-match, and quality
   evidence through `--eval-source-relevance-fixture`, giving the Codex
   source-relevance pilot a review-only comparison path before host execution is
-  broadened. The two other routed utility stages now also fail closed under an
-  explicit agent profile when no host adapter qualifies: website summaries write
+  broadened. The two other routed utility stages also fail closed when the
+  internal agent profile is exercised by tests or evals and no host adapter
+  qualifies: website summaries write
   deterministic source excerpts, hiring signals use deterministic triage plus
   posting metadata, and both record body-free `agent_profile_unavailable` route
   fallbacks instead of invoking cloud LLMs.
 - Promote one host/local candidate only after stage-scoped evals prove quality,
-  cost, latency, and failure behavior.
+  cost, latency, failure behavior, and billing provenance. If billing cannot be
+  proven, promotion requires an explicit operator acknowledgment that metered
+  API usage may apply.
 - Promote one stage at a time. A provider path is supported only when report
   quality, cost, latency, and failure behavior are measured against the same
   calibration pack.
@@ -348,17 +353,18 @@ Done when:
 - The stage declares requirements; the router chooses candidates; execution
   consumes the resulting chain. The declaration slice and three utility-stage
   runtime slices are shipped; broader production wiring is still pending.
-- Estimates and usage records name the backend and billing mode honestly. The
+- Estimates and usage records name the backend and declared route category. The
   route ledger records backend/profile/billing metadata for
   `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals`,
   and appends measured stage-scoped token/cache/cost deltas when counters are
-  available.
+  available. Codex route metadata is not proof of the authenticated session's
+  billing mode.
 - Provider comparison artifacts exist for every promoted stage.
   The route-metadata comparison artifact exists; quality comparison artifacts
   now have a CLI-accessible scorecard layer, and website-summary local-stage
   evals can produce either structural completeness evidence or local semantic
   judge-panel evidence for same-command scorecards. Source-relevance fixture
-  evals can also produce F1 quality evidence for the host-agent pilot. These
+  evals can also produce F1 quality evidence for the internal host-agent pilot. These
   remain report-only scorecard evidence, not promotion gates; calibrated samples
   and human-reviewed acceptance criteria are still required before any
   promotion.

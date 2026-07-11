@@ -15,6 +15,7 @@ understanding.
 
 | Document | Description |
 |----------|-------------|
+| [ZERO_COST](ZERO_COST.md) | Run keyless collection and finish a sourced dossier with an existing agent plan |
 | [API_KEYS](API_KEYS.md) | API key setup, security, and troubleshooting |
 | [CONFIG](CONFIG.md) | First-run configuration and the full settings reference |
 | [RUN_MODES](RUN_MODES.md) | Run modes, costs, strategy selection, and output locations |

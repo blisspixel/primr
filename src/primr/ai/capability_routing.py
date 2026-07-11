@@ -107,17 +107,23 @@ _AVAILABILITY_METADATA_KEY = "availability"
 _SAFE_SNAPSHOT_METADATA_KEYS = frozenset(
     {
         "chat_model_available",
+        "capacity_reason",
+        "capacity_state",
         "configured",
         "credential_source",
         "endpoint_source",
         "model_count",
+        "retryable",
+        "status_code",
         "zero_incremental_api_cost",
     }
 )
 _SAFE_BOOL_SNAPSHOT_METADATA_KEYS = frozenset(
-    {"chat_model_available", "configured", "zero_incremental_api_cost"}
+    {"chat_model_available", "configured", "retryable", "zero_incremental_api_cost"}
 )
-_SAFE_CODE_SNAPSHOT_METADATA_KEYS = frozenset({"credential_source", "endpoint_source"})
+_SAFE_CODE_SNAPSHOT_METADATA_KEYS = frozenset(
+    {"capacity_reason", "capacity_state", "credential_source", "endpoint_source"}
+)
 
 
 @dataclass(frozen=True)
@@ -208,9 +214,10 @@ class BackendCapabilities:
             raise ValueError("input_cost_per_million must be non-negative")
         if self.output_cost_per_million is not None and self.output_cost_per_million < 0:
             raise ValueError("output_cost_per_million must be non-negative")
+        backend_kind = BackendKind(self.kind)
         billing_mode = BillingMode(self.billing_mode)
-        if billing_mode is BillingMode.UNKNOWN:
-            billing_mode = _default_billing_mode(BackendKind(self.kind))
+        if billing_mode is BillingMode.UNKNOWN and backend_kind is not BackendKind.HOST_AGENT:
+            billing_mode = _default_billing_mode(backend_kind)
         object.__setattr__(self, "billing_mode", billing_mode)
         object.__setattr__(self, "metadata", dict(self.metadata))
 
@@ -360,7 +367,7 @@ def backend_with_availability(
     decision = availability_decision(snapshot, now)
     metadata = {
         **backend.metadata,
-        _AVAILABILITY_METADATA_KEY: _sanitized_availability_metadata(snapshot, now),
+        _AVAILABILITY_METADATA_KEY: sanitized_availability_metadata(snapshot, now),
     }
     return replace(
         backend,
@@ -438,6 +445,8 @@ def backend_meets_requirements(
             rejections.append("host_agent_not_allowed_for_stage")
         if policy.require_official_host_runner and not backend.official_host_runner:
             rejections.append("unofficial_host_runner")
+        if billing_mode is BillingMode.UNKNOWN:
+            rejections.append("host_billing_unverified")
     if backend_kind is BackendKind.LOCAL and not requirements.accepts_local:
         rejections.append("local_not_allowed_for_stage")
     if backend_kind is BackendKind.GATEWAY and not requirements.accepts_gateway:
@@ -489,7 +498,7 @@ def _default_billing_mode(kind: BackendKind) -> BillingMode:
     if kind is BackendKind.LOCAL:
         return BillingMode.ZERO_API_RUNTIME
     if kind is BackendKind.HOST_AGENT:
-        return BillingMode.HOST_PLAN_USAGE
+        return BillingMode.UNKNOWN
     if kind in (BackendKind.CLOUD_API, BackendKind.GATEWAY):
         return BillingMode.API_DOLLARS
     return BillingMode.UNKNOWN
@@ -599,16 +608,20 @@ def _backend_with_missing_availability(backend: BackendCapabilities) -> BackendC
             "error": "missing_availability_snapshot",
             "provider": safe_code_or(_availability_provider_keys(backend)[0], "provider"),
             "quota_source": "not_collected",
+            "retryable": False,
             "stale": False,
+            "state": "unavailable",
         },
     }
     return replace(backend, available=False, metadata=metadata)
 
 
-def _sanitized_availability_metadata(
+def sanitized_availability_metadata(
     snapshot: ProviderQuotaSnapshot,
-    now: datetime | None,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
+    """Return body-free, endpoint-safe availability metadata for consumers."""
+
     decision = availability_decision(snapshot, now)
     quota_source = safe_code(str(snapshot.metadata.get("quota_source", "unknown")))
     metadata: dict[str, Any] = {
@@ -616,6 +629,8 @@ def _sanitized_availability_metadata(
         "provider": safe_code_or(snapshot.provider, "provider"),
         "quota_source": quota_source or "unknown",
         "stale": decision.stale,
+        "state": decision.state.value,
+        "retryable": decision.retry_after_seconds is not None,
     }
     if decision.headroom_percent is not None:
         metadata["headroom_percent"] = round(decision.headroom_percent, 3)
@@ -627,6 +642,10 @@ def _sanitized_availability_metadata(
         metadata["binding_window_label"] = window_label
     if decision.resets_at is not None:
         metadata["resets_at"] = decision.resets_at.isoformat()
+    if decision.retry_after_seconds is not None:
+        metadata["retry_after_seconds"] = decision.retry_after_seconds
+    if decision.retry_at is not None:
+        metadata["retry_at"] = decision.retry_at.isoformat()
     error = safe_code(decision.error)
     if error is not None:
         metadata["error"] = error
@@ -641,7 +660,7 @@ def _safe_snapshot_metadata_value(key: str, value: Any) -> bool | int | str | No
         return None
     if key in _SAFE_BOOL_SNAPSHOT_METADATA_KEYS:
         return bool(value)
-    if key == "model_count":
+    if key in {"model_count", "status_code"}:
         return safe_count(value)
     if key in _SAFE_CODE_SNAPSHOT_METADATA_KEYS:
         return safe_code(str(value)) or "unknown"

@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from primr.ai import summarize
+from primr.ai.provider_availability import LocalCapacityBusyError
 
 # ---------------------------------------------------------------------------
 # generate_prompt
@@ -90,14 +91,14 @@ def test_summarize_callback_returns_valid_first_try():
 
 
 def test_summarize_callback_short_response_used_anyway():
-    out = summarize._summarize_with_callback(
-        "content",
-        summarize_fn=lambda c, m: "short",
-        retries=2,
-        min_length=200,
-    )
-    # Below min_length on every attempt, but non-empty -> returned anyway.
     with patch("primr.ai.summarize.time.sleep"):
+        out = summarize._summarize_with_callback(
+            "content",
+            summarize_fn=lambda c, m: "short",
+            retries=2,
+            min_length=200,
+        )
+        # Below min_length on every attempt, but non-empty -> returned anyway.
         assert out == "short"
 
 
@@ -126,19 +127,40 @@ def test_summarize_callback_handles_exception_then_succeeds():
     assert calls["n"] == 2
 
 
+def test_summarize_callback_preserves_structured_local_busy_result():
+    busy_error = LocalCapacityBusyError(reason="local_capacity_timeout_busy")
+    summarize_fn = MagicMock(side_effect=busy_error)
+
+    with (
+        patch("primr.ai.summarize.time.sleep") as sleep_mock,
+        pytest.raises(LocalCapacityBusyError) as caught,
+    ):
+        summarize._summarize_with_callback(
+            "content",
+            summarize_fn=summarize_fn,
+            retries=3,
+            min_length=200,
+        )
+
+    assert caught.value is busy_error
+    summarize_fn.assert_called_once()
+    sleep_mock.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # _summarize_page empty-content branch
 # ---------------------------------------------------------------------------
 
 
 def test_summarize_page_no_content_branch():
-    out = summarize._summarize_page(
-        "Acme",
-        "acme.example",
-        "https://acme.example/empty",
-        "prepared text",
-        summarize_fn=lambda c, m: "",
-    )
+    with patch("primr.ai.summarize.time.sleep"):
+        out = summarize._summarize_page(
+            "Acme",
+            "acme.example",
+            "https://acme.example/empty",
+            "prepared text",
+            summarize_fn=lambda c, m: "",
+        )
     assert "No meaningful content found" in out
     assert "https://acme.example/empty" in out
 
@@ -324,6 +346,91 @@ def test_summarize_scraped_content_agent_unavailable_uses_local_excerpt(monkeypa
     assert record["output_items"] == 1
     assert "prompt" not in record
     assert "response" not in record
+
+
+def test_summarize_scraped_content_local_adapter_gap_records_accurate_failure(
+    monkeypatch, tmp_path
+):
+    data = {"https://acme.example/about": "Acme platform evidence. " * 40}
+    route = SimpleNamespace(
+        model_name="",
+        execution_mode="unavailable",
+        reasons=("local_adapter_unavailable", "no_paid_fallback"),
+        log_metadata=lambda: {
+            "stage_id": "fast.scrape_summary",
+            "inference_profile": "local",
+            "backend_id": "local-adapter-unavailable",
+            "backend_kind": "local",
+            "billing_mode": "zero_api_runtime",
+            "routed": False,
+            "execution_mode": "unavailable",
+            "route_reasons": ["local_adapter_unavailable", "no_paid_fallback"],
+            "availability": {"available": True, "state": "available"},
+            "expected_input_tokens": 70_000,
+            "expected_output_tokens": 5_000,
+        },
+    )
+    monkeypatch.setattr("primr.ai.stage_routing.resolve_stage_model", lambda *_a, **_k: route)
+
+    summary = summarize.summarize_scraped_content(
+        "Acme",
+        "https://acme.example",
+        data,
+        str(tmp_path),
+    )
+
+    assert "Deterministic source excerpt" in summary
+    state = json.loads((tmp_path / "_run_state.json").read_text(encoding="utf-8"))
+    [record] = state["stage_routes"]
+    assert record["failure_class"] == "local_adapter_unavailable"
+    assert record["availability"] == {"available": True, "state": "available"}
+
+
+def test_summarize_scraped_content_records_and_propagates_local_busy(monkeypatch, tmp_path):
+    data = {"https://acme.example/about": "Acme platform evidence. " * 40}
+    route = SimpleNamespace(
+        model_name="local-model",
+        execution_mode="llm",
+        reasons=("available",),
+        log_metadata=lambda: {
+            "stage_id": "fast.scrape_summary",
+            "inference_profile": "local",
+            "backend_id": "local-model",
+            "backend_kind": "local",
+            "billing_mode": "zero_api_runtime",
+            "routed": True,
+            "execution_mode": "llm",
+            "route_reasons": ["available"],
+            "expected_input_tokens": 70_000,
+            "expected_output_tokens": 5_000,
+        },
+    )
+    busy_error = LocalCapacityBusyError(reason="local_capacity_timeout_busy")
+    busy_error.__cause__ = RuntimeError("private endpoint detail")
+    monkeypatch.setattr("primr.ai.stage_routing.resolve_stage_model", lambda *_a, **_k: route)
+    monkeypatch.setattr(
+        "primr.ai.summarize.stage_routing.capture_stage_usage",
+        dict,
+    )
+    monkeypatch.setattr(
+        "primr.ai.summarize.summarize_scraped_content_with_callback",
+        MagicMock(side_effect=busy_error),
+    )
+
+    with pytest.raises(LocalCapacityBusyError):
+        summarize.summarize_scraped_content(
+            "Acme",
+            "https://acme.example",
+            data,
+            str(tmp_path),
+        )
+
+    state_text = (tmp_path / "_run_state.json").read_text(encoding="utf-8")
+    state = json.loads(state_text)
+    [record] = state["stage_routes"]
+    assert record["failure_class"] == "local_capacity_busy"
+    assert record["capacity_failure"]["state"] == "busy"
+    assert "private endpoint detail" not in state_text
 
 
 # ---------------------------------------------------------------------------

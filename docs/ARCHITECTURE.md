@@ -79,18 +79,12 @@ Website-focused research using the `build_site_corpus` workflow with AI-powered 
                                    │
                                    ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                   scrape_page primitive (8-Tier Orchestrator)        │
-│  ┌───────────────┐  ┌───────────────────┐  ┌───────────┐            │
-│  │  Playwright   │─▶│Playwright Aggress.│─▶│ curl_cffi │            │
-│  │   (browser)   │  │ (content expand)  │  │(TLS spoof)│            │
-│  └───────────────┘  └───────────────────┘  └───────────┘            │
-│         │                                        │                   │
-│         ▼                                        ▼                   │
-│  ┌───────────────────┐  ┌───────────────┐  ┌─────────┐  ┌─────────┐ │
-│  │DrissionPage Stealt│─▶│ DrissionPage  │─▶│  httpx  │─▶│Requests │ │
-│  │ (challenge wait)  │  │  (driverless) │  │ (HTTP/2)│  │ (fast)  │ │
-│  └───────────────────┘  └───────────────┘  └─────────┘  └─────────┘ │
-│                                                                      │
+│                   scrape_page primitive (9-Tier Orchestrator)       │
+│                                                                     │
+│  Playwright -> Aggressive -> Patchright -> curl_cffi                │
+│       -> DrissionPage Stealth -> DrissionPage -> Vision             │
+│       -> httpx -> requests                                          │
+│                                                                     │
 │  Features: Sticky tier, Circuit breaker, Cookie handoff, Soft block │
 └─────────────────────────────────────────────────────────────────────┘
                                    │
@@ -262,28 +256,46 @@ The `src/primr/core/` directory contains the research orchestration logic, decom
 
 | Module | Responsibility |
 |--------|----------------|
-| `research_agent.py` | Main entry point with backward-compatible re-exports |
+| `cli.py`, `cli_*.py` | CLI entry point, parsing, command dispatch, preflight, budget, and recovery handlers |
+| `research_agent.py` | Shared research entry point and fast/premium pipeline dispatch |
+| `research_orchestrator.py` | Structured and premium Deep Research orchestration used by non-fast paths |
+| `fast_run_*.py` | Ten extracted fast-pipeline stages coordinated by `perform_fast_research` |
+| `stage_inventory.py` | Canonical capability and promotion requirements for production AI stages |
 | `workspace.py` | Working folder creation, file consolidation, section output |
 | `structured_research.py` | Website scraping pipeline, section-by-section analysis |
 | `vendor_research.py` | Platform AI capabilities research (major providers) |
-| `ai_strategy.py` | AI strategy generation with platform context |
+| `ai_strategy.py`, `strategy_*.py` | Strategy generation, prompt assembly, loops, and artifacts |
 | `deep_research_runner.py` | Deep Research execution with preflight validation |
-| `cli.py` | Command-line interface, argument parsing, utility commands |
+| `research_framing.py`, `context_curation.py` | Operator intent and bounded context preparation |
+| `report_models.py` | Shared research and report data structures |
+| `run_state_io.py` | Durable local run-state and event recording |
+| `source_relevance.py` | Routed source selection, including the bounded host-agent pilot |
+| `stage_route_comparison.py`, `stage_eval_scorecard.py` | Body-free route and quality evidence artifacts |
+| `verification_summary.py` | Compact claim-verification summary shaping |
+| `container.py` | Dependency injection |
 
-The fast-mode orchestrator (`perform_fast_research`) is being decomposed into
-per-stage modules (roadmap #23 - see
+The fast-mode orchestrator (`perform_fast_research`) is decomposed into
+per-stage modules (roadmap #23; see
 [`design/23-orchestrator-refactor-map.md`](design/23-orchestrator-refactor-map.md)
-for the stage map and batch plan). Extracted so far:
+for the detailed data-flow contracts). All planned extraction batches are
+complete:
 
 | Stage module | Pipeline stage |
 |--------------|----------------|
 | `fast_run_setup.py` | Model resolution, routing, run identity (frozen `FastRunSetup`) |
+| `fast_run_collection.py` | Site corpus, external validation pools, and recovery executor |
 | `fast_run_hiring.py` | Hiring-signals gathering + run-state recording |
 | `insights_assembly.py` | Combined-insights / external-sources string assembly (pure) |
+| `fast_run_gaps.py` | Gap analysis and targeted research deepening |
 | `fast_run_workbook.py` | Analysis workbook; constructs the shared reasoning session |
+| `fast_run_sections.py` | Section planning and report writing |
+| `fast_run_validation.py` | Cross-validation, contradiction handling, and enrichment |
 | `fast_run_trust.py` | Trust polish, citation repair, QA gate (frozen `FastTrustResult`) |
 | `fast_run_strategy.py` | Strategy generation: budget checkpoint, per-vendor + YAML (frozen `StrategyPhaseResult`) |
 | `fast_run_summary.py` | Final summary, artifact gating, usage recording |
+
+Artifact assembly remains a deliberately small inline coordinator step rather
+than a separate stage module.
 
 ### Prompt Architecture
 
@@ -331,7 +343,7 @@ Primr distinguishes between two levels of scraping:
 
 **Key Principle:** There is ONE site-to-corpus workflow (`build_site_corpus`). All modes that need a corpus call this function. No other function should implement a site discovery + scrape loop.
 
-### 8-Tier Scraping Engine (scrape_page primitive)
+### 9-Tier Scraping Engine (scrape_page primitive)
 
 Location: `src/primr/data/scraping/orchestrator.py`
 
@@ -341,12 +353,13 @@ The `scrape_page` primitive uses a tiered fallback system for web scraping, desi
 |------|--------|----------|-------|
 | 1 | Playwright | JS-rendered content (default) | Medium |
 | 2 | Playwright Aggressive | Content expansion (accordions, lazy load) | Medium |
-| 3 | curl_cffi | TLS fingerprint impersonation | Fast |
-| 4 | DrissionPage Stealth | Maximum stealth with challenge waiting | Slow |
-| 5 | DrissionPage | Driverless browser via CDP | Slow |
-| 6 | Vision | AI-based extraction (enabled by default) | Slow |
-| 7 | httpx | HTTP/2 sites, better headers | Fast |
-| 8 | requests | Simple sites, no JS (fallback) | Fast |
+| 3 | Patchright | Persistent real-Chrome stealth for challenge shells | Slow |
+| 4 | curl_cffi | TLS fingerprint impersonation | Fast |
+| 5 | DrissionPage Stealth | Maximum stealth with challenge waiting | Slow |
+| 6 | DrissionPage | Driverless browser via CDP | Slow |
+| 7 | Vision | AI-based screenshot extraction | Slow |
+| 8 | httpx | HTTP/2 sites, better headers | Fast |
+| 9 | requests | Simple sites, no JS (fallback) | Fast |
 
 **Key Features:**
 - **Sticky Tier**: Once a tier works for a host, it's tried first for subsequent pages
@@ -674,130 +687,60 @@ Company Name + URL
 
 ```
 src/primr/
-├── __init__.py              # Package exports
-├── __main__.py              # CLI entry point
-├── types.py                 # Type definitions, protocols, type guards
+├── __init__.py, __main__.py # Package and `python -m primr` entry points
+├── types.py                 # Transport-neutral result and protocol types
+├── job_status.py            # Versioned cross-transport lifecycle snapshots
+├── primr_cli.py             # Legacy module wrapper; console script uses core.cli
 │
-├── ai/                      # AI operations
-│   ├── client.py            # Unified AI client with retry logic
-│   ├── async_client.py      # Async/parallel AI operations
-│   ├── deep_research.py     # Gemini Deep Research Agent
-│   ├── deep_research_execution.py # Shared deep research polling execution engine
-│   ├── deep_research_parsing.py # Shared deep research parsing helpers
-│   ├── deep_research_polling.py # Shared deep research polling schedules/phases
-│   ├── error_policy.py      # Shared AI error classification and retry policy
-│   ├── report_architect.py  # Chapter planning (Master Architect)
-│   ├── research_executor.py # Parallel chapter execution
-│   ├── report_aggregator.py # Chapter combination
-│   ├── grading_agent.py     # Quality grading
-│   ├── quality_grader.py    # Grading utilities
-│   ├── summarize.py         # Content summarization
-│   ├── insight_engine.py    # Strategic insight generation
-│   ├── insights.py          # Insight data structures
-│   ├── competitive.py       # Competitive analysis
-│   ├── ai_strategy.py       # AI strategy generation
-│   ├── result_normalizer.py # Deep Research result normalization
-│   └── llm.py               # Legacy LLM interface
+├── core/                    # CLI and research/strategy orchestration
+│   ├── cli.py, cli_*.py    # Command parsing, dispatch, preflight, and budgets
+│   ├── research_agent.py  # Shared run entry and mode dispatch
+│   ├── research_orchestrator.py # Structured and premium orchestration
+│   ├── fast_run_*.py      # Ten extracted fast-pipeline stages
+│   ├── stage_inventory.py # Production stage capability requirements
+│   ├── strategy_*.py      # Strategy prompt, loop, generation, and artifacts
+│   └── workspace.py, run_state_io.py # Workspace and durable run state
 │
-├── data/                    # Data collection
-│   ├── scrape.py            # 9-tier scraping engine + public-data fallback routing
-│   ├── fallback_sources.py  # Wayback / subdomain / feed / first-party PDF / JSON-LD / EDGAR / Wikipedia / Grok fan-out
-│   ├── adaptive_scraper.py  # Domain-learning scraper
-│   ├── parallel_scraper.py  # Concurrent scraping
-│   ├── http_client.py       # HTTP client wrapper
-│   ├── cache.py             # Content caching
-│   ├── content_extractor.py # Structured content extraction
-│   ├── link_scorer.py       # Link prioritization
-│   ├── search_utils.py      # Google Search integration
-│   ├── validator.py         # Fact validation
-│   ├── sentiment.py         # Sentiment analysis
-│   ├── pagination.py        # Pagination detection
-│   ├── monitoring.py        # Change monitoring
-│   ├── knowledge_graph.py   # Entity extraction
-│   └── insights_extractor.py# Insight extraction
+├── ai/                      # Inference, providers, routing, and Deep Research
+│   ├── providers/          # xAI, Gemini, OpenAI-compatible, Anthropic adapters
+│   ├── routing.py          # Legacy role-to-provider routing
+│   ├── capability_routing.py, stage_routing.py # Stage capability router
+│   ├── host_agent_runner.py, host_agent_cli.py # Official host-runner seam
+│   ├── local_inference.py  # Local OpenAI-compatible detection and calls
+│   ├── deep_research*.py   # Deep Research client, parsing, polling, execution
+│   └── client.py, llm.py   # Current and legacy model-call seams
 │
-├── core/                    # Research orchestration
-│   ├── research_orchestrator.py  # Mode coordination
-│   ├── research_agent.py    # Main entry point, backward-compatible re-exports
-│   ├── fast_run_*.py        # Extracted fast-mode pipeline stages (roadmap #23)
-│   ├── insights_assembly.py # Pure insights/external-sources string assembly
-│   ├── workspace.py         # Working folder management, file consolidation
-│   ├── structured_research.py # Website scraping pipeline, section generation
-│   ├── vendor_research.py   # Platform AI capabilities research
-│   ├── ai_strategy.py       # AI strategy generation with platform context
-│   ├── deep_research_runner.py # Deep Research execution, preflight validation
-│   ├── cli.py               # Command-line interface, argument parsing
-│   ├── report_models.py     # Report data structures
-│   └── container.py         # Dependency injection
+├── data/                    # Collection, discovery, hiring, and fallback evidence
+│   ├── scraping/           # Nine-tier scrape primitive and trace support
+│   ├── scrape.py           # Multi-page site-to-corpus workflow
+│   ├── hiring_*.py         # ATS discovery, extraction, routing, and artifacts
+│   ├── fallback_sources.py # Public-data fallback fan-out
+│   └── search_utils.py     # External search seam
 │
-├── pipeline/                # Pipeline resilience layer
-│   ├── stages.py            # Stage enum and foreground/background classifier
-│   ├── recovery.py          # Recovery table and cost-ordered hierarchies
-│   ├── model_breaker.py     # Per-model circuit breaker with fallback chains
-│   ├── executor.py          # Recovery executor (retry/fallback/skip orchestration)
-│   ├── errors.py            # Error classification (transient/quota/configuration)
-│   └── integration.py       # Stage wrappers connecting executor to pipeline
+├── pipeline/                # Recovery, retry, failover, and model breakers
+├── prompts/                 # YAML prompt composition and strategy registry
+│   ├── shared/             # Epistemic, formatting, and persona components
+│   ├── strategies/         # Discoverable strategy definitions
+│   └── skill_pack/         # Skill-pack planning and evaluation prompts
+├── output/                  # MD/TXT/DOCX/PDF rendering and artifact validation
+├── qa/                      # Report analysis, calibration, honesty, and scoring
+├── agentic/                 # Memory, hypotheses, hooks, and research subagents
+│   └── subagents/          # Scraper, analyst, writer, QA, and verifier roles
+├── skill_pack/              # Role planning, skill authoring, validation, packaging
+├── config/                  # Environment, settings, models, sections, eval profiles
+├── utils/                   # Shared async, I/O, security, console, and logging seams
+│   └── errors/             # Typed error hierarchy and retry helpers
 │
-├── prompts/                 # Externalized prompt architecture (v1.2.5+)
-│   ├── composer.py          # PromptComposer for YAML-based prompts
-│   ├── loader.py            # YAML loading and legacy builders
-│   ├── registry.py          # StrategyModuleRegistry
-│   ├── schema.py            # Dataclass definitions
-│   ├── shared_loader.py     # Shared component loading
-│   ├── exceptions.py        # Custom exceptions
-│   ├── company_overview.yaml # Company research prompt
-│   ├── strategic_layer.yaml # Strategic analysis prompt
-│   ├── shared/              # Shared components
-│   │   ├── epistemic_rules.yaml
-│   │   ├── formatting.yaml
-│   │   └── personas.yaml
-│   └── strategies/          # Strategy modules
-│       ├── ai_first_transformation.yaml
-│       ├── ai_strategy.yaml
-│       ├── cloud_migration.yaml
-│       ├── customer_experience.yaml
-│       ├── data_fabric_strategy.yaml
-│       ├── data_strategy.yaml
-│       └── modern_security_compliance.yaml
-│
-├── output/                  # Report generation
-│   ├── document_builder.py  # DOCX generation
-│   ├── report_assembler.py  # Report assembly
-│   ├── citation_processor.py# Citation handling
-│   ├── markdown_converter.py# Markdown to DOCX
-│   ├── markdown_parser.py   # Markdown parsing
-│   ├── executive_summary.py # Executive summary generation
-│   ├── section_writer.py    # Section formatting
-│   ├── style_engine.py      # Document styling
-│   ├── table_builder.py     # Table generation
-│   ├── templates.py         # Report templates
-│   └── chapter_config.py    # Chapter configuration
-│
-├── config/                  # Configuration
-│   ├── settings.py          # Settings management
-│   └── config.py            # Legacy config
-│
-└── utils/                   # Utilities
-    ├── console.py           # Console output
-    ├── logging_config.py    # Logging setup
-    ├── errors.py            # Typed error hierarchy with retry policies
-    ├── retry.py             # RetryPolicyManager with exponential backoff
-    ├── circuit_breaker.py   # Circuit breaker with monitoring
-    ├── telemetry.py         # OpenTelemetry integration
-    ├── cost_tracker.py      # Cost attribution per operation
-    ├── validation.py        # Pydantic configuration validation
-    ├── migration.py         # Configuration migration tooling
-    ├── state_machine.py     # Generic state machine with transitions
-    ├── benchmarks.py        # Performance benchmarking suite
-    ├── memory_profiler.py   # Memory profiling and leak detection
-    ├── files.py             # File operations
-    ├── formatting.py        # Text formatting
-    ├── validators.py        # Input validation
-    ├── type_guards.py       # Runtime type checking
-    ├── resources.py         # Resource management
-    ├── observability.py     # Metrics and tracing
-    └── chat_logger.py       # Interaction logging
+├── mcp_server/              # MCP tools, resources, jobs, approval, and audit policy
+├── a2a/                     # A2A facade over the governed MCP pipeline services
+└── api/                     # REST scaffold; research submission is not production-wired
 ```
+
+This is a concern-level map, not an exhaustive listing of every helper module.
+The detailed fast-stage contracts live in
+[`design/23-orchestrator-refactor-map.md`](design/23-orchestrator-refactor-map.md),
+and the capability-routing inventory lives in
+[`design/2.0-backend-freedom.md`](design/2.0-backend-freedom.md).
 
 ## Error Handling Strategy
 
@@ -1160,18 +1103,19 @@ See `ROADMAP.md` for planned features.
 
 This section provides a quick-reference summary of the retrieval engine, model pricing, and agentic architecture. For full details, see the component sections above.
 
-### 8-Tier Retrieval Engine
+### 9-Tier Retrieval Engine
 
 Browser-first, falls back automatically:
 
 1. Playwright (JS rendering)
 2. Playwright Aggressive (accordions, lazy load)
-3. curl_cffi (TLS fingerprint impersonation)
-4. DrissionPage Stealth (challenge waiting)
-5. DrissionPage (driverless CDP)
-6. Vision (screenshot + LLM extraction)
-7. httpx (HTTP/2)
-8. requests (simple fallback)
+3. Patchright (persistent real-Chrome stealth)
+4. curl_cffi (TLS fingerprint impersonation)
+5. DrissionPage Stealth (challenge waiting)
+6. DrissionPage (driverless CDP)
+7. Vision (screenshot + LLM extraction)
+8. httpx (HTTP/2)
+9. requests (simple fallback)
 
 Includes sticky tier memory, circuit breakers, cookie handoff, and automatic PDF detection.
 Playwright tiers now perform adaptive lazy-load scrolling (up to 20 steps by default, stops early when page height stabilizes).

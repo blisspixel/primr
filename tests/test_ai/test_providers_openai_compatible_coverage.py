@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from primr.ai.provider_availability import LocalCapacityBusyError
 from primr.ai.providers.base import ProviderUnavailableError, QuotaExhaustedError
 from primr.ai.providers.openai_compatible import (
     OpenAICompatibleProvider,
@@ -250,6 +251,35 @@ def test_retry_after_header_drives_sleep():
         result = p.chat([{"role": "user", "content": "x"}], model="grok-4.3", retries=2)
     assert result.text == "ok"
     assert slept == [3.0]
+
+
+def test_local_chat_caps_internal_wait_then_raises_structured_busy_error():
+    p = _make(name="ollama")
+    fake = MagicMock()
+    err = RuntimeError("capacity response from private endpoint")
+    err.status_code = 503
+    err.response = SimpleNamespace(headers={"retry-after": "90000"})
+    fake.chat.completions.create.side_effect = err
+    p._client = fake
+
+    slept = []
+    with (
+        patch(
+            "primr.ai.providers.openai_compatible.time.sleep",
+            lambda delay: slept.append(delay),
+        ),
+        pytest.raises(LocalCapacityBusyError) as caught,
+    ):
+        p.chat(
+            [{"role": "user", "content": "x"}],
+            model="local-model",
+            retries=1,
+        )
+
+    assert slept == [20.0]
+    assert caught.value.retry_after_seconds == 21_600
+    assert caught.value.status_code == 503
+    assert "private endpoint" not in str(caught.value)
 
 
 # ---------------------------------------------------------------------------

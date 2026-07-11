@@ -45,6 +45,7 @@ def collect_evidence(
     company_url: str | None,
     working_dir: Path,
     *,
+    corpus: dict[str, str] | None = None,
     career_urls: list[str] | None = None,
     skip_recon: bool = False,
     skip_hiring: bool = False,
@@ -71,6 +72,7 @@ def collect_evidence(
             company_name,
             hiring_seed_url,
             working_dir,
+            corpus=corpus,
             career_urls=career_urls,
         )
 
@@ -113,6 +115,7 @@ def _collect_hiring(
     company_url: str,
     working_dir: Path,
     *,
+    corpus: dict[str, str] | None = None,
     career_urls: list[str] | None = None,
 ) -> str | None:
     if os.getenv("PRIMR_SKIP_HIRING_SIGNALS", "").strip().lower() in {"1", "true", "yes"}:
@@ -129,7 +132,7 @@ def _collect_hiring(
         signals = gather_hiring_signals(
             company_name,
             company_url,
-            corpus=None,
+            corpus=corpus,
             working_folder=str(working_dir),
             career_urls=career_urls or [],
         )

@@ -5,6 +5,7 @@ import re
 import subprocess
 import tarfile
 import tomllib
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -304,7 +305,7 @@ def test_built_sdist_matches_release_inventory(tmp_path: Path) -> None:
         pytest.skip("Set PRIMR_VALIDATE_SDIST=1 to run the behavior-level packaging gate")
 
     build = subprocess.run(
-        ["uv", "build", "--sdist", "--out-dir", str(tmp_path)],
+        ["uv", "build", "--sdist", "--wheel", "--out-dir", str(tmp_path)],
         cwd=REPO_ROOT,
         capture_output=True,
         check=False,
@@ -327,6 +328,7 @@ def test_built_sdist_matches_release_inventory(tmp_path: Path) -> None:
     paths = {Path(*member.parts[1:]).as_posix() for member in members}
 
     required_paths = {
+        ".agents/skills/primr-zero/SKILL.md",
         ".env.example",
         "LICENSE",
         "README.md",
@@ -334,6 +336,7 @@ def test_built_sdist_matches_release_inventory(tmp_path: Path) -> None:
         "docs/images/primr-demo.png",
         "pyproject.toml",
         "src/primr/py.typed",
+        "src/primr/resources/skills/primr-zero/SKILL.md",
     }
     assert required_paths <= paths
 
@@ -341,6 +344,19 @@ def test_built_sdist_matches_release_inventory(tmp_path: Path) -> None:
     forbidden_prefixes = (".agent/", "build/", "dist/", "output/", "tests/")
     assert forbidden_paths.isdisjoint(paths)
     assert not any(path.startswith(forbidden_prefixes) for path in paths)
+
+    wheels = list(tmp_path.glob("*.whl"))
+    assert len(wheels) == 1
+    with zipfile.ZipFile(wheels[0]) as wheel:
+        wheel_paths = set(wheel.namelist())
+    skill_root = "primr/resources/skills/primr-zero/"
+    assert skill_root + "SKILL.md" in wheel_paths
+    assert {
+        skill_root + "references/host-capabilities.md",
+        skill_root + "references/local-capacity.md",
+        skill_root + "references/report-contract.md",
+        skill_root + "references/subscription-boundaries.md",
+    } <= wheel_paths
 
 
 def test_cli_epilog_uses_current_default_cost_band() -> None:

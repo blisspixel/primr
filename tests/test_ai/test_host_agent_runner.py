@@ -26,6 +26,10 @@ def test_policy_coerces_string_billing_mode() -> None:
     assert policy.billing_mode is HostAgentBillingMode.HOST_PLAN_USAGE
 
 
+def test_policy_defaults_to_unknown_billing() -> None:
+    assert HostAgentPolicy().billing_mode is HostAgentBillingMode.UNKNOWN
+
+
 def test_policy_requires_positive_limits() -> None:
     with pytest.raises(ValueError, match="max_wall_seconds"):
         HostAgentPolicy(max_wall_seconds=0)
@@ -74,7 +78,7 @@ def test_render_prompt_fences_evidence_and_states_host_policy() -> None:
     assert "Output schema:" in prompt
     assert "UNTRUSTED_SOURCE_BEGIN" in prompt
     assert "[CONTENT REMOVED]" in prompt
-    assert "mode: host_plan_usage" in prompt
+    assert "mode: unknown" in prompt
     assert "allow_api_credit_handoff: False" in prompt
     assert "Do not fetch URLs, run shell commands, or write files." in prompt
 
@@ -121,4 +125,4 @@ def test_fake_runner_satisfies_protocol() -> None:
     result = runner.run(packet)
     assert result.runner is HostAgentKind.CODEX
     assert result.text == "SELECT LINKS"
-    assert result.billing_mode is HostAgentBillingMode.HOST_PLAN_USAGE
+    assert result.billing_mode is HostAgentBillingMode.UNKNOWN

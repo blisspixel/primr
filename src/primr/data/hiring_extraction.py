@@ -13,17 +13,39 @@ from __future__ import annotations
 
 import json
 import re
-from typing import TYPE_CHECKING, Any
+from abc import abstractmethod
+from collections.abc import Sequence
+from typing import Any, Protocol
 
+from primr.ai.provider_availability import LocalCapacityBusyError
 from primr.utils.content_sanitizer import fence_untrusted
 from primr.utils.logging_config import get_logger
-
-if TYPE_CHECKING:
-    from primr.data.hiring_signals import Posting
 
 logger = get_logger("data.hiring_extraction")
 
 __all__ = ["_coerce_extraction", "_extract_signals", "_parse_json_blob"]
+
+
+class _PostingLike(Protocol):
+    """Posting fields consumed by extraction without importing orchestration."""
+
+    body: str | None
+    department: str
+    location: str
+    title: str
+    url: str
+
+    @abstractmethod
+    def age_days(self) -> int | None:
+        """Return the posting age when its source provides a timestamp."""
+
+        raise NotImplementedError
+
+    @abstractmethod
+    def is_stale(self) -> bool:
+        """Return whether the posting is older than the accepted window."""
+
+        raise NotImplementedError
 
 
 _JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(.+?)\s*```", re.DOTALL | re.IGNORECASE)
@@ -52,7 +74,7 @@ def _parse_json_blob(raw: str) -> Any:
 
 
 def _extract_signals(
-    postings: list[Posting],
+    postings: Sequence[_PostingLike],
     company_name: str,
     *,
     model: str | None = None,
@@ -60,6 +82,10 @@ def _extract_signals(
     """Run the batched extraction LLM call. Returns a dict that mirrors
     the HiringSignals schema fields, or None on failure.
     """
+    from primr.utils.model_policy import model_calls_disabled
+
+    if model_calls_disabled():
+        return None
     from primr.ai.grok_client import grok_llm
 
     body_blocks: list[str] = []
@@ -119,6 +145,8 @@ Postings follow. Tags in [brackets] like [STALE] are hints — consider them.
             max_tokens=4_000,
             retries=1,
         )
+    except LocalCapacityBusyError:
+        raise
     except Exception as e:
         logger.warning("Hiring-signals extraction LLM call failed: %s", e)
         return None

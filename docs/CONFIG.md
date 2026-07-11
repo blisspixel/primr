@@ -16,21 +16,16 @@ This document describes all configuration options available in Primr.
 
 Run `primr init` for guided first-run setup. Set keys directly with `primr keys set gemini`, `primr keys set xai`, `primr keys set openai`, `primr keys set anthropic`, or `primr keys set ollama`; shell env vars and local `.env` values are also supported. Run `primr keys path` to see the user-level config file. The measured default remains XAI + Gemini, but a single usable cloud provider key is enough for provider diagnostics.
 
-### Agent Host Credentials
+### Agent Host Authentication
 
-These are not provider API keys and do not currently replace the direct provider
-keys required for full internal report generation. They are recorded here so the
-planned subscription-backed runner mode has a clear boundary: official host
-auth only, no unofficial proxies or browser-session reuse.
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `CODEX_ACCESS_TOKEN` | Optional Codex Enterprise/local automation token for trusted Codex CLI workflows; direct OpenAI API calls still use `OPENAI_API_KEY` | No |
-| `CLAUDE_CODE_OAUTH_TOKEN` | Optional Claude Code OAuth token from `claude setup-token` for subscription-backed Claude Code scripts; direct Anthropic API calls still use `ANTHROPIC_API_KEY` | No |
-
-Future `--inference agent` support will use these credentials to identify host
-runners, not generic model providers. Dry-run output must show plan-backed
-stages separately from API-dollar stages.
+Primr does not define or store agent-host credential variables. Authenticate
+inside the official host, and keep its OAuth tokens and session state there.
+`primr-zero` keeps the host-assisted workflow inside the selected host. Primr
+also has an internal/eval-only Codex adapter, but it is not a supported
+configuration surface because installed Codex authentication does not prove
+whether execution uses plan allowance or metered API-key billing. Never copy a
+Claude Code OAuth token, browser cookie, or other subscription credential into
+Primr. Direct provider calls still use the provider API keys listed above.
 
 ### Optional Search Keys
 
@@ -47,7 +42,7 @@ stages separately from API-dollar stages.
 | `AI_REPORT_MODEL` | Legacy Gemini-backed report model override | `gemini-3-flash-preview` |
 | `VERBOSE` | Enable verbose output | `false` |
 | `DEBUG` | Enable debug mode | `false` |
-| `PRIMR_INFERENCE_PROFILE` | Runtime capability-routing profile for wired stages. `cloud` is the default; `hybrid` enables the current routed utility-stage pilots (`fast.scrape_summary`, `fast.source_relevance`, `fast.hiring_signals`) and records body-free `stage_routes` metadata in `_run_state.json`. Prefer the `--inference` CLI flag for normal use. | `cloud` |
+| `PRIMR_INFERENCE_PROFILE` | Runtime capability-routing profile for wired stages. Supported values are `cloud` and `hybrid`. `cloud` is the default; `hybrid` enables the current routed utility-stage pilots. Route metadata is recorded in `_run_state.json`. Prefer the `--inference` CLI flag for normal use. Internal enum values used by tests and evals are not supported configuration. | `cloud` |
 
 Note: Legacy Gemini model override variables are still supported for Gemini-backed stages. Provider-aware routing otherwise uses the model registry and configured provider keys. Current Gemini defaults:
 - `gemini-3-flash-preview` - Best balance of speed and cost for legacy Gemini paths

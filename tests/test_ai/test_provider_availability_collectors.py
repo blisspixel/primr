@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from urllib.error import HTTPError
 
-from primr.ai.provider_availability import availability_decision
+from primr.ai.provider_availability import AvailabilityState, availability_decision
 from primr.ai.provider_availability_collectors import (
     LOCAL_OPENAI_COMPATIBLE_PROVIDER,
     collect_env_provider_availability,
@@ -123,6 +124,34 @@ def test_local_openai_compatible_probe_failure_fails_open_without_endpoint_leak(
     assert snapshot.error == "local_openai_compatible_probe_failed"
     assert snapshot.metadata["endpoint_source"] == "OLLAMA_BASE_URL"
     assert "workstation" not in str(snapshot)
+
+
+def test_local_openai_compatible_busy_snapshot_has_bounded_retry_metadata() -> None:
+    def busy(base_url: str | None) -> list[str]:
+        raise HTTPError(
+            str(base_url),
+            503,
+            "busy at operator-host.example.invalid",
+            {"Retry-After": "240"},
+            None,
+        )
+
+    snapshot = collect_local_openai_compatible_availability(
+        env={"LOCAL_LLM_BASE_URL": "http://operator-host.example.invalid:1234"},
+        list_models_fn=busy,
+        now=NOW,
+    )
+    decision = availability_decision(snapshot, NOW)
+
+    assert snapshot.ok is False
+    assert snapshot.state is AvailabilityState.BUSY
+    assert snapshot.error == "local_openai_compatible_busy"
+    assert snapshot.metadata["capacity_state"] == "busy"
+    assert snapshot.metadata["capacity_reason"] == "local_capacity_http_503_busy"
+    assert snapshot.metadata["retryable"] is True
+    assert snapshot.metadata["status_code"] == 503
+    assert decision.retry_after_seconds == 240
+    assert "operator-host" not in str(snapshot)
 
 
 def test_collect_provider_availability_snapshots_is_generic_and_secret_safe() -> None:

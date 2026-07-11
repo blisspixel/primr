@@ -7,12 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.35.0] - 2026-07-11
+
 ### Added
+
+- Added `primr prep`, a hard-zero evidence collection and host handoff path,
+  plus a wheel-packaged `primr-zero` Agent Skill for Codex, Claude Code,
+  Copilot, Gemini CLI, Cowork-style file handoffs, and other capable hosts.
+- Prep bundles now include stable source IDs, typed fallback provenance,
+  prompt-injection-fenced and size-bounded evidence, hashes, a portable skill,
+  and a manifest that records zero model calls and `$0.00` API spend.
+- Local OpenAI-compatible capacity now reports `available`, `busy`, or
+  `unavailable` with bounded machine-readable retry guidance. Actual chat
+  failures emit the same structured busy contract after short in-call retries.
 
 ### Fixed
 
+- Explicit local inference routing no longer returns a paid legacy cloud model
+  when no local backend qualifies.
+- Local route ledgers now distinguish adapter gaps from capacity failures and
+  preserve safe busy retry metadata through summarization, source relevance,
+  both hiring-signal model calls, and the fast/deep hiring wrapper.
+- Internal host-agent billing now defaults to unknown, capability routing
+  rejects unverified host billing, and the Codex subprocess refuses to run
+  until a caller supplies an explicit billing policy. The public inference
+  profiles remain `cloud` and `hybrid`.
+- Roadmap API and MCP roadmap resources now parse the real `1.x`, `2.0`, and
+  `3.0` version bands, stop at later non-version sections, and expose the
+  intended dependency order instead of attaching the Active Queue to `3.0`.
+
 ### Documentation
 
+- Refreshed the architecture package map and fast-stage inventory to match the
+  current source tree and completed orchestrator extraction, with a fitness
+  test that requires every top-level package to remain represented.
 - Refreshed the next-steps guidance with the shipped durable background-job
   lifecycle and the verified Trusted Publishing release contract.
 
@@ -329,8 +357,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Explicit `agent` profile unavailability now fails closed for the remaining
-  routed utility stages that do not yet have host adapters. `fast.scrape_summary`
+- Internal/eval `agent` profile unavailability now fails closed for the
+  remaining routed utility stages that do not yet have host adapters. This is
+  not a public CLI profile. `fast.scrape_summary`
   writes deterministic source excerpts, `fast.hiring_signals` uses deterministic
   triage plus posting metadata, both stages record body-free
   `agent_profile_unavailable` route fallbacks, and neither stage silently calls
@@ -540,12 +569,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The semantic judge model option now accepts a comma-separated local judge
   panel and records agreement-rate plus score-spread metadata without changing
   review-only promotion policy.
-- `--inference agent` now has an experimental Codex CLI host-runner pilot for
+- An internal/eval-only Codex CLI host-runner pilot now covers
   `fast.source_relevance`: Primr invokes official `codex exec` with a read-only
   sandbox, no approvals, disabled web search/shell tool config, a JSON-array
   schema, and body-free route metadata. If no official host runner is
-  available, the explicit agent profile keeps all sources instead of silently
-  falling back to cloud API spend.
+  available, the internal agent profile keeps all sources instead of silently
+  falling back to cloud API spend. The public CLI remains `cloud|hybrid` because
+  Codex authentication does not prove whether execution is plan-backed or
+  API-key billed.
 - The `fast.source_relevance` host-agent packet now passes source snippets as
   fenced evidence blocks rather than embedding untrusted snippets in host-agent
   instructions.
@@ -604,9 +635,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added capped body-free `stage_routes` records to `_run_state.json` for
   routed stages, starting with `fast.source_relevance`.
-- Route records include stage id, inference profile, backend id/kind, billing
-  mode, route/fallback reasons, expected stage token budget, latency, source
-  counts, and failure class when fallback occurs.
+- Route records include stage id, inference profile, backend id/kind, declared
+  billing category, route/fallback reasons, expected stage token budget, latency,
+  source counts, and failure class when fallback occurs. That category records
+  routing policy and does not prove an external host session's billing basis.
 
 ### Changed
 
@@ -1360,12 +1392,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Clarified the backend-freedom cost policy: default routing should prefer
-  validated zero-incremental host or local capacity when configured, otherwise
+  billing-proven zero-incremental host or validated local capacity when configured, otherwise
   the best sub-dollar API recipe, with premium routes kept explicit and justified
   by measured lift.
-- Expanded the account-capacity roadmap language beyond Codex and Claude Code to
+- Expanded the host-runner roadmap language beyond Codex and Claude Code to
   include Kiro CLI, Copilot Cowork, Claude/Cowork-style hosts, and comparable
-  official agent surfaces as candidates for bounded stage runners.
+  official agent surfaces as candidates for bounded stage runners. Public
+  promotion also requires billing provenance or an explicit potentially metered
+  billing acknowledgment.
 - Clarified that local inference is a moving first-class path: today's local
   quality label is tied to measured hardware/model profiles, and future
   desk-side AI capacity should be re-evaluated for $0 API default promotion.
@@ -1392,13 +1426,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added a transport-free host-agent runner seam for official account-backed
-  stage execution: bounded stage packets, explicit billing policy, evidence
-  fencing, normalized runner metadata, and fake-runner tests.
-- Documented how Codex and Claude Code account-backed execution fits Primr's
-  agentic-balance contract: official host runners only, explicit billing
-  boundaries, no browser-session scraping, and no unofficial subscription
-  proxies.
+- Added a transport-free host-agent runner seam for official host execution:
+  bounded stage packets, explicit billing policy, evidence fencing, normalized
+  runner metadata, and fake-runner tests. Authentication alone does not
+  establish plan-backed billing.
+- Documented the host-runner boundary for Codex and Claude Code style surfaces:
+  official automation only, billing provenance or explicit acknowledgment before
+  public promotion, no browser-session scraping, and no unofficial subscription
+  proxies. `primr-zero` is the supported plan-native path.
 
 ### Fixed
 

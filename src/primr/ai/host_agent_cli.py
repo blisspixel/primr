@@ -82,7 +82,12 @@ class CodexCliHostAgentRunner(HostAgentRunner):
         return HostAgentKind.CODEX
 
     def is_available(self) -> bool:
-        """Return True when the Codex CLI executable is available."""
+        """Return True when the Codex CLI executable is available.
+
+        This transport check does not establish how the CLI is authenticated or
+        billed. Routing and execution therefore require a separately verified
+        billing policy before treating the runner as usable.
+        """
 
         return self._resolved_executable() is not None
 
@@ -92,6 +97,8 @@ class CodexCliHostAgentRunner(HostAgentRunner):
         executable = self._resolved_executable()
         if executable is None:
             raise HostAgentUnavailableError("codex CLI is not installed or not on PATH")
+        if packet.policy.billing_mode is HostAgentBillingMode.UNKNOWN:
+            raise HostAgentUnavailableError("codex CLI billing mode is unverified")
 
         prompt = render_host_agent_prompt(packet)
         with tempfile.TemporaryDirectory(prefix="primr-codex-stage-") as temp_dir_name:
@@ -111,7 +118,7 @@ class CodexCliHostAgentRunner(HostAgentRunner):
         return HostAgentResult(
             runner=HostAgentKind.CODEX,
             text=text,
-            billing_mode=HostAgentBillingMode.HOST_PLAN_USAGE,
+            billing_mode=packet.policy.billing_mode,
             metadata={
                 "transport": "codex_cli_exec",
                 "sandbox": "read-only",
@@ -198,7 +205,11 @@ class CodexCliHostAgentRunner(HostAgentRunner):
         return output_path.read_text(encoding="utf-8").strip()
 
 
-def codex_cli_backend(*, available: bool | None = None) -> BackendCapabilities:
+def codex_cli_backend(
+    *,
+    available: bool | None = None,
+    billing_mode: BillingMode | str = BillingMode.UNKNOWN,
+) -> BackendCapabilities:
     """Return the Codex CLI host-runner capability row."""
 
     is_available = CodexCliHostAgentRunner().is_available() if available is None else available
@@ -211,7 +222,7 @@ def codex_cli_backend(*, available: bool | None = None) -> BackendCapabilities:
         max_context_tokens=128_000,
         supports_structured_output=True,
         latency_class=LatencyClass.STANDARD,
-        billing_mode=BillingMode.HOST_PLAN_USAGE,
+        billing_mode=billing_mode,
         available=is_available,
         official_host_runner=True,
         metadata={

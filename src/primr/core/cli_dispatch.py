@@ -64,6 +64,20 @@ def run_skills(args: list[str] | None) -> int:
     return run_skills_cli(args)
 
 
+def is_prep_command(args: list[str] | None) -> bool:
+    """Check if the command line is a ``primr prep ...`` invocation."""
+    from primr.core.cli_prep import is_prep_command as matches
+
+    return matches(args)
+
+
+def run_prep(args: list[str] | None) -> int:
+    """Delegate to the keyless host-handoff evidence collector."""
+    from primr.core.cli_prep import run_prep_cli
+
+    return run_prep_cli(args)
+
+
 def is_update_command(args: list[str] | None) -> bool:
     """Check if the command line is a ``primr update ...`` invocation."""
     argv = args if args is not None else sys.argv[1:]
