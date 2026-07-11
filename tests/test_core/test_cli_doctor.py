@@ -12,7 +12,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from primr.ai.provider_availability import ProviderQuotaSnapshot, QuotaWindow
+from primr.ai.provider_availability import (
+    AvailabilityState,
+    ProviderQuotaSnapshot,
+    QuotaWindow,
+)
 from primr.ai.provider_availability_collectors import LOCAL_OPENAI_COMPATIBLE_PROVIDER
 from primr.core import cli_doctor
 from primr.core.cli_doctor import (
@@ -269,6 +273,38 @@ class TestCheckProviderAvailability:
         output = str(console.mock_calls)
         assert "availability_error" in output
         assert "operator-host" not in output
+        console.warn.assert_called_once()
+
+    def test_busy_local_capacity_warns_with_bounded_retry_guidance(self):
+        snapshots = (
+            ProviderQuotaSnapshot(
+                provider=LOCAL_OPENAI_COMPATIBLE_PROVIDER,
+                display_name="Local OpenAI-compatible",
+                ok=False,
+                error="local_openai_compatible_busy",
+                state=AvailabilityState.BUSY,
+                retry_after_seconds=1_800,
+                metadata={
+                    "endpoint_source": "LOCAL_LLM_BASE_URL",
+                    "model_count": 1,
+                    "quota_source": "local_probe",
+                },
+            ),
+        )
+        console = MagicMock()
+
+        with (
+            patch(
+                "primr.core.cli_doctor.collect_provider_availability_snapshots",
+                return_value=snapshots,
+            ),
+            patch("primr.core.cli_doctor.console", console),
+        ):
+            assert _check_provider_availability(0) == 1
+
+        output = str(console.mock_calls)
+        assert "busy" in output
+        assert "retry after 1800s" in output
         console.warn.assert_called_once()
 
     def test_collector_failure_warns_with_safe_error(self):

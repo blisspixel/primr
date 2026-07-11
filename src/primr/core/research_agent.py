@@ -396,12 +396,11 @@ def select_links_with_llm(
     """
     if not links:
         return []
+    from primr.utils.model_policy import model_calls_disabled
 
-    # If we have fewer links than max, just return all of them
-    if len(links) <= max_links:
-        return [link.url for link in links]
+    if len(links) <= max_links or model_calls_disabled():
+        return [link.url for link in links[:max_links]]
 
-    # Format links for the prompt - include URL and anchor text if available
     link_list = []
     for link in links[:200]:  # Cap at 200 to avoid token limits
         if hasattr(link, "anchor_text") and link.anchor_text:

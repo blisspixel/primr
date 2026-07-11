@@ -215,6 +215,7 @@ def _collect_fallback_content(
     website: str,
     raw_folder: str | None = None,
     append_trace=None,
+    allow_grok_surrogate: bool = True,
 ) -> dict[str, str]:
     """
     Gather content from public-data fallbacks when the origin host is blocked.
@@ -222,16 +223,10 @@ def _collect_fallback_content(
     Fires Wayback / subdomain / EDGAR / Wikipedia in parallel and returns a
     url -> text dict compatible with fetch_web_content's output shape.
 
-    Also writes each recovered page to raw_folder for downstream inspection,
-    so the rest of the pipeline sees the same artifacts it would see from a
-    normal scrape.
+    Writes recovered pages to raw_folder for downstream inspection.
     """
     from primr.data.fallback_sources import gather_fallback_content
 
-    # Build a short list of likely deep pages on the origin to try through
-    # Wayback — the homepage alone rarely captures "About/History" content.
-    # Generic paths only; locale prefixes and product paths are too site-
-    # specific to hard-code.
     wayback_candidates = [
         website.rstrip("/") + path
         for path in (
@@ -251,14 +246,15 @@ def _collect_fallback_content(
         )
     ]
 
-    # Grok surrogate is opt-in via env — it costs tokens. Default on because
-    # it catches pages Wayback doesn't have a snapshot for. Set
-    # PRIMR_DISABLE_GROK_SURROGATE=1 to skip.
+    from primr.utils.model_policy import model_calls_disabled
+
     grok_urls: list[str] | None = None
-    if os.getenv("PRIMR_DISABLE_GROK_SURROGATE", "0").lower() not in ("1", "true", "yes"):
-        # Prioritize high-value paths: about, history, leadership — where Grok's
-        # synthesis-from-public-sources is most valuable. Cap at 3 to control
-        # token spend.
+    surrogate_disabled = os.getenv("PRIMR_DISABLE_GROK_SURROGATE", "0").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    if allow_grok_surrogate and not surrogate_disabled and not model_calls_disabled():
         grok_urls = [
             website.rstrip("/") + path for path in ("/about", "/our-story", "/leadership")
         ][:3]
@@ -478,6 +474,7 @@ def fetch_web_content(
     max_pages: int | None = None,
     use_vision: bool = False,
     working_folder: str | None = None,
+    allow_model_fallbacks: bool = True,
 ) -> dict[str, str]:
     """
     build_site_corpus: Discover and scrape pages from a company website.
@@ -500,12 +497,15 @@ def fetch_web_content(
         max_pages: Maximum pages to scrape (default: no limit)
         use_vision: Enable vision tier for hard-to-scrape pages
         working_folder: If provided, save raw scrapes incrementally to this folder
+        allow_model_fallbacks: Allow billable model-backed recovery sources
 
     Returns:
         Dict mapping URL -> extracted text (cleaned, boilerplate removed)
     """
     import os
     from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    from primr.utils.model_policy import submit_with_model_policy
 
     from .scraping import (
         BoilerplateFilter,
@@ -517,14 +517,9 @@ def fetch_web_content(
     )
     from .scraping.blocked_summary import emit_blocked_site_summary
 
-    # Normalize so downstream helpers (validation prompts, fallback fan-out)
-    # never have to handle the None case themselves.
     company_name = company_name or ""
 
-    # Per-run scrape tracing: the orchestrator has always supported a
-    # TraceLogger (and logs every ScrapeResult through it), but production
-    # never constructed one — only the diagnostic vertical-slice path did.
-    # Without this, `primr doctor --scraper-stats` reads an empty directory.
+    # Enable production scrape tracing for diagnostics and health summaries.
     enable_scrape_tracing(company_name or "run")
 
     def _write_raw_file(file_path, url, tier, structured):
@@ -738,6 +733,7 @@ def fetch_web_content(
             website=website,
             raw_folder=raw_folder,
             append_trace=_append_trace,
+            allow_grok_surrogate=allow_model_fallbacks,
         )
         if fallback_content:
             console.done(f"Recovered {len(fallback_content)} page(s) from public fallbacks")
@@ -960,6 +956,7 @@ def fetch_web_content(
             website=website,
             raw_folder=raw_folder,
             append_trace=_append_trace,
+            allow_grok_surrogate=allow_model_fallbacks,
         )
         if fallback_content:
             console.done(f"Recovered {len(fallback_content)} page(s) from public fallbacks")
@@ -1233,7 +1230,9 @@ def fetch_web_content(
                     logger.debug(f"Scraping page {display_index}/{total}: {page_url}")
                     _append_trace("TRY", page_url, f"attempt {display_index}/{total}")
 
-                    future = scrape_pool.submit(_scrape_one_page, page_url, orchestrator)
+                    future = submit_with_model_policy(
+                        scrape_pool, _scrape_one_page, page_url, orchestrator
+                    )
                     futures[future] = (page_url, normalized, i)
 
                 for future in as_completed(futures):
@@ -1318,6 +1317,7 @@ def fetch_web_content(
             website=website,
             raw_folder=raw_folder,
             append_trace=_append_trace,
+            allow_grok_surrogate=allow_model_fallbacks,
         )
         for url, text in supplementary.items():
             scraped_content[url] = text

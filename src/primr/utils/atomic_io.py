@@ -14,9 +14,11 @@ original ``PermissionError`` so callers keep their existing error semantics.
 from __future__ import annotations
 
 import os
+import tempfile
 import time
+from pathlib import Path
 
-__all__ = ["atomic_replace"]
+__all__ = ["atomic_replace", "atomic_write_bytes", "atomic_write_text"]
 
 
 def atomic_replace(
@@ -53,3 +55,35 @@ def atomic_replace(
     # error handling runs unchanged.
     assert last_error is not None
     raise last_error
+
+
+def atomic_write_bytes(path: str | os.PathLike[str], content: bytes) -> None:
+    """Write bytes through a same-directory temporary file and atomic replace."""
+
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary_name = tempfile.mkstemp(
+        dir=target.parent,
+        prefix=f".{target.name}.",
+        suffix=".tmp",
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        atomic_replace(temporary, target)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def atomic_write_text(
+    path: str | os.PathLike[str],
+    content: str,
+    *,
+    encoding: str = "utf-8",
+) -> None:
+    """Write text atomically using the shared replace seam."""
+
+    atomic_write_bytes(path, content.encode(encoding))

@@ -1,11 +1,9 @@
 # API Key Setup Guide
 
 This guide covers obtaining, configuring, and securing the API keys used by
-Primr. Agent-host credentials such as Codex access tokens or Claude Code
-subscription OAuth are intentionally separate: they can operate Primr through a
-host today, and Codex CLI can run the experimental `fast.source_relevance`
-host-agent pilot, but they are not interchangeable with provider API keys for
-direct Primr model calls.
+Primr. Agent-host authentication remains inside the official host. A host can
+operate Primr, but Primr does not accept or relay host OAuth credentials as
+provider API keys.
 
 ## Recommended Credentials
 
@@ -36,27 +34,28 @@ seats. The intended Primr model is:
 - Use provider API keys for the supported direct full-report path today.
 - Use Codex/Claude Code/Cursor/VS Code MCP integrations to operate Primr from
   those tools today.
-- Use experimental host-agent runner mode only for compatible pilot stages
-  that have explicit routing support. Today, `--inference agent` can route
-  `fast.source_relevance` through the official Codex CLI when it is installed
-  and authenticated.
+- Use `primr-zero` inside a verified plan-backed host for the supported
+  plan-native path. Before describing the result as zero incremental spend,
+  confirm that the host will not bill API usage or overages.
 
 Do not paste ChatGPT or Claude web-session credentials into Primr. Do not route
-through unofficial subscription proxies. Host runners must use official
-surfaces only. The current Codex pilot uses `codex exec` with a read-only
-sandbox, disabled web search/shell-tool config, no approvals, no persisted
-history, and schema-constrained output. If Codex is unavailable under an
-explicit `--inference agent` run, Primr keeps all sources and records a
-fallback instead of silently spending cloud API dollars.
+through unofficial subscription proxies. An internal/eval-only Codex adapter
+uses official `codex exec` with a read-only sandbox, disabled web search and
+shell tools, no approvals, no persisted history, and schema-constrained output.
+It is not a supported inference profile. Codex can authenticate through a
+ChatGPT plan or an API key, and Primr cannot determine which billing mode an
+installed session uses. The adapter neither reads nor stores that credential
+and must not be advertised as a zero-cost route.
 
-| Host | Official credential shape | Notes |
-|------|---------------------------|-------|
-| Codex | ChatGPT sign-in for local use, or `CODEX_ACCESS_TOKEN` for trusted Enterprise/local automation | API-key sign-in is still usage-based OpenAI API billing |
-| Claude Code | `/login` subscription OAuth, or `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token` | `ANTHROPIC_API_KEY` can take precedence over subscription auth |
+| Host | Supported boundary | Notes |
+|------|--------------------|-------|
+| Codex | Use `primr-zero` inside an authenticated Codex host after verifying that the session is plan-backed and will not incur API usage or overages | Primr neither reads nor stores the host credential. The internal Codex eval adapter is not a supported user route, and API-key sign-in can mean usage-based OpenAI API billing. |
+| Claude Code | Use `primr-zero` inside the authenticated Claude Code host | Primr has no Claude Code in-pipeline runner and must never receive or relay Claude subscription OAuth credentials. Direct Anthropic calls require `ANTHROPIC_API_KEY`. |
 
 This keeps billing honest: API-keyed stages show estimated dollars, local stages
-show $0 API plus runtime, and host-agent stages should show plan usage/limits
-instead of pretending the subscription is a metered API key.
+show $0 API plus runtime, and a future host runner may claim plan usage only
+after that billing basis is proven or the operator explicitly acknowledges that
+metered API billing may apply.
 
 ### Search Provider Configuration
 

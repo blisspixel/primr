@@ -8,8 +8,14 @@ from typing import Any
 
 from primr.ai import stage_routing
 from primr.ai.host_agent_cli import run_host_agent_stage
-from primr.ai.host_agent_runner import HostAgentKind, HostAgentPolicy, HostAgentStagePacket
+from primr.ai.host_agent_runner import (
+    HostAgentBillingMode,
+    HostAgentKind,
+    HostAgentPolicy,
+    HostAgentStagePacket,
+)
 from primr.ai.llm import llm
+from primr.ai.provider_availability import LocalCapacityBusyError
 from primr.utils.observability import log_structured
 
 _SOURCE_RELEVANCE_OUTPUT_SCHEMA: dict[str, object] = {
@@ -54,7 +60,7 @@ SOURCES:
                 input_count=len(external_data),
                 output_count=len(external_data),
                 duration_seconds=time.monotonic() - start_time,
-                failure_class="agent_profile_unavailable",
+                failure_class=stage_routing.stage_route_failure_class(route),
             )
             return external_data
 
@@ -135,6 +141,28 @@ SOURCES:
                 dropped=dropped,
             )
         return filtered
+    except LocalCapacityBusyError as e:
+        if route is not None:
+            _record_source_route(
+                folder_path,
+                route,
+                outcome="fallback",
+                input_count=len(external_data),
+                output_count=len(external_data),
+                duration_seconds=time.monotonic() - start_time,
+                failure_class=stage_routing.stage_route_failure_class(route, e),
+                failure=e,
+                usage_delta=stage_routing.stage_usage_delta(usage_before)
+                if usage_before is not None
+                else None,
+            )
+        log_structured(
+            "warning",
+            "Source relevance local capacity busy",
+            source_count=len(external_data),
+            **e.as_metadata(),
+        )
+        raise
     except Exception as e:
         if route is not None:
             _record_source_route(
@@ -197,7 +225,11 @@ def _run_source_relevance_host_agent(
                 f"source_{idx}": summary for idx, summary in enumerate(source_summaries, start=1)
             },
             output_schema=_SOURCE_RELEVANCE_OUTPUT_SCHEMA,
-            policy=HostAgentPolicy(max_wall_seconds=180, max_output_chars=10_000),
+            policy=HostAgentPolicy(
+                billing_mode=HostAgentBillingMode(route.billing_mode),
+                max_wall_seconds=180,
+                max_output_chars=10_000,
+            ),
         ),
         kind=runner_kind,
     )
@@ -213,6 +245,7 @@ def _record_source_route(
     output_count: int,
     duration_seconds: float,
     failure_class: str | None = None,
+    failure: Exception | None = None,
     usage_delta: dict[str, Any] | None = None,
 ) -> None:
     stage_routing.record_stage_route_usage(
@@ -223,5 +256,6 @@ def _record_source_route(
         output_items=output_count,
         duration_seconds=duration_seconds,
         failure_class=failure_class,
+        failure=failure,
         usage_delta=usage_delta,
     )

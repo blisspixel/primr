@@ -6,6 +6,10 @@ import json
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+
+from primr.ai.host_agent_runner import HostAgentBillingMode
+from primr.ai.provider_availability import LocalCapacityBusyError
 from primr.core.research_agent import _assess_source_relevance
 
 
@@ -71,6 +75,52 @@ class TestAssessSourceRelevance:
         result = _assess_source_relevance("Acme", sources)
         assert result == sources
 
+    def test_local_capacity_busy_propagates_with_safe_route_metadata(self, monkeypatch, tmp_path):
+        sources = _ten_sources()
+        route = SimpleNamespace(
+            model_name="local-model",
+            execution_mode="llm",
+            reasons=("available",),
+            log_metadata=lambda: {
+                "stage_id": "fast.source_relevance",
+                "inference_profile": "local",
+                "backend_id": "local-model",
+                "backend_kind": "local",
+                "billing_mode": "zero_api_runtime",
+                "routed": True,
+                "execution_mode": "llm",
+                "route_reasons": ["available"],
+                "expected_input_tokens": 18_000,
+                "expected_output_tokens": 2_000,
+            },
+        )
+        busy_error = LocalCapacityBusyError(reason="local_capacity_timeout_busy")
+        busy_error.__cause__ = RuntimeError("private endpoint detail")
+        monkeypatch.setattr(
+            "primr.ai.stage_routing.resolve_stage_model",
+            MagicMock(return_value=route),
+        )
+        monkeypatch.setattr(
+            "primr.core.source_relevance.stage_routing.capture_stage_usage",
+            MagicMock(return_value={}),
+        )
+        monkeypatch.setattr(
+            "primr.core.source_relevance.llm",
+            MagicMock(side_effect=busy_error),
+        )
+
+        with pytest.raises(LocalCapacityBusyError) as caught:
+            _assess_source_relevance("Acme", sources, str(tmp_path))
+
+        assert caught.value is busy_error
+        state_text = (tmp_path / "_run_state.json").read_text(encoding="utf-8")
+        state = json.loads(state_text)
+        [record] = state["stage_routes"]
+        assert record["failure_class"] == "local_capacity_busy"
+        assert record["capacity_failure"]["state"] == "busy"
+        assert record["capacity_failure"]["retry_after_seconds"] == 1_800
+        assert "private endpoint detail" not in state_text
+
     def test_out_of_range_indices_filtered(self, monkeypatch):
         sources = _ten_sources()  # 10 sources, indices 1-10
         # Mix valid and out-of-range
@@ -110,6 +160,7 @@ class TestAssessSourceRelevance:
             model_name="codex-cli",
             execution_mode="host_agent",
             host_agent_kind="codex",
+            billing_mode="host_plan_usage",
             log_metadata=lambda: {
                 "stage_id": "fast.source_relevance",
                 "inference_profile": "agent",
@@ -139,6 +190,7 @@ class TestAssessSourceRelevance:
         assert "https://s0.example" in packet.evidence["source_1"]
         assert "content about Acme 0" in packet.evidence["source_1"]
         assert packet.output_schema == {"type": "array", "items": {"type": "integer"}}
+        assert packet.policy.billing_mode is HostAgentBillingMode.HOST_PLAN_USAGE
         assert host_mock.call_args.kwargs["kind"] == "codex"
         llm_mock.assert_not_called()
 

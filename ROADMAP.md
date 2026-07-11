@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.34.50
+Current State: v1.35.0
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -104,15 +104,18 @@ Current priority order:
    `fast.scrape_summary`, `fast.source_relevance`, and
    `fast.hiring_signals` now consume the capability router behind the
    `--inference cloud|hybrid` flag while executing through existing provider
-   seams, and `fast.source_relevance` has an experimental Codex CLI
-   host-agent path behind `--inference agent`. Runtime route resolution
+   seams. `fast.source_relevance` also has an internal/eval-only Codex CLI
+   adapter. It is not exposed through the public CLI because Codex
+   authentication does not prove whether execution uses plan allowance or
+   metered API-key billing. Runtime route resolution
    consumes sanitized env-only cloud provider availability snapshots by
    default, can accept injected quota snapshots, and records body-free
    availability metadata without collecting live quota data or probing local
    services during normal runs. All three routes record body-free usage
    metadata in `_run_state.json`, including measured token/cache/cost deltas
    when provider counters expose them. The other routed utility stages now also
-   fail closed under an explicit agent profile when no host adapter qualifies:
+   fail closed when the internal agent profile is exercised by tests or evals
+   and no host adapter qualifies:
    scrape summary writes deterministic source excerpts, hiring signals use
    deterministic triage plus posting metadata, and both record
    `agent_profile_unavailable` route fallbacks instead of invoking cloud LLMs;
@@ -260,7 +263,7 @@ into generic agent middleware.
 - Five providers wired: xAI (Grok), Google (Gemini), OpenAI, Anthropic, Ollama (local)
 - Provider abstraction at `src/primr/ai/providers/` - `Provider` ABC, `OpenAICompatibleProvider` (xAI/OpenAI/Ollama/vLLM), `GeminiProvider`, `AnthropicProvider`
 - `pick_model_for_role` chooses the best model from configured providers; `primr doctor` shows what each key unlocks
-- Pure capability router foundation shipped in `src/primr/ai/capability_routing.py`: `StageRequirements`, backend capability rows, cloud/agent/hybrid/local profiles, billing-mode guards, ordered route plans, explicit rejection reasons, and pure availability-to-backend annotation. Runtime consumption is now wired for `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` behind `--inference cloud|hybrid`, with an experimental Codex CLI host-agent path for `fast.source_relevance` behind `--inference agent`, and capped body-free route usage records persisted to `_run_state.json`.
+- Pure capability router foundation shipped in `src/primr/ai/capability_routing.py`: `StageRequirements`, backend capability rows, cloud/agent/hybrid/local profiles, billing-mode guards, ordered route plans, explicit rejection reasons, and pure availability-to-backend annotation. Runtime consumption is now wired for `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` behind `--inference cloud|hybrid`, with an internal/eval-only Codex CLI adapter for `fast.source_relevance` and capped body-free route usage records persisted to `_run_state.json`. Codex route metadata does not prove whether authentication is plan-backed or API-key billed.
 - Provider availability foundation shipped across `src/primr/ai/provider_availability.py` and `src/primr/ai/provider_availability_collectors.py`: normalized quota windows, binding headroom, elapsed-reset handling, stale last-known-good snapshots, deterministic provider ranking, non-secret cloud provider configuration snapshots, generic local OpenAI-compatible availability probes, sanitized routing metadata, and `primr doctor` visibility. Official live cloud quota/status collectors and production execution wiring remain planned.
 - Provider-aware fallback chain: WRITING/UTILITY prefer GEMINI > OPENAI > ANTHROPIC > XAI; REASONING prefers XAI (cached) > GEMINI > OPENAI > ANTHROPIC
 - Cross-provider dispatch in `grok_llm` and `llm()` so writing-tier calls reach the right provider when the resolved model is non-Grok
@@ -324,7 +327,7 @@ into generic agent middleware.
 - Product over middleware - integrations should act as a disciplined control plane for Primr's long-running research jobs, not turn Primr into a generic orchestration framework.
 - Artifact-first delivery - the main unit of value is a report, strategy, or evaluation artifact, not a stream of chat-sized tool responses.
 - The pipeline is the product - Primr's value is the 9-tier scraping engine, the org-aware link selection, the research deepening, the cross-validation, the deterministic QA gate, the eval harness, the crash recovery, and the cost estimation. None of these are model calls. The model is a commodity; the orchestration pipeline is the moat.
-- Credentials are transport, not product identity. API keys, official agent-account auth, enterprise gateways, and local models are all ways to run the same pipeline. Do not bake a provider, billing model, or subscription workaround into the core loop. The default routing goal is the lowest incremental spend that clears the measured quality bar: already-paid official host runners or local/gateway capacity when configured and explicitly approved, then the best validated sub-dollar direct API recipe, with premium paths opt-in and justified by measured lift. Direct APIs remain the reproducible baseline and fallback; host-account runners use sanctioned official automation, local CLI, or connector surfaces only; local/gateway profiles are validated recipes, not second-class forks. As local AI hardware improves, the same eval gate should let $0 API local stages graduate from utility support to hybrid default, and eventually to full-run default where they honestly match the quality bar.
+- Credentials are transport, not product identity. API keys, official agent-account auth, enterprise gateways, and local models are all ways to run the same pipeline. Do not bake a provider, billing model, or subscription workaround into the core loop. The default routing goal is the lowest incremental spend that clears the measured quality bar: local or gateway capacity when configured and explicitly approved, then any official host runner whose billing basis is proven or explicitly acknowledged, then the best validated sub-dollar direct API recipe, with premium paths opt-in and justified by measured lift. Direct APIs remain the reproducible baseline and fallback. An official automation seam alone does not prove plan-backed billing, so the Codex in-pipeline adapter remains internal/eval-only. `primr-zero` is the supported plan-native path, with host OAuth and session state kept inside the host. Local and gateway profiles are validated recipes, not second-class forks. As local AI hardware improves, the same eval gate should let $0 API local stages graduate from utility support to hybrid default, and eventually to full-run default where they honestly match the quality bar.
 
 Primr is intentionally not designed as a generic web scraper, a SaaS collaboration platform, a presentation builder, or a generic agent middleware layer.
 
@@ -467,11 +470,12 @@ pipeline, not just its perimeter. Design doc:
 The step-change that earns the major bump is three pillars landing together:
 
 - **Backend freedom** - the capability-requirement routing layer (#18) plus
-  validated API-keyed cloud, account-capacity agent runner, gateway, and
-  local/hybrid inference profiles, so a run is cost-tunable from already-paid
-  host plan usage where official automation exists or $0 local through sub-$1
-  cloud, up to premium only when measured lift justifies it, *without changing
-  the pipeline*. Local is not a permanent low-quality tier; it is a measured path
+  validated API-keyed cloud, billing-verifiable host runner, gateway, and
+  local/hybrid inference profiles, so a run is cost-tunable from proven or
+  explicitly acknowledged host billing, or $0 API local, through sub-$1 cloud
+  and up to premium only when measured lift justifies it, *without changing the
+  pipeline*. `primr-zero` remains the supported plan-native path while embedded
+  host runners are not billing-verifiable. Local is not a permanent low-quality tier; it is a measured path
   that should automatically move up the default order as desktop-class models
   and hardware pass stage-level evals. Design doc:
   [`docs/design/2.0-backend-freedom.md`](docs/design/2.0-backend-freedom.md).
@@ -592,9 +596,10 @@ Each step unblocks the ones after it; items within a step are independent.
 6. **Backend freedom** (#18 + provider expansion) (2.0):
    capability-requirement routing and provider-availability headroom first
    (pure refactors of existing routing), then first-class OpenAI/Anthropic API
-   recipes, official account-capacity runners, gateway recipes, hybrid-mode
-   eval, and full-local eval. Depends on step 1's instruments to judge each
-   backend's quality honestly.
+   recipes, official host runners with proven billing provenance or explicit
+   operator acknowledgment, gateway recipes, hybrid-mode eval, and full-local
+   eval. Depends on step 1's instruments to judge each backend's quality
+   honestly.
 7. **Memory layer 1 → 2 → 3** (2.0): persistent company tracking (filesystem,
    no new deps) → claim store + priming (SQLite + embeddings) → Strategy
    Delta Mode. Layer 3 also depends on the per-user cache (#12, shipped) and
@@ -922,7 +927,7 @@ Reduce manual work when new model variants drop by automating the eval-and-compa
 
 ### 18. Capability-Requirement Routing Layer
 
-Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The first stage-requirements slice is in place as a pure router, and `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` now consume it at runtime behind `--inference cloud|hybrid` with route usage metadata persisted in the run state; the remaining work is broader production wiring, provider-health integration, official host/local adapters, and per-stage eval-backed tuning.
+Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The first stage-requirements slice is in place as a pure router, and `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` now consume it at runtime behind `--inference cloud|hybrid` with route usage metadata persisted in the run state. The Codex adapter remains internal/eval-only until its billing basis can be proven or explicitly acknowledged; the remaining work is broader production wiring, provider-health integration, billing-verifiable host/local adapters, and per-stage eval-backed tuning.
 
 - **Shipped foundation:** `StageRequirements`, `BackendCapabilities`, `RoutingPolicy`, and `route_stage()` return ordered cloud/gateway/host-agent/local candidates with explicit rejection reasons and no live provider calls
 - **Shipped availability foundation:** `ProviderQuotaSnapshot`, `QuotaWindow`, `availability_decision()`, and `provider_with_most_headroom()` normalize provider quota windows and stale last-known-good service availability without live provider calls
@@ -930,7 +935,7 @@ Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The firs
 - **Shipped router bridge:** `backend_with_availability()` and `backends_with_availability()` apply provider snapshots to backend capability rows and attach sanitized availability metadata before `route_stage()`
 - **Shipped doctor visibility:** `primr doctor` now shows sanitized provider availability from the same generic snapshots, without paid cloud probes or local endpoint leakage
 - Production-stage requirements are declared in `core/stage_inventory.py`: minimum reasoning depth, trust sensitivity, required capabilities, token/context estimates, and acceptable backend families
-- Runtime bridge shipped in `ai/stage_routing.py`: `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` resolve their legacy utility models through `route_stage()`, log safe route metadata, append capped body-free `stage_routes` records to `_run_state.json`, include measured token/cache/cost deltas when provider counters expose them, and execute through the existing utility provider seams with today's role defaults preserved as fallback. Under an explicit agent profile, stages without a host adapter now record `agent_profile_unavailable` and use deterministic local output rather than silently falling back to cloud LLMs.
+- Runtime bridge shipped in `ai/stage_routing.py`: `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` resolve their legacy utility models through `route_stage()`, log safe route metadata, append capped body-free `stage_routes` records to `_run_state.json`, include measured token/cache/cost deltas when provider counters expose them, and execute through the existing utility provider seams with today's role defaults preserved as fallback. When tests or evals exercise the internal agent profile, stages without a host adapter record `agent_profile_unavailable` and use deterministic local output rather than silently falling back to cloud LLMs. The public CLI remains `cloud|hybrid`.
 - Stage route comparison artifacts shipped in `core/stage_route_comparison.py`: run-state route records can be aggregated by stage/backend/profile into body-free JSON and Markdown summaries with attempts, selected/fallback/failure counts, latency, and measured token/cache/cost deltas
 - Stage eval scorecards shipped in `core/stage_eval_scorecard.py` with CLI artifact flow behind `primr --eval --eval-stage-scorecard`: explicit quality evidence can now be joined with route comparison rows to classify candidates as human-review-ready, needing quality eval, below quality bar, or needing reliability review without auto-promotion
 - Stage scorecard MCP readback shipped in `mcp_server/stage_scorecard_summary.py`: `primr://eval/stage_scorecard/{eval_id}` returns compact route, quality-score, status, and blocker fields from the eval artifact without arbitrary path reads, prompt bodies, report bodies, quality-source bodies, or raw run-state content
@@ -1092,7 +1097,7 @@ Surfaced building a skill pack for a specialized, non-technical role at a large 
 - **Authoring quality patterns**: intake/elicitation opening, worked input→output example per skill, explicit scope guardrail, and human checkpoint are now baked into `author_skill.yaml` and guarded by `BODY-QUALITY`. The role-family reference is now generated once from structured role evidence and attached as `references/role-family.md` across every skill in the role family, replacing per-skill role-reference duplication that could drift. Cross-refs #15.
 - **Cowork packaging refresh - DONE (2026-06-19)**: refreshed against Microsoft Learn's current Cowork docs. Plugin manifests still cap `agentSkills` at 20 entries, while OneDrive custom skills allow up to 50 user-created skills; companion files are supported up to 20 files / 5 MB each / 10 MB total per skill, and `SKILL.md` is capped at 1 MB. The packager now emits a valid Cowork zip by limiting the manifest/package to the first valid 20 skills while preserving the full unpacked Agent Skills tree, filters over-limit companions locally, and surfaces the cap in the pack report. Cross-refs #15.
 
-### 26. Provider Expansion: API Keys, Account-Capacity Agents, Gateways, $0 Local Profile
+### 26. Provider Expansion: API Keys, Billing-Verifiable Host Runners, Gateways, $0 Local Profile
 
 There is no reason the pipeline must be Grok + Gemini; that pairing is the
 measured default, not a dependency. Research verified against provider docs
@@ -1116,18 +1121,23 @@ full catalog, integration traps, and phased delivery plan in
   reads and writes per provider, and tests prove caching is disabled when it
   would increase expected cost. No background pre-warming, cache keepalives,
   paid refresh loops, or 1-hour TTL defaults.
-- **Phase B**: account-capacity runners for users already paying for sanctioned
-  agent-host allocation. This is not "use a consumer plan as an API key." It
-  means Primr emits bounded stage packets to official local automation,
-  connector, or agent-skill surfaces, receives structured outputs, and keeps
-  the harness in charge of order, spend approval, egress, disk writes, and eval.
-  Each host requires an official automation or connector seam before any runner
-  is promoted. No unofficial proxies, browser-session scraping, credential
-  reuse, or repo-owned account assumptions. Billing is reported as host plan
-  usage/limits rather than Primr API dollars, and any transition to API credits
-  remains explicitly user-approved in the host. Once a runner is configured and
-  has passed eval, it should be eligible for default routing on compatible
-  stages because its incremental API cost is zero.
+- **Phase B**: billing-verifiable host runners for sanctioned agent surfaces.
+  This is not "use a consumer plan as an API key." Primr may emit bounded stage
+  packets only through official local automation, connector, or agent-skill
+  surfaces while keeping the harness in charge of order, spend approval,
+  egress, disk writes, and eval. An official automation seam is necessary but
+  not sufficient: before public promotion, Primr must either prove whether the
+  authenticated host session is plan-backed or require the operator to
+  acknowledge that metered API billing may apply. No unofficial proxies,
+  browser-session scraping, credential reuse, or repo-owned account assumptions.
+  The Codex `fast.source_relevance` adapter is shipped only as an internal/eval
+  pilot; public CLI profiles remain `cloud|hybrid`, and its route metadata does
+  not prove billing mode. The supported plan-native slice for users with no key
+  or GPU is `primr prep` plus the portable `primr-zero` skill. Collection uses a
+  hard no-model-call policy, host credentials stay inside the host, and zero
+  incremental spend is promised only after the host is verified not to bill API
+  usage or overages. Next work remains stage-scoped eval, trustworthy billing
+  provenance or acknowledgment, and additional official runner adapters.
 - **Phase C**: Bedrock (mantle endpoint, plain API-key auth) and Microsoft
   Foundry (`/openai/v1`, stock openai SDK) as base-URL + key profiles over
   the existing OpenAI-compatible provider - near-zero new code; doctor
@@ -1607,6 +1617,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.35.0 | Jul 2026 | **Hard-zero host-assisted research and defensive local capacity.** Added `primr prep` for deterministic no-model evidence collection, a wheel-packaged `primr-zero` skill for plan-native synthesis, explicit billing verification, and bounded local-capacity busy guidance. Model-call guards, source provenance, evidence fencing, retry propagation, roadmap parsing, architecture maps, and code-graph freshness were hardened together. |
 | 1.34.50 | Jul 2026 | **Durable background jobs and stable operator contracts.** Background Deep Research interactions remain recoverable until their owning output boundary verifies all required artifacts. CLI, MCP, A2A, hosted, and application APIs share a versioned body-free job-status projection. MCP jobs now write to isolated job directories with correlated manifests, while CLI and MCP artifact reads share a bounded newest-first inventory covering deliverables and diagnostics without fuzzy cross-run ownership. |
 | 1.34.49 | Jul 2026 | **Recovery status clarity and durable explicit finalization.** `--check-jobs` is now read-only and shows both pending cloud work and the latest local run state. `--resume-latest` owns canonical output finalization and provider-terminal acknowledgement, retains recoverability on empty or partial output, reports mixed failures through nonzero exit codes, and keeps CLI help, dry-run guidance, API examples, and recovery documentation aligned. |
 | 1.34.48 | Jul 2026 | **CLI clarity, runtime consistency, and release integrity.** Default dry-runs now end with concise lifecycle guidance, long phases show their supplied duration expectations, and init/doctor help is command-specific. Python 3.12 is enforced consistently across setup, diagnostics, containers, cloud templates, Ruff, CI, and release builds. Releases now require an immutable tag commit on green `main`, locked tooling, non-empty notes, strict documentation, and exact PyPI filename/hash verification. Calibration baseline decision artifacts and inspections also gain body-free gate recommendations, operator decision templates, explicit local/cloud cost policy, and trustworthy readback without applying a gate automatically. |
@@ -1615,7 +1626,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 | 1.34.45 | Jul 2026 | **Cost-estimate parity and deep-path trust visibility.** `--verify` (post-QA claim verification) is now priced by all three run-approval surfaces - the interactive confirm prompt, `--dry-run`, and the `--budget` pre-flight gate - through one shared estimate-shaping helper, and the confirm prompt now also prices `--grok-tier`. The always-on, judge-free "Label Citations" trust row (how many `(Confirmed)`/`(Reported)` claims cite a resolvable source) is machine-readable in the fast-run QA metrics and now renders on the deep and `--premium` paths too, which previously shipped with no trust summary at all. |
 | 1.34.44 | Jul 2026 | **Post-release hardening.** A maintenance bug hunt over the 1.34.43 surfaces closed the last unfenced hiring-signal→prompt boundary (the block inside `insights.txt`, read unfenced by the AI-strategy and workbook-fallback prompts), made the interactive cost-confirm gate price `--strategy-type` documents like `--dry-run` already does, stopped estimates from dropping the AI-strategy cost when a strategy list also names `ai`, and fixed two stale `CostGuardHook` import examples in `docs/API.md`. |
 | 1.34.43 | Jul 2026 | **Cost-accounting integrity, prompt-injection fencing, and observability.** A cost-control bug hunt fixed a per-vendor `--budget` overrun, an unlocked token-counter race, quadratic usage-history duplication, phantom DDG search cost, and a `sync_spend` double-count; `--dry-run` and the pre-flight gate now price `--strategy-type` documents. Remaining fast-run scraped-text prompt boundaries are now data-fenced, and hiring signals ride into the CLI Deep Research paths. `show-usage` gains a cost-variability regression signal, `output/` and `working/` self-document, and Windows state writes consolidate on the retrying `atomic_replace` seam. |
-| 1.34.42 | Jul 2026 | **Agent-profile cost safety for remaining routed utility stages.** Explicit `agent` profile unavailability now fails closed for `fast.scrape_summary` and `fast.hiring_signals`: scrape summary writes deterministic source excerpts, hiring signals uses deterministic triage plus posting metadata, both stages record body-free `agent_profile_unavailable` route fallbacks, and neither stage silently calls a cloud LLM when no official host runner qualifies. |
+| 1.34.42 | Jul 2026 | **Internal agent-profile cost safety for remaining routed utility stages.** Internal/eval `agent` profile unavailability now fails closed for `fast.scrape_summary` and `fast.hiring_signals`: scrape summary writes deterministic source excerpts, hiring signals uses deterministic triage plus posting metadata, both stages record body-free `agent_profile_unavailable` route fallbacks, and neither stage silently calls a cloud LLM when no official host runner qualifies. This profile is not a public CLI surface. |
 | 1.34.41 | Jul 2026 | **Sonnet 5, cost guardrails, and metadata-first output reads.** Claude Sonnet 5 is now registered and routed with conservative pricing, adaptive-thinking request shaping, assistant-prefill rejection, and a 30% dry-run tokenizer safety factor. xAI image generation and other hidden-spend paths now require explicit opt-in, security scanning remains clean for current code and secrets, authenticated MCP/A2A output reads stay metadata-first, and full report text moves to explicit report-body read paths with ownership and output negotiation. |
 | 1.34.40 | Jun 2026 | **A2A research approval and budget parity.** `estimate_research` now returns the same approval-token fields as MCP `estimate_run`, and A2A `research_company` enforces `max_estimated_cost_usd` plus a matching approval token when cost-cap enforcement is active before any job is created. The accepted cap is propagated into `PipelineRunner` as the runtime budget, and A2A audit events record sanitized estimate/cap metadata without raw URLs, message text, or approval tokens. |
 | 1.34.39 | Jun 2026 | **A2A label-calibration summary readback.** Added read-scoped `read_calibration_summary_by_job` to the A2A AgentCard and executor, backed by the same ownership-gated `primr://output/calibration_summary/by_job/{job_id}` compact summary contract as MCP. The skill returns per-label traceability counts, inference source-copy counts, evidence-review count buckets, judge metadata, and judge-agreement metadata without raw claims, source URLs, evidence reviews, rationales, or report body content. |
@@ -1627,10 +1638,10 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 | 1.34.33 | Jun 2026 | **A2A artifact metadata readback.** Added read-scoped `read_artifacts_by_job` to the A2A AgentCard and executor, backed by the same ownership-gated `primr://output/artifacts/by_job/{job_id}` compact metadata contract as MCP. The skill returns artifact names, paths, hashes, sizes, timestamps, missing-file state, and types without report body content. |
 | 1.34.32 | Jun 2026 | **A2A compact scorecard readback.** Added read-scoped `read_stage_scorecard` to the A2A AgentCard and executor, backed by the same compact `primr://eval/stage_scorecard/{eval_id}` summary contract as MCP. The skill returns route, quality-score, status, blocker, and artifact metadata without prompt bodies, report bodies, quality-source bodies, or raw run-state content. |
 | 1.34.31 | Jun 2026 | **Source-relevance eval evidence.** Added `--eval-source-relevance-fixture` to turn labeled source keep-list fixtures into body-free precision, recall, F1, exact-match, and stage quality evidence for `fast.source_relevance` scorecards. The host-agent source packet now also keeps untrusted source snippets in fenced evidence instead of embedding them in host-agent instructions. |
-| 1.34.30 | Jun 2026 | **First official host-agent pilot.** Added an experimental Codex CLI host-runner transport for `--inference agent` on `fast.source_relevance`. The runner uses official `codex exec`, a read-only sandbox, no approvals, disabled web search/shell-tool config, no persisted history, a JSON-array output schema, and bounded output/time limits. Route metadata records the host backend and billing mode without prompt or response bodies. If no official host runner qualifies under an explicit agent profile, the stage keeps all sources and records `agent_profile_unavailable` instead of silently falling back to cloud API spend. |
+| 1.34.30 | Jun 2026 | **First internal host-agent pilot.** Added an internal/eval-only Codex CLI transport for `fast.source_relevance`. The runner uses official `codex exec`, a read-only sandbox, no approvals, disabled web search/shell-tool config, no persisted history, a JSON-array output schema, and bounded output/time limits. Route metadata records the declared host route category without prompt or response bodies, but it does not prove whether Codex authentication is plan-backed or API-key billed. If no runner qualifies under the internal agent profile, the stage keeps all sources and records `agent_profile_unavailable` instead of silently falling back to cloud API spend. The public CLI remains `cloud|hybrid`. |
 | 1.34.29 | Jun 2026 | **Third routed utility stage.** Routed `fast.hiring_signals` through the capability-router bridge, passing the selected model into the existing hiring triage and extraction LLM seams while preserving fail-open behavior and the legacy utility fallback path. The stage now appends capped body-free `stage_routes` records with expected token budget, discovered/produced counts, duration, backend, profile, billing, and fallback metadata, and the hiring-signal artifact helpers are split out to keep the architecture line ratchet green. |
 | 1.34.28 | Jun 2026 | **Second routed utility stage.** Routed `fast.scrape_summary` through the same capability-router bridge as source relevance, passing the selected model into the existing summarizer LLM seam and appending capped body-free `stage_routes` records with expected token budget, input page count, output summary count, duration, backend, profile, billing, and fallback metadata. |
-| 1.34.27 | Jun 2026 | **Route usage metadata.** Added capped body-free `stage_routes` records in `_run_state.json`, including selected backend, profile, billing mode, route/fallback reasons, expected stage token budget, latency, source counts, and failure class for the routed `fast.source_relevance` stage. Extracted the relevance filter into `core/source_relevance.py` and lowered the `research_agent.py` architecture ratchet. |
+| 1.34.27 | Jun 2026 | **Route usage metadata.** Added capped body-free `stage_routes` records in `_run_state.json`, including selected backend, profile, declared billing category, route/fallback reasons, expected stage token budget, latency, source counts, and failure class for the routed `fast.source_relevance` stage. This metadata describes routing policy and does not prove an external host session's actual billing basis. Extracted the relevance filter into `core/source_relevance.py` and lowered the `research_agent.py` architecture ratchet. |
 | 1.34.26 | Jun 2026 | **First routed utility stage.** Added `--inference cloud|hybrid`, `ai/stage_routing.py`, and runtime capability-router consumption for `fast.source_relevance`; the stage logs safe route metadata, passes the selected model into `llm()`, and preserves today's role default as fallback. |
 | 1.34.25 | Jun 2026 | **Long-context and cache-token estimate honesty.** Added detailed model cost breakdowns for live input, cached input, output, selected tier, and long-context surcharge; populated OpenAI GPT-5.x long-context tier metadata across mini/nano variants; surfaced cached-token estimate fields from historical usage while keeping pre-run cache savings at zero unless observed. |
 | 1.34.24 | Jun 2026 | **Gemini provider-owned quota guidance.** Moved terminal Gemini quota copy into `GeminiProvider` through a provider-owned guidance object; the legacy `llm()` path now renders that guidance generically while preserving current operator-facing output and error behavior. |
@@ -1666,7 +1677,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 | 1.32.8 | Jun 2026 | **Skill pack draft quality release.** Released the accumulated `primr skills` quality work: clean Agent Skills frontmatter by default, stronger procedural skill bodies, role-family references, JD and segmented career-board evidence inputs, posting-coverage honesty, Cowork packaging caps, business-role archetypes, and safer archetype matching so weak fuzzy guesses do not steer draft skills into unrelated templates. |
 | 1.32.7 | Jun 2026 | **4090 local report race.** Added a focused `4090-report-race` local eval model shortlist and documented the RTX 4090 path as a concrete `$0 API vs sub-dollar API` validation track. The goal is to answer whether a single 24 GB local GPU can clear Primr's trust, utility, provenance, and runtime bar before spending on repeated API report runs. |
 | 1.32.6 | Jun 2026 | **Capability routing foundation.** Added the pure stage-level backend router for the backend-freedom workstream: `StageRequirements`, backend capability rows, cloud/agent/hybrid/local profiles, billing-mode guards, ordered route plans, and explicit rejection reasons. It is side-effect-free, fake-backend tested, and not yet wired into full-report execution. Also hardened the OpenClaw TypeScript adapter tests so macOS CI warms `npx --yes tsx` before adapter assertions instead of timing out on first cold start. |
-| 1.32.5 | Jun 2026 | **Host-agent runner seam and account-backed roadmap alignment.** Added a bounded host-agent stage-packet contract with explicit billing policy, evidence fencing, normalized runner metadata, and fake-runner tests. README, ROADMAP, API-key docs, backend-freedom docs, provider-expansion docs, and the agentic-balance doctrine now draw the same boundary: direct provider API keys are the supported full-run path today; official Codex/Claude Code style host runners are planned opt-ins; no unofficial subscription proxies or browser-session scraping. MCP doctor now recognizes XAI, Gemini/Google, OpenAI, and Anthropic direct provider keys. |
+| 1.32.5 | Jun 2026 | **Host-agent runner seam and account-backed roadmap alignment.** Added a bounded host-agent stage-packet contract with explicit billing policy, evidence fencing, normalized runner metadata, and fake-runner tests. Direct provider API keys remained the supported full-run path; official Codex/Claude Code style runners were planned opt-ins. Subsequent policy clarification keeps an embedded runner internal/eval-only until billing provenance is proven or explicitly acknowledged, with `primr-zero` as the supported plan-native path. No unofficial subscription proxies or browser-session scraping are allowed. MCP doctor now recognizes XAI, Gemini/Google, OpenAI, and Anthropic direct provider keys. |
 | 1.32.4 | Jun 2026 | **Outbound URL validation hardening.** Released the pending security sweep for hosted image fetches, Google grounding redirects, and path containment, then closed additional SSRF seams across HTTP HEAD, AI preflight website checks, and Wayback replay fetches. Invalid URL ports now fail validation cleanly, post-redirect checks are covered by regression tests, MCP SSRF logs redact userinfo/query/fragment, and local plus remote gates passed with 84.98% branch coverage. |
 | 1.32.3 | Jun 2026 | **Provider setup and preflight validation cleanup.** README, ROADMAP, and artifact docs now reflect current standard-run estimates, provider opt-in setup, and coverage wording. `primr init`, `doctor`, and config validation now accept any configured cloud LLM provider key at setup time, while the full-report preflight honestly allows XAI-only execution and fails fast for OpenAI-only or Anthropic-only full runs until the remaining backend-freedom work lands. Dry-run estimates now use the provider-routed standard estimate for OpenAI-only and Anthropic-only setups, price the utility bucket through `Role.UTILITY`, and avoid stale Grok/Gemini premium wording. |
 | 1.32.2 | Jun 2026 | **Correctness bug-hunt round with regression tests.** Fixed 14 verified issues across security, scraping, AI provider parsing, output rendering, QA grading, budget accounting, resume handling, and dependency floors. Highlights: out-of-range URL ports no longer crash SSRF validation; modern OpenAI key forms are redacted; trailing-dot numeric IPs hit the SSRF backstop; cross-provider utility calls are mirrored into usage/cost accounting; Anthropic thinking blocks no longer break response parsing; DOCX table separators no longer render as data rows; citation bibliography headings accept trailing words; vision-tier empty-content errors are typed; CSV injection sanitization handles leading whitespace; `azure-identity` floor raised for GHSA-m5vv-6r4h-3vj9. |

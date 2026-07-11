@@ -15,6 +15,7 @@ import json
 import re
 from typing import TYPE_CHECKING, Any
 
+from primr.ai.provider_availability import LocalCapacityBusyError
 from primr.utils.content_sanitizer import fence_untrusted
 from primr.utils.logging_config import get_logger
 
@@ -60,6 +61,10 @@ def _extract_signals(
     """Run the batched extraction LLM call. Returns a dict that mirrors
     the HiringSignals schema fields, or None on failure.
     """
+    from primr.utils.model_policy import model_calls_disabled
+
+    if model_calls_disabled():
+        return None
     from primr.ai.grok_client import grok_llm
 
     body_blocks: list[str] = []
@@ -119,6 +124,8 @@ Postings follow. Tags in [brackets] like [STALE] are hints — consider them.
             max_tokens=4_000,
             retries=1,
         )
+    except LocalCapacityBusyError:
+        raise
     except Exception as e:
         logger.warning("Hiring-signals extraction LLM call failed: %s", e)
         return None

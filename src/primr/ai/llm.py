@@ -59,6 +59,7 @@ from primr.config.env import load_primr_env
 from primr.config.models import PrimrModels
 from primr.utils.chat_logger import log_chat_interaction
 from primr.utils.logging_config import get_logger
+from primr.utils.model_policy import require_model_calls_allowed
 
 load_primr_env()
 
@@ -153,6 +154,7 @@ def llm(
     Returns:
         str: AI-generated response (cleaned text).
     """
+    require_model_calls_allowed("LLM generation")
     model_name = model or _get_model_for_type(model_type)
     config = PrimrModels.get_model_config(model_name)
     if config is not None and config.provider == "xai":

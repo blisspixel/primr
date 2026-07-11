@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from primr.ai.provider_availability import LocalCapacityBusyError
 from primr.data import hiring_signals as hs
 from primr.data.hiring_signals import (
     HiringSignals,
@@ -708,6 +709,66 @@ class TestGatherHiringSignalsE2E:
         assert "response" not in record
         assert "url" not in record
 
+    @pytest.mark.parametrize("busy_step", ["triage", "extraction"])
+    def test_local_capacity_busy_propagates_from_both_hiring_paths(self, tmp_path, busy_step):
+        fixture_body = json.dumps(GREENHOUSE_FIXTURE).encode()
+        route = SimpleNamespace(
+            model_name="local-model",
+            execution_mode="llm",
+            reasons=("available",),
+            log_metadata=lambda: {
+                "stage_id": "fast.hiring_signals",
+                "inference_profile": "local",
+                "backend_id": "local-model",
+                "backend_kind": "local",
+                "billing_mode": "zero_api_runtime",
+                "routed": True,
+                "execution_mode": "llm",
+                "route_reasons": ["available"],
+                "expected_input_tokens": 45_000,
+                "expected_output_tokens": 4_000,
+            },
+        )
+        busy_error = LocalCapacityBusyError(reason="local_capacity_timeout_busy")
+        busy_error.__cause__ = RuntimeError("private endpoint detail")
+
+        def fake_http_get(url, timeout, headers=None, params=None):
+            if "greenhouse" in url:
+                return 200, fixture_body, None
+            return 404, b"", None
+
+        def fake_grok_llm(prompt, **kwargs):
+            if "Pick up to" in prompt:
+                if busy_step == "triage":
+                    raise busy_error
+                return '{"selected": [0]}'
+            raise busy_error
+
+        with (
+            patch.object(hs, "_http_get", side_effect=fake_http_get),
+            patch("primr.ai.stage_routing.resolve_stage_model", return_value=route),
+            patch(
+                "primr.data.hiring_signals.stage_routing.capture_stage_usage",
+                return_value={},
+            ),
+            patch("primr.ai.grok_client.grok_llm", side_effect=fake_grok_llm),
+            pytest.raises(LocalCapacityBusyError) as caught,
+        ):
+            gather_hiring_signals(
+                "Acme Corp",
+                "https://acme.com",
+                working_folder=str(tmp_path),
+            )
+
+        assert caught.value is busy_error
+        state_text = (tmp_path / "_run_state.json").read_text(encoding="utf-8")
+        state = json.loads(state_text)
+        [record] = state["stage_routes"]
+        assert record["failure_class"] == "local_capacity_busy"
+        assert record["capacity_failure"]["state"] == "busy"
+        assert record["capacity_failure"]["retry_after_seconds"] == 1_800
+        assert "private endpoint detail" not in state_text
+
     def test_unavailable_agent_route_uses_metadata_without_llm(self, tmp_path):
         fixture_body = json.dumps(GREENHOUSE_FIXTURE).encode()
         route = SimpleNamespace(
@@ -775,6 +836,53 @@ class TestGatherHiringSignalsE2E:
         assert "prompt" not in record
         assert "response" not in record
         assert "url" not in record
+
+    def test_unavailable_local_adapter_route_records_accurate_failure(self, tmp_path):
+        fixture_body = json.dumps(GREENHOUSE_FIXTURE).encode()
+        route = SimpleNamespace(
+            model_name="",
+            execution_mode="unavailable",
+            reasons=("local_adapter_unavailable", "no_paid_fallback"),
+            log_metadata=lambda: {
+                "stage_id": "fast.hiring_signals",
+                "inference_profile": "local",
+                "backend_id": "local-adapter-unavailable",
+                "backend_kind": "local",
+                "billing_mode": "zero_api_runtime",
+                "routed": False,
+                "execution_mode": "unavailable",
+                "route_reasons": ["local_adapter_unavailable", "no_paid_fallback"],
+                "availability": {"available": True, "state": "available"},
+                "expected_input_tokens": 45_000,
+                "expected_output_tokens": 4_000,
+            },
+        )
+
+        def fake_http_get(url, timeout, headers=None, params=None):
+            if "greenhouse" in url:
+                return 200, fixture_body, None
+            return 404, b"", None
+
+        with (
+            patch.object(hs, "_http_get", side_effect=fake_http_get),
+            patch("primr.ai.stage_routing.resolve_stage_model", return_value=route),
+            patch(
+                "primr.ai.grok_client.grok_llm",
+                side_effect=AssertionError("cloud LLM should not run"),
+            ),
+        ):
+            signals = gather_hiring_signals(
+                "Acme Corp",
+                "https://acme.com",
+                working_folder=str(tmp_path),
+                max_selected=1,
+            )
+
+        assert signals is not None
+        state = json.loads((tmp_path / "_run_state.json").read_text(encoding="utf-8"))
+        [record] = state["stage_routes"]
+        assert record["failure_class"] == "local_adapter_unavailable"
+        assert record["availability"] == {"available": True, "state": "available"}
 
 
 # =============================================================================

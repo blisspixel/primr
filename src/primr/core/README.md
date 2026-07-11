@@ -1,140 +1,60 @@
-# Core Module
+# Core Package
 
-This module contains the research orchestration logic that coordinates all other modules.
+`primr.core` owns the CLI and the orchestration that turns one company request
+into research artifacts. Collection belongs in `primr.data`, model execution in
+`primr.ai`, rendering in `primr.output`, and analysis gates in `primr.qa`.
 
-## Components
+## Concern map
 
-### Research Orchestrator (`research_orchestrator.py`)
+| Area | Modules | Responsibility |
+|------|---------|----------------|
+| CLI surface | `cli.py`, `cli_*.py` | Parsing, noun/verb dispatch, preflight, estimates, budgets, recovery, and command output |
+| Shared run entry | `research_agent.py` | CLI research dispatch, recon integration, mode selection, and final run coordination |
+| Default pipeline | `fast_run_setup.py`, `fast_run_collection.py`, `fast_run_hiring.py`, `fast_run_gaps.py`, `fast_run_workbook.py`, `fast_run_sections.py`, `fast_run_validation.py`, `fast_run_trust.py`, `fast_run_strategy.py`, `fast_run_summary.py` | Ten extracted, independently tested fast-pipeline stages |
+| Stage support | `insights_assembly.py`, `fast_mode_helpers.py`, `section_*.py`, `report_cleanup.py` | Pure assembly, planning, parsing, prompting, and cleanup helpers used by the stage modules |
+| Deep and premium paths | `research_orchestrator.py`, `deep_research_runner.py`, `deep_run_summary.py`, `deep_run_trust.py` | Structured and Deep Research orchestration, trust processing, and finalization |
+| Stage capabilities | `stage_inventory.py`, `stage_route_comparison.py`, `stage_eval_scorecard.py` | Production requirements plus body-free route and evaluation evidence |
+| Source selection | `source_relevance.py`, `source_relevance_eval.py`, `context_curation.py` | Source filtering, bounded context preparation, and evaluation fixtures |
+| Strategy | `ai_strategy.py`, `ai_strategy_runtime.py`, `strategy_*.py` | Strategy prompt assembly, generation loops, platform context, and artifacts |
+| Workspace and state | `workspace.py`, `run_state_io.py`, `resilience_listeners.py` | Working directories, durable local state, events, and recovery signals |
+| Domain types | `report_models.py`, `research_framing.py`, `hypothesis_tree.py` | Report data, operator framing, and hypothesis structures |
+| Composition | `container.py` | Dependency injection for replaceable clients and stores |
 
-The central coordinator that routes research requests to the appropriate engine.
+## Current execution shape
 
-```python
-from primr.core.research_orchestrator import (
-    ResearchOrchestrator,
-    ResearchMode,
-    ResearchConfig,
-    OrchestratorResult
-)
-
-orchestrator = ResearchOrchestrator()
-result = await orchestrator.research(
-    "Acme Corp",
-    "https://acme.example",
-    mode=ResearchMode.COMPLETE
-)
+```text
+primr.core.cli:main
+        |
+        +-> validate input, run preflight, estimate, enforce approval/budget
+        |
+        v
+research_agent.perform_research
+        |
+        +-> scrape request: site corpus and insights
+        +-> default full request: extracted fast_run stages
+        +-> deep or premium request: Deep Research orchestration
+        |
+        v
+output rendering, QA, verification, inventory, and usage records
 ```
 
-### Research Modes
+The public command choices are the default full run, `--mode scrape`,
+`--mode deep`, and the opt-in `--premium` path. Internal names such as
+`scrape-only`, `deep-research`, `structured`, and `complete` are compatibility
+and dispatch details, not additional user-facing pipelines.
 
-| Mode | Description | Duration |
-|------|-------------|----------|
-| `STRUCTURED` | Website scraping + web search | 20-25 min |
-| `DEEP_RESEARCH` | Autonomous web research | 10-15 min |
-| `COMPLETE` | Two-phase: structured then deep | 30-40 min |
+The detailed fast-stage data flow is documented in
+`docs/design/23-orchestrator-refactor-map.md`. Current command selection and
+cost behavior are documented in `docs/RUN_MODES.md`.
 
-### Research Agent (`research_agent.py`)
+## Package boundaries
 
-The main research pipeline for Scrape Mode:
-
-```python
-from primr.core.research_agent import run_research, perform_research
-
-# Synchronous API
-sections = run_research("Acme Corp", "https://acme.example")
-
-# CLI entry point
-perform_research("Acme Corp", "https://acme.example", mode="full")
-```
-
-### Report Models (`report_models.py`)
-
-Data structures for research results and reports.
-
-### Container (`container.py`)
-
-Dependency injection container for component wiring.
-
-## Complete Mode Architecture
-
-Complete Mode uses a 4-phase architecture:
-
-```
-Phase 0: Data Collection
-    └── Structured Pipeline (scraping + search)
-    └── Context File Generation
-    └── File Search Store Upload
-
-Phase 1: Planning
-    └── Master Architect
-    └── Chapter Plan (10 chapters)
-
-Phase 2: Parallel Execution
-    └── Research Node Executor
-    └── 3 concurrent Deep Research tasks
-    └── Shared File Search Store context
-
-Phase 3: Aggregation
-    └── Report Aggregator
-    └── TOC generation
-    └── Citation consolidation
-```
-
-## Key Patterns
-
-### Progress Callbacks
-
-All research methods support progress callbacks:
-
-```python
-def on_progress(message: str):
-    print(f"Progress: {message}")
-
-result = await orchestrator.research(
-    "Acme Corp",
-    "https://acme.example",
-    on_progress=on_progress
-)
-```
-
-### Graceful Degradation
-
-If Phase 0 fails, Complete Mode continues with limited context:
-
-```python
-if not structured_result.success:
-    logger.warning("Structured Pipeline failed, continuing with limited context")
-```
-
-### Metrics Emission
-
-Research operations emit structured metrics:
-
-```python
-self._emit_research_metrics(
-    operation="research",
-    company_name=company_name,
-    mode=mode.value,
-    duration=duration,
-    success=True,
-    section_count=len(result.section_results)
-)
-```
-
-## CLI Entry Point
-
-The CLI is defined in `research_agent.py`:
-
-```bash
-primr "Acme Corp" https://acme.example --mode full
-primr doctor
-primr --check-jobs
-```
-
-## Configuration
-
-Research behavior is configured via:
-
-- `ResearchConfig`: Per-request configuration
-- `AIConfig`: AI model settings
-- `ScrapingConfig`: Scraping behavior
-- `PathConfig`: Output directories
+- New orchestration enters through the existing run and stage seams instead of
+  creating another site-to-report workflow.
+- Billable execution remains behind estimate, approval, and runtime budget
+  policy.
+- Async-to-sync calls use `primr.utils.async_utils.run_sync`.
+- Console, logging, configuration, and atomic state writes use the shared seams
+  named in the root `CLAUDE.md`.
+- MCP and A2A background job ownership stays in their transport packages; core
+  supplies research operations and artifacts.
