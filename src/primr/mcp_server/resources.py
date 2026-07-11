@@ -429,28 +429,52 @@ def _read_research_status(mcp_server: "PrimrMCPServer") -> list[ReadResourceCont
             error_message=job.error_message,
         )
 
-    # Serialize to JSON
-    data = {
-        "status": status.status.value,
-        "job_id": status.job_id,
-        "company_name": status.company_name,
-        "mode": status.mode.value if status.mode else None,
-        "start_time": status.start_time.isoformat() if status.start_time else None,
-        "current_stage": status.current_stage.value if status.current_stage else None,
-        "stage_progress_percent": status.stage_progress_percent,
-        "stage_started_at": status.stage_started_at.isoformat()
-        if status.stage_started_at
-        else None,
-        "last_heartbeat_time": status.last_heartbeat_time.isoformat()
-        if status.last_heartbeat_time
-        else None,
-        "stage_expected_minutes": status.stage_expected_minutes,
-        "possibly_stuck": status.possibly_stuck,
-        "completion_time": status.completion_time.isoformat() if status.completion_time else None,
-        "output_paths": status.output_paths,
-        "error_type": status.error_type,
-        "error_message": status.error_message,
-    }
+    from primr.job_status import build_job_status
+
+    data = build_job_status(
+        job_id=status.job_id,
+        source="agent_job",
+        status=status.status,
+        company_name=status.company_name,
+        mode=status.mode,
+        stage=status.current_stage,
+        percent=status.stage_progress_percent,
+        possibly_stuck=status.possibly_stuck,
+        started_at=status.start_time,
+        updated_at=status.last_heartbeat_time,
+        completed_at=status.completion_time,
+        artifacts_available=(
+            bool(status.output_paths) if status.status == JobStatus.COMPLETED else None
+        ),
+        error_message=status.error_message,
+        error_code=status.error_type,
+        error_source="agent_job" if status.error_message else None,
+    )
+    data.update(
+        {
+            "status": status.status.value,
+            "job_id": status.job_id,
+            "company_name": status.company_name,
+            "mode": status.mode.value if status.mode else None,
+            "start_time": status.start_time.isoformat() if status.start_time else None,
+            "current_stage": status.current_stage.value if status.current_stage else None,
+            "stage_progress_percent": status.stage_progress_percent,
+            "stage_started_at": status.stage_started_at.isoformat()
+            if status.stage_started_at
+            else None,
+            "last_heartbeat_time": status.last_heartbeat_time.isoformat()
+            if status.last_heartbeat_time
+            else None,
+            "stage_expected_minutes": status.stage_expected_minutes,
+            "possibly_stuck": status.possibly_stuck,
+            "completion_time": status.completion_time.isoformat()
+            if status.completion_time
+            else None,
+            "output_paths": status.output_paths,
+            "error_type": status.error_type,
+            "error_message": status.error_message,
+        }
+    )
 
     return [
         ReadResourceContents(

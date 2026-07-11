@@ -517,16 +517,34 @@ def _process_results(config: DeepResearchConfig, result: Any) -> dict[str, str |
 
     # Generate DOCX
     if result.raw_content:
+        durable_report_paths: list[Path] = []
         docx_path = _convert_deep_research_to_docx(
-            result.raw_content, config.company_name or config.display_name, config.website
+            result.raw_content,
+            config.company_name or config.display_name,
+            config.website,
+            written_paths=durable_report_paths,
         )
         outputs["docx_path"] = docx_path
+
+        pending_interaction_id = getattr(result, "pending_interaction_id", "")
+        if isinstance(pending_interaction_id, str) and pending_interaction_id:
+            from primr.ai.job_persistence import acknowledge_pending_job_after_outputs
+
+            if not docx_path or not acknowledge_pending_job_after_outputs(
+                pending_interaction_id, durable_report_paths
+            ):
+                console.warn(
+                    "Deep Research output is incomplete; its pending job remains recoverable."
+                )
 
     return outputs
 
 
 def _convert_deep_research_to_docx(
-    markdown_content: str, company_name: str, website: str | None
+    markdown_content: str,
+    company_name: str,
+    website: str | None,
+    written_paths: list[Path] | None = None,
 ) -> str | None:
     """
     Convert Deep Research markdown to DOCX and other formats.
@@ -549,11 +567,15 @@ def _convert_deep_research_to_docx(
         # Save markdown
         md_path = Path(OUTPUT_DIR) / f"{base_name}.md"
         md_path.write_text(markdown_content, encoding="utf-8")
+        if written_paths is not None:
+            written_paths.append(md_path)
         console.ok(f"MD saved: {base_name}.md", show_time=False)
 
         # Save plain text
         txt_path = Path(OUTPUT_DIR) / f"{base_name}.txt"
         txt_path.write_text(markdown_content, encoding="utf-8")
+        if written_paths is not None:
+            written_paths.append(txt_path)
         console.ok(f"TXT saved: {base_name}.txt", show_time=False)
 
         # Build subtitle
@@ -585,6 +607,8 @@ def _convert_deep_research_to_docx(
             )
 
         console.ok(f"DOCX saved: {docx_path.name}", show_time=False)
+        if written_paths is not None:
+            written_paths.append(docx_path)
         return str(docx_path)
 
     except Exception as e:

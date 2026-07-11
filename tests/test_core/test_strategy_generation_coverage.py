@@ -252,6 +252,7 @@ def test_docx_permission_error_retries_with_timestamp(tmp_path: Path):
     fake_result = MagicMock()
     fake_result.status = ResearchStatus.COMPLETED
     fake_result.content = "# Strategy body"
+    fake_result.interaction_id = "interaction-123"
 
     client = MagicMock()
     client.research = AsyncMock(return_value=fake_result)
@@ -320,6 +321,7 @@ def test_docx_generic_error_falls_back_to_md(tmp_path: Path):
             "primr.core.strategy_generation.markdown_to_docx",
             side_effect=RuntimeError("boom"),
         ),
+        patch("primr.ai.job_persistence.acknowledge_pending_job_after_outputs") as acknowledge_mock,
     ):
         mock_settings.return_value.api.gemini_key = "fake"
         result = generate_generic_strategy(
@@ -332,6 +334,7 @@ def test_docx_generic_error_falls_back_to_md(tmp_path: Path):
     # Falls back to md path on DOCX conversion failure
     assert result is not None
     assert result.endswith(".md")
+    acknowledge_mock.assert_not_called()
 
 
 @pytest.mark.parametrize("write_txt", [True, False])

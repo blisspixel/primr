@@ -8,7 +8,7 @@ Usage:
 import sys
 
 from primr.ai.deep_research import DeepResearchClient
-from primr.ai.job_persistence import remove_pending_job
+from primr.ai.job_persistence import acknowledge_pending_job_after_outputs
 
 
 def retrieve_research(interaction_id: str) -> None:
@@ -61,7 +61,7 @@ def retrieve_research(interaction_id: str) -> None:
                     )
 
         print(f"\nSaved to: {output_file}")
-        if not remove_pending_job(interaction_id):
+        if not acknowledge_pending_job_after_outputs(interaction_id, [output_file]):
             print(
                 "Report saved, but its pending job record could not be removed; "
                 "a later status check may list it again."

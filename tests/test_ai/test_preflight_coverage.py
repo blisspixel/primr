@@ -251,34 +251,15 @@ async def test_check_models_flash_api_key_invalid(validator):
 
 
 @pytest.mark.asyncio
-async def test_check_models_deep_research_rate_limited_warns(validator):
+async def test_check_models_deep_research_does_not_launch_probe(validator):
     fake_client = MagicMock()
-    fake_client.interactions.create.side_effect = Exception("429 too many requests")
     with patch("google.genai.Client", return_value=fake_client):
         errors, warnings, checks = [], [], {}
         await validator._check_models("deep", errors, warnings, checks, _noop)
-    assert any("rate limited" in w for w in warnings)
-    assert checks["deep_research"]["passed"] is True
-
-
-@pytest.mark.asyncio
-async def test_check_models_deep_research_not_found(validator):
-    fake_client = MagicMock()
-    fake_client.interactions.create.side_effect = Exception("agent not found")
-    with patch("google.genai.Client", return_value=fake_client):
-        errors, warnings, checks = [], [], {}
-        await validator._check_models("deep", errors, warnings, checks, _noop)
-    assert any("agent not available" in e for e in errors)
-
-
-@pytest.mark.asyncio
-async def test_check_models_deep_research_generic_error(validator):
-    fake_client = MagicMock()
-    fake_client.interactions.create.side_effect = Exception("kaboom transient")
-    with patch("google.genai.Client", return_value=fake_client):
-        errors, warnings, checks = [], [], {}
-        await validator._check_models("deep", errors, warnings, checks, _noop)
-    assert any("connectivity error" in e for e in errors)
+    assert errors == []
+    assert warnings == []
+    assert checks["deep_research"]["status"] == "configured"
+    fake_client.interactions.create.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

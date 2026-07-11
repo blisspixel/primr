@@ -430,6 +430,15 @@ class AccordionTestRunner:
             with open(output_path, "w", encoding="utf-8") as f:
                 f.write(final_content)
 
+            interaction_id = dossier_result.get("interaction_id", "")
+            if isinstance(interaction_id, str) and interaction_id:
+                from primr.ai.job_persistence import acknowledge_pending_job_after_outputs
+
+                if not acknowledge_pending_job_after_outputs(interaction_id, [output_path]):
+                    logger.warning(
+                        "Accordion output was not durable; the pending job remains recoverable"
+                    )
+
             duration = time.time() - start_time
 
             if on_progress:
@@ -673,6 +682,13 @@ Write the **{section["title"]}** section now:"""
             )
 
             interaction_id = interaction.id
+            from primr.ai.job_persistence import save_pending_job
+
+            save_pending_job(
+                interaction_id=interaction_id,
+                job_type="accordion_test",
+                description=prompt[:200],
+            )
             if on_progress:
                 on_progress(f"Research started: {interaction_id[:20]}...")
 
@@ -705,6 +721,7 @@ Write the **{section["title"]}** section now:"""
                     return {
                         "success": True,
                         "content": content.strip(),
+                        "interaction_id": interaction_id,
                     }
 
                 elif status == "failed":
@@ -713,6 +730,7 @@ Write the **{section["title"]}** section now:"""
                         "success": False,
                         "error": str(error),
                         "content": "",
+                        "interaction_id": interaction_id,
                     }
 
                 poll_count += 1

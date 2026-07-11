@@ -266,6 +266,35 @@ class TestArtifactMetadataByJobResource:
         assert data["artifacts"][1]["exists"] is False
 
     @pytest.mark.asyncio
+    async def test_expands_exact_format_siblings_only(self, server, tmp_path):
+        report = tmp_path / "report.v2.md"
+        docx = tmp_path / "report.v2.docx"
+        unrelated = tmp_path / "unrelated.txt"
+        report.write_text("body", encoding="utf-8")
+        docx.write_bytes(b"docx")
+        unrelated.write_text("other", encoding="utf-8")
+        job = server.job_store.create("Acme Corp", "full")
+        job.output_paths = [str(report)]
+        server.job_store.update(job)
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/artifacts/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        assert {row["file_name"] for row in data["artifacts"]} == {
+            report.name,
+            docx.name,
+        }
+        assert data["truncated"] is False
+
+    @pytest.mark.asyncio
     async def test_returns_no_artifacts_for_job_without_outputs(self, server):
         job = server.job_store.create("Acme Corp", "full")
 
@@ -503,12 +532,13 @@ class TestUsageSummaryByJobResource:
     async def test_reads_owned_job_usage_summary_without_manifest_body(self, server, tmp_path):
         report = tmp_path / "report.md"
         report.write_text("# Report body", encoding="utf-8")
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
         manifest = tmp_path / "run_manifest.json"
         manifest.write_text(
             json.dumps(
                 {
                     "schema_version": "1.0",
-                    "job_id": "job-secret-body",
+                    "job_id": job.job_id,
                     "company_name": "Acme Corp",
                     "company_url": "https://secret.example",
                     "mode": "full",
@@ -546,7 +576,6 @@ class TestUsageSummaryByJobResource:
             ),
             encoding="utf-8",
         )
-        job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
         job.output_paths = [str(report)]
         job.advance_stage(ResearchStage.COMPLETED)
         server.job_store.update(job)
@@ -636,7 +665,7 @@ class TestUsageSummaryByJobResource:
         manifest = tmp_path / "run_manifest.json"
         manifest.write_text('{"estimate": {"token": "secret"', encoding="utf-8")
         job = server.job_store.create("Acme Corp", "full")
-        job.output_paths = [str(report)]
+        job.output_paths = [str(report), str(manifest)]
         server.job_store.update(job)
 
         handler = server.server.request_handlers[ReadResourceRequest]
@@ -1701,3 +1730,16 @@ class TestUnknownResource:
                     params=ReadResourceRequestParams(uri="primr://unknown"),
                 )
             )
+
+
+@pytest.mark.parametrize(
+    "manifest_body",
+    ["not json", "[]", '{"job_id":"another-job"}'],
+)
+def test_adjacent_manifest_requires_correlated_object(tmp_path, manifest_body):
+    from primr.mcp_server.artifact_resources import _job_manifest_paths
+
+    report = tmp_path / "report.md"
+    report.write_text("body", encoding="utf-8")
+    (tmp_path / "run_manifest.json").write_text(manifest_body, encoding="utf-8")
+    assert _job_manifest_paths([str(report)], "job-1") == []

@@ -339,11 +339,17 @@ class TestResumePendingJobs:
                 "primr.core.cli_recovery._save_recovered_outputs",
                 return_value={"md": "a.md", "docx": "a.docx", "txt": "a.txt"},
             ),
-            patch("primr.ai.job_persistence.remove_pending_job") as remove_mock,
+            patch(
+                "primr.ai.job_persistence.acknowledge_pending_job_after_outputs",
+                return_value=True,
+            ) as acknowledge_mock,
         ):
             assert resume_pending_jobs() == 0
 
-        remove_mock.assert_called_once_with("j1")
+        acknowledge_mock.assert_called_once()
+        interaction_id, paths = acknowledge_mock.call_args.args
+        assert interaction_id == "j1"
+        assert list(paths) == ["a.md", "a.docx", "a.txt"]
 
     def test_keeps_completed_job_when_finalization_fails(self, tmp_path, monkeypatch):
         client = Mock()

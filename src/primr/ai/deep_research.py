@@ -108,6 +108,7 @@ class ResearchProgress:
     thought: str | None = None
     partial_result: str | None = None
     timestamp: datetime = field(default_factory=datetime.now)
+    interaction_id: str = ""
 
 
 @dataclass
@@ -236,7 +237,9 @@ from primr.ai.job_persistence import (
     get_pending_jobs as get_pending_jobs,
 )
 from primr.ai.job_persistence import (
-    remove_pending_job,
+    remove_pending_job as remove_pending_job,
+)
+from primr.ai.job_persistence import (
     save_pending_job,
 )
 
@@ -540,9 +543,6 @@ class DeepResearchClient:
                         search_queries_count=search_count,
                     )
 
-                    # Remove from pending jobs
-                    remove_pending_job(interaction_id)
-
                     logger.info(
                         f"Research completed in {result.duration_seconds:.0f}s, {search_count} searches"
                     )
@@ -551,9 +551,6 @@ class DeepResearchClient:
                 elif status == "failed":
                     error_msg = getattr(interaction, "error", "Unknown error")
                     logger.error(f"Research failed: {error_msg}")
-
-                    # Remove from pending jobs
-                    remove_pending_job(interaction_id)
 
                     return ResearchResult(
                         content="",
@@ -608,65 +605,61 @@ class DeepResearchClient:
         query: str,
         output_format: str | None = None,
     ) -> AsyncIterator[ResearchProgress]:
-        """
-        Execute deep research with streaming progress.
-
-        Yields progress updates including thought summaries as the
-        research progresses.
-
-        Args:
-            query: The research query/prompt
-            output_format: Optional format hint
-
-        Yields:
-            ResearchProgress updates
-
-        Example:
-            async for progress in client.research_stream("Research Acme Corp"):
-                if progress.thought:
-                    print(f"Thinking: {progress.thought}")
-                if progress.partial_result:
-                    print(f"Result: {progress.partial_result}")
-        """
+        """Stream progress while retaining the interaction for caller recovery."""
         prompt = self._build_prompt(query, output_format)
+        interaction_id = ""
 
         try:
             # Start streaming research
             stream = self._start_research_stream(prompt)
 
             for chunk in stream:
-                # Capture interaction ID
                 if chunk.event_type == "interaction.start":
-                    # Skip - parent callback already showed "Research started"
-                    pass
+                    interaction = getattr(chunk, "interaction", None)
+                    value = getattr(interaction, "id", None) or getattr(
+                        chunk, "interaction_id", None
+                    )
+                    if isinstance(value, str) and value:
+                        interaction_id = value
+                        save_pending_job(
+                            interaction_id=value,
+                            job_type="deep_research_stream",
+                            description=prompt[:200],
+                        )
 
-                # Track event ID for reconnection
                 if hasattr(chunk, "event_id") and chunk.event_id:
                     pass
 
-                # Handle content updates
                 if chunk.event_type == "content.delta":
                     if hasattr(chunk.delta, "type"):
                         if chunk.delta.type == "text":
                             yield ResearchProgress(
-                                status=ResearchStatus.IN_PROGRESS, partial_result=chunk.delta.text
+                                status=ResearchStatus.IN_PROGRESS,
+                                partial_result=chunk.delta.text,
+                                interaction_id=interaction_id,
                             )
                         elif chunk.delta.type == "thought_summary":
                             yield ResearchProgress(
-                                status=ResearchStatus.IN_PROGRESS, thought=chunk.delta.content.text
+                                status=ResearchStatus.IN_PROGRESS,
+                                thought=chunk.delta.content.text,
+                                interaction_id=interaction_id,
                             )
 
                 # Handle completion
                 if chunk.event_type == "interaction.complete":
                     yield ResearchProgress(
-                        status=ResearchStatus.COMPLETED, message="Research complete"
+                        status=ResearchStatus.COMPLETED,
+                        message="Research complete",
+                        interaction_id=interaction_id,
                     )
                     break
 
                 # Handle errors
                 if chunk.event_type == "error":
                     yield ResearchProgress(
-                        status=ResearchStatus.FAILED, message=f"Research failed: {chunk}"
+                        status=ResearchStatus.FAILED,
+                        message=f"Research failed: {chunk}",
+                        interaction_id=interaction_id,
                     )
                     break
 
@@ -1278,8 +1271,6 @@ Frame everything as hypotheses to explore, not conclusions."""
                 content = self._extract_content(interaction)
                 citations = self._extract_citations(interaction)
                 search_count = self._extract_search_queries_count(interaction)
-                remove_pending_job(interaction_id)
-
                 logger.info(
                     f"Research completed in {time.time() - start_time:.0f}s, {search_count} searches"
                 )
@@ -1293,7 +1284,6 @@ Frame everything as hypotheses to explore, not conclusions."""
                 )
 
             error_msg = getattr(interaction, "error", "Unknown error")
-            remove_pending_job(interaction_id)
             logger.error(f"Research failed: {error_msg}")
             return ResearchResult(
                 content="",
@@ -2122,6 +2112,11 @@ class DeepResearchOrchestrator:
             interaction = self._client.interactions.create(**create_kwargs)
         interaction_id = interaction.id
         logger.info(f"Deep Research started: {interaction_id}")
+        save_pending_job(
+            interaction_id=interaction_id,
+            job_type="deep_research",
+            description=prompt[:200],
+        )
 
         # Show single "Research started" message
         if on_progress:
@@ -2544,6 +2539,7 @@ Write the content now, following the formatting rules above.""",
         written_sections: list[dict[str, str]] = []
         all_citations: list[dict[str, str]] = []
         total_search_queries = 0  # Accumulate search queries from all phases
+        base_interaction_id = ""
 
         try:
             # ================================================================
@@ -2795,6 +2791,7 @@ Write the content now, following the formatting rules above.""",
                 duration_seconds=time.time() - start_time,
                 success=bool(written_sections),
                 error=str(e),
+                interaction_id=base_interaction_id,
                 api_calls=self._api_call_count,
                 sections_written=len(written_sections),
                 search_queries_count=total_search_queries,

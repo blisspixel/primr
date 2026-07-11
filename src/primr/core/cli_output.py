@@ -4,8 +4,8 @@ Centralizes the ``--json`` output contract so stdout stays a clean, stable JSON
 object for agents and CI. The builders are pure (testable); ``emit_json`` is the
 single place a JSON result is written to stdout.
 
-Contract: in ``--json`` mode, stdout carries exactly one JSON object on success
-(exit 0). Progress chrome is suppressed so it cannot interleave with the JSON.
+Contract: in ``--json`` mode, stdout carries exactly one JSON object, including
+truthful nonzero structured results. Progress chrome cannot interleave with it.
 """
 
 from __future__ import annotations

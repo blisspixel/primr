@@ -84,6 +84,7 @@ nav:
   - Reference:
       - Next steps: NEXT_STEPS.md
       - MCP & A2A API: API.md
+      - Job Status Contract: JOB_STATUS.md
       - Strategy portfolio: STRATEGY_PORTFOLIO.md
       - Eval v1.24 decision log: EVAL_V1_24_0.md
       - Changelog: CHANGELOG.md

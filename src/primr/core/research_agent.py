@@ -3585,8 +3585,8 @@ def perform_deep_research(
                 with open(raw_md_path, "w", encoding="utf-8") as f:
                     f.write(result.raw_content)
 
-            # Generate final report - use direct markdown conversion for Deep Research
             with console.timed_operation("Generating documents"):
+                durable_report_paths: list[Path] = []
                 if result.raw_content and mode in ("deep-research", "complete", "hybrid"):
                     # Deep Research: convert markdown directly to DOCX (preserves structure)
                     docx_path = _convert_deep_research_to_docx(
@@ -3596,6 +3596,7 @@ def perform_deep_research(
                         output_dir=run_output_dir,
                         diagnostics_dir=diagnostics_dir,
                         write_txt=write_txt,
+                        written_paths=durable_report_paths,
                     )
                 else:
                     # Structured pipeline: use DocumentBuilder to assemble sections
@@ -3605,6 +3606,17 @@ def perform_deep_research(
                         output_dir=run_output_dir,
                         diagnostics_dir=diagnostics_dir,
                         write_txt=write_txt,
+                    )
+
+            pending_interaction_id = getattr(result, "pending_interaction_id", "")
+            if isinstance(pending_interaction_id, str) and pending_interaction_id:
+                from primr.ai.job_persistence import acknowledge_pending_job_after_outputs
+
+                if not docx_path or not acknowledge_pending_job_after_outputs(
+                    pending_interaction_id, durable_report_paths
+                ):
+                    console.warn(
+                        "Deep Research output is incomplete; its pending job remains recoverable."
                     )
 
             if is_simple_deep_research:
@@ -3877,27 +3889,9 @@ def _convert_deep_research_to_docx(
     output_dir: str | Path | None = None,
     diagnostics_dir: str | Path | None = None,
     write_txt: bool = True,
+    written_paths: list[Path] | None = None,
 ) -> str | None:
-    """
-    Convert Deep Research markdown output to all output formats.
-
-    This bypasses the DocumentBuilder and preserves the exact structure
-    that Deep Research produces. The AI follows the prompt's section
-    structure, so we just convert it cleanly to Word format.
-
-    Outputs:
-    - {company}_Strategic_Overview_{date}.md  - Raw markdown
-    - {company}_Strategic_Overview_{date}.txt - Plain text
-    - {company}_Strategic_Overview_{date}.docx - Word document
-
-    Args:
-        markdown_content: Raw markdown from Deep Research
-        company_name: Name of the company
-        website: Company website URL
-
-    Returns:
-        Path to generated DOCX file, or None on failure
-    """
+    """Convert Deep Research markdown to validated MD, TXT, and DOCX outputs."""
     from primr.output.markdown_converter import markdown_to_docx
     from primr.output.output_utils import OUTPUT_DIR
 
@@ -3918,6 +3912,8 @@ def _convert_deep_research_to_docx(
         md_path = destination_dir / f"{base_name}.md"
         with open(md_path, "w", encoding="utf-8") as f:
             f.write(markdown_content)
+        if written_paths is not None:
+            written_paths.append(md_path)
         console.ok(f"MD saved: {base_name}.md", show_time=False)
 
         # Save plain text (.txt). For custom output directories, keep this
@@ -3927,6 +3923,8 @@ def _convert_deep_research_to_docx(
             txt_path = (destination_dir if write_txt else internal_dir) / f"{base_name}.txt"
             with open(txt_path, "w", encoding="utf-8") as f:
                 f.write(markdown_content)
+            if written_paths is not None:
+                written_paths.append(txt_path)
             if write_txt:
                 console.ok(f"TXT saved: {base_name}.txt", show_time=False)
         if salvaged:
@@ -4011,6 +4009,8 @@ def _convert_deep_research_to_docx(
             )
 
         console.ok(f"DOCX saved: {docx_path.name}", show_time=False)
+        if written_paths is not None:
+            written_paths.append(docx_path)
         return str(docx_path)
 
     except Exception as e:

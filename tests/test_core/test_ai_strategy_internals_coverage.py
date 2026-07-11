@@ -176,14 +176,20 @@ async def test_generate_ai_strategy_success(tmp_path, monkeypatch):
                 "txt": str(tmp_path / "s.txt"),
             },
         ),
-        patch("primr.ai.job_persistence.remove_pending_job") as remove_mock,
+        patch(
+            "primr.ai.job_persistence.acknowledge_pending_job_after_outputs",
+            return_value=True,
+        ) as acknowledge_mock,
     ):
         result = await generate_ai_strategy(company_name="Acme", platform="azure")
 
     assert result.success is True
     assert result.content == "# Strategy content"
     assert result.vendor_research_paths == ["/v/azure.txt"]
-    remove_mock.assert_called_once_with("iid-recovered")
+    acknowledge_mock.assert_called_once_with(
+        "iid-recovered",
+        [str(tmp_path / "s.docx"), str(tmp_path / "s.md"), str(tmp_path / "s.txt")],
+    )
 
 
 @pytest.mark.asyncio
@@ -211,12 +217,12 @@ async def test_generate_ai_strategy_retains_recovered_job_when_outputs_are_parti
             "primr.core.ai_strategy._save_strategy_outputs",
             return_value={"docx": None, "md": str(tmp_path / "s.md"), "txt": None},
         ),
-        patch("primr.ai.job_persistence.remove_pending_job") as remove_mock,
+        patch("primr.ai.job_persistence.acknowledge_pending_job_after_outputs") as acknowledge_mock,
     ):
         result = await generate_ai_strategy(company_name="Acme", platform="azure")
 
     assert result.success is False
-    remove_mock.assert_not_called()
+    acknowledge_mock.assert_not_called()
 
 
 @pytest.mark.asyncio

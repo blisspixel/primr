@@ -142,6 +142,61 @@ def test_process_results_no_raw_content(tmp_path):
     assert "docx_path" not in outputs
 
 
+def test_process_results_acknowledges_only_canonical_outputs(tmp_path):
+    config = DeepResearchConfig(
+        company_name="Acme", website=None, mode=DeepResearchMode.DEEP_RESEARCH
+    )
+    research_result = MagicMock(
+        section_results={},
+        raw_content="# Report",
+        pending_interaction_id="interaction-123",
+    )
+
+    def convert(_content, _company, _website, written_paths):
+        paths = [tmp_path / "report.md", tmp_path / "report.txt", tmp_path / "report.docx"]
+        for path in paths:
+            path.write_text("content", encoding="utf-8")
+        written_paths.extend(paths)
+        return str(paths[-1])
+
+    with (
+        patch("primr.core.deep_research_runner.create_working_folder", return_value=str(tmp_path)),
+        patch("primr.core.deep_research_runner.save_section_output"),
+        patch(
+            "primr.core.deep_research_runner._convert_deep_research_to_docx", side_effect=convert
+        ),
+        patch(
+            "primr.ai.job_persistence.acknowledge_pending_job_after_outputs",
+            return_value=True,
+        ) as acknowledge_mock,
+    ):
+        _process_results(config, research_result)
+
+    paths = [tmp_path / "report.md", tmp_path / "report.txt", tmp_path / "report.docx"]
+    acknowledge_mock.assert_called_once_with("interaction-123", paths)
+
+
+def test_process_results_retains_job_when_conversion_fails(tmp_path):
+    config = DeepResearchConfig(
+        company_name="Acme", website=None, mode=DeepResearchMode.DEEP_RESEARCH
+    )
+    research_result = MagicMock(
+        section_results={},
+        raw_content="# Report",
+        pending_interaction_id="interaction-123",
+    )
+    with (
+        patch("primr.core.deep_research_runner.create_working_folder", return_value=str(tmp_path)),
+        patch("primr.core.deep_research_runner.save_section_output"),
+        patch("primr.core.deep_research_runner._convert_deep_research_to_docx", return_value=None),
+        patch("primr.ai.job_persistence.acknowledge_pending_job_after_outputs") as acknowledge_mock,
+    ):
+        outputs = _process_results(config, research_result)
+
+    assert outputs["docx_path"] is None
+    acknowledge_mock.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # _execute_research
 # ---------------------------------------------------------------------------

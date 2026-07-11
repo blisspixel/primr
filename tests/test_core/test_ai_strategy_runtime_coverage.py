@@ -210,6 +210,7 @@ def test_deep_research_success(tmp_path: Path):
 
     fake_result = MagicMock()
     fake_result.content = "# Deep strategy body"
+    fake_result.interaction_id = "interaction-123"
 
     client = MagicMock()
     client.research = AsyncMock(return_value=fake_result)
@@ -234,7 +235,14 @@ def test_deep_research_success(tmp_path: Path):
             "sys.modules",
             {"primr.ai.deep_research": fake_dr_module},
         ),
-        patch("primr.core.ai_strategy_runtime.markdown_to_docx"),
+        patch(
+            "primr.core.ai_strategy_runtime.markdown_to_docx",
+            side_effect=lambda output_path, **_kwargs: output_path.write_bytes(b"docx"),
+        ),
+        patch(
+            "primr.ai.job_persistence.acknowledge_pending_job_after_outputs",
+            return_value=True,
+        ) as acknowledge_mock,
     ):
         mock_settings.return_value.api.gemini_key = "fake"
         mock_vpath.return_value = tmp_path / "no-agnostic.txt"
@@ -247,6 +255,43 @@ def test_deep_research_success(tmp_path: Path):
 
     assert result is not None
     assert client.research.called
+    acknowledge_mock.assert_called_once()
+    assert len(acknowledge_mock.call_args.args[1]) == 3
+
+
+def test_deep_research_docx_failure_retains_pending_job(tmp_path: Path):
+    fake_result = MagicMock(
+        content="# Deep strategy body",
+        interaction_id="interaction-123",
+        status="completed",
+    )
+    client = MagicMock(research=AsyncMock(return_value=fake_result))
+    fake_dr_module = MagicMock()
+    fake_dr_module.get_deep_research_client.return_value = client
+    fake_dr_module.ResearchStatus.COMPLETED = "completed"
+    with (
+        patch("primr.core.ai_strategy_runtime.get_settings") as settings,
+        patch(
+            "primr.core.ai_strategy_runtime.get_or_generate_vendor_research_sync",
+            return_value=[],
+        ),
+        patch.dict("sys.modules", {"primr.ai.deep_research": fake_dr_module}),
+        patch(
+            "primr.core.ai_strategy_runtime.markdown_to_docx",
+            side_effect=RuntimeError("render failed"),
+        ),
+        patch("primr.ai.job_persistence.acknowledge_pending_job_after_outputs") as acknowledge_mock,
+    ):
+        settings.return_value.api.gemini_key = "fake"
+        result = generate_ai_strategy_section(
+            company_name="Acme",
+            platform="gcp",
+            lite_strategy=False,
+            output_dir=tmp_path / "out",
+        )
+
+    assert result is not None and result.endswith(".md")
+    acknowledge_mock.assert_not_called()
 
 
 def test_deep_research_failure_returns_none(tmp_path: Path):
