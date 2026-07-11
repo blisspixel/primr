@@ -52,7 +52,7 @@ for Primr's shape:
 - Treat provider background execution as a durable lifecycle, not a long HTTP
   request. Persist the provider interaction id immediately, reconnect by id,
   and acknowledge completion only after Primr's owning output boundary proves
-  the required artifacts are durable. Version 1.34.50 applies that contract to
+  the required artifacts are durable. Apply that contract consistently to
   normal completion and recovery paths.
 - Keep package publication on PyPI Trusted Publishing. Build once from an
   immutable tag on green `main`, publish that exact artifact set through OIDC,
