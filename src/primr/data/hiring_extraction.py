@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import re
+from abc import abstractmethod
 from collections.abc import Sequence
 from typing import Any, Protocol
 
@@ -34,9 +35,17 @@ class _PostingLike(Protocol):
     title: str
     url: str
 
-    def age_days(self) -> int | None: ...
+    @abstractmethod
+    def age_days(self) -> int | None:
+        """Return the posting age when its source provides a timestamp."""
 
-    def is_stale(self) -> bool: ...
+        raise NotImplementedError
+
+    @abstractmethod
+    def is_stale(self) -> bool:
+        """Return whether the posting is older than the accepted window."""
+
+        raise NotImplementedError
 
 
 _JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(.+?)\s*```", re.DOTALL | re.IGNORECASE)
