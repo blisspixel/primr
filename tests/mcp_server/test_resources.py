@@ -1668,6 +1668,7 @@ class TestConfigResource:
         assert "scrape" in data["available_modes"]
         assert "deep" in data["available_modes"]
         assert "full" in data["available_modes"]
+        assert "premium" in data["available_modes"]
 
     @pytest.mark.asyncio
     async def test_config_returns_strategies(self, server):
@@ -1685,6 +1686,7 @@ class TestConfigResource:
 
         assert "ai_strategy" in data["available_strategies"]
         assert "customer_experience" in data["available_strategies"]
+        assert "skills" in data["available_strategies"]
 
     @pytest.mark.asyncio
     async def test_config_no_sensitive_data(self, server):

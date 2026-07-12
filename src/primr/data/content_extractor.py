@@ -157,7 +157,7 @@ class ContentExtractor:
 
         self._percent_pattern = re.compile(r"(\d+(?:\.\d+)?)\s*%")
 
-        self._quote_pattern = re.compile(r'["""]([^"""]+)["""]', re.MULTILINE)
+        self._quote_pattern = re.compile(r'["“”]([^"“”]+)["“”]', re.MULTILINE)
 
     def extract_tables(self, html: str) -> list[ExtractedTable]:
         """

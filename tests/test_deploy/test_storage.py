@@ -14,7 +14,9 @@ Requirements: 2.1, 2.4, 2.5, 2.8, 2.9, 2.11, 2.12
 
 import importlib.util
 import json
+import sys
 import threading
+from types import ModuleType
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -65,6 +67,35 @@ def create_test_manifest(job_id: str = "test-123", status: str = "SUCCEEDED") ->
         cost=JobCost(estimated_usd=1.0),
         artifacts={},
         versions=JobVersions(primr="1.0.0", runner="1.0.0"),
+    )
+
+
+def test_blob_store_supports_managed_identity(monkeypatch) -> None:
+    credential = object()
+    container = MagicMock()
+    container_client = MagicMock(return_value=container)
+    azure_module = ModuleType("azure")
+    azure_module.__path__ = []  # type: ignore[attr-defined]
+    storage_module = ModuleType("azure.storage")
+    storage_module.__path__ = []  # type: ignore[attr-defined]
+    blob_module = ModuleType("azure.storage.blob")
+    blob_module.ContainerClient = container_client  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "azure", azure_module)
+    monkeypatch.setitem(sys.modules, "azure.storage", storage_module)
+    monkeypatch.setitem(sys.modules, "azure.storage.blob", blob_module)
+
+    store = BlobStore(
+        "artifacts",
+        "prod",
+        account_name="primrstore",
+        credential=credential,
+    )
+
+    assert store.container_client is container
+    container_client.assert_called_once_with(
+        account_url="https://primrstore.blob.core.windows.net",
+        container_name="artifacts",
+        credential=credential,
     )
 
 

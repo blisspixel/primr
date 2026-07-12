@@ -230,11 +230,11 @@ Use this contract whenever a Primr MCP client may trigger paid work.
 
 ## Standard flow (research + strategy in one approval)
 ```text
-estimate_run(company_url="https://example.com", mode="full", platforms=["azure"])
+estimate = estimate_run(company_url="https://example.com", mode="full", platforms=["azure"])
 # → shows combined cost for research + AI strategy
 # → user approves once
 
-research_company(company_name="ExampleCo", company_url="https://example.com", mode="full", platform="azure", max_estimated_cost_usd=0.67, approval_token="<token from estimate_run>")
+research_company(company_name="ExampleCo", company_url="https://example.com", mode="full", platform="azure", max_estimated_cost_usd=estimate["estimated_cost_usd"], approval_token=estimate["approval_token"])
 # → returns job_id immediately
 
 check_jobs(job_id="...")
@@ -249,8 +249,8 @@ research_company(company_name="ExampleCo", company_url="https://example.com", pl
 
 ## Adding a strategy to an existing report (rare — only when strategy was not part of the original run)
 ```text
-estimate_strategy(strategy_type="customer_experience")
-generate_strategy(report_path="output/report.md", strategy_type="customer_experience", max_estimated_cost_usd=0.25, approval_token="<token from estimate_strategy>")
+estimate = estimate_strategy(strategy_type="customer_experience")
+generate_strategy(report_path="output/report.md", strategy_type="customer_experience", max_estimated_cost_usd=estimate["estimated_cost_usd"], approval_token=estimate["approval_token"])
 ```
 """
 

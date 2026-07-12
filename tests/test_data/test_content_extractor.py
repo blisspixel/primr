@@ -302,6 +302,15 @@ class TestQuoteExtraction:
         assert len(quotes) >= 1
         # Speaker detection may or may not work depending on pattern
 
+    def test_extract_curly_quote(self):
+        text = "“We are building a durable platform for every customer.”"
+
+        quotes = ContentExtractor().extract_quotes(text)
+
+        assert [quote.text for quote in quotes] == [
+            "We are building a durable platform for every customer."
+        ]
+
     def test_skip_short_quotes(self):
         """Test that very short quotes are skipped."""
         text = '"Yes" and "No" are common responses.'

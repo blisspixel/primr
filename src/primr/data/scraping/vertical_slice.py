@@ -160,7 +160,7 @@ def run_vertical_slice_test(
     print(f"Running vertical slice test with {url}")
 
     # Create cache and trace logger
-    cache = ScrapeCache(max_memory_items=100)
+    cache = ScrapeCache(memory_size=100)
     trace_logger = TraceLogger(
         company_name="vertical_slice_test",
         output_dir=output_dir,
@@ -220,4 +220,4 @@ def run_vertical_slice_test(
 if __name__ == "__main__":
     # Run the test when executed directly
     success = run_vertical_slice_test()
-    exit(0 if success else 1)
+    raise SystemExit(0 if success else 1)

@@ -18,11 +18,10 @@ from primr.mcp_server.artifact_resources import (
     _no_artifacts,
     _owned_job,
 )
+from primr.mcp_server.server_context import MCPServerContext
 
 if TYPE_CHECKING:
     from mcp.server.lowlevel.helper_types import ReadResourceContents
-
-    from primr.mcp_server.server import PrimrMCPServer
 
 TRACE_SUMMARY_BY_JOB_URI = "primr://output/trace_summary/by_job"
 TRACE_SUMMARY_BY_JOB_RESOURCE = Resource(
@@ -37,7 +36,7 @@ TRACE_SUMMARY_BY_JOB_RESOURCE = Resource(
 
 
 def read_trace_summary_by_job_resource(
-    mcp_server: PrimrMCPServer,
+    mcp_server: MCPServerContext,
     uri: str,
     *,
     client_id: str,

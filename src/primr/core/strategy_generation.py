@@ -25,6 +25,26 @@ from primr.utils.logging_config import get_logger
 logger = get_logger("core.strategy_generation")
 
 
+def _emit_legacy_skill_files(strategy_content: str, strategy_path: Path) -> None:
+    """Preserve the documented per-role artifacts for the legacy skills strategy."""
+    try:
+        from primr.output.skills_generator import write_skill_files
+
+        roles_root = strategy_path.parent / strategy_path.stem
+        written = write_skill_files(strategy_content, roles_root)
+        if written:
+            console.info(
+                f"Skills Ideation: emitted {len(written)} per-role SKILL.md files "
+                f"under {roles_root.name}/roles/"
+            )
+        else:
+            console.warn(
+                "Skills Ideation: no role blocks parsed; per-role SKILL.md files were not emitted"
+            )
+    except Exception as exc:
+        logger.warning("Skills Ideation per-role emission failed: %s", exc)
+
+
 def build_strategy_prompt_from_yaml(
     strategy_config: dict, company_name: str, discovery_notes_content: str | None = None
 ) -> str:
@@ -297,6 +317,9 @@ def generate_generic_strategy(
             pending_interaction_id, required_outputs
         ):
             console.warn(f"{strategy_display_name} was saved, but its pending job remains listed.")
+
+        if strategy_name == "skills":
+            _emit_legacy_skill_files(result.content, md_path)
 
         return str(docx_path)
 

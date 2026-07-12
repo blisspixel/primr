@@ -8,6 +8,7 @@ import functools
 import hashlib
 import json
 import logging
+import math
 import re
 import time
 import uuid
@@ -16,7 +17,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import Lock
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 from urllib.parse import parse_qs, urlparse
 
 from mcp.server.lowlevel.helper_types import ReadResourceContents
@@ -26,8 +27,6 @@ from primr.mcp_server.tool_authz import ADMIN_SCOPE
 
 if TYPE_CHECKING:
     from mcp.types import TextContent
-
-    from primr.mcp_server.server import PrimrMCPServer
 
 logger = logging.getLogger(__name__)
 
@@ -256,8 +255,18 @@ class MCPAuditLog:
         )
 
 
+class AuditServerContext(Protocol):
+    """Minimal server surface required by audit decorators and resources."""
+
+    audit_log: MCPAuditLog
+
+    @property
+    def transport(self) -> str:
+        raise NotImplementedError
+
+
 def audit_tool_calls(
-    mcp_server_factory: Callable[[], PrimrMCPServer],
+    mcp_server_factory: Callable[[], AuditServerContext],
 ) -> Callable[
     [Callable[[str, dict[str, Any]], Awaitable[list[TextContent]]]],
     Callable[[str, dict[str, Any]], Awaitable[list[TextContent]]],
@@ -304,7 +313,7 @@ def audit_tool_calls(
 
 
 def audit_resource_reads(
-    mcp_server_factory: Callable[[], PrimrMCPServer],
+    mcp_server_factory: Callable[[], AuditServerContext],
 ) -> Callable[
     [Callable[[str], Awaitable[list[ReadResourceContents]]]],
     Callable[[str], Awaitable[list[ReadResourceContents]]],
@@ -350,7 +359,7 @@ def audit_resource_reads(
 
 
 def read_agent_audit_recent_resource(
-    mcp_server: PrimrMCPServer,
+    mcp_server: AuditServerContext,
     uri: str,
     *,
     can_read: bool,
@@ -589,7 +598,7 @@ def _optional_float(value: Any) -> float | None:
         parsed = float(value)
     except (TypeError, ValueError):
         return None
-    return parsed if parsed == parsed and parsed not in {float("inf"), float("-inf")} else None
+    return parsed if math.isfinite(parsed) else None
 
 
 def _approval_token_id(arguments: dict[str, Any], payload: dict[str, Any]) -> str | None:

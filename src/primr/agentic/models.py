@@ -298,7 +298,7 @@ class Version:
     A version in the roadmap.
 
     Attributes:
-        number: Version number (e.g., "1.7.0")
+        number: Version number or band (e.g., "1.x" or "2.0")
         title: Version title
         status: Current status
         features: List of features in this version

@@ -219,22 +219,19 @@ Generate AI strategy recommendations with platform context.
 from primr.core.ai_strategy import (
     generate_ai_strategy_sync,
     Platform,
-    AIStrategyConfig,
-    AIStrategyResult,
 )
-```
 
-```python
-# Generate AI strategy for a company
-config = AIStrategyConfig(
+# Generate AI strategy for a company. Cost-gated hosts can explicitly block
+# environment-driven vendor-research refreshes for estimate parity.
+output_path = generate_ai_strategy_sync(
     company_name="Acme Corp",
     platform=Platform.AWS,
-    working_folder=Path("working/Acme Corp"),
+    company_research_path="output/Acme_Corp_Strategic_Overview.md",
+    allow_vendor_refresh=False,
 )
 
-result = generate_ai_strategy_sync(config)
-if result.success:
-    print(result.content)
+if output_path:
+    print(output_path)
 ```
 
 **Platform enum**:
@@ -243,6 +240,8 @@ if result.success:
 Platform.AWS      # Amazon Web Services
 Platform.AZURE    # Microsoft Azure
 Platform.GCP      # Google Cloud Platform
+Platform.AGNOSTIC # No single cloud preference
+Platform.PRIVATE  # Private cloud or NVIDIA
 ```
 
 ### Deep Research Runner
@@ -1157,11 +1156,15 @@ Response:
 ```json
 {
   "strategy_type": "customer_experience",
-  "estimated_cost_usd": 0.25,
+  "estimated_cost_usd": 2.5,
   "estimated_time_minutes": 12,
   "requires_platform": false,
   "platform": null,
-  "cost_warning": "Strategy generation incurs real API charges. Get explicit user approval before generate_strategy."
+  "cost_basis": "Planning estimate for one standard Gemini Deep Research task; actual token and tool usage varies.",
+  "cost_warning": "Strategy generation incurs real API charges. Get explicit user approval before generate_strategy.",
+  "approval_token": "<signed token>",
+  "approval_token_id": "<token id>",
+  "approval_expires_at": "<ISO-8601 expiry>"
 }
 ```
 
@@ -1229,13 +1232,17 @@ target per run.
   "arguments": {
     "report_path": "output/Acme_Corp_Strategic_Overview.md",
     "strategy_type": "customer_experience",
-    "platform": "azure",
-    "max_estimated_cost_usd": 0.30
+    "max_estimated_cost_usd": 2.5,
+    "approval_token": "<signed token from estimate_strategy>"
   }
 }
 ```
 
-Strategy types: `ai_strategy`, `customer_experience`, `modern_security_compliance`, `data_fabric_strategy`
+Strategy types: `ai_strategy`, `customer_experience`,
+`modern_security_compliance`, `data_fabric_strategy`, and `skills`. Each
+non-AI request dispatches its matching YAML-defined module. The legacy
+`skills` module also emits per-role `SKILL.md` files; use `estimate_skill_pack`
+and `generate_skill_pack` for the QA-refined pack workflow.
 
 #### check_jobs
 
@@ -1605,7 +1612,7 @@ agent only needs metadata.
   "params": {
     "message": {
       "role": "user",
-      "parts": [{"kind": "text", "text": "{\"url\": \"https://acme.com\", \"name\": \"Acme\", \"mode\": \"full\", \"max_estimated_cost_usd\": 0.67, \"approval_token\": \"<token from estimate_research>\"}"}],
+      "parts": [{"kind": "text", "text": "{\"url\": \"https://acme.com\", \"name\": \"Acme\", \"mode\": \"full\", \"max_estimated_cost_usd\": 0.89, \"approval_token\": \"<token from estimate_research>\"}"}],
       "metadata": {"skillId": "research_company"}
     }
   }
@@ -2480,14 +2487,15 @@ Current configuration (no secrets exposed).
 
 ```json
 {
-  "available_modes": ["scrape", "deep", "full"],
+  "available_modes": ["scrape", "deep", "full", "premium"],
   "available_strategies": {
     "ai_strategy": "AI/ML transformation roadmap",
     "customer_experience": "CX improvement plan",
     "modern_security_compliance": "Security posture assessment",
-    "data_fabric_strategy": "Data platform modernization"
+    "data_fabric_strategy": "Data platform modernization",
+    "skills": "Skills ideation (roles x skills hypothesis)"
   },
-  "configured_vendors": ["azure", "aws", "gcp", "private"]
+  "configured_vendors": ["azure", "aws", "gcp"]
 }
 ```
 
@@ -2506,7 +2514,8 @@ List of available strategy types with metadata for Open Claw integration.
       "description": "AI/ML transformation roadmap with quick wins and bigger bets",
       "requires_platform": true,
       "estimated_time_minutes": 15,
-      "estimated_cost_usd": 0.30
+      "estimated_cost_usd": 2.5,
+      "cost_basis": "Planning estimate for one standard Gemini Deep Research task; actual token and tool usage varies."
     },
     {
       "id": "customer_experience",
@@ -2514,7 +2523,8 @@ List of available strategy types with metadata for Open Claw integration.
       "description": "CX transformation and digital experience improvement plan",
       "requires_platform": false,
       "estimated_time_minutes": 12,
-      "estimated_cost_usd": 0.25
+      "estimated_cost_usd": 2.5,
+      "cost_basis": "Planning estimate for one standard Gemini Deep Research task; actual token and tool usage varies."
     },
     {
       "id": "modern_security_compliance",
@@ -2522,7 +2532,8 @@ List of available strategy types with metadata for Open Claw integration.
       "description": "Zero Trust architecture and compliance posture assessment",
       "requires_platform": false,
       "estimated_time_minutes": 12,
-      "estimated_cost_usd": 0.25
+      "estimated_cost_usd": 2.5,
+      "cost_basis": "Planning estimate for one standard Gemini Deep Research task; actual token and tool usage varies."
     },
     {
       "id": "data_fabric_strategy",
@@ -2530,7 +2541,17 @@ List of available strategy types with metadata for Open Claw integration.
       "description": "Modern data platform for agentic AI and semantic layers",
       "requires_platform": false,
       "estimated_time_minutes": 12,
-      "estimated_cost_usd": 0.25
+      "estimated_cost_usd": 2.5,
+      "cost_basis": "Planning estimate for one standard Gemini Deep Research task; actual token and tool usage varies."
+    },
+    {
+      "id": "skills",
+      "name": "Skills Ideation",
+      "description": "Top-5 roles x top-3 skills hypothesis grounded in research signals",
+      "requires_platform": false,
+      "estimated_time_minutes": 8,
+      "estimated_cost_usd": 2.5,
+      "cost_basis": "Planning estimate for one standard Gemini Deep Research task; actual token and tool usage varies."
     }
   ]
 }
@@ -2720,9 +2741,9 @@ Standard error codes returned by tools:
 | `JOB_IN_PROGRESS` | Another job already running |
 | `RATE_LIMIT_EXCEEDED` | Rate limit exceeded |
 
-## Agentic Architecture (v1.7.0)
+## Agentic Architecture
 
-Primr v1.7.0 introduces an agentic architecture that enables AI agents to drive research workflows with persistent memory, hypothesis tracking, and governance hooks.
+Primr's agentic architecture, introduced in v1.7.0 and expanded since, enables AI agents to drive research workflows with persistent memory, hypothesis tracking, governance hooks, and MCP resources.
 
 ### Tracked Company Profiles
 
@@ -2759,34 +2780,26 @@ print(profile.freshness_status)
 Track hypotheses across research sessions with confidence levels.
 
 ```python
-from primr.agentic.memory import ResearchMemory, Hypothesis, ConfidenceLevel
+from primr.agentic.memory import ResearchMemory
+from primr.agentic.models import ConfidenceLevel, Hypothesis
 
-# Initialize memory
 memory = ResearchMemory()
 
-# Save a hypothesis
 hypothesis = Hypothesis(
     id="h_001",
-    company="Acme Corp",
-    statement="Acme is expanding into AI-powered logistics",
-    confidence=ConfidenceLevel.MEDIUM,
-    evidence="CEO mentioned AI initiatives in Q3 earnings call",
-    source="https://acme.example/investor-relations",
+    claim="Acme is expanding into AI-powered logistics",
+    confidence=ConfidenceLevel.UNTESTED,
     topic="strategy",
 )
-memory.save_hypothesis(hypothesis)
+memory.save_hypotheses("Acme Corp", [hypothesis])
 
-# Retrieve hypotheses
-hypotheses = memory.get_hypotheses("Acme Corp")
-for h in hypotheses:
-    print(f"[{h.confidence.value}] {h.statement}")
+# Add evidence and persist the updated hypothesis.
+hypothesis.validate("The Q3 earnings call describes an AI logistics initiative.")
+memory.save_hypotheses("Acme Corp", [hypothesis])
 
-# Update confidence as evidence emerges
-hypothesis.confidence = ConfidenceLevel.HIGH
-hypothesis.evidence += "; Confirmed by press release 2026-01-15"
-memory.save_hypothesis(hypothesis)
+for item in memory.get_hypotheses("Acme Corp"):
+    print(f"[{item.confidence.value}] {item.claim}")
 
-# List all companies with memory
 companies = memory.list_companies()
 ```
 
@@ -2794,10 +2807,10 @@ companies = memory.list_companies()
 
 | Level | Description |
 |-------|-------------|
-| `LOW` | Initial hypothesis, needs validation |
-| `MEDIUM` | Some supporting evidence found |
-| `HIGH` | Strong evidence from multiple sources |
-| `VALIDATED` | Confirmed through direct sources |
+| `UNTESTED` | Initial state with no evidence gathered |
+| `VALIDATED` | Evidence supports the hypothesis |
+| `INVALIDATED` | Evidence contradicts the hypothesis |
+| `CONFIRMED` | Strong evidence confirms the hypothesis |
 
 ### Roadmap API
 
@@ -2820,10 +2833,11 @@ next_ver = api.get_next_version()
 completed = api.list_by_status(VersionStatus.COMPLETED)
 planned = api.list_by_status(VersionStatus.PLANNED)
 
-# Get specific version details
-v170 = api.get_version("1.7.0")
-for feature in v170.features:
-    print(f"  - {feature.name}: {feature.description}")
+# Get specific roadmap-band details
+v2 = api.get_version("2.0")
+if v2:
+    for feature in v2.features:
+        print(f"  - {feature.name}: {feature.description}")
 
 # Search features
 results = api.search_features("memory")
@@ -2837,11 +2851,12 @@ Register governance hooks for cost control and security.
 
 ```python
 from primr.agentic import (
-    HookSystem,
     CostGuardHook,
-    SSRFGuardHook,
     HookContext,
     HookResult,
+    HookSystem,
+    HookType,
+    SSRFGuardHook,
 )
 
 # Create hook system
@@ -2855,14 +2870,17 @@ hooks.register(SSRFGuardHook())
 
 # Execute hooks before an operation
 context = HookContext(
-    operation="scrape",
-    target_url="https://acme.example",
-    estimated_cost=2.50,
+    hook_type=HookType.PRE_TOOL_USE,
+    stage_name="scrape",
+    arguments={
+        "url": "https://acme.example",
+        "estimated_cost_usd": 2.50,
+    },
 )
-result = await hooks.execute_pre_hooks(context)
+response = await hooks.run_pre_hooks("scrape", context)
 
-if result.blocked:
-    print(f"Operation blocked: {result.reason}")
+if response.result is HookResult.BLOCK:
+    print(f"Operation blocked: {response.message}")
 else:
     # Proceed with operation
     pass
@@ -2871,19 +2889,28 @@ else:
 #### Custom Hooks
 
 ```python
-from primr.agentic.hooks import Hook, HookContext, HookResult
+import logging
+
+from primr.agentic import (
+    Hook,
+    HookContext,
+    HookResponse,
+    HookResult,
+    HookType,
+)
+
+logger = logging.getLogger(__name__)
 
 class AuditHook(Hook):
     """Log all operations for audit trail."""
-    
-    name = "audit"
-    
-    async def pre_execute(self, context: HookContext) -> HookResult:
-        logger.info(f"Operation: {context.operation} on {context.target_url}")
-        return HookResult(blocked=False)
-    
-    async def post_execute(self, context: HookContext, result: Any) -> None:
-        logger.info(f"Completed: {context.operation}, success={result.success}")
+
+    @property
+    def hook_type(self) -> HookType:
+        return HookType.PRE_TOOL_USE
+
+    async def execute(self, context: HookContext) -> HookResponse:
+        logger.info("Operation: %s", context.stage_name or context.tool_name)
+        return HookResponse(result=HookResult.ALLOW)
 
 hooks.register(AuditHook())
 ```
@@ -2893,27 +2920,21 @@ hooks.register(AuditHook())
 Specialized subagents for different research tasks.
 
 ```python
-from primr.agentic.subagents import (
-    ScraperSubagent,
-    AnalystSubagent,
-    WriterSubagent,
-    QASubagent,
-)
-from primr.agentic.subagents.base import SubagentContext, SubagentResult
+from pathlib import Path
 
-# Create subagent
-scraper = ScraperSubagent()
+from primr.agentic.subagents import ScraperSubagent, SubagentContext
 
-# Execute with context
 context = SubagentContext(
     company_name="Acme Corp",
     company_url="https://acme.example",
     working_dir=Path("./working/acme"),
 )
-result: SubagentResult = await scraper.execute(context)
+scraper = ScraperSubagent(context)
+result = await scraper.execute()
 
-if result.success:
-    print(f"Scraped {result.artifacts['page_count']} pages")
+if result.is_success and result.data is not None:
+    print(f"Scraped {result.data.pages_scraped} pages")
+    print(f"Corpus: {result.data.corpus_path}")
 else:
     print(f"Failed: {result.error}")
 ```
@@ -2926,6 +2947,7 @@ else:
 | `AnalystSubagent` | Deep research and hypothesis generation |
 | `WriterSubagent` | Report generation from research data |
 | `QASubagent` | Quality assessment and scoring |
+| `VerifierSubagent` | Claim verification and trust scoring |
 
 ### Research Orchestrator
 
@@ -2984,7 +3006,7 @@ Query roadmap versions and features.
 {
   "name": "query_roadmap",
   "arguments": {
-    "version": "1.7.0"
+    "version": "2.0"
   }
 }
 ```
@@ -2992,14 +3014,16 @@ Query roadmap versions and features.
 Response:
 ```json
 {
-  "version": "1.7.0",
-  "status": "completed",
-  "title": "Agentic Architecture",
+  "version": "2.0",
+  "title": "primr as a composable, cost-tunable research *role*",
+  "status": "planned",
   "features": [
-    {"name": "Research Memory", "description": "Persistent hypothesis tracking"},
-    {"name": "Hook System", "description": "Governance and cost control"},
-    {"name": "Subagent Architecture", "description": "Specialized research agents"}
-  ]
+    {"name": "Backend freedom", "status": "planned"},
+    {"name": "Memory", "status": "planned"},
+    {"name": "Interoperability", "status": "planned"}
+  ],
+  "blockers": ["Depends on v1.x (in_progress)"],
+  "dependencies": ["1.x"]
 }
 ```
 
@@ -3012,7 +3036,7 @@ Retrieve hypotheses for a company from research memory.
   "name": "get_hypotheses",
   "arguments": {
     "company": "Acme Corp",
-    "min_confidence": "medium"
+    "confidence": "validated"
   }
 }
 ```
@@ -3024,9 +3048,12 @@ Response:
   "hypotheses": [
     {
       "id": "h_001",
-      "statement": "Acme is expanding into AI-powered logistics",
-      "confidence": "high",
-      "evidence": "CEO mentioned AI initiatives in Q3 earnings call",
+      "claim": "Acme is expanding into AI-powered logistics",
+      "confidence": "validated",
+      "evidence": ["The Q3 earnings call describes an AI logistics initiative."],
+      "created_at": "2026-07-12T10:30:00",
+      "updated_at": "2026-07-12T10:45:00",
+      "expires_at": null,
       "topic": "strategy"
     }
   ],
@@ -3043,11 +3070,23 @@ Save a hypothesis to research memory.
   "name": "save_hypothesis",
   "arguments": {
     "company": "Acme Corp",
-    "statement": "Acme plans to acquire a logistics startup",
-    "confidence": "low",
+    "hypothesis_id": "h_002",
+    "claim": "Acme plans to acquire a logistics startup",
+    "confidence": "untested",
     "evidence": "Rumored in industry newsletter",
     "topic": "m&a"
   }
+}
+```
+
+Response for a new hypothesis:
+
+```json
+{
+  "success": true,
+  "action": "created",
+  "hypothesis_id": "h_002",
+  "confidence": "untested"
 }
 ```
 
@@ -3057,26 +3096,35 @@ Additional MCP resources for agentic workflows.
 
 #### primr://roadmap
 
-Current roadmap with versions and features.
+Current roadmap with versions, features, and inferred dependencies. Selected fields from the current response are shown below.
 
 ```json
 {
-  "current_version": "1.7.0",
-  "next_version": "1.8.0",
+  "current_version": "1.x",
+  "next_version": "2.0",
   "versions": [
     {
-      "number": "1.7.0",
-      "status": "completed",
-      "title": "Agentic Architecture",
-      "feature_count": 6
+      "number": "1.x",
+      "title": "the excellent single-shot brief",
+      "status": "in_progress"
     },
     {
-      "number": "1.8.0",
+      "number": "2.0",
+      "title": "primr as a composable, cost-tunable research *role*",
+      "status": "planned"
+    },
+    {
+      "number": "3.0",
+      "title": "the research frontier, same guardrails",
       "status": "planned",
-      "title": "QA-Driven Research",
-      "feature_count": 4
+      "dependencies": ["2.0"]
     }
-  ]
+  ],
+  "dependency_graph": {
+    "1.x": [],
+    "2.0": ["1.x"],
+    "3.0": ["2.0"]
+  }
 }
 ```
 
@@ -3086,47 +3134,50 @@ Research memory for a specific company.
 
 ```json
 {
-  "company": "Acme Corp",
-  "hypothesis_count": 5,
+  "company_name": "Acme Corp",
   "hypotheses": [
     {
       "id": "h_001",
-      "statement": "Acme is expanding into AI-powered logistics",
-      "confidence": "high",
-      "topic": "strategy",
-      "created_at": "2026-01-15T10:30:00Z"
+      "claim": "Acme is expanding into AI-powered logistics",
+      "confidence": "validated",
+      "evidence": ["The Q3 earnings call describes an AI logistics initiative."],
+      "created_at": "2026-07-12T10:30:00",
+      "updated_at": "2026-07-12T10:45:00",
+      "expires_at": null,
+      "topic": "strategy"
     }
   ],
-  "confidence_distribution": {
-    "low": 1,
-    "medium": 2,
-    "high": 2,
-    "validated": 0
-  }
+  "scrape_patterns": [],
+  "research_notes": [],
+  "last_researched": "2026-07-12T10:45:00+00:00"
 }
 ```
 
 #### primr://context
 
-CLAUDE.md context map for AI agents.
+CLAUDE.md context-map summary for development agents. `quick_start` is a string containing at most the first 1,000 characters of that section, or `null` when the section is absent.
 
 ```json
 {
-  "quick_start": {
-    "research": "primr \"Company\" https://company.com",
-    "doctor": "primr doctor",
-    "memory": "primr memory \"Company\""
+  "context_map_path": "CLAUDE.md",
+  "summary": {
+    "sections": [
+      "Quick Start",
+      "Language and runtime choices",
+      "Architecture Pointers",
+      "Use the one seam - don't invent a sixth way",
+      "Negative Constraints",
+      "Verification Commands",
+      "CLI verb convention",
+      "Git / PR"
+    ],
+    "has_quick_start": true,
+    "has_negative_constraints": true,
+    "has_verification_commands": true,
+    "has_progressive_disclosure": true
   },
-  "architecture": {
-    "entry_point": "src/primr/core/cli.py",
-    "orchestrator": "src/primr/core/research_orchestrator.py",
-    "agentic": "src/primr/agentic/"
-  },
-  "verification": {
-    "tests": "python -m pytest tests/ -v",
-    "types": "python -m mypy src/primr/",
-    "lint": "python -m ruff check src/primr/"
-  }
+  "full_content_available": true,
+  "quick_start": "primr turns a company URL into a sourced strategic brief..."
 }
 ```
 
@@ -3145,7 +3196,7 @@ primr --orchestrate --max-cost 5.0    # With cost budget
 
 # Roadmap
 primr roadmap                         # Show roadmap overview
-primr --roadmap-version v1.7.0        # Show version details
+primr --roadmap-version v2.0          # Show version details
 ```
 
 ### Skills Directory

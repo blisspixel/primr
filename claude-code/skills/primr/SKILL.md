@@ -153,7 +153,7 @@ For the mapping (Strategic Overview → which next action, AI Strategy module �
 primr persists durable research memory per company. Before launching a new run on a company you've researched before:
 
 - MCP: call `get_hypotheses(company=...)` and read `primr://memory/<company>` to see what's already known.
-- After the run completes, the pipeline saves new hypotheses automatically. If the user asks you to record a finding from a customer conversation, use `save_hypothesis(company=..., statement=..., confidence=..., evidence=...)`.
+- After the run completes, the pipeline saves new hypotheses automatically. If the user asks you to record a finding from a customer conversation, use `save_hypothesis(company=..., hypothesis_id=..., claim=..., confidence=..., evidence=...)`.
 
 Display confidence levels honestly (`untested`, `validated`, `invalidated`, `confirmed`). Do not promote hypotheses without new evidence.
 
@@ -183,5 +183,5 @@ Update references/gotchas.md from real failures when using the skill. Load it on
 - **No synchronous waits.** Long runs are async; check state on the next turn.
 - **No silent retries.** A failed run gets reported back to the user with the manifest's error context - they decide whether to re-run.
 - **No re-estimating against an active job.** If `check_jobs` shows the company already running, surface that and ask if they want to monitor it instead of starting a parallel run.
-- **Defer behaviorally, not by skill name.** Vague "research X" with no budget → use the host's web search and reasoning. DNS-only → shell out to `dig` or a passive-recon tool. Quality-checking an existing report → `run_qa` directly, no new estimate.
+- **Defer behaviorally, not by skill name.** For vague "research X" requests with no budget, use the host's web search and reasoning. For DNS-only work, use `primr recon` when Primr is installed and a host-native passive lookup otherwise. For quality checks on an existing report, use `run_qa` directly without a new estimate.
 - **Never edit built-in strategy YAMLs.** Custom strategies live in the user's override path; built-ins ship with the package.

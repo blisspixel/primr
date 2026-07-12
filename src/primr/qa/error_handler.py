@@ -43,6 +43,8 @@ class QARetryHandler:
             base_delay: Base delay in seconds for exponential backoff
             max_delay: Maximum delay between retries
         """
+        if max_retries < 0:
+            raise ValueError("max_retries must be non-negative")
         self.max_retries = max_retries
         self.base_delay = base_delay
         self.max_delay = max_delay
@@ -96,6 +98,8 @@ class QARetryHandler:
                     )
 
         # Re-raise the last exception if all retries exhausted
+        if last_exception is None:
+            raise RuntimeError("Retry loop ended without an attempt")
         raise last_exception
 
 

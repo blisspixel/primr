@@ -131,9 +131,9 @@ def get_vendor_research_path(vendor: str, month: str | None = None) -> Path:
 
     Uses current month if month not specified. Files live in the per-user
     cache (``primr.utils.user_cache``) so vendor research is shared across
-    invocation directories — back-to-back runs in different company folders
-    reuse one file per vendor instead of regenerating (~$0.50 Deep Research
-    each). A file at the legacy ``PROJECT_ROOT/vendor-research/`` location is
+    invocation directories. Back-to-back runs in different company folders
+    reuse one file per vendor instead of starting another paid Deep Research
+    task. A file at the legacy ``PROJECT_ROOT/vendor-research/`` location is
     migrated to the cache on first access.
 
     Args:
@@ -290,8 +290,54 @@ def _allow_vendor_auto_refresh() -> bool:
     }
 
 
+def _resolve_vendor_refresh_policy(allow_auto_refresh: bool | None) -> tuple[bool, str]:
+    """Resolve the effective refresh gate and the user-facing opt-in hint."""
+    enabled = _allow_vendor_auto_refresh() if allow_auto_refresh is None else allow_auto_refresh
+    hint = (
+        "automatic refresh is disabled for this call"
+        if allow_auto_refresh is False
+        else "set PRIMR_ALLOW_VENDOR_REFRESH=1 or pass force_refresh=True"
+    )
+    return enabled, hint
+
+
+def _acknowledge_vendor_research_output(interaction_id: object, research_path: Path) -> None:
+    """Clear the pending job after its durable output has been written."""
+    from primr.ai.job_persistence import acknowledge_pending_job_after_outputs
+
+    if (
+        isinstance(interaction_id, str)
+        and interaction_id
+        and not acknowledge_pending_job_after_outputs(interaction_id, [research_path])
+    ):
+        console.warn("Vendor research was saved, but its pending job remains listed.")
+
+
+def _record_vendor_research_usage(vendor: str, duration_seconds: float, cost: float) -> None:
+    """Persist standalone vendor-research usage without failing the deliverable."""
+    try:
+        from primr.utils.usage_tracker import get_usage_tracker
+
+        tracker = get_usage_tracker()
+        tracker.record_usage(
+            mode=f"vendor_research_{vendor.lower()}",
+            company=vendor.upper(),
+            input_tokens=0,
+            output_tokens=0,
+            duration_seconds=max(0.0, duration_seconds),
+            deep_research_cost=cost,
+        )
+        tracker.save()
+    except Exception as exc:
+        logger.debug("Vendor research usage tracking skipped: %s", exc)
+
+
 async def get_or_generate_vendor_research(
-    vendor: str, force_refresh: bool = False, on_progress: Callable[[str], None] | None = None
+    vendor: str,
+    force_refresh: bool = False,
+    on_progress: Callable[[str], None] | None = None,
+    *,
+    allow_auto_refresh: bool | None = None,
 ) -> VendorResearchResult:
     """Get cached vendor research, generating only after explicit refresh approval."""
     import time
@@ -312,7 +358,7 @@ async def get_or_generate_vendor_research(
     research_exists, age_days = _vendor_research_age(research_path)
     is_fresh = research_exists and age_days is not None and age_days <= get_vendor_news_ttl_days()
     is_stale = research_exists and not is_fresh
-    auto_refresh_enabled = _allow_vendor_auto_refresh()
+    auto_refresh_enabled, refresh_hint = _resolve_vendor_refresh_policy(allow_auto_refresh)
     refresh_now = force_refresh or (is_stale and auto_refresh_enabled)
     generate_missing_now = not research_exists and auto_refresh_enabled
 
@@ -332,7 +378,7 @@ async def get_or_generate_vendor_research(
         )
         console.warn(
             f"Vendor research is {age_days}d old (>{get_vendor_news_ttl_days()}d TTL) - reusing without refresh "
-            "(set PRIMR_ALLOW_VENDOR_REFRESH=1 or pass force_refresh=True to regenerate)"
+            f"({refresh_hint})"
         )
         logger.info(
             "Stale vendor research kept: %s (age=%dd, allow_auto_refresh=False)",
@@ -355,7 +401,7 @@ async def get_or_generate_vendor_research(
     elif not research_exists and not files:
         console.warn(
             "No cached vendor research found; skipping automatic Deep Research generation "
-            "(set PRIMR_ALLOW_VENDOR_REFRESH=1 or pass force_refresh=True to generate)"
+            f"({refresh_hint})"
         )
         logger.info("Vendor research missing and auto-generation disabled: %s", research_path)
 
@@ -411,7 +457,11 @@ async def generate_vendor_research(
     prompt = _build_vendor_prompt(vendor)
 
     console.info(f"Generating fresh {vendor.upper()} AI research...")
-    console.info("Estimated: 5-10 min, ~$0.50")
+    from primr.config.models import DEEP_RESEARCH_COST
+
+    console.info(
+        f"Estimated: 5-10 min, ~${DEEP_RESEARCH_COST.standard_task_cost:.2f} planning cost"
+    )
 
     client = get_deep_research_client()
 
@@ -437,21 +487,12 @@ async def generate_vendor_research(
         research_path.parent.mkdir(parents=True, exist_ok=True)
 
         research_path.write_text(result.content, encoding="utf-8")
-        from primr.ai.job_persistence import acknowledge_pending_job_after_outputs
+        _acknowledge_vendor_research_output(getattr(result, "interaction_id", ""), research_path)
 
-        result_interaction_id = getattr(result, "interaction_id", "")
-        if (
-            isinstance(result_interaction_id, str)
-            and result_interaction_id
-            and not acknowledge_pending_job_after_outputs(result_interaction_id, [research_path])
-        ):
-            console.warn("Vendor research was saved, but its pending job remains listed.")
-
-        # Deep Research is a flat per-task cost (API doesn't expose tokens)
-        from primr.config.models import DEEP_RESEARCH_COST
-
+        # Report the same planning estimate used by the approval surfaces.
         actual_cost = DEEP_RESEARCH_COST.standard_task_cost
         duration_str = f"{result.duration_seconds / 60:.1f}m"
+        _record_vendor_research_usage(vendor, float(result.duration_seconds), actual_cost)
 
         console.ok(
             f"Vendor research saved: {research_path.name} ({duration_str}, ~${actual_cost:.2f})"

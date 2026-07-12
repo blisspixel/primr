@@ -312,7 +312,14 @@ primr --dry-run "Company Name" https://company.com
 | full, xAI plus Gemini | provider-token based | -- | DuckDuckGo default | ~$0.89-$1.01 |
 | full, xAI only | provider-token based | -- | DuckDuckGo default | ~$5.76 |
 
-Deep Research is a flat per-task fee from Google (not token-based) and is mainly used by deep and premium paths. DuckDuckGo search is the default for standard runs; Google Custom Search costs apply only when `SEARCH_PROVIDER=google`. Use `primr --dry-run` for estimates based on your actual provider configuration and usage history.
+Gemini Deep Research is billed from the underlying model tokens and tools, so
+the final charge varies by task. Google currently describes a typical standard
+task as roughly $1-$3; Primr uses $2.50 as its conservative planning point.
+See [Google's Deep Research pricing guidance](https://ai.google.dev/gemini-api/docs/deep-research#availability-and-pricing).
+Deep Research is mainly used by deep and premium paths. DuckDuckGo search is
+the default for standard runs; Google Custom Search costs apply only when
+`SEARCH_PROVIDER=google`. Use `primr --dry-run` for estimates based on your
+actual provider configuration and usage history.
 
 ### Set Billing Alerts
 

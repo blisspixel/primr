@@ -87,6 +87,13 @@ class TestAIStrategyConfig:
         assert config.company_research_path is None
         assert config.force_refresh_vendor is False
         assert config.timeout_seconds == 1800
+        assert config.allow_vendor_refresh is None
+
+    def test_timeout_positional_compatibility(self):
+        """The new refresh override does not shift the legacy timeout position."""
+        config = AIStrategyConfig("Acme Corp", CloudVendor.AZURE, None, False, 900)
+        assert config.timeout_seconds == 900
+        assert config.allow_vendor_refresh is None
 
     def test_config_with_research_path(self):
         """Test config with research path."""

@@ -114,10 +114,10 @@ from primr.config.model_registry import (
 
 @dataclass
 class DeepResearchCost:
-    """Per-task cost estimates. API does not expose tokens; these are approximate."""
+    """Planning estimates for variable token-and-tool Deep Research billing."""
 
-    standard_task_cost: float = 2.50  # $2-3 typical (midpoint)
-    complex_task_cost: float = 4.00  # $3-5 typical (midpoint)
+    standard_task_cost: float = 2.50  # Conservative point in Google's typical ~$1-$3 range
+    complex_task_cost: float = 4.00  # Planning point in the documented ~$3-$7 Max range
 
 
 @dataclass(frozen=True)
@@ -158,15 +158,15 @@ class PrimrModels:
     2. Update FLASH_MODEL and/or PRO_MODEL below
     3. Done - all code uses these constants
 
-    CURRENT ASSIGNMENTS (February 2026):
+    CURRENT ASSIGNMENTS (July 2026):
     ------------------------------------
     FLASH_MODEL = gemini-3-flash-preview       (cheap, fast - for scraping/filtering)
     PRO_MODEL   = gemini-3.1-pro-preview       (smart - for report writing, tiered pricing)
     DEEP_RESEARCH_AGENT = deep-research-preview-04-2026 (autonomous 12+ page reports)
 
-    ALSO AVAILABLE:
-    ---------------
-    gemini-3-pro-preview               - Previous default, flat $2/$12 pricing
+    OTHER REGISTRY ENTRIES:
+    -----------------------
+    gemini-3-pro-preview               - Deprecated; replaced by 3.1 Pro
     gemini-3.1-pro-preview-customtools - Same as 3.1 Pro + optimized for custom tool prioritization
     Override via AI_REASONING_MODEL env var in .env
     """

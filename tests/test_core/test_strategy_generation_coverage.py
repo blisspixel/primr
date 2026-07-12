@@ -248,6 +248,50 @@ def test_successful_generation_writes_outputs(tmp_path: Path):
     assert txt_files
 
 
+def test_skills_generation_emits_per_role_files(tmp_path: Path):
+    fake_result = MagicMock()
+    fake_result.status = ResearchStatus.COMPLETED
+    fake_result.content = "### Role: Analyst\n**Confidence:** Inferred"
+
+    client = MagicMock()
+    client.research = AsyncMock(return_value=fake_result)
+    out_dir = tmp_path / "out"
+
+    with (
+        patch("primr.core.strategy_generation.Path.exists", return_value=True),
+        patch("builtins.open", side_effect=_yaml_read_open),
+        patch(
+            "primr.core.strategy_generation.yaml.safe_load",
+            return_value={
+                "meta": {
+                    "name": "Skills Ideation",
+                    "output_filename": "{company_name}_Skills_Ideation",
+                }
+            },
+        ),
+        patch("primr.core.strategy_generation.get_settings") as mock_settings,
+        patch(
+            "primr.core.strategy_generation.get_deep_research_client",
+            return_value=client,
+        ),
+        patch("primr.core.strategy_generation.markdown_to_docx"),
+        patch(
+            "primr.output.skills_generator.write_skill_files", return_value=[MagicMock()]
+        ) as emit,
+    ):
+        mock_settings.return_value.api.gemini_key = "fake"
+        result = generate_generic_strategy(
+            strategy_name="skills",
+            strategy_yaml="skills",
+            company_name="Acme",
+            output_dir=out_dir,
+        )
+
+    assert result is not None
+    md_path = next(out_dir.glob("*.md"))
+    emit.assert_called_once_with(fake_result.content, md_path.parent / md_path.stem)
+
+
 def test_docx_permission_error_retries_with_timestamp(tmp_path: Path):
     fake_result = MagicMock()
     fake_result.status = ResearchStatus.COMPLETED

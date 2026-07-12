@@ -200,7 +200,7 @@ async def test_approval_token_is_single_use_for_strategy(server, monkeypatch):
 
     try:
         with patch(
-            "primr.mcp_server.pipeline_runner.run_strategy_generation",
+            "primr.mcp_server.tools.run_strategy_generation",
             new=AsyncMock(
                 return_value={
                     "output_path": "output/strategy.md",

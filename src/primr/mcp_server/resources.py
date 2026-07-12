@@ -19,7 +19,6 @@ Requirements: 2.1-2.13, 3.1-3.6, 3A.1-3A.8, 4.1-4.7
 import hashlib
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from mcp.server import Server
 from mcp.server.lowlevel.helper_types import ReadResourceContents
@@ -66,6 +65,7 @@ from primr.mcp_server.resource_auth import (
     caller_is_local_stdio,
     caller_owns_job_resource,
 )
+from primr.mcp_server.server_context import MCPServerContext
 from primr.mcp_server.source_summary import (
     SOURCE_SUMMARY_BY_JOB_RESOURCE,
     SOURCE_SUMMARY_BY_JOB_URI,
@@ -76,6 +76,7 @@ from primr.mcp_server.stage_scorecard_summary import (
     STAGE_SCORECARD_SUMMARY_URI,
     read_stage_scorecard_summary_resource,
 )
+from primr.mcp_server.strategy_catalog import get_strategy_catalog
 from primr.mcp_server.trace_summary import (
     TRACE_SUMMARY_BY_JOB_RESOURCE,
     TRACE_SUMMARY_BY_JOB_URI,
@@ -96,9 +97,6 @@ from primr.mcp_server.verification_summary import (
     read_verification_summary_by_job_resource,
 )
 
-if TYPE_CHECKING:
-    from primr.mcp_server.server import PrimrMCPServer
-
 logger = logging.getLogger(__name__)
 
 # Artifact type mappings
@@ -115,7 +113,7 @@ def _json_contents(data: object) -> list[ReadResourceContents]:
     return [ReadResourceContents(content=json.dumps(data, indent=2), mime_type="application/json")]
 
 
-def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
+def register_resources(server: Server, mcp_server: MCPServerContext) -> None:
     """Register all Primr resources with the MCP server."""
 
     # Get agentic resources
@@ -293,7 +291,7 @@ def register_resources(server: Server, mcp_server: "PrimrMCPServer") -> None:
         raise ValueError(f"Unknown resource: {uri}")
 
 
-def _read_research_next_actions(mcp_server: "PrimrMCPServer") -> list[ReadResourceContents]:
+def _read_research_next_actions(mcp_server: MCPServerContext) -> list[ReadResourceContents]:
     """Read recommended client actions for the active or latest job."""
     import json
 
@@ -391,7 +389,7 @@ def _read_research_next_actions(mcp_server: "PrimrMCPServer") -> list[ReadResour
     ]
 
 
-def _read_research_status(mcp_server: "PrimrMCPServer") -> list[ReadResourceContents]:
+def _read_research_status(mcp_server: MCPServerContext) -> list[ReadResourceContents]:
     """
     Read current research job status.
 
@@ -485,7 +483,7 @@ def _read_research_status(mcp_server: "PrimrMCPServer") -> list[ReadResourceCont
     ]
 
 
-def _read_artifacts(mcp_server: "PrimrMCPServer") -> list[ReadResourceContents]:
+def _read_artifacts(mcp_server: MCPServerContext) -> list[ReadResourceContents]:
     """
     Read pipeline artifacts.
 
@@ -586,7 +584,7 @@ def _read_artifacts(mcp_server: "PrimrMCPServer") -> list[ReadResourceContents]:
     ]
 
 
-def _read_config(mcp_server: "PrimrMCPServer") -> list[ReadResourceContents]:
+def _read_config(mcp_server: MCPServerContext) -> list[ReadResourceContents]:
     """
     Read configuration state.
 
@@ -741,52 +739,6 @@ def _read_research_modes() -> list[ReadResourceContents]:
     ]
 
 
-def get_strategy_catalog() -> list[dict[str, object]]:
-    """Return the shared strategy catalog used by resources and estimate tools."""
-    return [
-        {
-            "id": StrategyType.AI_STRATEGY.value,
-            "name": "AI Strategy",
-            "description": "AI/ML transformation roadmap with quick wins and bigger bets",
-            "requires_platform": True,
-            "estimated_time_minutes": 15,
-            "estimated_cost_usd": 0.30,
-        },
-        {
-            "id": StrategyType.CUSTOMER_EXPERIENCE.value,
-            "name": "Customer Experience Strategy",
-            "description": "CX transformation and digital experience improvement plan",
-            "requires_platform": False,
-            "estimated_time_minutes": 12,
-            "estimated_cost_usd": 0.25,
-        },
-        {
-            "id": StrategyType.MODERN_SECURITY_COMPLIANCE.value,
-            "name": "Security & Compliance Strategy",
-            "description": "Zero Trust architecture and compliance posture assessment",
-            "requires_platform": False,
-            "estimated_time_minutes": 12,
-            "estimated_cost_usd": 0.25,
-        },
-        {
-            "id": StrategyType.DATA_FABRIC_STRATEGY.value,
-            "name": "Data Fabric Strategy",
-            "description": "Modern data platform for agentic AI and semantic layers",
-            "requires_platform": False,
-            "estimated_time_minutes": 12,
-            "estimated_cost_usd": 0.25,
-        },
-        {
-            "id": StrategyType.SKILLS.value,
-            "name": "Skills Ideation",
-            "description": "Top-5 roles x top-3 skills hypothesis grounded in recon and hiring signals",
-            "requires_platform": False,
-            "estimated_time_minutes": 8,
-            "estimated_cost_usd": 0.08,
-        },
-    ]
-
-
 def _read_strategies_available() -> list[ReadResourceContents]:
     """
     Read available strategy types with metadata.
@@ -812,7 +764,7 @@ def _read_strategies_available() -> list[ReadResourceContents]:
     ]
 
 
-def _read_manifest_latest(mcp_server: "PrimrMCPServer") -> list[ReadResourceContents]:
+def _read_manifest_latest(mcp_server: MCPServerContext) -> list[ReadResourceContents]:
     """
     Read most recent run manifest (audit trail).
 

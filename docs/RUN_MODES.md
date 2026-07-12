@@ -78,6 +78,12 @@ primr "Company" https://company.com --strategy-type customer_experience
 
 Common strategy families include AI, customer experience, modern security and compliance, data fabric, cloud migration, data strategy, AI-first transformation, and skills.
 
+MCP `generate_strategy` is a standalone post-report path backed by one Gemini
+Deep Research task per document. Its current planning estimate is about $2.50,
+including when `strategy_type="skills"`; call `estimate_strategy` for the live
+value. This differs from the fast in-pipeline YAML writer and from the
+QA-refined `primr skills` pack workflow shown in the mode matrix.
+
 ## Cost Controls
 
 Use the built-in control path:

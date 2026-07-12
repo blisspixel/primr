@@ -162,9 +162,9 @@ block is threaded into the Deep Research stage-1 context (roadmap #3).
 
 ### Complete Mode (Recommended)
 
-Three-phase "Accordion Method" architecture for comprehensive 30+ page reports. This approach treats Deep Research as a Lead Researcher (gathering facts) and Gemini 3 Pro as the Writer (crafting sections with context continuity).
+Three-phase "Accordion Method" architecture for comprehensive 30+ page reports. This approach treats Deep Research as a Lead Researcher (gathering facts) and Gemini 3.1 Pro as the Writer (crafting sections with context continuity).
 
-**Critical API Limitation (December 2025):** Google's Deep Research Agent (`deep-research-preview-04-2026`) produces ~8-12 pages maximum per API call, regardless of prompt instructions. Tested with explicit "30 page" requests, the API consistently returns ~4,000-5,000 words. This is a fundamental output token limit, not a prompt engineering issue. The Accordion Method works around this by using Deep Research for fact-gathering and Gemini 3 Pro for section-by-section writing.
+**Observed Deep Research API limitation:** Google's Deep Research Agent (`deep-research-preview-04-2026`) produces ~8-12 pages maximum per API call, regardless of prompt instructions. Tests with explicit "30 page" requests produced ~4,000-5,000 words. The Accordion Method works around this output limit by using Deep Research for fact-gathering and Gemini 3.1 Pro for section-by-section writing.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -202,7 +202,7 @@ Phase 2: Research Dossier (10-15 min)
 Phase 3: Section-by-Section Writing (10-15 min)
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    Sequential Section Writer                         │
-│                      (gemini-3-pro-preview)                         │
+│                     (gemini-3.1-pro-preview)                        │
 │  ┌─────────────────────────────────────────────────────────────┐   │
 │  │  Uses: previous_interaction_id from Phase 2                  │   │
 │  │  Process: Write one section at a time, sequentially          │   │
@@ -242,7 +242,7 @@ The Accordion Method solves this by:
 
 **Model Usage:**
 - `deep-research-preview-04-2026`: Autonomous web research (Phase 2)
-- `gemini-3-pro-preview`: Section writing with `previous_interaction_id` (Phase 3)
+- `gemini-3.1-pro-preview`: Section writing with `previous_interaction_id` (Phase 3)
 
 **Rate Limit Strategy:**
 - Sequential section writes (not parallel) avoid 429 errors
@@ -678,7 +678,7 @@ Company Name + URL
 ┌─────────────────────────────────────────────────────────────────┐
 │  Phase 3: Sequential Section Writing                             │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │  gemini-3-pro-preview with previous_interaction_id       │   │
+│  │  gemini-3.1-pro-preview with previous_interaction_id     │   │
 │  │                                                          │   │
 │  │  Section 1 ──▶ Section 2 ──▶ Section 3 ──▶ ... ──▶ 10   │   │
 │  │      │             │             │                       │   │
@@ -770,6 +770,9 @@ src/primr/
 │   ├── job_tools.py        # Cancellation authorization and response
 │   ├── qa_operations.py    # Transport-neutral existing-report QA
 │   ├── research_validation.py # Research execution-shape validation
+│   ├── server_context.py   # Acyclic structural controller contract
+│   ├── strategy_catalog.py # Standalone strategy dispatch and cost catalog
+│   ├── strategy_operations.py # Transport-neutral strategy generation
 │   └── job_store.py        # Journal, timestamps, and controller lease
 ├── a2a/                     # A2A facade over governed MCP pipeline services
 │   ├── call_context.py     # Trusted loopback and authenticated task ownership
@@ -781,6 +784,12 @@ src/primr/
 ```
 
 This is a concern-level map, not an exhaustive listing of every helper module.
+`mcp_server.server_context.MCPServerContext` is the structural boundary for
+shared MCP and A2A consumers. Only `mcp_server/cli.py` and `a2a/cli.py` import
+the concrete server to construct it. Health, QA, and strategy operations live
+in dependency-light leaf modules so transport modules do not route through the
+research pipeline merely to reuse one operation.
+
 The detailed fast-stage contracts live in
 [`design/23-orchestrator-refactor-map.md`](design/23-orchestrator-refactor-map.md),
 and the capability-routing inventory lives in
@@ -1186,7 +1195,7 @@ See `docs/CONFIG.md` for detailed configuration reference.
 |------|----------|-------------|-----------|
 | Scrape | 2-5 min | 15-20 pages | ~20 Gemini |
 | Deep | 8-15 min | ~12 pages | 1 Deep Research |
-| Complete | 25-40 min | 30+ pages | 1 Deep Research + 10 Gemini 3 Pro |
+| Complete | 25-40 min | 30+ pages | 1 Deep Research + 10 Gemini 3.1 Pro |
 
 ### Resource Usage
 
@@ -1249,7 +1258,7 @@ Playwright tiers now perform adaptive lazy-load scrolling (up to 20 steps by def
 | Grok 4.20 | Legacy flagship - kept registered for resume of in-flight runs and as a fallback in the analysis chain | $2.00 in / $6.00 out |
 | Gemini 3.1 Flash-Lite | Default routed writing and utility path when `XAI_API_KEY` and `GEMINI_API_KEY` are both configured | See provider pricing in the estimator |
 | Gemini 3.1 Pro | `--premium` mode: section writing, analysis | $2/$12 (≤200k) · $4/$18 (>200k) |
-| Deep Research Agent | `--premium` mode: autonomous research | ~$2.50/task (flat) |
+| Deep Research Agent | `--premium` mode: autonomous research | ~$2.50 planning estimate per standard task; actual token and tool billing varies |
 
 ### Why Grok is the Default
 

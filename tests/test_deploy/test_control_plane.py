@@ -17,8 +17,11 @@ Requirements: 3.4, 3.5, 3.6, 3.7, 3.11, 3.17, 4.5, 4.6
 from __future__ import annotations
 
 import json
+import sys
 import threading
+from types import ModuleType
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -273,6 +276,35 @@ class TestJobStore:
         assert call["parameters"] == [
             {"name": "@statuses", "value": ["RUNNING", "QUEUED"]},
         ]
+
+    def test_cosmos_store_supports_managed_identity(self, monkeypatch) -> None:
+        credential = object()
+        container = MagicMock()
+        database = MagicMock()
+        database.get_container_client.return_value = container
+        client = MagicMock()
+        client.get_database_client.return_value = database
+        cosmos_client = MagicMock(return_value=client)
+        azure_module = ModuleType("azure")
+        azure_module.__path__ = []  # type: ignore[attr-defined]
+        cosmos_module = ModuleType("azure.cosmos")
+        cosmos_module.CosmosClient = cosmos_client  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, "azure", azure_module)
+        monkeypatch.setitem(sys.modules, "azure.cosmos", cosmos_module)
+
+        store = CosmosStore(
+            database_name="db",
+            container_name="jobs",
+            endpoint="https://example.documents.azure.com",
+            credential=credential,
+        )
+
+        assert store.container is container
+        cosmos_client.assert_called_once_with(
+            "https://example.documents.azure.com",
+            credential=credential,
+        )
+        database.get_container_client.assert_called_once_with("jobs")
 
 
 # =============================================================================

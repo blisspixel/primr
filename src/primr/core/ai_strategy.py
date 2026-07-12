@@ -98,6 +98,7 @@ class AIStrategyConfig:
     company_research_path: str | None = None
     force_refresh_vendor: bool = False
     timeout_seconds: int = 1800  # 30 minutes
+    allow_vendor_refresh: bool | None = None
 
     def validate(self) -> list[str]:
         """Validate configuration, return list of errors."""
@@ -176,6 +177,8 @@ def generate_ai_strategy_sync(
     company_research_path: str | None = None,
     force_refresh_vendor: bool = False,
     on_progress: Callable[[str], None] | None = None,
+    *,
+    allow_vendor_refresh: bool | None = None,
 ) -> str | None:
     """
     Generate AI strategy using Deep Research (synchronous).
@@ -186,6 +189,7 @@ def generate_ai_strategy_sync(
         company_research_path: Path to company research markdown
         force_refresh_vendor: If True, regenerate vendor research
         on_progress: Optional progress callback
+        allow_vendor_refresh: Override environment-driven vendor refresh behavior
 
     Returns:
         Path to generated DOCX file, or None if failed
@@ -198,6 +202,7 @@ def generate_ai_strategy_sync(
             platform=platform,
             company_research_path=company_research_path,
             force_refresh_vendor=force_refresh_vendor,
+            allow_vendor_refresh=allow_vendor_refresh,
             on_progress=on_progress,
         )
     )
@@ -211,6 +216,8 @@ async def generate_ai_strategy(
     company_research_path: str | None = None,
     force_refresh_vendor: bool = False,
     on_progress: Callable[[str], None] | None = None,
+    *,
+    allow_vendor_refresh: bool | None = None,
 ) -> AIStrategyResult:
     """
     Generate AI strategy using Deep Research (async).
@@ -226,6 +233,7 @@ async def generate_ai_strategy(
         company_research_path: Path to company research markdown
         force_refresh_vendor: If True, regenerate vendor research
         on_progress: Optional progress callback
+        allow_vendor_refresh: Override environment-driven vendor refresh behavior
 
     Returns:
         AIStrategyResult with output paths and metadata
@@ -246,6 +254,7 @@ async def generate_ai_strategy(
         platform=vendor,
         company_research_path=company_research_path,
         force_refresh_vendor=force_refresh_vendor,
+        allow_vendor_refresh=allow_vendor_refresh,
     )
 
     # Pre-flight validation
@@ -318,6 +327,7 @@ async def generate_ai_strategy(
     # for strategy generation were invisible to primr show-usage and
     # downstream budget alerts.
     try:
+        from primr.config.models import DEEP_RESEARCH_COST
         from primr.utils.usage_tracker import get_usage_tracker
 
         tracker = get_usage_tracker()
@@ -329,10 +339,11 @@ async def generate_ai_strategy(
             input_tokens=0,
             output_tokens=0,
             duration_seconds=elapsed_s,
-            # Catalog price for the ai_strategy task; provider invoices remain
-            # the source of truth, but this surfaces the spend in the UI.
-            deep_research_cost=0.30,
+            # Provider billing varies by token and tool use. Record the same
+            # conservative planning estimate used by the approval gate.
+            deep_research_cost=DEEP_RESEARCH_COST.standard_task_cost,
         )
+        tracker.save()
     except Exception as exc:
         # Tracking failure must never fail the strategy run itself.
         logger.debug("Standalone AI strategy usage tracking skipped: %s", exc)
@@ -451,6 +462,7 @@ async def _gather_context(
                     vendor_str,
                     force_refresh=False,  # Explicitly pass force_refresh
                     on_progress=on_progress,
+                    allow_auto_refresh=config.allow_vendor_refresh,
                 )
                 vendor_paths = [str(p) for p in result.paths]
 

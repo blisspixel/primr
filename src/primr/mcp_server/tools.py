@@ -22,7 +22,7 @@ Requirements: 5.1-5.13, 6.1-6.7, 7.1-7.6, 8.1-8.6, 18.1-18.12
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
 from mcp.server import Server
 from mcp.types import TextContent, Tool
@@ -40,7 +40,7 @@ from primr.mcp_server.audit_log import audit_tool_calls
 from primr.mcp_server.job_responses import build_job_response, include_artifacts_requested
 from primr.mcp_server.job_store import JobInProgressError, ResearchJobState
 from primr.mcp_server.job_tools import handle_cancel_job as _handle_cancel_job
-from primr.mcp_server.platforms import normalize_platform, normalize_platforms
+from primr.mcp_server.platforms import normalize_platform
 from primr.mcp_server.research_policy import (
     build_research_estimate as _build_research_estimate,
 )
@@ -58,19 +58,17 @@ from primr.mcp_server.resource_auth import (
     caller_is_local_stdio,
     caller_owns_job_resource,
 )
+from primr.mcp_server.server_context import MCPServerContext
 from primr.mcp_server.skill_pack_tools import handle_skill_pack_tool, register_skill_pack_tools
+from primr.mcp_server.strategy_operations import run_strategy_generation
 from primr.mcp_server.tool_authz import authorize_tool_call, scope_denied_response
 from primr.mcp_server.types import MCPErrorCode
 
-if TYPE_CHECKING:
-    from primr.mcp_server.server import PrimrMCPServer
-
 logger = logging.getLogger(__name__)
 _normalize_platform = normalize_platform
-_normalize_platforms = normalize_platforms
 
 
-def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
+def register_tools(server: Server, mcp_server: MCPServerContext) -> None:
     """Register all Primr tools with the MCP server."""
 
     # Get agentic tools
@@ -509,7 +507,7 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
 
 
 async def _handle_estimate_run(
-    mcp_server: "PrimrMCPServer",
+    mcp_server: MCPServerContext,
     arguments: dict[str, Any],
 ) -> list[TextContent]:
     """
@@ -609,6 +607,7 @@ async def _handle_estimate_strategy(arguments: dict[str, Any]) -> list[TextConte
         "estimated_time_minutes": strategy["estimated_time_minutes"],
         "requires_platform": strategy["requires_platform"],
         "platform": platform,
+        "cost_basis": strategy["cost_basis"],
         "cost_warning": (
             "Strategy generation incurs real API charges. Get explicit user approval "
             "before generate_strategy."
@@ -625,7 +624,7 @@ async def _handle_estimate_strategy(arguments: dict[str, Any]) -> list[TextConte
 
 
 async def _handle_research_company(
-    mcp_server: "PrimrMCPServer",
+    mcp_server: MCPServerContext,
     arguments: dict[str, Any],
     client_id: str,
 ) -> list[TextContent]:
@@ -821,7 +820,7 @@ async def _handle_research_company(
 
 
 async def _handle_generate_strategy(
-    mcp_server: "PrimrMCPServer",
+    mcp_server: MCPServerContext,
     arguments: dict[str, Any],
 ) -> list[TextContent]:
     """
@@ -890,10 +889,7 @@ async def _handle_generate_strategy(
     if approval_error is not None:
         return [TextContent(type="text", text=json.dumps(approval_error))]
 
-    # Run strategy generation
     try:
-        from primr.mcp_server.pipeline_runner import run_strategy_generation
-
         result = await run_strategy_generation(
             report_path=str(path_result.resolved_path),
             strategy_type=strategy_type,
@@ -935,7 +931,7 @@ async def _handle_generate_strategy(
 
 
 async def _handle_check_jobs(
-    mcp_server: "PrimrMCPServer",
+    mcp_server: MCPServerContext,
     arguments: dict[str, Any],
     client_id: str,
 ) -> list[TextContent]:
@@ -1010,7 +1006,7 @@ async def _handle_check_jobs(
 
 
 async def _handle_run_qa(
-    mcp_server: "PrimrMCPServer",
+    mcp_server: MCPServerContext,
     arguments: dict[str, Any],
 ) -> list[TextContent]:
     """
@@ -1087,7 +1083,7 @@ async def _handle_run_qa(
 
 
 async def _handle_doctor(
-    _mcp_server: "PrimrMCPServer",
+    _mcp_server: MCPServerContext,
     _arguments: dict[str, Any],
 ) -> list[TextContent]:
     """
@@ -1238,7 +1234,7 @@ async def _get_cloud_diagnostics() -> dict[str, Any]:
 
 
 async def _handle_clear_jobs(
-    mcp_server: "PrimrMCPServer",
+    mcp_server: MCPServerContext,
     arguments: dict[str, Any],
     client_id: str,
 ) -> list[TextContent]:
@@ -1284,7 +1280,7 @@ async def _handle_clear_jobs(
 
 
 async def _handle_wait_for_status_change(
-    mcp_server: "PrimrMCPServer",
+    mcp_server: MCPServerContext,
     arguments: dict[str, Any],
     client_id: str,
 ) -> list[TextContent]:
@@ -1386,7 +1382,7 @@ async def _handle_wait_for_status_change(
 
 
 async def _handle_show_usage(
-    mcp_server: "PrimrMCPServer",
+    mcp_server: MCPServerContext,
     client_id: str,
 ) -> list[TextContent]:
     """
@@ -1451,7 +1447,7 @@ async def _handle_show_usage(
 
 
 async def _handle_delegate_to_agent(
-    mcp_server: "PrimrMCPServer",
+    mcp_server: MCPServerContext,
     arguments: dict[str, Any],
 ) -> list[TextContent]:
     """

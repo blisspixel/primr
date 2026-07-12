@@ -135,6 +135,10 @@ async def test_generate_records_usage_on_success(tmp_path: Path, monkeypatch):
     kwargs = tracker.record_usage.call_args.kwargs
     assert kwargs["mode"] == "standalone_ai_strategy_aws"
     assert kwargs["company"] == "Acme"
+    from primr.config.models import DEEP_RESEARCH_COST
+
+    assert kwargs["deep_research_cost"] == DEEP_RESEARCH_COST.standard_task_cost
+    tracker.save.assert_called_once_with()
 
 
 # ---------------------------------------------------------------------------
@@ -246,6 +250,12 @@ async def test_gather_context_get_or_generate_vendor(tmp_path: Path):
 
     assert str(vendor_file) in context_files
     assert str(vendor_file) in vendor_paths
+    fake_vendor_mod.get_or_generate_vendor_research.assert_awaited_once_with(
+        "aws",
+        force_refresh=False,
+        on_progress=None,
+        allow_auto_refresh=None,
+    )
 
 
 @pytest.mark.asyncio

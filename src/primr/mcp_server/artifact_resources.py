@@ -5,20 +5,18 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.types import AnyUrl, Resource
 
 from primr.mcp_server.resource_auth import caller_owns_job_resource
+from primr.mcp_server.server_context import MCPServerContext
 from primr.output.artifact_inventory import (
     ArtifactRecord,
     classify_artifact,
     inventory_explicit_result,
 )
-
-if TYPE_CHECKING:
-    from primr.mcp_server.server import PrimrMCPServer
 
 ARTIFACT_METADATA_BY_JOB_URI = "primr://output/artifacts/by_job"
 QA_SUMMARY_BY_JOB_URI = "primr://output/qa_summary/by_job"
@@ -53,7 +51,7 @@ USAGE_SUMMARY_BY_JOB_RESOURCE = Resource(
 
 
 def read_artifact_metadata_by_job_resource(
-    mcp_server: PrimrMCPServer,
+    mcp_server: MCPServerContext,
     uri: str,
     *,
     client_id: str,
@@ -89,7 +87,7 @@ def read_artifact_metadata_by_job_resource(
 
 
 def read_qa_summary_by_job_resource(
-    mcp_server: PrimrMCPServer,
+    mcp_server: MCPServerContext,
     uri: str,
     *,
     client_id: str,
@@ -138,7 +136,7 @@ def read_qa_summary_by_job_resource(
 
 
 def read_usage_summary_by_job_resource(
-    mcp_server: PrimrMCPServer,
+    mcp_server: MCPServerContext,
     uri: str,
     *,
     client_id: str,
@@ -490,7 +488,7 @@ def _string_list(value: Any) -> list[str]:
     return [item for item in value if isinstance(item, str)]
 
 
-def _owned_job(mcp_server: PrimrMCPServer, job_id: str, client_id: str) -> Any | None:
+def _owned_job(mcp_server: MCPServerContext, job_id: str, client_id: str) -> Any | None:
     job = mcp_server.job_store.get_by_id(job_id)
     if job is None or not caller_owns_job_resource(mcp_server, job, client_id):
         return None

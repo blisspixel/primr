@@ -22,6 +22,10 @@ from primr.qa.error_handler import (
 
 
 class TestQARetryHandler:
+    def test_negative_retry_count_is_rejected(self):
+        with pytest.raises(ValueError, match="max_retries must be non-negative"):
+            QARetryHandler(max_retries=-1)
+
     def test_success_first_try(self):
         handler = QARetryHandler(max_retries=2)
         assert handler.retry_with_backoff(lambda: "ok") == "ok"

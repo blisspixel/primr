@@ -18,9 +18,8 @@ jobs:
       fail-fast: false
       matrix:
         # 3.12 is the supported floor; 3.13 and 3.14 are current/next stable.
-        # All three are hard gates: the full suite passes on each (validated
-        # locally on 3.12 and 3.14: 8,391 passed) and the native-dep stack
-        # installs cleanly on 3.14.
+        # All three are hard gates: the full suite runs on each and the
+        # native-dependency stack must install cleanly on 3.14.
         python-version: ["3.12", "3.13", "3.14"]
 
     # UV_PYTHON pins the interpreter for every uv command in this job to the
@@ -31,13 +30,13 @@ jobs:
       UV_PYTHON: ${{ matrix.python-version }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
       - name: Install uv
         timeout-minutes: 5
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
@@ -166,13 +165,13 @@ jobs:
       UV_PYTHON: "3.13"
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
       - name: Install uv
         timeout-minutes: 5
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
@@ -204,13 +203,13 @@ jobs:
       UV_PYTHON: "3.13"
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
       - name: Install uv
         timeout-minutes: 5
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
@@ -243,12 +242,12 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           persist-credentials: false
 
       - name: Trivy filesystem scan
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           # vuln + misconfig only. Secret scanning is intentionally omitted:
