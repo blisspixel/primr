@@ -6,7 +6,6 @@ Requires: pip install primr[a2a]
 """
 
 import argparse
-import asyncio
 import sys
 
 
@@ -132,7 +131,9 @@ Health Check:
     )
 
     try:
-        asyncio.run(a2a_server.run())
+        from primr.utils.async_utils import run_sync
+
+        run_sync(a2a_server.run())
     except KeyboardInterrupt:
         pass
     except Exception as e:

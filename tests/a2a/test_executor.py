@@ -8,6 +8,7 @@ import pytest
 
 a2a = pytest.importorskip("a2a")
 
+from primr.a2a.call_context import LOCAL_A2A_CLIENT_ID
 from primr.a2a.executor import (
     PrimrAgentExecutor,
     _a2a_client_id,
@@ -29,6 +30,7 @@ from primr.a2a.input_parsing import (
 )
 from primr.a2a.task_store import PrimrTaskStore
 from primr.a2a.types import A2ATaskMapping
+from primr.mcp_server.resource_auth import TRUSTED_LOCAL_A2A_AUTH_CONTEXT
 from primr.mcp_server.types import ResearchStage
 
 
@@ -226,10 +228,15 @@ class TestReportReadUri:
 class TestA2AOwnershipHelpers:
     """Tests for A2A caller ownership helpers."""
 
-    def test_local_owner_without_auth_context(self):
+    def test_local_owner_uses_server_trusted_context(self):
+        mcp_server = MagicMock()
+        mcp_server._auth_context = TRUSTED_LOCAL_A2A_AUTH_CONTEXT
+        assert _a2a_client_id(mcp_server) == LOCAL_A2A_CLIENT_ID
+
+    def test_missing_auth_context_is_anonymous(self):
         mcp_server = MagicMock()
         mcp_server._auth_context = None
-        assert _a2a_client_id(mcp_server) == "a2a"
+        assert _a2a_client_id(mcp_server) == "anonymous"
 
     def test_authenticated_owner_uses_client_id(self):
         auth_context = MagicMock()
@@ -262,6 +269,7 @@ class TestPrimrAgentExecutor:
 
         task_store = PrimrTaskStore(mcp_server.job_store)
         executor = PrimrAgentExecutor(mcp_server, task_store)
+        mcp_server._auth_context = TRUSTED_LOCAL_A2A_AUTH_CONTEXT
         return executor
 
     @pytest.fixture
@@ -374,6 +382,71 @@ class TestPrimrAgentExecutor:
         context.task_id = "nonexistent-task"
         await executor.cancel(context, event_queue)
         event_queue.enqueue_event.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_cancel_request_cancellation_releases_stream_suppression(
+        self,
+        executor,
+        event_queue,
+        context,
+        monkeypatch,
+    ):
+        """A dropped cancel request cannot suppress the research terminal event."""
+        job = executor._mcp.job_store.create("Acme", "full", owner_client_id="a2a")
+        executor._task_store.register_mapping(
+            A2ATaskMapping(task_id="task-1", job_id=job.job_id, skill_id="research_company")
+        )
+        executor._mcp._skip_background_tasks = False
+        context.task_id = "task-1"
+        context.context_id = "ctx-1"
+        entered = asyncio.Event()
+
+        async def blocking_cancel(_job_id):
+            entered.set()
+            await asyncio.Future()
+
+        monkeypatch.setattr(executor._mcp.job_supervisor, "cancel", blocking_cancel)
+        cancel_task = asyncio.create_task(executor.cancel(context, event_queue))
+        await asyncio.wait_for(entered.wait(), timeout=1.0)
+        assert executor._lifecycle_events.cancel_is_pending(job.job_id)
+        cancel_task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await cancel_task
+        assert not executor._lifecycle_events.cancel_is_pending(job.job_id)
+
+    @pytest.mark.asyncio
+    async def test_cancel_completion_race_reports_observed_terminal_truth(
+        self,
+        executor,
+        event_queue,
+        context,
+        monkeypatch,
+    ):
+        """Completion winning cancellation is not called an unconfirmed exit."""
+        from primr.mcp_server.job_process import CancellationOutcome
+
+        job = executor._mcp.job_store.create("Acme", "full", owner_client_id="a2a")
+        executor._task_store.register_mapping(
+            A2ATaskMapping(task_id="task-1", job_id=job.job_id, skill_id="research_company")
+        )
+        executor._mcp._skip_background_tasks = False
+        context.task_id = "task-1"
+        context.context_id = "ctx-1"
+        monkeypatch.setattr(
+            executor._mcp.job_supervisor,
+            "cancel",
+            AsyncMock(
+                return_value=CancellationOutcome(
+                    status="completed",
+                    worker_exit_confirmed=True,
+                )
+            ),
+        )
+
+        await executor.cancel(context, event_queue)
+        text = _get_event_text(event_queue.enqueue_event.call_args[0][0])
+        assert "completed before cancellation" in text
+        assert "could not be confirmed" not in text
 
     @pytest.mark.asyncio
     async def test_cancel_writes_a2a_audit_event_with_job_id(self, executor, event_queue, context):
@@ -537,6 +610,45 @@ class TestPrimrAgentExecutor:
         assert audit_event["estimated_cost_usd"] == data["estimated_cost_usd"]
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "shape,error_type",
+        [
+            ({"platforms": ["azure", "aws"]}, "unsupported_platform_fanout"),
+            ({"platforms": ["ms"]}, "unsupported_platform_fanout"),
+            ({"platform": "ms"}, "unsupported_platform_fanout"),
+            (
+                {"platform": "azure", "platforms": ["azure"]},
+                "conflicting_platform_parameters",
+            ),
+            ({"strategy_type": "customer_experience"}, "unsupported_strategy_type"),
+        ],
+    )
+    async def test_estimate_rejects_unexecutable_integrated_shape(
+        self,
+        executor,
+        event_queue,
+        context,
+        shape,
+        error_type,
+    ):
+        context.message = {
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": json.dumps({"url": "https://example.com", **shape}),
+                }
+            ],
+            "metadata": {"skillId": "estimate_research"},
+        }
+
+        await executor.execute(context, event_queue)
+
+        data = json.loads(_get_event_text(event_queue.enqueue_event.call_args[0][0]))
+        assert data["error"] is True
+        assert data["error_type"] == error_type
+        assert "approval_token" not in data
+
+    @pytest.mark.asyncio
     async def test_research_no_url(self, executor, event_queue, context):
         """research_company without URL asks for one."""
         context.message = {
@@ -547,6 +659,46 @@ class TestPrimrAgentExecutor:
         event = event_queue.enqueue_event.call_args[0][0]
         text = _get_event_text(event)
         assert "URL" in text
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "shape,error_type",
+        [
+            ({"platforms": ["azure"]}, "unsupported_platforms_parameter"),
+            ({"platform": "ms"}, "unsupported_platform_fanout"),
+            ({"strategy_type": "customer_experience"}, "unsupported_strategy_type"),
+        ],
+    )
+    async def test_research_rejects_unexecutable_shape_before_job_creation(
+        self,
+        executor,
+        event_queue,
+        context,
+        shape,
+        error_type,
+    ):
+        context.message = {
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": json.dumps(
+                        {
+                            "url": "https://example.com",
+                            "name": "Example",
+                            **shape,
+                        }
+                    ),
+                }
+            ],
+            "metadata": {"skillId": "research_company"},
+        }
+
+        await executor.execute(context, event_queue)
+
+        data = json.loads(_get_event_text(event_queue.enqueue_event.call_args[0][0]))
+        assert data["error"] is True
+        assert data["error_type"] == error_type
+        assert executor._mcp.job_store.get_active() is None
 
     @pytest.mark.asyncio
     async def test_research_denied_for_read_only_token(self, executor, event_queue, context):
@@ -718,7 +870,7 @@ class TestPrimrAgentExecutor:
         assert executor._mcp.job_store.get_active() is None
 
     @pytest.mark.asyncio
-    async def test_research_accepts_matching_approval_and_passes_budget_to_runner(
+    async def test_research_accepts_matching_approval_and_passes_budget_to_supervisor(
         self, executor, event_queue, context, monkeypatch
     ):
         """A2A research propagates the approved cap as the runtime budget."""
@@ -742,19 +894,17 @@ class TestPrimrAgentExecutor:
         done = asyncio.Event()
         seen = {}
 
-        class FakeRunner:
-            def __init__(self, mcp_server):
-                self.mcp_server = mcp_server
-
-            async def run_research(self, **kwargs):
-                seen.update(kwargs)
-                done.set()
+        async def fake_start(**kwargs):
+            seen.update(kwargs)
+            done.set()
+            return asyncio.create_task(asyncio.sleep(0))
 
         try:
             await executor.execute(context, event_queue)
             estimate = json.loads(_get_event_text(event_queue.enqueue_event.call_args[0][0]))
             event_queue.enqueue_event.reset_mock()
-            monkeypatch.setattr("primr.a2a.executor.PipelineRunner", FakeRunner)
+            executor._mcp._skip_background_tasks = False
+            monkeypatch.setattr(executor._mcp.job_supervisor, "start", fake_start)
             context.task_id = "task-1"
             context.context_id = "ctx-1"
             context.message = {
@@ -912,6 +1062,109 @@ class TestPrimrAgentExecutor:
         assert audit_event["status"] == "success"
         assert audit_event["auth_scopes"] == ["report"]
         assert audit_event["job_id"] == job.job_id
+
+    @pytest.mark.asyncio
+    async def test_trusted_local_reads_own_report_and_artifact_metadata(
+        self,
+        executor,
+        event_queue,
+        context,
+        tmp_path,
+    ):
+        """Loopback no-auth A2A can read its own bounded job resources."""
+        report_path = tmp_path / "local-report.md"
+        report_path.write_text("# Local report", encoding="utf-8")
+        job = executor._mcp.job_store.create(
+            company_name="Local Acme",
+            mode="full",
+            owner_client_id="a2a",
+        )
+        job.output_paths = [str(report_path)]
+
+        context.message = {
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": json.dumps(
+                        {
+                            "job_id": job.job_id,
+                            "content_mode": "full",
+                            "max_chars": 200,
+                        }
+                    ),
+                }
+            ],
+            "metadata": {"skillId": "read_report_by_job"},
+        }
+        await executor.execute(context, event_queue)
+        report = json.loads(_get_event_text(event_queue.enqueue_event.call_args[0][0]))
+
+        event_queue.enqueue_event.reset_mock()
+        context.message = {
+            "parts": [{"kind": "text", "text": json.dumps({"job_id": job.job_id})}],
+            "metadata": {"skillId": "read_artifacts_by_job"},
+        }
+        await executor.execute(context, event_queue)
+        artifacts = json.loads(_get_event_text(event_queue.enqueue_event.call_args[0][0]))
+
+        assert report["job_id"] == job.job_id
+        assert report["artifacts"][0]["content"] == "# Local report"
+        assert artifacts["job_id"] == job.job_id
+        assert artifacts["company_name"] == "Local Acme"
+
+    @pytest.mark.asyncio
+    async def test_anonymous_report_read_fails_before_job_lookup(
+        self,
+        executor,
+        event_queue,
+        context,
+    ):
+        """An unmarked unauthenticated A2A request fails closed."""
+        job = executor._mcp.job_store.create(
+            company_name="Private",
+            mode="full",
+            owner_client_id="a2a",
+        )
+        executor._mcp._auth_context = None
+        context.message = {
+            "parts": [{"kind": "text", "text": json.dumps({"job_id": job.job_id})}],
+            "metadata": {"skillId": "read_report_by_job"},
+        }
+
+        await executor.execute(context, event_queue)
+
+        payload = json.loads(_get_event_text(event_queue.enqueue_event.call_args[0][0]))
+        assert payload["error_type"] == "authentication_required"
+        assert payload["missing_scopes"] == ["report"]
+
+    @pytest.mark.asyncio
+    async def test_authenticated_reserved_subject_cannot_read_local_a2a_job(
+        self,
+        executor,
+        event_queue,
+        context,
+    ):
+        """A caller-controlled reserved JWT subject cannot select local trust."""
+        job = executor._mcp.job_store.create(
+            company_name="Private",
+            mode="full",
+            owner_client_id="a2a",
+        )
+        auth_context = MagicMock()
+        auth_context.is_authenticated = True
+        auth_context.scopes = ["report"]
+        auth_context.client_id = "a2a"
+        executor._mcp._auth_context = auth_context
+        context.message = {
+            "parts": [{"kind": "text", "text": json.dumps({"job_id": job.job_id})}],
+            "metadata": {"skillId": "read_report_by_job"},
+        }
+
+        await executor.execute(context, event_queue)
+
+        payload = json.loads(_get_event_text(event_queue.enqueue_event.call_args[0][0]))
+        assert payload["error"] == "job_not_found"
+        assert payload["job_id"] == job.job_id
 
     @pytest.mark.asyncio
     async def test_report_read_hides_other_client_job(

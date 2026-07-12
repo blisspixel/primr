@@ -12,6 +12,15 @@ from primr.mcp_server.job_store import JobInProgressError, SingleJobStore
 from primr.mcp_server.types import ResearchStage
 
 
+def _local_mcp_server(job_store: SingleJobStore) -> MagicMock:
+    """Create a direct-handler fixture that accurately models local stdio."""
+    server = MagicMock()
+    server.job_store = job_store
+    server.transport = "stdio"
+    server._auth_context = None
+    return server
+
+
 class TestJobIdInLatestResponse:
     """Test job_id is included in primr://output/latest response."""
 
@@ -31,8 +40,7 @@ class TestJobIdInLatestResponse:
         report_path.write_text("# Test Report")
 
         # Create mock mcp_server
-        mock_server = MagicMock()
-        mock_server.job_store = job_store
+        mock_server = _local_mcp_server(job_store)
 
         # Import and call the resource handler
         # Change to tmp_path so Path("output") resolves correctly
@@ -59,8 +67,7 @@ class TestJobIdInLatestResponse:
         job.advance_stage(ResearchStage.COMPLETED)
         job_store.update(job)
 
-        mock_server = MagicMock()
-        mock_server.job_store = job_store
+        mock_server = _local_mcp_server(job_store)
 
         # Change to tmp_path so Path("output") resolves correctly
         import os
@@ -94,8 +101,7 @@ class TestOutputByJobResource:
         report_path = tmp_path / "report.md"
         report_path.write_text("# Test Report Content")
 
-        mock_server = MagicMock()
-        mock_server.job_store = job_store
+        mock_server = _local_mcp_server(job_store)
 
         from primr.mcp_server.resources import _read_output_by_job
 
@@ -111,8 +117,7 @@ class TestOutputByJobResource:
         """FR-6.2: by_job returns error for unknown job_id."""
         job_store = SingleJobStore(journal_path=str(tmp_path / "journal.json"))
 
-        mock_server = MagicMock()
-        mock_server.job_store = job_store
+        mock_server = _local_mcp_server(job_store)
 
         from primr.mcp_server.resources import _read_output_by_job
 
@@ -130,8 +135,7 @@ class TestOutputByJobResource:
         job_id = job.job_id
         # Don't complete the job, leave it in progress
 
-        mock_server = MagicMock()
-        mock_server.job_store = job_store
+        mock_server = _local_mcp_server(job_store)
 
         from primr.mcp_server.resources import _read_output_by_job
 

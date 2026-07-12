@@ -44,6 +44,17 @@ class TestToolListing:
         assert "clear_jobs" in tool_names
         assert "cancel_job" in tool_names
 
+        estimate_run = next(tool for tool in tools if tool.name == "estimate_run")
+        estimate_platforms = estimate_run.inputSchema["properties"]["platforms"]
+        assert estimate_platforms["minItems"] == 1
+        assert estimate_platforms["maxItems"] == 1
+        assert estimate_run.inputSchema["properties"]["strategy_type"]["enum"] == ["ai"]
+
+        research_company = next(tool for tool in tools if tool.name == "research_company")
+        research_properties = research_company.inputSchema["properties"]
+        assert "platforms" not in research_properties
+        assert "strategy_type" not in research_properties
+
 
 class TestEstimateRun:
     """Tests for estimate_run tool."""
@@ -244,6 +255,43 @@ class TestResearchCompany:
         assert data["status_uri"] == "primr://research/status"
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("field", "value", "error_type"),
+        [
+            ("mode", "turbo", "invalid_mode"),
+            ("mode", 1, "invalid_mode"),
+            ("platform", "unsupported", "invalid_platform"),
+            ("platform", ["aws"], "invalid_platform"),
+            ("no_ai_strategy", "false", "invalid_parameter"),
+            ("skip_qa", 0, "invalid_parameter"),
+            ("verify", None, "invalid_parameter"),
+        ],
+    )
+    async def test_research_company_rejects_malformed_execution_shape_before_job_creation(
+        self,
+        server,
+        field,
+        value,
+        error_type,
+    ):
+        from primr.mcp_server.tools import _handle_research_company
+
+        result = await _handle_research_company(
+            server,
+            {
+                "company_name": "Acme Corp",
+                "company_url": "https://example.com",
+                field: value,
+            },
+            "stdio",
+        )
+
+        data = json.loads(result[0].text)
+        assert data["error"] is True
+        assert data["error_type"] == error_type
+        assert server.job_store.get_active() is None
+
+    @pytest.mark.asyncio
     async def test_research_company_job_in_progress(self, server):
         """research_company returns error if job already in progress."""
         handler = server.server.request_handlers[CallToolRequest]
@@ -282,6 +330,70 @@ class TestResearchCompany:
         assert data["error"] is True
         assert data["error_type"] == "job_in_progress"
         assert "active_job_id" in data
+
+    @pytest.mark.asyncio
+    async def test_cross_tenant_job_in_progress_hides_active_id(self, server, monkeypatch):
+        from mcp.server.auth.provider import AccessToken
+
+        from primr.mcp_server.auth import AuthContext
+
+        active = server.job_store.create("Acme Corp", "full", owner_client_id="owner-1")
+        server.transport = "streamable-http"
+        server._auth_context = AuthContext(
+            AccessToken(token="test", client_id="other-1", scopes=["research"])
+        )
+        monkeypatch.setattr("primr.mcp_server.tools.enforce_approval_token", lambda **_kwargs: None)
+
+        handler = server.server.request_handlers[CallToolRequest]
+        result = await handler(
+            CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(
+                    name="research_company",
+                    arguments={
+                        "company_name": "Other Corp",
+                        "company_url": "https://example.com",
+                        "max_estimated_cost_usd": 100.0,
+                    },
+                ),
+            )
+        )
+
+        data = json.loads(result.root.content[0].text)
+        assert data["error_type"] == "job_in_progress"
+        assert "active_job_id" not in data
+        assert active.job_id not in data["message"]
+
+    @pytest.mark.asyncio
+    async def test_owner_job_in_progress_may_see_active_id(self, server, monkeypatch):
+        from mcp.server.auth.provider import AccessToken
+
+        from primr.mcp_server.auth import AuthContext
+
+        active = server.job_store.create("Acme Corp", "full", owner_client_id="owner-1")
+        server.transport = "streamable-http"
+        server._auth_context = AuthContext(
+            AccessToken(token="test", client_id="owner-1", scopes=["research"])
+        )
+        monkeypatch.setattr("primr.mcp_server.tools.enforce_approval_token", lambda **_kwargs: None)
+
+        handler = server.server.request_handlers[CallToolRequest]
+        result = await handler(
+            CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(
+                    name="research_company",
+                    arguments={
+                        "company_name": "Other Corp",
+                        "company_url": "https://example.com",
+                        "max_estimated_cost_usd": 100.0,
+                    },
+                ),
+            )
+        )
+
+        data = json.loads(result.root.content[0].text)
+        assert data["active_job_id"] == active.job_id
 
 
 class TestCostCaps:
@@ -429,7 +541,7 @@ class TestCostCaps:
         assert data["error_type"] == "cost_cap_required"
 
     @pytest.mark.asyncio
-    async def test_research_company_passes_approved_cap_to_runner(self, monkeypatch):
+    async def test_research_company_passes_approved_cap_to_supervisor(self, monkeypatch):
         with tempfile.TemporaryDirectory() as tmpdir:
             server = create_mcp_server(
                 journal_path=str(Path(tmpdir) / "test_journal.json"),
@@ -439,15 +551,12 @@ class TestCostCaps:
             seen = {}
             done = asyncio.Event()
 
-            class FakeRunner:
-                def __init__(self, mcp_server):
-                    self.mcp_server = mcp_server
+            async def fake_start(**kwargs):
+                seen.update(kwargs)
+                done.set()
+                return asyncio.create_task(asyncio.sleep(0))
 
-                async def run_research(self, **kwargs):
-                    seen.update(kwargs)
-                    done.set()
-
-            monkeypatch.setattr("primr.mcp_server.pipeline_runner.PipelineRunner", FakeRunner)
+            monkeypatch.setattr(server.job_supervisor, "start", fake_start)
             handler = server.server.request_handlers[CallToolRequest]
             result = await handler(
                 CallToolRequest(
@@ -468,6 +577,46 @@ class TestCostCaps:
             assert data["accepted"] is True
             await asyncio.wait_for(done.wait(), timeout=1)
             assert seen["budget_usd"] == 100.0
+            assert seen["platform"] == "agnostic"
+
+    @pytest.mark.asyncio
+    async def test_research_company_normalizes_single_platform_for_worker(self, monkeypatch):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            server = create_mcp_server(
+                journal_path=str(Path(tmpdir) / "test_journal.json"),
+                skip_background_tasks=False,
+            )
+            server.rate_limiter.reset()
+            seen = {}
+
+            async def fake_start(**kwargs):
+                seen.update(kwargs)
+                return asyncio.create_task(asyncio.sleep(0))
+
+            monkeypatch.setattr(server.job_supervisor, "start", fake_start)
+            handler = server.server.request_handlers[CallToolRequest]
+            result = await handler(
+                CallToolRequest(
+                    method="tools/call",
+                    params=CallToolRequestParams(
+                        name="research_company",
+                        arguments={
+                            "company_name": "Acme Corp",
+                            "company_url": "https://example.com",
+                            "mode": "premium",
+                            "platform": "microsoft",
+                            "skip_qa": True,
+                            "max_estimated_cost_usd": 100.0,
+                        },
+                    ),
+                )
+            )
+
+            data = json.loads(result.root.content[0].text)
+            assert data["accepted"] is True
+            assert seen["mode"] == "premium"
+            assert seen["platform"] == "azure"
+            assert seen["skip_qa"] is True
 
 
 class TestCancelJob:
@@ -517,6 +666,20 @@ class TestCancelJob:
         assert data["success"] is True
         assert data["status"] == "cancelled"
 
+        repeated = await handler(
+            CallToolRequest(
+                method="tools/call",
+                params=CallToolRequestParams(
+                    name="cancel_job",
+                    arguments={"job_id": job_id},
+                ),
+            )
+        )
+        repeated_data = json.loads(repeated.root.content[0].text)
+        assert repeated_data["success"] is True
+        assert repeated_data["status"] == "cancelled"
+        assert repeated_data["termination_method"] == "already_exited"
+
     @pytest.mark.asyncio
     async def test_cancel_job_not_found(self, server):
         """cancel_job returns error for nonexistent job."""
@@ -537,6 +700,74 @@ class TestCancelJob:
 
         assert data["error"] is True
         assert data["error_type"] == "job_not_found"
+
+    @pytest.mark.asyncio
+    async def test_admin_can_cancel_another_owners_unstarted_job(self, server):
+        """The handler honors AuthContext's documented admin cancellation policy."""
+        from mcp.server.auth.provider import AccessToken
+
+        from primr.mcp_server.auth import AuthContext
+        from primr.mcp_server.tools import _handle_cancel_job
+
+        job = server.job_store.create("Acme", "full", owner_client_id="owner-1")
+        server._auth_context = AuthContext(
+            AccessToken(token="test", client_id="admin-1", scopes=["admin", "research"])
+        )
+        try:
+            result = await _handle_cancel_job(server, {"job_id": job.job_id}, "admin-1")
+        finally:
+            server._auth_context = None
+
+        data = json.loads(result[0].text)
+        assert data["status"] == "cancelled"
+        assert data["worker_exit_confirmed"] is True
+        assert server.job_store.get(job.job_id).current_stage.value == "cancelled"
+
+    @pytest.mark.asyncio
+    async def test_non_owner_cancellation_hides_job_existence(self, server):
+        """A cross-tenant caller gets the same response as a missing job."""
+        from mcp.server.auth.provider import AccessToken
+
+        from primr.mcp_server.auth import AuthContext
+        from primr.mcp_server.tools import _handle_cancel_job
+
+        job = server.job_store.create("Acme", "full", owner_client_id="owner-1")
+        server._auth_context = AuthContext(
+            AccessToken(token="test", client_id="other-1", scopes=["research"])
+        )
+        try:
+            result = await _handle_cancel_job(server, {"job_id": job.job_id}, "other-1")
+        finally:
+            server._auth_context = None
+
+        data = json.loads(result[0].text)
+        assert data["error_type"] == "job_not_found"
+        assert server.job_store.get(job.job_id).is_terminal() is False
+
+    @pytest.mark.asyncio
+    async def test_http_subject_named_stdio_cannot_cancel_or_enumerate_job(self, server):
+        """Defense in depth holds even if an invalid reserved subject reaches dispatch."""
+        from mcp.server.auth.provider import AccessToken
+
+        from primr.mcp_server.auth import AuthContext
+        from primr.mcp_server.tools import _handle_cancel_job
+
+        server.transport = "streamable-http"
+        job = server.job_store.create("Acme", "full", owner_client_id="owner-1")
+        server._auth_context = AuthContext(
+            AccessToken(token="test", client_id="stdio", scopes=["research"])
+        )
+        try:
+            existing = await _handle_cancel_job(server, {"job_id": job.job_id}, "stdio")
+            missing = await _handle_cancel_job(server, {"job_id": "missing-job"}, "stdio")
+        finally:
+            server._auth_context = None
+
+        existing_data = json.loads(existing[0].text)
+        missing_data = json.loads(missing[0].text)
+        assert existing_data["error_type"] == missing_data["error_type"] == "job_not_found"
+        assert existing_data["error_code"] == missing_data["error_code"]
+        assert server.job_store.get(job.job_id).is_terminal() is False
 
 
 class TestDoctor:

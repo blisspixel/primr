@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 # Heartbeat interval in seconds
 HEARTBEAT_INTERVAL = 30
+PUBLIC_RESEARCH_FAILURE_MESSAGE = "Research pipeline failed. See server logs for details."
 
 DIRECT_PROVIDER_KEY_ENV_VARS = (
     "XAI_API_KEY",
@@ -88,6 +89,8 @@ class PipelineRunner:
                 is governed by its pre-flight estimate only.
         """
         self._cancel_requested = False
+        current_task = asyncio.current_task()
+        self._running_task = current_task
 
         # Bound optional spend to the operator-approved cap, mirroring the CLI
         # --budget path. The budget is process-global and the MCP server runs
@@ -187,6 +190,10 @@ class PipelineRunner:
                 # Fast mode produces final output directly — collect all artifacts
                 # (report + strategy files) from the output directory
                 all_artifacts = _collect_run_artifacts(result_path, job.company_name)
+                _require_ai_strategy_artifact(
+                    all_artifacts,
+                    required=platform is not None,
+                )
 
                 if verify:
                     on_progress("Running claim verification...")
@@ -203,8 +210,6 @@ class PipelineRunner:
                     except Exception as e:
                         logger.warning(f"Verification failed (non-blocking): {e}")
 
-                job.advance_stage(ResearchStage.COMPLETED)
-
                 # If a destination was specified, copy artifacts there
                 if destination:
                     all_artifacts = _copy_artifacts_to_destination(
@@ -213,8 +218,7 @@ class PipelineRunner:
 
                 all_artifacts = _with_trace_artifacts(all_artifacts, job)
                 job.output_paths = all_artifacts
-                self.mcp_server.job_store.update(job)
-                manifest_path = await self._generate_run_manifest(
+                await self._complete_with_manifest(
                     job,
                     company_url,
                     mode,
@@ -222,7 +226,6 @@ class PipelineRunner:
                     fast_mode=True,
                     premium_mode=False,
                 )
-                self._attach_generated_manifest(job, manifest_path)
                 return
 
             # Standard orchestrator pipeline (premium or non-fast full)
@@ -244,9 +247,14 @@ class PipelineRunner:
                     await heartbeat_task
 
             if not result.success:
+                logger.error(
+                    "Research job %s failed: %s",
+                    job.job_id,
+                    result.error or "Research failed without an error detail",
+                )
                 job.advance_stage(ResearchStage.FAILED)
                 job.error_type = "research_failed"
-                job.error_message = result.error or "Research failed"
+                job.error_message = PUBLIC_RESEARCH_FAILURE_MESSAGE
                 self.mcp_server.job_store.update(job)
                 return
 
@@ -269,6 +277,24 @@ class PipelineRunner:
                         "Report was saved but pending interaction %s remains listed",
                         pending_interaction_id,
                     )
+
+            # The estimate and public contract include one agnostic AI
+            # strategy by default for full and premium runs. Fast mode creates
+            # it inside perform_fast_research; the standard orchestrator path
+            # must add the same artifact explicitly.
+            if platform is not None:
+                on_progress("Generating AI strategy...")
+                strategy_result = await run_strategy_generation(
+                    output_path,
+                    "ai_strategy",
+                    platform=platform,
+                    on_progress=on_progress,
+                )
+                strategy_path = strategy_result.get("output_path")
+                if not isinstance(strategy_path, str) or not strategy_path:
+                    raise RuntimeError("AI strategy generation produced no output artifact")
+                job.output_paths.append(strategy_path)
+                self.mcp_server.job_store.update(job)
 
             # Stage: QA (unless skipped)
             if not skip_qa:
@@ -297,8 +323,6 @@ class PipelineRunner:
                 except Exception as e:
                     logger.warning(f"Verification failed (non-blocking): {e}")
 
-            # Complete
-            job.advance_stage(ResearchStage.COMPLETED)
             if verification_completed:
                 job.output_paths = _with_verification_artifacts(job.output_paths)
 
@@ -309,10 +333,7 @@ class PipelineRunner:
                 )
 
             job.output_paths = _with_trace_artifacts(job.output_paths, job)
-            self.mcp_server.job_store.update(job)
-
-            # Generate run manifest for audit trail (FR-7.1)
-            manifest_path = await self._generate_run_manifest(
+            await self._complete_with_manifest(
                 job,
                 company_url,
                 mode,
@@ -320,7 +341,6 @@ class PipelineRunner:
                 fast_mode=use_fast,
                 premium_mode=mode == "premium",
             )
-            self._attach_generated_manifest(job, manifest_path)
 
             logger.info(f"Research job {job.job_id} completed successfully")
 
@@ -331,15 +351,17 @@ class PipelineRunner:
             self.mcp_server.job_store.update(job)
             logger.info(f"Research job {job.job_id} was cancelled")
 
-        except Exception as e:
-            logger.error(f"Research job {job.job_id} failed: {e}")
+        except Exception:
+            logger.exception("Research job %s failed", job.job_id)
             job.advance_stage(ResearchStage.FAILED)
             job.error_type = "pipeline_error"
-            job.error_message = str(e)
+            job.error_message = PUBLIC_RESEARCH_FAILURE_MESSAGE
             self.mcp_server.job_store.update(job)
         finally:
             if budget_active:
                 clear_run_budget()
+            if self._running_task is current_task:
+                self._running_task = None
 
     async def _heartbeat_loop(
         self,
@@ -362,6 +384,38 @@ class PipelineRunner:
         if isinstance(path, str) and path and path not in job.output_paths:
             job.output_paths.append(path)
             self.mcp_server.job_store.update(job)
+
+    async def _complete_with_manifest(
+        self,
+        job: ResearchJobState,
+        company_url: str,
+        mode: str,
+        *,
+        budget_usd: float | None,
+        fast_mode: bool,
+        premium_mode: bool,
+    ) -> None:
+        """Write the success manifest before committing terminal completion."""
+        manifest_job = ResearchJobState.from_journal_dict(job.to_journal_dict())
+        if not manifest_job.advance_stage(ResearchStage.COMPLETED):
+            raise RuntimeError("Could not prepare completed run manifest state")
+        manifest_path = await self._generate_run_manifest(
+            manifest_job,
+            company_url,
+            mode,
+            budget_usd=budget_usd,
+            fast_mode=fast_mode,
+            premium_mode=premium_mode,
+        )
+        if (
+            isinstance(manifest_path, str)
+            and manifest_path
+            and manifest_path not in job.output_paths
+        ):
+            job.output_paths.append(manifest_path)
+        if not job.advance_stage(ResearchStage.COMPLETED):
+            raise RuntimeError("Could not commit completed research job state")
+        self.mcp_server.job_store.update(job)
 
     async def _save_report(
         self,
@@ -458,6 +512,7 @@ class PipelineRunner:
 
         from primr.config.config import OUTPUT_DIR
         from primr.core.budget_policy import describe_budget_enforcement
+        from primr.utils.atomic_io import atomic_write_text
 
         # Determine output directory for this job
         if job.output_paths:
@@ -525,10 +580,11 @@ class PipelineRunner:
             "artifacts": job.output_paths or [],
         }
 
-        # Write manifest
+        # Write the manifest atomically before the caller commits terminal
+        # completion. This prevents a partial JSON file from being published as
+        # the audit record for a successful run.
         manifest_path = output_dir / "run_manifest.json"
-        with open(manifest_path, "w", encoding="utf-8") as f:
-            json.dump(manifest, f, indent=2)
+        atomic_write_text(manifest_path, json.dumps(manifest, indent=2))
 
         logger.info(f"Run manifest saved to {manifest_path}")
         return str(manifest_path)
@@ -589,6 +645,12 @@ def _collect_run_artifacts(primary_path: str, _company_name: str) -> list[str]:
             artifacts.append(str(candidate))
             seen.add(normalized_path)
     return artifacts or [primary_path]
+
+
+def _require_ai_strategy_artifact(artifact_paths: list[str], *, required: bool) -> None:
+    """Reject a successful fast run that omitted its approved strategy."""
+    if required and not any("_ai_strategy" in Path(path).stem.lower() for path in artifact_paths):
+        raise RuntimeError("Fast research completed without the approved AI strategy artifact")
 
 
 def _with_trace_artifacts(

@@ -1,11 +1,18 @@
 """Tests for A2A task store adapter."""
 
+from unittest.mock import MagicMock
+
 import pytest
 
 a2a = pytest.importorskip("a2a")
 
-from a2a.types import TaskState
+from a2a.auth.user import User
+from a2a.server.context import ServerCallContext
+from a2a.server.request_handlers import DefaultRequestHandler
+from a2a.types import TaskQueryParams, TaskState
+from a2a.utils.errors import ServerError
 
+from primr.a2a.call_context import TRUSTED_LOCAL_A2A_USER
 from primr.a2a.task_store import PrimrTaskStore, _job_to_task_state
 from primr.a2a.types import A2ATaskMapping
 from primr.mcp_server.job_store import SingleJobStore
@@ -76,7 +83,7 @@ class TestPrimrTaskStore:
         mapping = A2ATaskMapping(task_id="t-1", job_id=job.job_id, skill_id="research")
         task_store.register_mapping(mapping)
 
-        task = await task_store.get("t-1")
+        task = await task_store.get("t-1", _remote_context("test"))
         assert task is not None
         assert task.id == "t-1"
         assert task.status.state in (TaskState.submitted, TaskState.working)
@@ -95,7 +102,8 @@ class TestPrimrTaskStore:
         mapping = A2ATaskMapping(task_id="t-1", job_id=job.job_id, skill_id="research")
         task_store.register_mapping(mapping)
 
-        task = await task_store.get("t-1")
+        task = await task_store.get("t-1", _remote_context("test"))
+        assert task is not None
         await task_store.save(task)  # Should not raise
 
     @pytest.mark.asyncio
@@ -105,6 +113,72 @@ class TestPrimrTaskStore:
         task_store.register_mapping(mapping)
         await task_store.delete("t-1")
         assert task_store.get_mapping("t-1") is None
+
+    @pytest.mark.asyncio
+    async def test_get_allows_remote_exact_owner(self, store):
+        task_store, job_store = store
+        job = job_store.create("Acme", "full", owner_client_id="client-1")
+        task_store.register_mapping(
+            A2ATaskMapping(task_id="t-owned", job_id=job.job_id, skill_id="research")
+        )
+
+        task = await task_store.get("t-owned", _remote_context("client-1"))
+
+        assert task is not None
+        assert task.id == "t-owned"
+
+    @pytest.mark.asyncio
+    async def test_get_hides_cross_owner_like_unknown_task(self, store):
+        task_store, job_store = store
+        job = job_store.create("Acme", "full", owner_client_id="client-2")
+        task_store.register_mapping(
+            A2ATaskMapping(task_id="t-private", job_id=job.job_id, skill_id="research")
+        )
+        context = _remote_context("client-1")
+
+        assert await task_store.get("t-private", context) is None
+        assert await task_store.get("t-unknown", context) is None
+
+        handler = DefaultRequestHandler(agent_executor=MagicMock(), task_store=task_store)
+        errors = []
+        for task_id in ("t-private", "t-unknown"):
+            with pytest.raises(ServerError) as caught:
+                await handler.on_get_task(TaskQueryParams(id=task_id), context)
+            errors.append(caught.value.error.model_dump())
+        assert errors[0] == errors[1]
+
+    @pytest.mark.asyncio
+    async def test_get_fails_closed_without_authenticated_context(self, store):
+        task_store, job_store = store
+        job = job_store.create("Acme", "full", owner_client_id="client-1")
+        task_store.register_mapping(
+            A2ATaskMapping(task_id="t-private", job_id=job.job_id, skill_id="research")
+        )
+
+        assert await task_store.get("t-private") is None
+        assert await task_store.get("t-private", ServerCallContext()) is None
+
+    @pytest.mark.asyncio
+    async def test_get_rejects_authenticated_reserved_local_subject(self, store):
+        task_store, job_store = store
+        job = job_store.create("Acme", "full", owner_client_id="a2a")
+        task_store.register_mapping(
+            A2ATaskMapping(task_id="t-local", job_id=job.job_id, skill_id="research")
+        )
+
+        assert await task_store.get("t-local", _remote_context("a2a")) is None
+        assert await task_store.get("t-local", _local_context()) is not None
+
+    @pytest.mark.asyncio
+    async def test_admin_has_no_cross_owner_read_bypass(self, store):
+        task_store, job_store = store
+        job = job_store.create("Acme", "full", owner_client_id="client-1")
+        task_store.register_mapping(
+            A2ATaskMapping(task_id="t-owned", job_id=job.job_id, skill_id="research")
+        )
+        admin_context = _remote_context("admin-client", scopes=["admin"])
+
+        assert await task_store.get("t-owned", admin_context) is None
 
 
 def _make_job(stage=ResearchStage.IDLE):
@@ -123,3 +197,31 @@ def _make_job(stage=ResearchStage.IDLE):
     if stage != ResearchStage.IDLE:
         job.advance_stage(stage)
     return job
+
+
+class _AuthenticatedUser(User):
+    def __init__(self, user_name: str) -> None:
+        self._user_name = user_name
+
+    @property
+    def is_authenticated(self) -> bool:
+        return True
+
+    @property
+    def user_name(self) -> str:
+        return self._user_name
+
+
+def _local_context() -> ServerCallContext:
+    return ServerCallContext(user=TRUSTED_LOCAL_A2A_USER)
+
+
+def _remote_context(
+    client_id: str,
+    *,
+    scopes: list[str] | None = None,
+) -> ServerCallContext:
+    return ServerCallContext(
+        user=_AuthenticatedUser(client_id),
+        state={"auth": MagicMock(scopes=scopes or [])},
+    )

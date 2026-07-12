@@ -43,7 +43,139 @@ KEY_HELP: dict[str, str] = {
 }
 
 _ENV_ASSIGNMENT_RE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=")
+_DOTENV_INTERPOLATION_RE = re.compile(r"\$\{[^}\r\n]+\}")
 _LOADED_ENV_VALUES: dict[str, str] = {}
+_SUPERVISED_ENV_LOADING = os.environ.get("PRIMR_SUPERVISED_WORKER") == "1"
+
+# A supervised research worker may load both the user and project .env files.
+# These controller settings must never be restored inside that lower-trust,
+# long-running process after the parent intentionally removed them.
+SUPERVISED_BLOCKED_ENV_NAMES = frozenset(
+    {
+        "MCP_ADMIN_TOKENS",
+        "MCP_ADMIN_TOKEN_MAX_AGE_HOURS",
+        "MCP_JWT_AUDIENCE",
+        "MCP_JWT_ISSUER",
+        "MCP_JWT_SECRET",
+        "PRIMR_MCP_APPROVAL_TOKEN_SECRET",
+        "PRIMR_SUPERVISED_WORKER",
+        "PRIMR_WORKER_JOB_ID",
+        "PRIMR_WORKER_JOB_OBJECT",
+    }
+)
+SUPERVISED_BLOCKED_ENV_PREFIXES = (
+    "MCP_",
+    "PRIMR_MCP_",
+    "PRIMR_CONTROL_PLANE_",
+    "PRIMR_WORKER_",
+)
+SUPERVISED_WORKER_ENV_NAMES = frozenset(
+    {
+        "ALL_PROXY",
+        "ANTHROPIC_API_KEY",
+        "APPDATA",
+        "CHROME_PATH",
+        "CHROMIUM_PATH",
+        "COMSPEC",
+        "CUDA_HOME",
+        "CUDA_PATH",
+        "CUDA_VISIBLE_DEVICES",
+        "CURL_CA_BUNDLE",
+        "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
+        "HIP_VISIBLE_DEVICES",
+        "HOME",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "DISPLAY",
+        "DYLD_LIBRARY_PATH",
+        "LANG",
+        "LANGUAGE",
+        "LC_ALL",
+        "LC_CTYPE",
+        "LOCALAPPDATA",
+        "LOCAL_LLM_BASE_URL",
+        "LD_LIBRARY_PATH",
+        "LIBPATH",
+        "NODE_EXTRA_CA_CERTS",
+        "NO_PROXY",
+        "NVIDIA_DRIVER_CAPABILITIES",
+        "NVIDIA_VISIBLE_DEVICES",
+        "OLLAMA_BASE_URL",
+        "OPENAI_API_KEY",
+        "OS",
+        "PATH",
+        "PATHEXT",
+        "PROGRAMDATA",
+        "PROGRAMFILES",
+        "PROGRAMFILES(X86)",
+        "PYTHONHASHSEED",
+        "PYTHONHOME",
+        "PYTHONIOENCODING",
+        "PYTHONPATH",
+        "PYTHONUTF8",
+        "REQUESTS_CA_BUNDLE",
+        "ROCM_PATH",
+        "ROCR_VISIBLE_DEVICES",
+        "SEARCH_API_KEY",
+        "SEARCH_ENGINE_ID",
+        "SEARCH_PROVIDER",
+        "SSL_CERT_DIR",
+        "SSL_CERT_FILE",
+        "SYSTEMDRIVE",
+        "SYSTEMROOT",
+        "TEMP",
+        "TMP",
+        "TMPDIR",
+        "TZ",
+        "USER",
+        "USERNAME",
+        "USERPROFILE",
+        "VIRTUAL_ENV",
+        "WAYLAND_DISPLAY",
+        "WINDIR",
+        "XAI_API_KEY",
+        "XAUTHORITY",
+        "XDG_CACHE_HOME",
+        "XDG_CONFIG_HOME",
+        "XDG_DATA_HOME",
+    }
+)
+SUPERVISED_WORKER_ENV_PREFIXES = (
+    "AI_",
+    "ANTHROPIC_",
+    "GEMINI_",
+    "LOCAL_LLM_",
+    "MAX_EXTERNAL_",
+    "MIN_SCRAPED_",
+    "OLLAMA_",
+    "OPENAI_",
+    "PLAYWRIGHT_",
+    "PRIMR_",
+    "SCRAPE_",
+    "SEARCH_",
+    "XAI_",
+)
+
+
+def is_supervised_blocked_env(name: str) -> bool:
+    """Return whether a controller-only setting is blocked in a worker."""
+    normalized = name.upper()
+    return normalized in SUPERVISED_BLOCKED_ENV_NAMES or normalized.startswith(
+        SUPERVISED_BLOCKED_ENV_PREFIXES
+    )
+
+
+def is_supervised_worker_env_allowed(name: str) -> bool:
+    """Return whether a setting may cross into a supervised research worker."""
+    normalized = name.upper()
+    if is_supervised_blocked_env(normalized):
+        return False
+    return normalized in SUPERVISED_WORKER_ENV_NAMES or normalized.startswith(
+        SUPERVISED_WORKER_ENV_PREFIXES
+    )
 
 
 def get_user_config_dir() -> Path:
@@ -122,8 +254,16 @@ def _apply_env_file(path: Path | None, protected_keys: set[str]) -> dict[str, st
     loaded: dict[str, str] = {}
     if not path or not path.exists():
         return loaded
-    for key, value in dotenv_values(path).items():
+    # Supervised workers parse raw assignments. Expanding the complete file
+    # first would let a blocked controller secret flow into an allowed provider
+    # variable through ``XAI_API_KEY=${MCP_JWT_SECRET}``.
+    values = dotenv_values(path, interpolate=not _SUPERVISED_ENV_LOADING)
+    for key, value in values.items():
         if not key or value is None:
+            continue
+        if _SUPERVISED_ENV_LOADING and not is_supervised_worker_env_allowed(key):
+            continue
+        if _SUPERVISED_ENV_LOADING and _DOTENV_INTERPOLATION_RE.search(value):
             continue
         if key not in protected_keys:
             os.environ[key] = value

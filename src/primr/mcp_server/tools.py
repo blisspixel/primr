@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any, cast
 from mcp.server import Server
 from mcp.types import TextContent, Tool
 
+from primr.mcp_server import research_validation
 from primr.mcp_server.agentic_tools import handle_agentic_tool, register_agentic_tools
 from primr.mcp_server.approval_tokens import (
     APPROVAL_TOKEN_SCHEMA,
@@ -38,6 +39,7 @@ from primr.mcp_server.approval_tokens import (
 from primr.mcp_server.audit_log import audit_tool_calls
 from primr.mcp_server.job_responses import build_job_response, include_artifacts_requested
 from primr.mcp_server.job_store import JobInProgressError, ResearchJobState
+from primr.mcp_server.job_tools import handle_cancel_job as _handle_cancel_job
 from primr.mcp_server.platforms import normalize_platform, normalize_platforms
 from primr.mcp_server.research_policy import (
     build_research_estimate as _build_research_estimate,
@@ -53,11 +55,15 @@ from primr.mcp_server.research_policy import (
 )
 from primr.mcp_server.resource_auth import (
     caller_can_inline_legacy_report_content,
+    caller_can_manage_job,
     caller_can_read_report,
+    caller_client_id,
+    caller_is_local_stdio,
+    caller_owns_job_resource,
 )
 from primr.mcp_server.skill_pack_tools import handle_skill_pack_tool, register_skill_pack_tools
 from primr.mcp_server.tool_authz import authorize_tool_call, scope_denied_response
-from primr.mcp_server.types import MCPErrorCode, ResearchStage
+from primr.mcp_server.types import MCPErrorCode
 
 if TYPE_CHECKING:
     from primr.mcp_server.server import PrimrMCPServer
@@ -65,11 +71,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 _normalize_platform = normalize_platform
 _normalize_platforms = normalize_platforms
-
-
-def _parse_max_duration(duration_str: str, default: int = 30) -> int:
-    """Compatibility wrapper for tests that import the historical helper."""
-    return parse_max_duration(duration_str, default=default)
+_parse_max_duration = parse_max_duration
 
 
 def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
@@ -102,6 +104,9 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                         },
                         "platforms": {
                             "type": "array",
+                            "minItems": 1,
+                            "maxItems": 1,
+                            "uniqueItems": True,
                             "items": {
                                 "type": "string",
                                 "enum": [
@@ -114,22 +119,15 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                                     "amazon",
                                     "google",
                                     "nvidia",
-                                    "ms",
                                 ],
                             },
-                            "description": "Platform(s) for AI strategy (CLI: --platform). Aliases: microsoft=azure, amazon=aws, google=gcp, nvidia=private. Each adds a separate strategy document and ~3-6 min + ~$0.10-0.15 per vendor. Default: single agnostic strategy.",
+                            "description": "Exactly one platform for the integrated AI strategy (CLI: --platform). Aliases: microsoft=azure, amazon=aws, google=gcp, nvidia=private. Default: agnostic. Add other platform documents later with estimate_strategy and generate_strategy.",
                         },
                         "strategy_type": {
                             "type": "string",
-                            "enum": [
-                                "ai",
-                                "customer_experience",
-                                "modern_security_compliance",
-                                "data_fabric_strategy",
-                                "skills",
-                            ],
+                            "enum": ["ai"],
                             "default": "ai",
-                            "description": "Type of strategy to generate alongside the research report",
+                            "description": "Integrated research strategy type. Other modules use estimate_strategy and generate_strategy after the report completes.",
                         },
                         "no_ai_strategy": {
                             "type": "boolean",
@@ -189,7 +187,7 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
             ),
             Tool(
                 name="research_company",
-                description="Initiate company research pipeline (async - returns job_id immediately). Includes AI strategy generation when platform is specified — no separate strategy call needed. This incurs real API cost and should only be called after the user approves an estimate from estimate_run.",
+                description="Initiate the supervised company research pipeline and return a job_id after the worker is ready. Full and premium include an agnostic AI Strategy by default unless no_ai_strategy is true. This incurs real API cost and should only be called after the user approves an estimate from estimate_run.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -219,9 +217,13 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                                 "amazon",
                                 "google",
                                 "nvidia",
-                                "ms",
                             ],
                             "description": "Platform for AI strategy (CLI: --platform). Aliases: microsoft=azure, amazon=aws, google=gcp, nvidia=private. When set, strategy is generated as part of this job (no separate generate_strategy call needed). Default: agnostic.",
+                        },
+                        "no_ai_strategy": {
+                            "type": "boolean",
+                            "default": False,
+                            "description": "Skip AI strategy generation entirely (report only)",
                         },
                         "skip_qa": {
                             "type": "boolean",
@@ -236,6 +238,13 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
                         "destination": {
                             "type": "string",
                             "description": "Optional destination directory for output files. If not specified, uses the default output/ directory.",
+                        },
+                        "max_estimated_cost_usd": {
+                            "anyOf": [
+                                {"type": "number", "minimum": 0},
+                                {"type": "string"},
+                            ],
+                            "description": "Optional hard ceiling for estimated run cost. The server rejects execution if the estimate exceeds this cap and uses it as the runtime budget.",
                         },
                         "approval_token": APPROVAL_TOKEN_SCHEMA,
                     },
@@ -356,7 +365,7 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
             ),
             Tool(
                 name="cancel_job",
-                description="Attempt best-effort cancellation of an active job",
+                description="Cancel an active local research job. A cancelled response is returned only after the supervised worker exits; remote provider work may remain unknown when the provider has no cancellation API.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -440,13 +449,9 @@ def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:
         """Handle tool calls."""
         import json
 
-        # Rate limiting and authz use stdio locally, or the bridged HTTP context.
-        client_id = "stdio"
+        # Rate limiting and authz use a trusted transport-aware caller id.
         ctx = getattr(mcp_server, "_auth_context", None)
-        if ctx is not None:
-            _cid = getattr(ctx, "client_id", None)
-            if isinstance(_cid, str) and _cid:
-                client_id = _cid
+        client_id = caller_client_id(mcp_server)
 
         if not (authz := authorize_tool_call(name, ctx)).allowed:
             return scope_denied_response(name, authz)
@@ -517,6 +522,9 @@ async def _handle_estimate_run(
     Requirements: 18.1, 18.2, 18.3
     """
     import json
+
+    if validation_error := research_validation.validate_research_estimate_arguments(arguments):
+        return [TextContent(type="text", text=json.dumps(validation_error))]
 
     company_url = arguments.get("company_url")
 
@@ -633,8 +641,10 @@ async def _handle_research_company(
 
     Requirements: 5.1-5.13
     """
-    import asyncio
     import json
+
+    if validation_error := research_validation.validate_research_execution_arguments(arguments):
+        return [TextContent(type="text", text=json.dumps(validation_error))]
 
     company_name = arguments.get("company_name")
     company_url = arguments.get("company_url")
@@ -687,9 +697,13 @@ async def _handle_research_company(
 
     # Keep execution shape aligned with the estimate: no_ai_strategy lowers the
     # approved cost, so it must also suppress platform-driven strategy work.
-    no_ai_strategy = bool(arguments.get("no_ai_strategy", False))
-    if no_ai_strategy:
+    no_ai_strategy = arguments.get("no_ai_strategy", False)
+    if platform is not None:
+        platform = _normalize_platform(platform)
+    if no_ai_strategy or mode not in ("full", "premium"):
         platform = None
+    elif platform is None:
+        platform = "agnostic"
 
     # Validate URL
     url_result = mcp_server.url_validator.validate(company_url)
@@ -740,29 +754,33 @@ async def _handle_research_company(
             owner_client_id=client_id,
         )
     except JobInProgressError as e:
+        active = mcp_server.job_store.get(e.active_job_id)
+        may_identify_active_job = active is not None and caller_can_manage_job(
+            mcp_server,
+            active,
+            client_id,
+        )
+        payload: dict[str, Any] = {
+            "error": True,
+            "error_type": "job_in_progress",
+            "error_code": MCPErrorCode.JOB_IN_PROGRESS,
+            "message": "A research job is already in progress",
+        }
+        if may_identify_active_job:
+            payload["message"] = f"Job {e.active_job_id} already in progress"
+            payload["active_job_id"] = e.active_job_id
         return [
             TextContent(
                 type="text",
-                text=json.dumps(
-                    {
-                        "error": True,
-                        "error_type": "job_in_progress",
-                        "error_code": MCPErrorCode.JOB_IN_PROGRESS,
-                        "message": f"Job {e.active_job_id} already in progress",
-                        "active_job_id": e.active_job_id,
-                    }
-                ),
+                text=json.dumps(payload),
             )
         ]
 
-    # Start background task to run research pipeline
+    # Start a supervised worker process for the research pipeline.
     # Skip if _skip_background_tasks is set (for testing)
     if not getattr(mcp_server, "_skip_background_tasks", False):
-        from primr.mcp_server.pipeline_runner import PipelineRunner
-
-        runner = PipelineRunner(mcp_server)
-        task = asyncio.create_task(
-            runner.run_research(
+        try:
+            task = await mcp_server.job_supervisor.start(
                 job=job,
                 company_url=company_url,
                 mode=mode,
@@ -772,9 +790,23 @@ async def _handle_research_company(
                 destination=destination,
                 budget_usd=budget_usd,
             )
-        )
-        # Track task for graceful shutdown
-        mcp_server._track_task(task)
+            # Track the process monitor for graceful shutdown.
+            mcp_server._track_task(task)
+        except Exception:
+            logger.exception("Failed to start research worker for job %s", job.job_id)
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {
+                            "error": True,
+                            "error_type": "worker_spawn_failed",
+                            "message": "Research worker failed to start",
+                            "job_id": job.job_id,
+                        }
+                    ),
+                )
+            ]
 
     logger.info("Created research job %s for %s", job.job_id, company_name)
 
@@ -906,19 +938,6 @@ async def _handle_generate_strategy(
         ]
 
 
-def _caller_owns_job(job: "ResearchJobState", client_id: str) -> bool:
-    """Whether ``client_id`` is allowed to read this job's metadata + artifacts.
-
-    stdio transport is implicitly single-user, so it sees everything. For HTTP
-    clients we require an exact match against the recorded owner. Legacy jobs
-    with no recorded owner (created before owner tracking landed, or by a
-    shutdown-recovery path) are treated as non-readable to fail closed.
-    """
-    if client_id == "stdio":
-        return True
-    return job.owner_client_id is not None and job.owner_client_id == client_id
-
-
 async def _handle_check_jobs(
     mcp_server: "PrimrMCPServer",
     arguments: dict[str, Any],
@@ -935,7 +954,10 @@ async def _handle_check_jobs(
     import json
 
     job_id = arguments.get("job_id")
-    include_artifacts = include_artifacts_requested(arguments, client_id=client_id)
+    include_artifacts = include_artifacts_requested(
+        arguments,
+        local_stdio=caller_is_local_stdio(mcp_server),
+    )
     report_scope_granted = caller_can_read_report(mcp_server)
     include_report_content = caller_can_inline_legacy_report_content(mcp_server)
 
@@ -954,7 +976,7 @@ async def _handle_check_jobs(
         job = mcp_server.job_store.get(job_id)
         # Return 404 whether the job is missing OR owned by someone else, so
         # the caller cannot probe for the existence of another client's jobs.
-        if not job or not _caller_owns_job(job, client_id):
+        if not job or not caller_owns_job_resource(mcp_server, job, client_id):
             return [
                 TextContent(
                     type="text",
@@ -972,13 +994,13 @@ async def _handle_check_jobs(
     else:
         # Return active + latest terminal — but only if owned by this client.
         active = mcp_server.job_store.get_active()
-        if active and _caller_owns_job(active, client_id):
+        if active and caller_owns_job_resource(mcp_server, active, client_id):
             jobs.append(response_for(active))
 
         terminal = mcp_server.job_store.get_latest_terminal()
         if (
             terminal
-            and _caller_owns_job(terminal, client_id)
+            and caller_owns_job_resource(mcp_server, terminal, client_id)
             and (not active or terminal.job_id != active.job_id)
         ):
             jobs.append(response_for(terminal))
@@ -1247,7 +1269,7 @@ async def _handle_clear_jobs(
         job
         and job.completion_time
         and job.completion_time < cutoff
-        and _caller_owns_job(job, client_id)
+        and caller_owns_job_resource(mcp_server, job, client_id)
     ):
         mcp_server.job_store.clear()
         cleared_count = 1
@@ -1259,97 +1281,6 @@ async def _handle_clear_jobs(
                 {
                     "success": True,
                     "cleared_count": cleared_count,
-                }
-            ),
-        )
-    ]
-
-
-async def _handle_cancel_job(
-    mcp_server: "PrimrMCPServer",
-    arguments: dict[str, Any],
-    client_id: str,
-) -> list[TextContent]:
-    """
-    Handle cancel_job tool.
-
-    Requirements: 18.8-18.11
-    """
-    import json
-
-    job_id = arguments.get("job_id")
-
-    # Get the job
-    job = mcp_server.job_store.get(job_id)
-    if not job:
-        return [
-            TextContent(
-                type="text",
-                text=json.dumps(
-                    {
-                        "error": True,
-                        "error_type": "job_not_found",
-                        "error_code": MCPErrorCode.JOB_NOT_FOUND,
-                        "message": f"Job not found: {job_id}",
-                    }
-                ),
-            )
-        ]
-
-    # Check if already terminal
-    if job.is_terminal():
-        return [
-            TextContent(
-                type="text",
-                text=json.dumps(
-                    {
-                        "error": True,
-                        "error_type": "job_already_terminal",
-                        "message": f"Job {job_id} is already {job.get_status().value}",
-                    }
-                ),
-            )
-        ]
-
-    # Check authorization (in HTTP mode, only owner can cancel).
-    # In stdio mode, always allowed (implicit single-user).
-    # Fail closed for legacy jobs with no recorded owner: an HTTP client
-    # could otherwise cancel any pre-owner-tracking job by id, which is
-    # the same authorization shape we already deny in
-    # resource_auth.caller_owns_job_resource and tools._caller_owns_job.
-    is_owner = job.owner_client_id is not None and job.owner_client_id == client_id
-    if client_id != "stdio" and not is_owner:
-        return [
-            TextContent(
-                type="text",
-                text=json.dumps(
-                    {
-                        "error": True,
-                        "error_type": "cancel_not_authorized",
-                        "error_code": MCPErrorCode.CANCEL_NOT_AUTHORIZED,
-                        "message": "Only the job owner or admin can cancel this job",
-                    }
-                ),
-            )
-        ]
-
-    # Cancel the job
-    job.advance_stage(ResearchStage.CANCELLED)
-    job.error_type = "user_cancelled"
-    job.error_message = f"Cancelled by {client_id}"
-    mcp_server.job_store.update(job)
-
-    logger.info("Job %s cancelled by %s", job_id, client_id)
-
-    return [
-        TextContent(
-            type="text",
-            text=json.dumps(
-                {
-                    "success": True,
-                    "job_id": job_id,
-                    "status": "cancelled",
-                    "message": "Job cancelled. Any partial artifacts have been preserved.",
                 }
             ),
         )
@@ -1376,7 +1307,7 @@ async def _handle_wait_for_status_change(
     # Get current job state. Return 404 whether the job is missing OR owned
     # by someone else, so an attacker can't probe for live job IDs.
     job = mcp_server.job_store.get(job_id)
-    if not job or not _caller_owns_job(job, client_id):
+    if not job or not caller_owns_job_resource(mcp_server, job, client_id):
         return [
             TextContent(
                 type="text",

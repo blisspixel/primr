@@ -126,3 +126,17 @@ class TestRunDispatch:
         with patch.object(s, "run_http", new=AsyncMock()) as mock_http:
             await s.run()
         mock_http.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_run_releases_controller_lease_after_transport_failure(self, tmp_path):
+        journal_path = str(tmp_path / "j.json")
+        server = PrimrMCPServer(journal_path=journal_path)
+
+        async def fail_stdio() -> None:
+            raise RuntimeError("transport failed")
+
+        server.run_stdio = fail_stdio  # type: ignore[method-assign]
+        with pytest.raises(RuntimeError, match="transport failed"):
+            await server.run()
+
+        assert server._controller_lease.acquired is False

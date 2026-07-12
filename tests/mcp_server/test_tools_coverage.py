@@ -142,15 +142,49 @@ class TestEstimateRun:
         assert data["ai_strategy"] is False
 
     @pytest.mark.asyncio
-    async def test_platforms_included(self, server):
+    async def test_single_platform_is_normalized_into_estimate(self, server):
         data = await _call(
             server,
             "estimate_run",
-            {"company_url": "https://example.com", "mode": "full", "platforms": ["azure", "aws"]},
+            {"company_url": "https://example.com", "mode": "full", "platforms": ["microsoft"]},
         )
         assert data["ai_strategy"] is True
-        assert "azure" in data["platforms"]
-        assert "aws" in data["platforms"]
+        assert data["platforms"] == ["azure"]
+        assert data["strategy_type"] == "ai"
+        assert data["approval_token"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "arguments,error_type",
+        [
+            ({"platforms": []}, "unsupported_platform_fanout"),
+            ({"platforms": ["azure", "aws"]}, "unsupported_platform_fanout"),
+            ({"platforms": ["ms"]}, "unsupported_platform_fanout"),
+            ({"platform": "ms"}, "unsupported_platform_fanout"),
+            (
+                {"platform": "azure", "platforms": ["azure"]},
+                "conflicting_platform_parameters",
+            ),
+            ({"strategy_type": "customer_experience"}, "unsupported_strategy_type"),
+        ],
+    )
+    async def test_unsupported_estimate_shape_fails_before_approval(
+        self, server, arguments, error_type
+    ):
+        from primr.mcp_server.tools import _handle_estimate_run
+
+        data = json.loads(
+            (
+                await _handle_estimate_run(
+                    server,
+                    {"company_url": "https://example.com", "mode": "full", **arguments},
+                )
+            )[0].text
+        )
+
+        assert data["error"] is True
+        assert data["error_type"] == error_type
+        assert "approval_token" not in data
 
 
 # ---------------------------------------------------------------------------

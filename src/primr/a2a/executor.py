@@ -16,7 +16,7 @@ import uuid
 from typing import TYPE_CHECKING, Any
 
 from a2a.server.agent_execution import AgentExecutor, RequestContext
-from a2a.types import Message, TaskState, TaskStatus, TaskStatusUpdateEvent
+from a2a.types import TaskState
 from a2a.utils import new_agent_text_message
 from typing_extensions import override  # noqa: UP035 - mypy resolves override here, not typing
 
@@ -25,26 +25,34 @@ from primr.a2a.authz import (
     a2a_scope_denied_text,
     authorize_a2a_skill,
 )
+from primr.a2a.call_context import LOCAL_A2A_CLIENT_ID
+from primr.a2a.cancellation import handle_cancel_request
 from primr.a2a.input_parsing import (
     parse_research_params as _parse_research_params,
 )
 from primr.a2a.input_parsing import (
     research_arguments_from_a2a_params as _research_arguments_from_a2a_params,
 )
+from primr.a2a.lifecycle_events import A2ALifecycleEvents
 from primr.a2a.resource_reads import handle_a2a_resource_read, resource_read_skill_list
 from primr.a2a.skill_ids import A2A_RESOURCE_READ_SKILLS
+from primr.a2a.status_events import status_update_event as _status_update_event
 from primr.a2a.types import A2ATaskMapping
+from primr.mcp_server import research_validation
 from primr.mcp_server.approval_tokens import (
     enforce_approval_token,
     issue_approval_token,
     research_approval_args,
 )
-from primr.mcp_server.pipeline_runner import PipelineRunner, get_doctor_status, run_qa_analysis
+from primr.mcp_server.auth import RESERVED_CLIENT_IDS
+from primr.mcp_server.pipeline_runner import get_doctor_status, run_qa_analysis
+from primr.mcp_server.platforms import normalize_platform
 from primr.mcp_server.research_policy import (
     build_research_estimate,
     coerce_budget_usd,
     enforce_cost_cap,
 )
+from primr.mcp_server.resource_auth import is_trusted_local_a2a_context
 
 if TYPE_CHECKING:
     from a2a.server.events import EventQueue
@@ -56,29 +64,6 @@ logger = logging.getLogger(__name__)
 
 # Poll interval for long-running jobs (seconds)
 _JOB_POLL_INTERVAL = 5
-
-
-def _status_message(text: str, task_id: str | None, context_id: str | None) -> Message:
-    return new_agent_text_message(text, task_id=task_id, context_id=context_id)
-
-
-def _status_update_event(
-    *,
-    state: TaskState,
-    text: str,
-    task_id: str,
-    context_id: str,
-    final: bool,
-) -> TaskStatusUpdateEvent:
-    return TaskStatusUpdateEvent(
-        task_id=task_id,
-        context_id=context_id,
-        final=final,
-        status=TaskStatus(
-            state=state,
-            message=_status_message(text, task_id=task_id, context_id=context_id),
-        ),
-    )
 
 
 class PrimrAgentExecutor(AgentExecutor):
@@ -104,7 +89,7 @@ class PrimrAgentExecutor(AgentExecutor):
     def __init__(self, mcp_server: PrimrMCPServer, task_store: PrimrTaskStore):
         self._mcp = mcp_server
         self._task_store = task_store
-        self._runners: dict[str, PipelineRunner] = {}
+        self._lifecycle_events = A2ALifecycleEvents()
 
     @override
     async def execute(
@@ -196,46 +181,13 @@ class PrimrAgentExecutor(AgentExecutor):
                 await self._enqueue_scope_denial("cancel_task", decision, context, event_queue)
                 return
 
-            if not task_id:
-                audit_payload = {"error": True, "error_type": "missing_task_id"}
-                await event_queue.enqueue_event(new_agent_text_message("No task ID to cancel"))
-                return
-
-            job_id = self._task_store.get_job_id(task_id)
-            if not job_id:
-                audit_payload = {"error": True, "error_type": "job_not_found"}
-                await event_queue.enqueue_event(
-                    new_agent_text_message(f"No job found for task {task_id}")
-                )
-                return
-
-            job = self._mcp.job_store.get(job_id)
-            if job is None or not _caller_owns_job(job, _a2a_client_id(self._mcp)):
-                audit_payload = {
-                    "error": True,
-                    "error_type": "job_not_found",
-                    "job_id": job_id,
-                }
-                await event_queue.enqueue_event(
-                    new_agent_text_message(f"No job found for task {task_id}")
-                )
-                return
-
-            runner = self._runners.get(job_id)
-            if runner:
-                runner.request_cancel()
-                logger.info("Cancel requested for task %s (job %s)", task_id, job_id)
-
-            context_id = context.context_id or task_id
-            audit_payload = {"status": "cancel_requested", "job_id": job_id}
-            await event_queue.enqueue_event(
-                _status_update_event(
-                    state=TaskState.canceled,
-                    text=f"Cancellation requested for job {job_id}",
-                    task_id=task_id,
-                    context_id=context_id,
-                    final=True,
-                )
+            audit_payload = await handle_cancel_request(
+                mcp_server=self._mcp,
+                task_store=self._task_store,
+                lifecycle_events=self._lifecycle_events,
+                context=context,
+                event_queue=event_queue,
+                client_id=_a2a_client_id(self._mcp),
             )
         except Exception as exc:
             caught_exception = exc
@@ -305,6 +257,10 @@ class PrimrAgentExecutor(AgentExecutor):
         arguments = _research_arguments_from_a2a_params(params)
         company_url = str(arguments.get("company_url") or "")
 
+        if validation_error := research_validation.validate_research_estimate_arguments(arguments):
+            await event_queue.enqueue_event(new_agent_text_message(json.dumps(validation_error)))
+            return validation_error
+
         if not company_url:
             await event_queue.enqueue_event(
                 new_agent_text_message("Please provide a company URL to estimate.")
@@ -359,6 +315,11 @@ class PrimrAgentExecutor(AgentExecutor):
         """Handle research_company skill - async with SSE streaming."""
         params = _parse_research_params(text)
         arguments = _research_arguments_from_a2a_params(params)
+
+        if validation_error := research_validation.validate_research_execution_arguments(arguments):
+            await event_queue.enqueue_event(new_agent_text_message(json.dumps(validation_error)))
+            return validation_error
+
         company_url = str(arguments.get("company_url") or "")
         company_name = str(arguments.get("company_name") or "Unknown")
         mode = str(arguments.get("mode") or "full")
@@ -397,8 +358,12 @@ class PrimrAgentExecutor(AgentExecutor):
             )
             return {"error": True, "error_type": "invalid_company_name"}
 
-        if bool(arguments.get("no_ai_strategy", False)):
+        if platform is not None:
+            platform = normalize_platform(str(platform))
+        if bool(arguments.get("no_ai_strategy", False)) or mode not in ("full", "premium"):
             platform = None
+        elif platform is None:
+            platform = "agnostic"
 
         if destination is not None:
             dest_result = self._mcp.path_validator.validate(
@@ -478,43 +443,72 @@ class PrimrAgentExecutor(AgentExecutor):
             )
         )
 
-        # Start pipeline in background
-        runner = PipelineRunner(self._mcp)
-        self._runners[job.job_id] = runner
+        # Start the same supervised worker used by MCP. The returned task
+        # completes only after the child process has exited and the parent has
+        # committed a terminal job state.
+        if getattr(self._mcp, "_skip_background_tasks", False):
+            return {
+                "status": "started",
+                "job_id": job.job_id,
+                "estimated_cost_usd": estimated_cost_usd,
+                "max_estimated_cost_usd": budget_usd,
+            }
+
+        try:
+            research_task = await self._mcp.job_supervisor.start(
+                job=job,
+                company_url=company_url,
+                mode=mode,
+                platform=str(platform) if platform else None,
+                skip_qa=skip_qa,
+                verify=verify,
+                destination=str(destination) if destination else None,
+                budget_usd=budget_usd,
+            )
+        except Exception:
+            logger.exception("A2A worker failed to start for job %s", job.job_id)
+            await self._lifecycle_events.enqueue_terminal_once(
+                job_id=job.job_id,
+                event_queue=event_queue,
+                event=_status_update_event(
+                    state=TaskState.failed,
+                    text="Research worker failed to start",
+                    task_id=task_id,
+                    context_id=context_id,
+                    final=True,
+                ),
+            )
+            return {
+                "error": True,
+                "error_type": "worker_spawn_failed",
+                "job_id": job.job_id,
+            }
 
         async def _run_and_stream() -> None:
             try:
-                research_task = asyncio.create_task(
-                    runner.run_research(
-                        job=job,
-                        company_url=company_url,
-                        mode=mode,
-                        platform=str(platform) if platform else None,
-                        skip_qa=skip_qa,
-                        verify=verify,
-                        destination=str(destination) if destination else None,
-                        budget_usd=budget_usd,
-                    )
-                )
-
                 # Poll job store and emit progress events
                 while not research_task.done():
                     await asyncio.sleep(_JOB_POLL_INTERVAL)
+                    if research_task.done():
+                        break
                     current_job = self._mcp.job_store.get(job.job_id)
-                    if current_job:
+                    if current_job and not current_job.is_terminal():
                         progress = f"{current_job.current_stage.value}" + (
                             f" ({current_job.stage_progress_percent}%)"
                             if current_job.stage_progress_percent
                             else ""
                         )
-                        await event_queue.enqueue_event(
-                            _status_update_event(
+                        await self._lifecycle_events.enqueue_progress_if_current(
+                            job_id=job.job_id,
+                            research_task=research_task,
+                            event_queue=event_queue,
+                            event=_status_update_event(
                                 state=TaskState.working,
                                 text=progress,
                                 task_id=task_id,
                                 context_id=context_id,
                                 final=False,
-                            )
+                            ),
                         )
 
                 # Wait for completion
@@ -529,39 +523,55 @@ class PrimrAgentExecutor(AgentExecutor):
                         paths = (
                             ", ".join(final_job.output_paths) if final_job.output_paths else "N/A"
                         )
-                        await event_queue.enqueue_event(
-                            _status_update_event(
+                        await self._lifecycle_events.enqueue_terminal_once(
+                            job_id=job.job_id,
+                            event_queue=event_queue,
+                            event=_status_update_event(
                                 state=TaskState.completed,
                                 text=f"Research complete. Output: {paths}",
                                 task_id=task_id,
                                 context_id=context_id,
                                 final=True,
-                            )
+                            ),
+                        )
+                    elif final_job.current_stage == ResearchStage.CANCELLED:
+                        await self._lifecycle_events.enqueue_terminal_once(
+                            job_id=job.job_id,
+                            event_queue=event_queue,
+                            event=_status_update_event(
+                                state=TaskState.canceled,
+                                text="Research cancelled",
+                                task_id=task_id,
+                                context_id=context_id,
+                                final=True,
+                            ),
                         )
                     else:
                         error_msg = final_job.error_message or "Unknown error"
-                        await event_queue.enqueue_event(
-                            _status_update_event(
+                        await self._lifecycle_events.enqueue_terminal_once(
+                            job_id=job.job_id,
+                            event_queue=event_queue,
+                            event=_status_update_event(
                                 state=TaskState.failed,
                                 text=f"Research failed: {error_msg}",
                                 task_id=task_id,
                                 context_id=context_id,
                                 final=True,
-                            )
+                            ),
                         )
             except Exception:
                 logger.exception("Research pipeline error for job %s", job.job_id)
-                await event_queue.enqueue_event(
-                    _status_update_event(
+                await self._lifecycle_events.enqueue_terminal_once(
+                    job_id=job.job_id,
+                    event_queue=event_queue,
+                    event=_status_update_event(
                         state=TaskState.failed,
                         text="Research pipeline error",
                         task_id=task_id,
                         context_id=context_id,
                         final=True,
-                    )
+                    ),
                 )
-            finally:
-                self._runners.pop(job.job_id, None)
 
         # Run in background - the event_queue bridges to SSE
         task = asyncio.create_task(_run_and_stream())
@@ -756,11 +766,17 @@ def _extract_text(message: Any) -> str:
 def _a2a_client_id(mcp_server: Any) -> str:
     """Return the authenticated A2A client id, or the local A2A owner id."""
     context = getattr(mcp_server, "_auth_context", None)
+    if is_trusted_local_a2a_context(context):
+        return LOCAL_A2A_CLIENT_ID
     if context is not None and getattr(context, "is_authenticated", False):
         client_id = getattr(context, "client_id", None)
-        if isinstance(client_id, str) and client_id:
+        if (
+            isinstance(client_id, str)
+            and client_id
+            and client_id.casefold() not in RESERVED_CLIENT_IDS
+        ):
             return client_id
-    return "a2a"
+    return "anonymous"
 
 
 def _caller_owns_job(job: Any, client_id: str) -> bool:

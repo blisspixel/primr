@@ -757,7 +757,24 @@ src/primr/
 │   └── errors/             # Typed error hierarchy and retry helpers
 │
 ├── mcp_server/              # MCP tools, resources, jobs, approval, and audit policy
-├── a2a/                     # A2A facade over the governed MCP pipeline services
+│   ├── job_process.py      # Parent-owned local worker supervisor
+│   ├── job_process_types.py # Retained handles and cancellation results
+│   ├── job_worker.py       # One-job Python child entry point
+│   ├── worker_environment.py # Least-privilege worker environment
+│   ├── worker_protocol.py  # Strict versioned JSONL lifecycle contract
+│   ├── worker_process_control.py # Cross-platform tree signaling
+│   ├── worker_terminal_policy.py # Exit and terminal-state compatibility
+│   ├── windows_job.py      # Kill-on-close Windows process-tree ownership
+│   ├── job_terminal_manifest.py # Atomic worker-exit audit manifest
+│   ├── job_tools.py        # Cancellation authorization and response
+│   ├── research_validation.py # Research execution-shape validation
+│   └── job_store.py        # Journal, timestamps, and controller lease
+├── a2a/                     # A2A facade over governed MCP pipeline services
+│   ├── call_context.py     # Trusted loopback and authenticated task ownership
+│   ├── cancellation.py     # Owned-task cancellation workflow
+│   ├── lifecycle_events.py # Progress and exactly-once terminal ordering
+│   ├── status_events.py    # Shared task-status event construction
+│   └── task_store.py       # Exact-owner SDK task retrieval and job mapping
 └── api/                     # REST scaffold; research submission is not production-wired
 ```
 
@@ -820,13 +837,63 @@ after the system has observed that the worker it owns has exited. A remote
 provider task may remain non-interruptible unless that provider exposes and
 accepts a cancellation operation.
 
-The target for long MCP, A2A, and hosted jobs is one supervised Python child
-process or one-job container per research job. The controller retains the
-worker handle, requests cooperative stop, waits for a bounded interval, then
-terminates the worker if necessary. Checkpoints and partial artifacts are
-preserved atomically, and terminal status records how cancellation completed.
-The existing deployment runner, job specification, event, and manifest
-contracts are the reference boundary. See
+Local MCP and A2A research jobs run in one supervised Python child process per
+job. The controller retains the worker handle, validates a strict 1 MiB JSONL
+event stream, requests cooperative stop, waits for a bounded interval, then
+terminates the owned process tree if necessary. The child must join that
+ownership boundary and emit `ready` before the control surface accepts the run.
+
+The worker receives an explicit research-provider and runtime environment
+allowlist. Controller authentication, approval, cloud-identity, telemetry, and
+CI credentials are removed. The supervised `.env` loader parses raw values
+without interpolation and rejects interpolation-bearing assignments, so a
+blocked value cannot be copied into an allowed provider variable. Before
+pipeline imports, the child duplicates the control and event
+pipes into non-inheritable private descriptors, replaces ordinary stdin with
+`DEVNULL`, and routes ordinary stdout to the worker log. Native stdout writes
+therefore cannot corrupt JSONL, and normal exec-based descendants cannot retain
+the private protocol pipes.
+
+The parent is the only writer of canonical job state. It validates the complete
+snapshot schema, types, ranges, job binding, and event sequence. Worker clock
+values do not define canonical stage, heartbeat, or completion timestamps: the
+parent records its own observation time, and terminal snapshots remain
+provisional until process exit is observed. Terminal states are immutable and
+repeated cancellation is idempotent.
+
+Exactly one controller may own a journal. MCP, co-hosted A2A, and standalone
+A2A enter the same reference-counted controller lifecycle, which acquires an
+OS-backed exclusive lease, reloads the journal under that lease, and only then
+performs restart reconciliation. On final shutdown,
+the shielded lifecycle refuses new starts and runs bounded cooperative,
+terminate, and kill phases. It releases the lease only after every retained
+worker is reaped and descendant-tree cleanup is confirmed. If OS termination
+or tree cleanup cannot be confirmed, shutdown fails loudly and keeps both the
+worker handle and lease instead of allowing another controller to reconcile a
+possibly live worker. Interrupted journals with no retained worker reconcile
+to `failed/server_restart` only after a later controller acquires the lease.
+
+Local no-auth A2A is permitted only on an explicit loopback listener. The
+server installs an internal request marker that remote JWT subjects cannot
+select. That marker can read only jobs owned by the local `a2a` identity;
+authenticated A2A uses the exact non-reserved token subject. SDK `tasks/get`
+applies the same exact-owner rule and returns the same not-found result for a
+missing task and a task owned by someone else.
+
+POSIX workers start in a new session and use process-group signals. Linux also
+sets `PR_SET_PDEATHSIG` during the bootstrap window, then transfers parent-loss
+handling to the private control-pipe reader so EOF can kill the whole process
+group. Windows uses a named Job Object with `KILL_ON_JOB_CLOSE`. The POSIX
+parent-loss path is best effort when native code holds the GIL long enough to
+starve the reader or a descendant deliberately escapes with `setsid()` or a new
+process group; Primr never converts an unconfirmed exit into a terminal claim.
+
+When a retained worker exits as failed or cancelled, the supervisor atomically
+writes a worker-exit manifest with the observed exit method. Spawn failures and
+restart reconciliation remain journal-only. Provider-side work is recorded as
+`unknown` when the provider offers no cancellation confirmation. Hosted one-job
+containers should converge on this same protocol rather than maintain a second
+lifecycle vocabulary. See
 [`design/runtime-language-boundaries.md`](design/runtime-language-boundaries.md#1-truthful-job-cancellation-through-process-isolation).
 
 ## Security Architecture

@@ -1,12 +1,17 @@
 """Tests for A2A server."""
 
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
+from httpx import ASGITransport, AsyncClient
 
 a2a = pytest.importorskip("a2a")
 
 from primr.a2a.server import PrimrA2AServer
+from primr.a2a.types import A2ATaskMapping
+from primr.mcp_server.resource_auth import TRUSTED_LOCAL_A2A_AUTH_CONTEXT
 from primr.mcp_server.server import create_mcp_server
 
 
@@ -41,6 +46,15 @@ class TestPrimrA2AServer:
         app = a2a_server.build_app()
         assert app is not None
 
+    def test_no_auth_rejects_non_loopback_listener(self, mcp_server):
+        with pytest.raises(ValueError, match="loopback"):
+            PrimrA2AServer(
+                mcp_server=mcp_server,
+                host="0.0.0.0",
+                port=9000,
+                require_auth=False,
+            )
+
     def test_build_app_with_auth(self, mcp_server):
         """Auth middleware is applied when require_auth=True."""
         import os
@@ -63,6 +77,55 @@ class TestPrimrA2AServer:
     def test_shared_job_store(self, a2a_server, mcp_server):
         """A2A and MCP share the same job store."""
         assert a2a_server.task_store._job_store is mcp_server.job_store
+
+    @pytest.mark.asyncio
+    async def test_local_tasks_get_is_owned_and_cross_owner_is_not_found(
+        self,
+        a2a_server,
+        mcp_server,
+    ):
+        """The SDK receives the trusted local context for tasks/get."""
+        job = mcp_server.job_store.create("Acme", "full", owner_client_id="a2a")
+        a2a_server.task_store.register_mapping(
+            A2ATaskMapping(
+                task_id="task-local",
+                job_id=job.job_id,
+                skill_id="research_company",
+            )
+        )
+
+        transport = ASGITransport(app=a2a_server.build_app())
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            owned = (
+                await client.post(
+                    "/",
+                    json=_get_task_request("request-owned", "task-local"),
+                )
+            ).json()
+            job.owner_client_id = "other-client"
+            mcp_server.job_store.update(job)
+            denied = (
+                await client.post(
+                    "/",
+                    json=_get_task_request("request-denied", "task-local"),
+                )
+            ).json()
+            missing = (
+                await client.post(
+                    "/",
+                    json=_get_task_request("request-missing", "task-missing"),
+                )
+            ).json()
+
+        assert owned["result"]["id"] == "task-local"
+        assert (
+            denied["error"]
+            == missing["error"]
+            == {
+                "code": -32001,
+                "message": "Task not found",
+            }
+        )
 
     @pytest.mark.asyncio
     async def test_with_auth_context_bridges_scope_user(self, a2a_server, mcp_server):
@@ -89,6 +152,74 @@ class TestPrimrA2AServer:
         assert seen_contexts[0].scopes == ["read"]
         assert mcp_server._auth_context is None
 
+    @pytest.mark.asyncio
+    async def test_with_auth_context_marks_loopback_no_auth_as_trusted(
+        self,
+        a2a_server,
+        mcp_server,
+    ):
+        seen_contexts = []
+
+        async def app(_scope, _receive, _send):
+            seen_contexts.append(mcp_server._auth_context)
+
+        wrapped = a2a_server._with_auth_context(app)
+        await wrapped({"type": "http"}, AsyncIteratorStub(), AsyncSenderStub())
+
+        assert seen_contexts == [TRUSTED_LOCAL_A2A_AUTH_CONTEXT]
+        assert mcp_server._auth_context is None
+
+    @pytest.mark.asyncio
+    async def test_auth_required_server_does_not_trust_missing_scope_user(self, mcp_server):
+        server = PrimrA2AServer(
+            mcp_server=mcp_server,
+            host="127.0.0.1",
+            port=9000,
+            require_auth=True,
+        )
+        seen_contexts = []
+
+        async def app(_scope, _receive, _send):
+            seen_contexts.append(mcp_server._auth_context)
+
+        wrapped = server._with_auth_context(app)
+        await wrapped({"type": "http"}, AsyncIteratorStub(), AsyncSenderStub())
+
+        assert seen_contexts == [None]
+
+    @pytest.mark.asyncio
+    async def test_standalone_run_uses_shared_controller_lifecycle(
+        self,
+        a2a_server,
+        mcp_server,
+        monkeypatch,
+    ):
+        """Standalone A2A owns the same lease and worker shutdown context as MCP."""
+        order = []
+
+        @asynccontextmanager
+        async def lifecycle():
+            order.append("enter")
+            try:
+                yield
+            finally:
+                order.append("exit")
+
+        class FakeUvicornServer:
+            def __init__(self, _config):
+                pass
+
+            async def serve(self):
+                order.append("serve")
+
+        monkeypatch.setattr(mcp_server, "controller_lifecycle", lifecycle)
+        monkeypatch.setattr(a2a_server, "build_app", MagicMock(return_value=object()))
+        monkeypatch.setattr("uvicorn.Config", MagicMock(return_value=object()))
+        monkeypatch.setattr("uvicorn.Server", FakeUvicornServer)
+
+        await a2a_server.run()
+        assert order == ["enter", "serve", "exit"]
+
 
 class AsyncIteratorStub:
     """Minimal ASGI receive stub."""
@@ -102,3 +233,12 @@ class AsyncSenderStub:
 
     async def __call__(self, _message):
         return None
+
+
+def _get_task_request(request_id: str, task_id: str) -> dict:
+    return {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "method": "tasks/get",
+        "params": {"id": task_id},
+    }

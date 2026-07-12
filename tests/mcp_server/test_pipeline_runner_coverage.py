@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from primr.mcp_server.pipeline_runner import (
+    PUBLIC_RESEARCH_FAILURE_MESSAGE,
     PipelineRunner,
     _collect_run_artifacts,
     _copy_artifacts_to_destination,
@@ -222,6 +223,65 @@ class TestRunResearchFastMode:
         assert str(report) in updated.output_paths
 
     @pytest.mark.asyncio
+    async def test_fast_mode_delivers_the_single_approved_strategy(
+        self, server, runner, monkeypatch, tmp_path
+    ):
+        monkeypatch.setenv("XAI_API_KEY", "fake-key")
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="stdio")
+        output_dir = tmp_path / "job-output"
+        output_dir.mkdir()
+        report = output_dir / "Acme_Corp_Strategic_Overview_07-12-2026.md"
+        strategy = output_dir / "Acme_Corp_AI_Strategy_Azure_07-12-2026.md"
+        report.write_text("report", encoding="utf-8")
+        strategy.write_text("strategy", encoding="utf-8")
+        seen = {}
+
+        def fake_fast_research(*_args, **kwargs):
+            seen.update(kwargs)
+            return str(report)
+
+        monkeypatch.setattr("primr.core.research_agent.perform_fast_research", fake_fast_research)
+
+        await runner.run_research(
+            job=job,
+            company_url="https://example.com",
+            mode="full",
+            platform="azure",
+        )
+
+        updated = server.job_store.get(job.job_id)
+        assert updated.current_stage == ResearchStage.COMPLETED
+        assert str(report) in updated.output_paths
+        assert str(strategy) in updated.output_paths
+        assert seen["ai_strategy"] is True
+        assert seen["platforms"] == ("azure",)
+
+    @pytest.mark.asyncio
+    async def test_fast_mode_fails_if_approved_strategy_artifact_is_missing(
+        self, server, runner, monkeypatch, tmp_path
+    ):
+        monkeypatch.setenv("XAI_API_KEY", "fake-key")
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="stdio")
+        report = tmp_path / "Acme_Corp_Strategic_Overview_07-12-2026.md"
+        report.write_text("report", encoding="utf-8")
+        monkeypatch.setattr(
+            "primr.core.research_agent.perform_fast_research",
+            lambda *_args, **_kwargs: str(report),
+        )
+
+        await runner.run_research(
+            job=job,
+            company_url="https://example.com",
+            mode="full",
+            platform="azure",
+        )
+
+        updated = server.job_store.get(job.job_id)
+        assert updated.current_stage == ResearchStage.FAILED
+        assert updated.error_type == "pipeline_error"
+        assert updated.output_paths == []
+
+    @pytest.mark.asyncio
     async def test_fast_mode_failure(self, server, runner, monkeypatch):
         monkeypatch.setenv("XAI_API_KEY", "fake-key")
         job = server.job_store.create("Acme Corp", "full", owner_client_id="stdio")
@@ -420,6 +480,97 @@ class TestRunResearchOrchestrator:
         acknowledge_mock.assert_called_once_with("interaction-123", [str(tmp_path / "report.md")])
 
     @pytest.mark.asyncio
+    async def test_standard_path_generates_promised_strategy_before_completion(
+        self, server, runner, monkeypatch, tmp_path
+    ):
+        """A platform-bearing premium run delivers the strategy priced by its estimate."""
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        job = server.job_store.create("Acme Corp", "premium", owner_client_id="stdio")
+        result = SimpleNamespace(
+            success=True,
+            error=None,
+            raw_content="# Report Body",
+            section_results={},
+            pending_interaction_id="",
+        )
+        orchestrator = MagicMock(research=AsyncMock(return_value=result))
+        report_path = str(tmp_path / "report.md")
+        strategy_path = str(tmp_path / "strategy.md")
+        runner._save_report = AsyncMock(return_value=report_path)
+        runner._generate_run_manifest = AsyncMock(return_value=str(tmp_path / "run_manifest.json"))
+
+        with (
+            patch(
+                "primr.core.research_orchestrator.ResearchOrchestrator",
+                return_value=orchestrator,
+            ),
+            patch(
+                "primr.mcp_server.pipeline_runner.run_strategy_generation",
+                new=AsyncMock(
+                    return_value={
+                        "output_path": strategy_path,
+                        "strategy_type": "ai_strategy",
+                        "qa_score": None,
+                    }
+                ),
+            ) as strategy_mock,
+        ):
+            await runner.run_research(
+                job,
+                "https://example.com",
+                "premium",
+                platform="agnostic",
+                skip_qa=True,
+            )
+
+        updated = server.job_store.get(job.job_id)
+        assert updated.current_stage == ResearchStage.COMPLETED
+        assert strategy_path in updated.output_paths
+        strategy_mock.assert_awaited_once()
+        assert strategy_mock.await_args.kwargs["platform"] == "agnostic"
+
+    @pytest.mark.asyncio
+    async def test_standard_path_report_only_shape_emits_no_strategy(
+        self, server, runner, monkeypatch, tmp_path
+    ):
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        job = server.job_store.create("Acme Corp", "premium", owner_client_id="stdio")
+        result = SimpleNamespace(
+            success=True,
+            error=None,
+            raw_content="# Report Body",
+            section_results={},
+            pending_interaction_id="",
+        )
+        report_path = str(tmp_path / "report.md")
+        manifest_path = str(tmp_path / "run_manifest.json")
+        runner._save_report = AsyncMock(return_value=report_path)
+        runner._generate_run_manifest = AsyncMock(return_value=manifest_path)
+
+        with (
+            patch(
+                "primr.core.research_orchestrator.ResearchOrchestrator",
+                return_value=MagicMock(research=AsyncMock(return_value=result)),
+            ),
+            patch(
+                "primr.mcp_server.pipeline_runner.run_strategy_generation",
+                new=AsyncMock(),
+            ) as strategy_mock,
+        ):
+            await runner.run_research(
+                job,
+                "https://example.com",
+                "premium",
+                platform=None,
+                skip_qa=True,
+            )
+
+        updated = server.job_store.get(job.job_id)
+        assert updated.current_stage == ResearchStage.COMPLETED
+        assert updated.output_paths == [report_path, manifest_path]
+        strategy_mock.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_report_write_failure_retains_pending_interaction(
         self, server, runner, monkeypatch
     ):
@@ -449,7 +600,7 @@ class TestRunResearchOrchestrator:
         acknowledge_mock.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_orchestrator_failure(self, server, runner, monkeypatch):
+    async def test_orchestrator_failure_is_sanitized(self, server, runner, monkeypatch, caplog):
         monkeypatch.delenv("XAI_API_KEY", raising=False)
         job = server.job_store.create("Acme Corp", "premium", owner_client_id="stdio")
 
@@ -466,9 +617,13 @@ class TestRunResearchOrchestrator:
         updated = server.job_store.get(job.job_id)
         assert updated.current_stage == ResearchStage.FAILED
         assert updated.error_type == "research_failed"
+        assert updated.error_message == PUBLIC_RESEARCH_FAILURE_MESSAGE
+        assert "orchestrator boom" in caplog.text
 
     @pytest.mark.asyncio
-    async def test_pipeline_exception_records_failed(self, server, runner, monkeypatch):
+    async def test_pipeline_exception_records_sanitized_failure(
+        self, server, runner, monkeypatch, caplog
+    ):
         from primr.utils.run_budget import clear_run_budget, get_run_budget
 
         monkeypatch.delenv("XAI_API_KEY", raising=False)
@@ -488,7 +643,8 @@ class TestRunResearchOrchestrator:
         updated = server.job_store.get(job.job_id)
         assert updated.current_stage == ResearchStage.FAILED
         assert updated.error_type == "pipeline_error"
-        assert "init failed" in updated.error_message
+        assert updated.error_message == PUBLIC_RESEARCH_FAILURE_MESSAGE
+        assert "init failed" in caplog.text
         assert get_run_budget() is None
 
 
@@ -547,6 +703,31 @@ class TestSaveReportAndManifest:
         assert payload["budget"]["enforcement"]["non_interruptible_required_tasks"] == [
             "required Deep Research task"
         ]
+
+    @pytest.mark.asyncio
+    async def test_generate_run_manifest_uses_atomic_write(
+        self, server, runner, monkeypatch, tmp_path
+    ):
+        monkeypatch.setattr("primr.config.config.OUTPUT_DIR", str(tmp_path))
+        atomic_write = MagicMock()
+        monkeypatch.setattr("primr.utils.atomic_io.atomic_write_text", atomic_write)
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="stdio")
+        report = tmp_path / "report.md"
+        report.write_text("body", encoding="utf-8")
+        job.output_paths = [str(report)]
+        job.advance_stage(ResearchStage.COMPLETED)
+
+        manifest_path = await runner._generate_run_manifest(
+            job,
+            "https://example.com",
+            "full",
+        )
+
+        assert manifest_path == str(tmp_path / "run_manifest.json")
+        atomic_write.assert_called_once()
+        target, content = atomic_write.call_args.args
+        assert target == tmp_path / "run_manifest.json"
+        assert json.loads(content)["job_id"] == job.job_id
 
     @pytest.mark.asyncio
     async def test_manifests_are_isolated_by_job_output_directory(self, server, runner, tmp_path):

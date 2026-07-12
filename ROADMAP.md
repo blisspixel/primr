@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.35.0
+Current State: v1.35.1
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -1071,15 +1071,26 @@ Shipped:
   `RunBudget`, so the same mid-run checkpoints used by CLI `--budget` apply to
   the MCP networked surface. The process-global budget is cleared in a
   `finally` after success, cancellation, or failure.
+- Truthful local MCP/A2A execution ownership. Each long research job now runs
+  in a packaged Python child behind a strict versioned JSONL protocol. The
+  shared parent supervisor retains the process handle, waits for the worker's
+  ownership-ready handshake, validates monotonic progress, and commits a
+  terminal result only after observed exit. Cancellation is cooperative first,
+  then bounded process-tree termination through POSIX process groups or a
+  kill-on-close Windows Job Object. Repeated cancellation is idempotent,
+  interrupted journals reconcile on restart, and supervised failed or
+  cancelled worker exits receive manifests stating that remote provider work
+  is `unknown` when it cannot be confirmed stopped. Spawn and restart failures
+  remain journal-only.
+- MCP execution now matches its estimate for the default AI Strategy artifact.
+  Full and premium calls use agnostic strategy by default unless
+  `no_ai_strategy=true`; the standard premium/orchestrator path now generates
+  that promised strategy instead of pricing an artifact it did not deliver.
 
 Planned:
-- Own each running job through a retained worker handle. Cancellation must stop
-  Primr-owned work, not merely write a cancelled journal state. Prefer one
-  supervised Python child process per long MCP/A2A job so cancellation, crash
-  isolation, resource limits, budget ownership, and cleanup are enforceable.
-  Record provider operations that cannot be interrupted separately and never
-  claim that remote work stopped without provider confirmation. Reuse the
-  existing deployment runner, job-specification, event, and manifest contracts.
+- Converge hosted one-job containers and the older deployment runner on the
+  packaged worker protocol, then add explicit provider-side cancellation state
+  where provider APIs make confirmation possible.
 - Add integration eval suites for routing, approval, recovery, and recomputation avoidance
 - Expose a compact project security/profile resource for agent clients when
   useful, including always-on guardrails and context-selected guidance for
@@ -1193,10 +1204,11 @@ gates, packaging strategy, and stop conditions live in
 
 Ordered work:
 
-1. **Truthful execution ownership.** Reuse the existing runner protocol to put
-   long MCP/A2A jobs in supervised Python child processes or one-job containers.
-   A job becomes terminally cancelled only after the owned worker exits; remote
-   provider work is described separately when it cannot be interrupted.
+1. **Truthful execution ownership - SHIPPED for local MCP/A2A.** Long MCP/A2A
+   jobs run in supervised Python child processes. A job becomes terminally
+   cancelled only after the owned worker exits; remote provider work is
+   described separately when it cannot be interrupted. Hosted one-job
+   containers still need to converge on the same packaged protocol.
 2. **Production-shaped baseline.** Add phase wall time, overlap, local parse and
    extraction time, provider wait, peak memory, queue delay, cancellation
    latency, and recovery outcomes. Keep prompt and page bodies out of telemetry.
@@ -1707,6 +1719,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.35.1 | Jul 2026 | **Truthful worker ownership and estimate-delivery parity.** Local MCP/A2A research now runs in supervised Python child processes with strict lifecycle events, cleanup-confirmed process-tree cancellation, immutable terminal state, lease-time journal reload, exact A2A task ownership, and worker-exit cancellation manifests. Full and premium MCP runs now deliver the single strategy target their estimates price, while unsupported integrated shapes fail before approval. |
 | 1.35.0 | Jul 2026 | **Hard-zero host-assisted research and defensive local capacity.** Added `primr prep` for deterministic no-model evidence collection, a wheel-packaged `primr-zero` skill for plan-native synthesis, explicit billing verification, and bounded local-capacity busy guidance. Model-call guards, source provenance, evidence fencing, retry propagation, roadmap parsing, architecture maps, and code-graph freshness were hardened together. |
 | 1.34.50 | Jul 2026 | **Durable background jobs and stable operator contracts.** Background Deep Research interactions remain recoverable until their owning output boundary verifies all required artifacts. CLI, MCP, A2A, hosted, and application APIs share a versioned body-free job-status projection. MCP jobs now write to isolated job directories with correlated manifests, while CLI and MCP artifact reads share a bounded newest-first inventory covering deliverables and diagnostics without fuzzy cross-run ownership. |
 | 1.34.49 | Jul 2026 | **Recovery status clarity and durable explicit finalization.** `--check-jobs` is now read-only and shows both pending cloud work and the latest local run state. `--resume-latest` owns canonical output finalization and provider-terminal acknowledgement, retains recoverability on empty or partial output, reports mixed failures through nonzero exit codes, and keeps CLI help, dry-run guidance, API examples, and recovery documentation aligned. |

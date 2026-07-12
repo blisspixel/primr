@@ -8,13 +8,16 @@ Requirements: 2.2, 5.8, 5.9, 19.1-19.6, 20.2
 """
 
 import asyncio
+import importlib
 import json
+import os
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
+from typing import BinaryIO
 
 from primr.mcp_server.types import JobStatus, ResearchStage
 from primr.utils.atomic_io import atomic_replace
@@ -35,6 +38,73 @@ class JobInProgressError(Exception):
     def __init__(self, active_job_id: str):
         self.active_job_id = active_job_id
         super().__init__(f"Job {active_job_id} already in progress")
+
+
+class ControllerLeaseError(RuntimeError):
+    """Raised when another controller already owns a job journal."""
+
+
+class ControllerLease:
+    """Hold one non-blocking interprocess lease beside a job journal.
+
+    The JSON journal is intentionally simple, but restart reconciliation is
+    only safe when exactly one controller can own it. The lock file may remain
+    on disk after a crash; the operating system releases the actual lease when
+    the owning descriptor closes.
+    """
+
+    def __init__(self, journal_path: Path) -> None:
+        self.lock_path = journal_path.with_name(f"{journal_path.name}.controller.lock")
+        self._stream: BinaryIO | None = None
+
+    @property
+    def acquired(self) -> bool:
+        """Return whether this object currently owns the lease."""
+        return self._stream is not None
+
+    def acquire(self) -> None:
+        """Acquire the lease without waiting for another controller."""
+        if self._stream is not None:
+            return
+        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+        stream = open(self.lock_path, "a+b")  # noqa: SIM115
+        try:
+            if os.name == "nt":
+                import msvcrt
+
+                stream.seek(0, os.SEEK_END)
+                if stream.tell() == 0:
+                    stream.write(b"\0")
+                    stream.flush()
+                stream.seek(0)
+                msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                fcntl = vars(importlib.import_module("fcntl"))
+                fcntl["flock"](stream.fileno(), fcntl["LOCK_EX"] | fcntl["LOCK_NB"])
+        except (OSError, BlockingIOError) as exc:
+            stream.close()
+            raise ControllerLeaseError(
+                f"Another Primr MCP controller already owns {self.lock_path}"
+            ) from exc
+        self._stream = stream
+
+    def close(self) -> None:
+        """Release the lease; repeated calls are safe."""
+        stream = self._stream
+        if stream is None:
+            return
+        self._stream = None
+        try:
+            if os.name == "nt":
+                import msvcrt
+
+                stream.seek(0)
+                msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl = vars(importlib.import_module("fcntl"))
+                fcntl["flock"](stream.fileno(), fcntl["LOCK_UN"])
+        finally:
+            stream.close()
 
 
 @dataclass
@@ -123,7 +193,13 @@ class ResearchJobState:
 
         Requirements: 2.9, Job State Machine invariants
         """
-        # Terminal states can always be set
+        # Terminal states are immutable. In particular, a late worker update
+        # must not turn a controller-recorded cancellation into completion or
+        # replace one terminal outcome with another.
+        if self.is_terminal():
+            return False
+
+        # A non-terminal job may advance to either failure terminal.
         if new_stage in (ResearchStage.FAILED, ResearchStage.CANCELLED):
             self.current_stage = new_stage
             if self.completion_time is None:  # Immutable once set
@@ -360,12 +436,18 @@ class SingleJobStore(JobStore):
         self._status_change_event: asyncio.Event | None = None
         self._load_journal()
 
+    @property
+    def journal_path(self) -> Path:
+        """Return the canonical journal path for controller coordination."""
+        return self._journal_path
+
     def _load_journal(self) -> None:
         """
         Load job state from journal on startup.
 
         Requirements: 19.4
         """
+        self._job = None
         if self._journal_path.exists():
             try:
                 with open(self._journal_path, encoding="utf-8") as f:
@@ -378,6 +460,16 @@ class SingleJobStore(JobStore):
                     "Corrupted job journal at %s, starting fresh: %s", self._journal_path, e
                 )
                 self._job = None
+
+    def reload_from_journal(self) -> None:
+        """Refresh in-memory state after acquiring the controller lease.
+
+        A controller object may be constructed while another process still
+        owns and updates the journal. Reconciliation must therefore reload the
+        latest bytes only after exclusive ownership has been established.
+        """
+        with self._lock:
+            self._load_journal()
 
     def _save_journal(self) -> None:
         """
@@ -459,6 +551,119 @@ class SingleJobStore(JobStore):
                 self._save_journal()
                 # Notify waiters of state change
                 self._notify_status_change()
+
+    def apply_worker_snapshot(
+        self,
+        job_id: str,
+        snapshot: dict,
+        allow_terminal: bool = False,
+    ) -> bool:
+        """Apply one serialized worker snapshot to the canonical job.
+
+        Worker processes may report progress using the journal schema, but the
+        parent remains authoritative for identity and terminal state. Stale,
+        malformed, cross-job, regressive, and late terminal snapshots are
+        rejected without changing the journal.
+
+        Args:
+            job_id: Canonical parent job identifier.
+            snapshot: Worker state in ``ResearchJobState.to_journal_dict`` form.
+            allow_terminal: Permit this snapshot to commit a terminal outcome.
+
+        Returns:
+            ``True`` when the snapshot was applied and persisted, otherwise
+            ``False``.
+        """
+        try:
+            from primr.mcp_server.worker_protocol import validate_job_snapshot
+
+            validate_job_snapshot(snapshot, label="worker snapshot")
+            worker_job = ResearchJobState.from_journal_dict(snapshot)
+        except (KeyError, TypeError, ValueError):
+            return False
+
+        with self._lock:
+            canonical = self._job
+            if canonical is None or canonical.job_id != job_id:
+                return False
+            if worker_job.job_id != job_id:
+                return False
+
+            # No worker update may mutate an outcome the parent has already
+            # committed, even when the worker reports the same terminal state.
+            if canonical.is_terminal():
+                return False
+
+            worker_is_terminal = worker_job.is_terminal()
+            if worker_is_terminal:
+                if not allow_terminal:
+                    return False
+                # The parent calls this only after observing process exit. A
+                # worker terminal event is provisional, so its earlier clock
+                # value cannot define canonical completion or run duration.
+                observed_exit_at = _utcnow()
+                worker_job.completion_time = observed_exit_at
+                worker_job.last_heartbeat_time = observed_exit_at
+                worker_job.stage_started_at = observed_exit_at
+            else:
+                try:
+                    current_index = canonical._STAGE_ORDER.index(canonical.current_stage)
+                    worker_index = canonical._STAGE_ORDER.index(worker_job.current_stage)
+                except ValueError:
+                    return False
+
+                if worker_index < current_index:
+                    return False
+                if (
+                    worker_index == current_index
+                    and worker_job.stage_progress_percent < canonical.stage_progress_percent
+                ):
+                    return False
+
+                # A non-terminal snapshot cannot smuggle a completion time into
+                # the canonical parent state.
+                worker_job.completion_time = None
+                observed_at = _utcnow()
+                worker_job.last_heartbeat_time = observed_at
+                if worker_job.current_stage == canonical.current_stage:
+                    worker_job.stage_started_at = canonical.stage_started_at
+                else:
+                    worker_job.stage_started_at = observed_at
+
+            # Worker-controlled snapshots never own identity. Preserve all
+            # canonical identity fields even if the serialized worker payload
+            # contains stale or forged values.
+            worker_job.job_id = canonical.job_id
+            worker_job.company_name = canonical.company_name
+            worker_job.mode = canonical.mode
+            worker_job.start_time = canonical.start_time
+            worker_job.owner_client_id = canonical.owner_client_id
+
+            self._job = worker_job
+            self._save_journal()
+
+        # Notify after releasing the store lock so waiters can immediately read
+        # the newly persisted state without lock inversion.
+        self._notify_status_change()
+        return True
+
+    def reconcile_interrupted_job(self) -> str | None:
+        """Fail an active journal entry that has no worker after server restart."""
+        reconciled_job_id = None
+        with self._lock:
+            if self._job and not self._job.is_terminal():
+                reconciled_job_id = self._job.job_id
+                self._job.current_stage = ResearchStage.FAILED
+                self._job.error_type = "server_restart"
+                self._job.error_message = (
+                    "Server restarted before the supervised worker committed a terminal state"
+                )
+                self._job.completion_time = _utcnow()
+                self._job.last_heartbeat_time = _utcnow()
+                self._save_journal()
+        if reconciled_job_id is not None:
+            self._notify_status_change()
+        return reconciled_job_id
 
     def mark_shutdown(self) -> None:
         """
