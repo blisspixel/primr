@@ -54,10 +54,12 @@ def is_cancel_return_code(return_code: int | None, method: str | None) -> bool:
         return True
     if return_code in {-getattr(signal, "SIGTERM", 15), -getattr(signal, "SIGKILL", 9)}:
         return True
-    if method == "ctrl_break" and return_code in {
+    if return_code in {
         WINDOWS_CONTROL_C_EXIT,
         WINDOWS_CONTROL_C_EXIT_SIGNED,
     }:
+        # A later escalation can replace the method label while the earlier
+        # Ctrl+Break is the signal that actually determines process status.
         return True
     return bool(
         method in _WINDOWS_DIRECT_FORCE_METHODS and return_code == WINDOWS_TERMINATE_PROCESS_EXIT

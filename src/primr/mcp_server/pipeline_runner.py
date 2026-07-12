@@ -14,7 +14,12 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol, cast
 
+from primr.mcp_server.doctor_status import (
+    DIRECT_PROVIDER_KEY_ENV_VARS as DIRECT_PROVIDER_KEY_ENV_VARS,
+)
+from primr.mcp_server.doctor_status import get_doctor_status as get_doctor_status
 from primr.mcp_server.job_store import ResearchJobState
+from primr.mcp_server.qa_operations import run_qa_analysis as run_qa_analysis
 from primr.mcp_server.types import ResearchStage
 
 
@@ -29,14 +34,6 @@ logger = logging.getLogger(__name__)
 # Heartbeat interval in seconds
 HEARTBEAT_INTERVAL = 30
 PUBLIC_RESEARCH_FAILURE_MESSAGE = "Research pipeline failed. See server logs for details."
-
-DIRECT_PROVIDER_KEY_ENV_VARS = (
-    "XAI_API_KEY",
-    "GEMINI_API_KEY",
-    "GOOGLE_API_KEY",
-    "OPENAI_API_KEY",
-    "ANTHROPIC_API_KEY",
-)
 
 
 class PipelineRunner:
@@ -804,92 +801,4 @@ async def run_strategy_generation(
         "output_path": result.md_path or result.docx_path or result.txt_path,
         "strategy_type": strategy_type,
         "qa_score": None,  # Strategy doesn't have QA yet
-    }
-
-
-async def run_qa_analysis(report_path: str) -> dict:
-    """
-    Run QA analysis on a report.
-
-    Args:
-        report_path: Path to the report file
-
-    Returns:
-        Dict with QA results
-    """
-    from primr.qa.analyzer import QAAnalyzer
-    from primr.qa.report_loader import ReportLoader
-
-    # Load report
-    loader = ReportLoader()
-    report = loader.load(report_path)
-
-    if not report:
-        raise RuntimeError(f"Could not load report: {report_path}")
-
-    # Run analysis
-    analyzer = QAAnalyzer()
-    analysis = analyzer.analyze_report(report)
-
-    return {
-        "overall_score": analysis.overall_score,
-        "category_scores": {
-            "completeness": analysis.completeness_score,
-            "accuracy": analysis.accuracy_score,
-            "clarity": analysis.clarity_score,
-            "actionability": analysis.actionability_score,
-        },
-        "improvement_suggestions": [issue.description for issue in analysis.issues[:5]]
-        if analysis.issues
-        else [],
-    }
-
-
-def get_doctor_status() -> dict:
-    """
-    Get system health status.
-
-    Returns:
-        Dict with health status information
-    """
-    import os
-
-    from primr.config.config import OUTPUT_DIR
-
-    warnings = []
-
-    # Check direct provider API keys. Agent-host credentials are tracked separately.
-    api_keys_configured = any(os.environ.get(name) for name in DIRECT_PROVIDER_KEY_ENV_VARS)
-    if not api_keys_configured:
-        warnings.append(
-            "No direct LLM provider key configured "
-            "(XAI_API_KEY, GEMINI_API_KEY or GOOGLE_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY)"
-        )
-
-    # Check output directory
-    if not os.path.exists(OUTPUT_DIR):
-        warnings.append(f"Output directory does not exist: {OUTPUT_DIR}")
-
-    # MCP health does not own provider file-store lifecycle checks.
-    orphaned_stores_count = 0
-
-    # Check config validity
-    config_valid = True
-    try:
-        from primr.config.config import validate_config
-
-        result = validate_config()
-        config_valid = result.valid
-        if not config_valid:
-            for err in result.errors:
-                warnings.append(f"Config: {err}")
-    except Exception as e:
-        config_valid = False
-        warnings.append(f"Configuration error: {e}")
-
-    return {
-        "orphaned_stores_count": orphaned_stores_count,
-        "config_valid": config_valid,
-        "api_keys_configured": api_keys_configured,
-        "warnings": warnings,
     }

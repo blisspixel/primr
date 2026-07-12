@@ -183,10 +183,11 @@ class TestRunQAAnalysis:
             patch("primr.qa.report_loader.ReportLoader") as MockLoader,
             patch("primr.qa.analyzer.QAAnalyzer") as MockAnalyzer,
         ):
-            MockLoader.return_value.load.return_value = MagicMock()
+            MockLoader.return_value.load_report_from_path.return_value = MagicMock()
             MockAnalyzer.return_value.analyze_report.return_value = analysis
             result = await run_qa_analysis(str(report))
 
+        MockLoader.return_value.load_report_from_path.assert_called_once_with(report)
         assert result["overall_score"] == 88.0
         assert result["category_scores"]["completeness"] == 90.0
         assert result["improvement_suggestions"] == ["fix this"]
@@ -196,7 +197,7 @@ class TestRunQAAnalysis:
         report = tmp_path / "report.md"
         report.write_text("# report", encoding="utf-8")
         with patch("primr.qa.report_loader.ReportLoader") as MockLoader:
-            MockLoader.return_value.load.return_value = None
+            MockLoader.return_value.load_report_from_path.return_value = None
             with pytest.raises(RuntimeError, match="Could not load report"):
                 await run_qa_analysis(str(report))
 

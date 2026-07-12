@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import BinaryIO, Literal, TypeVar
+from typing import Literal, TypeVar
 
 from primr.mcp_server.windows_job import WindowsJobObject
 
@@ -37,7 +37,6 @@ class WorkerHandle:
 
     job_id: str
     process: asyncio.subprocess.Process
-    stderr_file: BinaryIO
     company_url: str
     mode: str
     budget_usd: float | None

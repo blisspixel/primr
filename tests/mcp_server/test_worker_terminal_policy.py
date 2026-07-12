@@ -97,6 +97,8 @@ def test_cancelled_requires_parent_intent_code_and_reason(
         (1, "kill_process_fallback", True),
         (0xC000013A, "ctrl_break", True),
         (0xC000013A - (1 << 32), "ctrl_break", True),
+        (0xC000013A, "terminate_job_object", True),
+        (0xC000013A - (1 << 32), None, True),
         (1, "ctrl_break", False),
     ],
 )

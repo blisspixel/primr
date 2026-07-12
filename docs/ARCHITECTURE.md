@@ -757,6 +757,7 @@ src/primr/
 │   └── errors/             # Typed error hierarchy and retry helpers
 │
 ├── mcp_server/              # MCP tools, resources, jobs, approval, and audit policy
+│   ├── doctor_status.py    # Transport-neutral configuration health
 │   ├── job_process.py      # Parent-owned local worker supervisor
 │   ├── job_process_types.py # Retained handles and cancellation results
 │   ├── job_worker.py       # One-job Python child entry point
@@ -767,6 +768,7 @@ src/primr/
 │   ├── windows_job.py      # Kill-on-close Windows process-tree ownership
 │   ├── job_terminal_manifest.py # Atomic worker-exit audit manifest
 │   ├── job_tools.py        # Cancellation authorization and response
+│   ├── qa_operations.py    # Transport-neutral existing-report QA
 │   ├── research_validation.py # Research execution-shape validation
 │   └── job_store.py        # Journal, timestamps, and controller lease
 ├── a2a/                     # A2A facade over governed MCP pipeline services

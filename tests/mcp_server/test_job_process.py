@@ -146,30 +146,52 @@ def test_worker_environment_strips_controller_names_case_insensitively() -> None
 
 
 @pytest.mark.asyncio
-async def test_spawn_failure_closes_untransferred_stderr_stream(
+async def test_spawn_failure_closes_worker_log_context(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The manual stream ownership transfer closes every pre-handle failure."""
+    """The lexical stream owner exits its context on every spawn failure."""
     store, job = _store_and_job(tmp_path)
     supervisor = _supervisor(store, tmp_path, _worker_script("raise SystemExit(1)"))
+    stderr_context = MagicMock()
     stderr_stream = MagicMock()
+    stderr_context.__enter__.return_value = stderr_stream
 
     async def failed_spawn(*_args, **_kwargs):
         raise OSError("spawn failed")
 
     monkeypatch.setattr(
-        job_process_mod, "open", lambda *_args, **_kwargs: stderr_stream, raising=False
+        job_process_mod, "open", lambda *_args, **_kwargs: stderr_context, raising=False
     )
     monkeypatch.setattr(asyncio, "create_subprocess_exec", failed_spawn)
 
     with pytest.raises(OSError, match="spawn failed"):
         await supervisor.start(job=job, company_url="https://example.com", mode="full")
 
-    stderr_stream.close.assert_called_once_with()
+    stderr_context.__exit__.assert_called_once()
     failed = store.get(job.job_id)
     assert failed is not None
     assert failed.error_type == "worker_spawn_failed"
+
+
+@pytest.mark.asyncio
+async def test_worker_stderr_remains_connected_after_parent_stream_closes(tmp_path: Path) -> None:
+    """The child keeps its inherited stderr target after process creation returns."""
+    script = _worker_script(
+        r"""
+        emit("ready", 1)
+        print("worker diagnostic", file=sys.stderr, flush=True)
+        emit("terminal", 2, terminal_state("completed"), "completed")
+        """
+    )
+    store, job = _store_and_job(tmp_path)
+    supervisor = _supervisor(store, tmp_path, script)
+
+    monitor = await supervisor.start(job=job, company_url="https://example.com", mode="full")
+    await asyncio.wait_for(monitor, timeout=3.0)
+
+    log_path = tmp_path / "workers" / job.job_id / "_worker.log"
+    assert log_path.read_text(encoding="utf-8") == "worker diagnostic\n"
 
 
 @pytest.mark.asyncio

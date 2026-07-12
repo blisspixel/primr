@@ -45,8 +45,9 @@ from primr.mcp_server.approval_tokens import (
     research_approval_args,
 )
 from primr.mcp_server.auth import RESERVED_CLIENT_IDS
-from primr.mcp_server.pipeline_runner import get_doctor_status, run_qa_analysis
+from primr.mcp_server.doctor_status import get_doctor_status
 from primr.mcp_server.platforms import normalize_platform
+from primr.mcp_server.qa_operations import run_qa_analysis
 from primr.mcp_server.research_policy import (
     build_research_estimate,
     coerce_budget_usd,

@@ -55,6 +55,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stale snapshot over newer terminal state. Descendant-tree cleanup must also
   succeed before the worker handle is released; cleanup failure is retried and
   retains controller ownership.
+- A2A health and QA operations now depend on focused transport-neutral modules,
+  keeping the A2A and MCP startup graph acyclic. Worker log streams are owned
+  by the spawn scope and closed immediately after safe subprocess handoff.
 
 ### Security
 

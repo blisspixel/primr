@@ -15,7 +15,6 @@ import subprocess
 import sys
 import uuid
 from pathlib import Path
-from typing import BinaryIO
 
 from primr.mcp_server.job_process_types import (
     CancellationOutcome,
@@ -121,7 +120,6 @@ class LocalJobSupervisor:
             if job.job_id in self._handles:
                 raise RuntimeError(f"Worker already exists for job {job.job_id}")
 
-            stderr_file: BinaryIO | None = None
             windows_job: WindowsJobObject | None = None
             spawn_task: asyncio.Task[asyncio.subprocess.Process] | None = None
             handle: _WorkerHandle | None = None
@@ -139,8 +137,6 @@ class LocalJobSupervisor:
 
                 log_path = self._worker_log_path(job.job_id)
                 log_path.parent.mkdir(parents=True, exist_ok=True)
-                # The handle owns this stream until its monitor observes exit.
-                stderr_file = open(log_path, "ab", buffering=0)  # noqa: SIM115
 
                 environment = worker_environment()
                 environment["PRIMR_SUPERVISED_WORKER"] = "1"
@@ -149,31 +145,10 @@ class LocalJobSupervisor:
                     job_object_name = f"Local\\Primr-{uuid.uuid4()}"
                     windows_job = create_worker_job(job_object_name)
                     environment["PRIMR_WORKER_JOB_OBJECT"] = job_object_name
-                    spawn_task = asyncio.create_task(
-                        asyncio.create_subprocess_exec(
-                            *self._worker_command,
-                            stdin=asyncio.subprocess.PIPE,
-                            stdout=asyncio.subprocess.PIPE,
-                            stderr=stderr_file,
-                            env=environment,
-                            limit=MAX_WORKER_LINE_BYTES,
-                            creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
-                        ),
-                        name=f"primr-worker-spawn-{job.job_id}",
-                    )
-                else:
-                    spawn_task = asyncio.create_task(
-                        asyncio.create_subprocess_exec(
-                            *self._worker_command,
-                            stdin=asyncio.subprocess.PIPE,
-                            stdout=asyncio.subprocess.PIPE,
-                            stderr=stderr_file,
-                            env=environment,
-                            limit=MAX_WORKER_LINE_BYTES,
-                            start_new_session=True,
-                        ),
-                        name=f"primr-worker-spawn-{job.job_id}",
-                    )
+                spawn_task = asyncio.create_task(
+                    self._spawn_worker_process(log_path=log_path, environment=environment),
+                    name=f"primr-worker-spawn-{job.job_id}",
+                )
 
                 # Shield process creation so cancellation cannot discard a
                 # successfully created child before its handle is retained.
@@ -181,7 +156,6 @@ class LocalJobSupervisor:
                 handle = self._register_worker(
                     job=job,
                     process=process,
-                    stderr_file=stderr_file,
                     windows_job=windows_job,
                     company_url=company_url,
                     mode=mode,
@@ -193,11 +167,10 @@ class LocalJobSupervisor:
                         process = await await_task_uninterruptibly(spawn_task)
                     except (Exception, asyncio.CancelledError):
                         process = None
-                    if process is not None and stderr_file is not None:
+                    if process is not None:
                         handle = self._register_worker(
                             job=job,
                             process=process,
-                            stderr_file=stderr_file,
                             windows_job=windows_job,
                             company_url=company_url,
                             mode=mode,
@@ -207,7 +180,7 @@ class LocalJobSupervisor:
                     handle.protocol_error = "Worker startup was cancelled"
                     await self._abort_startup_uninterruptibly(handle)
                 else:
-                    self._close_startup_resources(stderr_file, windows_job)
+                    self._close_startup_resources(windows_job)
                     self._commit_failure(
                         job.job_id,
                         "worker_start_cancelled",
@@ -215,7 +188,7 @@ class LocalJobSupervisor:
                     )
                 raise
             except (Exception, KeyboardInterrupt, SystemExit):
-                self._close_startup_resources(stderr_file, windows_job)
+                self._close_startup_resources(windows_job)
                 self._commit_failure(
                     job.job_id,
                     "worker_spawn_failed",
@@ -243,12 +216,39 @@ class LocalJobSupervisor:
 
         return monitor_task
 
+    async def _spawn_worker_process(
+        self,
+        *,
+        log_path: Path,
+        environment: dict[str, str],
+    ) -> asyncio.subprocess.Process:
+        """Spawn a child while lexically owning its parent-side stderr stream."""
+        with open(log_path, "ab", buffering=0) as stderr_file:
+            if os.name == "nt":
+                return await asyncio.create_subprocess_exec(
+                    *self._worker_command,
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=stderr_file,
+                    env=environment,
+                    limit=MAX_WORKER_LINE_BYTES,
+                    creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+                )
+            return await asyncio.create_subprocess_exec(
+                *self._worker_command,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=stderr_file,
+                env=environment,
+                limit=MAX_WORKER_LINE_BYTES,
+                start_new_session=True,
+            )
+
     def _register_worker(
         self,
         *,
         job: ResearchJobState,
         process: asyncio.subprocess.Process,
-        stderr_file: BinaryIO,
         windows_job: WindowsJobObject | None,
         company_url: str,
         mode: str,
@@ -258,7 +258,6 @@ class LocalJobSupervisor:
         handle = _WorkerHandle(
             job_id=job.job_id,
             process=process,
-            stderr_file=stderr_file,
             company_url=company_url,
             mode=mode,
             budget_usd=budget_usd,
@@ -277,15 +276,12 @@ class LocalJobSupervisor:
 
     @staticmethod
     def _close_startup_resources(
-        stderr_file: BinaryIO | None,
         windows_job: WindowsJobObject | None,
     ) -> None:
-        """Close resources when startup fails before a process is retained."""
+        """Close the Job Object when startup fails before a process is retained."""
         if windows_job is not None:
             with contextlib.suppress(OSError):
                 windows_job.close()
-        if stderr_file is not None:
-            stderr_file.close()
 
     async def _abort_startup_uninterruptibly(self, handle: _WorkerHandle) -> None:
         """Force a retained startup child down and wait until exit is observed."""
@@ -689,7 +685,6 @@ class LocalJobSupervisor:
                 handle.process.stdin.close()
                 with contextlib.suppress(Exception):
                     await handle.process.stdin.wait_closed()
-            handle.stderr_file.close()
             if handle.windows_job is not None:
                 with contextlib.suppress(OSError):
                     handle.windows_job.close()
