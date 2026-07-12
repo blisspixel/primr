@@ -15,8 +15,10 @@ from a2a.server.apps import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
 
 from primr.a2a.agent_card import build_agent_card
+from primr.a2a.call_context import PrimrA2ACallContextBuilder
 from primr.a2a.executor import PrimrAgentExecutor
 from primr.a2a.task_store import PrimrTaskStore
+from primr.mcp_server.resource_auth import TRUSTED_LOCAL_A2A_AUTH_CONTEXT
 
 if TYPE_CHECKING:
     from starlette.applications import Starlette
@@ -55,6 +57,9 @@ class PrimrA2AServer:
         self.port = port
         self.require_auth = require_auth
         self.public_path = public_path
+        self._trusted_local_unauthenticated = not require_auth and _is_loopback_host(host)
+        if not require_auth and not self._trusted_local_unauthenticated:
+            raise ValueError("Unauthenticated A2A requires a loopback host")
 
         # A2A components
         self._task_store = PrimrTaskStore(mcp_server.job_store)
@@ -83,6 +88,9 @@ class PrimrA2AServer:
         a2a_app_builder = A2AStarletteApplication(
             agent_card=self._agent_card,
             http_handler=request_handler,
+            context_builder=PrimrA2ACallContextBuilder(
+                trusted_local_unauthenticated=self._trusted_local_unauthenticated,
+            ),
         )
 
         app = a2a_app_builder.build()
@@ -113,6 +121,8 @@ class PrimrA2AServer:
 
         async def _app(scope, receive, send):
             auth_context = self._mcp._auth_context_from_scope(scope)
+            if auth_context is None and self._trusted_local_unauthenticated:
+                auth_context = TRUSTED_LOCAL_A2A_AUTH_CONTEXT
             token = self._mcp._auth_context_var.set(auth_context)
             try:
                 await app(scope, receive, send)
@@ -140,4 +150,10 @@ class PrimrA2AServer:
             log_level="info",
         )
         server = uvicorn.Server(config)
-        await server.serve()
+        async with self._mcp.controller_lifecycle():
+            await server.serve()
+
+
+def _is_loopback_host(host: str) -> bool:
+    """Return whether a listener host is explicitly loopback-only."""
+    return host.casefold() in {"127.0.0.1", "localhost", "::1"}

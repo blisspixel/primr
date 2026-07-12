@@ -19,6 +19,7 @@ from mcp.types import (
     ReadResourceRequestParams,
 )
 
+from primr.mcp_server.job_store import ControllerLeaseError
 from primr.mcp_server.server import create_mcp_server
 from primr.mcp_server.types import ResearchStage
 
@@ -232,12 +233,13 @@ class TestJobStateRecovery:
     Integration test for job state recovery.
 
     Validates: Requirements 13.5, 13.10, 19.4
-    - Job state survives server restart
+    - Job identity survives server restart
+    - Unowned in-progress work is reconciled to a terminal failure
     """
 
     @pytest.mark.asyncio
-    async def test_job_state_survives_restart(self):
-        """Job state is recovered after server restart."""
+    async def test_interrupted_job_is_reconciled_after_restart(self):
+        """A recovered active journal never becomes an unowned ghost job."""
         with tempfile.TemporaryDirectory() as tmpdir:
             journal_path = str(Path(tmpdir) / "test_journal.json")
 
@@ -264,14 +266,49 @@ class TestJobStateRecovery:
             job.advance_stage(ResearchStage.SCRAPING)
             server1.job_store.update(job)
 
-            # "Restart" - create new server with same journal
+            # "Restart" - create and start a new controller with the same
+            # journal. Reconciliation happens only after the controller owns
+            # the journal lease, not during side-effectful construction.
             server2 = create_mcp_server(journal_path=journal_path, skip_background_tasks=True)
 
-            # Verify job state was recovered
+            async def no_op_stdio() -> None:
+                return None
+
+            server2.run_stdio = no_op_stdio  # type: ignore[method-assign]
+            await server2.run()
+
+            # Verify identity was recovered and the unowned execution was
+            # reconciled instead of remaining active forever.
             recovered_job = server2.job_store.get(job_id)
             assert recovered_job is not None
             assert recovered_job.company_name == "Persistent Corp"
-            assert recovered_job.current_stage == ResearchStage.SCRAPING
+            assert recovered_job.current_stage == ResearchStage.FAILED
+            assert recovered_job.error_type == "server_restart"
+            assert recovered_job.completion_time is not None
+            assert server2.job_store.get_active() is None
+
+    @pytest.mark.asyncio
+    async def test_second_controller_cannot_reconcile_live_owner(self, tmp_path):
+        journal_path = str(tmp_path / "leased-journal.json")
+        server1 = create_mcp_server(journal_path=journal_path, skip_background_tasks=True)
+        job = server1.job_store.create("Live Corp", "full", owner_client_id="client-1")
+        server1._controller_lease.acquire()
+        try:
+            server2 = create_mcp_server(journal_path=journal_path, skip_background_tasks=True)
+
+            async def should_not_run() -> None:
+                raise AssertionError("transport must not start without the journal lease")
+
+            server2.run_stdio = should_not_run  # type: ignore[method-assign]
+            with pytest.raises(ControllerLeaseError, match="already owns"):
+                await server2.run()
+
+            reloaded = server1.job_store.get(job.job_id)
+            assert reloaded is not None
+            assert reloaded.current_stage == ResearchStage.ACCEPTED
+            assert reloaded.error_type is None
+        finally:
+            server1._controller_lease.close()
 
 
 class TestRateLimitingMultiClient:

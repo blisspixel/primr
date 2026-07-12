@@ -98,7 +98,7 @@ def read_report_by_job_resource(
         return _json_contents(_report_scope_denied_payload(mcp_server, requested_job_id))
 
     job = mcp_server.job_store.get_by_id(requested_job_id)
-    if job is None or not caller_owns_job_resource(job, resolved_client_id):
+    if job is None or not caller_owns_job_resource(mcp_server, job, resolved_client_id):
         return _json_contents(
             {
                 "error": "job_not_found",
@@ -273,7 +273,7 @@ def read_output_by_job_resource(
     may_inline_legacy = may_read_report and caller_can_inline_legacy_report_content(mcp_server)
 
     job = mcp_server.job_store.get_by_id(requested_job_id)
-    if job is None or not caller_owns_job_resource(job, resolved_client_id):
+    if job is None or not caller_owns_job_resource(mcp_server, job, resolved_client_id):
         return _json_contents(
             {
                 "error": "job_not_found",

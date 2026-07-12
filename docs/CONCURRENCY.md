@@ -149,8 +149,8 @@ shutdown requirement.
 
 Existing MCP pipeline work uses `asyncio.to_thread()` for long synchronous
 research entry points. That keeps the event loop responsive, but it does not
-make the work safely cancellable. The job-process boundary below is the planned
-correction.
+make the work safely cancellable. Local MCP and A2A jobs therefore place the
+whole runner behind the supervised process boundary below.
 
 ## Job ownership and cancellation
 
@@ -167,7 +167,7 @@ requested cancellation. It is terminal only after Primr observes that the
 worker it owns has exited or after the job is reconciled to a documented remote
 state.
 
-The target long-job pattern is:
+The shipped local MCP/A2A long-job pattern is:
 
 ```text
 control surface
@@ -183,9 +183,46 @@ Provider-side work may be non-interruptible. Primr must record that separately
 and never imply that stopping a local worker cancelled a remote provider task
 unless the provider confirmed it.
 
-The existing deployment runner is the reference implementation for process
-ownership. Local MCP and A2A execution should reuse its job specification,
-events, heartbeat, and manifest contracts rather than create another runner.
+`mcp_server.worker_protocol` is the packaged local contract. The parent accepts
+only schema-valid, sequenced, job-bound events. It rejects malformed, regressive,
+cross-job, and late snapshots, preserves canonical identity, and replaces
+worker-reported heartbeat, stage-transition, and completion clocks with its own
+observation timestamps. It commits terminal state only after exit and writes a
+worker-exit manifest for failed or cancelled exits with a retained supervisor
+handle. Spawn failures and restart reconciliation remain journal-only. The
+deployment runner predates this contract and should converge on it rather than
+being copied into the package.
+
+Workers inherit only an explicit research-provider and runtime environment
+allowlist. Control-plane, cloud-identity, telemetry, and CI secrets are removed
+and cannot be restored by lazy `.env` loading. Supervised `.env` parsing
+disables interpolation and rejects interpolation-bearing assignments. Control
+commands and lifecycle
+events move to private, non-inheritable descriptors before pipeline imports;
+ordinary stdin becomes `DEVNULL` and ordinary stdout becomes worker-log output.
+This prevents normal native writes from corrupting JSONL and normal exec-based
+descendants from retaining the protocol pipes.
+
+Exactly one controller owns a journal through a non-blocking OS lease. MCP,
+co-hosted A2A, and standalone A2A share one reference-counted controller
+lifecycle. After lease acquisition, the controller reloads the journal before
+restart reconciliation. Final lifecycle exit runs shielded, bounded
+cooperative, terminate, and kill phases and releases the lease only after all
+retained workers are reaped and descendant cleanup is confirmed. A cleanup
+failure retains the worker handle and is retried; lifecycle exit fails and
+retains the lease so another controller cannot reconcile a possibly live
+worker.
+
+On Windows, the worker joins a named Job Object before it emits `ready`; closing
+the controller's sole long-lived handle removes the worker tree. On POSIX, the
+worker starts in a new session, receives bounded group termination, and uses a
+parent-disconnect watchdog. Linux covers the bootstrap transition with
+`PR_SET_PDEATHSIG`, then clears the worker-only signal after the control reader
+starts so pipe EOF can kill the complete process group. This POSIX crash path is
+best effort if native code holds the GIL long enough to starve that reader or a
+descendant deliberately escapes through `setsid()` or a new process group.
+Recovered active journals have no retained handle and reconcile to
+`failed/server_restart` only after the next controller acquires the lease.
 
 ## Shared state
 

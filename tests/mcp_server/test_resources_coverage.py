@@ -229,6 +229,27 @@ class TestOutputByJob:
 
 class TestReportContentByJob:
     @pytest.mark.asyncio
+    async def test_http_subject_named_stdio_cannot_read_or_enumerate_report(self, server, tmp_path):
+        report = tmp_path / "report.md"
+        report.write_text("# SECRET full report", encoding="utf-8")
+        server.transport = "streamable-http"
+        server._auth_context = SimpleNamespace(
+            client_id="stdio",
+            scopes=["read", "report"],
+            is_authenticated=True,
+        )
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="owner-1")
+        job.output_paths = [str(report)]
+        job.advance_stage(ResearchStage.COMPLETED)
+        server.job_store.update(job)
+
+        existing = await _read(server, f"primr://output/report/by_job/{job.job_id}")
+        missing = await _read(server, "primr://output/report/by_job/missing-job")
+
+        assert existing["error"] == missing["error"] == "job_not_found"
+        assert "SECRET full report" not in json.dumps(existing)
+
+    @pytest.mark.asyncio
     async def test_report_resource_requires_report_scope(self, server, tmp_path):
         report = tmp_path / "report.md"
         report.write_text("# SECRET full report", encoding="utf-8")

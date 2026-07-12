@@ -7,6 +7,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.35.1] - 2026-07-12
+
+### Added
+
+- Added a packaged, versioned worker protocol and one-process-per-job
+  supervisor shared by local MCP and A2A research. Parent-owned progress,
+  ownership-ready startup, POSIX process groups, Windows kill-on-close Job
+  Objects, restart reconciliation, and worker-exit manifests for supervised
+  failure or cancellation make the lifecycle enforceable without moving
+  research logic out of Python.
+- Added an OS-backed exclusive controller lease shared by MCP, co-hosted A2A,
+  and standalone A2A. Restart reconciliation now happens only after lease
+  acquisition, and the final lifecycle owner releases the lease only after all
+  retained workers are reaped.
+- Split worker environment, process control, protocol, terminal policy,
+  manifest, lifecycle-record, validation, A2A cancellation, and A2A event
+  concerns into focused modules reflected in the architecture graph.
+
+### Fixed
+
+- Cancellation now becomes terminal only after the owned worker exits,
+  repeated cancellation is idempotent, terminal states cannot be rewritten by
+  late updates, A2A reports cancellation instead of failure, and admin
+  cancellation follows the documented authorization policy without leaking job
+  existence to other callers. Only cooperative exit 130, POSIX termination
+  signals, and known Windows control or forced-termination outcomes qualify as
+  cancellation; unrelated nonzero exits remain failures.
+- MCP full and premium execution now deliver the default agnostic AI Strategy
+  priced by the estimate unless `no_ai_strategy=true`. The standard
+  orchestrator path no longer omits that promised artifact, and successful job
+  completion is committed only after its manifest is atomically written.
+- Integrated MCP estimates and execution now share one explicit contract: one
+  AI strategy target per research job. Platform fan-out, the multi-target `ms`
+  alias, plural execution platforms, and non-AI integrated strategies fail
+  before approval or job creation; standalone strategy tools remain available
+  for additional documents.
+- Worker snapshots now receive full schema, type, range, sequence, and job
+  validation. Canonical stage, heartbeat, and completion timestamps are owned
+  by the parent observation clock rather than accepted from the child.
+- Graceful controller shutdown now finishes the bounded worker stop and reap
+  sequence before releasing its journal lease. An unreaped worker is a loud
+  shutdown failure that retains the lease and cannot be mistaken for a clean
+  restart boundary.
+- A controller reloads journal state after acquiring its exclusive lease, so a
+  server object created while another controller is active cannot reconcile a
+  stale snapshot over newer terminal state. Descendant-tree cleanup must also
+  succeed before the worker handle is released; cleanup failure is retried and
+  retains controller ownership.
+- A2A health and QA operations now depend on focused transport-neutral modules,
+  keeping the A2A and MCP startup graph acyclic. Worker log streams are owned
+  by the spawn scope and closed immediately after safe subprocess handoff.
+
+### Security
+
+- Supervised workers now receive a least-privilege research-provider and
+  runtime environment. Controller, cloud-identity, telemetry, and CI secrets
+  are removed and blocked from supervised `.env` restoration. Supervised files
+  are parsed without interpolation, and interpolation-bearing assignments are
+  rejected so blocked values cannot flow into allowed provider variables.
+- Control and event pipes become private, non-inheritable descriptors before
+  pipeline imports, while ordinary stdin and stdout are redirected away from
+  the protocol. Linux uses parent-death signaling during bootstrap, then a
+  private-pipe EOF watchdog that kills the worker process group on controller
+  loss. The POSIX path remains explicitly best effort for a native GIL stall or
+  a descendant that deliberately escapes the process group.
+- Local implicit authority is now bound to the actual unauthenticated stdio
+  transport. JWT subjects matching reserved local identities are rejected, and
+  missing versus cross-tenant jobs, cancellation targets, resource reads, and
+  active-job collisions use indistinguishable responses.
+- Local no-auth A2A authority is represented by an internal marker available
+  only on loopback listeners. Authenticated reserved subjects cannot claim it,
+  report resources are limited to locally owned A2A jobs, and `tasks/get`
+  requires the exact SDK request owner while hiding cross-owner task ids like
+  missing ids.
+
 ### Documentation
 
 - Defined Primr's measured runtime policy: Python-first rather than

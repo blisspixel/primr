@@ -13,6 +13,8 @@ from pathlib import Path
 import pytest
 
 from primr.mcp_server.job_store import (
+    ControllerLease,
+    ControllerLeaseError,
     JobInProgressError,
     ResearchJobState,
     SingleJobStore,
@@ -160,10 +162,44 @@ class TestStageProgression:
         first_completion = job.completion_time
 
         # Try to set again via FAILED
-        job.advance_stage(ResearchStage.FAILED)
+        assert not job.advance_stage(ResearchStage.FAILED)
 
-        # Should still be the first completion time
+        # The complete terminal outcome and its timestamp are both immutable.
+        assert job.current_stage == ResearchStage.COMPLETED
         assert job.completion_time == first_completion
+
+    @pytest.mark.parametrize(
+        "terminal_stage",
+        [ResearchStage.COMPLETED, ResearchStage.FAILED, ResearchStage.CANCELLED],
+    )
+    @pytest.mark.parametrize(
+        "attempted_stage",
+        [
+            ResearchStage.WRITING,
+            ResearchStage.COMPLETED,
+            ResearchStage.FAILED,
+            ResearchStage.CANCELLED,
+        ],
+    )
+    def test_terminal_stage_rejects_every_later_transition(
+        self,
+        terminal_stage,
+        attempted_stage,
+    ):
+        """A terminal outcome cannot be replaced or resumed."""
+        job = ResearchJobState(
+            job_id="test-123",
+            company_name="Acme Corp",
+            mode="full",
+            start_time=_utcnow(),
+            current_stage=ResearchStage.SCRAPING,
+        )
+        assert job.advance_stage(terminal_stage)
+        completion_time = job.completion_time
+
+        assert not job.advance_stage(attempted_stage)
+        assert job.current_stage == terminal_stage
+        assert job.completion_time == completion_time
 
     def test_advance_stage_resets_progress(self):
         """Advancing stage resets progress to specified value."""
@@ -488,6 +524,156 @@ class TestSingleJobStore:
         assert retrieved.current_stage == ResearchStage.SCRAPING
         assert retrieved.stage_progress_percent == 50
 
+    def test_apply_worker_snapshot_preserves_parent_identity_and_notifies(self, temp_journal):
+        """Worker progress applies without granting the worker identity ownership."""
+        store = SingleJobStore(journal_path=str(temp_journal))
+        job = store.create("Acme Corp", "full", owner_client_id="client-123")
+        canonical_start = job.start_time
+        status_event = store._get_or_create_event()
+        status_event.clear()
+
+        snapshot = job.to_journal_dict()
+        forged_heartbeat = "2099-01-01T00:00:00+00:00"
+        snapshot.update(
+            {
+                "company_name": "Forged Corp",
+                "mode": "premium",
+                "start_time": "1999-01-01T00:00:00+00:00",
+                "owner_client_id": "other-client",
+                "current_stage": "scraping",
+                "stage_progress_percent": 42,
+                "last_heartbeat_time": forged_heartbeat,
+                "output_paths": ["output/partial.txt"],
+            }
+        )
+
+        assert store.apply_worker_snapshot(job.job_id, snapshot)
+        applied = store.get(job.job_id)
+        assert applied is not None
+        assert applied.job_id == job.job_id
+        assert applied.company_name == "Acme Corp"
+        assert applied.mode == "full"
+        assert applied.start_time == canonical_start
+        assert applied.owner_client_id == "client-123"
+        assert applied.current_stage == ResearchStage.SCRAPING
+        assert applied.stage_progress_percent == 42
+        assert applied.last_heartbeat_time is not None
+        assert applied.last_heartbeat_time.year < 2099
+        assert applied.stage_started_at == applied.last_heartbeat_time
+        assert applied.output_paths == ["output/partial.txt"]
+        assert status_event.is_set()
+
+        persisted = json.loads(temp_journal.read_text(encoding="utf-8"))
+        assert persisted["company_name"] == "Acme Corp"
+        assert persisted["owner_client_id"] == "client-123"
+        assert persisted["current_stage"] == "scraping"
+
+    def test_apply_worker_snapshot_rejects_wrong_job_id(self, temp_journal):
+        """A snapshot cannot update a different canonical job."""
+        store = SingleJobStore(journal_path=str(temp_journal))
+        job = store.create("Acme Corp", "full")
+        original_journal = temp_journal.read_text(encoding="utf-8")
+        snapshot = job.to_journal_dict()
+        snapshot["job_id"] = "other-job"
+        snapshot["current_stage"] = "scraping"
+
+        assert not store.apply_worker_snapshot(job.job_id, snapshot)
+        assert not store.apply_worker_snapshot("other-job", job.to_journal_dict())
+        assert temp_journal.read_text(encoding="utf-8") == original_journal
+        assert store.get(job.job_id).current_stage == ResearchStage.ACCEPTED
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("stage_progress_percent", "bad"),
+            ("stage_progress_percent", 10000),
+            ("output_paths", "output/report.md"),
+            ("qa_score", -1),
+        ],
+    )
+    def test_apply_worker_snapshot_rejects_malformed_values(
+        self,
+        temp_journal,
+        field,
+        value,
+    ):
+        store = SingleJobStore(journal_path=str(temp_journal))
+        job = store.create("Acme Corp", "full")
+        snapshot = job.to_journal_dict()
+        snapshot["current_stage"] = "scraping"
+        snapshot[field] = value
+
+        assert not store.apply_worker_snapshot(job.job_id, snapshot)
+        assert store.get(job.job_id).current_stage == ResearchStage.ACCEPTED
+
+    def test_apply_worker_snapshot_rejects_stage_and_progress_regressions(self, temp_journal):
+        """Stale worker snapshots cannot move stage or same-stage progress backward."""
+        store = SingleJobStore(journal_path=str(temp_journal))
+        job = store.create("Acme Corp", "full")
+        job.advance_stage(ResearchStage.EXTRACTING, progress=60)
+        store.update(job)
+
+        stage_regression = job.to_journal_dict()
+        stage_regression["current_stage"] = "scraping"
+        stage_regression["stage_progress_percent"] = 100
+        assert not store.apply_worker_snapshot(job.job_id, stage_regression)
+
+        progress_regression = job.to_journal_dict()
+        progress_regression["stage_progress_percent"] = 59
+        assert not store.apply_worker_snapshot(job.job_id, progress_regression)
+
+        current = store.get(job.job_id)
+        assert current.current_stage == ResearchStage.EXTRACTING
+        assert current.stage_progress_percent == 60
+
+    def test_apply_worker_snapshot_requires_explicit_terminal_permission(self, temp_journal):
+        """Exactly one explicitly allowed worker terminal outcome may be committed."""
+        store = SingleJobStore(journal_path=str(temp_journal))
+        job = store.create("Acme Corp", "full")
+        terminal = job.to_journal_dict()
+        terminal["current_stage"] = "completed"
+        worker_completion = datetime(2020, 1, 1, tzinfo=timezone.utc)
+        terminal["completion_time"] = worker_completion.isoformat()
+        terminal["last_heartbeat_time"] = worker_completion.isoformat()
+        terminal["output_paths"] = ["output/report.md"]
+
+        assert not store.apply_worker_snapshot(job.job_id, terminal)
+        assert store.get(job.job_id).current_stage == ResearchStage.ACCEPTED
+
+        assert store.apply_worker_snapshot(job.job_id, terminal, allow_terminal=True)
+        completed = store.get(job.job_id)
+        assert completed.current_stage == ResearchStage.COMPLETED
+        assert completed.completion_time is not None
+        assert completed.completion_time > worker_completion
+        assert completed.last_heartbeat_time == completed.completion_time
+        assert completed.stage_started_at == completed.completion_time
+        first_completion = completed.completion_time
+
+        late_failure = completed.to_journal_dict()
+        late_failure["current_stage"] = "failed"
+        late_failure["error_type"] = "late_worker_failure"
+        assert not store.apply_worker_snapshot(job.job_id, late_failure, allow_terminal=True)
+
+        unchanged = store.get(job.job_id)
+        assert unchanged.current_stage == ResearchStage.COMPLETED
+        assert unchanged.completion_time == first_completion
+        assert unchanged.error_type is None
+
+        persisted = json.loads(temp_journal.read_text(encoding="utf-8"))
+        assert persisted["current_stage"] == "completed"
+
+    def test_apply_worker_snapshot_rejects_nonterminal_after_parent_terminal(self, temp_journal):
+        """A late progress snapshot cannot reopen a terminal parent job."""
+        store = SingleJobStore(journal_path=str(temp_journal))
+        job = store.create("Acme Corp", "full")
+        late_progress = job.to_journal_dict()
+        late_progress["current_stage"] = "writing"
+        job.advance_stage(ResearchStage.CANCELLED)
+        store.update(job)
+
+        assert not store.apply_worker_snapshot(job.job_id, late_progress)
+        assert store.get(job.job_id).current_stage == ResearchStage.CANCELLED
+
     def test_mark_shutdown(self, temp_journal):
         """mark_shutdown marks active job as FAILED."""
         store = SingleJobStore(journal_path=str(temp_journal))
@@ -500,6 +686,40 @@ class TestSingleJobStore:
         assert retrieved.current_stage == ResearchStage.FAILED
         assert retrieved.error_type == "server_shutdown"
         assert retrieved.completion_time is not None
+
+    def test_reconcile_interrupted_job_is_idempotent(self, temp_journal):
+        """Restart reconciliation closes an active journal exactly once."""
+        store = SingleJobStore(journal_path=str(temp_journal))
+        job = store.create("Acme Corp", "full", owner_client_id="client-1")
+        job.advance_stage(ResearchStage.SCRAPING)
+        store.update(job)
+
+        assert store.reconcile_interrupted_job() == job.job_id
+        reconciled = store.get(job.job_id)
+        assert reconciled.current_stage == ResearchStage.FAILED
+        assert reconciled.error_type == "server_restart"
+        completion_time = reconciled.completion_time
+
+        assert store.reconcile_interrupted_job() is None
+        assert store.get(job.job_id).completion_time == completion_time
+
+
+def test_controller_lease_excludes_second_owner_and_can_be_reacquired(tmp_path):
+    journal_path = tmp_path / "journal.json"
+    first = ControllerLease(journal_path)
+    second = ControllerLease(journal_path)
+
+    first.acquire()
+    try:
+        with pytest.raises(ControllerLeaseError, match="already owns"):
+            second.acquire()
+    finally:
+        first.close()
+
+    second.acquire()
+    assert second.acquired is True
+    second.close()
+    second.close()
 
 
 class TestJournalPersistence:

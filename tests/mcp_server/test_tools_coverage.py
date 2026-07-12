@@ -17,8 +17,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from mcp.types import CallToolRequest, CallToolRequestParams
 
+from primr.mcp_server.research_policy import parse_max_duration
 from primr.mcp_server.server import create_mcp_server
-from primr.mcp_server.tools import _normalize_platform, _normalize_platforms, _parse_max_duration
+from primr.mcp_server.tools import _normalize_platform, _normalize_platforms
 from primr.mcp_server.types import ResearchStage
 
 
@@ -83,13 +84,13 @@ class TestPlatformHelpers:
         assert "aws" in result
 
     def test_parse_max_duration_range(self):
-        assert _parse_max_duration("5-10 min") == 10
+        assert parse_max_duration("5-10 min") == 10
 
     def test_parse_max_duration_single(self):
-        assert _parse_max_duration("30 min") == 30
+        assert parse_max_duration("30 min") == 30
 
     def test_parse_max_duration_fallback(self):
-        assert _parse_max_duration("garbage", default=42) == 42
+        assert parse_max_duration("garbage", default=42) == 42
 
 
 # ---------------------------------------------------------------------------
@@ -142,15 +143,49 @@ class TestEstimateRun:
         assert data["ai_strategy"] is False
 
     @pytest.mark.asyncio
-    async def test_platforms_included(self, server):
+    async def test_single_platform_is_normalized_into_estimate(self, server):
         data = await _call(
             server,
             "estimate_run",
-            {"company_url": "https://example.com", "mode": "full", "platforms": ["azure", "aws"]},
+            {"company_url": "https://example.com", "mode": "full", "platforms": ["microsoft"]},
         )
         assert data["ai_strategy"] is True
-        assert "azure" in data["platforms"]
-        assert "aws" in data["platforms"]
+        assert data["platforms"] == ["azure"]
+        assert data["strategy_type"] == "ai"
+        assert data["approval_token"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "arguments,error_type",
+        [
+            ({"platforms": []}, "unsupported_platform_fanout"),
+            ({"platforms": ["azure", "aws"]}, "unsupported_platform_fanout"),
+            ({"platforms": ["ms"]}, "unsupported_platform_fanout"),
+            ({"platform": "ms"}, "unsupported_platform_fanout"),
+            (
+                {"platform": "azure", "platforms": ["azure"]},
+                "conflicting_platform_parameters",
+            ),
+            ({"strategy_type": "customer_experience"}, "unsupported_strategy_type"),
+        ],
+    )
+    async def test_unsupported_estimate_shape_fails_before_approval(
+        self, server, arguments, error_type
+    ):
+        from primr.mcp_server.tools import _handle_estimate_run
+
+        data = json.loads(
+            (
+                await _handle_estimate_run(
+                    server,
+                    {"company_url": "https://example.com", "mode": "full", **arguments},
+                )
+            )[0].text
+        )
+
+        assert data["error"] is True
+        assert data["error_type"] == error_type
+        assert "approval_token" not in data
 
 
 # ---------------------------------------------------------------------------
@@ -233,7 +268,7 @@ class TestRunQA:
     @pytest.mark.asyncio
     async def test_success(self, server, output_report):
         with patch(
-            "primr.mcp_server.pipeline_runner.run_qa_analysis",
+            "primr.mcp_server.qa_operations.run_qa_analysis",
             new=AsyncMock(return_value={"overall_score": 80}),
         ):
             data = await _call(server, "run_qa", {"report_path": str(output_report)})
@@ -242,7 +277,7 @@ class TestRunQA:
     @pytest.mark.asyncio
     async def test_analysis_exception(self, server, output_report):
         with patch(
-            "primr.mcp_server.pipeline_runner.run_qa_analysis",
+            "primr.mcp_server.qa_operations.run_qa_analysis",
             new=AsyncMock(side_effect=RuntimeError("qa boom")),
         ):
             data = await _call(server, "run_qa", {"report_path": str(output_report)})

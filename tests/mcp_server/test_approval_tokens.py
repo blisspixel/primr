@@ -71,8 +71,14 @@ async def test_research_accepts_matching_approval_token_when_enforced(server, mo
     estimate = await _call(
         server,
         "estimate_run",
-        {"company_url": "https://example.com", "mode": "full", "platforms": ["azure"]},
+        {
+            "company_url": "https://example.com",
+            "mode": "full",
+            "platforms": ["microsoft"],
+            "strategy_type": "ai",
+        },
     )
+    assert estimate["platforms"] == ["azure"]
 
     data = await _call(
         server,
@@ -89,6 +95,35 @@ async def test_research_accepts_matching_approval_token_when_enforced(server, mo
 
     assert data["accepted"] is True
     assert "job_id" in data
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "shape,error_type",
+    [
+        ({"platforms": ["azure"]}, "unsupported_platforms_parameter"),
+        ({"platform": "ms"}, "unsupported_platform_fanout"),
+        ({"strategy_type": "customer_experience"}, "unsupported_strategy_type"),
+    ],
+)
+async def test_research_rejects_unexecutable_shape_before_job_creation(server, shape, error_type):
+    from primr.mcp_server.tools import _handle_research_company
+
+    result = await _handle_research_company(
+        server,
+        {
+            "company_name": "Acme Corp",
+            "company_url": "https://example.com",
+            "mode": "full",
+            **shape,
+        },
+        "stdio",
+    )
+    data = json.loads(result[0].text)
+
+    assert data["error"] is True
+    assert data["error_type"] == error_type
+    assert server.job_store.get_active() is None
 
 
 @pytest.mark.asyncio
@@ -115,6 +150,38 @@ async def test_research_rejects_approval_args_swap(server, monkeypatch):
     assert data["error"] is True
     assert data["error_type"] == "invalid_approval_token"
     assert "arguments do not match" in data["message"]
+
+
+@pytest.mark.asyncio
+async def test_research_rejects_platform_swap_after_approval(server, monkeypatch):
+    monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
+    estimate = await _call(
+        server,
+        "estimate_run",
+        {
+            "company_url": "https://example.com",
+            "mode": "full",
+            "platforms": ["azure"],
+        },
+    )
+
+    data = await _call(
+        server,
+        "research_company",
+        {
+            "company_name": "Acme Corp",
+            "company_url": "https://example.com",
+            "mode": "full",
+            "platform": "aws",
+            "max_estimated_cost_usd": estimate["estimated_cost_usd"],
+            "approval_token": estimate["approval_token"],
+        },
+    )
+
+    assert data["error"] is True
+    assert data["error_type"] == "invalid_approval_token"
+    assert "arguments do not match" in data["message"]
+    assert server.job_store.get_active() is None
 
 
 @pytest.mark.asyncio

@@ -78,7 +78,7 @@ to a paid run silently.
 
 primr runs cost real money and real time. **Never** launch a run without:
 
-1. **Estimating first.** MCP: `estimate_run(company_url=..., mode=..., platforms=[...], strategy_type=...)`. CLI: append `--dry-run` to the exact command you intend to run.
+1. **Estimating first.** MCP integrated research: `estimate_run(company_url=..., mode=..., platforms=[one_platform], strategy_type="ai")`. Additional platforms and non-AI modules use `estimate_strategy` plus `generate_strategy` after the base report. CLI: append `--dry-run` to the exact command you intend to run.
 2. **Reporting the estimate** verbatim - quoted dollars and minutes, plus what mode and what strategy.
 3. **Getting explicit user approval** in the conversation. "Want me to launch it?" → wait for "yes" / "go" / equivalent. A user asking *"how much would it cost"* is **not** approval.
 
