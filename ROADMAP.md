@@ -328,6 +328,15 @@ into generic agent middleware.
 - Artifact-first delivery - the main unit of value is a report, strategy, or evaluation artifact, not a stream of chat-sized tool responses.
 - The pipeline is the product - Primr's value is the 9-tier scraping engine, the org-aware link selection, the research deepening, the cross-validation, the deterministic QA gate, the eval harness, the crash recovery, and the cost estimation. None of these are model calls. The model is a commodity; the orchestration pipeline is the moat.
 - Credentials are transport, not product identity. API keys, official agent-account auth, enterprise gateways, and local models are all ways to run the same pipeline. Do not bake a provider, billing model, or subscription workaround into the core loop. The default routing goal is the lowest incremental spend that clears the measured quality bar: local or gateway capacity when configured and explicitly approved, then any official host runner whose billing basis is proven or explicitly acknowledged, then the best validated sub-dollar direct API recipe, with premium paths opt-in and justified by measured lift. Direct APIs remain the reproducible baseline and fallback. An official automation seam alone does not prove plan-backed billing, so the Codex in-pipeline adapter remains internal/eval-only. `primr-zero` is the supported plan-native path, with host OAuth and session state kept inside the host. Local and gateway profiles are validated recipes, not second-class forks. As local AI hardware improves, the same eval gate should let $0 API local stages graduate from utility support to hybrid default, and eventually to full-run default where they honestly match the quality bar.
+- Evidence before language - Primr is Python-first because its product layer is
+  I/O-heavy and benefits from Python's research, data, document, and AI
+  ecosystems, not because the project imposes language purity. Improve the
+  pipeline topology and Python implementation first. Admit a native extension,
+  service, or accelerator runtime only behind a narrow, versioned boundary when
+  production-shaped measurements show a material product, tail-latency,
+  memory, reliability, deployment, or safety gain that repays the permanent
+  toolchain cost. Polyglot is an available technique, not a goal. See
+  [`docs/design/runtime-language-boundaries.md`](docs/design/runtime-language-boundaries.md).
 
 Primr is intentionally not designed as a generic web scraper, a SaaS collaboration platform, a presentation builder, or a generic agent middleware layer.
 
@@ -970,19 +979,31 @@ The requirements themselves come from observed eval cost/quality data per role, 
 
 Reduce end-to-end runtime by overlapping independent pipeline phases.
 
-- Current: scrape all 50 pages → THEN start external search → THEN summarize
+- Current standard path: homepage and default 10-page sequential pilot, then a
+  bounded three-worker crawl; external search still waits for the full corpus
 - Upgrade: start external search after homepage content is available (don't wait for all pages)
 - External searches hit different hosts (DDG, news sites) - safe to run alongside primary site scraping
 - Insight extraction can begin on early pages while later pages are still scraping
 - Simple scheduling with `asyncio.gather()` - no orchestration framework needed
 - Expected gain: 5-10 min overlap between scraping and external research phases
 
-What's already parallel (no changes needed):
+Current production concurrency:
+
+- Homepage and pilot pages run sequentially so Primr can learn access quality,
+  block behavior, and the effective tier before widening work
+- Remaining site pages use a bounded three-worker pool; the per-host limiter
+  remains authoritative for concurrency, request rate, and token-wait jitter;
+  persistent host cooldown state owns live 429 recovery
 - Section writing: `ThreadPoolExecutor(max_workers=4)` - up to 4 sections concurrently
 - External search queries: `ThreadPoolExecutor(max_workers=3)` - 3 concurrent DDG/Google queries
-- Per-host rate limiting: 2 concurrent/host, 20 req/min/host, with 0-1.5s random jitter
+- Link verification and the standalone parallel-scraper helper have separate
+  concurrency budgets; their worker counts are not the live site-corpus policy
 
-Why same-host scraping stays sequential: all 50 pages come from one company website. Concurrent requests to the same host is a bot detection signal. Sequential with per-host jitter, sticky tier optimization, and circuit breakers mimics human browsing. This is an intentional design choice, not a limitation.
+Same-host concurrency stays deliberately cautious rather than sequential.
+Measure block rate, recovery rate, p95 page time, and total corpus time before
+changing the three-worker or per-host limits. Sticky-tier optimization,
+token-bucket admission, jitter, persistent cooldowns, and circuit breakers
+remain the safety controls.
 
 Completion guarantees:
 - All overlapped phases must complete before downstream stages start (no partial results)
@@ -1052,6 +1073,13 @@ Shipped:
   `finally` after success, cancellation, or failure.
 
 Planned:
+- Own each running job through a retained worker handle. Cancellation must stop
+  Primr-owned work, not merely write a cancelled journal state. Prefer one
+  supervised Python child process per long MCP/A2A job so cancellation, crash
+  isolation, resource limits, budget ownership, and cleanup are enforceable.
+  Record provider operations that cannot be interrupted separately and never
+  claim that remote work stopped without provider confirmation. Reuse the
+  existing deployment runner, job-specification, event, and manifest contracts.
 - Add integration eval suites for routing, approval, recovery, and recomputation avoidance
 - Expose a compact project security/profile resource for agent clients when
   useful, including always-on guardrails and context-selected guidance for
@@ -1156,13 +1184,65 @@ full catalog, integration traps, and phased delivery plan in
   desk-side AI capacity materially improves; promotion is data-driven, not
   permanently capped by today's local models.
 
+### 27. Measured Runtime Evolution
+
+Make Primr faster and more defensible without turning language choice into a
+rewrite program. The binding design, boundary contracts, benchmarks, adoption
+gates, packaging strategy, and stop conditions live in
+[`docs/design/runtime-language-boundaries.md`](docs/design/runtime-language-boundaries.md).
+
+Ordered work:
+
+1. **Truthful execution ownership.** Reuse the existing runner protocol to put
+   long MCP/A2A jobs in supervised Python child processes or one-job containers.
+   A job becomes terminally cancelled only after the owned worker exits; remote
+   provider work is described separately when it cannot be interrupted.
+2. **Production-shaped baseline.** Add phase wall time, overlap, local parse and
+   extraction time, provider wait, peak memory, queue delay, cancellation
+   latency, and recovery outcomes. Keep prompt and page bodies out of telemetry.
+3. **Pipeline topology first.** Ship #19 overlap and remove duplicated work
+   before evaluating another runtime.
+4. **Parse-once HTML facade.** Build one versioned, immutable Python analysis
+   result that supplies classification, text variants, structured blocks, and
+   link candidates while enforcing a bounded input policy.
+5. **Optional Rust challenger.** Build an internal PyO3 experiment only after
+   the optimized Python reference exists. Ship an optional accelerator only if
+   differential behavior is exact, supported-platform wheels exist, base Primr
+   remains universal, and the documented p95, memory, corpus, and end-to-end
+   gates pass.
+6. **Free-threaded compatibility experiment.** Keep standard 3.14 supported.
+   Treat 3.14t as a nonblocking compatibility and benchmark lane until the full
+   dependency/platform matrix is validated and a material benefit is measured.
+7. **Go trigger, not Go plan.** A thin Go admission service becomes eligible
+   only after durable multi-user mode exists and measured Python dispatch,
+   cold-start, memory, or p99 behavior violates an explicit SLO. Research
+   workers and policy remain Python.
+8. **Mojo/MAX trigger, not embedded Mojo.** Primr owns no accelerator kernel
+   today. Evaluate MAX or another runtime externally through the existing
+   OpenAI-compatible endpoint. Embedding requires a measured Primr-owned kernel,
+   supportable cross-platform packaging, and license review.
+
+Stop the native experiment if parse-once Python comes within 20 percent of the
+candidate, HTML analysis is under 10 percent of measured scrape-stage wall
+time, end-to-end `primr prep` collection improves less than 10 percent, output
+contracts drift, or a supported platform lacks a wheel. Installing base Primr
+must never require a Rust compiler.
+
 ---
 
 ## Engineering Standards & Toolchain
 
 primr is a mature, shipping PyPI application (`py.typed`, 10,000+ tests, heavy native deps: playwright / patchright / curl_cffi / DrissionPage / pymupdf / pandas), not a greenfield internal service. The standards below are calibrated for that reality: adopt the high-leverage, low-risk discipline; defer code-reshaping behind non-regression ratchets; and decline the maximalist conventions that would churn a stable codebase or hurt downstream consumers. The buckets are explicit so the decisions are durable and don't get re-litigated.
 
-**Decision principle:** modern where it pays, conservative where users feel it. Track the Python floor to the EOL line (not the bleeding edge) and the ceiling to current stable; gate on reproducibility and supply-chain integrity; ratchet type-strictness, complexity, and verification (contracts, mutation, fault-injection) rather than flipping them globally; and stay deliberately native-dep-first where the scraping/document engine demands it, pure-Python-preferred everywhere else.
+**Decision principle:** modern where it pays, conservative where users feel it.
+Python remains the default product and orchestration language, while stable
+execution boundaries are language-neutral when measurements justify them.
+Track the Python floor to the EOL line and the ceiling to current stable; gate
+on reproducibility, supply-chain integrity, correctness, and
+production-shaped performance; ratchet type-strictness, complexity, and
+verification rather than flipping them globally; prefer ordinary Python
+additions; preserve the universal base install; and treat every new native or
+service toolchain as a reviewed architectural investment.
 
 ### Adopted (load-bearing today)
 
@@ -1180,7 +1260,7 @@ primr is a mature, shipping PyPI application (`py.typed`, 10,000+ tests, heavy n
 
 The current active engineering initiative. Each item is verified locally, then landed; findings are triaged (targeted ignore or downgraded to a Phase-2 ratchet) rather than force-passed.
 
-- **Supported-Python window**: `requires-python = ">=3.12"`, EOL-driven - 3.10 reaches EOL Oct 2026 and 3.11 Oct 2027, while 3.12 carries security support to Oct 2028. CI runs a `3.12 / 3.13 / 3.14` **hard** matrix - all three fully supported (the full suite passes on each; validated locally on 3.12 and 3.14 at 8,391 passed, and the native-dep stack installs cleanly on 3.14). 3.14 classifier shipped; `.python-version` pins the dev default. Free-threading (PEP 703 / 3.14t) remains a non-goal - primr is I/O-bound and its native deps aren't `cp314t`-ABI-ready (this is about the GIL build, separate from standard 3.14 which is fully supported).
+- **Supported-Python window**: `requires-python = ">=3.12"`, EOL-driven - 3.10 reaches EOL Oct 2026 and 3.11 Oct 2027, while 3.12 carries security support to Oct 2028. CI runs a `3.12 / 3.13 / 3.14` **hard** matrix - all three fully supported (the full suite passes on each; validated locally on 3.12 and 3.14 at 8,391 passed, and the native-dep stack installs cleanly on standard 3.14). 3.14 classifier shipped; `.python-version` pins the dev default. Free-threaded 3.14t is not the default runtime or a release gate. Many locked native dependencies now publish `cp314t` artifacts, but Primr has not validated the complete supported platform matrix or demonstrated an end-to-end benefit. Maintain a nonblocking compatibility and benchmark lane when practical; adoption requires a shared-state audit, confirmation that required extensions do not silently restore the GIL, and a material measured throughput or CPU-stage gain.
 - **Python-floor consistency gate**: setup, `primr init`, `primr doctor`, container images, AWS Lambda, Azure Functions, dependency guidance, Ruff, CI, and release builds all use the declared Python 3.12 floor. Release-integrity tests derive the runtime assertions from `requires-python`, so these surfaces cannot silently drift apart.
 - **uv toolchain + reproducibility**: commit a `uv.lock`; CI installs via `uv sync --locked` so stale project metadata fails before tests; keep the proven setuptools build backend. The former `requirements.txt` / `pyproject` divergence is **resolved** - lower bounds (and the security floors) live in `[project.dependencies]`, `requirements.txt` has been removed, and `pyproject.toml` + `uv.lock` are the single dependency source (no hard upper caps except the intentional `ruff<0.16` / `a2a-sdk<0.4`).
 - **Release integrity**: the PyPI workflow uses locked release tooling on Python 3.12, resolves an exact tag, requires that commit to be contained in `main` with a successful main-push CI run, requires a non-empty versioned changelog section, and compares published PyPI filenames and SHA-256 hashes with the built wheel/sdist before creating the GitHub release. Same-tag runs are serialized, strict documentation builds in CI, and release-integrity tests pin these contracts.
@@ -1240,8 +1320,18 @@ So future contributors don't re-open these:
 
 - **`requires-python >= 3.14` floor** - 3.14 is fully supported and a hard CI gate, but it is not the *floor*: the floor tracks the EOL line (3.12) so users on 3.12/3.13 aren't cut off. Raising the floor to 3.14 would strand them for no benefit.
 - **Model-training / model-serving security** (poisoning, extraction, inference attacks, enclaves, certified robustness, weight protection) - primr trains and serves no models; see "AI / agent security posture" above for what *is* in scope.
-- **Free-threaded build adoption (3.14t)** - primr is I/O-bound (scrape + LLM); removing the GIL buys ~nothing and the native deps (playwright/pymupdf/curl_cffi/DrissionPage) aren't `cp314t`-ABI-ready. The free-threading concurrency discipline (no shared mutable state, message-passing) is therefore moot here.
-- **Pure-Python-first as a hard rule / "C-extensions disallowed by default"** - primr's moat *is* its native stack: playwright, patchright, pymupdf, pandas, curl_cffi, pytesseract are load-bearing and have no pure-Python equivalent of comparable quality. Adopted instead as a *new-dependency policy*: prefer pure-Python for additions, and treat a new C-extension dependency as a reviewed exception (justify, and check `cp314t` ABI impact if free-threading is ever revisited). Existing native deps stay.
+- **Unmeasured free-threaded adoption (3.14t)** - Primr is predominantly
+  scrape- and model-I/O-bound, free-threading does not provide crash isolation
+  or durable queueing, and full platform/dependency validation is incomplete.
+  Compatibility and benchmark experiments remain welcome; default adoption
+  requires measured benefit and a shared-state audit.
+- **Pure-Python-only or polyglot-by-default** - both rules optimize for
+  ideology instead of Primr. The existing native stack remains load-bearing.
+  Prefer Python for additions, but allow an optional, version-locked Rust
+  accelerator after the runtime-boundary gates pass. Reserve Go for an
+  independently valuable service boundary. Keep Mojo or MAX external until a
+  real accelerator workload, supportable distribution, and license review
+  justify tighter integration.
 - **structlog everywhere / Pydantic-everywhere / dataclass → Pydantic conversion** - high churn, low payoff on a stable codebase that already has a `get_logger` abstraction and uses dataclasses deliberately. Structured output, if wanted, goes behind `get_logger`.
 - **NASA Power-of-10 literalism** (forbid recursion, mandate "two asserts per public API", forbid post-`__init__` attributes) - dogmatic for an AI/scraping pipeline. Keep the spirit (complexity budget, boundary validation), not the letter.
 - **>95% global branch coverage** - wrong target for I/O/LLM-heavy code; replaced by a measured ratchet + per-module targets.

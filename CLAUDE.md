@@ -34,6 +34,33 @@ Three rules in one breath: **one way to do each thing; no new giant files;
 verify current APIs (never trust training memory).** Everything below expands
 these.
 
+## Language and runtime choices
+
+Primr is Python-first, not Python-only. Python owns research orchestration,
+provider integration, scraping policy, report generation, and the public
+package because ecosystem leverage and iteration speed dominate there. A
+different language or runtime is introduced only at a narrow, versioned seam
+after an optimized Python baseline and production-shaped profile show a
+material end-to-end benefit.
+
+Use the smallest boundary that satisfies the requirement:
+
+| Requirement | Preferred boundary |
+|-------------|--------------------|
+| Cancellation, crash containment, resource limits | Supervised Python child process or one-job container |
+| Deterministic CPU or memory hotspot | Optional Rust accelerator after differential and packaging gates |
+| Independently scaled multi-user admission | Service boundary; Go only after measured control-plane load |
+| Local model execution | External OpenAI-compatible server; no embedded runtime without a measured kernel |
+
+Do not add a language for architectural symmetry, popularity, or a
+microbenchmark alone. A proposal must include the bounded capability, current
+baseline, target, production-shaped corpus, correctness oracle, supported
+platform artifacts, observability and failure semantics, fallback, rollback,
+security review, and maintenance cost. Base Primr must remain installable and
+functional without a native compiler. The binding decision record and current
+adoption gates live in
+[`docs/design/runtime-language-boundaries.md`](docs/design/runtime-language-boundaries.md).
+
 ## Architecture Pointers
 
 `src/` layout, one package per concern. `config/` is close to a leaf (avoid
