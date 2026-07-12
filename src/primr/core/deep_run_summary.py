@@ -59,7 +59,8 @@ def finalize_deep_run(
     total_input = usage.get("total_input_tokens", 0)
     total_output = usage.get("total_output_tokens", 0)
 
-    # Deep Research portion (flat per-task cost, API doesn't expose tokens)
+    # Deep Research portion uses Primr's per-task planning estimate because
+    # exact agentic token and tool usage is not available before completion.
     dr_tasks = count_main_deep_research_tasks(mode) + strategy_deep_research_tasks_started
     dr_cost = deep_research_flat_cost(dr_tasks)
 

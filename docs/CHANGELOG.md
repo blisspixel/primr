@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.35.2] - 2026-07-12
+
+### Fixed
+
+- Removed the remaining MCP and A2A server import cycles through a shared
+  cross-transport controller contract. Direct strategy generation uses a
+  focused shared operation instead of routing through the research pipeline
+  module.
+- Added architecture and fresh-interpreter import-order gates that prevent
+  concrete server dependencies from returning outside composition roots.
+- Standalone strategy requests now dispatch the requested YAML-defined module
+  instead of relabeling an AI strategy artifact as another strategy type. The
+  legacy skills strategy preserves its documented per-role skill artifacts.
+- Added managed-identity construction to the Azure Cosmos and Blob stores used
+  by the reconciliation function. Corrected the vertical-slice cache argument,
+  curly-quote extraction, non-finite audit parsing, negative QA retry counts,
+  and standalone process exits.
+- Removed the unused plural platform compatibility global; tests now exercise
+  the canonical normalization seam directly.
+- Synchronized operator skills and API, architecture, configuration, security,
+  and internals docs with the live recon, hypothesis-memory, roadmap-band,
+  hook, subagent, model, legacy config-schema default, and provider-fallback
+  contracts. Roadmap blocker queries now accept current bands such as `1.x`.
+
+### Security
+
+- Pinned every remote GitHub Action to an immutable commit and every shipped
+  Python container base to a verified multi-platform digest. Added fitness
+  tests so moving tags cannot silently return.
+- Standalone strategy estimates and approval tokens now use Primr's canonical
+  Deep Research planning cost instead of legacy sub-dollar placeholders.
+  Standalone strategy and vendor-research usage are persisted, and cost-gated
+  AI strategy execution cannot trigger an additional environment-driven
+  vendor refresh.
+
 ## [1.35.1] - 2026-07-12
 
 ### Added

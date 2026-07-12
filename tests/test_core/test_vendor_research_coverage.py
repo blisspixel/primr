@@ -306,6 +306,24 @@ async def test_async_generates_missing_with_explicit_opt_in(tmp_path: Path, monk
 
 
 @pytest.mark.asyncio
+async def test_async_explicit_disable_overrides_environment(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("PRIMR_ALLOW_VENDOR_REFRESH", "1")
+    missing = tmp_path / "missing.txt"
+    with (
+        patch("primr.core.vendor_research.get_vendor_research_path", return_value=missing),
+        patch(
+            "primr.core.vendor_research.generate_vendor_research",
+            new=AsyncMock(return_value=str(tmp_path / "generated.txt")),
+        ) as mock_gen,
+    ):
+        result = await get_or_generate_vendor_research("aws", allow_auto_refresh=False)
+
+    assert not mock_gen.called
+    assert result.generated is False
+    assert result.paths == []
+
+
+@pytest.mark.asyncio
 async def test_async_force_refresh(tmp_path: Path):
     existing = tmp_path / "vendor-research-aws-2026-01.txt"
     existing.write_text("x", encoding="utf-8")
@@ -394,6 +412,7 @@ async def test_generate_vendor_research_success(tmp_path: Path):
 
     client = MagicMock()
     client.research = AsyncMock(return_value=fake_result)
+    tracker = MagicMock()
 
     with (
         patch(
@@ -406,12 +425,24 @@ async def test_generate_vendor_research_success(tmp_path: Path):
             "primr.ai.job_persistence.acknowledge_pending_job_after_outputs",
             return_value=True,
         ) as acknowledge_mock,
+        patch("primr.utils.usage_tracker.get_usage_tracker", return_value=tracker),
     ):
         result = await generate_vendor_research("aws")
 
     assert result == str(out)
     assert out.read_text(encoding="utf-8") == "Research body content"
     acknowledge_mock.assert_called_once_with("interaction-123", [out])
+    from primr.config.models import DEEP_RESEARCH_COST
+
+    tracker.record_usage.assert_called_once_with(
+        mode="vendor_research_aws",
+        company="AWS",
+        input_tokens=0,
+        output_tokens=0,
+        duration_seconds=120.0,
+        deep_research_cost=DEEP_RESEARCH_COST.standard_task_cost,
+    )
+    tracker.save.assert_called_once_with()
 
 
 @pytest.mark.asyncio

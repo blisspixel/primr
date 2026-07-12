@@ -48,10 +48,7 @@ Note: Legacy Gemini model override variables are still supported for Gemini-back
 - `gemini-3-flash-preview` - Best balance of speed and cost for legacy Gemini paths
 - `gemini-3.1-pro-preview` - Maximum Gemini reasoning capability (tiered pricing)
 
-Gemini 3.1 Pro Preview is the default Pro model. It has tiered pricing: $2/$12 per 1M tokens for prompts ≤200k, $4/$18 for >200k. Most Primr calls stay well under 200k tokens. Cost estimates (`--dry-run`) use conservative high-tier pricing; actual costs are typically lower.
-
-To revert to Gemini 3.0 Pro (flat $2/$12 pricing):
-- Set `AI_REASONING_MODEL=gemini-3-pro-preview` in `.env`
+Gemini 3.1 Pro Preview is the default Pro model. It has tiered pricing: $2/$12 per 1M tokens for prompts ≤200k, $4/$18 for >200k. Most Primr calls stay well under 200k tokens. Cost estimates (`--dry-run`) use conservative high-tier pricing; actual costs are typically lower. Model IDs marked deprecated in the registry are not supported override targets.
 
 ### Scraping Behavior
 

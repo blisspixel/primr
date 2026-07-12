@@ -29,6 +29,7 @@ from primr.mcp_server.approval_tokens import (
     issue_approval_token,
     skill_pack_approval_args,
 )
+from primr.mcp_server.server_context import MCPServerContext
 from primr.skill_pack.config import (
     DEFAULT_MAX_COST_PER_ROLE_USD,
     DEFAULT_MAX_REFINE_ITERATIONS,
@@ -46,8 +47,6 @@ from primr.skill_pack.config import (
 if TYPE_CHECKING:
     from mcp.server import Server
 
-    from primr.mcp_server.server import PrimrMCPServer
-
 logger = logging.getLogger(__name__)
 
 
@@ -56,7 +55,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def register_skill_pack_tools(server: Server, mcp_server: PrimrMCPServer) -> list[Tool]:
+def register_skill_pack_tools(server: Server, mcp_server: MCPServerContext) -> list[Tool]:
     """Return the Tool definitions for inclusion in list_tools().
 
     Does not register handlers itself — handlers run via handle_skill_pack_tool
@@ -347,7 +346,7 @@ def _is_cost_cap_enforced() -> bool:
 
 def _validate_from_jd_path(
     from_jd_path: str | None,
-    mcp_server: PrimrMCPServer,
+    mcp_server: MCPServerContext,
 ) -> tuple[str | None, TextContent | None]:
     """Validate and resolve the optional operator JD path for MCP calls."""
     if not from_jd_path:
@@ -393,7 +392,7 @@ def _coerce_list(raw: object) -> list[str]:
 async def handle_skill_pack_tool(
     name: str,
     arguments: dict[str, Any],
-    mcp_server: PrimrMCPServer,
+    mcp_server: MCPServerContext,
 ) -> list[TextContent] | None:
     """Dispatch for skill_pack MCP tools. Returns None when `name` is not ours."""
     if name == "estimate_skill_pack":
@@ -464,7 +463,7 @@ async def _handle_estimate_skill_pack(arguments: dict[str, Any]) -> list[TextCon
 
 async def _handle_generate_skill_pack(
     arguments: dict[str, Any],
-    mcp_server: PrimrMCPServer,
+    mcp_server: MCPServerContext,
 ) -> list[TextContent]:
     company_name = str(arguments.get("company_name", "")).strip()
     company_url = str(arguments.get("company_url", "")).strip() or None

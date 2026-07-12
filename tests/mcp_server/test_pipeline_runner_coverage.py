@@ -18,10 +18,10 @@ from primr.mcp_server.pipeline_runner import (
     PipelineRunner,
     _collect_run_artifacts,
     _copy_artifacts_to_destination,
-    run_strategy_generation,
 )
 from primr.mcp_server.qa_operations import run_qa_analysis
 from primr.mcp_server.server import create_mcp_server
+from primr.mcp_server.strategy_operations import run_strategy_generation
 from primr.mcp_server.types import ResearchStage
 
 
@@ -140,6 +140,7 @@ class TestRunStrategyGeneration:
         # company name should have been parsed from the filename prefix
         _, kwargs = mock_gen.call_args
         assert kwargs["company_name"] == "Acme Corp"
+        assert kwargs["allow_vendor_refresh"] is False
 
     @pytest.mark.asyncio
     async def test_error_raises_runtime(self, tmp_path):
@@ -157,7 +158,71 @@ class TestRunStrategyGeneration:
         ):
             await run_strategy_generation(
                 report_path=str(report),
+                strategy_type="ai_strategy",
+            )
+
+    @pytest.mark.asyncio
+    async def test_generic_strategy_dispatches_requested_yaml(self, tmp_path):
+        report = tmp_path / "Acme_Corp_Strategic_Overview_05-22-2026.md"
+        report.write_text("# report", encoding="utf-8")
+        output = tmp_path / "cx.docx"
+
+        tracker = MagicMock()
+        with (
+            patch(
+                "primr.core.strategy_generation.generate_generic_strategy",
+                return_value=str(output),
+            ) as mock_gen,
+            patch("primr.utils.usage_tracker.get_usage_tracker", return_value=tracker),
+        ):
+            result = await run_strategy_generation(
+                report_path=str(report),
                 strategy_type="customer_experience",
+                platform="azure",
+            )
+
+        assert result["output_path"] == str(output)
+        assert result["strategy_type"] == "customer_experience"
+        mock_gen.assert_called_once_with(
+            strategy_name="customer_experience",
+            strategy_yaml="customer_experience",
+            company_name="Acme Corp",
+            company_research_path=str(report),
+        )
+        usage = tracker.record_usage.call_args.kwargs
+        assert usage["mode"] == "standalone_strategy_customer_experience"
+        assert usage["company"] == "Acme Corp"
+        from primr.config.models import DEEP_RESEARCH_COST
+
+        assert usage["deep_research_cost"] == DEEP_RESEARCH_COST.standard_task_cost
+        tracker.save.assert_called_once_with()
+
+    @pytest.mark.asyncio
+    async def test_generic_strategy_requires_output_artifact(self, tmp_path):
+        report = tmp_path / "report.md"
+        report.write_text("# report", encoding="utf-8")
+
+        with (
+            patch(
+                "primr.core.strategy_generation.generate_generic_strategy",
+                return_value=None,
+            ),
+            pytest.raises(RuntimeError, match="produced no output artifact"),
+        ):
+            await run_strategy_generation(
+                report_path=str(report),
+                strategy_type="skills",
+            )
+
+    @pytest.mark.asyncio
+    async def test_unknown_strategy_is_rejected_before_generation(self, tmp_path):
+        report = tmp_path / "report.md"
+        report.write_text("# report", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="Unsupported strategy type"):
+            await run_strategy_generation(
+                report_path=str(report),
+                strategy_type="unknown",
             )
 
 

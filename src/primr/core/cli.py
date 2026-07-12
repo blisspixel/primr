@@ -1328,7 +1328,7 @@ def _handle_show_usage(config: CLIConfig) -> int:
 def _format_vendor_research_freshness() -> str:
     """Show when each cached vendor research file was last refreshed.
 
-    Vendor research is shared per-user (one ~$0.50 Deep Research file per
+    Vendor research is shared per-user (one paid Deep Research task per
     vendor); surfacing the age here makes it visible when a refresh is due
     instead of silently reusing stale context.
     """

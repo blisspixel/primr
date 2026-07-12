@@ -182,7 +182,7 @@ def _apply_tokenizer_safety_factor(
 
 # Estimated token usage by mode (based on actual runs, split by model)
 # Flash is used for scraping/filtering, Pro for writing/analysis
-# deep_research_tasks: number of Deep Research API calls (flat per-task cost)
+# deep_research_tasks: number of Deep Research API calls (per-task planning cost)
 MODE_ESTIMATES = {
     "scrape-test": {
         "flash_input_tokens": 0,
@@ -382,7 +382,7 @@ def estimate_cost(
         strategy_types: YAML strategy documents to generate (``--strategy-type``,
             excluding "ai" which is covered by ``include_ai_strategy``). Each is
             a full writing+enrichment bundle; on Deep Research paths some types
-            consume a flat-cost Deep Research task. Omitting them understates
+            consume a planned-cost Deep Research task. Omitting them understates
             the estimate the ``--budget`` pre-flight gate approves against.
 
     Returns:
@@ -559,7 +559,7 @@ def estimate_cost(
         flash_breakdown.long_context_surcharge_cost + pro_breakdown.long_context_surcharge_cost
     )
 
-    # Deep Research cost (flat per-task)
+    # Deep Research planning cost per task; actual token and tool billing varies.
     deep_research_cost = dr_tasks * DEEP_RESEARCH_COST.standard_task_cost
 
     # Search cost

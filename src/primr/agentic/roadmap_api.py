@@ -21,13 +21,13 @@ Example:
     api = RoadmapAPI()
 
     # Get a specific version
-    v170 = api.get_version("1.7.0")
+    current_line = api.get_version("1.x")
 
     # List planned versions
     planned = api.list_by_status(VersionStatus.PLANNED)
 
     # Get blockers for a version
-    blockers = api.get_blockers("1.7.0")
+    blockers = api.get_blockers("2.0")
 
     # Get dependency graph
     graph = api.get_dependency_graph()
@@ -62,12 +62,12 @@ class RoadmapAPI:
         api = RoadmapAPI()
 
         # Query version status
-        version = api.get_version("1.7.0")
+        version = api.get_version("2.0")
         if version and version.status == VersionStatus.PLANNED:
             print(f"v{version.number} is planned: {version.title}")
 
         # Check for blockers
-        blockers = api.get_blockers("1.7.0")
+        blockers = api.get_blockers("2.0")
         if blockers:
             print(f"Blocked by: {', '.join(blockers)}")
     """
@@ -307,7 +307,7 @@ class RoadmapAPI:
         """
         Infer version dependencies from version numbers.
 
-        Assumes sequential versioning where v1.7.0 depends on v1.6.0.
+        Assumes each sorted roadmap band depends on the preceding band.
         """
         sorted_versions = sorted(
             self._versions.keys(),
@@ -329,7 +329,7 @@ class RoadmapAPI:
         Get version details by number.
 
         Args:
-            version: Version number (e.g., "1.7.0")
+            version: Version number or band (e.g., "1.x" or "2.0")
 
         Returns:
             Version instance or None if not found

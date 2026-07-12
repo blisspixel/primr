@@ -15,7 +15,9 @@ CLAUDE.md (the development contract) for the full bar.
 - [ ] `uv run pytest tests/ -q` (new code ships with tests; the coverage ratchet only rises)
 - [ ] The slop question: did this add a second way to do something that already has a seam? If yes, it's fixed.
 - [ ] `docs/CHANGELOG.md` updated under `[Unreleased]` for any user-facing change.
-- [ ] Version sources stay consistent (`pyproject` <-> `__init__.__version__` <-> ROADMAP "Current State"), if touched.
+- [ ] Version sources stay consistent (`pyproject.toml`, `primr.__version__`,
+      `uv.lock`, `CITATION.cff`, ROADMAP "Current State", and the release
+      changelog entries), if touched.
 
 ## Notes for the reviewer
 

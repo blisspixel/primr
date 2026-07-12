@@ -23,12 +23,11 @@ from primr.mcp_server.resource_summary_utils import (
     scalar_or_none,
     sorted_counts,
 )
+from primr.mcp_server.server_context import MCPServerContext
 from primr.qa.calibration_runner import sidecar_path_for
 
 if TYPE_CHECKING:
     from mcp.server.lowlevel.helper_types import ReadResourceContents
-
-    from primr.mcp_server.server import PrimrMCPServer
 
 CALIBRATION_SUMMARY_BY_JOB_URI = "primr://output/calibration_summary/by_job"
 CALIBRATION_SUMMARY_BY_JOB_RESOURCE = Resource(
@@ -63,7 +62,7 @@ _EVIDENCE_DIMENSIONS = (
 
 
 def read_calibration_summary_by_job_resource(
-    mcp_server: PrimrMCPServer,
+    mcp_server: MCPServerContext,
     uri: str,
     *,
     client_id: str,

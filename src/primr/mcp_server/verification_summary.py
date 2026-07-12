@@ -18,11 +18,10 @@ from primr.mcp_server.artifact_resources import (
     _owned_job,
 )
 from primr.mcp_server.resource_summary_utils import safe_float, safe_int, sorted_counts
+from primr.mcp_server.server_context import MCPServerContext
 
 if TYPE_CHECKING:
     from mcp.server.lowlevel.helper_types import ReadResourceContents
-
-    from primr.mcp_server.server import PrimrMCPServer
 
 VERIFICATION_SUMMARY_BY_JOB_URI = "primr://output/verification_summary/by_job"
 VERIFICATION_SUMMARY_BY_JOB_RESOURCE = Resource(
@@ -37,7 +36,7 @@ VERIFICATION_SUMMARY_BY_JOB_RESOURCE = Resource(
 
 
 def read_verification_summary_by_job_resource(
-    mcp_server: PrimrMCPServer,
+    mcp_server: MCPServerContext,
     uri: str,
     *,
     client_id: str,

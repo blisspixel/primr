@@ -16,6 +16,7 @@ from mcp.types import (
     ReadResourceRequestParams,
 )
 
+from primr.mcp_server.audit_log import _optional_float
 from primr.mcp_server.auth import AuthContext
 from primr.mcp_server.server import create_mcp_server
 
@@ -41,6 +42,11 @@ def _context(scopes: list[str], client_id: str = "client-a") -> AuthContext:
             scopes=scopes,
         )
     )
+
+
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf", float("nan")])
+def test_optional_float_rejects_non_finite_values(value) -> None:
+    assert _optional_float(value) is None
 
 
 async def _call(server, name: str, arguments: dict) -> dict:

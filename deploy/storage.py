@@ -503,6 +503,9 @@ class BlobStore:
         deployment: str,
         connection_string: str | None = None,
         container_client: Any = None,
+        *,
+        account_name: str | None = None,
+        credential: Any = None,
     ) -> None:
         """
         Initialize Azure Blob store.
@@ -512,10 +515,14 @@ class BlobStore:
             deployment: Deployment namespace (prefix)
             connection_string: Azure Storage connection string
             container_client: Optional container client (for testing/injection)
+            account_name: Storage account name for managed identity
+            credential: Azure credential used with ``account_name``
         """
         self.container_name = container_name
         self.deployment = deployment
         self.connection_string = connection_string
+        self.account_name = account_name
+        self.credential = credential
 
         if container_client is not None:
             self._container_client = container_client
@@ -528,10 +535,19 @@ class BlobStore:
         if self._container_client is None:
             from azure.storage.blob import ContainerClient
 
-            self._container_client = ContainerClient.from_connection_string(
-                self.connection_string,
-                container_name=self.container_name,
-            )
+            if self.account_name:
+                self._container_client = ContainerClient(
+                    account_url=f"https://{self.account_name}.blob.core.windows.net",
+                    container_name=self.container_name,
+                    credential=self.credential,
+                )
+            elif self.connection_string:
+                self._container_client = ContainerClient.from_connection_string(
+                    self.connection_string,
+                    container_name=self.container_name,
+                )
+            else:
+                raise ValueError("BlobStore requires an account name or connection string")
         return self._container_client
 
     def _get_blob_name(self, key: str) -> str:

@@ -4,7 +4,7 @@ These are deterministic, zero-network gates that fail CI when the codebase
 drifts away from its stated conventions. They are intentionally cheap and
 boring: their job is to make "slop" fail a gate instead of a review comment.
 
-Three rules enforced here:
+Four rules enforced here:
 
 1. **No new giant files / monsters can't grow.** A rise-only per-file line
    ceiling. New files must stay under ``NEW_FILE_MAX_LINES``; the existing
@@ -19,11 +19,15 @@ Three rules enforced here:
 3. **Package-map coverage.** Every importable top-level package appears in the
    concern-level map in ``docs/ARCHITECTURE.md``.
 
+4. **Acyclic MCP controller boundary.** Only composition roots may import the
+   concrete MCP server module. Other consumers use the structural context.
+
 See CLAUDE.md ("Use the one seam") and ROADMAP → Engineering Standards.
 """
 
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 
@@ -48,7 +52,7 @@ FILE_LINE_CEILINGS: dict[str, int] = {
     "data/hiring_signals.py": 1582,
     "core/model_eval.py": 1832,
     "data/scrape.py": 1836,
-    "mcp_server/tools.py": 1523,
+    "mcp_server/tools.py": 1519,
     "data/fallback_sources.py": 1084,
     "agentic/hooks.py": 1022,
     "core/research_orchestrator.py": 1079,
@@ -140,6 +144,69 @@ def test_architecture_package_map_covers_top_level_packages():
     assert not missing, "Packages missing from docs/ARCHITECTURE.md module map:\n" + "\n".join(
         missing
     )
+
+
+def _resolved_import_from_module(path: Path, node: ast.ImportFrom) -> str:
+    """Resolve an ``ImportFrom`` node within the ``primr`` package."""
+    if node.level == 0:
+        return node.module or ""
+
+    rel = path.relative_to(SRC_ROOT)
+    package_parts = ["primr", *rel.parts[:-1]]
+    keep = max(0, len(package_parts) - (node.level - 1))
+    module_parts = (node.module or "").split(".") if node.module else []
+    return ".".join([*package_parts[:keep], *module_parts])
+
+
+def _imports_concrete_mcp_server(path: Path, tree: ast.AST) -> bool:
+    """Detect absolute and package-relative imports of the concrete server."""
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import) and any(
+            alias.name == "primr.mcp_server.server" for alias in node.names
+        ):
+            return True
+        if not isinstance(node, ast.ImportFrom):
+            continue
+        module = _resolved_import_from_module(path, node)
+        if module == "primr.mcp_server.server":
+            return True
+        if module == "primr.mcp_server" and any(alias.name == "server" for alias in node.names):
+            return True
+    return False
+
+
+def test_only_composition_roots_import_concrete_mcp_server():
+    """Keep concrete server construction out of reusable modules and type edges."""
+    allowed = {"a2a/cli.py", "mcp_server/cli.py"}
+    offenders: list[str] = []
+    for path in _src_py_files():
+        rel = path.relative_to(SRC_ROOT).as_posix()
+        if rel in allowed:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        if _imports_concrete_mcp_server(path, tree):
+            offenders.append(rel)
+
+    assert not offenders, (
+        "Import MCPServerContext instead of the concrete server outside composition roots:\n"
+        + "\n".join(offenders)
+    )
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "statement"),
+    [
+        ("a2a/example.py", "import primr.mcp_server.server"),
+        ("a2a/example.py", "from primr.mcp_server.server import PrimrMCPServer"),
+        ("a2a/example.py", "from primr.mcp_server import server"),
+        ("mcp_server/example.py", "from . import server"),
+        ("a2a/example.py", "from ..mcp_server import server"),
+    ],
+)
+def test_concrete_mcp_server_import_detector(relative_path: str, statement: str):
+    """Cover every supported static import spelling for the concrete module."""
+    path = SRC_ROOT / relative_path
+    assert _imports_concrete_mcp_server(path, ast.parse(statement))
 
 
 @pytest.mark.parametrize("doc", ["CLAUDE.md", "AGENTS.md"])
