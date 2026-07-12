@@ -103,6 +103,7 @@ nav:
       - Agentic balance: design/agentic-balance.md
       - Open Knowledge Format: design/open-knowledge-format.md
       - Engineering excellence: design/engineering-excellence.md
+      - Runtime and language boundaries: design/runtime-language-boundaries.md
       - Research tradecraft: design/research-tradecraft.md
       - Eval plan: design/eval-plan.md
       - Provider expansion: design/provider-expansion.md

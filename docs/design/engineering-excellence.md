@@ -196,3 +196,8 @@ Validation: free - it is a review-cadence checklist, not code.
   evaluate-only local supplement until GA; fitness functions prefer an AST test
   over a new dependency.
 - **No bot-authored dependency PRs** - currency stays manual review-and-bump.
+- **Not language purity and not a polyglot mandate.** Python remains the
+  product-layer default. A native component or service is allowed only through
+  the measured gates in
+  [`runtime-language-boundaries.md`](runtime-language-boundaries.md); no
+  line-by-line rewrite or duplicated cross-language business logic.

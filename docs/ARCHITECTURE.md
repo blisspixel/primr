@@ -42,7 +42,11 @@ Primr distinguishes between facts, inferences, and hypotheses. The system is des
 
 ### 2. Local-First
 
-All processing happens on the user's machine. No data leaves except API calls to Google (Gemini, Search). This keeps sensitive research private and avoids the complexity of multi-tenant infrastructure.
+Local execution and local artifact ownership are the defaults. Data leaves the
+machine only through web retrieval, search, model providers, or gateways the
+operator explicitly configures. Those may include xAI, Gemini, OpenAI,
+Anthropic, cloud gateways, or a user-operated OpenAI-compatible endpoint.
+Primr does not upload reports to its own hosted service.
 
 ### 3. Graceful Degradation
 
@@ -51,6 +55,27 @@ Every component has fallbacks. If Playwright fails, try httpx. If httpx fails, t
 ### 4. Separation of Concerns
 
 Data collection (scraping, search) is separate from analysis (AI). Analysis is separate from output (document generation). This makes the system testable and allows components to evolve independently.
+
+### 5. Measured Implementation Choices
+
+Primr is Python-first, not Python-only. Python owns orchestration, provider
+integration, research policy, and report generation because ecosystem leverage
+and iteration speed dominate there. A different language or runtime is
+introduced only at a narrow, versioned boundary after an optimized Python
+baseline and production-shaped profile demonstrate a material end-to-end
+benefit.
+
+Adoption requires contract and differential tests, supported-platform
+packaging, equivalent observability and failure semantics, a fallback where
+practical, and a measured maintenance and security payoff. Rust is the only
+current in-process accelerator candidate, specifically for deterministic HTML
+analysis after a parse-once Python baseline. Go is reserved for an independently
+deployed control-plane boundary after scale and SLO evidence. Mojo is not
+embedded; MAX or another runtime may compete as an external
+OpenAI-compatible model server.
+
+The full policy, benchmarks, stop conditions, and packaging rules live in
+[`design/runtime-language-boundaries.md`](design/runtime-language-boundaries.md).
 
 ## Research Modes
 
@@ -787,6 +812,23 @@ The resilience layer sits between the pipeline orchestrator (`research_agent.py`
 
 Run `primr --dry-run <company> <url>` to inspect the recovery table and stage classifications without executing any research.
 
+### Execution Ownership and Cancellation
+
+Cancelling an asyncio task does not terminate blocking work that has already
+started in a thread. A terminal `cancelled` state is therefore truthful only
+after the system has observed that the worker it owns has exited. A remote
+provider task may remain non-interruptible unless that provider exposes and
+accepts a cancellation operation.
+
+The target for long MCP, A2A, and hosted jobs is one supervised Python child
+process or one-job container per research job. The controller retains the
+worker handle, requests cooperative stop, waits for a bounded interval, then
+terminates the worker if necessary. Checkpoints and partial artifacts are
+preserved atomically, and terminal status records how cancellation completed.
+The existing deployment runner, job specification, event, and manifest
+contracts are the reference boundary. See
+[`design/runtime-language-boundaries.md`](design/runtime-language-boundaries.md#1-truthful-job-cancellation-through-process-isolation).
+
 ## Security Architecture
 
 Primr underwent comprehensive security review in January 2026. All critical vulnerabilities have been addressed.
@@ -1054,7 +1096,8 @@ Using Hypothesis for:
 | `GEMINI_API_KEY` | Recommended | Gemini writing, utility, premium mode, and scrape summaries |
 | `OPENAI_API_KEY` | Optional | OpenAI provider for routed eval/fallback paths |
 | `ANTHROPIC_API_KEY` | Optional | Anthropic provider for routed eval/fallback paths |
-| `OLLAMA_BASE_URL` | Optional | Local OpenAI-compatible endpoint for local eval/utility paths |
+| `LOCAL_LLM_BASE_URL` | Optional | Primary generic OpenAI-compatible endpoint for local eval and utility paths |
+| `OLLAMA_BASE_URL` | Optional | Ollama-compatible fallback when `LOCAL_LLM_BASE_URL` is unset |
 | `SEARCH_API_KEY` | Optional | Google Custom Search API key, only with `SEARCH_PROVIDER=google` |
 | `SEARCH_ENGINE_ID` | Optional | Google Custom Search Engine ID, only with `SEARCH_PROVIDER=google` |
 | `AI_RESEARCH_MODEL` | No | Override research model |
@@ -1085,8 +1128,13 @@ See `docs/CONFIG.md` for detailed configuration reference.
 ### Rate Limits
 
 - Deep Research: 3 concurrent tasks (configurable)
-- Scraping: Sequential with delays to avoid detection
+- Scraping: Homepage-first pilot, then a bounded 3-worker live corpus path;
+  requests still pass through per-host concurrency, token-bucket, jitter, and
+  backoff controls
 - Gemini API: Respects 429 responses with backoff
+
+Concurrency policy and live implementation locations are documented in
+[`CONCURRENCY.md`](CONCURRENCY.md).
 
 ## Future Considerations
 
@@ -1095,6 +1143,9 @@ The architecture is designed to support future enhancements without major restru
 - **Research State Persistence:** The section-based output format can be extended to include confidence levels and hypothesis tracking
 - **Iterative Refinement:** The grading loop provides a foundation for incorporating user feedback
 - **Centralized Execution:** The orchestrator pattern allows swapping local execution for remote job queues
+- **Optional Native Acceleration:** A versioned HTML-analysis accelerator may
+  ship only after the parse-once Python reference and end-to-end adoption gates
+  in the runtime-boundary decision record pass
 
 See `ROADMAP.md` for planned features.
 

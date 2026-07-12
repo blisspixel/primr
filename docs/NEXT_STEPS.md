@@ -173,6 +173,10 @@ Exceptional execution standard for every workstream:
   privacy behavior is explicit.
 - Regression guard: focused deterministic tests ship with the change, and any
   content-quality claim has a documented eval or calibration record.
+- Runtime economics: profile production-shaped work before optimizing. Improve
+  phase topology and Python algorithms first. A different runtime must beat the
+  optimized reference on an explicit end-to-end or operational SLO and carry
+  its correctness, packaging, observability, fallback, and rollback costs.
 
 ## Ordered execution plan
 
@@ -557,6 +561,20 @@ Done when:
 - No warning-only resource leak, redirect bypass, or cost-control ambiguity is
   accepted as "later" when it is in the touched surface.
 
+### Cross-cutting: runtime efficiency and execution isolation
+
+This work supports the ordered product priorities rather than displacing them.
+Instrument first, ship pipeline overlap, make cancellation own the actual
+worker, and consolidate repeated HTML work into a parse-once Python boundary.
+Only then run the optional Rust and Python 3.14t comparisons.
+
+Go and Mojo remain trigger-based evaluations, not queued rewrites. A Go control
+plane requires measured Python admission or p99 pressure after durable queueing
+exists. Mojo requires a real Primr-owned accelerator kernel; MAX or another
+model server may be compared externally through the existing
+OpenAI-compatible endpoint. The binding gates and stop conditions are in
+[`design/runtime-language-boundaries.md`](design/runtime-language-boundaries.md).
+
 ## Explicitly not next
 
 - Do not expand the README with roadmap detail. Link to this page and the
@@ -570,6 +588,9 @@ Done when:
   confidence-label rules are explicit.
 - Do not create a generic agent orchestration platform. Primr remains URL in,
   serious artifact out, with a disciplined control plane around that job.
+- Do not add a language because it is fashionable or because one isolated
+  microbenchmark is faster. The complete product and operational contract must
+  improve.
 
 ## Validation policy
 

@@ -1,287 +1,305 @@
 # Primr Concurrency Model
 
-This document describes the threading and concurrency model used in Primr, including operation classification, thread pool sizing, shared state management, and deadlock prevention strategies.
+This document describes the live concurrency model, its safety limits, and the
+difference between coroutine cancellation and actually stopping a research
+job. The standing language and extraction policy is in
+[`design/runtime-language-boundaries.md`](design/runtime-language-boundaries.md).
 
-## Overview
+## Scope
 
-Primr uses a hybrid concurrency model combining:
-- **Async/await** for I/O-bound operations (API calls, network requests)
-- **ThreadPoolExecutor** for CPU-bound operations and blocking I/O
-- **Synchronous code** for simple sequential operations
+Primr has two distinct concurrency levels:
 
-The design prioritizes:
-1. Responsiveness during long-running operations
-2. Efficient use of API rate limits
-3. Clean separation between async and sync boundaries
+1. **Inside one research job:** bounded asyncio tasks and thread pools overlap
+   independent external waits and selected blocking operations.
+2. **Across research jobs:** the core remains single-job. A consumer or hosted
+   control plane may queue several jobs, but each long job should be owned by a
+   separate supervised process or one-job container when cancellation and
+   isolation matter.
 
-## Operation Classification
+These levels must not share budgets, browser environment mutation, mutable
+scrape state, or terminal status by accident.
 
-### I/O-Bound Operations (Async)
+## Design rules
 
-These operations spend most of their time waiting for external resources:
+- Classify the operation before choosing a primitive.
+- Await natively asynchronous I/O.
+- Put bounded blocking I/O in the existing async bridge or an explicitly owned
+  small thread pool.
+- Use a child process when work must be terminable, crash-contained, or
+  resource-limited.
+- Bound every pool, semaphore, queue, input, timeout, and retry policy.
+- Preserve target-host courtesy limits even when more local workers are idle.
+- Do not infer that a cancelled asyncio task stopped a running thread or remote
+  provider operation.
+- Measure block rate, p95 latency, memory, queueing, and end-to-end time before
+  changing worker counts.
 
-| Operation | Module | Pattern |
-|-----------|--------|---------|
-| AI API calls | `ai/async_client.py` | `async def` with `await` |
-| Deep Research | `ai/deep_research.py` | `async def` with polling |
-| URL resolution | `ai/citation_resolver.py` | `async def` with httpx |
-| Vendor research | `core/vendor_research.py` | `async def` |
-| MCP tool handlers | `mcp_server/tools.py` | `async def` |
+## Live concurrency inside one job
 
-### I/O-Bound Operations (Sync with Thread Pool)
+### Website corpus collection
 
-These operations use blocking I/O but run in thread pools for parallelism:
+The canonical production path is `fetch_web_content()` in
+`src/primr/data/scrape.py`. `data/parallel_scraper.py` is a standalone helper;
+its default worker count is not the production site-corpus policy.
 
-| Operation | Module | Thread Pool |
-|-----------|--------|-------------|
-| Web scraping | `data/parallel_scraper.py` | `ThreadPoolExecutor(max_workers=N)` |
-| Link verification | `data/scraping/discovery.py` | `ThreadPoolExecutor(max_workers=10)` |
-| Browser automation | `data/scraping/browsers.py` | `ThreadPoolExecutor(max_workers=1)` |
+The live path is deliberately staged:
 
-### CPU-Bound Operations (Sync)
+1. The homepage is fetched and classified first.
+2. Up to `SCRAPE_PILOT_COUNT` pages, default 10, run sequentially. This pilot
+   learns access quality, duplicate behavior, effective tiers, and whether the
+   crawl should stop defensively.
+3. Remaining selected pages run through
+   `ThreadPoolExecutor(max_workers=3)`.
+4. Every tier request still passes through the shared per-host limiter.
 
-These operations are compute-intensive and run synchronously:
+The default `RateLimitConfig` is three concurrent requests per host and 20
+requests per minute. The live corpus orchestrator keeps the three-request cap
+but currently uses a 30-request-per-minute override and 0.5 second token-wait
+jitter. The token bucket starts full, so the rate is not an evenly spaced
+delay. Live 429 handling records a persistent host cooldown; the lower-level
+limiter's exponential-backoff methods are not currently the production 429
+path.
 
-| Operation | Module | Notes |
-|-----------|--------|-------|
-| HTML parsing | `data/scraping/extraction.py` | BeautifulSoup processing |
-| Content quality scoring | `data/scraping/quality.py` | Text analysis |
-| Report formatting | `output/docx_writer.py` | Document generation |
-| Prompt composition | `prompts/loader.py` | String building |
+The worker pool is therefore an upper bound, not permission to send three
+requests continuously. Tokens, backoff, slow browser tiers, sticky-tier state,
+and circuit breakers may reduce effective concurrency.
 
-## Thread Pool Sizing
+### Other bounded pools
 
-### Parallel Scraper (`data/parallel_scraper.py`)
+The codebase uses separate limits for separate resources:
 
-```python
-max_workers = min(10, len(urls))  # Cap at 10 concurrent requests
-```
+| Capability | Live pattern | Reason |
+|------------|--------------|--------|
+| Post-pilot site pages | 3 worker threads | Conservative same-host collection |
+| Raw scrape persistence | 1 writer thread | Keep disk writes out of the page path |
+| Section writing | Up to 4 worker threads | Independent model-writing calls |
+| Gap-research queries | 3 worker threads | Bounded external search/model work |
+| Strategy platforms | Up to 3 worker threads | Independent platform artifacts |
+| URL existence verification | Configurable, default 10 threads | Conditional guessed-link verification fanout |
+| Deep Research chapters | Async semaphore, default 2 | Provider quota and long task pressure |
+| Browser hard-timeout wrapper | 1 worker in the specific Drission path | Isolate one blocking browser call |
 
-**Rationale:**
-- Most websites rate-limit by IP, so more than 10 concurrent requests rarely helps
-- 10 workers balance throughput against server-side rate limiting
-- Dynamic sizing based on URL count avoids over-provisioning
+These limits are local to their capability. They must not be copied into
+another path without a production-shaped load and block-rate measurement.
 
-### Link Verification (`data/scraping/discovery.py`)
+Conditional guessed-link verification currently receives no shared limiter
+from the live discovery callers, so it falls back to a no-op limiter. That
+10-worker same-host fanout is a documented hardening gap, not a concurrency
+budget to emulate. It should reuse the corpus limiter or an explicit
+verification budget before wider crawl concurrency is considered.
 
-```python
-max_workers = 10  # Fixed pool for HEAD requests
-```
+The browser timeout wrapper deserves a specific warning: timing out a future
+does not terminate a browser call already running in its thread. It bounds how
+long the caller waits, not how long the underlying thread can exist.
 
-**Rationale:**
-- HEAD requests are lightweight and fast
-- 10 workers provide good parallelism without overwhelming targets
-- Fixed size simplifies resource management
+### Async provider and research work
 
-### Browser Automation (`data/scraping/browsers.py`)
+Async paths use semaphores and `asyncio.gather()` for independent operations.
+Some are natively asynchronous, such as citation resolution. Others wrap or
+call synchronous provider SDK methods and may still occupy the event loop or a
+thread briefly. An `async def` declaration alone is not proof that the work is
+nonblocking.
 
-```python
-max_workers = 1  # Single worker with hard timeout
-```
+`asyncio.gather()` is appropriate only when:
 
-**Rationale:**
-- Browser instances are resource-heavy (memory, CPU)
-- Single worker prevents resource exhaustion
-- Hard timeout (via ThreadPoolExecutor) prevents hangs
+- tasks do not mutate the same unguarded state;
+- each task has its own timeout and retry policy;
+- provider and host quotas remain bounded;
+- exceptions are handled explicitly; and
+- downstream stages wait for every required result or record an intentional
+  partial outcome.
 
-### Research Executor (`ai/research_executor.py`)
+Pipeline overlap may start external research after the homepage and initial
+context exist, but it must not let final synthesis consume an uncommitted
+partial corpus as if collection had completed.
 
-```python
-max_concurrent = 3  # Default for parallel Deep Research
-```
+## Async and sync boundaries
 
-**Rationale:**
-- Gemini API has rate limits per minute
-- 3 concurrent requests balance throughput against rate limits
-- Configurable per-instance for different use cases
+Use the existing `primr.utils.async_utils` seam.
 
-## Shared State and Synchronization
+### Synchronous caller, async implementation
 
-### Global Singletons
-
-| Singleton | Module | Protection |
-|-----------|--------|------------|
-| `_executor` | `ai/research_executor.py` | `threading.Lock()` |
-| `_master_architect` | `ai/master_architect.py` | `threading.Lock()` |
-| `_SCRAPE_CACHE` | `data/scrape.py` | Thread-safe dict operations |
-| `_correlation_id` | `utils/telemetry.py` | `contextvars.ContextVar` |
-
-### Thread-Safe Patterns Used
-
-1. **Lock-protected singletons:**
-```python
-_executor_lock = threading.Lock()
-
-def get_research_executor(...):
-    global _executor
-    with _executor_lock:
-        if _executor is None:
-            _executor = ResearchNodeExecutor(...)
-        return _executor
-```
-
-2. **Context variables for async state:**
-```python
-_async_correlation_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "async_correlation_id", default=None
-)
-```
-
-3. **Immutable data structures:**
-- Configuration objects are frozen dataclasses
-- Prompt configs are loaded once and not modified
-
-### Mutable Shared State
-
-| State | Location | Access Pattern |
-|-------|----------|----------------|
-| Scrape cache | `data/scrape.py` | Read-heavy, occasional writes |
-| Circuit breaker state | `utils/circuit_breaker.py` | RLock-guarded (per-key state); listeners notified outside the lock |
-| Job store | `mcp_server/job_store.py` | Single-writer, journal-backed |
-| Retry history | `utils/retry.py` | Per-manager instance |
-
-## Async/Sync Boundaries
-
-### Pattern 1: Sync Caller, Async Implementation
-
-Used when sync code needs to call async functions:
+Use `run_sync()`:
 
 ```python
-# In core/vendor_research.py
-def get_vendor_research_sync(vendor: str) -> list[VendorResearchFile]:
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    
-    return loop.run_until_complete(get_or_generate_vendor_research(vendor))
+from primr.utils.async_utils import run_sync
+
+result = run_sync(fetch_async())
 ```
 
-### Pattern 2: Async Caller, Sync Implementation
+`run_sync()` creates the loop when no loop is running and refuses nested-loop
+use. Code already inside an async function should `await` directly.
 
-Used when async code needs to call blocking sync functions:
+Do not add new copies of `get_event_loop().run_until_complete()` or bare
+`asyncio.run()` outside the boundary helper.
+
+### Async caller, bounded blocking implementation
+
+Use `run_async()` for ordinary blocking library calls:
 
 ```python
-# In core/research_orchestrator.py
-async def run_pipeline(self, ...):
-    loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(
-        None,  # Default executor
-        lambda: run_research(company_name, website)
-    )
+from primr.utils.async_utils import run_async
+
+result = await run_async(parse_or_fetch_sync, argument)
 ```
 
-### Pattern 3: Async Caller, Sync Library
+The shared bridge has a bounded four-worker executor. A capability may own a
+smaller explicit pool when it has a different resource budget or ordered
+shutdown requirement.
 
-Used when async code calls sync libraries (like google-genai):
+Existing MCP pipeline work uses `asyncio.to_thread()` for long synchronous
+research entry points. That keeps the event loop responsive, but it does not
+make the work safely cancellable. The job-process boundary below is the planned
+correction.
 
-```python
-# In ai/async_client.py
-async def generate_content(self, ...):
-    loop = asyncio.get_event_loop()
-    response = await loop.run_in_executor(
-        None,
-        lambda: self._client.models.generate_content(...)
-    )
+## Job ownership and cancellation
+
+There are three different cancellation meanings:
+
+| Boundary | What cancellation can guarantee |
+|----------|---------------------------------|
+| Coroutine | Stops future coroutine progress at cancellation points |
+| Running thread | Cannot be forcibly terminated safely by Python |
+| Owned child process or container | Can be asked to stop, then terminated after a bounded grace period |
+
+A terminal `cancelled` job state must not be written merely because a client
+requested cancellation. It is terminal only after Primr observes that the
+worker it owns has exited or after the job is reconciled to a documented remote
+state.
+
+The target long-job pattern is:
+
+```text
+control surface
+    -> retained job-id to process handle
+    -> cooperative stop request
+    -> bounded wait
+    -> terminate, then kill if required
+    -> preserve partial artifacts
+    -> commit terminal status and cancellation method
 ```
 
-## Deadlock Prevention
+Provider-side work may be non-interruptible. Primr must record that separately
+and never imply that stopping a local worker cancelled a remote provider task
+unless the provider confirmed it.
 
-### Identified Risks
+The existing deployment runner is the reference implementation for process
+ownership. Local MCP and A2A execution should reuse its job specification,
+events, heartbeat, and manifest contracts rather than create another runner.
 
-1. **Nested event loops**: Calling `asyncio.run()` from within an async context
-2. **Lock ordering**: Multiple locks acquired in different orders
-3. **Thread pool exhaustion**: All workers blocked waiting for resources
-4. **Sync-in-async blocking**: Blocking calls in async functions
+## Shared state
 
-### Mitigations
+### State that is synchronized
 
-1. **Event loop detection:**
-```python
-try:
-    loop = asyncio.get_running_loop()
-    # Already in async context - use run_in_executor
-except RuntimeError:
-    # Not in async context - safe to use asyncio.run()
-```
+- Per-host rate-limiter tokens, backoff counters, and semaphore creation are
+  protected by a lock; concurrency slots use per-host semaphores.
+- Circuit-breaker state uses guarded per-key state.
+- Request-scoped correlation uses `contextvars`, not a process-wide mutable
+  request identifier.
+- MCP job-store methods serialize journal access with a lock for the supported
+  single-job process model. Mutable job objects and cross-thread status
+  notification still require care.
 
-2. **Single lock per resource:**
-- Each singleton has exactly one lock
-- No nested lock acquisition
+### State that is not a multi-job contract
 
-3. **Timeout on all blocking operations:**
-```python
-with ThreadPoolExecutor(max_workers=1) as executor:
-    future = executor.submit(blocking_operation)
-    try:
-        result = future.result(timeout=90)  # Hard timeout
-    except TimeoutError:
-        # Handle timeout gracefully
-```
+- `ScrapeOrchestrator` maintains mutable per-host state.
+- Adaptive browser execution temporarily changes process environment values.
+- Orchestrator singleton construction and scrape trace appends are not explicit
+  cross-thread synchronization contracts.
+- Some usage and budget state assumes one research job per process.
+- Browser, cache, and provider SDK objects may have thread-affinity or
+  undocumented thread-safety constraints.
 
-4. **Async-first design:**
-- New code uses `async def` by default
-- Sync wrappers only where necessary for backward compatibility
+Ordinary dictionary operations are not a substitute for a compound-state
+locking policy. Do not share one orchestrator or process-global budget across
+concurrent research jobs. Process isolation is the preferred way to keep these
+ownership assumptions explicit.
 
-### Testing for Deadlocks
+## Python 3.14 free-threading
 
-The test suite includes:
-- Thread safety tests (`tests/test_thread_safety.py`)
-- Concurrent access tests for shared state
-- Timeout tests for blocking operations
+Standard Python 3.14 is supported. Free-threaded 3.14t remains an informational
+compatibility and benchmark lane.
 
-## Best Practices for Contributors
+Removing the GIL does not supply cancellation, queue durability, browser
+isolation, or provider parallelism. It can also expose races in mutable state,
+and an extension that is not free-threading-aware may restore the GIL at import.
 
-### DO:
-- Use `async def` for new I/O-bound operations
-- Use `ThreadPoolExecutor` for blocking I/O that can't be made async
-- Use `contextvars` for request-scoped state
-- Add timeouts to all blocking operations
-- Use frozen dataclasses for configuration
+Before any promotion:
 
-### DON'T:
-- Call `asyncio.run()` from within async code
-- Hold locks while performing I/O
-- Share mutable state between threads without synchronization
-- Use global mutable variables without protection
-- Block the event loop with sync I/O
+- run the full suite on every supported platform;
+- record which extensions preserve or restore free-threading;
+- audit process-wide environment mutation, caches, budgets, and host state;
+- compare representative one-job and multi-worker throughput;
+- measure CPU, p95, peak memory, failures, and report outcomes; and
+- adopt only if the complete workload shows material value.
 
-## Monitoring and Debugging
+## Overload and backpressure
 
-### Correlation IDs
+Exceptional behavior under load matters more than maximum worker count:
 
-All operations are tagged with a correlation ID for tracing:
+- Keep queues bounded.
+- Reject or defer work before exhausting browser or model capacity.
+- Propagate deadlines and budget checkpoints.
+- Honor provider `Retry-After` where supported.
+- Treat a healthy local model server that lacks capacity as `busy`, not broken.
+- Return bounded `retry_after_seconds` and `retry_at` guidance instead of
+  sleeping for hours in the worker.
+- Never fall through to paid cloud execution during a hard-zero run.
 
-```python
-from primr.utils.telemetry import get_correlation_id, set_async_correlation_id
+Core Primr does not poll indefinitely or schedule its own later retry. A host or
+external scheduler may submit one later job after rechecking capacity.
 
-# In async code
-async with propagate_correlation_id("request-123"):
-    await some_operation()  # Will have correlation_id="request-123"
-```
+## Observability
 
-### Thread Pool Metrics
+Implemented signals include correlation and request identifiers, run-state
+events, scrape trace records, provider usage and cost metadata where available,
+job heartbeats, and control-plane audit projections.
 
-The telemetry system records:
-- Active thread count per pool
-- Queue depth for pending tasks
-- Task completion times
+The following are required before concurrency or service-language decisions,
+but should not be described as fully wired today:
 
-### Circuit Breaker State
+- event-loop lag;
+- active and queued work per pool;
+- queue depth and admission latency;
+- per-phase p50, p95, and p99 duration;
+- cancellation request-to-worker-exit latency;
+- orphaned worker count;
+- peak resident memory; and
+- block, 429, fallback, and recovery rates by concurrency profile.
 
-Monitor circuit breaker state for service health:
+Telemetry remains body-free by default. Do not record page bodies, prompts,
+reports, credentials, raw endpoint URLs, or installed local model names merely
+to tune concurrency.
 
-```python
-from primr.utils.circuit_breaker import CircuitBreaker
+## Contributor checklist
 
-breaker = CircuitBreaker()
-stats = breaker.get_all_stats()
-# Returns dict of host -> CircuitStats
-```
+Before adding or changing concurrency:
 
-## Version History
+1. Identify the constrained resource: target host, browser, provider quota,
+   local model, CPU, memory, disk, or control-plane dependency.
+2. Record the current production-shaped baseline.
+3. Reuse the existing async, rate-limit, job, and logging seams.
+4. Define queue and pool bounds, timeout, retry, cancellation, and shutdown.
+5. Prove shared-state ownership.
+6. Add deterministic failure and timeout tests.
+7. Measure p95, failures, block rate, memory, and end-to-end time.
+8. Update this document if the live policy changed.
 
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0 | Feb 2026 | Initial documentation |
+## Explicitly not
+
+- No unbounded `gather()`, pool, or queue.
+- No new event-loop helper.
+- No assumption that a timeout killed a thread.
+- No global worker-count constant reused across unrelated capabilities.
+- No concurrent research jobs sharing one in-process budget or scrape
+  orchestrator.
+- No Go rewrite to obtain process isolation already available through the
+  runner protocol.
+- No free-threaded default based only on a CPU microbenchmark.
+
+## Version history
+
+| Version | Changes |
+|---------|---------|
+| 2.0 | Reconciled the document with the live pilot plus three-worker corpus path, the shared async seam, truthful cancellation, process isolation, and measured runtime policy |
+| 1.0 | Initial documentation |
