@@ -114,3 +114,67 @@ def test_load_primr_env_preserves_process_env(tmp_path, monkeypatch):
     load_primr_env()
 
     assert os.environ["XAI_API_KEY"] == "xai-shell-key-12345"
+
+
+def test_supervised_worker_env_never_restores_controller_secrets(tmp_path, monkeypatch):
+    config_dir = tmp_path / "config"
+    project_dir = tmp_path / "project"
+    config_dir.mkdir()
+    project_dir.mkdir()
+    (config_dir / ".env").write_text(
+        "MCP_JWT_SECRET=user-secret\n"
+        "XAI_API_KEY=xai-user-key-12345\n"
+        "AWS_SECRET_ACCESS_KEY=unrelated-cloud-secret\n",
+        encoding="utf-8",
+    )
+    (project_dir / ".env").write_text(
+        "PRIMR_MCP_APPROVAL_TOKEN_SECRET=project-secret\n"
+        "PRIMR_CONTROL_PLANE_PRIVATE=project-secret\n"
+        "PRIMR_WORKER_JOB_ID=forged-job\n"
+        "PRIMR_WORKER_JOB_OBJECT=forged-object\n"
+        "GITHUB_TOKEN=unrelated-ci-secret\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("PRIMR_CONFIG_DIR", str(config_dir))
+    monkeypatch.setenv("PRIMR_SUPERVISED_WORKER", "1")
+    monkeypatch.setattr(env_mod, "_SUPERVISED_ENV_LOADING", True)
+    monkeypatch.delenv("MCP_JWT_SECRET", raising=False)
+    monkeypatch.delenv("PRIMR_MCP_APPROVAL_TOKEN_SECRET", raising=False)
+    monkeypatch.delenv("PRIMR_CONTROL_PLANE_PRIVATE", raising=False)
+    monkeypatch.delenv("PRIMR_WORKER_JOB_ID", raising=False)
+    monkeypatch.delenv("PRIMR_WORKER_JOB_OBJECT", raising=False)
+    monkeypatch.delenv("XAI_API_KEY", raising=False)
+    monkeypatch.delenv("AWS_SECRET_ACCESS_KEY", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.chdir(project_dir)
+
+    load_primr_env()
+
+    assert "MCP_JWT_SECRET" not in os.environ
+    assert "PRIMR_MCP_APPROVAL_TOKEN_SECRET" not in os.environ
+    assert "PRIMR_CONTROL_PLANE_PRIVATE" not in os.environ
+    assert "PRIMR_WORKER_JOB_ID" not in os.environ
+    assert "PRIMR_WORKER_JOB_OBJECT" not in os.environ
+    assert "AWS_SECRET_ACCESS_KEY" not in os.environ
+    assert "GITHUB_TOKEN" not in os.environ
+    assert os.environ["XAI_API_KEY"] == "xai-user-key-12345"
+
+
+def test_supervised_worker_env_rejects_secret_interpolation(tmp_path, monkeypatch):
+    """A blocked assignment cannot be expanded into an allowed provider key."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / ".env").write_text(
+        "MCP_JWT_SECRET=controller-secret\nXAI_API_KEY=${MCP_JWT_SECRET}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("PRIMR_CONFIG_DIR", str(config_dir))
+    monkeypatch.setattr(env_mod, "_SUPERVISED_ENV_LOADING", True)
+    monkeypatch.delenv("MCP_JWT_SECRET", raising=False)
+    monkeypatch.delenv("XAI_API_KEY", raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    load_primr_env()
+
+    assert "MCP_JWT_SECRET" not in os.environ
+    assert "XAI_API_KEY" not in os.environ

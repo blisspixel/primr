@@ -240,7 +240,7 @@ class MCPVersionRegistry:
             ("run_qa", "Run quality assessment on a report"),
             ("doctor", "Check system health and configuration"),
             ("clear_jobs", "Clear stale pending jobs"),
-            ("cancel_job", "Attempt best-effort cancellation of an active job"),
+            ("cancel_job", "Cancel an active job after supervised worker exit"),
         ]
 
         for tool_name, description in tools:

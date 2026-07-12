@@ -477,6 +477,14 @@ Do next:
   runtime-budget flag, and compact usage-summary readback exposes that metadata
   including non-interruptible required Deep Research tasks without returning
   company URLs, approval tokens, manifest bodies, or artifact lists.
+- Shipped truthful local cancellation: MCP and A2A share one parent-owned
+  worker supervisor, strict JSONL lifecycle protocol, ready handshake,
+  cleanup-confirmed process-tree escalation, immutable terminal state,
+  lease-time journal reload before restart reconciliation, raw non-interpolated
+  worker environment loading, exact A2A task ownership, and worker-exit
+  manifests for supervised failure or cancellation. Spawn and restart failures
+  remain journal-only. A `cancelled` response now means the local worker exited;
+  remote provider state remains explicit and may be `unknown`.
 - MCP `2026-07-28` release candidate watch: after the final spec ships on
   July 28, 2026, audit Primr's HTTP MCP server against the stateless transport
   model, server discovery, operation routing headers, cache hints, explicit
@@ -500,7 +508,7 @@ Done when:
   source-summary compact read parity, stage-scorecard compact eval-read
   parity, all seven job-scoped compact read parity slices, and A2A research
   approval/budget parity, A2A report-read parity, and compact non-fast runtime
-  budget visibility are shipped.
+  budget visibility, plus truthful local worker cancellation, are shipped.
 
 ### 4. Research memory layer 1
 

@@ -199,6 +199,19 @@ async def test_resource_scope_denial_is_audited_without_raw_client_id(server):
 
 
 @pytest.mark.asyncio
+async def test_http_subject_named_stdio_gets_no_local_audit_access(server):
+    server.transport = "streamable-http"
+    server._auth_context = _context(["read"], client_id="stdio")
+
+    data = await _read_resource(server, "primr://agent/audit/recent")
+
+    assert data["error"] == "insufficient_scope"
+    event = _events(server)[0]
+    assert event["actor"] is None
+    assert event["client_id_hash"].startswith("sha256:")
+
+
+@pytest.mark.asyncio
 async def test_recent_audit_resource_is_local_or_admin_only(server):
     await _call(server, "estimate_run", {"company_url": "https://example.com"})
     await _call(server, "doctor", {})

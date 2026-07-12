@@ -24,9 +24,9 @@ def parse_bool(value: Any, *, default: bool = False) -> bool:
     return bool(value)
 
 
-def include_artifacts_requested(arguments: dict[str, Any], *, client_id: str) -> bool:
+def include_artifacts_requested(arguments: dict[str, Any], *, local_stdio: bool) -> bool:
     """Return whether `check_jobs` should include inline artifact bodies."""
-    return parse_bool(arguments.get("include_artifacts"), default=client_id == "stdio")
+    return parse_bool(arguments.get("include_artifacts"), default=local_stdio)
 
 
 def classify_output_artifact(path: Path) -> str:

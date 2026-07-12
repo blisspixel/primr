@@ -30,6 +30,10 @@ logger = logging.getLogger(__name__)
 # Minimum secret key length for security
 MIN_SECRET_KEY_LENGTH = 32
 
+# These values identify unauthenticated or local-only transport principals.
+# A remote JWT subject must never be able to collide with one of them.
+RESERVED_CLIENT_IDS = frozenset({"stdio", "anonymous", "a2a", "unknown"})
+
 # Maximum number of entries in the token cache
 MAX_CACHE_SIZE = 10000
 
@@ -323,7 +327,7 @@ class PrimrTokenVerifier:
                 return None
 
             # Extract claims
-            client_id = payload.get("sub", "unknown")
+            client_id = payload["sub"]
             role = payload.get("role", "user")
             exp = payload.get("exp")
 
@@ -453,6 +457,19 @@ class PrimrTokenVerifier:
         Returns:
             Error message if validation fails, None if valid
         """
+        # The subject becomes the durable job owner. Require an unambiguous,
+        # printable remote identity and reject local transport sentinels.
+        subject = payload.get("sub")
+        if not isinstance(subject, str):
+            return "Invalid subject claim type"
+        stripped_subject = subject.strip()
+        if not stripped_subject or stripped_subject != subject:
+            return "Invalid subject claim"
+        if any(ord(character) < 32 or ord(character) == 127 for character in subject):
+            return "Invalid subject claim"
+        if subject.casefold() in RESERVED_CLIENT_IDS:
+            return "Reserved subject claim"
+
         # Check expiration
         exp = payload.get("exp")
         if exp:
@@ -584,16 +601,14 @@ class AuthContext:
         Requirements: 18.9
         - Admin can cancel any job
         - Owner can cancel their own job
-        - In stdio mode (anonymous), always allowed
         - Legacy jobs with no recorded owner are NOT cancellable by HTTP
           callers — same fail-closed rule as ``tools._handle_cancel_job``
           (otherwise an HTTP client could cancel any pre-owner-tracking
           job by id).
         """
+        if not self.is_authenticated:
+            return False
         if self.is_admin:
-            return True
-        if self.client_id == "anonymous":
-            # Stdio mode - always allowed
             return True
         if job_owner_id is None:
             # Job has no recorded owner — fail closed for HTTP callers.

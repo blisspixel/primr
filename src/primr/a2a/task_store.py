@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING
 from a2a.server.tasks import TaskStore
 from a2a.types import Artifact, Message, Part, Role, Task, TaskState, TaskStatus, TextPart
 
+from primr.a2a.call_context import context_client_id
+
 if TYPE_CHECKING:
     from a2a.server.context import ServerCallContext
 
@@ -136,13 +138,14 @@ class PrimrTaskStore(TaskStore):
 
     async def get(self, task_id: str, context: ServerCallContext | None = None) -> Task | None:
         """Get a task by ID, translating from Primr job state."""
-        del context
         mapping = self.get_mapping(task_id)
         if not mapping:
             return None
 
         job = self._job_store.get(mapping.job_id)
         if not job:
+            return None
+        if context_client_id(context) != job.owner_client_id:
             return None
 
         return _job_to_task(job, task_id, context_id=task_id)

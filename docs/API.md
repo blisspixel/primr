@@ -1067,7 +1067,12 @@ asyncio.run(main())
 
 ### Tools
 
-The MCP server exposes 10 tools for research operations:
+Without optional A2A support, the MCP server exposes 16 tools: 11 core
+research, lifecycle, and usage tools; three agentic tools; and two skill-pack
+tools. Installing the A2A extra adds `delegate_to_agent` as a seventeenth tool.
+This section documents the core research and lifecycle tools. Agentic tools are
+covered under [MCP Agentic Tools](#mcp-agentic-tools), and the skill-pack tools
+are covered in the [Skill Pack Guide](SKILL_PACK.md#mcp-reference).
 
 #### estimate_run
 
@@ -1092,25 +1097,48 @@ Get cost and time estimates before running research. For stricter agent governan
 |------|------|----------|-------------|
 | `company_url` | string | Yes | Company website URL |
 | `mode` | string | No | Research mode: `full` (default), `premium`, `scrape`, `deep` |
-| `platforms` | array of strings | No | Platform(s) for AI strategy. Each adds ~3-6 min + ~$0.10-0.15. Values: `azure`, `aws`, `gcp`, `agnostic`, `private`. Default: `["agnostic"]` |
-| `strategy_type` | string | No | Strategy type: `ai` (default), `customer_experience`, `modern_security_compliance`, `data_fabric_strategy` |
+| `platforms` | array of strings | No | Exactly one platform for the integrated AI strategy. Values: `azure`, `aws`, `gcp`, `agnostic`, `private`. Default: `["agnostic"]`. Generate additional platform documents after the report with `estimate_strategy` and `generate_strategy`. |
+| `strategy_type` | string | No | Integrated strategy type. The supported value is `ai` (default). Generate other strategy modules after the report with `estimate_strategy` and `generate_strategy`. |
 | `no_ai_strategy` | boolean | No | Skip AI strategy generation entirely (report only). Default: `false` |
 | `verify` | boolean | No | Run post-QA claim verification (~$0.01, 3-5 min). Default: `false` |
-| `max_estimated_cost_usd` | number | No | Hard ceiling for estimated run cost |
+| `max_estimated_cost_usd` | number | No | Reserved execution-cap field. `estimate_run` does not launch work; pass the enforced ceiling to `research_company`. |
 
 Response:
 ```json
 {
-  "estimated_cost_usd": 0.75,
-  "estimated_time_minutes": 30,
-  "estimated_time_range": "35-50 min",
+  "estimated_cost_usd": 0.89,
+  "estimated_time_minutes": 53,
+  "estimated_time_range": "34-53 min + AI strategy (Grok)",
   "planned_pages": 20,
   "mode": "full",
+  "budget_enforcement": {
+    "preflight": "refuses to start when the estimated cost exceeds the ceiling",
+    "runtime_checkpoints": true,
+    "runtime": "runtime checkpoints are active for optional fast-mode spend; core workbook and section-writing calls are not skipped after they start",
+    "checkpointed_stages": [
+      "research deepening",
+      "cross-validation enrichment",
+      "contradiction resolution",
+      "strategy generation"
+    ],
+    "non_interruptible_required_tasks": []
+  },
   "ai_strategy": true,
   "platforms": ["azure"],
-  "strategy_type": "ai"
+  "strategy_type": "ai",
+  "approval_token": "<signed token>",
+  "approval_token_id": "<token id>",
+  "approval_expires_at": "<ISO-8601 expiry>"
 }
 ```
+
+The estimate always returns a short-lived approval token bound to the quoted
+execution shape. When MCP cost-cap enforcement is active, pass that token and
+an execution ceiling at least as high as `estimated_cost_usd` to
+`research_company`. Map the estimate's one `platforms` item to the execution
+`platform` field. Estimates with zero or multiple platforms, the multi-target
+`ms` alias, or a non-AI `strategy_type` are rejected before an approval token
+is issued.
 
 #### estimate_strategy
 
@@ -1139,7 +1167,12 @@ Response:
 
 #### research_company
 
-Initiate company research (async - returns job_id immediately). Includes AI strategy generation when `platform` is specified - no separate `generate_strategy` call needed. This should only be called after `estimate_run` and explicit user approval.
+Initiate company research asynchronously. The call returns a job id after the
+supervised worker joins its ownership boundary and emits `ready`; the pipeline
+then continues in that child process. Full and premium modes include one
+agnostic AI Strategy by default. Set `platform` to bias it or
+`no_ai_strategy=true` to request the report only. Call this only after
+`estimate_run` and explicit user approval.
 
 ```json
 {
@@ -1150,7 +1183,8 @@ Initiate company research (async - returns job_id immediately). Includes AI stra
     "mode": "full",
     "platform": "azure",
     "skip_qa": false,
-    "max_estimated_cost_usd": 0.67
+    "max_estimated_cost_usd": 0.89,
+    "approval_token": "<signed token from estimate_run>"
   }
 }
 ```
@@ -1162,11 +1196,13 @@ Initiate company research (async - returns job_id immediately). Includes AI stra
 | `company_name` | string | Yes | Display name for the company |
 | `company_url` | string | Yes | Company website URL (must be valid HTTP/HTTPS) |
 | `mode` | string | No | Research mode: `full` (default), `premium`, `scrape`, `deep` |
-| `platform` | string | No | Platform for AI strategy. When set, strategy is generated as part of this job. Values: `azure`, `aws`, `gcp`, `agnostic`, `private`. |
+| `platform` | string | No | Platform for AI strategy. Values: `azure`, `aws`, `gcp`, `agnostic`, `private`. Default for full and premium: `agnostic`. |
+| `no_ai_strategy` | boolean | No | Skip AI Strategy generation and return the base report only. Default: `false` |
 | `skip_qa` | boolean | No | Skip quality assessment. Default: `false` |
 | `verify` | boolean | No | Run post-QA claim verification. Default: `false` |
 | `destination` | string | No | Optional destination directory for output files. Artifacts are copied here in addition to the default output/ directory. |
-| `max_estimated_cost_usd` | number | No | Hard ceiling for estimated run cost |
+| `max_estimated_cost_usd` | number or numeric string | Conditional | Hard ceiling for estimated run cost and runtime budget. Required when MCP cost-cap enforcement is active. Use a value at least as high as the approved estimate. |
+| `approval_token` | string | Conditional | Short-lived token returned by the matching `estimate_run`. Required when MCP cost-cap enforcement is active. |
 
 Response:
 ```json
@@ -1179,7 +1215,13 @@ Response:
 
 #### generate_strategy
 
-Generate strategy document from an existing report after the fact. Only needed when adding a strategy to a previously completed research run. For new research, use `research_company` with `platform` instead - strategy is included automatically.
+Generate a strategy document from an existing report after the fact. This is
+only needed when adding or regenerating a strategy for a completed research
+run. New full and premium `research_company` calls include an agnostic strategy
+by default; set `platform` there only when the strategy should target a
+specific platform. Use this standalone flow for additional platform documents
+and for non-AI strategy modules; integrated research accepts one AI strategy
+target per run.
 
 ```json
 {
@@ -1353,7 +1395,11 @@ Clear stale pending jobs.
 
 #### cancel_job
 
-Cancel an active research job.
+Cancel an active local research job. Primr first asks the supervised worker to
+stop, then uses bounded process-tree termination if necessary. A successful
+`cancelled` response is returned only after worker exit is observed. Repeating
+the request is idempotent. Stopping the local worker does not prove that a
+remote provider task stopped when that provider has no cancellation API.
 
 ```json
 {
@@ -1361,6 +1407,55 @@ Cancel an active research job.
   "arguments": {
     "job_id": "job_abc123"
   }
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "job_id": "job_abc123",
+  "status": "cancelled",
+  "worker_exit_confirmed": true,
+  "termination_method": "cooperative",
+  "message": "Job cancelled. Any partial artifacts have been preserved."
+}
+```
+
+If worker exit cannot be confirmed, Primr returns
+`error_type: "cancellation_failed"` and does not mark the job cancelled.
+
+#### wait_for_status_change
+
+Wait for an owned job's high-level status to change, or until a bounded timeout
+expires. This avoids tight polling. `timeout_seconds` defaults to 60 and is
+capped at 300.
+
+```json
+{
+  "name": "wait_for_status_change",
+  "arguments": {
+    "job_id": "job_abc123",
+    "timeout_seconds": 60
+  }
+}
+```
+
+The response includes `changed`, the previous and current status, current
+stage, and stage progress. A terminal job returns immediately. Missing and
+unowned jobs both return `job_not_found`.
+
+#### show_usage
+
+Read cloud control-plane spending and remaining budget for the current caller.
+The tool takes no arguments. Local mode returns a message explaining that local
+usage is not tracked by this cloud budget endpoint.
+
+```json
+{
+  "name": "show_usage",
+  "arguments": {}
 }
 ```
 
@@ -1520,7 +1615,10 @@ agent only needs metadata.
 The A2A server shares the MCP server's `SingleJobStore`, rate limiter, auth
 context, and security middleware. The single-job model is enforced across both
 protocols. Authenticated A2A jobs are owned by the token `client_id`; local
-unauthenticated loopback jobs keep the legacy `a2a` owner id.
+unauthenticated loopback jobs keep the legacy `a2a` owner id. The internal
+loopback marker cannot be selected by a JWT subject. A2A `tasks/get` requires
+the exact request owner, and an unowned task id returns the same not-found
+response as an unknown task id.
 Skill invocations and task cancellation write privacy-preserving audit events
 to the shared audit JSONL. Events include transport, skill name, outcome,
 hashed message/result payloads, hashed caller id, granted scopes, duration,
@@ -2597,11 +2695,15 @@ terminal = store.get_latest_terminal()
 ### Graceful Shutdown
 
 The server handles shutdown gracefully:
-1. Waits up to 5 seconds for current work to complete
-2. Force-cancels remaining tasks after timeout
-3. Marks in-progress jobs as failed with `error_type="server_shutdown"`
-4. Flushes journal to disk
-5. Total shutdown timeout: 10 seconds
+
+1. Requests cooperative stop for each supervised worker, then escalates through
+   bounded process-tree termination and waits for worker exit.
+2. Waits for remaining controller tasks within the shutdown budget, then
+   cancels tasks that have not settled.
+3. Marks any residual active job without an owned worker as failed with
+   `error_type="server_shutdown"` and persists the journal.
+4. Uses a 5-second worker-shutdown budget inside a 10-second total shutdown
+   budget.
 
 ### Error Codes
 
@@ -2617,7 +2719,6 @@ Standard error codes returned by tools:
 | `JOB_NOT_FOUND` | Job ID not found |
 | `JOB_IN_PROGRESS` | Another job already running |
 | `RATE_LIMIT_EXCEEDED` | Rate limit exceeded |
-| `CANCEL_NOT_AUTHORIZED` | Not authorized to cancel job |
 
 ## Agentic Architecture (v1.7.0)
 

@@ -21,6 +21,7 @@ from urllib.parse import parse_qs, urlparse
 
 from mcp.server.lowlevel.helper_types import ReadResourceContents
 
+from primr.mcp_server.resource_auth import is_local_stdio_context
 from primr.mcp_server.tool_authz import ADMIN_SCOPE
 
 if TYPE_CHECKING:
@@ -100,8 +101,12 @@ class MCPAuditLog:
                 tool_name=tool_name,
                 status=_classify_status(result_payload, exception),
                 duration_ms=duration_ms,
-                actor="stdio" if client_id == "stdio" else None,
-                client_id_hash=None if client_id == "stdio" else _hash_text(client_id),
+                actor="stdio" if is_local_stdio_context(transport, auth_context) else None,
+                client_id_hash=(
+                    None
+                    if is_local_stdio_context(transport, auth_context)
+                    else _hash_text(client_id)
+                ),
                 authenticated=bool(getattr(auth_context, "is_authenticated", False)),
                 auth_scopes=sorted(str(s) for s in getattr(auth_context, "scopes", []) or []),
                 args_hash=_hash_json(arguments),
@@ -144,8 +149,12 @@ class MCPAuditLog:
                 tool_name="resources/read",
                 status=_classify_resource_status(result_payload, exception),
                 duration_ms=duration_ms,
-                actor="stdio" if client_id == "stdio" else None,
-                client_id_hash=None if client_id == "stdio" else _hash_text(client_id),
+                actor="stdio" if is_local_stdio_context(transport, auth_context) else None,
+                client_id_hash=(
+                    None
+                    if is_local_stdio_context(transport, auth_context)
+                    else _hash_text(client_id)
+                ),
                 authenticated=bool(getattr(auth_context, "is_authenticated", False)),
                 auth_scopes=sorted(str(s) for s in getattr(auth_context, "scopes", []) or []),
                 args_hash=_hash_json({"uri": uri}),
@@ -262,7 +271,7 @@ def audit_tool_calls(
         async def wrapped(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             server = mcp_server_factory()
             ctx = getattr(server, "_auth_context", None)
-            client_id = _client_id(ctx)
+            client_id = _client_id(ctx, server.transport)
             started_at = time.perf_counter()
             try:
                 result = await handler(name, arguments)
@@ -310,7 +319,7 @@ def audit_resource_reads(
             server = mcp_server_factory()
             uri_text = str(uri)
             ctx = getattr(server, "_auth_context", None)
-            client_id = _client_id(ctx)
+            client_id = _client_id(ctx, server.transport)
             started_at = time.perf_counter()
             try:
                 result = await handler(uri_text)
@@ -399,12 +408,14 @@ def _resolve_audit_path(
     return MCPAuditLog.DEFAULT_PATH
 
 
-def _client_id(auth_context: Any) -> str:
+def _client_id(auth_context: Any, transport: str) -> str:
+    if is_local_stdio_context(transport, auth_context):
+        return "stdio"
     if auth_context is not None:
         cid = getattr(auth_context, "client_id", None)
         if isinstance(cid, str) and cid:
             return cid
-    return "stdio"
+    return "anonymous"
 
 
 def _hash_text(value: str) -> str:

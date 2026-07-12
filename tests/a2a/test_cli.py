@@ -59,6 +59,16 @@ class TestA2ACliModuleImport:
 
         assert callable(main)
 
+    def test_cli_uses_shared_sync_async_boundary(self):
+        """Standalone A2A uses Primr's guarded sync-to-async seam."""
+        import inspect
+
+        from primr.a2a import cli
+
+        source = inspect.getsource(cli)
+        assert "run_sync(a2a_server.run())" in source
+        assert "asyncio.run" not in source
+
 
 def _make_parser():
     """Create the argument parser (mirrors cli.py structure)."""

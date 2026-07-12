@@ -492,7 +492,7 @@ def _string_list(value: Any) -> list[str]:
 
 def _owned_job(mcp_server: PrimrMCPServer, job_id: str, client_id: str) -> Any | None:
     job = mcp_server.job_store.get_by_id(job_id)
-    if job is None or not caller_owns_job_resource(job, client_id):
+    if job is None or not caller_owns_job_resource(mcp_server, job, client_id):
         return None
     return job
 

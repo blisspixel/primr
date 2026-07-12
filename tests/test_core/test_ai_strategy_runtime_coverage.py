@@ -290,7 +290,8 @@ def test_deep_research_docx_failure_retains_pending_job(tmp_path: Path):
             output_dir=tmp_path / "out",
         )
 
-    assert result is not None and result.endswith(".md")
+    assert result is not None
+    assert result.endswith(".md")
     acknowledge_mock.assert_not_called()
 
 

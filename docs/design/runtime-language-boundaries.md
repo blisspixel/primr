@@ -68,7 +68,7 @@ text, aggressive and conservative text, structured blocks, boilerplate, and
 link discovery. Before considering Rust, the Python implementation should
 provide one canonical parse-and-analyze facade and reuse its result.
 
-## Immediate architecture work
+## Architecture work
 
 ### 1. Truthful job cancellation through process isolation
 
@@ -77,22 +77,28 @@ work already running in `asyncio.to_thread()` or a thread-pool worker. Marking a
 job cancelled while its scrape or provider call continues is not acceptable,
 especially when the call can spend money.
 
-The preferred execution shape is:
+The local MCP/A2A execution shape is now:
 
 ```text
-CLI, MCP, A2A, or hosted control plane
-    -> versioned job specification
-    -> one Python child process or one-job container
+local MCP or A2A control surface
+    -> versioned start command
+    -> one supervised Python child process
     -> progress events and checkpoints
-    -> manifest committed after owned artifacts are durable
+    -> terminal state committed only after observed worker exit
 ```
 
-The controller retains the process or container handle. Cancellation first
-requests graceful termination, then uses a bounded forced termination if the
-worker does not exit. The worker remains Python because the research ecosystem
-and business logic remain there. The existing deployment runner, job
-specification, event, and manifest contracts should be reused rather than
-inventing a second protocol.
+The controller retains the process handle. Cancellation first requests
+graceful termination, then uses bounded process-tree termination if the worker
+does not exit. A strict versioned JSONL protocol carries start, cancel, ready,
+progress, and provisional terminal messages. Canonical terminal state is
+committed only after exit. Windows Job Objects and POSIX process groups keep
+descendants inside the same ownership boundary, and interrupted journals fail
+closed on restart.
+
+The worker remains Python because the research ecosystem and business logic
+remain there. Hosted containers and the older deployment runner should adopt
+the packaged `mcp_server.worker_protocol` contract so Primr converges on one
+lifecycle vocabulary. The CLI continues to own its foreground process directly.
 
 Core Primr remains single-job and does not become a scheduler or daemon.
 Consumers may queue or resubmit jobs outside the worker boundary.

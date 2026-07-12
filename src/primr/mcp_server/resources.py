@@ -63,6 +63,7 @@ from primr.mcp_server.resource_auth import (
     caller_can_read_audit,
     caller_can_read_report,
     caller_client_id,
+    caller_is_local_stdio,
     caller_owns_job_resource,
 )
 from primr.mcp_server.source_summary import (
@@ -838,9 +839,9 @@ def _read_manifest_latest(mcp_server: "PrimrMCPServer") -> list[ReadResourceCont
     # HTTP clients are restricted to manifests under their own job's
     # output paths; if they have no recent owned job we return 404
     # rather than scanning the whole directory.
-    if client_id != "stdio":
+    if not caller_is_local_stdio(mcp_server):
         owned = mcp_server.job_store.get_latest_terminal()
-        if owned is None or not caller_owns_job_resource(owned, client_id):
+        if owned is None or not caller_owns_job_resource(mcp_server, owned, client_id):
             return _json_contents({"error": "no_manifest", "message": "No manifests available"})
         # Limit the glob to directories that belong to the owned job.
         manifest_files: list[Path] = []

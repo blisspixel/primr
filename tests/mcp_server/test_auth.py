@@ -211,6 +211,28 @@ class TestPrimrTokenVerifier:
         assert "admin" in result.scopes
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "subject",
+        [None, "", " ", 123, [], "stdio", "STDIO", "anonymous", "a2a", "unknown", "bad\nsub"],
+    )
+    async def test_reject_jwt_without_safe_remote_subject(self, verifier, subject):
+        """Remote subjects cannot collide with local transport principals."""
+        token = create_signed_jwt(
+            {
+                "sub": subject,
+                "exp": int(time.time()) + 3600,
+            }
+        )
+
+        assert await verifier.verify_token(token) is None
+
+    @pytest.mark.asyncio
+    async def test_reject_jwt_missing_subject(self, verifier):
+        token = create_signed_jwt({"exp": int(time.time()) + 3600})
+
+        assert await verifier.verify_token(token) is None
+
+    @pytest.mark.asyncio
     async def test_verify_expired_jwt(self, verifier):
         """Expired JWT tokens are rejected."""
         token = create_signed_jwt(
@@ -499,12 +521,12 @@ class TestAuthContext:
         assert ctx.can_cancel_job("user-123") is True
         assert ctx.can_cancel_job("other-user") is False
 
-    def test_can_cancel_job_anonymous(self):
-        """Anonymous (stdio mode) can cancel any job."""
+    def test_can_cancel_job_anonymous_fails_closed(self):
+        """Transport code, not an anonymous auth context, grants local access."""
         ctx = AuthContext()
 
-        assert ctx.can_cancel_job("any-user") is True
-        assert ctx.can_cancel_job(None) is True
+        assert ctx.can_cancel_job("any-user") is False
+        assert ctx.can_cancel_job(None) is False
 
     def test_can_cancel_job_no_owner_http_caller_fails_closed(self):
         """An HTTP caller cannot cancel a job with no recorded owner.
@@ -512,8 +534,8 @@ class TestAuthContext:
         Fail-closed rule (mirrors tools._handle_cancel_job): a pre-owner-
         tracking job whose owner is None is NOT cancellable by an
         authenticated HTTP client, because otherwise any HTTP caller
-        could cancel any legacy job by id. Stdio mode (anonymous) keeps
-        the permissive behavior.
+        could cancel any legacy job by id. Local stdio authorization is
+        enforced separately from AuthContext.
         """
         from mcp.server.auth.provider import AccessToken
 

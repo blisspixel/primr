@@ -19,7 +19,9 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 
 from primr.mcp_server.audit_log import MCPAuditLog
-from primr.mcp_server.job_store import SingleJobStore
+from primr.mcp_server.job_process import LocalJobSupervisor
+from primr.mcp_server.job_process_types import await_task_uninterruptibly
+from primr.mcp_server.job_store import ControllerLease, SingleJobStore
 from primr.mcp_server.logging_config import configure_http_logging, configure_stdio_logging
 from primr.mcp_server.security import PathValidator, RateLimiter, URLValidator
 
@@ -72,6 +74,7 @@ class PrimrMCPServer:
 
         # Initialize components
         self.job_store = SingleJobStore(journal_path=journal_path)
+        self._controller_lease = ControllerLease(self.job_store.journal_path)
         self.audit_log = MCPAuditLog(audit_log_path=audit_log_path, journal_path=journal_path)
         # "working" is primr's own run/scratch root: report_path reuse
         # (e.g. skill packs authored from `working/<run>` evidence) must be
@@ -99,6 +102,62 @@ class PrimrMCPServer:
 
         # Track running background tasks for graceful shutdown
         self._background_tasks: set[asyncio.Task] = set()
+
+        # A shared controller lifecycle may be entered by MCP and standalone
+        # A2A concurrently. The final entrant owns shutdown and lease release.
+        self._controller_lifecycle_lock = asyncio.Lock()
+        self._controller_lifecycle_users = 0
+
+        # Own long research work outside the controller process. The
+        # supervisor is shared by MCP and A2A so both surfaces have identical
+        # cancellation and shutdown semantics.
+        self.job_supervisor = LocalJobSupervisor(self.job_store)
+
+    @contextlib.asynccontextmanager
+    async def controller_lifecycle(self):
+        """Own the journal lease and workers across one or more co-hosted servers."""
+        async with self._controller_lifecycle_lock:
+            if self._controller_lifecycle_users == 0:
+                if getattr(self._controller_lease, "acquired", False) is True:
+                    raise RuntimeError(
+                        "Prior controller shutdown is incomplete; refusing journal reconciliation"
+                    )
+                self._controller_lease.acquire()
+                try:
+                    self.job_store.reload_from_journal()
+                    reconciled_job_id = self.job_store.reconcile_interrupted_job()
+                except BaseException:
+                    self._controller_lease.close()
+                    raise
+                if reconciled_job_id is not None:
+                    logger.warning(
+                        "Reconciled interrupted job %s after server restart",
+                        reconciled_job_id,
+                    )
+            self._controller_lifecycle_users += 1
+
+        try:
+            yield
+        finally:
+            cleanup_task = asyncio.create_task(self._leave_controller_lifecycle())
+            try:
+                await asyncio.shield(cleanup_task)
+            except asyncio.CancelledError:
+                await await_task_uninterruptibly(cleanup_task)
+                raise
+
+    async def _leave_controller_lifecycle(self) -> None:
+        async with self._controller_lifecycle_lock:
+            self._controller_lifecycle_users -= 1
+            if self._controller_lifecycle_users > 0:
+                return
+            workers_reaped = await self._graceful_shutdown()
+            remaining = self.job_supervisor.running_job_ids
+            if not workers_reaped or remaining:
+                raise RuntimeError(
+                    "Controller shutdown could not reap all workers; retaining the journal lease"
+                )
+            self._controller_lease.close()
 
     @property
     def _auth_context(self):
@@ -141,24 +200,37 @@ class PrimrMCPServer:
             # Windows doesn't support SIGTERM the same way
             signal.signal(signal.SIGINT, handle_shutdown)
 
-    async def _graceful_shutdown(self) -> None:
+    async def _graceful_shutdown(self) -> bool:
         """
         Perform graceful shutdown with timeouts.
 
         Requirements: 20.1-20.5
 
         Shutdown sequence:
-        1. Signal shutdown to all components
-        2. Wait up to SHUTDOWN_WORK_COMPLETION_TIMEOUT (5s) for current work
-        3. Force-cancel any remaining tasks
-        4. Mark active job as failed with error_type "server_shutdown"
-        5. Flush journal to disk
-        6. Total timeout: SHUTDOWN_TOTAL_TIMEOUT (10s)
+        1. Refuse new supervised worker starts.
+        2. Request cooperative worker stop, then terminate and reap as needed.
+        3. Wait within the remaining total budget for controller tasks.
+        4. Cancel controller tasks that remain.
+        5. Mark any active job without an owned worker as server_shutdown.
+        6. Keep the total controller shutdown budget at 10 seconds.
         """
         logger.info("Starting graceful shutdown")
         shutdown_start = asyncio.get_running_loop().time()
+        workers_reaped = False
 
-        # Phase 1: Wait for background tasks to complete (max 5s)
+        # Phase 1: stop and reap owned worker processes before cancelling the
+        # controller tasks that monitor them.
+        try:
+            shutdown_result = await self.job_supervisor.shutdown(
+                timeout=SHUTDOWN_WORK_COMPLETION_TIMEOUT
+            )
+            workers_reaped = (
+                shutdown_result is not False and not self.job_supervisor.running_job_ids
+            )
+        except Exception:
+            logger.exception("Error while stopping supervised research workers")
+
+        # Phase 2: Wait for remaining background tasks to complete (max 5s)
         if self._background_tasks:
             logger.info(
                 "Waiting for %d background task(s) to complete...",
@@ -166,9 +238,13 @@ class PrimrMCPServer:
             )
             try:
                 # Give tasks a chance to complete gracefully
+                remaining_budget = max(
+                    0.0,
+                    SHUTDOWN_TOTAL_TIMEOUT - (asyncio.get_running_loop().time() - shutdown_start),
+                )
                 done, pending = await asyncio.wait(
                     self._background_tasks,
-                    timeout=SHUTDOWN_WORK_COMPLETION_TIMEOUT,
+                    timeout=min(SHUTDOWN_WORK_COMPLETION_TIMEOUT, remaining_budget),
                     return_when=asyncio.ALL_COMPLETED,
                 )
 
@@ -191,8 +267,9 @@ class PrimrMCPServer:
             except Exception:
                 logger.exception("Error during task shutdown")
 
-        # Phase 2: Mark active job as failed
-        self.job_store.mark_shutdown()
+        # Phase 3: only reconcile state after every retained process exited.
+        if workers_reaped:
+            self.job_store.mark_shutdown()
 
         # Check total timeout
         elapsed = asyncio.get_running_loop().time() - shutdown_start
@@ -200,6 +277,7 @@ class PrimrMCPServer:
             logger.warning("Shutdown timeout (%ds) exceeded", SHUTDOWN_TOTAL_TIMEOUT)
 
         logger.info("Graceful shutdown complete in %.2fs", elapsed)
+        return workers_reaped
 
     async def run_stdio(self) -> None:
         """
@@ -400,11 +478,12 @@ class PrimrMCPServer:
         # change process-wide policy.
         from primr.mcp_server.cost_caps import set_active_transport
 
-        set_active_transport(self.transport)
-        if self.transport == "stdio":
-            await self.run_stdio()
-        else:
-            await self.run_http()
+        async with self.controller_lifecycle():
+            set_active_transport(self.transport)
+            if self.transport == "stdio":
+                await self.run_stdio()
+            else:
+                await self.run_http()
 
 
 def create_mcp_server(

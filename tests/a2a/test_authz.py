@@ -7,6 +7,7 @@ from primr.a2a.authz import (
     a2a_scope_denied_text,
     authorize_a2a_skill,
 )
+from primr.mcp_server.resource_auth import TRUSTED_LOCAL_A2A_AUTH_CONTEXT
 
 
 def _auth_context(scopes: list[str], *, authenticated: bool = True) -> MagicMock:
@@ -73,10 +74,19 @@ def test_admin_scope_satisfies_research_skill() -> None:
     assert decision.allowed
 
 
-def test_unauthenticated_local_context_remains_permissive() -> None:
-    decision = authorize_a2a_skill("research_company", _auth_context([], authenticated=False))
+def test_server_trusted_local_context_remains_permissive() -> None:
+    decision = authorize_a2a_skill("research_company", TRUSTED_LOCAL_A2A_AUTH_CONTEXT)
     assert decision.allowed
-    assert decision.reason == "stdio_or_unauthenticated_local_context"
+    assert decision.reason == "trusted_local_a2a_context"
+
+
+def test_untrusted_unauthenticated_context_fails_closed() -> None:
+    decision = authorize_a2a_skill("research_company", _auth_context([], authenticated=False))
+    payload = a2a_scope_denied_text("research_company", decision)
+
+    assert not decision.allowed
+    assert decision.reason == "authentication_required"
+    assert "authentication_required" in payload
 
 
 def test_unknown_skill_deferred_to_dispatch() -> None:
