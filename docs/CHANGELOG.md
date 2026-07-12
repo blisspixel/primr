@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- Defined Primr's measured runtime policy: Python-first rather than
+  Python-only, supervised per-job processes for truthful cancellation,
+  optional Rust acceleration behind differential and end-to-end gates, and
+  explicit evidence triggers for Go and Mojo/MAX.
+- Reconciled concurrency guidance with the live homepage and ten-page pilot,
+  bounded three-worker corpus path, per-host limiter, async bridge, shared-state
+  constraints, and the fact that cancelling a coroutine does not terminate a
+  running thread.
+- Clarified that every user-operated OpenAI-compatible model server follows the
+  same hard-zero, busy-capacity, quality, privacy, and retry contract.
+
 ## [1.35.0] - 2026-07-11
 
 ### Added

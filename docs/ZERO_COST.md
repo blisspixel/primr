@@ -228,6 +228,13 @@ If a verified host plan allowance is exhausted, use the same principle: checkpoi
 completed sections, list what remains, and resume only through an official host
 mechanism. Partial, honestly labeled output is preferable to hidden spend.
 
+This state and retry contract applies to every user-operated
+OpenAI-compatible runtime, including MAX Serve, Ollama, llama.cpp, vLLM, LM
+Studio, and LocalAI. Primr does not install, start, reserve, or terminate that
+runtime. Runtime brand does not change the billing, quality, privacy, or
+hard-zero rules, and a compatible endpoint is not automatically a validated
+recipe.
+
 ## Related guides
 
 - [Agent Integration](AGENT_INTEGRATION.md)
