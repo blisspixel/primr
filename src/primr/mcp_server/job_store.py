@@ -70,14 +70,13 @@ class ControllerLease:
         stream = open(self.lock_path, "a+b")  # noqa: SIM115
         try:
             if os.name == "nt":
-                import msvcrt
-
                 stream.seek(0, os.SEEK_END)
                 if stream.tell() == 0:
                     stream.write(b"\0")
                     stream.flush()
                 stream.seek(0)
-                msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+                msvcrt = vars(importlib.import_module("msvcrt"))
+                msvcrt["locking"](stream.fileno(), msvcrt["LK_NBLCK"], 1)
             else:
                 fcntl = vars(importlib.import_module("fcntl"))
                 fcntl["flock"](stream.fileno(), fcntl["LOCK_EX"] | fcntl["LOCK_NB"])
@@ -96,10 +95,9 @@ class ControllerLease:
         self._stream = None
         try:
             if os.name == "nt":
-                import msvcrt
-
                 stream.seek(0)
-                msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+                msvcrt = vars(importlib.import_module("msvcrt"))
+                msvcrt["locking"](stream.fileno(), msvcrt["LK_UNLCK"], 1)
             else:
                 fcntl = vars(importlib.import_module("fcntl"))
                 fcntl["flock"](stream.fileno(), fcntl["LOCK_UN"])

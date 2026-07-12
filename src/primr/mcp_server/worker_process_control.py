@@ -53,7 +53,7 @@ async def signal_process_tree(
     if os.name == "nt":
         if not force:
             try:
-                process.send_signal(signal.CTRL_BREAK_EVENT)
+                process.send_signal(vars(signal)["CTRL_BREAK_EVENT"])
                 return "ctrl_break"
             except (AttributeError, OSError, ProcessLookupError):
                 pass
