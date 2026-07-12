@@ -74,6 +74,17 @@ def _read_citation_version() -> str:
     return match.group("version")
 
 
+def _read_citation_release_date() -> str:
+    citation_path = REPO_ROOT / "CITATION.cff"
+    match = re.search(
+        r'^date-released:\s*"(?P<date>\d{4}-\d{2}-\d{2})"\s*$',
+        citation_path.read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    assert match is not None, "CITATION.cff must declare date-released as YYYY-MM-DD"
+    return match.group("date")
+
+
 def test_package_version_matches_pyproject() -> None:
     assert primr.__version__ == _read_pyproject_version()
 
@@ -93,6 +104,17 @@ def test_roadmap_changelog_contains_current_state_version() -> None:
 
 def test_citation_version_matches_package_version() -> None:
     assert _read_citation_version() == primr.__version__
+
+
+def test_citation_date_matches_current_changelog_release() -> None:
+    changelog = (REPO_ROOT / "docs" / "CHANGELOG.md").read_text(encoding="utf-8")
+    match = re.search(
+        rf"^## \[{re.escape(primr.__version__)}\] - (?P<date>\d{{4}}-\d{{2}}-\d{{2}})$",
+        changelog,
+        re.MULTILINE,
+    )
+    assert match is not None
+    assert _read_citation_release_date() == match.group("date")
 
 
 def test_lockfile_project_version_matches_package_version() -> None:

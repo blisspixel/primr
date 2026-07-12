@@ -522,6 +522,9 @@ class CosmosStore:
         container_name: str,
         connection_string: str | None = None,
         container: Any = None,
+        *,
+        endpoint: str | None = None,
+        credential: Any = None,
     ) -> None:
         """
         Initialize Cosmos DB store.
@@ -531,10 +534,14 @@ class CosmosStore:
             container_name: Container name
             connection_string: Azure Cosmos DB connection string
             container: Optional container client (for testing)
+            endpoint: Cosmos DB account endpoint for managed identity
+            credential: Azure credential used with ``endpoint``
         """
         self.database_name = database_name
         self.container_name = container_name
         self.connection_string = connection_string
+        self.endpoint = endpoint
+        self.credential = credential
         self._container = container
 
     @property
@@ -543,7 +550,12 @@ class CosmosStore:
         if self._container is None:
             from azure.cosmos import CosmosClient
 
-            client = CosmosClient.from_connection_string(self.connection_string)
+            if self.endpoint:
+                client = CosmosClient(self.endpoint, credential=self.credential)
+            elif self.connection_string:
+                client = CosmosClient.from_connection_string(self.connection_string)
+            else:
+                raise ValueError("CosmosStore requires an endpoint or connection string")
             database = client.get_database_client(self.database_name)
             self._container = database.get_container_client(self.container_name)
         return self._container

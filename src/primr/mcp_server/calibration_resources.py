@@ -4,16 +4,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.types import AnyUrl, Resource
 
+from primr.mcp_server.server_context import MCPServerContext
 from primr.qa.calibration_baseline import inspect_calibration_baseline, read_calibration_baseline
-
-if TYPE_CHECKING:
-    from primr.mcp_server.server import PrimrMCPServer
 
 CALIBRATION_BASELINE_INSPECTION_URI = "primr://calibration/baseline/inspection"
 CALIBRATION_BASELINE_INSPECTION_RESOURCE = Resource(
@@ -28,7 +26,7 @@ CALIBRATION_BASELINE_INSPECTION_RESOURCE = Resource(
 
 
 def read_calibration_baseline_inspection_resource(
-    mcp_server: PrimrMCPServer,
+    mcp_server: MCPServerContext,
     uri: str,
     *,
     client_id: str,

@@ -25,7 +25,7 @@ def strategy_uses_deep_research(strategy_name: str, *, lite_strategy: bool) -> b
 
 
 def deep_research_flat_cost(task_count: int) -> float:
-    """Return flat Deep Research cost for ``task_count`` tasks."""
+    """Return the planning cost for ``task_count`` Deep Research tasks."""
 
     return max(0, task_count) * DEEP_RESEARCH_COST.standard_task_cost
 

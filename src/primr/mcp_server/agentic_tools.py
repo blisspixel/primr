@@ -18,15 +18,15 @@ from typing import TYPE_CHECKING, Any
 
 from mcp.types import TextContent, Tool
 
+from primr.mcp_server.server_context import MCPServerContext
+
 if TYPE_CHECKING:
     from mcp.server import Server
-
-    from primr.mcp_server.server import PrimrMCPServer
 
 logger = logging.getLogger(__name__)
 
 
-def register_agentic_tools(server: Server, mcp_server: PrimrMCPServer) -> list[Tool]:
+def register_agentic_tools(server: Server, mcp_server: MCPServerContext) -> list[Tool]:
     """
     Register agentic architecture tools with the MCP server.
 
@@ -41,11 +41,11 @@ def register_agentic_tools(server: Server, mcp_server: PrimrMCPServer) -> list[T
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Natural language query (e.g., 'What's blocking v1.7.0?')",
+                        "description": "Natural language query (e.g., 'What's blocking v1.x?')",
                     },
                     "version": {
                         "type": "string",
-                        "description": "Specific version to query (e.g., '1.7.0' or 'v1.7.0')",
+                        "description": "Specific roadmap band (e.g., '1.x' or 'v2.0')",
                     },
                 },
                 "required": [],
@@ -120,7 +120,7 @@ def register_agentic_tools(server: Server, mcp_server: PrimrMCPServer) -> list[T
 async def handle_agentic_tool(
     name: str,
     arguments: dict[str, Any],
-    mcp_server: PrimrMCPServer,
+    mcp_server: MCPServerContext,
 ) -> list[TextContent] | None:
     """
     Handle agentic tool calls.
@@ -198,9 +198,9 @@ async def _handle_query_roadmap(
         # Blockers query
         if "blocking" in query_lower or "blocker" in query_lower:
             # Extract version from query
-            match = re.search(r"v?(\d+\.\d+\.\d+)", query)
+            match = re.search(r"v?(\d+(?:\.(?:\d+|x)){1,2})", query, re.IGNORECASE)
             if match:
-                version_num = match.group(1)
+                version_num = match.group(1).lower()
                 blockers = api.get_blockers(version_num)
                 return [
                     TextContent(
@@ -296,7 +296,7 @@ async def _handle_query_roadmap(
 
 async def _handle_get_hypotheses(
     arguments: dict[str, Any],
-    mcp_server: PrimrMCPServer,
+    mcp_server: MCPServerContext,
 ) -> list[TextContent]:
     """
     Handle get_hypotheses tool.
@@ -373,7 +373,7 @@ async def _handle_get_hypotheses(
 
 async def _handle_save_hypothesis(
     arguments: dict[str, Any],
-    mcp_server: PrimrMCPServer,
+    mcp_server: MCPServerContext,
 ) -> list[TextContent]:
     """
     Handle save_hypothesis tool.

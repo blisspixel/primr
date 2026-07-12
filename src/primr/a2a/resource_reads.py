@@ -32,6 +32,7 @@ from primr.mcp_server.calibration_summary import (
 )
 from primr.mcp_server.report_resources import read_report_by_job_resource
 from primr.mcp_server.resource_auth import caller_can_read_report
+from primr.mcp_server.server_context import MCPServerContext
 from primr.mcp_server.source_summary import (
     SOURCE_SUMMARY_BY_JOB_URI,
     read_source_summary_by_job_resource,
@@ -52,15 +53,13 @@ from primr.mcp_server.verification_summary import (
 if TYPE_CHECKING:
     from a2a.server.events import EventQueue
 
-    from primr.mcp_server.server import PrimrMCPServer
-
 
 class JobResourceReader(Protocol):
     """Callable shape shared by compact job-scoped MCP resource readers."""
 
     def __call__(
         self,
-        mcp_server: PrimrMCPServer,
+        mcp_server: MCPServerContext,
         uri: str,
         *,
         client_id: str,
@@ -130,7 +129,7 @@ async def handle_a2a_resource_read(
     text: str,
     event_queue: EventQueue,
     *,
-    mcp_server: PrimrMCPServer,
+    mcp_server: MCPServerContext,
     client_id: str,
 ) -> dict[str, Any]:
     """Dispatch a known A2A resource-read skill to the shared MCP reader."""
@@ -170,7 +169,7 @@ async def _handle_job_resource_summary(
     text: str,
     event_queue: EventQueue,
     *,
-    mcp_server: PrimrMCPServer,
+    mcp_server: MCPServerContext,
     client_id: str,
     spec: JobResourceReadSpec,
 ) -> dict[str, Any]:
@@ -218,7 +217,7 @@ async def _handle_report_read(
     text: str,
     event_queue: EventQueue,
     *,
-    mcp_server: PrimrMCPServer,
+    mcp_server: MCPServerContext,
     client_id: str,
 ) -> dict[str, Any]:
     uri = report_read_uri_from_text(text)

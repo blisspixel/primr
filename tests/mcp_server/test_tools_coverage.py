@@ -17,9 +17,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from mcp.types import CallToolRequest, CallToolRequestParams
 
+from primr.mcp_server.platforms import normalize_platforms
 from primr.mcp_server.research_policy import parse_max_duration
 from primr.mcp_server.server import create_mcp_server
-from primr.mcp_server.tools import _normalize_platform, _normalize_platforms
+from primr.mcp_server.tools import _normalize_platform
 from primr.mcp_server.types import ResearchStage
 
 
@@ -74,12 +75,12 @@ class TestPlatformHelpers:
         assert _normalize_platform("weird") == "weird"
 
     def test_normalize_list_expands_ms(self):
-        result = _normalize_platforms(["ms"])
+        result = normalize_platforms(["ms"])
         assert "azure" in result
         assert "private" in result
 
     def test_normalize_list_dedupes(self):
-        result = _normalize_platforms(["microsoft", "azure", "aws"])
+        result = normalize_platforms(["microsoft", "azure", "aws"])
         assert result.count("azure") == 1
         assert "aws" in result
 
@@ -217,7 +218,7 @@ class TestGenerateStrategy:
     @pytest.mark.asyncio
     async def test_success(self, server, output_report):
         with patch(
-            "primr.mcp_server.pipeline_runner.run_strategy_generation",
+            "primr.mcp_server.tools.run_strategy_generation",
             new=AsyncMock(
                 return_value={
                     "output_path": "output/strategy.md",
@@ -237,7 +238,7 @@ class TestGenerateStrategy:
     @pytest.mark.asyncio
     async def test_generation_exception(self, server, output_report):
         with patch(
-            "primr.mcp_server.pipeline_runner.run_strategy_generation",
+            "primr.mcp_server.tools.run_strategy_generation",
             new=AsyncMock(side_effect=RuntimeError("strategy boom")),
         ):
             data = await _call(

@@ -10,11 +10,11 @@ Requirements: 15.2, 19.1-19.4
 import asyncio
 import contextlib
 import logging
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol, cast
 
 from primr.mcp_server.job_store import ResearchJobState
+from primr.mcp_server.strategy_operations import run_strategy_generation
 from primr.mcp_server.types import ResearchStage
 
 
@@ -742,58 +742,3 @@ def _copy_artifacts_to_destination(artifact_paths: list[str], destination: str) 
         logger.info(f"Copied artifact to destination: {dest_file}")
 
     return new_paths if new_paths else artifact_paths
-
-
-async def run_strategy_generation(
-    report_path: str,
-    strategy_type: str,
-    platform: str | None = None,
-    on_progress: Callable[[str], None] | None = None,
-) -> dict:
-    """
-    Run strategy generation on an existing report.
-
-    Args:
-        report_path: Path to the research report
-        strategy_type: Type of strategy to generate
-        platform: Optional platform preference
-        on_progress: Optional progress callback
-
-    Returns:
-        Dict with output_path, strategy_type, and qa_score
-    """
-    # Extract company name from report filename
-    import os
-    import re
-
-    from primr.core.ai_strategy import Platform, generate_ai_strategy
-
-    # Filename pattern: "Company_Name_Strategic_Overview_MM-DD-YYYY.ext"
-    filename = os.path.splitext(os.path.basename(report_path))[0]
-    match = re.match(
-        r"^(.+?)_(?:Strategic_Overview|AI_Strategy|Customer_Experience|Security|Data_Fabric)",
-        filename,
-    )
-    if match:
-        company_name = match.group(1).replace("_", " ")
-    else:
-        company_name = filename.replace("_", " ")
-
-    # Map strategy type
-    vendor = Platform.from_string(platform) if platform else Platform.AGNOSTIC
-
-    result = await generate_ai_strategy(
-        company_name=company_name,
-        platform=vendor,
-        company_research_path=report_path,
-        on_progress=on_progress,
-    )
-
-    if result.error:
-        raise RuntimeError(result.error)
-
-    return {
-        "output_path": result.md_path or result.docx_path or result.txt_path,
-        "strategy_type": strategy_type,
-        "qa_score": None,  # Strategy doesn't have QA yet
-    }

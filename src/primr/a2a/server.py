@@ -19,11 +19,10 @@ from primr.a2a.call_context import PrimrA2ACallContextBuilder
 from primr.a2a.executor import PrimrAgentExecutor
 from primr.a2a.task_store import PrimrTaskStore
 from primr.mcp_server.resource_auth import TRUSTED_LOCAL_A2A_AUTH_CONTEXT
+from primr.mcp_server.server_context import MCPServerContext
 
 if TYPE_CHECKING:
     from starlette.applications import Starlette
-
-    from primr.mcp_server.server import PrimrMCPServer
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +35,7 @@ class PrimrA2AServer:
 
     def __init__(
         self,
-        mcp_server: PrimrMCPServer,
+        mcp_server: MCPServerContext,
         host: str = "127.0.0.1",
         port: int = 9000,
         require_auth: bool = True,

@@ -94,12 +94,10 @@ class TestQueryRoadmap:
     @pytest.mark.asyncio
     async def test_query_roadmap_blockers_with_version(self, mcp_server_stub):
         result = await handle_agentic_tool(
-            "query_roadmap", {"query": "what is blocking v1.7.0"}, mcp_server_stub
+            "query_roadmap", {"query": "what is blocking v1.x"}, mcp_server_stub
         )
         data = _text(result)
-        # Either a version-keyed blockers dict, or falls through to summary;
-        # the blocking branch with a version match returns version + blockers.
-        assert "blockers" in data or isinstance(data, dict)
+        assert data == {"version": "1.x", "blockers": []}
 
     @pytest.mark.asyncio
     async def test_query_roadmap_handles_exception(self, mcp_server_stub, monkeypatch):

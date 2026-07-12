@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
+from primr.config.models import PrimrModels
 from primr.utils.config_validation import (
     AIConfig,
     APIKeysConfig,
@@ -234,6 +235,13 @@ class TestScrapingConfig:
 class TestAIConfig:
     """Tests for AIConfig validation."""
 
+    def test_defaults_follow_canonical_model_assignments(self):
+        """Default model IDs should not drift from the central registry."""
+        config = AIConfig()
+
+        assert config.fast_model == PrimrModels.FAST_MODEL
+        assert config.reasoning_model == PrimrModels.REASONING_MODEL
+
     def test_validates_empty_model_name(self):
         """Should report error for empty model name."""
         config = AIConfig(fast_model="")
@@ -418,6 +426,11 @@ class TestModuleFunctions:
         assert "retry" in schema["properties"]
         assert "scraping" in schema["properties"]
         assert "ai" in schema["properties"]
+
+        ai_schema = schema["properties"]["ai"]["properties"]
+        assert ai_schema["fast_model"]["default"] == AIConfig().fast_model
+        assert ai_schema["reasoning_model"]["default"] == AIConfig().reasoning_model
+        assert ai_schema["grade_threshold"]["default"] == AIConfig().grade_threshold
 
 
 # =============================================================================

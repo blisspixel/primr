@@ -492,16 +492,27 @@ if is_quota_exhausted:
 
 ### Fallback Chains
 
-Models have configured fallbacks:
+Runtime failover uses explicit provider-aware chains. The legacy
+`PrimrModels.FALLBACK_MODELS` mapping is intentionally empty so individual
+model calls cannot silently substitute an arbitrary model.
 
 ```python
-model_fallbacks = {
-    "gemini-3-flash-preview": ["gemini-2.0-flash"],
-    "gemini-3-pro-preview": ["gemini-2.0-pro", "gemini-3-flash-preview"]
+from primr.pipeline.model_breaker import (
+    ANALYSIS_FALLBACK_CHAIN,
+    PREMIUM_FALLBACK_CHAIN,
+    UTILITY_FALLBACK_CHAIN,
+)
+
+fallback_chains = {
+    "analysis": ANALYSIS_FALLBACK_CHAIN.models,
+    "utility": UTILITY_FALLBACK_CHAIN.models,
+    "premium": PREMIUM_FALLBACK_CHAIN.models,
 }
 ```
 
-On failure, the next model in the chain is tried.
+The circuit breaker filters each chain to configured providers and tries the
+next eligible model for quota and other failover-eligible failures. See
+`src/primr/pipeline/model_breaker.py` for the current ordered chains.
 
 
 ## Prompt Architecture

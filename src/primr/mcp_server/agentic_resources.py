@@ -14,13 +14,11 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.types import Resource
 
-if TYPE_CHECKING:
-    from primr.mcp_server.server import PrimrMCPServer
+from primr.mcp_server.server_context import MCPServerContext
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +51,7 @@ def get_agentic_resources() -> list[Resource]:
 
 def read_agentic_resource(
     uri: str,
-    mcp_server: PrimrMCPServer,
+    mcp_server: MCPServerContext,
 ) -> list[ReadResourceContents] | None:
     """
     Read an agentic resource by URI.
@@ -116,7 +114,7 @@ def _read_roadmap() -> list[ReadResourceContents]:
         ]
 
 
-def _read_memory(uri: str, mcp_server: PrimrMCPServer) -> list[ReadResourceContents]:
+def _read_memory(uri: str, mcp_server: MCPServerContext) -> list[ReadResourceContents]:
     """
     Read company research memory.
 

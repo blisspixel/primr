@@ -115,8 +115,8 @@ MCP/A2A tool surfaces, and (4) provider secrets + the dependency supply chain.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.34.x  | Yes                |
-| < 1.34  | No                 |
+| 1.35.x  | Yes                |
+| < 1.35  | No                 |
 
 Requires Python 3.12+ (3.10/3.11 are past or nearing end-of-life).
 
@@ -187,6 +187,14 @@ See [SECURITY_OPS.md](SECURITY_OPS.md) for operational security guidance.
   summaries, regeneration evidence, hiring triage/extraction, `insights.txt`
   external block, strategy context artifacts); the T1 row now enumerates
   fenced vs sanitize-only boundaries instead of claiming blanket coverage.
+- July 2026: all remote GitHub Actions are pinned to verified commit SHAs and
+  shipped Python container bases are pinned to a verified multi-platform
+  digest. Deterministic fitness tests reject moving action tags and unpinned
+  base images before merge.
+- July 2026: standalone strategy estimates, approval tokens, and usage records
+  share the canonical Deep Research planning cost. Cost-gated strategy calls
+  explicitly suppress environment-driven vendor refreshes so one approval
+  cannot silently authorize a second paid research task.
 
 ## Acknowledgments
 

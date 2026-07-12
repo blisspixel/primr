@@ -18,12 +18,11 @@ from primr.mcp_server.artifact_resources import (
     _no_artifacts,
     _owned_job,
 )
+from primr.mcp_server.server_context import MCPServerContext
 from primr.utils.validators import validate_and_normalize_url
 
 if TYPE_CHECKING:
     from mcp.server.lowlevel.helper_types import ReadResourceContents
-
-    from primr.mcp_server.server import PrimrMCPServer
 
 SOURCE_SUMMARY_BY_JOB_URI = "primr://output/source_summary/by_job"
 SOURCE_SUMMARY_BY_JOB_RESOURCE = Resource(
@@ -63,7 +62,7 @@ class _SourceDefinition:
 
 
 def read_source_summary_by_job_resource(
-    mcp_server: PrimrMCPServer,
+    mcp_server: MCPServerContext,
     uri: str,
     *,
     client_id: str,

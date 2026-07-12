@@ -54,12 +54,12 @@ from primr.mcp_server.research_policy import (
     enforce_cost_cap,
 )
 from primr.mcp_server.resource_auth import is_trusted_local_a2a_context
+from primr.mcp_server.server_context import MCPServerContext
 
 if TYPE_CHECKING:
     from a2a.server.events import EventQueue
 
     from primr.a2a.task_store import PrimrTaskStore
-    from primr.mcp_server.server import PrimrMCPServer
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +87,7 @@ class PrimrAgentExecutor(AgentExecutor):
         - system_health     -> synchronous doctor check
     """
 
-    def __init__(self, mcp_server: PrimrMCPServer, task_store: PrimrTaskStore):
+    def __init__(self, mcp_server: MCPServerContext, task_store: PrimrTaskStore):
         self._mcp = mcp_server
         self._task_store = task_store
         self._lifecycle_events = A2ALifecycleEvents()

@@ -198,6 +198,10 @@ class TestEstimateStrategy:
         assert data["strategy_type"] == "customer_experience"
         assert "estimated_cost_usd" in data
         assert "estimated_time_minutes" in data
+        from primr.config.models import DEEP_RESEARCH_COST
+
+        assert data["estimated_cost_usd"] == DEEP_RESEARCH_COST.standard_task_cost
+        assert "actual token and tool usage varies" in data["cost_basis"]
 
     @pytest.mark.asyncio
     async def test_estimate_strategy_requires_vendor_for_ai(self, server):

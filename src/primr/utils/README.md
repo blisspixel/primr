@@ -144,7 +144,7 @@ if isinstance(error, TransientError) and error.recoverable:
     retry()
 
 # Legacy errors (deprecated but still work)
-raise AIError("Model failed", model="gemini-2.0-flash", cause=original_error)
+raise AIError("Model failed", model="gemini-3-flash-preview", cause=original_error)
 
 # Retry decorator
 @retry_on_failure(max_retries=3, delay=1.0)
@@ -300,7 +300,7 @@ from primr.utils.chat_logger import log_chat_interaction
 log_chat_interaction(
     prompt=prompt,
     response=response,
-    model="gemini-2.0-flash"
+    model="gemini-3-flash-preview"
 )
 ```
 

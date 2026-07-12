@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from primr.config.env import load_primr_env
+from primr.config.models import PrimrModels
 
 logger = logging.getLogger(__name__)
 
@@ -354,8 +355,8 @@ class ScrapingConfig:
 class AIConfig:
     """AI model configuration with validation."""
 
-    fast_model: str = "gemini-2.0-flash"
-    reasoning_model: str = "gemini-2.5-pro-preview-06-05"
+    fast_model: str = PrimrModels.FAST_MODEL
+    reasoning_model: str = PrimrModels.REASONING_MODEL
     temperature: float = 1.0
     thinking_level: Literal["low", "high"] = "high"
     grade_threshold: int = 70
@@ -678,10 +679,10 @@ def export_schema() -> dict[str, Any]:
             "ai": {
                 "type": "object",
                 "properties": {
-                    "fast_model": {"type": "string", "default": "gemini-2.0-flash"},
+                    "fast_model": {"type": "string", "default": PrimrModels.FAST_MODEL},
                     "reasoning_model": {
                         "type": "string",
-                        "default": "gemini-2.5-pro-preview-06-05",
+                        "default": PrimrModels.REASONING_MODEL,
                     },
                     "temperature": {"type": "number", "minimum": 0, "maximum": 2, "default": 1.0},
                     "thinking_level": {
@@ -693,7 +694,7 @@ def export_schema() -> dict[str, Any]:
                         "type": "integer",
                         "minimum": 0,
                         "maximum": 100,
-                        "default": 80,
+                        "default": 70,
                     },
                 },
             },

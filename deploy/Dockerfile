@@ -13,7 +13,7 @@
 # =============================================================================
 # Stage 1: Builder - Build wheel from source
 # =============================================================================
-FROM python:3.12-slim AS builder
+FROM python:3.12-slim@sha256:423ed6ab25b1921a477529254bfeeabf5855151dc2c3141699a1bfc852199fbf AS builder
 
 WORKDIR /build
 
@@ -32,7 +32,7 @@ RUN python -m build --wheel --outdir /build/dist
 # =============================================================================
 # Stage 2: Runtime - Install wheel in minimal image
 # =============================================================================
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:423ed6ab25b1921a477529254bfeeabf5855151dc2c3141699a1bfc852199fbf
 
 # Create non-root user (primr, uid 1000)
 # Requirements: 1.4 (non-root execution)

@@ -517,7 +517,7 @@ if __name__ == "__main__":
 
     if not company or not report_section:
         print("Missing input. Exiting.")
-        exit(1)
+        raise SystemExit(1)
 
     print(f"\nUsing search provider: {_get_active_provider()}")
     queries = generate_search_queries(company, website, report_section)
