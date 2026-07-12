@@ -1057,7 +1057,7 @@ async def _handle_run_qa(
 
     # Run QA analysis
     try:
-        from primr.mcp_server.pipeline_runner import run_qa_analysis
+        from primr.mcp_server.qa_operations import run_qa_analysis
 
         result = await run_qa_analysis(str(path_result.resolved_path))
 
@@ -1102,7 +1102,7 @@ async def _handle_doctor(
     import json
 
     from primr.mcp_server.cloud_detect import is_cloud_mode
-    from primr.mcp_server.pipeline_runner import get_doctor_status
+    from primr.mcp_server.doctor_status import get_doctor_status
 
     result = get_doctor_status()
 

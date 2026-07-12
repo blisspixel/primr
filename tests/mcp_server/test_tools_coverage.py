@@ -268,7 +268,7 @@ class TestRunQA:
     @pytest.mark.asyncio
     async def test_success(self, server, output_report):
         with patch(
-            "primr.mcp_server.pipeline_runner.run_qa_analysis",
+            "primr.mcp_server.qa_operations.run_qa_analysis",
             new=AsyncMock(return_value={"overall_score": 80}),
         ):
             data = await _call(server, "run_qa", {"report_path": str(output_report)})
@@ -277,7 +277,7 @@ class TestRunQA:
     @pytest.mark.asyncio
     async def test_analysis_exception(self, server, output_report):
         with patch(
-            "primr.mcp_server.pipeline_runner.run_qa_analysis",
+            "primr.mcp_server.qa_operations.run_qa_analysis",
             new=AsyncMock(side_effect=RuntimeError("qa boom")),
         ):
             data = await _call(server, "run_qa", {"report_path": str(output_report)})

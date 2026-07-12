@@ -14,12 +14,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol, cast
 
-from primr.mcp_server.doctor_status import (
-    DIRECT_PROVIDER_KEY_ENV_VARS as DIRECT_PROVIDER_KEY_ENV_VARS,
-)
-from primr.mcp_server.doctor_status import get_doctor_status as get_doctor_status
 from primr.mcp_server.job_store import ResearchJobState
-from primr.mcp_server.qa_operations import run_qa_analysis as run_qa_analysis
 from primr.mcp_server.types import ResearchStage
 
 

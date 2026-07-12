@@ -10,14 +10,13 @@ from pathlib import Path
 
 import pytest
 
+from primr.mcp_server.doctor_status import DIRECT_PROVIDER_KEY_ENV_VARS, get_doctor_status
 from primr.mcp_server.pipeline_runner import (
-    DIRECT_PROVIDER_KEY_ENV_VARS,
     PUBLIC_RESEARCH_FAILURE_MESSAGE,
     PipelineRunner,
     _collect_trace_artifacts,
     _with_trace_artifacts,
     _with_verification_artifacts,
-    get_doctor_status,
 )
 from primr.mcp_server.server import create_mcp_server
 from primr.mcp_server.types import ResearchStage

@@ -1,9 +1,8 @@
 """
 Coverage tests for pipeline_runner.py.
 
-Exercises artifact collection/copy helpers, run_strategy_generation,
-run_qa_analysis, and the run_research orchestration with all external
-dependencies mocked (no real LLM/network/scrape calls).
+Exercises artifact collection/copy helpers, strategy and QA operations, and the
+run_research orchestration with all external dependencies mocked.
 """
 
 import json
@@ -19,9 +18,9 @@ from primr.mcp_server.pipeline_runner import (
     PipelineRunner,
     _collect_run_artifacts,
     _copy_artifacts_to_destination,
-    run_qa_analysis,
     run_strategy_generation,
 )
+from primr.mcp_server.qa_operations import run_qa_analysis
 from primr.mcp_server.server import create_mcp_server
 from primr.mcp_server.types import ResearchStage
 
