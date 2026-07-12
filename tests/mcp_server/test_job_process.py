@@ -8,6 +8,7 @@ import os
 import sys
 import textwrap
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -142,6 +143,33 @@ def test_worker_environment_strips_controller_names_case_insensitively() -> None
     assert "NVIDIA_API_KEY" not in environment
     assert environment["NVIDIA_VISIBLE_DEVICES"] == "all"
     assert "APPLICATIONINSIGHTS_CONNECTION_STRING" not in environment
+
+
+@pytest.mark.asyncio
+async def test_spawn_failure_closes_untransferred_stderr_stream(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The manual stream ownership transfer closes every pre-handle failure."""
+    store, job = _store_and_job(tmp_path)
+    supervisor = _supervisor(store, tmp_path, _worker_script("raise SystemExit(1)"))
+    stderr_stream = MagicMock()
+
+    async def failed_spawn(*_args, **_kwargs):
+        raise OSError("spawn failed")
+
+    monkeypatch.setattr(
+        job_process_mod, "open", lambda *_args, **_kwargs: stderr_stream, raising=False
+    )
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", failed_spawn)
+
+    with pytest.raises(OSError, match="spawn failed"):
+        await supervisor.start(job=job, company_url="https://example.com", mode="full")
+
+    stderr_stream.close.assert_called_once_with()
+    failed = store.get(job.job_id)
+    assert failed is not None
+    assert failed.error_type == "worker_spawn_failed"
 
 
 @pytest.mark.asyncio

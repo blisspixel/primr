@@ -11,6 +11,16 @@ from primr.mcp_server.types import ResearchStage
 WORKER_EXIT_SUCCESS = 0
 WORKER_EXIT_FAILURE = 1
 WORKER_EXIT_CANCELLED = 130
+WINDOWS_TERMINATE_PROCESS_EXIT = 1
+WINDOWS_CONTROL_C_EXIT = 0xC000013A
+WINDOWS_CONTROL_C_EXIT_SIGNED = WINDOWS_CONTROL_C_EXIT - (1 << 32)
+_WINDOWS_DIRECT_FORCE_METHODS = frozenset(
+    {
+        "kill_process_fallback",
+        "terminate_process_fallback",
+        "terminate_job_object_and_process",
+    }
+)
 
 
 def terminal_event_is_compatible(
@@ -44,7 +54,14 @@ def is_cancel_return_code(return_code: int | None, method: str | None) -> bool:
         return True
     if return_code in {-getattr(signal, "SIGTERM", 15), -getattr(signal, "SIGKILL", 9)}:
         return True
-    return bool(method and return_code not in (None, WORKER_EXIT_SUCCESS))
+    if method == "ctrl_break" and return_code in {
+        WINDOWS_CONTROL_C_EXIT,
+        WINDOWS_CONTROL_C_EXIT_SIGNED,
+    }:
+        return True
+    return bool(
+        method in _WINDOWS_DIRECT_FORCE_METHODS and return_code == WINDOWS_TERMINATE_PROCESS_EXIT
+    )
 
 
 __all__ = ["is_cancel_return_code", "terminal_event_is_compatible"]

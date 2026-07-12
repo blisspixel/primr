@@ -6,7 +6,10 @@ import pytest
 
 from primr.mcp_server.job_store import ResearchJobState
 from primr.mcp_server.types import ResearchStage
-from primr.mcp_server.worker_terminal_policy import terminal_event_is_compatible
+from primr.mcp_server.worker_terminal_policy import (
+    is_cancel_return_code,
+    terminal_event_is_compatible,
+)
 
 
 def _terminal(stage: ResearchStage, error_type: str | None = None) -> ResearchJobState:
@@ -81,3 +84,21 @@ def test_cancelled_requires_parent_intent_code_and_reason(
         )
         is expected
     )
+
+
+@pytest.mark.parametrize(
+    ("return_code", "method", "expected"),
+    [
+        (130, None, True),
+        (-15, "sigterm_group", True),
+        (-9, "sigkill_group", True),
+        (1, "sigterm_group", False),
+        (2, "kill_process_fallback", False),
+        (1, "kill_process_fallback", True),
+        (0xC000013A, "ctrl_break", True),
+        (0xC000013A - (1 << 32), "ctrl_break", True),
+        (1, "ctrl_break", False),
+    ],
+)
+def test_cancel_return_codes_are_known_platform_outcomes(return_code, method, expected):
+    assert is_cancel_return_code(return_code, method) is expected

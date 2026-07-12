@@ -13,12 +13,11 @@ non-Windows hosts or Python builds without ``ctypes.WinDLL``.
 from __future__ import annotations
 
 import ctypes
+import ctypes.wintypes as wintypes
 import sys
-from ctypes import wintypes
 from typing import Any
 
 JOB_OBJECT_ASSIGN_PROCESS = 0x0001
-JOB_OBJECT_TERMINATE = 0x0008
 JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
 JOB_OBJECT_EXTENDED_LIMIT_INFORMATION_CLASS = 9
 ERROR_ALREADY_EXISTS = 183

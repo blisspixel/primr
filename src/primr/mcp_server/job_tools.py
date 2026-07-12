@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any
+from typing import Any, Protocol
 
 from mcp.types import TextContent
 
@@ -11,8 +11,13 @@ from primr.mcp_server.resource_auth import caller_can_manage_job
 from primr.mcp_server.types import MCPErrorCode, ResearchStage
 from primr.utils.logging_config import get_logger
 
-if TYPE_CHECKING:
-    from primr.mcp_server.server import PrimrMCPServer
+
+class JobToolServerContext(Protocol):
+    """Minimal supervised-job surface required by cancellation tools."""
+
+    job_store: Any
+    job_supervisor: Any
+
 
 logger = get_logger(__name__)
 
@@ -22,7 +27,7 @@ def _text(payload: dict[str, Any]) -> list[TextContent]:
 
 
 async def handle_cancel_job(
-    mcp_server: PrimrMCPServer,
+    mcp_server: JobToolServerContext,
     arguments: dict[str, Any],
     client_id: str,
 ) -> list[TextContent]:

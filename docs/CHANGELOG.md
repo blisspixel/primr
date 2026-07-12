@@ -31,7 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   repeated cancellation is idempotent, terminal states cannot be rewritten by
   late updates, A2A reports cancellation instead of failure, and admin
   cancellation follows the documented authorization policy without leaking job
-  existence to other callers.
+  existence to other callers. Only cooperative exit 130, POSIX termination
+  signals, and known Windows control or forced-termination outcomes qualify as
+  cancellation; unrelated nonzero exits remain failures.
 - MCP full and premium execution now deliver the default agnostic AI Strategy
   priced by the estimate unless `no_ai_strategy=true`. The standard
   orchestrator path no longer omits that promised artifact, and successful job

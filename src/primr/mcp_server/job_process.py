@@ -187,13 +187,11 @@ class LocalJobSupervisor:
                     mode=mode,
                     budget_usd=budget_usd,
                 )
-                stderr_file = None
-                windows_job = None
             except asyncio.CancelledError:
                 if spawn_task is not None and handle is None:
                     try:
                         process = await await_task_uninterruptibly(spawn_task)
-                    except BaseException:
+                    except (Exception, asyncio.CancelledError):
                         process = None
                     if process is not None and stderr_file is not None:
                         handle = self._register_worker(
@@ -205,8 +203,6 @@ class LocalJobSupervisor:
                             mode=mode,
                             budget_usd=budget_usd,
                         )
-                        stderr_file = None
-                        windows_job = None
                 if handle is not None:
                     handle.protocol_error = "Worker startup was cancelled"
                     await self._abort_startup_uninterruptibly(handle)
@@ -218,7 +214,7 @@ class LocalJobSupervisor:
                         "Worker startup was cancelled",
                     )
                 raise
-            except BaseException:
+            except (Exception, KeyboardInterrupt, SystemExit):
                 self._close_startup_resources(stderr_file, windows_job)
                 self._commit_failure(
                     job.job_id,
@@ -238,7 +234,7 @@ class LocalJobSupervisor:
         try:
             await self._send(handle, start_message)
             await self._wait_for_ready(handle)
-        except BaseException as exc:
+        except (Exception, asyncio.CancelledError, KeyboardInterrupt, SystemExit) as exc:
             handle.protocol_error = f"Worker failed to become ready: {exc}"
             await self._abort_startup_uninterruptibly(handle)
             if isinstance(exc, asyncio.CancelledError):
@@ -297,7 +293,7 @@ class LocalJobSupervisor:
             self._abort_startup(handle),
             name=f"primr-worker-startup-abort-{handle.job_id}",
         )
-        with contextlib.suppress(BaseException):
+        with contextlib.suppress(Exception, asyncio.CancelledError, KeyboardInterrupt, SystemExit):
             await await_task_uninterruptibly(cleanup_task)
 
     async def _abort_startup(self, handle: _WorkerHandle) -> None:
@@ -340,7 +336,7 @@ class LocalJobSupervisor:
         if handle.cancellation_task is not None and handle.cancellation_task.done():
             try:
                 previous_outcome = handle.cancellation_task.result()
-            except BaseException:
+            except (Exception, asyncio.CancelledError):
                 previous_outcome = None
             if previous_outcome is None or previous_outcome.status == "cancellation_failed":
                 handle.cancellation_task = None
@@ -398,7 +394,7 @@ class LocalJobSupervisor:
         for task in done:
             try:
                 task.result()
-            except BaseException:
+            except (Exception, asyncio.CancelledError):
                 logger.exception("Worker shutdown task failed")
 
         if pending:
@@ -463,7 +459,7 @@ class LocalJobSupervisor:
         except asyncio.CancelledError:
             monitor_cancelled = True
             handle.protocol_error = "Worker monitor was cancelled before process exit"
-        except BaseException as exc:
+        except Exception as exc:
             handle.protocol_error = f"Worker monitor failed: {type(exc).__name__}"
 
         if process.returncode is None and handle.protocol_error is not None:
@@ -477,7 +473,7 @@ class LocalJobSupervisor:
             )
             try:
                 return_code = await await_task_uninterruptibly(wait_task)
-            except BaseException as exc:
+            except Exception as exc:
                 handle.protocol_error = f"Worker exit wait failed: {type(exc).__name__}"
                 return_code = process.returncode
 

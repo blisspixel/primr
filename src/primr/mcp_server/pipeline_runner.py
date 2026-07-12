@@ -12,13 +12,17 @@ import contextlib
 import logging
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import Any, Protocol, cast
 
 from primr.mcp_server.job_store import ResearchJobState
 from primr.mcp_server.types import ResearchStage
 
-if TYPE_CHECKING:
-    from primr.mcp_server.server import PrimrMCPServer
+
+class PipelineServerContext(Protocol):
+    """Minimal controller surface required by ``PipelineRunner``."""
+
+    job_store: Any
+
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +51,7 @@ class PipelineRunner:
     Provides heartbeat updates during long-running operations.
     """
 
-    def __init__(self, mcp_server: "PrimrMCPServer"):
+    def __init__(self, mcp_server: PipelineServerContext):
         """
         Initialize the pipeline runner.
 

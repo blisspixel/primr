@@ -50,9 +50,6 @@ from primr.mcp_server.research_policy import (
 from primr.mcp_server.research_policy import (
     enforce_cost_cap as _enforce_cost_cap,
 )
-from primr.mcp_server.research_policy import (
-    parse_max_duration,
-)
 from primr.mcp_server.resource_auth import (
     caller_can_inline_legacy_report_content,
     caller_can_manage_job,
@@ -71,7 +68,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 _normalize_platform = normalize_platform
 _normalize_platforms = normalize_platforms
-_parse_max_duration = parse_max_duration
 
 
 def register_tools(server: Server, mcp_server: "PrimrMCPServer") -> None:

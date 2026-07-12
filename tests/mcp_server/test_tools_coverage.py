@@ -17,8 +17,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from mcp.types import CallToolRequest, CallToolRequestParams
 
+from primr.mcp_server.research_policy import parse_max_duration
 from primr.mcp_server.server import create_mcp_server
-from primr.mcp_server.tools import _normalize_platform, _normalize_platforms, _parse_max_duration
+from primr.mcp_server.tools import _normalize_platform, _normalize_platforms
 from primr.mcp_server.types import ResearchStage
 
 
@@ -83,13 +84,13 @@ class TestPlatformHelpers:
         assert "aws" in result
 
     def test_parse_max_duration_range(self):
-        assert _parse_max_duration("5-10 min") == 10
+        assert parse_max_duration("5-10 min") == 10
 
     def test_parse_max_duration_single(self):
-        assert _parse_max_duration("30 min") == 30
+        assert parse_max_duration("30 min") == 30
 
     def test_parse_max_duration_fallback(self):
-        assert _parse_max_duration("garbage", default=42) == 42
+        assert parse_max_duration("garbage", default=42) == 42
 
 
 # ---------------------------------------------------------------------------

@@ -20,6 +20,7 @@ from mcp.server.stdio import stdio_server
 
 from primr.mcp_server.audit_log import MCPAuditLog
 from primr.mcp_server.job_process import LocalJobSupervisor
+from primr.mcp_server.job_process_types import await_task_uninterruptibly
 from primr.mcp_server.job_store import ControllerLease, SingleJobStore
 from primr.mcp_server.logging_config import configure_http_logging, configure_stdio_logging
 from primr.mcp_server.security import PathValidator, RateLimiter, URLValidator
@@ -142,7 +143,7 @@ class PrimrMCPServer:
             try:
                 await asyncio.shield(cleanup_task)
             except asyncio.CancelledError:
-                await cleanup_task
+                await await_task_uninterruptibly(cleanup_task)
                 raise
 
     async def _leave_controller_lifecycle(self) -> None:
