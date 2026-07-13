@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
 import pytest
@@ -117,6 +118,26 @@ class TestSaveRunState:
         assert json.loads((tmp_path / "_run_state.json").read_text()) == {"phase": "scrape"}
         assert calls["n"] == 3
         assert list(tmp_path.glob("*.tmp")) == []
+
+    def test_each_save_uses_a_unique_temporary_path(self, tmp_path):
+        temporary_paths = []
+
+        def recording_replace(source, target):
+            temporary_paths.append(source)
+            os.replace(source, target)
+
+        with patch("primr.core.run_state_io.atomic_replace", side_effect=recording_replace):
+            _save_run_state(str(tmp_path), {"sequence": 1})
+            _save_run_state(str(tmp_path), {"sequence": 2})
+
+        assert len(temporary_paths) == 2
+        assert temporary_paths[0] != temporary_paths[1]
+
+    def test_serialization_failure_creates_no_temporary_file(self, tmp_path):
+        with pytest.raises(TypeError):
+            _save_run_state(str(tmp_path), {"not_json": object()})
+
+        assert list(tmp_path.glob("._run_state.*.tmp")) == []
 
 
 class TestUpdateRunState:
@@ -228,6 +249,21 @@ class TestAppendResilienceEvents:
     def test_appenders_set_updated_at(self, tmp_path):
         _append_model_health_event(str(tmp_path), {"x": 1})
         assert "updated_at" in _load_run_state(str(tmp_path))
+
+    def test_concurrent_recovery_appends_preserve_every_event(self, tmp_path):
+        event_count = 40
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            list(
+                pool.map(
+                    lambda index: _append_recovery_event(str(tmp_path), {"index": index}),
+                    range(event_count),
+                )
+            )
+
+        loaded = _load_run_state(str(tmp_path))
+        assert len(loaded["recovery_events"]) == event_count
+        assert {event["index"] for event in loaded["recovery_events"]} == set(range(event_count))
 
 
 class TestInitRunStateWithResilience:

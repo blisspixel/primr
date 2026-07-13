@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added weekly manual-triggerable dependency auditing with locked `pip-audit`
+  coverage for every shipped extra and a pinned Trivy filesystem scan.
+- Added lock-derived, hash-complete build and runtime dependency manifests for
+  both production Dockerfiles. Container builds now install the local wheel
+  without resolving a second dependency graph, and CI builds and smoke-tests
+  both production image surfaces from their documented build contexts.
+
+### Fixed
+
+- Calibration sidecars now bind to the exact report bytes they evaluated.
+  Pack manifests and compact MCP/A2A calibration summaries reject legacy,
+  missing, or stale report bindings instead of presenting unrelated evidence.
+  Manifest report and sidecar metadata is parsed, validated, fingerprinted, and
+  embedded from one byte snapshot so concurrent file changes fail later
+  integrity inspection instead of creating internally inconsistent evidence.
+- Production recovery now executes built-in same-call and backoff retries,
+  records only actions actually attempted, and exposes deterministic sleep
+  injection for tests. Recovery telemetry listener failures no longer discard
+  successful retry results, and route plus resilience state updates now share a
+  per-run serialized read-modify-write transaction so concurrent workers cannot
+  overwrite one another's events.
+- A2A interruptions after durable job creation can no longer strand an active
+  job. Cancellation before supervisor ownership records `CANCELLED`; an
+  interrupted supervisor startup preserves its authoritative cleanup result or
+  records `FAILED` when ownership never completed.
+- Local artifact and heartbeat overwrites now tolerate bounded, transient
+  Windows sharing violations while preserving atomic replacement, prior data,
+  and temp-file cleanup on persistent failure.
+- The standalone security scanner now produces Windows-safe output, inspects
+  executable syntax instead of matching comments and strings, detects genuine
+  text-mode encoding omissions, and uses the canonical `pip-audit` CI gate.
+  The ten real encoding omissions it identified now use explicit UTF-8.
+
+### Security
+
+- Raised Pillow to 12.3.0, closing the five advisories affecting the previous
+  12.2.0 lock, and added a dependency-floor regression gate.
+- JWT verification now preserves explicit empty scopes instead of granting
+  legacy defaults, rejects malformed scope claims, and fails closed on
+  boolean, non-finite, or exactly expired time claims. Age-limited static admin
+  tokens no longer bypass rotation through the token cache, and non-finite
+  admin-token max-age configuration is rejected or ignored safely.
+- MCP HTTP refuses unauthenticated non-loopback listeners even when plaintext
+  is explicitly acknowledged, preventing a development switch from becoming
+  remote anonymous access.
+
 ## [1.35.2] - 2026-07-12
 
 ### Fixed

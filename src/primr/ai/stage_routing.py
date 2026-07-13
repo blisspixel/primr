@@ -310,12 +310,8 @@ def record_stage_route_usage(
     if folder_path is None:
         return
 
-    from primr.core.run_state_io import _load_run_state, _save_run_state
+    from primr.core.run_state_io import _mutate_run_state
 
-    state = _load_run_state(str(folder_path))
-    routes = state.get("stage_routes", [])
-    if not isinstance(routes, list):
-        routes = []
     record = {
         "ts": datetime.now().isoformat(),
         "outcome": outcome,
@@ -333,10 +329,15 @@ def record_stage_route_usage(
         record["capacity_failure"] = failure.as_metadata()
     if usage_delta:
         _apply_usage_delta(record, usage_delta)
-    routes.append(record)
-    state["stage_routes"] = routes[-200:]
-    state["updated_at"] = datetime.now().isoformat()
-    _save_run_state(str(folder_path), state)
+
+    def append_route(state: dict[str, Any]) -> None:
+        routes = state.get("stage_routes", [])
+        if not isinstance(routes, list):
+            routes = []
+        routes.append(record)
+        state["stage_routes"] = routes[-200:]
+
+    _mutate_run_state(str(folder_path), append_route)
 
 
 def stage_route_failure_class(

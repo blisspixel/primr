@@ -209,6 +209,11 @@ continue to measure both failure directions as classifier behavior changes.
   evidence-review summary, inference source-copy counts, judge-agreement
   metadata, and report/sidecar content fingerprints before running a
   multi-report baseline.
+- Report binding: every newly written calibration sidecar records the exact
+  report byte size and SHA-256 digest it evaluated. Pack aggregation and the
+  compact MCP/A2A calibration summary reject legacy sidecars and any binding
+  that no longer matches the current report. A nearby filename is not treated
+  as evidence ownership.
 - Curated pack selection: add `--pack-selection path/to/selection.json` when
   the baseline needs explicit representative coverage instead of "latest N"
   report selection. The selection file uses

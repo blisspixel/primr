@@ -79,10 +79,12 @@ dependencies = [
     #   python-multipart  CVE-2026-53538/53539/53540  quadratic-time DoS
     #   msgpack           GHSA-6v7p-g79w-8964
     #   pydantic-settings GHSA-4xgf-cpjx-pc3j
+    #   pillow            PYSEC-2026-2253 through PYSEC-2026-2257
     "cryptography>=48.0.1",
     "python-multipart>=0.0.31",
     "msgpack>=1.2.1",
     "pydantic-settings>=2.14.2",
+    "pillow>=12.3.0",
 ]
 
 [project.optional-dependencies]

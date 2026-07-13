@@ -25,7 +25,12 @@ from primr.a2a.authz import (
     a2a_scope_denied_text,
     authorize_a2a_skill,
 )
-from primr.a2a.call_context import LOCAL_A2A_CLIENT_ID
+from primr.a2a.call_context import (
+    LOCAL_A2A_CLIENT_ID as LOCAL_A2A_CLIENT_ID,
+)
+from primr.a2a.call_context import (
+    mcp_context_client_id as _a2a_client_id,
+)
 from primr.a2a.cancellation import handle_cancel_request
 from primr.a2a.input_parsing import (
     parse_research_params as _parse_research_params,
@@ -34,6 +39,7 @@ from primr.a2a.input_parsing import (
     research_arguments_from_a2a_params as _research_arguments_from_a2a_params,
 )
 from primr.a2a.lifecycle_events import A2ALifecycleEvents
+from primr.a2a.prelaunch import publish_working_status, start_worker_or_terminalize
 from primr.a2a.resource_reads import handle_a2a_resource_read, resource_read_skill_list
 from primr.a2a.skill_ids import A2A_RESOURCE_READ_SKILLS
 from primr.a2a.status_events import status_update_event as _status_update_event
@@ -44,7 +50,6 @@ from primr.mcp_server.approval_tokens import (
     issue_approval_token,
     research_approval_args,
 )
-from primr.mcp_server.auth import RESERVED_CLIENT_IDS
 from primr.mcp_server.doctor_status import get_doctor_status
 from primr.mcp_server.platforms import normalize_platform
 from primr.mcp_server.qa_operations import run_qa_analysis
@@ -53,8 +58,8 @@ from primr.mcp_server.research_policy import (
     coerce_budget_usd,
     enforce_cost_cap,
 )
-from primr.mcp_server.resource_auth import is_trusted_local_a2a_context
 from primr.mcp_server.server_context import MCPServerContext
+from primr.mcp_server.types import ResearchStage
 
 if TYPE_CHECKING:
     from a2a.server.events import EventQueue
@@ -135,6 +140,10 @@ class PrimrAgentExecutor(AgentExecutor):
                 audit_payload = await self._handle_doctor(event_queue)
             else:
                 audit_payload = await self._handle_unknown(skill_id, text, event_queue)
+        except asyncio.CancelledError as exc:
+            caught_exception = exc
+            audit_payload = {"error": True, "error_type": exc.__class__.__name__}
+            raise
         except Exception as exc:
             caught_exception = exc
             audit_payload = {"error": True, "error_type": exc.__class__.__name__}
@@ -190,6 +199,10 @@ class PrimrAgentExecutor(AgentExecutor):
                 event_queue=event_queue,
                 client_id=_a2a_client_id(self._mcp),
             )
+        except asyncio.CancelledError as exc:
+            caught_exception = exc
+            audit_payload = {"error": True, "error_type": exc.__class__.__name__}
+            raise
         except Exception as exc:
             caught_exception = exc
             audit_payload = {"error": True, "error_type": exc.__class__.__name__}
@@ -433,15 +446,18 @@ class PrimrAgentExecutor(AgentExecutor):
         )
         self._task_store.register_mapping(mapping)
 
-        # Signal task is working
-        await event_queue.enqueue_event(
-            _status_update_event(
+        # Signal task is working before transferring ownership to the worker.
+        await publish_working_status(
+            job_store=self._mcp.job_store,
+            job=job,
+            event_queue=event_queue,
+            event=_status_update_event(
                 state=TaskState.working,
                 text=f"Research started: job {job.job_id}",
                 task_id=task_id,
                 context_id=context_id,
                 final=False,
-            )
+            ),
         )
 
         # Start the same supervised worker used by MCP. The returned task
@@ -456,16 +472,22 @@ class PrimrAgentExecutor(AgentExecutor):
             }
 
         try:
-            research_task = await self._mcp.job_supervisor.start(
+            research_task = await start_worker_or_terminalize(
+                job_store=self._mcp.job_store,
                 job=job,
-                company_url=company_url,
-                mode=mode,
-                platform=str(platform) if platform else None,
-                skip_qa=skip_qa,
-                verify=verify,
-                destination=str(destination) if destination else None,
-                budget_usd=budget_usd,
+                start_worker=lambda: self._mcp.job_supervisor.start(
+                    job=job,
+                    company_url=company_url,
+                    mode=mode,
+                    platform=str(platform) if platform else None,
+                    skip_qa=skip_qa,
+                    verify=verify,
+                    destination=str(destination) if destination else None,
+                    budget_usd=budget_usd,
+                ),
             )
+        except asyncio.CancelledError:
+            raise
         except Exception:
             logger.exception("A2A worker failed to start for job %s", job.job_id)
             await self._lifecycle_events.enqueue_terminal_once(
@@ -518,8 +540,6 @@ class PrimrAgentExecutor(AgentExecutor):
                 # Final status
                 final_job = self._mcp.job_store.get(job.job_id)
                 if final_job and final_job.is_terminal():
-                    from primr.mcp_server.job_store import ResearchStage
-
                     if final_job.current_stage == ResearchStage.COMPLETED:
                         paths = (
                             ", ".join(final_job.output_paths) if final_job.output_paths else "N/A"
@@ -762,22 +782,6 @@ def _extract_text(message: Any) -> str:
         elif hasattr(part, "kind") and part.kind == "text":
             texts.append(getattr(part, "text", ""))
     return " ".join(texts)
-
-
-def _a2a_client_id(mcp_server: Any) -> str:
-    """Return the authenticated A2A client id, or the local A2A owner id."""
-    context = getattr(mcp_server, "_auth_context", None)
-    if is_trusted_local_a2a_context(context):
-        return LOCAL_A2A_CLIENT_ID
-    if context is not None and getattr(context, "is_authenticated", False):
-        client_id = getattr(context, "client_id", None)
-        if (
-            isinstance(client_id, str)
-            and client_id
-            and client_id.casefold() not in RESERVED_CLIENT_IDS
-        ):
-            return client_id
-    return "anonymous"
 
 
 def _caller_owns_job(job: Any, client_id: str) -> bool:

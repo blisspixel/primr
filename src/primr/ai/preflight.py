@@ -456,7 +456,7 @@ class PreflightValidator:
 
             # Test write permission
             test_file = os.path.join(OUTPUT_DIR, ".preflight_test")
-            with open(test_file, "w") as f:
+            with open(test_file, "w", encoding="utf-8") as f:
                 f.write("test")
             os.remove(test_file)
 

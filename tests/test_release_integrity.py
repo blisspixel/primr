@@ -216,7 +216,7 @@ def test_changelog_contains_current_package_version() -> None:
 def test_ci_builds_documentation_strictly() -> None:
     ci_workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
 
-    assert "--extra docs" in ci_workflow
+    assert "--extra docs" in ci_workflow or "--all-extras" in ci_workflow
     assert "mkdocs build --strict" in ci_workflow
 
 

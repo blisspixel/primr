@@ -324,7 +324,7 @@ def validate_preflight(config: DeepResearchConfig) -> PreflightResult:
     try:
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         test_file = os.path.join(OUTPUT_DIR, ".write_test")
-        with open(test_file, "w") as f:
+        with open(test_file, "w", encoding="utf-8") as f:
             f.write("test")
         os.remove(test_file)
         result.add(

@@ -764,8 +764,7 @@ from primr.utils.errors import AIError, retry_on_failure
 
 @retry_on_failure(max_retries=3, delay=1.0)
 def call_api():
-    # Your code here
-    pass
+    return client.fetch()
 
 # Or use safe_call for exception wrapping
 result = safe_call(risky_function, default_value="fallback")
@@ -821,13 +820,12 @@ from primr.utils.observability import (
 
 # Track operation duration
 with operation_context("research", company="Acme Corp"):
-    # Operations here are tracked
-    pass
+    research_company("Acme Corp")
 
 # Decorator for timing
 @timed("my_operation")
 def slow_function():
-    pass
+    return perform_operation()
 
 # Emit custom metrics
 metrics = Metrics(
@@ -1022,9 +1020,13 @@ primr-mcp --stdio
 # Run with HTTP transport
 primr-mcp --http --port 8000
 
-# Development mode (no auth)
-primr-mcp --http --port 8000 --no-auth --allow-plaintext
+# Loopback-only development mode (no auth)
+primr-mcp --http --host 127.0.0.1 --port 8000 --no-auth --allow-plaintext
 ```
+
+HTTP authentication can be disabled only on an explicit loopback listener.
+Primr refuses `--no-auth` with wildcard, public, or otherwise non-loopback
+hosts even when `--allow-plaintext` acknowledges upstream TLS termination.
 
 ### Claude Desktop Integration
 
@@ -2882,8 +2884,7 @@ response = await hooks.run_pre_hooks("scrape", context)
 if response.result is HookResult.BLOCK:
     print(f"Operation blocked: {response.message}")
 else:
-    # Proceed with operation
-    pass
+    await run_scrape(context.arguments)
 ```
 
 #### Custom Hooks

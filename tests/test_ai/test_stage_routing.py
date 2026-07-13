@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import MagicMock
 
 from primr.ai.capability_routing import BillingMode, InferenceProfile
@@ -19,6 +20,7 @@ from primr.ai.stage_routing import (
     stage_usage_delta,
 )
 from primr.config.models import PrimrModels
+from primr.core.run_state_io import _append_recovery_event, _load_run_state
 
 
 def _clear_provider_env(monkeypatch) -> None:
@@ -404,6 +406,29 @@ def test_record_stage_route_usage_appends_body_free_run_state(tmp_path, monkeypa
     assert record["duration_seconds"] == 1.235
     assert "prompt" not in record
     assert "response" not in record
+
+
+def test_concurrent_route_and_recovery_records_preserve_both_streams(tmp_path, monkeypatch) -> None:
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+    route = resolve_stage_model(
+        "fast.source_relevance",
+        legacy_model_type="fast",
+        profile="cloud",
+    )
+
+    def record(index: int) -> None:
+        if index % 2:
+            record_stage_route_usage(tmp_path, route, outcome=f"selected-{index}")
+        else:
+            _append_recovery_event(str(tmp_path), {"index": index})
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(record, range(40)))
+
+    state = _load_run_state(str(tmp_path))
+    assert len(state["stage_routes"]) == 20
+    assert len(state["recovery_events"]) == 20
 
 
 def test_record_stage_route_usage_appends_actual_usage_delta(tmp_path, monkeypatch) -> None:

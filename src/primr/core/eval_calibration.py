@@ -21,7 +21,10 @@ def _safe_int(value: Any) -> int:
 
 def load_calibration_counts(report_path: Path) -> dict[str, int] | None:
     """Read calibration counts from a report sidecar, if present."""
-    from primr.qa.calibration_runner import sidecar_path_for
+    from primr.qa.calibration_runner import (
+        calibration_sidecar_matches_report,
+        sidecar_path_for,
+    )
 
     sidecar = sidecar_path_for(report_path)
     if not sidecar.exists():
@@ -31,6 +34,8 @@ def load_calibration_counts(report_path: Path) -> dict[str, int] | None:
     except (OSError, json.JSONDecodeError, AttributeError):
         return None
     if not isinstance(payload, dict):
+        return None
+    if not calibration_sidecar_matches_report(report_path, payload):
         return None
     return calibration_counts_from_payload(payload)
 

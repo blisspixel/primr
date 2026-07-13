@@ -141,6 +141,36 @@ class TestStickyTierPreservation:
         assert sticky_tier == "httpx"  # Tier unchanged
 
 
+class TestProductionRecoveryFactory:
+    """Production factory recovery executes actions that are actually available."""
+
+    def test_factory_retries_original_stage_callable_and_records_event(self, tmp_path):
+        from primr.pipeline.executor import RecoveryEvent
+        from primr.pipeline.integration import create_pipeline_executor, write_section_with_recovery
+        from primr.pipeline.recovery import RecoveryActionType
+
+        calls = 0
+        events: list[RecoveryEvent] = []
+
+        def fail_once():
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise RuntimeError("transient failure")
+            return {"content": "recovered"}
+
+        executor = create_pipeline_executor(str(tmp_path), event_listener=events.append)
+        result = write_section_with_recovery(executor, fail_once, str(tmp_path))
+
+        assert result.success is True
+        assert result.output == {"content": "recovered"}
+        assert result.actions_taken == [RecoveryActionType.RETRY_SAME]
+        assert calls == 2
+        assert len(events) == 1
+        assert events[0].action == "retry_same"
+        assert events[0].success is True
+
+
 # =============================================================================
 # TEST: Health transitions appear in structured log output (Req 12.3)
 # =============================================================================

@@ -61,7 +61,10 @@ Current priority order:
    judge-agreement metadata, so partial sidecar coverage cannot make a pack
    look ready by aggregate counts alone. Calibration pack manifests now carry
    report and sidecar byte sizes plus SHA-256 content hashes so a baseline
-   candidate names the exact artifacts it measured. `primr calibrate
+   candidate names the exact artifacts it measured. Calibration sidecars also
+   bind themselves to the exact report bytes they evaluated; pack aggregation
+   and compact MCP/A2A readback reject missing or stale bindings. `primr
+   calibrate
    --inspect-baseline` prints the same blocker set as machine-readable JSON for
    operators and agent control planes, including current-file fingerprint
    missing/mismatch checks that do not return report bodies, and MCP exposes the
