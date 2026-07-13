@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Cloud-vs-local calibration comparisons now preserve each disagreement as a
+  body-free pointer in the raw report-bound sidecar. Its zero-based claim index
+  resolves into the sidecar's top-level `claims` array for human adjudication,
+  while compact MCP and A2A summaries continue to omit disagreement details and
+  raw claim or source content.
 - Added weekly manual-triggerable dependency auditing with locked `pip-audit`
   coverage for every shipped extra and a pinned Trivy filesystem scan.
 - Added lock-derived, hash-complete build and runtime dependency manifests for

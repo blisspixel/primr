@@ -182,6 +182,14 @@ Exceptional execution standard for every workstream:
 
 ### 1. Evidence-grounded validation and label honesty
 
+Status: current measured-baseline milestone complete on 2026-07-13. A curated
+five-report baseline is ready with 33 of 37 comparable cloud and local verdicts
+in agreement. Operator review deliberately kept the hard gate report-only
+because two reports lack a decidable Confirmed floor. The current body-free
+decision record and reviewable disagreement pointers preserve the evidence for
+that choice. Recalibration on a fully decidable production corpus remains a
+continuous follow-up, not a blocker to item 2.
+
 Why next: the roadmap's measured quality gap is not prose polish, and it is
 not a request for simplistic fact matching. It is epistemic grounding: whether
 the report's conclusions, labels, caveats, and strategic inferences are
@@ -191,22 +199,22 @@ existing artifacts, but it is only one input to validation. The broader bar is
 whether the artifact's reasoning survives evidence review, contradiction
 review, and uncertainty review.
 
-Do next:
+Completed in this milestone:
 
-- Freeze a representative calibration pack of current-format reports, sidecars,
-  source appendices, and `--verify` outputs with
-  `primr calibrate --pack-manifest`. Include clean, blocked-origin,
-  weak-citation, strategy-module, and high-hiring-signal examples.
-- Run a multi-report calibration baseline over that pack, but keep the rubric
-  broader than string overlap or isolated fact matching.
-- Use the new calibration sidecar evidence-review dimensions to score sampled
-  report units across support, contradiction, source independence, source
-  authority, reasoning strength, uncertainty honesty, and business relevance.
-- Compare local and cloud judges on the same sampled claims, then sample human
-  review where judges disagree before trusting a local judge path.
-- Add a report-only scorecard first. It should publish per-dimension rates,
-  judge agreement, contradicted-claim counts, and abstention or uncertainty
-  rates without blocking runs. Shipped slices now cover evidence-review rates,
+- Froze a curated five-report pack with explicit representative tags, report
+  and sidecar fingerprints, source appendices, and current-format artifacts.
+- Ran a measured multi-report baseline without reducing validation to string
+  overlap or isolated fact matching.
+- Captured 50 source reviews. Support produced 18 affirmative results; the
+  secondary contradiction, independence, authority, reasoning, uncertainty,
+  and relevance dimensions remained unknown and therefore did not justify a
+  gate.
+- Compared local and cloud judges on the same sampled claims, persisted exact
+  body-free disagreement pointers, and manually adjudicated all four
+  disagreements before deciding whether to trust the local path.
+- The report-only scorecard publishes per-dimension rates, judge agreement,
+  contradicted-claim counts, and abstention or uncertainty rates without
+  blocking runs. Shipped slices cover evidence-review rates,
   standard verification contradiction counts, and sidecar-backed judge
   agreement rates, plus a local-only calibration-pack manifest, a curated
   pack-selection template for manual representative tagging, a curated
@@ -252,14 +260,28 @@ Do next:
   template allows the requested decision, and never sets the hard-gate
   environment variable itself. `primr calibrate --inspect-baseline-decision ...`
   revalidates a saved decision against the current baseline fingerprint and
-  allowed-decision evidence before downstream loops trust it.
-- Set `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` only from the measured floor of
-  that agreement-validated baseline.
-- Surface contradicted `--verify` claims in the report trust summary. First
-  slice shipped: standard runs now add verification trust rows with WARN and
-  contradiction counts when verification finds contradicted claims.
-- Decide whether `PRIMR_LABEL_HONESTY` can move toward default-on only after
-  the baseline proves acceptable false positive and false negative behavior.
+  allowed-decision evidence before downstream loops trust it. Raw
+  report-bound sidecars now preserve each cloud-vs-local disagreement as a
+  body-free claim-index and verdict pointer for operator adjudication. Compact
+  MCP and A2A summaries continue to omit the pointer list and all raw claim or
+  source content.
+- Kept `PRIMR_EVAL_MIN_CONFIRMED_TRACEABILITY` unset because two of five reports
+  lack a decidable Confirmed floor, even though the three-report measured floor
+  is 30 percent.
+- Surfaced contradicted `--verify` claims in the report trust summary. Standard
+  runs now add verification trust rows with WARN and contradiction counts when
+  verification finds contradicted claims.
+- Kept `PRIMR_LABEL_HONESTY` unchanged because adjudication found judge errors
+  in both directions and does not justify a default-on move.
+
+Continuous production-corpus follow-up:
+
+- Freeze at least five current provider-backed production reports in which
+  every report contributes decidable Confirmed claims and secondary evidence
+  dimensions are complete rather than unknown.
+- Repeat cloud-vs-local comparison and human disagreement adjudication on that
+  corpus. Reconsider the hard threshold and label-honesty default only when the
+  resulting false-positive and false-negative evidence supports the change.
 
 Done when:
 
@@ -274,8 +296,9 @@ Done when:
   explicit measurement status in JSON and Markdown; ready-but-report-only
   baselines now publish explicit hard-gate next actions; baseline artifacts now
   include a decision template, and the CLI can write a separate operator-created
-  decision record for gate evidence. Hard-gate arming is still pending operator
-  review of the measured floor.
+  decision record for gate evidence. The current five-report measured baseline
+  completed operator review and records `keep_report_only`; future production
+  corpus recalibration remains continuous evaluation work.
 - The hard gate is either armed from a defensible baseline or deliberately left
   report-only with documented evidence.
 - Contradicted claims are visible in the human-facing report trust surface for

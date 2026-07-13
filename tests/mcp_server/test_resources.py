@@ -1213,6 +1213,13 @@ class TestCalibrationSummaryByJobResource:
                         "compared": 4,
                         "agreed": 3,
                         "agreement": 0.75,
+                        "disagreements": [
+                            {
+                                "claim_index": 2,
+                                "cloud_verdict": "traceable",
+                                "local_verdict": "untraceable",
+                            }
+                        ],
                     },
                     "per_label": {
                         "Confirmed": {

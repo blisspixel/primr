@@ -97,6 +97,16 @@ Current priority order:
    Decision records can now be re-inspected with a body-free readback that
    verifies the baseline fingerprint still matches and the current template
    still allows the recorded decision before agents trust the record.
+   **Current measured-baseline milestone COMPLETE (2026-07-13):** five distinct
+   reports cover every required representative tag, 50 evidence reviews are
+   present, cloud and local judges agree on 33 of 37 comparable claims, and all
+   ten report or sidecar fingerprints pass inspection. The measured Confirmed
+   floor is 30 percent across three contributing reports. Operator review
+   deliberately records `keep_report_only` because two reports lack a
+   decidable Confirmed floor. Raw report-bound sidecars preserve each
+   disagreement as a body-free claim-index and verdict pointer while compact
+   MCP and A2A summaries remain body-free. Recalibration on a fully decidable
+   production corpus is follow-up work, not a blocker to priority 2.
 2. **Backend freedom production wiring.** Provider abstractions and pure routing
    foundations exist, and `core/stage_inventory.py` now records router-ready
    capability requirements and promotion gates for fast-mode and premium
@@ -434,8 +444,10 @@ per-module coverage ratchet unlocked by the refactor:
   reasoning strength, uncertainty honesty, and business relevance dimensions,
   and the eval scorecard surfaces pooled `## Evidence Review` report-only
   metrics plus CSV columns. `--judge-compare` also stamps per-report
-  cloud-vs-local agreement into calibration sidecars, and offline eval surfaces
-  pooled `## Judge Agreement` report-only metrics plus CSV columns.
+  cloud-vs-local agreement into calibration sidecars, including body-free
+  claim-index and verdict pointers for disagreements, and offline eval surfaces
+  pooled `## Judge Agreement` report-only metrics plus CSV columns. Compact MCP
+  and A2A summaries omit those pointers and all raw claim or source content.
   `--pack-manifest` writes a local JSON manifest of the selected reports,
   sidecar state, estimates, per-label totals, inference source-copy counts,
   and judge-agreement metadata so a representative pack can be frozen before

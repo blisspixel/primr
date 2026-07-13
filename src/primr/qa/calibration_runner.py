@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from primr.qa.label_calibration import EvidenceReview
 
 from primr.qa.artifact_fingerprints import artifact_bytes_fingerprint, artifact_fingerprint
+from primr.qa.calibration_judge_agreement import JudgeAgreement, JudgeDisagreement
 from primr.qa.calibration_selection import CalibrationPackSelection
 from primr.qa.calibration_sidecars import (
     SIDECAR_SUFFIX as SIDECAR_SUFFIX,
@@ -424,27 +425,6 @@ def run_calibration(
     return outcomes
 
 
-@dataclass(frozen=True)
-class JudgeAgreement:
-    """Cloud-vs-local judge agreement over the same decidable claims.
-
-    The cheap way to decide whether a *particular* local setup can be
-    trusted with calibration: judge the same claims with both backends
-    once, and let the agreement rate speak. Only claims both judges could
-    decide (traceable/untraceable) are compared.
-    """
-
-    compared: int
-    agreed: int
-    local_model: str
-
-    @property
-    def agreement(self) -> float | None:
-        if not self.compared:
-            return None
-        return self.agreed / self.compared
-
-
 _DECIDED = ("traceable", "untraceable")
 
 
@@ -515,8 +495,9 @@ def compare_judges(
         )
         report_compared = 0
         report_agreed = 0
-        for cloud_result, local_result in zip(
-            cloud_report.results, local_report.results, strict=True
+        report_disagreements: list[JudgeDisagreement] = []
+        for claim_index, (cloud_result, local_result) in enumerate(
+            zip(cloud_report.results, local_report.results, strict=True)
         ):
             if cloud_result.verdict in _DECIDED and local_result.verdict in _DECIDED:
                 compared += 1
@@ -524,10 +505,19 @@ def compare_judges(
                 if cloud_result.verdict == local_result.verdict:
                     agreed += 1
                     report_agreed += 1
+                else:
+                    report_disagreements.append(
+                        JudgeDisagreement(
+                            claim_index=claim_index,
+                            cloud_verdict=cloud_result.verdict,
+                            local_verdict=local_result.verdict,
+                        )
+                    )
         per_report[path] = JudgeAgreement(
             compared=report_compared,
             agreed=report_agreed,
             local_model=local_selection.model,
+            disagreements=tuple(report_disagreements),
         )
 
     agreement = JudgeAgreement(compared=compared, agreed=agreed, local_model=local_selection.model)
@@ -556,6 +546,7 @@ def _stamp_judge_agreement(
             "compared": agreement.compared,
             "agreed": agreement.agreed,
             "agreement": agreement.agreement,
+            "disagreements": [item.to_dict() for item in agreement.disagreements],
         }
         outcome.sidecar_path.write_text(
             json.dumps(payload, indent=2, ensure_ascii=False),

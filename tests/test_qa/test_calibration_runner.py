@@ -702,6 +702,18 @@ class TestJudgeComparison:
             "compared": 2,
             "agreed": 0,
             "agreement": 0.0,
+            "disagreements": [
+                {
+                    "claim_index": 0,
+                    "cloud_verdict": "traceable",
+                    "local_verdict": "untraceable",
+                },
+                {
+                    "claim_index": 1,
+                    "cloud_verdict": "traceable",
+                    "local_verdict": "untraceable",
+                },
+            ],
         }
 
     def test_full_agreement(self, tmp_path):
@@ -716,6 +728,36 @@ class TestJudgeComparison:
             cloud_judge_fn=lambda c, t: True,
         )
         assert agreement.agreement == 1.0
+        payload = json.loads(sidecar_path_for(path).read_text(encoding="utf-8"))
+        assert payload["judge_agreement"]["disagreements"] == []
+
+    def test_disagreement_index_resolves_top_level_claim_after_nondecidable(self, tmp_path):
+        from primr.qa.calibration_runner import JudgeSelection, compare_judges
+
+        report = """## Executive Summary
+An uncited claim comes first. (Confirmed)
+A cited claim comes second. (Reported) [cite: 1]
+
+## Sources
+[cite: 1] https://news.example.com/second
+"""
+        path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md", report)
+        local = JudgeSelection(kind="local", model="m:7b", judge_fn=lambda c, t: False)
+
+        compare_judges(
+            [path],
+            local_selection=local,
+            fetch_fn=lambda u: "supporting text",
+            cloud_judge_fn=lambda c, t: True,
+        )
+
+        payload = json.loads(sidecar_path_for(path).read_text(encoding="utf-8"))
+        pointer = payload["judge_agreement"]["disagreements"][0]
+        assert pointer["claim_index"] == 1
+        claim = payload["claims"][pointer["claim_index"]]
+        assert claim["sentence"].startswith("A cited claim comes second.")
+        assert claim["verdict"] == pointer["cloud_verdict"] == "traceable"
+        assert pointer["local_verdict"] == "untraceable"
 
     def test_cloud_judge_billed_once_per_pair(self, tmp_path):
         from primr.qa.calibration_runner import JudgeSelection, compare_judges
@@ -754,6 +796,7 @@ class TestJudgeComparison:
         payload = json.loads(sidecar_path_for(path).read_text(encoding="utf-8"))
         assert payload["judge_agreement"]["compared"] == 0
         assert payload["judge_agreement"]["agreement"] is None
+        assert payload["judge_agreement"]["disagreements"] == []
 
 
 class TestCLIWiring:

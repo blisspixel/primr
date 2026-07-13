@@ -202,7 +202,14 @@ continue to measure both failure directions as classifier behavior changes.
   cloud-vs-local agreement metadata into each calibration sidecar. Offline eval
   pools those counts into `## Judge Agreement` and CSV columns
   `judge_agreement_compared` / `judge_agreement_rate`. Agreement remains a
-  baseline-readiness signal, not a quality gate.
+  baseline-readiness signal, not a quality gate. The raw report-bound sidecar
+  also records each disagreement as a body-free pointer containing only the
+  sampled claim index and the cloud and local verdicts. `claim_index` is the
+  zero-based index into that sidecar's top-level `claims` array, including
+  preceding non-decidable claims. Operators can resolve those pointers against
+  the claims already bound into that sidecar for human adjudication. Compact MCP
+  and A2A calibration summaries deliberately omit the pointer list and all raw
+  claim or source content.
 - Calibration pack manifest: add `--pack-manifest path/to/pack.json` to
   `primr calibrate` or its `--dry-run` preview to freeze the selected reports,
   sidecar state, sampled-claim counts, judge-call estimate, per-label totals,
@@ -335,7 +342,13 @@ Design rules (these hold for any setup, not a particular machine):
   `judge: {kind, model}` so a calibration number always says what judged it.
   Local call failures produce no sidecar for that report and are reported as
   calibration failures.
-- **Trust is measured, not assumed.** `--judge-compare` runs cloud and local over the same claims (cloud verdicts are the result of record and are billed exactly once) and reports the agreement rate. If your local model agrees ~90%+, future calibration runs can go local-first and recurring judge cost drops to zero.
+- **Trust is measured, not assumed.** `--judge-compare` runs cloud and local over
+  the same claims (cloud verdicts are the result of record and are billed
+  exactly once) and reports the agreement rate. It also preserves body-free
+  disagreement pointers in each raw sidecar so operator review can identify
+  false positives and false negatives before trusting the local path. If your
+  local model agrees ~90%+, future calibration runs can go local-first and
+  recurring judge cost drops to zero.
 - **Dry-run spend follows the requested judge policy.** Explicit local-only
   previews report `$0.00` estimated cloud spend and write
   `estimated_cloud_cost_usd: 0.0` in pack manifests. `--judge auto` always
