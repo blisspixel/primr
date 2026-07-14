@@ -20,19 +20,32 @@ sideload rather than creating a parallel install.
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import logging
 import re
+import tempfile
 import uuid
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from primr.skill_pack.config import SkillPackConfig
 from primr.skill_pack.icons import pillow_available
 from primr.skill_pack.image_generation import generate_icons
+from primr.skill_pack.publication import (
+    cleanup_owned_tree,
+    publish_staged_output,
+    rebase_artifact_paths,
+    record_publication_warning,
+    resolve_output_name,
+    validate_replace_target,
+    write_output_marker,
+)
 from primr.skill_pack.schema import (
     BundledFile,
     Role,
@@ -40,14 +53,37 @@ from primr.skill_pack.schema import (
     SkillPack,
     SkillPackArtifacts,
 )
-from primr.skill_pack.validator import scan_bundled_content, validate_bundled_path
+from primr.skill_pack.script_safety import (
+    VERIFY_ARTIFACT_SCRIPT,
+    VERIFY_ARTIFACT_SCRIPT_PATH,
+    has_registered_verifier_invocation,
+    is_verification_skill_name,
+    registered_verifier_path_count,
+    scan_authored_executable_instructions,
+)
+from primr.skill_pack.validator import (
+    find_hardcoded_path,
+    find_injection_match,
+    scan_bundled_content,
+    validate_bundled_path,
+)
+from primr.utils.validators import is_portable_path_component
 
 logger = logging.getLogger(__name__)
 
 # ASCII control characters (except the ones str handles via .replace below);
 # stripped from SKILL.md frontmatter metadata values so an injected CR/ESC/etc.
 # can't forge a log line or break the YAML.
-_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+_AGENT_METADATA_KEYS = frozenset(
+    {
+        "primr-role",
+        "primr-provenance",
+        "primr-confidence",
+        "primr-context-tokens",
+        "primr-refresh-via",
+    }
+)
 
 MANIFEST_SCHEMA_URL = (
     "https://developer.microsoft.com/json-schemas/teams/v1.28/MicrosoftTeams.schema.json"
@@ -123,26 +159,39 @@ def _format_skill_md(skill: Skill, metadata: dict[str, str] | None = None) -> st
     YAML frontmatter (name + description, plus an optional primr-namespaced
     `metadata` block) followed by the body. The body is expected to already
     contain the required H2 sections - validator enforces that upstream. We
-    escape double quotes in the YAML scalar values.
+    Every scalar is serialized as a JSON string, which is also a valid YAML
+    scalar. A YAML round trip verifies that authored text cannot create keys.
     """
-    safe_name = skill.name.replace('"', '\\"')
-    safe_desc = skill.description.replace('"', '\\"').replace("\n", " ").strip()
+    safe_name = " ".join(_CONTROL_CHARS_RE.sub(" ", skill.name).splitlines()).strip()
+    safe_desc = " ".join(_CONTROL_CHARS_RE.sub(" ", skill.description).splitlines()).strip()
+    expected_frontmatter: dict[str, object] = {
+        "name": safe_name,
+        "description": safe_desc,
+    }
     lines = [
-        "---",
-        f'name: "{safe_name}"',
-        f'description: "{safe_desc}"',
+        f"name: {json.dumps(safe_name, ensure_ascii=True)}",
+        f"description: {json.dumps(safe_desc, ensure_ascii=True)}",
     ]
     if metadata:
+        unexpected_keys = set(metadata).difference(_AGENT_METADATA_KEYS)
+        if unexpected_keys:
+            raise ValueError("skill metadata contains an unregistered key")
+        safe_metadata: dict[str, str] = {}
         lines.append("metadata:")
         for key, value in metadata.items():
-            # Defense-in-depth: strip control chars and escape quotes/newlines so
-            # a role field (display_name/confidence) that reaches frontmatter
-            # can't break the YAML or inject a line. The validator's role-level
-            # SEC-INJECT is the primary gate (drops the role); this keeps the
-            # emitted document well-formed even if a value slips through.
-            safe_value = _CONTROL_CHARS_RE.sub("", str(value))
-            safe_value = safe_value.replace('"', '\\"').replace("\n", " ").strip()
-            lines.append(f'  {key}: "{safe_value}"')
+            safe_value = " ".join(_CONTROL_CHARS_RE.sub(" ", str(value)).splitlines()).strip()
+            safe_metadata[key] = safe_value
+            lines.append(f"  {key}: {json.dumps(safe_value, ensure_ascii=True)}")
+        expected_frontmatter["metadata"] = safe_metadata
+
+    frontmatter = "\n".join(lines)
+    loaded_frontmatter = yaml.safe_load(frontmatter)
+    if (
+        not isinstance(loaded_frontmatter, dict)
+        or not set(loaded_frontmatter).issubset({"name", "description", "metadata"})
+        or loaded_frontmatter != expected_frontmatter
+    ):
+        raise RuntimeError("SKILL.md frontmatter failed its structural round trip")
     lines.extend(
         [
             "---",
@@ -151,7 +200,7 @@ def _format_skill_md(skill: Skill, metadata: dict[str, str] | None = None) -> st
             "",
         ]
     )
-    return "\n".join(lines)
+    return "\n".join(["---", *lines])
 
 
 def _build_manifest(
@@ -222,6 +271,14 @@ def _build_pack_report_md(
         f"# Skills Pack - {pack.company_name}",
         "",
         f"_Created {pack.generated_at}._",
+        "",
+        "## Security Review Required",
+        "",
+        "Generated SKILL.md and reference prose is untrusted content. Review every file before "
+        "installation or sideloading. Primr rejects structural and explicit executable carriers "
+        "and admits executable bytes only through its exact first-party registry, but it cannot "
+        "determine the intent of every natural-language instruction. Keep host tool allowlists, "
+        "approval gates, and sandboxing enabled.",
         "",
         "## Configuration",
         "",
@@ -416,8 +473,6 @@ def _count_bp_adherence_signals(pack: SkillPack) -> tuple[int, int, int]:
     gotchas_support = 0
     scripts_count = 0
     verifier_count = 0
-    verifier_markers = ("validat", "review", "check", "verif")
-
     for role in pack.roles:
         for skill in role.skills:
             gotchas_support += sum(
@@ -430,8 +485,7 @@ def _count_bp_adherence_signals(pack: SkillPack) -> tuple[int, int, int]:
                 for bundled_file in getattr(skill, "bundled_files", []) or []
                 if bundled_file.relpath.startswith("scripts/")
             )
-            skill_name = (skill.name or "").lower()
-            if any(marker in skill_name for marker in verifier_markers):
+            if is_verification_skill_name(skill.name or ""):
                 verifier_count += 1
 
     return gotchas_support, scripts_count, verifier_count
@@ -498,7 +552,7 @@ _SAFE_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 def _is_safe_slug(slug: str) -> bool:
     if not slug or ".." in slug or "/" in slug or "\\" in slug:
         return False
-    return bool(_SAFE_SLUG_RE.match(slug))
+    return bool(_SAFE_SLUG_RE.fullmatch(slug)) and is_portable_path_component(slug, max_length=128)
 
 
 def _is_relative_to(path: Path, root: Path) -> bool:
@@ -520,9 +574,9 @@ def _safe_bundled_files(skill: Skill) -> list[BundledFile]:
     Drops two classes of file defensively (the validator already recorded the
     matching finding upstream):
       - unsafe PATH (traversal / wrong subdir / wrong ext) - SOFT BUNDLE-PATH;
-      - unsafe CONTENT (injection markers, hardcoded paths, or an executable
-        Python helper that does process/network/eval/secret/destructive work)
-        - HARD SEC-BUNDLE.
+      - unsafe CONTENT (injection markers, hardcoded paths, or any executable
+        helper not matching the reviewed first-party registry) - HARD
+        SEC-BUNDLE.
 
     This is defense-in-depth: even if a role somehow ships with a HARD finding
     unresolved, no unreviewed executable or injected content reaches the
@@ -538,6 +592,9 @@ def _safe_bundled_files(skill: Skill) -> list[BundledFile]:
         unsafe = scan_bundled_content(bf.relpath, bf.content)
         if unsafe is not None:
             logger.warning("Dropping unsafe bundled file %r: %s", bf.relpath, unsafe)
+            continue
+        if bf.relpath.endswith(".py") and not is_verification_skill_name(skill.name):
+            logger.warning("Dropping verifier helper from non-verification skill %r", skill.name)
             continue
         seen.add(bf.relpath)
         out.append(bf)
@@ -599,6 +656,23 @@ def _cowork_packaged_skills(
     return packaged
 
 
+def _bounded_slug(preferred: str, identity: str, seen: set[str]) -> str:
+    """Return a deterministic, portable, collision-free skill folder slug."""
+    if len(preferred) <= 128 and preferred not in seen:
+        return preferred
+
+    nonce = 0
+    while True:
+        digest_input = identity if nonce == 0 else f"{identity}\0{nonce}"
+        digest = hashlib.sha256(digest_input.encode("utf-8")).hexdigest()[:12]
+        suffix = f"--{digest}"
+        prefix = preferred[: 128 - len(suffix)].rstrip("._-")
+        candidate = f"{prefix}{suffix}"
+        if candidate not in seen:
+            return candidate
+        nonce += 1
+
+
 def _ensure_unique_slugs(items: list[tuple[Role, Skill]]) -> list[tuple[str, Role, Skill]]:
     """Yield (folder_slug, role, skill) tuples with collision-free folder names.
 
@@ -608,19 +682,23 @@ def _ensure_unique_slugs(items: list[tuple[Role, Skill]]) -> list[tuple[str, Rol
     """
     seen: set[str] = set()
     result: list[tuple[str, Role, Skill]] = []
-    for role, skill in items:
-        slug = skill.name
-        if slug in seen:
-            slug = f"{role.name}--{skill.name}"
+    for index, (role, skill) in enumerate(items):
+        preferred = skill.name if skill.name not in seen else f"{role.name}--{skill.name}"
+        slug = _bounded_slug(
+            preferred,
+            identity=f"{role.name}\0{skill.name}\0{index}",
+            seen=seen,
+        )
         seen.add(slug)
         result.append((slug, role, skill))
     return result
 
 
-def package_skill_pack(
+def _package_skill_pack_direct(
     pack: SkillPack,
     config: SkillPackConfig,
     base_output_dir: Path,
+    output_name: str | None = None,
 ) -> SkillPackArtifacts:
     """Write all artifacts for a SkillPack to disk.
 
@@ -628,8 +706,9 @@ def package_skill_pack(
     were emitted. Always writes the pack report markdown.
     """
     company_token = _safe_filename_token(pack.company_name)
-    date_token = _today_yyyymmdd()
-    output_dir = base_output_dir / f"{company_token}_Skills_Pack_{date_token}"
+    if output_name is None:
+        output_name = f"{company_token}_Skills_Pack_{_today_yyyymmdd()}"
+    output_dir = base_output_dir / output_name
     output_dir.mkdir(parents=True, exist_ok=True)
 
     artifacts = SkillPackArtifacts(output_dir=str(output_dir))
@@ -733,7 +812,175 @@ def package_skill_pack(
     report_path.write_text(report_md, encoding="utf-8")
     artifacts.report_md_path = str(report_path)
 
+    write_output_marker(output_dir, pack.company_name)
+
     return artifacts
+
+
+def _validate_packaging_boundary(pack: SkillPack) -> None:
+    """Fail before writing if agent-consumed prose can recreate executable code."""
+    for role in pack.roles:
+        verification_skills = [
+            skill for skill in role.skills if is_verification_skill_name(skill.name)
+        ]
+        if len(verification_skills) > 1:
+            raise ValueError(
+                f"role {role.name!r} must contain exactly one verification skill, "
+                f"found {len(verification_skills)}"
+            )
+        for field_name, content in (
+            ("display_name", role.display_name),
+            ("confidence", role.confidence),
+            ("summary", role.summary or ""),
+        ):
+            if registered_verifier_path_count(content):
+                raise ValueError(
+                    "registered verifier path is allowed only in the canonical "
+                    f"verification workflow, not role {role.name!r} {field_name}"
+                )
+            unsafe = scan_authored_executable_instructions(content)
+            if unsafe is not None:
+                raise ValueError(
+                    f"unsafe executable instruction in role {role.name!r} {field_name}: {unsafe}"
+                )
+            if find_injection_match(content) is not None:
+                raise ValueError(f"unsafe agent instruction in role {role.name!r} {field_name}")
+            if find_hardcoded_path(content) is not None:
+                raise ValueError(f"hardcoded local path in role {role.name!r} {field_name}")
+        for skill in role.skills:
+            verification_skill = is_verification_skill_name(skill.name)
+            registered_path_present = False
+            for field_name, content in (
+                ("display_name", skill.display_name),
+                ("description", skill.description),
+                ("body", skill.body),
+            ):
+                unsafe = scan_authored_executable_instructions(content)
+                if unsafe is not None:
+                    raise ValueError(
+                        f"unsafe executable instruction in {skill.name!r} {field_name}: {unsafe}"
+                    )
+                if find_injection_match(content) is not None:
+                    raise ValueError(f"unsafe agent instruction in {skill.name!r} {field_name}")
+                if find_hardcoded_path(content) is not None:
+                    raise ValueError(f"hardcoded local path in {skill.name!r} {field_name}")
+                path_count = registered_verifier_path_count(content)
+                registered_path_present = registered_path_present or bool(path_count)
+                if path_count and not (
+                    verification_skill
+                    and field_name == "body"
+                    and has_registered_verifier_invocation(content)
+                ):
+                    raise ValueError(
+                        "registered verifier path is allowed only in the canonical "
+                        f"verification workflow, not {skill.name!r} {field_name}"
+                    )
+            if any(
+                bf.relpath.endswith(".md") and registered_verifier_path_count(bf.content)
+                for bf in skill.bundled_files
+            ):
+                raise ValueError(
+                    f"registered verifier path is not allowed in {skill.name!r} reference prose"
+                )
+            scripts = [bf for bf in skill.bundled_files if bf.relpath.endswith(".py")]
+            if not scripts:
+                if registered_path_present:
+                    raise ValueError(
+                        f"verification skill {skill.name!r} references a missing helper"
+                    )
+                if verification_skill:
+                    raise ValueError(
+                        f"verification skill {skill.name!r} must contain one registered helper"
+                    )
+                continue
+            if not verification_skill:
+                raise ValueError(
+                    f"non-verification skill {skill.name!r} cannot contain executable helpers"
+                )
+            if len(scripts) != 1:
+                raise ValueError(f"verification skill {skill.name!r} must contain one helper")
+            helper = scripts[0]
+            if (
+                helper.relpath != VERIFY_ARTIFACT_SCRIPT_PATH
+                or helper.content != VERIFY_ARTIFACT_SCRIPT
+                or not has_registered_verifier_invocation(skill.body)
+            ):
+                raise ValueError(
+                    f"verification skill {skill.name!r} does not match the helper registry"
+                )
+        if not verification_skills:
+            raise ValueError(
+                f"role {role.name!r} must contain exactly one verification skill, found 0"
+            )
+
+
+def package_skill_pack(
+    pack: SkillPack,
+    config: SkillPackConfig,
+    base_output_dir: Path,
+) -> SkillPackArtifacts:
+    """Build in a fresh sibling and replace only a verified owned output tree."""
+    _validate_packaging_boundary(pack)
+    base_output_dir.mkdir(parents=True, exist_ok=True)
+    base_output_dir = base_output_dir.resolve()
+    company_token = _safe_filename_token(pack.company_name)
+    output_name = resolve_output_name(
+        base_output_dir,
+        pack.company_name,
+        company_token,
+        _today_yyyymmdd(),
+    )
+    output_dir = base_output_dir / output_name
+    validate_replace_target(base_output_dir, output_dir, pack.company_name, company_token)
+
+    staging_base = Path(
+        tempfile.mkdtemp(prefix=f".{output_name}.", suffix=".staging", dir=base_output_dir)
+    )
+    staged_output = staging_base / output_name
+    published = False
+    try:
+        artifacts = _package_skill_pack_direct(pack, config, staging_base, output_name)
+        if Path(artifacts.output_dir) != staged_output:
+            raise RuntimeError("staged skill-pack output path did not match its owned target")
+
+        # The report is generated before publication. Rewrite only its owned
+        # root path so it names the durable destination, never the temp tree.
+        if artifacts.report_md_path is not None:
+            report_path = Path(artifacts.report_md_path)
+            report = report_path.read_text(encoding="utf-8")
+            report_path.write_text(
+                report.replace(str(staged_output), str(output_dir)),
+                encoding="utf-8",
+                newline="\n",
+            )
+
+        # Re-check immediately before the rename so a path substituted during
+        # staging is rejected. Renaming the old tree avoids following it.
+        validate_replace_target(base_output_dir, output_dir, pack.company_name, company_token)
+        cleanup_warnings: list[str] = []
+        backup_warning = publish_staged_output(staged_output, output_dir)
+        published = True
+        if backup_warning is not None:
+            cleanup_warnings.append(backup_warning)
+        try:
+            staging_base.rmdir()
+        except OSError as exc:
+            cleanup_warnings.append(
+                "The new pack is published, but its empty staging directory "
+                f"could not be removed ({type(exc).__name__}): {staging_base.name}"
+            )
+        rebase_artifact_paths(artifacts, staged_output, output_dir)
+        for warning in cleanup_warnings:
+            record_publication_warning(artifacts, output_dir, warning)
+        return artifacts
+    finally:
+        if not published and staging_base.exists():
+            cleanup_warning = cleanup_owned_tree(
+                staging_base,
+                context="Unpublished staging output",
+            )
+            if cleanup_warning is not None:
+                logger.error("Failed to clean unpublished staging tree: %s", cleanup_warning)
 
 
 __all__ = ["MANIFEST_SCHEMA_URL", "PACKAGE_VERSION", "package_skill_pack"]

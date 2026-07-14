@@ -239,6 +239,40 @@ _INJECTION_PATTERNS = [
         "Context manipulation attempt",
     ),
 ]
+_SOURCE_INJECTION_PATTERNS = tuple(pattern for pattern, _description in _INJECTION_PATTERNS)
+
+# Authored agent instructions legitimately contain example conversation labels,
+# role directions, and output constraints. The final package gate therefore
+# uses this high-confidence subset instead of promoting every advisory source-
+# sanitization heuristic to a ship blocker.
+_AUTHORED_INJECTION_PATTERNS = (
+    re.compile(
+        r"(?:^|\n)\s*SYSTEM\s*:",
+    ),
+    re.compile(
+        r"(?:^|\n)\s*System\s*:\s*(?=(?:(?:kindly|please)\s+)?(?:act\s+as|"
+        r"assume\s+the\s+role|behave\s+as|disregard|follow|forget|grant|ignore|"
+        r"never|obey|override|pretend|reveal|send|use|you\s+are\s+now)\b)",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\[SYSTEM\]", re.IGNORECASE),
+    re.compile(r"<\/?system(?:\s[^>]*)?>", re.IGNORECASE),
+    re.compile(
+        r"\b(?:you\s+are\s+now|act\s+as|behave\s+as|roleplay\s+as|"
+        r"pretend(?:\s+to\s+be|\s+you\s+are)|assume\s+the\s+role\s+of)\s*:?\s*"
+        r"(?:an?\s+|the\s+)?(?:(?:different|privileged|unrestricted)\s+)*"
+        r"(?:admin(?:istrator)?|ai|assistant|developer|root|superuser|"
+        r"system(?:\s+administrator)?)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:output|respond|reply|answer)\s+(?:only|exclusively|just)\s+"
+        r"(?:with|in|using)\s+(?:the\s+)?(?:content|format|instructions?|payload|text)\b"
+        r"[^\n]{0,80}\b(?:requested|specified|provided)\b[^\n]{0,40}"
+        r"\b(?:message|prompt|instruction)\b",
+        re.IGNORECASE,
+    ),
+)
 
 # Maximum content length (prevents resource exhaustion)
 _MAX_CONTENT_LENGTH = 500_000  # ~500KB
@@ -357,6 +391,22 @@ def _strip_injection_patterns(text: str) -> str:
 # =============================================================================
 # PUBLIC API
 # =============================================================================
+
+
+def find_prompt_injection(text: str, *, authored_output: bool = False) -> str | None:
+    """Return the first canonical prompt-injection marker in ``text``.
+
+    Source sanitization uses the broad advisory grammar. Final authored-output
+    gates use only high-confidence forms so legitimate examples, role guidance,
+    and output constraints do not become false-positive ship blockers.
+    """
+    if not text:
+        return None
+    patterns = _AUTHORED_INJECTION_PATTERNS if authored_output else _SOURCE_INJECTION_PATTERNS
+    for pattern in patterns:
+        if match := pattern.search(text):
+            return match.group(0)
+    return None
 
 
 class ContentSanitizer:

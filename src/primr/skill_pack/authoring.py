@@ -26,12 +26,30 @@ from primr.skill_pack.role_references import (
     build_role_family_reference,
 )
 from primr.skill_pack.schema import BundledFile, Role, RoleProvenance, Skill
+from primr.skill_pack.script_safety import (
+    VERIFY_ARTIFACT_SCRIPT,
+    VERIFY_ARTIFACT_SCRIPT_PATH,
+    has_registered_verifier_invocation,
+    insert_registered_verifier_invocation,
+    is_verification_skill_name,
+    registered_verifier_path_count,
+    scan_authored_executable_instructions,
+)
+from primr.skill_pack.validator import validate_bundled_path, validate_kebab_case
+from primr.utils.content_sanitizer import fence_untrusted
 
 logger = logging.getLogger(__name__)
 
 # Parallelism cap matches the section-writing pattern in research_agent.py.
 # Going higher hits provider rate limits without much wallclock gain.
 _MAX_PARALLEL_AUTHORS = 4
+
+
+def _fenced_prompt_value(label: str, value: str | None, *, empty: str) -> str:
+    """Return untrusted authoring context as sanitized, explicitly fenced data."""
+    if not value or not value.strip():
+        return empty
+    return fence_untrusted(label, value)
 
 
 def _resolve_archetype_grounding(role: Role) -> tuple[ArchetypeMatch, str]:
@@ -52,7 +70,11 @@ def _provenance_guidance(role: Role) -> str:
     citations = role.evidence.citations or []
     citation_block = ""
     if citations:
-        rendered = "\n".join(f"  - {c[:200]}" for c in citations[:5])
+        rendered = _fenced_prompt_value(
+            "ROLE_CITATIONS",
+            "\n".join(citation[:200] for citation in citations[:5]),
+            empty="(none)",
+        )
         citation_block = f"\n\nSupporting citations for this role:\n{rendered}"
 
     provenance = role.evidence.provenance
@@ -121,6 +143,9 @@ def author_role_skills(
     so the ThreadPoolExecutor doesn't serialize through one session. The
     pack-level coherence pass downstream picks up cross-role consistency.
     """
+    if not validate_kebab_case(role.name):
+        raise ValueError(f"author_role_skills: invalid role name {role.name!r}")
+
     match, archetype_grounding = _resolve_archetype_grounding(role)
     if match.archetype is not None:
         # Mutate the role's evidence so the packager report can show what
@@ -130,16 +155,25 @@ def author_role_skills(
     prompt = load_skill_pack_prompt("author_skill")
     user_msg = prompt.render(
         role_name=role.name,
-        role_display_name=role.display_name,
-        role_archetype=role.evidence.archetype or "(none)",
-        role_confidence=role.confidence,
-        role_summary=role.summary or "(none)",
-        role_sources=", ".join(role.evidence.sources) or "(none)",
-        company_name=company_name,
-        company_url=company_url or "(not provided)",
-        industry_context=industry_context,
-        recon_signals=recon_evidence,
-        hiring_signals=hiring_evidence,
+        role_name_context=_fenced_prompt_value("ROLE_NAME", role.name, empty="(unknown)"),
+        role_display_name=_fenced_prompt_value(
+            "ROLE_DISPLAY_NAME", role.display_name, empty="(unknown)"
+        ),
+        role_archetype=_fenced_prompt_value(
+            "ROLE_ARCHETYPE", role.evidence.archetype, empty="(none)"
+        ),
+        role_confidence=_fenced_prompt_value("ROLE_CONFIDENCE", role.confidence, empty="(unknown)"),
+        role_summary=_fenced_prompt_value("ROLE_SUMMARY", role.summary, empty="(none)"),
+        role_sources=_fenced_prompt_value(
+            "ROLE_SOURCES", ", ".join(role.evidence.sources), empty="(none)"
+        ),
+        company_name=_fenced_prompt_value("COMPANY_NAME", company_name, empty="(unknown)"),
+        company_url=_fenced_prompt_value("COMPANY_URL", company_url, empty="(not provided)"),
+        industry_context=_fenced_prompt_value(
+            "INDUSTRY_CONTEXT", industry_context, empty="(unknown)"
+        ),
+        recon_signals=_fenced_prompt_value("RECON_EVIDENCE", recon_evidence, empty="(none)"),
+        hiring_signals=_fenced_prompt_value("HIRING_EVIDENCE", hiring_evidence, empty="(none)"),
         archetype_grounding=archetype_grounding,
         provenance_guidance=_provenance_guidance(role),
         skills_per_role=skills_per_role,
@@ -166,14 +200,27 @@ def author_role_skills(
         name = str(entry.get("name", "")).strip()
         if not name:
             continue
+        display_name = str(entry.get("display_name", name)).strip()
+        description = str(entry.get("description", "")).strip()
         body = str(entry.get("body", "")).strip()
         # Normalize \n escape sequences that may leak in from JSON literals.
         body = body.replace("\\n", "\n")
+        for field_name, content in (
+            ("display_name", display_name),
+            ("description", description),
+            ("body", body),
+        ):
+            executable_instruction = scan_authored_executable_instructions(content)
+            if executable_instruction is not None:
+                raise ValueError(
+                    "author_role_skills: rejected executable instruction in "
+                    f"{field_name}: {executable_instruction}"
+                )
         skills.append(
             Skill(
                 name=name,
-                display_name=str(entry.get("display_name", name)).strip(),
-                description=str(entry.get("description", "")).strip(),
+                display_name=display_name,
+                description=description,
                 body=body,
                 canonical_skill_basis=(
                     str(entry.get("canonical_skill_basis"))
@@ -183,6 +230,13 @@ def author_role_skills(
                 bundled_files=_parse_bundled_files(entry.get("bundled_files")),
             )
         )
+
+    verifiers = [skill for skill in skills if is_verification_skill_name(skill.name)]
+    if len(verifiers) != 1:
+        raise ValueError(
+            f"author_role_skills: expected exactly one verification skill, got {len(verifiers)}"
+        )
+    verifier = verifiers[0]
 
     role_family_reference = build_role_family_reference(
         role,
@@ -211,46 +265,43 @@ def author_role_skills(
                 + "\n\nSee references/gotchas.md for known issues and references/composition.md for cross-skill handoffs."
             )
 
-    # Ensure at least one verification skill has a deterministic script attached.
-    # This uses the existing BundledFile seam (no new way). Prompt drives selection;
-    # this guarantees the script for the verifier (TDD: test expects it in authoring).
-    verifier = None
-    for s in skills:
-        if any(k in (s.name or "").lower() for k in ("validat", "review", "check", "verif")):
-            verifier = s
-            break
-    if verifier:
-        has_script = any(bf.relpath.startswith("scripts/") for bf in verifier.bundled_files)
-        if not has_script:
-            default_verify = (
-                "#!/usr/bin/env python3\n"
-                '"""Deterministic verification script for this role\'s primary artifacts.\n'
-                "Run with a path to the generated artifact.\n"
-                '"""\n'
-                "from pathlib import Path\n"
-                "import sys\n\n"
-                "MIN_NONSPACE_CHARS = 40\n\n"
-                "def verify(artifact_path: str) -> bool:\n"
-                "    path = Path(artifact_path)\n"
-                "    if not path.is_file():\n"
-                "        print(f'Artifact not found: {path}')\n"
-                "        return False\n"
-                "    text = path.read_text(encoding='utf-8', errors='replace')\n"
-                "    nonspace_chars = sum(1 for ch in text if not ch.isspace())\n"
-                "    if nonspace_chars < MIN_NONSPACE_CHARS:\n"
-                "        print(f'Artifact too small to verify: {path}')\n"
-                "        return False\n"
-                "    print(f'Artifact verified: {path} ({nonspace_chars} non-space characters)')\n"
-                "    return True\n\n"
-                "if __name__ == '__main__':\n"
-                "    if len(sys.argv) < 2:\n"
-                "        print('Usage: python scripts/verify-*.py <artifact>')\n"
-                "        sys.exit(2)\n"
-                "    ok = verify(sys.argv[1])\n"
-                "    sys.exit(0 if ok else 1)\n"
-            )
-            verifier.bundled_files.append(
-                BundledFile(relpath="scripts/verify-artifact.py", content=default_verify)
+    # Attach the reviewed verifier and its invocation to the one verification
+    # skill required above. No model-authored executable survives this phase.
+    verifier.bundled_files = [
+        bundled_file
+        for bundled_file in verifier.bundled_files
+        if not bundled_file.relpath.startswith("scripts/")
+    ]
+    verifier.bundled_files.append(
+        BundledFile(
+            relpath=VERIFY_ARTIFACT_SCRIPT_PATH,
+            content=VERIFY_ARTIFACT_SCRIPT,
+        )
+    )
+    verifier.body = insert_registered_verifier_invocation(verifier.body)
+    if not has_registered_verifier_invocation(verifier.body):
+        raise ValueError("author_role_skills: verification body is missing required sections")
+
+    for skill in skills:
+        for field_name, content in (
+            ("display_name", skill.display_name),
+            ("description", skill.description),
+            ("body", skill.body),
+        ):
+            if registered_verifier_path_count(content) and not (
+                skill is verifier and field_name == "body"
+            ):
+                raise ValueError(
+                    "author_role_skills: registered verifier path is allowed only in "
+                    "the verification workflow"
+                )
+        if any(
+            bundled_file.relpath.endswith(".md")
+            and registered_verifier_path_count(bundled_file.content)
+            for bundled_file in skill.bundled_files
+        ):
+            raise ValueError(
+                "author_role_skills: registered verifier path is not allowed in reference prose"
             )
 
     return skills
@@ -259,10 +310,10 @@ def author_role_skills(
 def _parse_bundled_files(raw: object) -> list[BundledFile]:
     """Parse the optional bundled_files array from an authored skill.
 
-    Tolerant: skips malformed entries. Both path-safety AND content-safety are
-    validated downstream (validator BUNDLE-PATH + SEC-BUNDLE, plus the packager
-    defense-in-depth drop), so here we only shape-check — never trust this
-    content, it is LLM output derived from adversarial web/hiring evidence.
+    Only reference markdown may cross this untrusted model-output boundary.
+    Executable scripts and evaluation data are generated by first-party code,
+    never accepted from authored output. Downstream path and content gates are
+    retained as defense in depth for reference prose and programmatic callers.
     """
     if not isinstance(raw, list):
         return []
@@ -270,14 +321,13 @@ def _parse_bundled_files(raw: object) -> list[BundledFile]:
     for item in raw:
         if not isinstance(item, dict):
             continue
-        relpath = str(item.get("path") or item.get("relpath") or "").strip()
+        relpath = str(item.get("path") or item.get("relpath") or "")
         content = str(item.get("content") or "")
-        # Normalize double-escaped \n -> newline ONLY for markdown references.
-        # Do NOT touch script (.py) or data (.json) content: a literal
-        # backslash-n there is meaningful (regex, Windows path, JSON string)
-        # and rewriting it would silently corrupt the file.
-        if relpath.endswith(".md"):
-            content = content.replace("\\n", "\n")
+        if not relpath.startswith("references/") or validate_bundled_path(relpath) is not None:
+            continue
+        content = content.replace("\\n", "\n")
+        if scan_authored_executable_instructions(content) is not None:
+            continue
         if relpath and content.strip():
             out.append(BundledFile(relpath=relpath, content=content))
     return out

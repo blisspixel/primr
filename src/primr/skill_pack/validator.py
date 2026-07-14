@@ -21,13 +21,13 @@ Spec references:
       scope, checkpoint, and worked input/output markers instead of shipping
       as a thin role template
     - SEC-INJECT: no prompt-injection / agent-instruction patterns
+    - SEC-EXEC: no model-authored executable payloads or helper materialization
     - SEC-PATH: no hardcoded local file paths
     - PACK-OVERLAP: no two skills with >0.85 name+trigger similarity
 """
 
 from __future__ import annotations
 
-import ast
 import re
 from difflib import SequenceMatcher
 
@@ -44,6 +44,20 @@ from primr.skill_pack.schema import (
     SkillPack,
     ValidationReport,
 )
+from primr.skill_pack.script_safety import (
+    VERIFY_ARTIFACT_SCRIPT,
+    VERIFY_ARTIFACT_SCRIPT_PATH,
+    commonmark_security_text,
+    has_registered_verifier_invocation,
+    is_verification_skill_name,
+    registered_verifier_path_count,
+    scan_authored_executable_instructions,
+)
+from primr.skill_pack.script_safety import (
+    scan_python_script as _scan_python_script,
+)
+from primr.utils.content_sanitizer import find_prompt_injection
+from primr.utils.validators import is_portable_path_component
 
 # --- Naming rules (ASKILL-P007) -------------------------------------------
 
@@ -291,13 +305,20 @@ _AGENT_INSTRUCTION_PATTERNS = [
     re.compile(r"\$\{[^}]+\}"),  # env-var exfil templating
 ]
 
-# Hardcoded local paths — even if benign, they make the skill non-portable
-# and violate Cowork's "don't hardcode file paths" best-practice.
+# Hardcoded user-home and common absolute system paths make skills non-portable
+# and can disclose host layout or direct a downstream agent outside its workspace.
 _HARDCODED_PATH_PATTERNS = [
-    re.compile(r"(?:^|[\s'\"`])/Users/[A-Za-z0-9._-]+", re.IGNORECASE),
-    re.compile(r"(?:^|[\s'\"`])[A-Z]:\\Users\\[A-Za-z0-9._-]+", re.IGNORECASE),
-    re.compile(r"(?:^|[\s'\"`])~/[A-Za-z0-9._/-]+"),
-    re.compile(r"(?:^|[\s'\"`])/home/[A-Za-z0-9._-]+", re.IGNORECASE),
+    re.compile(
+        r"(?<![A-Za-z0-9._~\\/])/(?:Users|dev|etc|home|mnt|opt|proc|root|run|"
+        r"srv|sys|tmp|usr|var|workspace)(?:/[^\s'\"`<>|]+)+",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?<![A-Za-z0-9._~\\/])[A-Z]:[\\/][^\s'\"`<>|]+",
+        re.IGNORECASE,
+    ),
+    re.compile(r"(?<![A-Za-z0-9._~\\/])~[\\/][A-Za-z0-9._~\\/-]+"),
+    re.compile(r"(?<![A-Za-z0-9._~\\/:])(?:\\\\|//)[^\s'\"`<>|]+"),
 ]
 
 
@@ -309,6 +330,7 @@ _BUNDLED_PATH_PATTERN = re.compile(
     r"^(references|scripts|evals)/[a-z0-9][a-z0-9._-]*\.(md|py|json)$"
 )
 _BUNDLED_SUBDIR_EXT = {"references": "md", "scripts": "py", "evals": "json"}
+_MAX_BUNDLED_FILENAME_LENGTH = 128
 
 
 def validate_bundled_path(relpath: str) -> str | None:
@@ -317,7 +339,7 @@ def validate_bundled_path(relpath: str) -> str | None:
         return "empty path"
     if "\\" in relpath or ".." in relpath or relpath.startswith("/"):
         return "path traversal or absolute path not allowed"
-    m = _BUNDLED_PATH_PATTERN.match(relpath)
+    m = _BUNDLED_PATH_PATTERN.fullmatch(relpath)
     if not m:
         return (
             "must be references/<name>.md, scripts/<name>.py, or "
@@ -326,137 +348,9 @@ def validate_bundled_path(relpath: str) -> str | None:
     subdir, ext = m.group(1), m.group(2)
     if _BUNDLED_SUBDIR_EXT[subdir] != ext:
         return f"{subdir}/ files must be .{_BUNDLED_SUBDIR_EXT[subdir]}"
-    return None
-
-
-# --- Bundled-script content safety ---------------------------------------
-#
-# Bundled `scripts/*.py` files are LLM-authored from adversarial web/hiring
-# evidence and ship verbatim into agent hosts (Claude/Cursor/Cowork) that may
-# execute them. A path-only check is a supply-chain RCE hole, so we AST-scan
-# every Python script for the constructs a "deterministic helper (parsing,
-# validation, a calculation)" never needs and an exfiltration payload always
-# does: process execution, network egress, dynamic eval/exec, credential/env
-# reads, destructive filesystem calls, and file-writes. Any hit is fail-closed.
-#
-# AST (not regex) so the scan can't be bypassed by string-concatenation,
-# whitespace, or comment tricks. A script that doesn't parse is itself
-# rejected — a real helper is "complete and runnable" per the authoring prompt.
-
-# Importing any of these modules from a deterministic helper is disqualifying:
-# process control, raw network, remote shells, and (de)serialization RCE sinks.
-_DANGEROUS_IMPORT_MODULES = frozenset(
-    {
-        "subprocess",
-        "socket",
-        "requests",
-        "httpx",
-        "urllib",
-        "http",
-        "ftplib",
-        "telnetlib",
-        "smtplib",
-        "poplib",
-        "imaplib",
-        "paramiko",
-        "pickle",
-        "marshal",
-        "ctypes",
-        "pty",
-        "shutil",
-        "multiprocessing",
-    }
-)
-
-# Fully-qualified calls that are disqualifying regardless of imports.
-_DANGEROUS_CALL_NAMES = frozenset(
-    {
-        "eval",
-        "exec",
-        "compile",
-        "__import__",
-        "breakpoint",
-        "os.system",
-        "os.popen",
-        "os.remove",
-        "os.unlink",
-        "os.rmdir",
-        "os.removedirs",
-        "os.rename",
-        "os.replace",
-        "os.chmod",
-        "os.chown",
-        "os.kill",
-        "os.fork",
-        "os.putenv",
-        "os.setuid",
-    }
-)
-
-# Attribute prefixes for the os.exec*/os.spawn* process-replacement family.
-_DANGEROUS_CALL_PREFIXES = ("os.exec", "os.spawn")
-
-# Attribute reads that pull credentials / secrets out of the environment —
-# the classic first half of an exfiltration chain.
-_SECRET_ATTRS = frozenset({"os.environ"})
-
-
-def _dotted_name(node: ast.AST) -> str:
-    """Reconstruct a dotted attribute/name chain (``os.path.join``) from an
-    AST node. Returns "" when the base isn't a plain Name (e.g. a call or
-    subscript), which the caller treats as unresolvable rather than safe."""
-    parts: list[str] = []
-    while isinstance(node, ast.Attribute):
-        parts.append(node.attr)
-        node = node.value
-    if isinstance(node, ast.Name):
-        parts.append(node.id)
-        return ".".join(reversed(parts))
-    return ""
-
-
-def _is_write_open(call: ast.Call) -> bool:
-    """True when a call is ``open(..., 'w'|'a'|'x'|'+')`` — a filesystem write."""
-    if _dotted_name(call.func) not in ("open", "io.open"):
-        return False
-    mode = None
-    if len(call.args) >= 2 and isinstance(call.args[1], ast.Constant):
-        mode = call.args[1].value
-    for kw in call.keywords:
-        if kw.arg == "mode" and isinstance(kw.value, ast.Constant):
-            mode = kw.value.value
-    return isinstance(mode, str) and any(c in mode for c in ("w", "a", "x", "+"))
-
-
-def _scan_python_script(content: str) -> str | None:
-    """Return a reason string if a bundled Python script is unsafe, else None."""
-    try:
-        tree = ast.parse(content)
-    except SyntaxError as exc:
-        return f"script is not valid, runnable Python (does not parse): {exc.msg}"
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                root = alias.name.split(".")[0]
-                if root in _DANGEROUS_IMPORT_MODULES:
-                    return f"imports disallowed module {alias.name!r}"
-        elif isinstance(node, ast.ImportFrom):
-            root = (node.module or "").split(".")[0]
-            if root in _DANGEROUS_IMPORT_MODULES:
-                return f"imports from disallowed module {node.module!r}"
-        elif isinstance(node, ast.Call):
-            name = _dotted_name(node.func)
-            if name:
-                if name in _DANGEROUS_CALL_NAMES or name.startswith(_DANGEROUS_CALL_PREFIXES):
-                    return f"calls disallowed function {name}()"
-                if name.split(".")[0] in _DANGEROUS_IMPORT_MODULES:
-                    return f"calls into disallowed module via {name}()"
-            if _is_write_open(node):
-                return "opens a file for writing (helpers must be read-only)"
-        elif isinstance(node, ast.Attribute):
-            if _dotted_name(node) in _SECRET_ATTRS:
-                return "reads credentials/secrets from os.environ"
+    filename = relpath.partition("/")[2]
+    if not is_portable_path_component(filename, max_length=_MAX_BUNDLED_FILENAME_LENGTH):
+        return "filename is not a portable filesystem component"
     return None
 
 
@@ -464,7 +358,8 @@ def scan_bundled_content(relpath: str, content: str) -> str | None:
     """Return a reason string if a bundled file's CONTENT is unsafe, else None.
 
     Runs the agent-instruction (injection) and hardcoded-path filters over all
-    authored bundled content, plus a strict AST danger-scan over ``scripts/*.py``.
+    authored bundled content. Executable ``scripts/*.py`` files are accepted
+    only when their path and content exactly match a reviewed first-party helper.
     ``evals/*.json`` is intentionally skipped: it is primr-generated (not the
     adversarial authoring vector) and may legitimately embed adversarial test
     strings that the injection filter would false-positive on.
@@ -475,16 +370,19 @@ def scan_bundled_content(relpath: str, content: str) -> str | None:
     """
     if relpath.endswith(".json"):
         return None
-    hit = _find_injection_match(content)
+    if relpath.endswith(".py"):
+        danger = _scan_python_script(relpath, content)
+        return f"unsafe Python helper: {danger}" if danger else None
+    hit = find_injection_match(content)
     if hit:
         return f"agent-instruction pattern in bundled content: {hit[:80]}"
-    path_hit = _find_hardcoded_path(content)
+    path_hit = find_hardcoded_path(content)
     if path_hit:
         return f"hardcoded local path in bundled content: {path_hit}"
-    if relpath.endswith(".py"):
-        danger = _scan_python_script(content)
-        if danger:
-            return f"unsafe Python helper: {danger}"
+    if relpath.endswith(".md"):
+        executable_instruction = scan_authored_executable_instructions(content)
+        if executable_instruction:
+            return f"authored executable instruction: {executable_instruction}"
     return None
 
 
@@ -501,24 +399,28 @@ def _approx_token_count(text: str) -> int:
     return len(text) // 4
 
 
-def _find_injection_match(text: str) -> str | None:
+def find_injection_match(text: str) -> str | None:
     """Return the first agent-instruction pattern hit, or None."""
     if not text:
         return None
-    for pattern in _AGENT_INSTRUCTION_PATTERNS:
-        m = pattern.search(text)
-        if m:
-            return m.group(0)
+    for candidate in dict.fromkeys((text, commonmark_security_text(text))):
+        if shared_hit := find_prompt_injection(candidate, authored_output=True):
+            return shared_hit
+        for pattern in _AGENT_INSTRUCTION_PATTERNS:
+            m = pattern.search(candidate)
+            if m:
+                return m.group(0)
     return None
 
 
-def _find_hardcoded_path(text: str) -> str | None:
+def find_hardcoded_path(text: str) -> str | None:
     if not text:
         return None
-    for pattern in _HARDCODED_PATH_PATTERNS:
-        m = pattern.search(text)
-        if m:
-            return m.group(0).strip()
+    for candidate in dict.fromkeys((text, commonmark_security_text(text))):
+        for pattern in _HARDCODED_PATH_PATTERNS:
+            m = pattern.search(candidate)
+            if m:
+                return m.group(0).strip()
     return None
 
 
@@ -577,7 +479,7 @@ def validate_kebab_case(name: str) -> bool:
     """Public helper for use outside the pipeline (e.g. CLI input parsing)."""
     if not name or len(name) > _MAX_NAME_LEN:
         return False
-    return bool(_KEBAB_PATTERN.match(name))
+    return bool(_KEBAB_PATTERN.fullmatch(name)) and is_portable_path_component(name)
 
 
 def is_body_too_short(body: str) -> bool:
@@ -799,7 +701,7 @@ def validate_skill(skill: Skill, role_name: str) -> list[SkillIssue]:
         ("description", skill.description),
         ("body", skill.body),
     ]:
-        hit = _find_injection_match(content)
+        hit = find_injection_match(content)
         if hit:
             issues.append(
                 SkillIssue(
@@ -809,6 +711,33 @@ def validate_skill(skill: Skill, role_name: str) -> list[SkillIssue]:
                     role_name=role_name,
                     field=field_name,
                     excerpt=hit[:120],
+                )
+            )
+        executable_instruction = scan_authored_executable_instructions(content)
+        if executable_instruction:
+            issues.append(
+                SkillIssue(
+                    code="SEC-EXEC",
+                    severity=IssueSeverity.HARD,
+                    message=(
+                        f"authored executable instruction detected in {field_name}: "
+                        f"{executable_instruction}"
+                    ),
+                    role_name=role_name,
+                    field=field_name,
+                    excerpt=executable_instruction[:120],
+                )
+            )
+        path_hit = find_hardcoded_path(content)
+        if path_hit:
+            issues.append(
+                SkillIssue(
+                    code="SEC-PATH",
+                    severity=IssueSeverity.HARD,
+                    message=f"hardcoded local path in {field_name}: {path_hit}",
+                    role_name=role_name,
+                    field=field_name,
+                    excerpt=path_hit[:120],
                 )
             )
 
@@ -830,11 +759,9 @@ def validate_skill(skill: Skill, role_name: str) -> list[SkillIssue]:
             )
 
     # SEC-BUNDLE — scan bundled-file CONTENT, not just the path. Bundled
-    # scripts/*.py and references/*.md are LLM-authored from adversarial
-    # evidence and ship verbatim to downstream agent hosts that may execute
-    # them, so a path-only gate is a supply-chain hole. HARD: a content hit
-    # drops the role (fail closed — no unreviewed executable/injected content
-    # ships). The packager re-checks this as defense-in-depth.
+    # References are LLM-authored from adversarial evidence. Executable helpers
+    # must instead match a reviewed first-party artifact exactly. HARD: a
+    # content hit drops the role, and the packager re-checks the same boundary.
     for bf in skill.bundled_files:
         unsafe = scan_bundled_content(bf.relpath, bf.content)
         if unsafe:
@@ -849,21 +776,64 @@ def validate_skill(skill: Skill, role_name: str) -> list[SkillIssue]:
                 )
             )
 
-    # SEC-PATH
-    path_hit = _find_hardcoded_path(skill.body)
-    if path_hit:
-        issues.append(
-            SkillIssue(
-                code="SEC-PATH",
-                severity=IssueSeverity.HARD,
-                message=f"hardcoded local path in body: {path_hit}",
-                role_name=role_name,
-                field="body",
-                excerpt=path_hit[:120],
-            )
-        )
-
     return issues
+
+
+def _verification_contract_error(role: Role) -> str | None:
+    """Return why a role's single-verifier invariant is not satisfied."""
+    for field_name, content in (
+        ("display_name", role.display_name),
+        ("confidence", role.confidence),
+        ("summary", role.summary or ""),
+    ):
+        if registered_verifier_path_count(content):
+            return (
+                f"registered verifier helper appears in role {field_name}; "
+                "only the verification workflow may reference it"
+            )
+
+    verifiers = [skill for skill in role.skills if is_verification_skill_name(skill.name)]
+    if len(verifiers) != 1:
+        return f"expected exactly one verification skill, found {len(verifiers)}"
+
+    verifier = verifiers[0]
+    for skill in role.skills:
+        for field_name, content in (
+            ("display_name", skill.display_name),
+            ("description", skill.description),
+            ("body", skill.body),
+        ):
+            path_count = registered_verifier_path_count(content)
+            if path_count and not (skill is verifier and field_name == "body"):
+                return (
+                    f"registered verifier helper appears in {skill.name!r} {field_name}; "
+                    "only the verification workflow may reference it"
+                )
+        for bundled_file in skill.bundled_files:
+            if bundled_file.relpath.endswith(".md") and registered_verifier_path_count(
+                bundled_file.content
+            ):
+                return f"registered verifier helper appears in {skill.name!r} reference prose"
+        scripts = [
+            bundled_file
+            for bundled_file in skill.bundled_files
+            if bundled_file.relpath.startswith("scripts/")
+        ]
+        if skill is verifier:
+            if len(scripts) != 1:
+                return "verification skill must contain exactly one executable helper"
+            helper = scripts[0]
+            if (
+                helper.relpath != VERIFY_ARTIFACT_SCRIPT_PATH
+                or helper.content != VERIFY_ARTIFACT_SCRIPT
+            ):
+                return "verification skill helper does not match the first-party registry"
+            if not has_registered_verifier_invocation(verifier.body):
+                return "verification skill does not include the registered helper invocation"
+        else:
+            if scripts:
+                return f"non-verification skill {skill.name!r} contains an executable helper"
+    return None
 
 
 def validate_role(role: Role) -> list[SkillIssue]:
@@ -891,8 +861,18 @@ def validate_role(role: Role) -> list[SkillIssue]:
                 role_name=role.name,
             )
         )
+    elif verification_error := _verification_contract_error(role):
+        issues.append(
+            SkillIssue(
+                code="ROLE-VERIFIER",
+                severity=IssueSeverity.HARD,
+                message=verification_error,
+                role_name=role.name,
+                field="skills",
+            )
+        )
 
-    # SEC-INJECT on role metadata. display_name / confidence / summary can come
+    # SEC-INJECT and SEC-EXEC on role metadata. These fields can come
     # from job postings, research evidence, LLM planning, saved plans, or
     # operator labels, and the packager can emit display_name + confidence into
     # SKILL.md frontmatter (primr-role / primr-confidence) when metadata is
@@ -905,7 +885,7 @@ def validate_role(role: Role) -> list[SkillIssue]:
         ("confidence", role.confidence),
         ("summary", role.summary or ""),
     ]:
-        hit = _find_injection_match(content)
+        hit = find_injection_match(content)
         if hit:
             issues.append(
                 SkillIssue(
@@ -915,6 +895,33 @@ def validate_role(role: Role) -> list[SkillIssue]:
                     role_name=role.name,
                     field=field_name,
                     excerpt=hit[:120],
+                )
+            )
+        executable_instruction = scan_authored_executable_instructions(content)
+        if executable_instruction:
+            issues.append(
+                SkillIssue(
+                    code="SEC-EXEC",
+                    severity=IssueSeverity.HARD,
+                    message=(
+                        f"authored executable instruction detected in role {field_name}: "
+                        f"{executable_instruction}"
+                    ),
+                    role_name=role.name,
+                    field=field_name,
+                    excerpt=executable_instruction[:120],
+                )
+            )
+        path_hit = find_hardcoded_path(content)
+        if path_hit:
+            issues.append(
+                SkillIssue(
+                    code="SEC-PATH",
+                    severity=IssueSeverity.HARD,
+                    message=f"hardcoded local path in role {field_name}: {path_hit}",
+                    role_name=role.name,
+                    field=field_name,
+                    excerpt=path_hit[:120],
                 )
             )
 
@@ -978,6 +985,8 @@ def validate_pack(pack: SkillPack) -> ValidationReport:
 
 
 __all__ = [
+    "find_hardcoded_path",
+    "find_injection_match",
     "scan_bundled_content",
     "validate_bundled_path",
     "validate_kebab_case",

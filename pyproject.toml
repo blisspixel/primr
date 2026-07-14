@@ -58,6 +58,9 @@ dependencies = [
     "openpyxl>=3.1.0",
     "pytesseract>=0.3.10",
     "markdown>=3.4.0",
+    # Directly parses model-authored CommonMark at the executable-content
+    # boundary. Do not rely on Rich's transitive dependency for this control.
+    "markdown-it-py>=4.0.0",
     "colorama>=0.4.6",
     "rich>=13.0.0",
     "python-dotenv>=1.0.0",
@@ -99,6 +102,7 @@ dev = [
     "pytest-cov>=4.0.0",
     "hypothesis>=6.0.0",
     "mypy>=1.0.0",
+    "types-PyYAML",
     "ruff>=0.15.5,<0.16.0",
     "bandit>=1.7.0",
     "pip-audit>=2.7.0",

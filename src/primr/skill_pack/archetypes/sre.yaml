@@ -24,7 +24,7 @@ canonical_skills:
   - name: incident-response-and-postmortem
     display_name: Incident response and blameless postmortems
     summary: |
-      Run incidents to clear conclusion, communicate with stakeholders,
+      Manage incidents to clear conclusion, communicate with stakeholders,
       write blameless postmortems with concrete action items, and track
       remediation through resolution.
   - name: observability-instrumentation

@@ -29,10 +29,35 @@ from urllib.parse import urlparse
 
 _WINDOWS_FILENAME_CHARACTERS = frozenset('<>:"|?*')
 _WINDOWS_DEVICE_NAMES = frozenset(
-    {"con", "prn", "aux", "nul"}
+    {"con", "conin$", "conout$", "prn", "aux", "nul"}
     | {f"com{index}" for index in range(1, 10)}
     | {f"lpt{index}" for index in range(1, 10)}
 )
+
+
+def is_portable_path_component(component: str, *, max_length: int = 255) -> bool:
+    """Return whether one path component is portable across supported hosts.
+
+    The check is intentionally platform-independent so artifacts created on a
+    POSIX host do not become unextractable or device-bound on Windows.
+    """
+    if (
+        not isinstance(component, str)
+        or not component
+        or not component.isascii()
+        or len(component) > max_length
+    ):
+        return False
+    if component in {".", ".."} or component.endswith((" ", ".")):
+        return False
+    if any(separator in component for separator in ("/", "\\")):
+        return False
+    if any(ord(character) < 0x20 for character in component):
+        return False
+    if not _WINDOWS_FILENAME_CHARACTERS.isdisjoint(component):
+        return False
+    windows_stem = component.split(".", 1)[0].rstrip(" ").casefold()
+    return windows_stem not in _WINDOWS_DEVICE_NAMES
 
 
 class InputValidationError(ValueError):

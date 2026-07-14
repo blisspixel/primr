@@ -79,7 +79,28 @@ Key validators:
 - `BODY-LEN` - body word count within target band (default 300-1500; under 300 is HARD)
 - `BODY-QUALITY` - body includes intake, `Required inputs:`, `Produces:`, `Scope guardrail:`, `Human checkpoint:`, `Example input:`, and `Example output:` markers so thin role templates do not ship
 - `SEC-INJECT` - body does not contain agent-instruction patterns (prompt-injection guard)
+- `SEC-EXEC` - agent-consumed authored fields cannot contain CommonMark fenced or indented code blocks, including list- and quote-nested forms, raw HTML other than the verifier's literal `<artifact>` placeholder, helper-materialization directions, explicit interpreter or command forms, machine-readable execution keys, non-empty argument vectors, correlated process file and argument specifications, or unregistered `scripts/*` executable references. Link destinations, link titles, and used or unused reference definitions are decoded and checked too. Bounded reconstruction catches multiline code and embedded JSON carriers without unbounded parser work. YAML aliases, anchors, explicit tags, over-budget token streams, and over-budget input fail closed. HARD; this is a structural parser and explicit-pattern boundary, not a claim that arbitrary prose intent can be inferred
 - `BUNDLE-PATH` - bundled progressive-disclosure files use safe paths (`references/*.md`, `scripts/*.py`, `evals/*.json`, single subdir, no traversal). SOFT; unsafe files are dropped at package time
+- `SEC-BUNDLE` - authored references pass content checks, and executable files exactly match a registered first-party path and payload. HARD; unregistered or altered scripts are dropped again at package time
+- `ROLE-VERIFIER` - each role has exactly one verification-named skill, and only that skill contains the exact registered helper plus its exact invocation. HARD; post-authoring refinement is revalidated before packaging
+
+The registered verifier accepts only portable paths relative to its current
+local workspace. Absolute, UNC, device, traversal, alternate-stream, symlink,
+and junction paths fail before open. It then requires a regular file, limits
+both bytes and decoded characters, and decodes strict UTF-8 without reflecting
+artifact paths or bytes in errors.
+
+Generated instruction prose remains untrusted content and requires operator
+review before a pack is installed or sideloaded. `SEC-EXEC` is defense in depth
+against structural and explicit executable carriers, not a semantic sandbox for
+natural language. Keep the receiving host's tool allowlists, approval gates,
+workspace boundaries, and sandbox enabled. The separately enforceable byte
+boundary admits only Primr's exact registered first-party verifier.
+Recon, hiring, industry, role, and citation evidence is sanitized and wrapped in
+nonce-bearing data fences before it enters the authoring prompt. The final
+package gate independently uses the shared detector's high-confidence
+authored-output policy, while source sanitization retains broader advisory
+heuristics. Invalid role names fail before a provider call.
 
 ### Phase 5 - Pack-level coherence (`refiner.py`)
 
@@ -102,10 +123,10 @@ Enabled with `--with-evals`. For each skill: generate task cases + objective ass
 
 The pipeline now bakes in the highest-leverage patterns:
 - Gotchas section (highest-signal; seeded from evidence, living).
-- Scripts/ for deterministic work (validation, extraction, formatting).
-- At least one narrow verifier/check skill per role.
+- A reviewed, bounded artifact verifier attached to exactly one verification skill per role.
+- Deterministic extraction and formatting checks specified directly in each workflow, without generated executable code.
 - Trigger-first descriptions ("Use when..." + real user phrasing).
-- Progressive disclosure (lean SKILL.md + references/ + scripts/ + composition.md + gotchas.md).
+- Progressive disclosure (lean SKILL.md + authored references + first-party verifier + composition.md + gotchas.md).
 - Narrow scope (one capability, one category).
 - Small composable skills (name references, no giant orchestrators).
 
@@ -116,6 +137,20 @@ See the authoring prompt and pack report "Anthropic Best Practices Adherence" se
 Emits both formats from one byte-identical `SKILL.md` set:
 - Unpacked tree at `<output_dir>/<Company>_Skills_Pack_<date>/roles/<slug>/SKILL.md`
 - Cowork sideload `.zip` containing `manifest.json` (UUID v5 deterministic on company name), `color.png` (192x192), `outline.png` (32x32), and up to 20 `skills/<slug>/SKILL.md` entries. Re-running against the same company produces the same UUID, so sideload **replaces** the previous install rather than creating a parallel one.
+
+Packaging first builds the complete dated output in a fresh sibling directory,
+then replaces only an existing directory with a matching Primr ownership marker
+or a narrowly validated pre-marker report signature. Links, junctions, mount
+points, non-owned directories, and unsafe path components fail closed. Directory
+renames retry bounded Windows sharing violations. Superseded-output cleanup is
+post-commit: persistent cleanup failures do not misreport the new pack as
+unpublished, and are surfaced in the returned artifacts, ownership marker, log,
+and pack report.
+
+If distinct company names sanitize to the same portable output token, the later
+company receives a deterministic 12-character digest suffix. Reruns for either
+exact company keep their existing directory identity. An unowned or ambiguously
+owned colliding path is never replaced.
 
 ## Input layer
 
@@ -266,11 +301,13 @@ Each `primr skills` run produces:
 
 - `roles/<skill-slug>/SKILL.md` - one folder per skill, the canonical Agent Skills layout. Drop into `~/.claude/skills/`, `.cursor/skills/`, `.vscode/skills/`, or any other Agent Skills host.
 - `roles/<skill-slug>/references/role-family.md` - deterministic shared role-family grounding copied into every skill for the same role family.
+- `.primr-skill-pack-output.json` - bounded ownership and publication-state marker used to make same-day staged replacement fail closed.
 - `<Company>_Cowork_Pack.zip` - the Microsoft 365 Copilot Cowork sideload. Upload via **M365 Admin Center → Manage Apps → Upload custom app**. Contents:
   - `manifest.json` - Unified App Manifest v1.28 with deterministic UUID v5 (the same company name always yields the same UUID, so re-installs replace rather than duplicate)
   - `color.png` (192x192) and `outline.png` (32x32) - icons. Generated locally by default via Pillow gradient+shape → solid PNG. Remote image APIs are used only when explicitly enabled via `--remote-icons` / `remote_icons`.
   - `skills/<skill-slug>/SKILL.md` plus safe companion files such as `skills/<skill-slug>/references/role-family.md` - byte-identical to the matching unpacked-tree files
 - `<Company>_Skills_Pack_Report.md` - human-readable pack summary:
+  - Security Review Required (untrusted generated prose, review requirement, and required host execution controls)
   - Configuration (target roles, skills per role, formats, coherence pass)
   - Cowork Packaging (manifest skill count and companion-file limits)
   - Role Composition (observed / plausible / operator-added counts; industry classification; posting-coverage warning when present; plan reference; gap-flagged count; operator-skipped names)
@@ -350,7 +387,7 @@ Hard rules (validator-enforced):
 - Body contains exactly the three H2 sections in order
 - Body target 300-1500 words (sweet spot 500-800); under 300 words is a hard failure
 - Body includes intake, required inputs, produces, scope guardrail, human checkpoint, and worked input/output example markers
-- No agent-instruction patterns, no hardcoded local paths, no fenced shell blocks, no credential references
+- No agent-instruction patterns, hardcoded user-home or common absolute system paths, credentials, fenced or indented code blocks, raw HTML except the verifier placeholder, helper-materialization directions, explicit interpreter commands, or unregistered executable references. Root-relative HTTP routes such as `/api/orders` remain valid.
 
 ## Cowork packaging limits
 
@@ -359,7 +396,7 @@ Primr validates Cowork sideload output against Microsoft 365 Copilot Cowork's cu
 - Manifest `agentSkills`: max 20 entries. Larger packs still write every skill to the unpacked tree, while the Cowork zip contains the first valid 20-skill slice.
 - `SKILL.md`: max 1 MB per skill.
 - Companion files: max 20 files per skill, max 5 MB per companion file, max 10 MB total companion bytes per skill.
-- Companion paths must be relative, safe, and stay under allowed progressive-disclosure folders. Unsafe or over-limit companion files are dropped before packaging.
+- Companion paths must be relative, portable, stay under allowed progressive-disclosure folders, and use filenames no longer than 128 characters. Authored output may add markdown references only. Executable helpers must exactly match Primr's reviewed first-party registry and may appear only on the role's one verification skill. Unsafe authored executable state fails packaging before output; unsafe paths and over-limit non-executable companions are dropped.
 
 ## CLI reference
 

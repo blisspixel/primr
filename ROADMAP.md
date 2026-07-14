@@ -875,15 +875,38 @@ and [best-practices guide](https://platform.claude.com/docs/en/agents-and-tools/
   if it beats the original on a held-out split (`skill_pack/trigger_eval.py`).
 - **Progressive disclosure with `references/` and `scripts/` subfolders -
   SHIPPED (Tier 3):** `BundledFile` on the schema; authoring may emit
-  `references/*.md` (load-on-demand) and `scripts/*.py` (deterministic
-  helpers); packager writes them to both the Claude tree and the Cowork zip;
-  `BUNDLE-PATH` validates paths and drops unsafe ones.
+  `references/*.md` for load-on-demand context, while reviewed first-party
+  code supplies executable helpers. The packager writes accepted companions
+  to both output formats; `BUNDLE-PATH` validates paths and drops unsafe ones.
 - **"Solve, don't punt" hardening - SHIPPED (Tier 3):** the authoring prompt
-  instructs the model to ship the actual `scripts/<name>.py` when a workflow
-  needs a deterministic helper, rather than telling the agent to write it.
-  Maintenance follow-up: the guaranteed fallback `scripts/verify-artifact.py`
-  now performs a real local structural check on generated artifacts instead of
-  shipping placeholder verification code.
+  requires deterministic checks to be specified in the workflow. Executable
+  companion output is discarded rather than treated as sandboxed Python. A
+  structural `SEC-EXEC` boundary uses a CommonMark parser to reject every
+  fenced or indented code block, including nested container forms, reject raw
+  HTML except the verifier's literal artifact placeholder, plus
+  explicit interpreter and command forms, machine-readable execution keys,
+  non-empty argument vectors, correlated process file and argument specifications,
+  helper-materialization directions, and unregistered executable references
+  in agent-consumed authored fields. Link destinations, titles, and used or
+  unused CommonMark reference definitions are decoded before inspection, and
+  multiline code and embedded JSON reconstruction are explicitly bounded; it
+  does not pretend to infer arbitrary prose semantics. The
+  guaranteed `scripts/verify-artifact.py` is an exact registered first-party
+  artifact with bounded regular-file scanning over portable, workspace-relative,
+  link-free local paths; altered or additional scripts fail the `SEC-BUNDLE`
+  gate and are dropped again by the packager. The final
+  `ROLE-VERIFIER` invariant also survives refinement and overlap resolution.
+  Every external authoring-evidence field is sanitized and nonce-fenced as data,
+  and the final package boundary reuses its high-confidence authored-output
+  prompt-injection policy without blocking legitimate examples and role prose.
+  Generated instruction prose is explicitly treated as untrusted and requires
+  review before installation or sideloading. `SEC-EXEC` remains a defense-in-depth
+  structural and explicit-carrier backstop; host tool allowlists, approval gates,
+  and sandboxing remain mandatory because arbitrary natural-language intent is
+  not mechanically decidable.
+  Same-day output is built in a fresh sibling and replaces only marker-owned or
+  narrowly recognized legacy trees; links, mounts, and unrelated directories
+  fail closed, and bounded Windows rename/cleanup behavior is explicit.
 - **Skill-level evals with grader - SHIPPED (Tier 4, `--with-evals`):**
   per skill, generate task cases + assertions, run the task WITH vs WITHOUT
   the skill, grade both blind, report the pass-rate delta, and write

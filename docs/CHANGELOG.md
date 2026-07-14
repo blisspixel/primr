@@ -69,6 +69,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Skill-pack authoring now accepts only markdown references from model-proposed
+  companions and applies a CommonMark-aware structural executable-payload
+  boundary across agent-consumed fields: fenced and indented code blocks,
+  including container-nested, table-cell, entity-encoded, and mixed-whitespace
+  forms, raw HTML except the verifier's literal artifact placeholder, plus
+  multiline program syntax, direct or determiner-wrapped executable commands,
+  common instruction-prefix variants, operational YAML/JSON keys, non-empty
+  argument vectors, and correlated process file and argument specifications,
+  helper-materialization directions, and unregistered executable references
+  fail closed. Link destinations, titles, and used or unused CommonMark
+  reference definitions are decoded before inspection. Multiline code and
+  embedded JSON reconstruction have explicit work and size bounds. YAML
+  aliases, anchors, explicit tags, token overflows, and input overflows fail
+  closed before safe basic-value loading. Role
+  metadata is covered, and generated SKILL.md frontmatter uses
+  control-normalized JSON/YAML scalars with an exact parsed-structure round trip.
+  Recon, hiring, industry, role, and citation evidence is sanitized and
+  nonce-fenced before authoring, and the final rejection boundary uses the
+  shared detector's high-confidence authored-output policy. Invalid role names
+  fail before a provider call. Scalar process
+  specifications, Ruby and Perl command placements, executable output-format
+  directives, and verifier paths outside the canonical workflow are rejected.
+  Ordinary workflow prose such as `Start with an intake step` and `Call the
+  Salesforce API` remains valid.
+  This boundary is defense in depth and deliberately makes no claim to infer the
+  intent of arbitrary prose. Pack reports require review before installation and
+  retain host tool allowlists, approval gates, and sandboxing as trust boundaries.
+  The packager admits executable bytes
+  only at the registered first-party path, on the one verifier skill, with its
+  canonical invocation. The verifier rejects absolute, UNC, device, traversal,
+  alternate-stream, symlink, and junction paths before open, then uses a
+  nonblocking bounded regular-file reader with strict UTF-8 and content-safe
+  errors that do not reflect untrusted paths or bytes. Companion and collision
+  paths reject Windows device basenames and overlong components. Distinct
+  companies whose names sanitize to one output token receive deterministic
+  collision suffixes while same-company reruns preserve identity. Same-day
+  packaging now stages a complete tree before replacing only marker-owned or
+  narrowly recognized legacy output; links, mounts, and unrelated directories
+  are refused, Windows renames retry, and exhausted post-commit cleanup is
+  reported without mislabeling a published pack as failed.
 - Raised Pillow to 12.3.0, closing the five advisories affecting the previous
   12.2.0 lock, and added a dependency-floor regression gate.
 - JWT verification now preserves explicit empty scopes instead of granting
