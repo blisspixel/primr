@@ -101,6 +101,17 @@ class TestCitationProcessor:
         assert "Site2 [1]" in result.transformed_content
         assert len(result.citations) == 1
 
+    def test_numbered_citation_removes_url_credentials(self):
+        processor = CitationProcessor()
+
+        result = processor.process_content(
+            "[Example](https://user:secret@example.com:8443/source)."
+        )
+
+        assert result.citations[0].url == "https://example.com:8443/source"
+        assert "user" not in processor.generate_sources_appendix()
+        assert "secret" not in processor.generate_sources_appendix()
+
     def test_generate_sources_appendix(self):
         """Generate formatted sources appendix."""
         processor = CitationProcessor()
@@ -171,6 +182,14 @@ class TestConvenienceFunction:
         assert result.transformed_content == content
         assert len(result.citations) == 0
 
+    def test_process_citations_inline_removes_url_credentials(self):
+        content = "[Acme](https://user:secret@acme.example:8443/source)"
+
+        result = process_citations(content, style=CitationStyle.INLINE)
+
+        assert result.transformed_content == "[Acme](https://acme.example:8443/source)"
+        assert result.citations == []
+
 
 # =============================================================================
 # Property-Based Tests
@@ -189,9 +208,7 @@ def markdown_link(draw):
     assume(len(text) > 0)
     assume("[" not in text and "]" not in text and "(" not in text and ")" not in text)
 
-    domain = draw(
-        st.text(min_size=3, max_size=20, alphabet=st.characters(whitelist_categories=["L", "N"]))
-    )
+    domain = draw(st.text(min_size=3, max_size=20, alphabet="abcdefghijklmnopqrstuvwxyz0123456789"))
     domain = domain.strip().lower()
     assume(len(domain) >= 3)
 
@@ -284,7 +301,9 @@ class TestCitationDeduplication:
         text1=st.text(min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=["L"])),
         text2=st.text(min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=["L"])),
         domain=st.text(
-            min_size=3, max_size=15, alphabet=st.characters(whitelist_categories=["L", "N"])
+            min_size=3,
+            max_size=15,
+            alphabet="abcdefghijklmnopqrstuvwxyz0123456789",
         ),
     )
     def test_same_url_same_reference(self, text1, text2, domain):

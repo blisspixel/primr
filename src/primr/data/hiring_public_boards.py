@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
+
+from primr.utils.url_helpers import normalized_hostname
 
 
 @dataclass(frozen=True)
@@ -88,7 +90,7 @@ def extract_posting_links(
 
 
 def _host_matches(url: str, suffixes: tuple[str, ...]) -> bool:
-    host = urlparse(url).netloc.lower().removeprefix("www.")
+    host = normalized_hostname(url, strip_www=True)
     return any(host.endswith(suffix) for suffix in suffixes)
 
 

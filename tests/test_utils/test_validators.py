@@ -68,6 +68,11 @@ class TestValidateUrl:
         with pytest.raises(InputValidationError, match="port"):
             validate_url("https://example.com:99999/path")
 
+    def test_rejects_user_credentials(self):
+        """Company URLs must not carry credentials into artifacts or logs."""
+        with pytest.raises(InputValidationError, match="credentials"):
+            validate_url("https://user:secret@example.com/private")
+
     def test_custom_allowed_schemes(self):
         """Should accept custom allowed schemes."""
         result = validate_url("ftp://example.com", allowed_schemes=("ftp",))

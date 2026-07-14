@@ -79,6 +79,18 @@ class TestGenerateExternalSearchQueries:
         assert any("latest news" in q.lower() for q in queries)
         assert all("acme" in q.lower() for q in queries)
 
+    def test_prompt_uses_hostname_without_port_or_embedded_www_corruption(self):
+        from primr.data.search_utils import generate_external_search_queries
+
+        with patch("primr.data.search_utils.llm", return_value="Acme news") as mock_llm:
+            generate_external_search_queries(
+                "Acme", "https://notwww.example.com:8443/path", max_queries=10
+            )
+
+        prompt = mock_llm.call_args.args[0]
+        assert "Their website is: notwww.example.com" in prompt
+        assert ":8443" not in prompt
+
     def test_handles_none_company_name(self):
         from primr.data.search_utils import generate_external_search_queries
 

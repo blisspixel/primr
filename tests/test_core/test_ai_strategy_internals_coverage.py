@@ -75,6 +75,40 @@ def test_process_citations_rewrites_sources_section():
     assert "Real Title" in out
 
 
+def test_process_citations_displays_hostname_without_port():
+    import primr.ai.deep_research as dr_mod
+
+    content = (
+        "Body text [cite: 1].\n\n"
+        "**Sources:**\n"
+        "1. [vertexaisearch redirect](https://www.example.com:8443/source)\n"
+    )
+    with patch.object(
+        dr_mod, "resolve_citation_urls_sync", side_effect=lambda citations: citations
+    ):
+        out = _process_citations(content)
+
+    assert "[example.com](https://www.example.com:8443/source)" in out
+
+
+def test_process_citations_removes_url_credentials():
+    import primr.ai.deep_research as dr_mod
+
+    content = (
+        "Body text [cite: 1].\n\n"
+        "**Sources:**\n"
+        "1. [Real Title](https://user:secret@example.com:8443/source)\n"
+    )
+    with patch.object(
+        dr_mod, "resolve_citation_urls_sync", side_effect=lambda citations: citations
+    ):
+        out = _process_citations(content)
+
+    assert "[Real Title](https://example.com:8443/source)" in out
+    assert "user" not in out
+    assert "secret" not in out
+
+
 def test_process_citations_no_sources_section():
     import primr.ai.deep_research as dr_mod
 

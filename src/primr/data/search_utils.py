@@ -24,6 +24,7 @@ from primr.config.config import (
 from primr.config.env import load_primr_env
 from primr.utils.circuit_breaker import CircuitBreaker
 from primr.utils.logging_config import get_logger
+from primr.utils.url_helpers import normalized_hostname
 
 load_primr_env()
 
@@ -149,7 +150,7 @@ def generate_external_search_queries(
     domain = ""
     domain_hint = ""
     if website:
-        domain = urlparse(website).netloc.replace("www.", "")
+        domain = normalized_hostname(website, strip_www=True)
         domain_hint = f"\nTheir website is: {domain}"
 
     max_queries = max(1, max_queries)
@@ -250,7 +251,7 @@ def _search_ddg(query, company_name, website, num_results=NUM_SEARCH_RESULTS):
     # Extract company domain for post-filtering (DDG has no -site: operator)
     company_domain = None
     if website:
-        company_domain = urlparse(website).netloc.lower().replace("www.", "")
+        company_domain = normalized_hostname(website, strip_www=True)
 
     try:
         # Small delay to be polite to DDG
@@ -268,8 +269,10 @@ def _search_ddg(query, company_name, website, num_results=NUM_SEARCH_RESULTS):
                 continue
 
             # Exclude company's own domain
-            if company_domain and company_domain in urlparse(url).netloc.lower():
-                continue
+            if company_domain:
+                result_domain = normalized_hostname(url, strip_www=True)
+                if result_domain == company_domain or result_domain.endswith(f".{company_domain}"):
+                    continue
 
             structured_results.append({"title": title, "url": url})
 
@@ -317,7 +320,7 @@ def _search_google(query, company_name, website, num_results=NUM_SEARCH_RESULTS)
 
     formatted_query = f"{company_name} {query}".strip()
     if website:
-        domain = urlparse(website).netloc.lower().replace("www.", "")
+        domain = normalized_hostname(website, strip_www=True)
         if domain:
             formatted_query += f" -site:{domain}"
 

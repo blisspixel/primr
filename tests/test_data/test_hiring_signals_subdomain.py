@@ -9,7 +9,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from primr.data import hiring_signals as hs
-from primr.data.hiring_public_boards import extract_posting_links
+from primr.data.hiring_public_boards import _host_matches, extract_posting_links
 from primr.data.hiring_signals import (
     _CAREERS_SUBDOMAIN_PREFIXES,
     _WORKDAY_BLIND_DISCOVERY_BUDGET,
@@ -30,6 +30,21 @@ class TestCareersUrlCandidates:
         for prefix in _CAREERS_SUBDOMAIN_PREFIXES:
             expected = f"https://{prefix}.acme.example/"
             assert expected in urls, f"missing subdomain candidate: {expected}"
+
+    def test_subdomain_probes_do_not_inherit_website_port(self):
+        urls = _careers_url_candidates("https://acme.example:8443", corpus=None)
+
+        assert "https://jobs.acme.example/" in urls
+        assert all("jobs.acme.example:8443" not in url for url in urls)
+
+    def test_on_path_probes_keep_port_without_credentials(self):
+        urls = _careers_url_candidates(
+            "https://user:secret@acme.example:8443/private",
+            corpus=None,
+        )
+
+        assert "https://acme.example:8443/careers" in urls
+        assert all("user" not in url and "secret" not in url for url in urls)
 
     def test_subdomain_probes_first(self):
         urls = _careers_url_candidates("https://acme.example", corpus=None)
@@ -58,6 +73,15 @@ class TestCareersUrlCandidates:
         urls = _careers_url_candidates("https://acme.example", corpus=corpus)
         assert "https://jobs.acme.example/listing/123" in urls
         assert "https://acme.example/about" not in urls
+
+    def test_corpus_candidate_removes_credentials(self):
+        urls = _careers_url_candidates(
+            "https://acme.example",
+            corpus={"https://user:secret@jobs.acme.example/jobs/1": "..."},
+        )
+
+        assert "https://jobs.acme.example/jobs/1" in urls
+        assert all("user" not in url and "secret" not in url for url in urls)
 
     def test_cap_respected(self):
         urls = _careers_url_candidates("https://acme.example", corpus=None)
@@ -131,6 +155,19 @@ class TestDetectAtsRedirect:
         provider, postings = result
         assert provider == "greenhouse"
         mock_fetch.assert_called_once_with("acmecorp")
+
+    def test_greenhouse_redirect_ignores_explicit_port(self):
+        with patch.object(hs, "_fetch_greenhouse") as mock_fetch:
+            mock_fetch.return_value = [
+                hs.Posting(url="https://x", title="Eng", source="greenhouse")
+            ]
+            result = _detect_ats_redirect("https://boards.greenhouse.io:8443/acmecorp")
+
+        assert result is not None
+        mock_fetch.assert_called_once_with("acmecorp")
+
+    def test_public_board_host_match_ignores_explicit_port(self) -> None:
+        assert _host_matches("https://tenant.icims.com:8443/jobs/1", (".icims.com",))
 
     def test_recruitee_redirect_extracts_subdomain_slug(self):
         with patch.object(hs, "_fetch_recruitee") as mock_fetch:

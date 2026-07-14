@@ -30,6 +30,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from primr.config.config import PROJECT_ROOT
+from primr.utils.url_helpers import normalized_hostname
 
 from .browser_egress import (
     BrowserEgressPlan,
@@ -201,7 +202,7 @@ def _is_low_value_url(url: str) -> bool:
     except ValueError:
         return False
 
-    host = (parsed.netloc or "").lower().removeprefix("www.")
+    host = normalized_hostname(url, strip_www=True)
     for domain in _LOW_VALUE_DOMAINS:
         if host == domain or host.endswith("." + domain):
             return True
@@ -541,7 +542,7 @@ def scrape_with_patchright(
 
     start_time = time.time()
     tier_name = "patchright"
-    host = urlparse(url).netloc or "unknown"
+    host = normalized_hostname(url) or "unknown"
     attempts: list[Attempt] = []
     with BrowserEgressProxy().start() as egress_proxy:
         return _scrape_with_patchright_attempts(

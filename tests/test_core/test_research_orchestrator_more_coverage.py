@@ -11,6 +11,7 @@ All LLM / subagent / scrape boundaries are mocked — no network or real APIs.
 from __future__ import annotations
 
 import os
+import tempfile
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -26,6 +27,7 @@ from primr.core.research_orchestrator import (
 from primr.utils.errors import ResearchError
 
 MODULE = "primr.core.research_orchestrator"
+TEMP_MODULE = "primr.core.temporary_files"
 
 
 # ---------------------------------------------------------------------------
@@ -50,8 +52,8 @@ class TestCleanupFileWithRetry:
 
         # os.path.exists -> True so it attempts remove; os.remove always raises.
         with (
-            patch(f"{MODULE}.os.path.exists", return_value=True),
-            patch(f"{MODULE}.os.remove", side_effect=OSError("locked")),
+            patch(f"{TEMP_MODULE}.os.path.exists", return_value=True),
+            patch(f"{TEMP_MODULE}.os.remove", side_effect=OSError("locked")),
             patch("time.sleep") as mock_sleep,
         ):
             result = _cleanup_file_with_retry(str(f), max_retries=3, delay=0.01)
@@ -64,8 +66,8 @@ class TestCleanupFileWithRetry:
         f = tmp_path / "retry.txt"
 
         with (
-            patch(f"{MODULE}.os.path.exists", return_value=True),
-            patch(f"{MODULE}.os.remove", side_effect=[OSError("busy"), None]),
+            patch(f"{TEMP_MODULE}.os.path.exists", return_value=True),
+            patch(f"{TEMP_MODULE}.os.remove", side_effect=[OSError("busy"), None]),
             patch("time.sleep"),
         ):
             result = _cleanup_file_with_retry(str(f), max_retries=3, delay=0.01)
@@ -91,6 +93,22 @@ class TestTempContextFile:
             name = os.path.basename(path)
             assert "/" not in name
             assert "Acme_Co_Ltd_step1_" in name
+
+    def test_closes_mkstemp_descriptor_before_yield(self):
+        real_mkstemp = tempfile.mkstemp
+        captured_fd: list[int] = []
+
+        def tracked_mkstemp(*args, **kwargs):
+            fd, path = real_mkstemp(*args, **kwargs)
+            captured_fd.append(fd)
+            return fd, path
+
+        with (
+            patch(f"{TEMP_MODULE}.tempfile.mkstemp", side_effect=tracked_mkstemp),
+            temp_context_file("Acme Corp", "content"),
+            pytest.raises(OSError),
+        ):
+            os.fstat(captured_fd[0])
 
 
 # ---------------------------------------------------------------------------

@@ -2,9 +2,7 @@
 
 import asyncio
 import os
-import tempfile
-from collections.abc import Callable, Generator
-from contextlib import contextmanager, suppress
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -16,81 +14,15 @@ from primr.ai.deep_research import (
     get_deep_research_orchestrator,
 )
 from primr.ai.deep_research import ResearchResult as DeepResearchResult
+from primr.core.temporary_files import (
+    _cleanup_file_with_retry as _cleanup_file_with_retry,
+)
+from primr.core.temporary_files import temp_context_file as temp_context_file
 from primr.utils.errors import ResearchError
 from primr.utils.logging_config import get_logger
 from primr.utils.observability import Metrics, emit_metrics, operation_context
 
 logger = get_logger("core.orchestrator")
-
-
-def _cleanup_file_with_retry(filepath: str, max_retries: int = 3, delay: float = 0.5) -> bool:
-    """
-    Attempt to delete a file with retries.
-
-    On Windows, files can be locked by antivirus or other processes.
-    Retrying with a small delay often succeeds.
-
-    Args:
-        filepath: Path to file to delete
-        max_retries: Maximum number of attempts
-        delay: Delay between retries in seconds
-
-    Returns:
-        True if file was deleted, False otherwise
-    """
-    import time
-
-    for attempt in range(max_retries):
-        try:
-            if os.path.exists(filepath):
-                os.remove(filepath)
-                logger.debug(f"Cleaned up temp file: {filepath}")
-                return True
-            return True  # File doesn't exist, consider it cleaned
-        except OSError as e:
-            if attempt < max_retries - 1:
-                logger.debug(
-                    f"Cleanup attempt {attempt + 1} failed for {filepath}: {e}, retrying..."
-                )
-                time.sleep(delay)
-            else:
-                # Final attempt failed - log as WARNING so it's visible
-                logger.warning(
-                    f"Failed to clean up temp file after {max_retries} attempts: {filepath} - {e}"
-                )
-                return False
-    return False
-
-
-@contextmanager
-def temp_context_file(company_name: str, content: str) -> Generator[str, None, None]:
-    """
-    Context manager for temporary context files with guaranteed cleanup.
-
-    Args:
-        company_name: Company name for file prefix
-        content: Content to write to the file
-
-    Yields:
-        Path to the temporary file
-    """
-    fd = None
-    filepath = None
-    try:
-        safe_name = company_name.replace(" ", "_").replace("/", "_")
-        fd, filepath = tempfile.mkstemp(suffix=".txt", prefix=f"{safe_name}_step1_")
-
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(content)
-
-        yield filepath
-    finally:
-        # Guaranteed cleanup with retry
-        if fd is not None:
-            with suppress(OSError):
-                os.close(fd)
-        if filepath is not None:
-            _cleanup_file_with_retry(filepath)
 
 
 class ResearchMode(Enum):

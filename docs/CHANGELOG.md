@@ -23,6 +23,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Company names that cannot be represented portably as filesystem components
+  are rejected before research begins, including Windows-reserved characters,
+  device aliases, and the current-directory component. Legitimate trailing
+  punctuation remains available for report titles but is normalized in path
+  components. Temporary research context files also release their raw
+  descriptor before they are consumed, preventing Windows handle leaks and
+  nondeterministic cleanup failures.
+- URL-derived domains and artifact names now use canonical hostnames instead of
+  raw authorities. Explicit ports and credentials no longer leak into working
+  directory names, search exclusions, hiring probes, citations, scrape
+  artifacts, or low-value URL checks. IDNA 2008 conversion keeps distinct
+  internationalized domains from colliding, invalid ports fail closed, and only
+  a leading `www.` label is removed.
+- DuckDuckGo own-site filtering now respects DNS label boundaries, so a target
+  such as `acme.com` excludes its real subdomains without discarding unrelated
+  domains such as `notacme.com`. Google site exclusions and validated external
+  source filtering now remain correct when the configured website has an
+  explicit port. External-source allowlists preserve a deliberately narrow
+  `www` scope, and remembered rate-limit state uses the same canonical host key
+  when a site runs on a custom port.
 - Calibration sidecars now bind to the exact report bytes they evaluated.
   Pack manifests and compact MCP/A2A calibration summaries reject legacy,
   missing, or stale report bindings instead of presenting unrelated evidence.

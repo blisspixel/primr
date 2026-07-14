@@ -24,7 +24,7 @@ from primr.config.sections_config import SECTION_KEY_MAP
 # Import new premium report components
 from primr.output.document_builder import DocumentBuilder
 from primr.utils.console import console
-from primr.utils.validators import sanitize_for_filename
+from primr.utils.validators import company_path_component, sanitize_for_filename
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -42,12 +42,17 @@ def _safe_working_subdir(company_name: str) -> Path:
     would otherwise delete the whole working dir) raises ``ValueError``.
     """
     base = Path(WORKING_DIR).resolve()
-    folder = (base / company_name.replace(" ", "_")).resolve()
+    refusal = (
+        "Refusing filesystem operation outside the working directory for "
+        f"company name {company_name!r}"
+    )
+    try:
+        component = company_path_component(company_name)
+    except ValueError as exc:
+        raise ValueError(refusal) from exc
+    folder = (base / component).resolve()
     if base not in folder.parents:
-        raise ValueError(
-            f"Refusing filesystem operation outside the working directory for "
-            f"company name {company_name!r}"
-        )
+        raise ValueError(refusal)
     return folder
 
 

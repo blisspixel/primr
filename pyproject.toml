@@ -46,6 +46,10 @@ dependencies = [
     # core runtime requirement, not an optional add-on.
     "openai>=1.0.0",
     "requests>=2.34.0",
+    # Directly used for IDNA 2008 hostname canonicalization. Keeping Unicode
+    # domains in ASCII form prevents faß.de/fass.de case-fold collisions at
+    # first-party filtering boundaries.
+    "idna>=3.7",
     "beautifulsoup4>=4.12.0",
     "fpdf>=1.7.2",
     "python-docx>=0.8.11",

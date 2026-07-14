@@ -27,7 +27,6 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Any
-from urllib.parse import urlparse
 
 from primr.ai.summarize import summarize_scraped_content
 from primr.core.resilience_listeners import _build_resilience_event_listener
@@ -37,6 +36,7 @@ from primr.data.search_utils import generate_external_search_queries, search_web
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
 from primr.utils.observability import log_structured
+from primr.utils.url_helpers import normalized_hostname
 
 logger = get_logger("core.fast_run_collection")
 
@@ -76,7 +76,7 @@ def collect_research_data(
     """Scrape the site, search + validate external sources, seed the pools."""
     from primr.core.research_agent import _assess_source_relevance
 
-    scan_domain = urlparse(website or "").netloc.replace("www.", "") if website else "website"
+    scan_domain = normalized_hostname(website or "", strip_www=True) or "website"
     console.phase_banner(
         1,
         total_phases,
