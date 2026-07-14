@@ -863,6 +863,13 @@ and [best-practices guide](https://platform.claude.com/docs/en/agents-and-tools/
   requires intake, scope guardrail, human checkpoint, and worked input/output
   markers, and `author_skill.yaml` now asks for those hand-built-skill patterns
   directly.
+- **Saved-plan admission and approval parity - SHIPPED (2026-07-14):** saved
+  plans are byte-bounded, structurally validated, prompt-bounded, globally
+  capped, and curated atomically before estimation. CLI and MCP estimates bind
+  and price the same prepared in-memory plan snapshot that execution consumes,
+  including full refinement and bounded pack-level reconciliation fan-out.
+  Canonical plan content and all cost-relevant controls are covered by the
+  approval token, and diagnostics do not reflect untrusted plan values.
 - **Business-role archetype coverage - SHIPPED (2026-06-19):** the bundled
   archetype catalog now covers sales, marketing, people operations, finance,
   legal/compliance, and operations roles, matching the universal-function roster
@@ -1297,7 +1304,7 @@ service toolchain as a reviewed architectural investment.
 ### Adopted (load-bearing today)
 
 - Ruff as the single linter (`E/F/W/I/N/UP/B/C4/C90/SIM/RUF/PIE/PT/TCH`), line-length 100. CI hard-fails on lint violations under `src/primr/` and separately checks formatting across `src/` and `tests/`. `target-version = py312` matches the supported floor so local and hosted linting enforce one language baseline.
-- mypy (authoritative config in `mypy.ini`, `python_version = 3.12`) on an incremental strict ratchet: a relaxed global with complex SDK-bound modules `ignore_errors`'d, plus a growing **strict allowlist** of fully-verified modules that require `disallow_untyped_defs` + `disallow_incomplete_defs` (currently `skill_pack.{schema,config,planner,industry}`, `utils.content_sanitizer`, `utils.logging_config`, `data.hiring_signals`). The allowlist only grows. (The former `[tool.mypy]` block in `pyproject.toml` was dead config and has been removed.)
+- mypy (authoritative config in `mypy.ini`, `python_version = 3.12`) on an incremental strict ratchet: a relaxed global with complex SDK-bound modules `ignore_errors`'d, plus a growing **strict allowlist** of fully-verified modules that require `disallow_untyped_defs` + `disallow_incomplete_defs` (currently `skill_pack.{schema,config,curation,planner,saved_plan,industry}`, `utils.content_sanitizer`, `utils.logging_config`, `data.hiring_signals`). The allowlist only grows. (The former `[tool.mypy]` block in `pyproject.toml` was dead config and has been removed.)
 - Ships `py.typed` - primr is a good typing citizen for downstream importers.
 - Property-based tests (Hypothesis) for core invariants; a hard-gated hardcoded-secret scanner in CI.
 - No silent `xfail` rot: `xfail_strict = true` (an unexpectedly-passing xfail fails the run); the suite currently uses zero xfail markers.
@@ -1321,7 +1328,7 @@ The current active engineering initiative. Each item is verified locally, then l
 
 ### Phased ratchets (tracked, not yet started - Phase 2/3)
 
-- **mypy strict expansion**: SHIPPED a first real strict allowlist in `mypy.ini` (7 modules: `skill_pack.{schema,config,planner,industry}`, `utils.content_sanitizer`, `utils.logging_config`, `data.hiring_signals`) and consolidated the duplicate config (removed the dead `pyproject` `[tool.mypy]` block; bumped `python_version` to 3.12). Remaining: keep growing the allowlist module-by-module toward eventual `--strict`, and burn down the ~45 `ignore_errors` modules. Evaluate Astral `ty` as a fast local supplement (not the CI gate while it is preview).
+- **mypy strict expansion**: SHIPPED a nine-module strict allowlist in `mypy.ini` (`skill_pack.{schema,config,curation,planner,saved_plan,industry}`, `utils.content_sanitizer`, `utils.logging_config`, `data.hiring_signals`) and consolidated the duplicate config (removed the dead `pyproject` `[tool.mypy]` block; bumped `python_version` to 3.12). Remaining: keep growing the allowlist module-by-module toward eventual `--strict`, and burn down the ~45 `ignore_errors` modules. Evaluate Astral `ty` as a fast local supplement (not the CI gate while it is preview).
 - **One-time `ruff format` reflow** - SHIPPED. Formatted 173 files in a single behavior-preserving commit; `ruff format --check` is now enforced in pre-commit and CI. `E501` stays ignored deliberately: `ruff format` already wraps code lines, so the remaining >100-char lines are strings / URLs / comments where wrapping hurts readability - enforcing E501 there would be churn without value. `target-version = py312` now matches the supported floor; any resulting pyupgrade rewrites are enforced by the normal lint gate.
 - **Complexity budget**: add `C901` + `max-complexity` once the documented monsters are refactored (`perform_fast_research` ~1900 lines, `_execute_consulting_research` ~270 lines - Active Queue #23).
 - **Parse-don't-validate boundaries**: parse external data once at the system boundary into rich domain types - `NewType` / frozen dataclasses / Pydantic `strict=True, extra='forbid'` - so core logic never receives raw, possibly-invalid primitives. Targets the MCP / API input boundary first (most MCP inputs are JSON-schema-validated today); audit and fill gaps, not a blanket conversion.

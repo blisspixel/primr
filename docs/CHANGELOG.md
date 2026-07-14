@@ -23,6 +23,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Saved skill-pack plans now pass one bounded, strict admission boundary before
+  estimation or execution. CLI and MCP approval tokens bind the canonical
+  curated roster, exact saved-plan content, refinement depth, role controls,
+  evidence shape, and remote-icon choice, while execution consumes the same
+  in-memory snapshot instead of rereading mutable input. Cost estimates now
+  reserve the full refinement and pack-level reconciliation ceilings, count
+  the effective roster exactly, and reject non-finite prices.
+- Pack-level overlap repair now resolves at most ten distinct canonical skill
+  pairs, deduplicates aliases, and preserves stable skill identity across
+  sequential repairs. Failed authoring and saved-plan validation diagnostics no
+  longer reflect untrusted role names or malformed values.
 - Company names that cannot be represented portably as filesystem components
   are rejected before research begins, including Windows-reserved characters,
   device aliases, and the current-directory component. Legitimate trailing
@@ -69,6 +80,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Saved plans reject oversized files, amplified prompts, malformed structures,
+  nonportable roles, and rosters above the global cap before provider work.
+  Operator curation is atomic and cannot silently discard approved operator
+  roles. Approval tokens are content-bound, so same-sized plan substitutions or
+  post-estimate curation changes fail closed.
 - Skill-pack authoring now accepts only markdown references from model-proposed
   companions and applies a CommonMark-aware structural executable-payload
   boundary across agent-consumed fields: fenced and indented code blocks,

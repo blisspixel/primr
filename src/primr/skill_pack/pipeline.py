@@ -31,7 +31,7 @@ from primr.skill_pack.authoring import author_all_roles
 from primr.skill_pack.behavioral_eval import run_pack_behavioral_evals
 from primr.skill_pack.config import MAX_ROLES, SkillPackConfig
 from primr.skill_pack.packager import package_skill_pack
-from primr.skill_pack.planner import apply_curation, load_plan, plan_roles
+from primr.skill_pack.planner import plan_roles
 from primr.skill_pack.refiner import (
     attach_coherence_findings_as_issues,
     auto_resolve_overlaps,
@@ -39,6 +39,7 @@ from primr.skill_pack.refiner import (
     run_pack_coherence_pass,
 )
 from primr.skill_pack.role_brief import attach_role_brief_evidence
+from primr.skill_pack.saved_plan import prepare_saved_plan
 from primr.skill_pack.schema import (
     IssueSeverity,
     Role,
@@ -147,6 +148,7 @@ def run_skill_pack_pipeline(
     *,
     industry_context: str = "(unknown)",
     reasoning_session: Any | None = None,
+    prepared_plan: RolePlan | None = None,
 ) -> tuple[SkillPack, SkillPackArtifacts]:
     """Run the full pipeline. Returns (pack, artifacts).
 
@@ -161,6 +163,8 @@ def run_skill_pack_pipeline(
             improve authoring grounding. Used when no plan industry
             classification is available.
         reasoning_session: Optional ContinuousReasoningSession.
+        prepared_plan: Optional validated saved-plan snapshot. Cost-gated
+            callers pass it so estimation and execution use identical roles.
 
     Raises ValueError on config out-of-bounds, FileNotFoundError on
     missing evidence, RuntimeError if no roles survive refinement, and
@@ -198,24 +202,15 @@ def run_skill_pack_pipeline(
             "[skill_pack] Phase 1: loading saved plan from %s",
             config.from_plan_path,
         )
-        plan = load_plan(Path(config.from_plan_path))
-        if config.roles_add or config.roles_skip:
-            # When --from-plan is in use, honor the saved plan size + adds
-            # rather than the user's --roles flag, but never exceed the
-            # global MAX_ROLES ceiling. _drop_excess_to_cap trims plausible
-            # first, then observed, never operator-added.
-            curation_cap = min(
-                MAX_ROLES,
-                max(
-                    config.roles_count,
-                    len(plan.final_roster) + len(config.roles_add),
-                ),
-            )
-            apply_curation(
-                plan,
-                roles_add=list(config.roles_add),
-                roles_skip=list(config.roles_skip),
-                cap=curation_cap,
+        plan = prepared_plan or prepare_saved_plan(
+            Path(config.from_plan_path),
+            roles_add=config.roles_add,
+            roles_skip=config.roles_skip,
+        )
+        if len(plan.final_roster) > MAX_ROLES:
+            raise RuntimeError(
+                f"Saved plan at {config.from_plan_path} may contain at most "
+                f"{MAX_ROLES} final roles; found {len(plan.final_roster)}."
             )
         roles = list(plan.final_roster)
         if not roles:

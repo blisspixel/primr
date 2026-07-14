@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 from primr.skill_pack import process_spec_safety
-from primr.skill_pack.authoring import _parse_bundled_files, author_role_skills
+from primr.skill_pack.authoring import _parse_bundled_files, author_all_roles, author_role_skills
 from primr.skill_pack.prompts_loader import load_skill_pack_prompt
 from primr.skill_pack.role_references import (
     ROLE_FAMILY_REFERENCE_PATH,
@@ -1285,6 +1285,30 @@ def _skill(name: str) -> Skill:
             "Example output: A validation table."
         ),
     )
+
+
+def test_all_authoring_failures_do_not_reflect_role_names(monkeypatch, tmp_path):
+    role = _role()
+
+    def _fail(*_args, **_kwargs):
+        raise RuntimeError("provider unavailable")
+
+    monkeypatch.setattr("primr.skill_pack.authoring.author_role_skills", _fail)
+    monkeypatch.setattr(
+        "primr.skill_pack.authoring.load_evidence",
+        lambda _working_dir: ("recon", "hiring"),
+    )
+
+    with pytest.raises(RuntimeError, match="All 1 authoring calls failed") as caught:
+        author_all_roles(
+            [role],
+            company_name="Acme Corp",
+            company_url="https://acme.example",
+            skills_per_role=3,
+            working_dir=tmp_path,
+        )
+
+    assert role.name not in str(caught.value)
 
 
 def test_role_family_reference_sanitizes_evidence_snippets():

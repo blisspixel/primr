@@ -26,7 +26,7 @@ import logging
 from collections.abc import Iterable
 from typing import Any
 
-from primr.skill_pack.config import SkillPackConfig
+from primr.skill_pack.config import MAX_AUTO_RESOLVE_PAIRS, SkillPackConfig
 from primr.skill_pack.prompts_loader import extract_json, load_skill_pack_prompt
 from primr.skill_pack.schema import (
     IssueSeverity,
@@ -299,13 +299,59 @@ def auto_resolve_overlaps(
     """
     resolved: list[str] = []
 
-    plans: list[tuple[str, str, dict]] = []
-    for entry in coherence.get("semantic_overlaps") or []:
-        plans.append(("PACK-OVERLAP-LLM", entry.get("overlap_summary") or "", entry))
-    for entry in coherence.get("trigger_collisions") or []:
-        plans.append(("PACK-TRIGGER", entry.get("fix") or "", entry))
+    plans: list[tuple[str, str, dict, tuple[str, str]]] = []
+    seen_pairs: set[tuple[str, str]] = set()
 
-    for code, detail, entry in plans:
+    # Mirror _locate_skill's supported qualified and bare key forms once,
+    # before refinement can mutate a skill name. Bare-name collisions resolve
+    # to the first role in pack order, matching _locate_skill exactly.
+    aliases: dict[str, str] = {}
+    for role in pack.roles:
+        for skill in role.skills:
+            canonical = f"{role.name}/{skill.name}"
+            aliases[canonical] = canonical
+            aliases.setdefault(skill.name, canonical)
+
+    def _pair_key(entry: object) -> tuple[str, str] | None:
+        if not isinstance(entry, dict):
+            return None
+        raw_a = entry.get("skill_a")
+        raw_b = entry.get("skill_b")
+        if not isinstance(raw_a, str) or not isinstance(raw_b, str):
+            return None
+        skill_a = aliases.get(raw_a)
+        skill_b = aliases.get(raw_b)
+        if skill_a is None or skill_b is None or skill_a == skill_b:
+            return None
+        return (skill_a, skill_b) if skill_a <= skill_b else (skill_b, skill_a)
+
+    candidate_groups = (
+        ("semantic_overlaps", "PACK-OVERLAP-LLM", "overlap_summary"),
+        ("trigger_collisions", "PACK-TRIGGER", "fix"),
+    )
+    for group_name, code, detail_field in candidate_groups:
+        raw_entries = coherence.get(group_name)
+        if not isinstance(raw_entries, list):
+            continue
+        for entry in raw_entries:
+            pair = _pair_key(entry)
+            if pair is None:
+                continue
+            if pair in seen_pairs:
+                continue
+            seen_pairs.add(pair)
+            if len(plans) >= MAX_AUTO_RESOLVE_PAIRS:
+                continue
+            plans.append((code, str(entry.get(detail_field) or ""), entry, pair))
+
+    if len(seen_pairs) > len(plans):
+        logger.warning(
+            "Pack overlap auto-resolution capped at %d of %d distinct pair(s)",
+            MAX_AUTO_RESOLVE_PAIRS,
+            len(seen_pairs),
+        )
+
+    for code, detail, entry, pair in plans:
         a_key = entry.get("skill_a")
         b_key = entry.get("skill_b")
         located = _locate_skill(pack, b_key)
@@ -336,6 +382,10 @@ def auto_resolve_overlaps(
             if f.severity == IssueSeverity.HARD
         }
         refined = refine_skill(skill, [issue], company_context, reasoning_session=reasoning_session)
+        # Re-scoping must not change the skill's stable identity. Later plans
+        # may target the same skill through its prevalidated key, and package
+        # references also rely on the original slug remaining addressable.
+        refined.name = skill.name
         after_hard = {
             (f.code, f.field)
             for f in validate_skill(refined, role.name)
@@ -351,14 +401,16 @@ def auto_resolve_overlaps(
 
         role.skills[idx] = refined
         resolved.append(f"{b_key} re-scoped to not overlap {a_key}")
-        # Drop the resolved entry so the attached report reflects reality.
-        try:
-            if code == "PACK-OVERLAP-LLM":
-                coherence["semantic_overlaps"].remove(entry)
-            else:
-                coherence["trigger_collisions"].remove(entry)
-        except (KeyError, ValueError):
-            pass
+        # Drop every report entry for the resolved pair. A model may report
+        # the same pair as both a trigger collision and a semantic overlap,
+        # but execution spends at most one provider call per distinct pair.
+        for group_name, _, _ in candidate_groups:
+            raw_entries = coherence.get(group_name)
+            if not isinstance(raw_entries, list):
+                continue
+            coherence[group_name] = [
+                candidate for candidate in raw_entries if _pair_key(candidate) != pair
+            ]
 
     if resolved:
         logger.info("Auto-resolved %d overlap/collision pair(s)", len(resolved))

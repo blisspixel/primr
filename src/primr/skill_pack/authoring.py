@@ -380,7 +380,7 @@ def author_all_roles(
                 errors[role.name] = exc
 
     if errors and len(errors) == len(roles):
-        raise RuntimeError(f"All authoring calls failed: {list(errors.keys())}")
+        raise RuntimeError(f"All {len(errors)} authoring calls failed")
 
 
 __all__ = ["author_all_roles", "author_role_skills"]

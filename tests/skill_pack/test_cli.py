@@ -22,9 +22,34 @@ from primr.skill_pack.cli import (
 from primr.skill_pack.config import (
     DEFAULT_ROLES,
     DEFAULT_SKILLS_PER_ROLE,
+    MAX_AUTO_RESOLVE_PAIRS,
     SkillPackConfig,
     SkillPackFormat,
 )
+
+
+def _write_saved_plan(path, roles_count: int) -> None:
+    roles = [
+        {
+            "name": f"role-{index}",
+            "display_name": f"Role {index}",
+            "confidence": "Confirmed",
+            "summary": f"Role {index} summary",
+            "evidence": {"provenance": "posting", "posting_count": 1},
+        }
+        for index in range(roles_count)
+    ]
+    path.write_text(
+        json.dumps(
+            {
+                "observed": roles,
+                "final_roster": roles,
+                "industry": {},
+                "evidence_summary": {},
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 class TestIsSkillsCommand:
@@ -132,6 +157,41 @@ class TestEstimate:
         )
         assert remote > local
 
+    def test_refinement_cost_scales_with_iteration_cap(self):
+        low, _ = _estimate(
+            SkillPackConfig(max_refine_iterations=1),
+            will_collect_evidence=False,
+        )
+        high, _ = _estimate(
+            SkillPackConfig(max_refine_iterations=5),
+            will_collect_evidence=False,
+        )
+        assert high > low
+
+    def test_refinement_estimate_reserves_every_reachable_call(self):
+        config = SkillPackConfig(
+            roles_count=15,
+            skills_per_role=5,
+            max_refine_iterations=5,
+        )
+        cost, _ = _estimate(config, will_collect_evidence=False)
+        reachable_refinement_cost = 0.015 * (15 * 5 * 5 + MAX_AUTO_RESOLVE_PAIRS)
+        assert cost >= reachable_refinement_cost
+
+    def test_zero_per_skill_refinement_still_prices_auto_resolution(self):
+        enabled, _ = _estimate(
+            SkillPackConfig(max_refine_iterations=0),
+            will_collect_evidence=False,
+        )
+        disabled, _ = _estimate(
+            SkillPackConfig(
+                max_refine_iterations=0,
+                run_pack_coherence_pass=False,
+            ),
+            will_collect_evidence=False,
+        )
+        assert enabled - disabled >= 0.015 * MAX_AUTO_RESOLVE_PAIRS
+
 
 class TestRunSkillsCliEarlyReturns:
     def test_missing_url_without_from_report_errors(self, capsys):
@@ -206,6 +266,38 @@ class TestRunSkillsCliEarlyReturns:
         # roles_count follows the override label count (2), not the default.
         assert "Roles: 2" in captured.out
 
+    def test_duplicate_overrides_use_deduplicated_count(self, capsys):
+        rc = run_skills_cli(
+            [
+                "skills",
+                "Acme",
+                "https://acme.example",
+                "--roles-override",
+                "Account Executive,Account Executive",
+                "--dry-run",
+            ]
+        )
+
+        assert rc == 0
+        assert "Roles: 1 x" in capsys.readouterr().out
+
+    def test_automatic_roles_add_does_not_expand_final_count(self, capsys):
+        rc = run_skills_cli(
+            [
+                "skills",
+                "Acme",
+                "https://acme.example",
+                "--roles",
+                "5",
+                "--roles-add",
+                "Account Executive,Procurement Manager",
+                "--dry-run",
+            ]
+        )
+
+        assert rc == 0
+        assert "Roles: 5 x" in capsys.readouterr().out
+
     def test_from_plan_nonexistent_path_errors(self, capsys):
         rc = run_skills_cli(
             [
@@ -229,7 +321,7 @@ class TestRunSkillsCliEarlyReturns:
 
     def test_from_plan_existing_path_passes_validation(self, capsys, tmp_path):
         plan_file = tmp_path / "role_plan.json"
-        plan_file.write_text(json.dumps({"final_roster": []}), encoding="utf-8")
+        _write_saved_plan(plan_file, 4)
         rc = run_skills_cli(
             [
                 "skills",
@@ -241,4 +333,24 @@ class TestRunSkillsCliEarlyReturns:
             ]
         )
         assert rc == 0
-        assert "Skill pack estimate" in capsys.readouterr().out
+        output = capsys.readouterr().out
+        assert "Skill pack estimate" in output
+        assert "Roles: 4" in output
+
+    def test_from_plan_dry_run_rejects_empty_roster(self, capsys, tmp_path):
+        plan_file = tmp_path / "role_plan.json"
+        plan_file.write_text(json.dumps({"final_roster": []}), encoding="utf-8")
+
+        rc = run_skills_cli(
+            [
+                "skills",
+                "Acme",
+                "https://acme.example",
+                "--from-plan",
+                str(plan_file),
+                "--dry-run",
+            ]
+        )
+
+        assert rc == 2
+        assert "empty final_roster" in capsys.readouterr().err
