@@ -27,8 +27,11 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from primr.config.config import ConfigurationError as _ConfigConfigurationError
-from primr.utils.errors.base import CATEGORY_GUIDANCE, get_correlation_id
+from primr.types import ConfigurationError as _ConfigConfigurationError
+from primr.utils.errors.base import (
+    CATEGORY_GUIDANCE,
+    get_correlation_id,
+)
 
 # =============================================================================
 # BASE ERROR CLASS
@@ -74,7 +77,7 @@ class PrimrError(Exception, ABC):
     timestamp: datetime = field(default_factory=datetime.now)
     cause: Exception | None = None
     context: dict[str, Any] = field(default_factory=dict)
-    guidance: str = ""
+    guidance: str | None = ""
 
     def __post_init__(self) -> None:
         """Initialize the exception with the message."""
@@ -291,7 +294,8 @@ class PrimrConfigurationError(PermanentError, _ConfigConfigurationError):
     Configuration is invalid or missing.
 
     Inherits from both PermanentError (typed error hierarchy) and
-    config.ConfigurationError so that isinstance checks work for either type.
+    the shared legacy ConfigurationError so that isinstance checks work for
+    either type.
 
     Attributes:
         config_path: Path to the configuration file (if applicable)
@@ -304,9 +308,9 @@ class PrimrConfigurationError(PermanentError, _ConfigConfigurationError):
 
     def __post_init__(self) -> None:
         # Preserve caller-supplied guidance. This class also inherits the
-        # legacy config.ConfigurationError, whose __init__ is reached when
+        # legacy ConfigurationError, whose __init__ is reached when
         # PrimrError.__post_init__ calls super().__init__(self.message) and
-        # resets self.guidance to None — so without saving/restoring it,
+        # resets self.guidance to None, so without saving/restoring it,
         # PrimrConfigurationError(..., guidance="specific help") would silently
         # fall back to the generic category guidance.
         saved_guidance = self.guidance

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a graph-backed architecture cohesion plan and deterministic fitness
+  gates for first-party import cycles, empty source modules, and unexplained
+  sub-40-line modules. Package re-export edges are part of the cycle baseline,
+  while reviewed security, policy, lifecycle, adapter, protocol, and
+  composition boundaries remain explicitly permitted.
 - Cloud-vs-local calibration comparisons now preserve each disagreement as a
   body-free pointer in the raw report-bound sidecar. Its zero-based claim index
   resolves into the sidecar's top-level `claims` array for human adjudication,
@@ -23,6 +28,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Reduced first-party import-cycle components from four to two without adding
+  a source module. Gemini resource cleanup no longer imports its high-blast
+  deep-research consumer, model defaults now live in the dependency-leaf
+  registry, configuration errors share an existing stdlib-only leaf, and URL
+  security imports its concrete submodule instead of cycling through the
+  package facade. Fresh-interpreter tests verify both import orders against the
+  local source tree. The empty, unused scraping compatibility module was
+  removed.
 - Saved skill-pack plans now pass one bounded, strict admission boundary before
   estimation or execution. CLI and MCP approval tokens bind the canonical
   curated roster, exact saved-plan content, refinement depth, role controls,
