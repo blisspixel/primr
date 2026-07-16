@@ -70,11 +70,11 @@ class TestDryRunFlags:
     @pytest.mark.parametrize(
         ("env_name", "expected_label"),
         [
-            ("OPENAI_API_KEY", "standard (OpenAI routed)"),
-            ("ANTHROPIC_API_KEY", "standard (Anthropic routed)"),
+            ("OPENAI_API_KEY", "full (OpenAI routed)"),
+            ("ANTHROPIC_API_KEY", "full (Anthropic routed)"),
         ],
     )
-    def test_auto_standard_estimate_when_opt_in_provider_key_set(
+    def test_auto_full_estimate_when_opt_in_provider_key_set(
         self, monkeypatch, capsys, env_name, expected_label
     ):
         import json
@@ -113,14 +113,13 @@ class TestDryRunFlags:
         assert "--list-recent" in out
         assert "For the default output directory" in out
 
-    def test_standard_path_names_cli_full_mode(self, mocks, monkeypatch, capsys):
+    def test_full_path_estimate_header_uses_full_label(self, mocks, monkeypatch, capsys):
         monkeypatch.setenv("XAI_API_KEY", "x" * 30)
         result = run_dry_run(_config(mode="complete", fast_mode=True))
 
         assert result == 0
         out = capsys.readouterr().out
-        assert "CLI mode: full (default research path)" in out
-        assert "COST ESTIMATE:" in out
+        assert "COST ESTIMATE: full (" in out
 
     def test_verbose_output_retains_recovery_json(self, mocks, capsys):
         result = run_dry_run(_config(mode="scrape", verbose=True))

@@ -307,7 +307,7 @@ class TestJsonFlag:
         assert rc == 0
         payload = json.loads(capsys.readouterr().out)  # stdout must be pure JSON
         assert "total_cost" in payload
-        assert payload["mode_label"].startswith("standard")
+        assert payload["mode_label"].startswith("full")
 
     def test_dry_run_json_includes_budget_policy_when_budget_is_set(self, capsys):
         import json

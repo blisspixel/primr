@@ -9,13 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Default research dry-run and cost-estimate labels now use the product CLI
+  mode name `full` (for example `full (Grok 4.3 hybrid)`), matching
+  `--mode full` and root help instead of the internal "standard" path name.
 - `primr --list-recent` now groups primary report deliverables separately from
   calibration, QA, and verification diagnostics, prints root-relative paths so
   same-named files are distinguishable, and labels each row with a short type
   tag. Root help epilog leads with the first-run lifecycle (`init` through
-  `--list-recent`) and includes `primr skills`. Dry-run estimates for the
-  default research path print `CLI mode: full` so the priced "standard" path
-  matches the documented default `--mode full`.
+  `--list-recent`) and includes `primr skills`.
 
 ### Added
 

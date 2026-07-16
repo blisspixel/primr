@@ -29,17 +29,18 @@ def _has_provider_routed_standard_key() -> bool:
     )
 
 
-def _standard_mode_label(grok_tier: str) -> str:
+def _full_mode_label(grok_tier: str) -> str:
+    """Human label for the default full research path (CLI --mode full)."""
     tier_labels = {"fast": "Grok 4.1", "hybrid": "Grok 4.3 hybrid", "max": "Grok 4.3 max"}
     if os.environ.get("XAI_API_KEY"):
-        return f"standard ({tier_labels.get(grok_tier, 'Grok')})"
+        return f"full ({tier_labels.get(grok_tier, 'Grok')})"
     if os.environ.get("GEMINI_API_KEY"):
-        return "standard (Gemini routed)"
+        return "full (Gemini routed)"
     if os.environ.get("OPENAI_API_KEY"):
-        return "standard (OpenAI routed)"
+        return "full (OpenAI routed)"
     if os.environ.get("ANTHROPIC_API_KEY"):
-        return "standard (Anthropic routed)"
-    return "standard (provider-routed)"
+        return "full (Anthropic routed)"
+    return "full (provider-routed)"
 
 
 def run_dry_run(config: CLIConfig) -> int:
@@ -72,7 +73,7 @@ def run_dry_run(config: CLIConfig) -> int:
     if use_premium_mode:
         mode_label = "premium (Gemini + Deep Research)"
     elif use_fast_mode:
-        mode_label = _standard_mode_label(config.grok_tier)
+        mode_label = _full_mode_label(config.grok_tier)
     else:
         mode_label = config.mode
 
@@ -106,9 +107,6 @@ def run_dry_run(config: CLIConfig) -> int:
     print("")
     print("=" * 60)
     print(f"COST ESTIMATE: {mode_label} mode")
-    if use_fast_mode:
-        # "standard" is the priced research path; CLI users pass --mode full (default).
-        print("CLI mode: full (default research path)")
     if config.ai_strategy and not use_fast_mode:
         strategy_label = (
             "AI Strategy (Pro mode)" if config.lite_strategy else "AI Strategy analysis"
