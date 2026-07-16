@@ -106,6 +106,9 @@ def run_dry_run(config: CLIConfig) -> int:
     print("")
     print("=" * 60)
     print(f"COST ESTIMATE: {mode_label} mode")
+    if use_fast_mode:
+        # "standard" is the priced research path; CLI users pass --mode full (default).
+        print("CLI mode: full (default research path)")
     if config.ai_strategy and not use_fast_mode:
         strategy_label = (
             "AI Strategy (Pro mode)" if config.lite_strategy else "AI Strategy analysis"

@@ -113,6 +113,15 @@ class TestDryRunFlags:
         assert "--list-recent" in out
         assert "For the default output directory" in out
 
+    def test_standard_path_names_cli_full_mode(self, mocks, monkeypatch, capsys):
+        monkeypatch.setenv("XAI_API_KEY", "x" * 30)
+        result = run_dry_run(_config(mode="complete", fast_mode=True))
+
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "CLI mode: full (default research path)" in out
+        assert "COST ESTIMATE:" in out
+
     def test_verbose_output_retains_recovery_json(self, mocks, capsys):
         result = run_dry_run(_config(mode="scrape", verbose=True))
 

@@ -54,7 +54,33 @@ class TestListRecentOutputs:
         list_recent_outputs()
         captured = capsys.readouterr()
         assert "RECENT RESEARCH OUTPUTS" in captured.out
+        assert "Deliverables:" in captured.out
         assert "report_0.docx" in captured.out
+        assert "| docx" in captured.out
+
+    def test_separates_primary_deliverables_from_diagnostics(self, output_dir, capsys):
+        (output_dir / "Acme_Strategic_Overview.md").write_text("report", encoding="utf-8")
+        (output_dir / "Acme_Strategic_Overview.md.calibration.json").write_text(
+            "{}", encoding="utf-8"
+        )
+        (output_dir / "Acme_QA.json").write_text("{}", encoding="utf-8")
+
+        list_recent_outputs()
+        out = capsys.readouterr().out
+
+        assert "Deliverables:" in out
+        assert "Diagnostics:" in out
+        deliverables_index = out.index("Deliverables:")
+        diagnostics_index = out.index("Diagnostics:")
+        assert deliverables_index < diagnostics_index
+        assert "Acme_Strategic_Overview.md" in out
+        assert "calibration.json" in out
+        assert "| calibration" in out
+        assert "| markdown" in out
+        # Primary reports must not be buried under the diagnostics-only bucket.
+        deliverable_block = out[deliverables_index:diagnostics_index]
+        assert "Acme_Strategic_Overview.md" in deliverable_block
+        assert "calibration.json" not in deliverable_block
 
     def test_caps_listing_at_20(self, output_dir, capsys):
         # Create 25 fake .docx files

@@ -35,17 +35,23 @@ Research Modes:
   deep     Autonomous AI web research + hiring signals (~11-17 min, ~$2.50)
   parallel Both engines in parallel (legacy, ~25 min)
 
-Examples:
+Common first-run path:
   primr init                                         # Guided first-run setup
+  primr doctor                                       # System diagnostics
+  primr keys set xai                                 # Store xAI/Grok key in user config
+  primr keys set gemini                              # Store Gemini key in user config
   primr "Acme Corp" https://acme.example --dry-run  # Estimate cost and time only
-  primr "Acme Corp" https://acme.example
+  primr "Acme Corp" https://acme.example             # Launch after you accept the estimate
+  primr --check-jobs                                 # Read-only status (cloud + latest local)
+  primr --list-recent                                # Recent deliverables vs diagnostics
+  primr --resume-latest                              # Finalize completed interrupted cloud jobs
+
+Examples:
   primr prep "Acme Corp" https://acme.example       # $0 API evidence bundle for a host agent
+  primr skills "Acme Corp" https://acme.example     # Agent Skills pack (~$0.30 default)
   primr "Acme Corp" acme.example --mode deep
   primr "Acme Corp" acme.example --mode scrape       # Build Site Corpus + Extract Insights
-  primr keys set gemini                              # Store Gemini key in user config
-  primr keys set xai                                 # Store xAI/Grok key in user config
   primr keys list                                    # Show configured provider keys
-  primr doctor                                       # System diagnostics
   primr doctor --fix                                 # Diagnose, then launch guided fixes
   primr update                                       # Upgrade primr to the latest release
   primr update --check                               # Check for a newer version without installing

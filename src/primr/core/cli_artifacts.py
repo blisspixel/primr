@@ -7,13 +7,74 @@ from typing import cast
 
 from primr.output.artifact_inventory import ArtifactRecord, scan_artifact_roots
 
+_PRIMARY_DELIVERABLE_TYPES = frozenset(
+    {
+        "report_markdown",
+        "report_text",
+        "report_docx",
+        "report_pdf",
+    }
+)
+_DIAGNOSTIC_TYPES = frozenset(
+    {
+        "calibration_sidecar",
+        "qa_summary",
+        "verification_summary",
+    }
+)
+_GROUP_ORDER = ("Deliverables", "Diagnostics", "Run state", "Trace")
+_GROUP_LIMITS = {
+    "Deliverables": 20,
+    "Diagnostics": 10,
+    "Run state": 5,
+    "Trace": 5,
+}
+
 
 def _group(record: ArtifactRecord) -> str:
+    """Map classified artifact types onto human list-recent sections."""
     if record.artifact_type in {"run_state", "run_manifest"}:
         return "Run state"
     if record.artifact_type == "scrape_trace":
         return "Trace"
+    if record.artifact_type in _DIAGNOSTIC_TYPES:
+        return "Diagnostics"
+    if record.artifact_type in _PRIMARY_DELIVERABLE_TYPES:
+        return "Deliverables"
+    # Remaining classified artifacts (for example skill packs under output/) stay
+    # with primary deliverables so operators still see them without a new section.
     return "Deliverables"
+
+
+def _display_path(record: ArtifactRecord, roots: list[Path]) -> str:
+    """Prefer a path relative to a scanned root so siblings are distinguishable."""
+    resolved = record.path.resolve(strict=False)
+    for root in roots:
+        try:
+            relative = resolved.relative_to(root.resolve(strict=False))
+        except ValueError:
+            continue
+        text = relative.as_posix()
+        if text and text != ".":
+            return text
+    return record.path.name
+
+
+def _type_label(record: ArtifactRecord) -> str:
+    """Short type tag for human listings without dumping internal enums."""
+    labels = {
+        "report_markdown": "markdown",
+        "report_text": "text",
+        "report_docx": "docx",
+        "report_pdf": "pdf",
+        "calibration_sidecar": "calibration",
+        "qa_summary": "qa",
+        "verification_summary": "verification",
+        "run_manifest": "manifest",
+        "run_state": "run state",
+        "scrape_trace": "trace",
+    }
+    return labels.get(record.artifact_type, record.artifact_type.replace("_", " "))
 
 
 def list_recent_outputs(
@@ -87,22 +148,23 @@ def list_recent_outputs(
         print("No recent outputs found.")
         return 0
 
+    root_paths = [Path(item) for item in roots]
     print("\nRECENT RESEARCH OUTPUTS")
     print("-" * 60)
     for error in errors:
         print(f"Scan warning: {error}")
-    limits = {"Deliverables": 20, "Run state": 5, "Trace": 5}
-    for group in ("Deliverables", "Run state", "Trace"):
+    for group in _GROUP_ORDER:
         rows = [record for record in records if _group(record) == group]
         if not rows:
             continue
+        limit = _GROUP_LIMITS[group]
         print(f"{group}:")
-        for index, record in enumerate(rows[: limits[group]], 1):
+        for index, record in enumerate(rows[:limit], 1):
             size_kb = (record.size_bytes or 0) / 1024
             modified = (record.modified_at or "")[:16].replace("T", " ")
-            print(f"{index:2}. {record.path.name}")
-            print(f"    {modified} | {size_kb:.1f} KB")
-        if len(rows) > limits[group]:
-            print(f"... and {len(rows) - limits[group]} more files")
+            print(f"{index:2}. {_display_path(record, root_paths)}")
+            print(f"    {modified} | {size_kb:.1f} KB | {_type_label(record)}")
+        if len(rows) > limit:
+            print(f"... and {len(rows) - limit} more files")
     print("-" * 60)
     return 0
