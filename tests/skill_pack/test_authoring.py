@@ -20,12 +20,14 @@ from primr.skill_pack.role_references import (
 )
 from primr.skill_pack.schema import BundledFile, Role, RoleEvidence, RoleProvenance, Skill
 from primr.skill_pack.script_safety import (
+    scan_authored_executable_instructions,
+)
+from primr.skill_pack.verifier_asset import (
     VERIFY_ARTIFACT_INVOCATION,
     VERIFY_ARTIFACT_SCRIPT,
     VERIFY_ARTIFACT_SCRIPT_PATH,
     has_registered_verifier_invocation,
     insert_registered_verifier_invocation,
-    scan_authored_executable_instructions,
 )
 from primr.utils.validators import is_portable_path_component
 

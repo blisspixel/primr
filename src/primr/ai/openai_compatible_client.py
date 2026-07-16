@@ -13,6 +13,7 @@ import time
 from dataclasses import dataclass
 
 from primr.ai.provider_availability import LocalCapacityBusyError
+from primr.ai.providers.openai_compatible import create_openai_sdk_client
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("openai_compatible_client")
@@ -97,7 +98,11 @@ def chat_completion(
     resolved_base_url = normalize_openai_base_url(base_url)
     resolved_api_key = api_key if api_key is not None else os.getenv(api_key_env, "ollama")
 
-    client = openai.OpenAI(api_key=resolved_api_key or "ollama", base_url=resolved_base_url)
+    client = create_openai_sdk_client(
+        openai,
+        api_key=resolved_api_key or "ollama",
+        base_url=resolved_base_url,
+    )
 
     messages: list[dict[str, str]] = []
     if system_prompt:

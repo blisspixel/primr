@@ -22,15 +22,17 @@ Usage::
 """
 
 import random
-import re
 import threading
 from typing import Any
 
+from primr.ai.error_policy import extract_retry_after_seconds
 from primr.ai.providers import XAIProvider
+from primr.ai.providers.openai_compatible import create_openai_sdk_client
 from primr.utils.logging_config import get_logger
 from primr.utils.model_policy import require_model_calls_allowed
 
 logger = get_logger("grok_client")
+_extract_retry_after_seconds = extract_retry_after_seconds
 
 # ---------------------------------------------------------------------------
 # Session-level token tracking (per-model for accurate cost reporting)
@@ -139,7 +141,8 @@ def _get_grok_client():
             "Get a key at https://console.x.ai/"
         )
 
-    _client = openai.OpenAI(
+    _client = create_openai_sdk_client(
+        openai,
         api_key=api_key,
         base_url="https://api.x.ai/v1",
     )
@@ -214,32 +217,6 @@ def _is_retryable_grok_error(error: Exception) -> bool:
         "connection refused",
     ]
     return any(marker in error_text for marker in retryable_markers)
-
-
-def _extract_retry_after_seconds(error: Exception) -> float | None:
-    """Best-effort extraction of server-directed retry delay (Retry-After header)."""
-    response = getattr(error, "response", None)
-    headers = getattr(response, "headers", None)
-    if headers:
-        retry_after = headers.get("retry-after")
-        if retry_after:
-            try:
-                value = float(retry_after)
-                if value > 0:
-                    return value
-            except (TypeError, ValueError):
-                pass
-
-    # Fallback parse for message fragments like "retry after 10 seconds"
-    match = re.search(r"retry after\s+(\d+(?:\.\d+)?)", str(error).lower())
-    if match:
-        try:
-            value = float(match.group(1))
-            if value > 0:
-                return value
-        except ValueError:
-            pass
-    return None
 
 
 def _compute_backoff_delay(attempt: int, *, base: float = 5.0, cap: float = 90.0) -> float:
@@ -468,6 +445,26 @@ class ContinuousReasoningSession:
             self.approx_context_tokens // 1000,
         )
         return response.text
+
+    def send_stateless(
+        self,
+        prompt: str,
+        *,
+        system_prompt: str,
+        temperature: float = 0.5,
+        max_tokens: int = 16_000,
+        retries: int = 4,
+    ) -> str:
+        """Call the configured model without reading or mutating session history."""
+        return grok_llm(
+            prompt,
+            system_prompt=system_prompt,
+            model=self.model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            retries=retries,
+            reasoning_effort=self.reasoning_effort,
+        )
 
 
 # ---------------------------------------------------------------------------

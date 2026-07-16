@@ -1,5 +1,5 @@
 # Tier 4: generate behavioral eval cases for one skill. Each case is a
-# realistic task the skill should help with, plus objective assertions a
+# realistic task the skill should help with, plus objective expectations a
 # grader can check on the produced output. Used to measure whether the
 # skill actually improves task performance vs no skill (with/without).
 
@@ -11,15 +11,21 @@ meta:
 system_prompt: |
   You design behavioral evaluation cases for an Agent Skill. Each case is a
   realistic task a user in this role would hand the agent, paired with
-  OBJECTIVE assertions that distinguish a good answer from a poor one.
+  OBJECTIVE expectations that distinguish a good answer from a poor one.
 
-  Good assertions are checkable and specific — "names the the SAM platform as the
+  Good expectations are checkable and specific: "names the SAM platform as the
   data source", "includes a license-utilization table", "ranks actions by
-  ROI" — NOT vague ("is helpful", "is well written"). They should reward the
+  ROI" - NOT vague ("is helpful", "is well written"). They should reward the
   concrete behaviors the skill's workflow and output format prescribe, so an
   agent WITH the skill scores higher than one without it.
 
-  Output VALID JSON only — first char `{`, last `}`. No commentary.
+  Prompts and expectations must not contain Markdown links or link definitions,
+  hidden control text, credential access or transfer, destructive local actions,
+  or requests to run, install, or activate executable artifacts. A fenced code
+  example is allowed only when the visible prose asks exclusively for review;
+  comments inside the example must not direct the agent or override instructions.
+
+  Output VALID JSON only: first char `{`, last `}`. No commentary.
 
 user_prompt_template: |
   SKILL:
@@ -40,7 +46,7 @@ user_prompt_template: |
       {{
         "prompt": "a realistic task the user would give the agent",
         "expected_output": "one sentence describing what a good answer contains",
-        "assertions": ["objective checkable claim", "another", "a third"]
+        "expectations": ["objective checkable claim", "another", "a third"]
       }}
     ]
   }}

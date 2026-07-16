@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `primr --list-recent` now groups primary report deliverables separately from
+  calibration, QA, and verification diagnostics, prints root-relative paths so
+  same-named files are distinguishable, and labels each row with a short type
+  tag. Root help epilog leads with the first-run lifecycle (`init` through
+  `--list-recent`) and includes `primr skills`. Dry-run estimates for the
+  default research path print `CLI mode: full` so the priced "standard" path
+  matches the documented default `--mode full`.
+
 ### Added
 
 - Added a graph-backed architecture cohesion plan and deterministic fitness
@@ -28,6 +38,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Skill-pack executable-instruction admission now rejects leading environment
+  assignments, dynamic shell command words, additional Windows executable
+  types, persistence through login profiles, CPython and indirect interpreter
+  sinks, CMD comment variants, and executable directives hidden after
+  ECMAScript regex literals. Sensitive-data policy also treats stacked
+  negations and transformed ciphertext or Base64 transfers as affirmative
+  exfiltration instead of safe prose.
+- Behavioral-evaluation runtime estimates now reserve the bounded retry wait as
+  well as call time. OpenAI-compatible transports disable automatic redirects
+  alongside SDK retries so the declared attempt cap also bounds physical HTTP
+  requests, and authored HTTP targets with malformed or out-of-range ports
+  fail closed.
+- Split three newly expanded skill-pack security modules at cohesive trust
+  boundaries: language-aware comment projection, execution dataflow, and the
+  existing verifier-asset registry. Every resulting module is below the
+  approximate 800-line review threshold without compatibility shims or
+  circular dependencies. All eight touched trust-boundary modules now sit in
+  the enforced mypy annotation-completeness allowlist.
 - Reduced first-party import-cycle components from four to two without adding
   a source module. Gemini resource cleanup no longer imports its high-blast
   deep-research consumer, model defaults now live in the dependency-leaf
@@ -93,6 +121,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Behavioral-evaluation JSON is no longer an unchecked agent-instruction
+  carrier. Generated cases are bounded and screened before any with-skill,
+  baseline, or grader call; grader inputs are nonce-fenced; and packaged eval
+  files require a bounded form of Anthropic's current `expectations` schema
+  with unique keys and identifiers. The optional `files` key is recognized
+  only when empty because Primr does not yet package eval input assets; nonempty
+  references fail closed instead of becoming dangling paths. Primr's earlier
+  `assertions` form remains readable. Unsafe and default-ignorable Unicode,
+  control-plane overrides, affirmative credential exfiltration, executable
+  launch directions, alternate eval files, oversized payloads, and cross-skill
+  name mismatches fail closed without blocking fenced code-review data or
+  explicit prohibitions and descriptive security-review tasks. Zero-case
+  requests make no provider call. Packaging validates the admitted file set
+  once before writing either artifact format. Fenced input is admitted only
+  behind a strict review-only frame, and execution intent before or after the
+  block fails closed. Images, active or local link destinations, executable
+  paths, common imperative frames, sensitive credential reads or transfers,
+  and the complete [Unicode 17 default-ignorable set](https://www.unicode.org/Public/17.0.0/ucd/DerivedCoreProperties.txt)
+  are covered both raw and after bounded recursive CommonMark entity, percent,
+  and Unicode compatibility decoding; residual encoded layers fail closed.
+  Clause-level negation and exception handling
+  separates inert security review from later credential access or transfer.
+  Markdown links and definitions fail closed because their hidden destinations
+  are unnecessary for eval artifacts. Review-fenced examples retain their
+  inert code-review use case while fence metadata, embedded prompt control,
+  and unsafe comment prose are checked. CommonMark canonicalization and link
+  policy now have one typed shared seam; eval schema and control-plane policy
+  share a focused validator. Task arms and both graders run statelessly so
+  case-generation context cannot leak into the baseline, while retaining the
+  caller's configured model and reasoning tier. Behavioral-eval approval now
+  prices the actual one generation plus four calls per case from the model
+  registry, reserves every output ceiling and bounded input budget, includes
+  sequential runtime, and uses the same strict two-attempt cap as execution.
+  OpenAI-compatible SDK retries are disabled so the explicit Primr loop is the
+  sole retry owner; a transport-level regression proves that two approved
+  attempts issue exactly two HTTP requests. Credential screening now covers
+  response-oriented disclosure, common token and credential-file forms, and
+  chained metadata-to-value transfers without rejecting metadata-only
+  governance reporting. Adjacent-clause pronouns and output synonyms cannot
+  detach raw values from their credential antecedent. Execution screening now
+  covers structural terminal and console entry, interpreter data sinks,
+  downloaded-result coreference, boot, and click activation while preserving
+  ordinary alphanumeric business tasks and non-executable downloaded-data use.
+  Language-aware fence scanners inspect inline comments, including ECMAScript
+  template interpolations and native CMD `REM` forms, without treating quoted
+  comment markers or template text as instructions. Bounded instruction grammar
+  also covers transformed-secret transfer, persistence destinations,
+  downloaded executable activation, and interpreter evaluation while retaining
+  explicit prohibitions and metadata-only credential inventories. Raw HTTP
+  targets that are malformed, lexically local, private, reserved, or cloud
+  metadata endpoints fail closed without a DNS side effect, including targets
+  followed by prose delimiters. Mixed-script and same-script command confusables are checked without
+  rejecting pure Greek, Cyrillic, Armenian, or accented-Latin prose. Skills
+  with no valid generated cases are skipped instead of being reported as
+  benchmarked.
 - Saved plans reject oversized files, amplified prompts, malformed structures,
   nonportable roles, and rosters above the global cap before provider work.
   Operator curation is atomic and cannot silently discard approved operator

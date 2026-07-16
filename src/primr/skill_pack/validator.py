@@ -36,6 +36,7 @@ from primr.skill_pack.body_quality import (
     quality_marker_guidance,
     section_shape_errors,
 )
+from primr.skill_pack.eval_validation import scan_eval_json
 from primr.skill_pack.schema import (
     IssueSeverity,
     Role,
@@ -45,18 +46,22 @@ from primr.skill_pack.schema import (
     ValidationReport,
 )
 from primr.skill_pack.script_safety import (
-    VERIFY_ARTIFACT_SCRIPT,
-    VERIFY_ARTIFACT_SCRIPT_PATH,
     commonmark_security_text,
-    has_registered_verifier_invocation,
-    is_verification_skill_name,
-    registered_verifier_path_count,
     scan_authored_executable_instructions,
 )
 from primr.skill_pack.script_safety import (
+    find_authored_instruction_match as find_injection_match,
+)
+from primr.skill_pack.verifier_asset import (
+    VERIFY_ARTIFACT_SCRIPT,
+    VERIFY_ARTIFACT_SCRIPT_PATH,
+    has_registered_verifier_invocation,
+    is_verification_skill_name,
+    registered_verifier_path_count,
+)
+from primr.skill_pack.verifier_asset import (
     scan_python_script as _scan_python_script,
 )
-from primr.utils.content_sanitizer import find_prompt_injection
 from primr.utils.validators import is_portable_path_component
 
 # --- Naming rules (ASKILL-P007) -------------------------------------------
@@ -224,87 +229,6 @@ _BODY_MIN_WORDS = 300
 _BODY_TARGET_MAX_WORDS = 1500
 _BODY_HARD_MAX_WORDS = 5000
 
-# --- Security patterns ---------------------------------------------------
-
-# Ported verbatim from output/skills_generator.py:_AGENT_INSTRUCTION_PATTERNS.
-# These are the load-bearing prompt-injection filters: anything matching is
-# a HARD failure that drops the role rather than risking a downstream agent
-# host obeying scraped third-party content as an instruction.
-_AGENT_INSTRUCTION_PATTERNS = [
-    # "ignore previous instructions"-style injection. Requires an
-    # instruction-like OBJECT after previous/prior/above so benign domain
-    # prose ("ignore previously assigned licenses", "disregard prior true-up
-    # estimates") does not false-positive and drop a good skill.
-    re.compile(
-        r"\b(?:ignore|disregard|forget)\b[^\n]{0,60}"
-        r"(?:previous|prior|earlier|preceding|above|foregoing)\b[^\n]{0,40}"
-        r"(?:instruction|directive|prompt|message|context|rule|guidance|persona|system)",
-        re.IGNORECASE,
-    ),
-    re.compile(r"\bsystem\s+prompt\b", re.IGNORECASE),
-    # "run a shell command"-style injection. Requires a real shell indicator
-    # (bash/powershell/terminal/...) rather than the bare words "script" or
-    # "command", so legitimate skill prose like "run the scripts/foo.py
-    # helper" or "run the assessment" does not false-positive. Actual shell
-    # blocks are still caught by the fenced-code and curl/wget patterns below.
-    re.compile(
-        r"\b(?:run|execute|invoke)\b[^\n]{0,40}"
-        r"(?:bash|powershell|pwsh|zsh|\bsh\b|terminal|sudo|/bin/|"
-        r"(?:shell|bash|system|terminal)\s+command)",
-        re.IGNORECASE,
-    ),
-    # Bare "command"/"script" injection, gated on the DEMONSTRATIVE that
-    # signals an inline payload ("run THIS command", "execute THE FOLLOWING
-    # script", "paste THESE commands"). This closes the bypass where the
-    # shell-indicator pattern above misses "run this command: rm -rf ..." or
-    # "execute the script that ..." while preserving the false-positive guard
-    # the narrowing was added for: benign prose says "run the scripts/foo.py
-    # helper" / "run the assessment", never "run THIS command" with a payload.
-    # Bare "the"/"a" are intentionally NOT in the alternation so the legit
-    # forms stay clean.
-    re.compile(
-        r"\b(?:run|execute|invoke|paste|enter|type)\b[^\n]{0,30}"
-        r"\b(?:this|that|these|below|the\s+following|the\s+next)\b"
-        r"[^\n]{0,25}\b(?:commands?|scripts?|code|payloads?|snippets?|one[-\s]?liners?)\b",
-        re.IGNORECASE,
-    ),
-    # Literal destructive shell commands — caught regardless of the English
-    # framing around them, so a reworded injection still trips on its actual
-    # payload. These tokens never legitimately appear in a SKILL.md body.
-    re.compile(
-        r"\brm\s+-[rf]{1,2}\b|\bdel\s+/[a-z]|\bformat\s+[a-z]:|\bmkfs\b|"
-        r"\bdd\s+if=|\bchmod\s+[0-7]{3,4}\b|:\(\)\s*\{\s*:\s*\|\s*:|"
-        r"\bshutdown\b\s+-|\bsudo\s+rm\b|>\s*/dev/sd",
-        re.IGNORECASE,
-    ),
-    # Destructive action explicitly targeting the USER'S OWN environment
-    # ("deletes local files", "wipe your disk", "encrypt all files on the
-    # host"). The local/system/your/all qualifier on a filesystem noun is the
-    # tell that separates an attack instruction from benign data work
-    # ("removes duplicate rows from the staging files").
-    re.compile(
-        r"\b(?:delet|remov|wip|eras|destroy|overwrit|encrypt|exfiltrat|corrupt)\w*\b"
-        r"[^\n]{0,30}\b(?:local|system|your|all)\b[^\n]{0,15}"
-        r"\b(?:file|files|data|disk|drive|machine|directory|folder|host|home)\b",
-        re.IGNORECASE,
-    ),
-    re.compile(
-        r"\b(?:read|cat|exfiltrate|exfil|dump|leak)\b[^\n]{0,80}"
-        r"(?:~/\.ssh|id_rsa|\.env|credentials|secrets?)",
-        re.IGNORECASE,
-    ),
-    re.compile(r"\bcurl\b[^\n]{0,200}\bhttps?://", re.IGNORECASE),
-    re.compile(r"\bwget\b[^\n]{0,200}\bhttps?://", re.IGNORECASE),
-    re.compile(r"```(?:bash|sh|shell|zsh|powershell|pwsh|cmd)\b", re.IGNORECASE),
-    re.compile(r"<\s*tool[^>]*>|<\s*function[^>]*>", re.IGNORECASE),
-    re.compile(r"\ballowed[-_ ]?tools\s*:", re.IGNORECASE),
-    re.compile(r"```\s*ya?ml\s*\n\s*---", re.IGNORECASE),
-    # Additions for the structured-output era (plan §Q1):
-    re.compile(r"<\s*allowed-tools", re.IGNORECASE),
-    re.compile(r"\bfile://", re.IGNORECASE),
-    re.compile(r"\$\{[^}]+\}"),  # env-var exfil templating
-]
-
 # Hardcoded user-home and common absolute system paths make skills non-portable
 # and can disclose host layout or direct a downstream agent outside its workspace.
 _HARDCODED_PATH_PATTERNS = [
@@ -348,28 +272,36 @@ def validate_bundled_path(relpath: str) -> str | None:
     subdir, ext = m.group(1), m.group(2)
     if _BUNDLED_SUBDIR_EXT[subdir] != ext:
         return f"{subdir}/ files must be .{_BUNDLED_SUBDIR_EXT[subdir]}"
+    if subdir == "evals" and relpath != "evals/evals.json":
+        return "the only supported eval resource is evals/evals.json"
     filename = relpath.partition("/")[2]
     if not is_portable_path_component(filename, max_length=_MAX_BUNDLED_FILENAME_LENGTH):
         return "filename is not a portable filesystem component"
     return None
 
 
-def scan_bundled_content(relpath: str, content: str) -> str | None:
+def scan_bundled_content(
+    relpath: str,
+    content: str,
+    *,
+    expected_skill_name: str | None = None,
+) -> str | None:
     """Return a reason string if a bundled file's CONTENT is unsafe, else None.
 
     Runs the agent-instruction (injection) and hardcoded-path filters over all
     authored bundled content. Executable ``scripts/*.py`` files are accepted
     only when their path and content exactly match a reviewed first-party helper.
-    ``evals/*.json`` is intentionally skipped: it is primr-generated (not the
-    adversarial authoring vector) and may legitimately embed adversarial test
-    strings that the injection filter would false-positive on.
+    Evaluation JSON must match the generated schema and its agent-consumed text
+    must pass the same injection and executable-instruction boundary.
 
     Used by both the validator (HARD SEC-BUNDLE finding) and the packager
     (defense-in-depth file drop) so unreviewed executable/injected content
     can never reach the Claude tree or the Cowork zip.
     """
     if relpath.endswith(".json"):
-        return None
+        if relpath != "evals/evals.json":
+            return "the only supported eval resource is evals/evals.json"
+        return scan_eval_json(content, expected_skill_name=expected_skill_name)
     if relpath.endswith(".py"):
         danger = _scan_python_script(relpath, content)
         return f"unsafe Python helper: {danger}" if danger else None
@@ -397,20 +329,6 @@ def _approx_token_count(text: str) -> int:
     generous margin so the approximation is safe.
     """
     return len(text) // 4
-
-
-def find_injection_match(text: str) -> str | None:
-    """Return the first agent-instruction pattern hit, or None."""
-    if not text:
-        return None
-    for candidate in dict.fromkeys((text, commonmark_security_text(text))):
-        if shared_hit := find_prompt_injection(candidate, authored_output=True):
-            return shared_hit
-        for pattern in _AGENT_INSTRUCTION_PATTERNS:
-            m = pattern.search(candidate)
-            if m:
-                return m.group(0)
-    return None
 
 
 def find_hardcoded_path(text: str) -> str | None:
@@ -763,7 +681,11 @@ def validate_skill(skill: Skill, role_name: str) -> list[SkillIssue]:
     # must instead match a reviewed first-party artifact exactly. HARD: a
     # content hit drops the role, and the packager re-checks the same boundary.
     for bf in skill.bundled_files:
-        unsafe = scan_bundled_content(bf.relpath, bf.content)
+        unsafe = scan_bundled_content(
+            bf.relpath,
+            bf.content,
+            expected_skill_name=skill.name,
+        )
         if unsafe:
             issues.append(
                 SkillIssue(

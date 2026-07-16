@@ -54,11 +54,6 @@ from primr.skill_pack.schema import (
     SkillPackArtifacts,
 )
 from primr.skill_pack.script_safety import (
-    VERIFY_ARTIFACT_SCRIPT,
-    VERIFY_ARTIFACT_SCRIPT_PATH,
-    has_registered_verifier_invocation,
-    is_verification_skill_name,
-    registered_verifier_path_count,
     scan_authored_executable_instructions,
 )
 from primr.skill_pack.validator import (
@@ -66,6 +61,13 @@ from primr.skill_pack.validator import (
     find_injection_match,
     scan_bundled_content,
     validate_bundled_path,
+)
+from primr.skill_pack.verifier_asset import (
+    VERIFY_ARTIFACT_SCRIPT,
+    VERIFY_ARTIFACT_SCRIPT_PATH,
+    has_registered_verifier_invocation,
+    is_verification_skill_name,
+    registered_verifier_path_count,
 )
 from primr.utils.validators import is_portable_path_component
 
@@ -589,7 +591,7 @@ def _safe_bundled_files(skill: Skill) -> list[BundledFile]:
             continue
         if bf.relpath in seen:
             continue
-        unsafe = scan_bundled_content(bf.relpath, bf.content)
+        unsafe = scan_bundled_content(bf.relpath, bf.content, expected_skill_name=skill.name)
         if unsafe is not None:
             logger.warning("Dropping unsafe bundled file %r: %s", bf.relpath, unsafe)
             continue
@@ -601,11 +603,11 @@ def _safe_bundled_files(skill: Skill) -> list[BundledFile]:
     return out
 
 
-def _cowork_bundled_files(skill: Skill) -> list[BundledFile]:
+def _cowork_bundled_files(safe_files: list[BundledFile]) -> list[BundledFile]:
     """Return safe bundled files that also fit Cowork companion limits."""
     out: list[BundledFile] = []
     total_bytes = 0
-    for bf in _safe_bundled_files(skill):
+    for bf in safe_files:
         content_size = len(bf.content.encode("utf-8"))
         if content_size > MAX_COWORK_COMPANION_FILE_BYTES:
             logger.warning(
@@ -728,6 +730,7 @@ def _package_skill_pack_direct(
         else:
             logger.warning("Dropping skill with unsafe folder slug %r", slug)
     flat_skills = safe_flat_skills
+    safe_bundled_files = {id(skill): _safe_bundled_files(skill) for _, _, skill in flat_skills}
 
     # Precompute the agent-handoff metadata once per skill so the Claude tree
     # and the Cowork zip render byte-identical SKILL.md files (a pack invariant).
@@ -761,7 +764,7 @@ def _package_skill_pack_direct(
             )
             artifacts.skill_md_paths.append(str(skill_path))
             # Progressive-disclosure resources (references/*.md, scripts/*.py).
-            for bf in _safe_bundled_files(skill):
+            for bf in safe_bundled_files[id(skill)]:
                 bf_path = skill_dir / bf.relpath
                 bf_resolved = bf_path.resolve()
                 if not _is_relative_to(bf_resolved, skill_dir.resolve()):
@@ -801,7 +804,7 @@ def _package_skill_pack_direct(
             zf.writestr("outline.png", outline_png)
             for slug, _role, skill, skill_md in cowork_skills:
                 zf.writestr(f"skills/{slug}/SKILL.md", skill_md)
-                for bf in _cowork_bundled_files(skill):
+                for bf in _cowork_bundled_files(safe_bundled_files[id(skill)]):
                     zf.writestr(f"skills/{slug}/{bf.relpath}", bf.content)
 
         zip_path.write_bytes(buf.getvalue())

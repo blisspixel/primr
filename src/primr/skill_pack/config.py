@@ -31,6 +31,16 @@ MIN_SKILLS_PER_ROLE = 1
 MAX_SKILLS_PER_ROLE = 5
 DEFAULT_ROLES = 5
 DEFAULT_SKILLS_PER_ROLE = 3
+DEFAULT_EVAL_CASES = 3
+MAX_EVAL_CASES = 20
+EVAL_GENERATION_OUTPUT_TOKEN_CAP = 4_000
+EVAL_TASK_OUTPUT_TOKEN_CAP = 1_500
+EVAL_GRADER_OUTPUT_TOKEN_CAP = 4_000
+EVAL_GENERATION_INPUT_TOKEN_RESERVE = 12_000
+EVAL_CASE_INPUT_TOKEN_RESERVE = 39_000
+EVAL_CALL_SECONDS = 20
+EVAL_MODEL_RETRIES = 1
+EVAL_CHARGEABLE_ATTEMPT_CAP = EVAL_MODEL_RETRIES + 1
 
 # Per-skill refinement iteration cap. Beyond 2, diminishing-returns dominate
 # (validated in the broader QA refinement design — same cap as the planned
@@ -86,10 +96,10 @@ class SkillPackConfig:
     # cases + assertions, run the task WITH the skill vs WITHOUT it, grade
     # both, and report the pass-rate delta — proving the skill changes
     # output, not just that it is well-formed. Also writes evals/evals.json
-    # per skill. Expensive (~3 LLM calls per case per skill), so OFF by
-    # default; enable with the CLI --with-evals flag.
+    # per skill. Each skill uses one generation call plus four calls per case
+    # (two task arms and two graders), so this is OFF by default.
     with_evals: bool = False
-    eval_cases_per_skill: int = 3
+    eval_cases_per_skill: int = DEFAULT_EVAL_CASES
 
     # Optional primr-namespaced `metadata` block in each SKILL.md frontmatter
     # (role, provenance, confidence, approx context-token budget, and refresh
@@ -175,6 +185,10 @@ class SkillPackConfig:
             )
         if not 0 <= self.max_refine_iterations <= MAX_REFINE_ITERATIONS:
             raise ValueError(f"max_refine_iterations must be 0-{MAX_REFINE_ITERATIONS}")
+        if type(self.eval_cases_per_skill) is not int or not (
+            0 <= self.eval_cases_per_skill <= MAX_EVAL_CASES
+        ):
+            raise ValueError(f"eval_cases_per_skill must be 0-{MAX_EVAL_CASES}")
         if not math.isfinite(self.max_cost_per_role_usd) or self.max_cost_per_role_usd <= 0:
             raise ValueError("max_cost_per_role_usd must be finite and > 0")
         if self.max_total_cost_usd is not None and (

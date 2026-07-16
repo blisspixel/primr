@@ -11,14 +11,38 @@ import ast
 import codeop
 import re
 from typing import TYPE_CHECKING
-from urllib.parse import unquote, urlsplit
 
-from markdown_it import MarkdownIt
+from primr.utils.content_sanitizer import (
+    find_authored_agent_instruction,
+    find_sensitive_exfiltration_instruction,
+)
+from primr.utils.content_sanitizer import (
+    find_unsafe_instruction_unicode as find_unsafe_authored_unicode,
+)
 
 from . import command_grammar as _command_grammar
+from . import execution_dataflow as _execution_dataflow
 from .code_fragment_safety import (
     contains_non_python_executable_fragment,
     find_non_python_executable_fragment,
+)
+from .markdown_safety import (
+    SAFE_LINK_SCHEMES,
+    SECURITY_COMMONMARK,
+    canonicalize_security_text,
+    commonmark_security_text,
+    confusable_security_text_candidates,
+    decoded_link_titles,
+    decoded_reference_metadata,
+    find_mixed_script_token,
+    has_encoded_control_whitespace,
+    has_invalid_percent_encoding,
+    has_residual_encoding,
+    link_destination_violation,
+    raw_http_url_violation,
+    security_text_candidates,
+    token_link_destination_violation,
+    visible_inline_text,
 )
 from .materialization_safety import contains_executable_materialization
 from .process_spec_safety import (
@@ -27,24 +51,12 @@ from .process_spec_safety import (
 )
 from .verifier_asset import (
     VERIFY_ARTIFACT_INVOCATION,
-    VERIFY_ARTIFACT_SCRIPT,
     VERIFY_ARTIFACT_SCRIPT_PATH,
 )
 
 if TYPE_CHECKING:
     from markdown_it.token import Token
 
-_VERIFICATION_SKILL_NAME_MARKERS = ("validat", "review", "check", "verif")
-
-
-class _SecurityBoundaryMarkdownIt(MarkdownIt):
-    """Parse every link scheme so the local allowlist can inspect it."""
-
-    def validateLink(self, url: str) -> bool:
-        return True
-
-
-_COMMONMARK = _SecurityBoundaryMarkdownIt("commonmark")
 _EXECUTABLE_PATH_RE = re.compile(
     r"(?<![A-Za-z0-9._/\\-])"
     r"(?:[A-Za-z]:[/\\]|[/\\]|(?:(?:\.{1,2})[/\\])*)"
@@ -56,16 +68,20 @@ _COMMAND_BOUNDARY_PATTERN = (
     r"(?:^|[.!?]\s+|[;:,]\s*|[(\[]\s*|\s+(?:->|=>|[-/=])\s*|"
     r"[\u2013\u2014]\s*|^\s*(?:[-*+]|\d+[.)])\s*)"
 )
-_INSTRUCTION_PREFIX_PATTERN = rf"(?:{_command_grammar.COMMAND_INSTRUCTION_PREFIX_PATTERN})?"
+_INSTRUCTION_PREFIX_PATTERN = rf"(?:{_command_grammar.COMMAND_INSTRUCTION_PREFIX_PATTERN}){{0,4}}"
 _COMMAND_START_RE = re.compile(
     rf"{_COMMAND_BOUNDARY_PATTERN}{_INSTRUCTION_PREFIX_PATTERN}"
-    r"(?P<instruction>(?P<verb>run|execute|invoke)\b(?=\s|:)\s*:?\s*"
+    r"(?P<instruction>(?P<verb>run(?:ning)?|execut(?:e|ing)|invok(?:e|ing))"
+    r"\b(?=\s|:)\s*:?\s*"
     r"(?P<command>[^\r\n]{1,400}))",
     re.IGNORECASE | re.MULTILINE,
 )
 _SECONDARY_COMMAND_RE = re.compile(
     rf"{_COMMAND_BOUNDARY_PATTERN}{_INSTRUCTION_PREFIX_PATTERN}"
-    r"(?:use|launch|start|open|call)\b\s*:?\s*(?P<command>[^\r\n]{1,400})",
+    r"(?:activate|boot\s+up|bring\s+up|call|commence|deploy|fire\s+up|import|"
+    r"initiate|install|kick\s+off|launch|load|open|sideload|source|spin\s+up|"
+    r"start|trigger|use)"
+    r"\b\s*:?\s*(?P<command>[^\r\n]{1,400})",
     re.IGNORECASE | re.MULTILINE,
 )
 _EXECUTABLE_COMMAND_OBJECTS = frozenset(
@@ -75,12 +91,20 @@ _INLINE_COMMAND_CONTEXT_RE = re.compile(
     r"\b(?:use|run|execute|invoke|launch|call|start|open)\s+(?:the\s+)?$",
     re.IGNORECASE,
 )
-_TERMINAL_INSTRUCTION_RE = re.compile(
-    r"(?:\b(?:in|at)\s+(?:the\s+|a\s+)?(?:terminal|shell|powershell|command\s+prompt)"
-    r"[^\r\n]{0,160}\b(?:type|enter|paste)\b|"
-    r"\b(?:type|enter|paste)\b[^\r\n]{0,160}"
-    r"\b(?:terminal|shell|powershell|command\s+prompt)\b|"
-    r"\b(?:shell|terminal|powershell|command\s+prompt)\s+step\s*:)",
+_TERMINAL_CONTEXT_RE = re.compile(
+    r"\b(?:cli|console|terminal|shell|powershell|command\s+prompt)\b",
+    re.IGNORECASE,
+)
+_TERMINAL_COMMAND_ENTRY_RE = re.compile(
+    r"\b(?:copy|enter|feed|input|insert|issue|key(?:\s+in)?|paste|provide|"
+    r"punch\s+in|put|submit|supply|type|write)\b"
+    r"\s+(?P<command>(?:[^\r\n.!?]|\.(?=[A-Za-z0-9])){1,160})",
+    re.IGNORECASE,
+)
+_TERMINAL_CONTEXT_COMMAND_RE = re.compile(
+    r"\b(?:cli|console|terminal|shell|powershell|command\s+prompt)\b"
+    r"\s+(?:command|step)?\s*:\s*"
+    r"(?P<command>(?:[^\r\n.!?]|\.(?=[A-Za-z0-9])){1,160})",
     re.IGNORECASE,
 )
 _DEFINITION_LINE_RE = re.compile(
@@ -104,7 +128,6 @@ _OPERATIONAL_DEFINITION_KEYS = frozenset(
         "terminal",
     }
 )
-_SAFE_LINK_SCHEMES = frozenset({"", "http", "https"})
 _RAW_MARKDOWN_LINK_SCHEME_RE = re.compile(
     r"\]\(\s*(?P<scheme>[A-Za-z][A-Za-z0-9+.-]*):",
     re.IGNORECASE,
@@ -124,7 +147,7 @@ _USE_EXECUTABLE_HELPER_RE = re.compile(
     r"(?:scripts?|helpers?|programs?|modules?)\s+(?:named\s+)?"
     r"(?<![A-Za-z0-9._/\\-])(?P<path>[A-Za-z0-9._/\\-]+\."
     r"(?:py|pyw|sh|bash|zsh|fish|ps1|bat|cmd|js|mjs|cjs|ts|tsx|jsx|rb|pl|"
-    r"php|lua|exe|dll|scr|msi|jar))\b",
+    r"php|lua|exe|com|dll|scr|msi|jar|hta|wsf|msc|cpl|lnk|reg))\b",
     re.IGNORECASE,
 )
 _INTERPRETER_COMMAND_RE = re.compile(
@@ -138,27 +161,6 @@ _INTERPRETER_COMMAND_RE = re.compile(
 _MAX_RECONSTRUCTED_CODE_CHARS = 16 * 1024
 _MAX_RECONSTRUCTION_ATTEMPTS = 1_024
 _HTML_ENTITY_PREFIX_RE = re.compile(r"^&(?:#[0-9]+|#x[0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]+);")
-
-
-def is_verification_skill_name(name: str) -> bool:
-    """Return whether a skill name declares the verification role contract."""
-    tokens = name.casefold().split("-")
-    return any(
-        token.startswith(marker) for token in tokens for marker in _VERIFICATION_SKILL_NAME_MARKERS
-    )
-
-
-def registered_verifier_path_count(text: str) -> int:
-    """Count raw or CommonMark-decoded helper-path mentions.
-
-    ``max`` avoids double-counting ordinary visible references while still
-    detecting entity-encoded text and path mentions hidden in Markdown syntax.
-    """
-    raw_count = text.casefold().count(VERIFY_ARTIFACT_SCRIPT_PATH.casefold())
-    decoded_count = (
-        commonmark_security_text(text).casefold().count(VERIFY_ARTIFACT_SCRIPT_PATH.casefold())
-    )
-    return max(raw_count, decoded_count)
 
 
 def _contextual_command_violation(
@@ -191,16 +193,22 @@ def _contextual_command_violation(
     return None
 
 
-def _secondary_command_violation(text: str) -> str | None:
+def _secondary_command_violation(
+    text: str,
+    *,
+    case_sensitive_generic: bool = False,
+) -> str | None:
     """Reject explicit launchers and executable paths under other verbs."""
+    if _execution_dataflow.is_inert_language_authoring(text):
+        return None
     for command_match in _SECONDARY_COMMAND_RE.finditer(text):
-        tokens = [
-            token
-            for raw_token in _command_grammar.FIRST_COMMAND_TOKEN_RE.findall(
-                command_match.group("command")
-            )
-            if (token := _command_grammar.unwrap_command_token(raw_token))
-        ]
+        tokens: list[str] = []
+        for raw_token in _command_grammar.FIRST_COMMAND_TOKEN_RE.findall(
+            command_match.group("command")
+        ):
+            token = _command_grammar.unwrap_command_token(raw_token).lstrip("([{")
+            if token:
+                tokens.append(token)
         while tokens and tokens[0].casefold() in _command_grammar.COMMAND_DETERMINERS:
             tokens.pop(0)
         if not tokens:
@@ -223,115 +231,130 @@ def _secondary_command_violation(text: str) -> str | None:
         command = " ".join(tokens)
         if _command_grammar.looks_like_standalone_shell_command(
             command,
-            case_sensitive_generic=False,
+            case_sensitive_generic=case_sensitive_generic,
         ):
             return f"direct executable instruction: {first}"
     return None
 
 
-def _visible_inline_text(token: Token) -> str:
-    """Return decoded, formatting-free CommonMark inline text."""
-    children = getattr(token, "children", None) or ()
-    parts: list[str] = []
-    for child in children:
-        if child.type in {"text", "code_inline", "html_inline"}:
-            parts.append(child.content)
-        elif child.type in {"softbreak", "hardbreak"}:
-            parts.append("\n")
-    return "".join(parts)
+def _has_terminal_instruction(text: str) -> bool:
+    """Recognize explicit terminal entry without treating context words as commands."""
+    if _TERMINAL_CONTEXT_RE.search(text) is None:
+        return False
+    for pattern in (_TERMINAL_COMMAND_ENTRY_RE, _TERMINAL_CONTEXT_COMMAND_RE):
+        for match in pattern.finditer(text):
+            command = re.sub(
+                r"^(?:the\s+)?(?:command\s+line|command)\s*:?\s*",
+                "",
+                match.group("command"),
+                count=1,
+                flags=re.IGNORECASE,
+            )
+            if _command_grammar.looks_like_standalone_shell_command(
+                command,
+                case_sensitive_generic=False,
+            ):
+                return True
+    return False
 
 
-def _decode_link_destination(destination: str) -> str:
-    """Decode bounded percent-encoding layers in a CommonMark link target."""
-    decoded = destination
-    for _ in range(3):
-        next_value = unquote(decoded)
-        if next_value == decoded:
-            break
-        decoded = next_value
-    return decoded
-
-
-def _decoded_link_destinations(token: Token) -> list[str]:
-    """Return normalized destinations from an inline CommonMark token."""
-    destinations: list[str] = []
-    for child in token.children or ():
-        if child.type != "link_open":
-            continue
-        destination = child.attrGet("href")
-        if isinstance(destination, str) and destination:
-            destinations.append(_decode_link_destination(destination))
-    return destinations
-
-
-def _decoded_link_titles(token: Token) -> list[str]:
-    """Return decoded title metadata from an inline CommonMark token."""
-    titles: list[str] = []
-    for child in token.children or ():
-        if child.type != "link_open":
-            continue
-        title = child.attrGet("title")
-        if isinstance(title, str) and title:
-            titles.append(_decode_link_destination(title))
-    return titles
-
-
-def _decoded_reference_metadata(env: dict[str, object]) -> list[tuple[str, str]]:
-    """Return every CommonMark reference destination and title, used or not."""
-    references = env.get("references")
-    if not isinstance(references, dict):
-        return []
-    metadata: list[tuple[str, str]] = []
-    for reference in references.values():
-        if not isinstance(reference, dict):
-            continue
-        raw_destination = reference.get("href", "")
-        raw_title = reference.get("title", "")
-        destination = (
-            _decode_link_destination(raw_destination) if isinstance(raw_destination, str) else ""
-        )
-        title = _decode_link_destination(raw_title) if isinstance(raw_title, str) else ""
-        metadata.append((destination, title))
-    return metadata
-
-
-def commonmark_security_text(text: str) -> str:
-    """Render decoded visible text and link metadata for security checks."""
-    env: dict[str, object] = {}
-    parts: list[str] = []
-    for token in _COMMONMARK.parse(text, env):
-        if token.type != "inline":
-            continue
-        parts.append(_visible_inline_text(token))
-        parts.extend(_decoded_link_destinations(token))
-        parts.extend(_decoded_link_titles(token))
-    for destination, title in _decoded_reference_metadata(env):
-        parts.extend(value for value in (destination, title) if value)
-    return "\n".join(parts)
-
-
-def _link_destination_value_violation(destination: str) -> str | None:
-    """Reject one executable artifact or active URI destination."""
-    try:
-        parsed = urlsplit(destination)
-    except ValueError:
-        return "invalid Markdown link destination"
-    if parsed.scheme.casefold() not in _SAFE_LINK_SCHEMES:
-        return "only relative, HTTP, and HTTPS authored links are allowed"
-    path = parsed.path.replace("\\", "/").rstrip("/")
-    leaf = path.rsplit("/", 1)[-1]
-    if _command_grammar.EXECUTABLE_SUFFIX_RE.search(leaf):
-        return "executable Markdown link destination is not allowed"
-    if ".." in path.split("/"):
-        return f"unsafe progressive-disclosure path: {destination}"
+def _scan_visible_direct_execution(rendered: str) -> str | None:
+    """Reject direct commands in an already projected CommonMark surface."""
+    for candidate in dict.fromkeys((rendered, canonicalize_security_text(rendered))):
+        if _execution_dataflow.has_execution_negation_exception(candidate):
+            return "execution prohibition contains an operational exception"
+        if _has_terminal_instruction(candidate):
+            return "explicit terminal or shell instruction"
+        if _execution_dataflow.has_coreferential_execution(candidate):
+            return "coreferential execution instruction"
+        if _execution_dataflow.has_download_then_execute(candidate):
+            return "download followed by coreferential execution"
+        if _execution_dataflow.has_interpreter_sink(candidate):
+            return "retrieved content passed to an interpreter"
+        if _execution_dataflow.has_operational_artifact_action(candidate):
+            return "operational executable-artifact instruction"
+        for command_match in _COMMAND_START_RE.finditer(candidate):
+            instruction = command_match.group("instruction").strip()
+            command = command_match.group("command")
+            if is_inert_run_declaration(instruction) or (
+                command_match.group("verb").casefold() == "run"
+                and _command_grammar.is_declarative_run_noun_compound(command)
+            ):
+                continue
+            command_tokens = [
+                _command_grammar.unwrap_command_token(raw_token).strip("()[]{}<>,:;.!?")
+                for raw_token in _command_grammar.FIRST_COMMAND_TOKEN_RE.findall(command)
+            ]
+            while command_tokens and command_tokens[0].casefold() in {
+                *_command_grammar.COMMAND_DETERMINERS,
+                "artifact",
+                "file",
+            }:
+                command_tokens.pop(0)
+            executable_argument = bool(
+                command_tokens
+                and _command_grammar.KNOWN_EXECUTION_LAUNCHER_RE.fullmatch(command_tokens[0])
+            ) or any(
+                _command_grammar.EXECUTABLE_SUFFIX_RE.search(token.replace("\\", "/"))
+                or _command_grammar.PATH_SHAPED_COMMAND_RE.match(token)
+                for token in command_tokens
+            )
+            if (
+                executable_argument
+                or _command_grammar.looks_like_standalone_shell_command(
+                    command,
+                    case_sensitive_generic=False,
+                )
+                or _execution_dataflow.has_run_executable_object(instruction)
+            ):
+                return "direct run, execute, or invoke instruction"
+        for visible_candidate in _visible_command_candidates(candidate):
+            if _execution_dataflow.is_language_artifact_description(visible_candidate):
+                continue
+            if violation := _secondary_command_violation(
+                visible_candidate,
+                case_sensitive_generic=True,
+            ):
+                return violation
+            if _command_grammar.looks_like_standalone_shell_command(visible_candidate):
+                return f"standalone executable instruction: {visible_candidate[:80]}"
     return None
 
 
-def _link_destination_violation(token: Token) -> str | None:
-    """Reject executable artifacts and active URI schemes in authored links."""
-    for destination in _decoded_link_destinations(token):
-        if violation := _link_destination_value_violation(destination):
-            return violation
+def scan_direct_execution_instruction(text: str) -> str | None:
+    """Reject direct execution in visible prose, ignoring fenced review data."""
+    if unsafe_unicode := find_unsafe_authored_unicode(text):
+        return f"unsafe Unicode: {unsafe_unicode}"
+    if has_invalid_percent_encoding(text):
+        return "invalid UTF-8 percent encoding"
+    canonical = canonicalize_security_text(text)
+    if has_residual_encoding(canonical):
+        return "excessive or residual encoded control text"
+    return _scan_visible_direct_execution(commonmark_security_text(canonical))
+
+
+def find_authored_instruction_match(text: str) -> str | None:
+    """Return the first unsafe agent instruction in authored pack text."""
+    if not text:
+        return None
+    if has_encoded_control_whitespace(text):
+        return "encoded control whitespace in authored prose"
+    if has_invalid_percent_encoding(text):
+        return "invalid UTF-8 percent encoding in authored prose"
+    if unsafe_unicode := find_unsafe_authored_unicode(text):
+        return unsafe_unicode
+    rendered = commonmark_security_text(text)
+    for surface in dict.fromkeys((text, rendered)):
+        canonical = canonicalize_security_text(surface)
+        if has_residual_encoding(canonical):
+            return "excessive or residual encoded control text"
+        if mixed_script := find_mixed_script_token(canonical):
+            return f"mixed-script token: {mixed_script}"
+        for candidate in security_text_candidates(surface):
+            if unsafe_unicode := find_unsafe_authored_unicode(candidate):
+                return unsafe_unicode
+            if unsafe_instruction := find_authored_agent_instruction(candidate):
+                return unsafe_instruction
     return None
 
 
@@ -342,17 +365,18 @@ def _visible_command_candidates(text: str) -> list[str]:
         raw_candidates.extend(text.split("|"))
     candidates: list[str] = []
     for raw_candidate in raw_candidates:
-        for sentence_candidate in re.split(r"(?<=[.!?;])\s+", raw_candidate):
-            structural_candidate = sentence_candidate.lstrip(" \t#>*+-(")
-            if not structural_candidate:
-                continue
-            candidates.append(structural_candidate)
-            unquoted_candidate = structural_candidate.lstrip("\"'")
-            if (
-                unquoted_candidate != structural_candidate
-                and _DEFINITION_LINE_RE.fullmatch(structural_candidate) is None
-            ):
-                candidates.append(unquoted_candidate)
+        for line_candidate in raw_candidate.splitlines():
+            for sentence_candidate in re.split(r"(?<=[.!?;])\s+", line_candidate):
+                structural_candidate = sentence_candidate.lstrip(" \t#>*+-(")
+                if not structural_candidate:
+                    continue
+                candidates.append(structural_candidate)
+                unquoted_candidate = structural_candidate.lstrip("\"'")
+                if (
+                    unquoted_candidate != structural_candidate
+                    and _DEFINITION_LINE_RE.fullmatch(structural_candidate) is None
+                ):
+                    candidates.append(unquoted_candidate)
     return list(dict.fromkeys(candidates))
 
 
@@ -521,7 +545,7 @@ def _scan_textual_executable_patterns(text: str) -> str | None:
     )
     if contains_machine_execution_instruction(machine_text.strip()):
         return "machine-readable execution instruction"
-    if _TERMINAL_INSTRUCTION_RE.search(text):
+    if _has_terminal_instruction(text):
         return "explicit terminal or shell instruction"
     if fragment := _plain_text_executable_fragment(text):
         return f"executable code fragment: {fragment[:80]}"
@@ -586,20 +610,41 @@ def _inline_children_violation(
     return None
 
 
-def scan_authored_executable_instructions(text: str) -> str | None:
-    """Reject executable payloads or helper materialization in authored prose.
+def _authored_rendered_text_violation(text: str) -> str | None:
+    """Reject encoded or confusable control prose after CommonMark projection."""
+    if has_encoded_control_whitespace(text):
+        return "encoded control whitespace in authored prose"
+    if has_invalid_percent_encoding(text):
+        return "invalid UTF-8 percent encoding in authored prose"
+    canonical = canonicalize_security_text(text)
+    if has_residual_encoding(canonical):
+        return "excessive or residual encoded control text"
+    if mixed_script := find_mixed_script_token(canonical):
+        return f"mixed-script token: {mixed_script}"
+    for candidate in security_text_candidates(text):
+        if unsafe_unicode := find_unsafe_authored_unicode(candidate):
+            return f"unsafe Unicode in authored prose: {unsafe_unicode}"
+        if unsafe_instruction := find_authored_agent_instruction(candidate):
+            return f"unsafe agent instruction: {unsafe_instruction}"
+    for candidate in confusable_security_text_candidates(text):
+        if candidate != text and (direct_execution := _scan_visible_direct_execution(candidate)):
+            return direct_execution
+    return None
 
-    Skill bodies and references are instructions consumed by another agent.
-    Allowing a model to place executable code there would bypass the exact
-    first-party helper registry even when no ``scripts/*.py`` companion is
-    present. Runtime artifact generation remains supported, but generated
-    skill prose cannot contain executable-language fences, direct an agent to
-    materialize an inline payload, or name an unregistered executable file.
-    """
-    if not text:
-        return None
+
+def _raw_authored_text_violation(text: str) -> str | None:
+    """Reject raw carriers before CommonMark can reinterpret their syntax."""
+    if has_encoded_control_whitespace(text):
+        return "encoded control whitespace in authored prose"
+    if has_invalid_percent_encoding(text):
+        return "invalid UTF-8 percent encoding in authored prose"
+    canonical = canonicalize_security_text(text)
+    if has_residual_encoding(canonical):
+        return "excessive or residual encoded control text"
+    if url_violation := raw_http_url_violation(text):
+        return url_violation
     for match in _RAW_MARKDOWN_LINK_SCHEME_RE.finditer(text):
-        if match.group("scheme").casefold() not in _SAFE_LINK_SCHEMES:
+        if match.group("scheme").casefold() not in SAFE_LINK_SCHEMES:
             return "only relative, HTTP, and HTTPS authored links are allowed"
     for raw_line in text.splitlines():
         stripped_line = raw_line.strip()
@@ -612,11 +657,33 @@ def scan_authored_executable_instructions(text: str) -> str | None:
     )
     if contains_machine_execution_instruction(raw_machine_text):
         return "machine-readable execution instruction"
+    return None
+
+
+def scan_authored_executable_instructions(text: str) -> str | None:
+    """Reject executable payloads or helper materialization in authored prose.
+
+    Skill bodies and references are instructions consumed by another agent.
+    Allowing a model to place executable code there would bypass the exact
+    first-party helper registry even when no ``scripts/*.py`` companion is
+    present. Runtime artifact generation remains supported, but generated
+    skill prose cannot contain executable-language fences, direct an agent to
+    materialize an inline payload, or name an unregistered executable file.
+    """
+    if not text:
+        return None
+    if raw_violation := _raw_authored_text_violation(text):
+        return raw_violation
+    canonical_text = canonicalize_security_text(text)
+    if canonical_text != text and (
+        canonical_violation := _raw_authored_text_violation(canonical_text)
+    ):
+        return canonical_violation
     env: dict[str, object] = {}
-    tokens = _COMMONMARK.parse(text, env)
+    tokens = SECURITY_COMMONMARK.parse(canonical_text, env)
     rendered_blocks: list[str] = []
-    for destination, title in _decoded_reference_metadata(env):
-        if destination and (reference_violation := _link_destination_value_violation(destination)):
+    for _label, destination, title in decoded_reference_metadata(env):
+        if destination and (reference_violation := link_destination_violation(destination)):
             return reference_violation
         if title:
             rendered_blocks.append(title)
@@ -628,10 +695,10 @@ def scan_authored_executable_instructions(text: str) -> str | None:
         if token.type == "html_block":
             return "raw HTML block is not allowed in authored prose"
         if token.type == "inline":
-            visible_text = _visible_inline_text(token)
+            visible_text = visible_inline_text(token)
             rendered_blocks.append(visible_text)
-            rendered_blocks.extend(_decoded_link_titles(token))
-            if link_violation := _link_destination_violation(token):
+            rendered_blocks.extend(decoded_link_titles(token))
+            if link_violation := token_link_destination_violation(token):
                 return link_violation
             previous_token = tokens[token_index - 1] if token_index else None
             registered_top_level = bool(
@@ -660,6 +727,11 @@ def scan_authored_executable_instructions(text: str) -> str | None:
             ):
                 return child_violation
     rendered_text = "\n".join(rendered_blocks)
+    rendered_security_text = "\n".join(
+        line for line in rendered_text.splitlines() if line.strip() != VERIFY_ARTIFACT_INVOCATION
+    )
+    if security_violation := _authored_rendered_text_violation(rendered_security_text):
+        return security_violation
     if fragment := _multiline_executable_fragment(rendered_text):
         return f"multiline executable code fragment: {fragment[:80]}"
     if violation := _scan_textual_executable_patterns(rendered_text):
@@ -667,112 +739,11 @@ def scan_authored_executable_instructions(text: str) -> str | None:
     return None
 
 
-def _top_level_block_line_indices(
-    text: str,
-    *,
-    token_type: str,
-    raw_line: str,
-    tag: str | None = None,
-) -> list[int]:
-    """Locate exact, visible CommonMark blocks at document level.
-
-    Token levels distinguish ordinary top-level blocks from visually similar
-    content nested in lists or block quotes. Requiring the exact source line
-    also excludes alternate Markdown syntax and inline markup that happens to
-    render to the same text.
-    """
-    lines = text.splitlines()
-    indices: list[int] = []
-    for token in _COMMONMARK.parse(text):
-        if token.type != token_type or token.level != 0 or token.map is None:
-            continue
-        if tag is not None and token.tag != tag:
-            continue
-        start, end = token.map
-        if end != start + 1 or start >= len(lines) or lines[start].strip() != raw_line:
-            continue
-        indices.append(start)
-    return indices
-
-
-def has_registered_verifier_invocation(body: str) -> bool:
-    """Return whether the exact invocation appears once in unfenced workflow prose."""
-    lines = body.splitlines()
-    if sum(line.strip() == VERIFY_ARTIFACT_INVOCATION for line in lines) != 1:
-        return False
-    if registered_verifier_path_count(body) != 1:
-        return False
-    workflow_indices = _top_level_block_line_indices(
-        body,
-        token_type="heading_open",
-        tag="h2",
-        raw_line="## Workflow",
-    )
-    invocation_indices = _top_level_block_line_indices(
-        body,
-        token_type="paragraph_open",
-        raw_line=VERIFY_ARTIFACT_INVOCATION,
-    )
-    output_indices = _top_level_block_line_indices(
-        body,
-        token_type="heading_open",
-        tag="h2",
-        raw_line="## Output Format",
-    )
-    if not (len(workflow_indices) == len(invocation_indices) == len(output_indices) == 1):
-        return False
-    workflow_index = workflow_indices[0]
-    invocation_index = invocation_indices[0]
-    output_index = output_indices[0]
-    return workflow_index < invocation_index < output_index
-
-
-def insert_registered_verifier_invocation(body: str) -> str:
-    """Insert the registered invocation before the unfenced output heading."""
-    lines = [line for line in body.splitlines() if line.strip() != VERIFY_ARTIFACT_INVOCATION]
-    body_without_invocation = "\n".join(lines)
-    workflow_indices = _top_level_block_line_indices(
-        body_without_invocation,
-        token_type="heading_open",
-        tag="h2",
-        raw_line="## Workflow",
-    )
-    output_indices = _top_level_block_line_indices(
-        body_without_invocation,
-        token_type="heading_open",
-        tag="h2",
-        raw_line="## Output Format",
-    )
-    if len(workflow_indices) != 1 or len(output_indices) != 1:
-        raise ValueError("verification body must have one unfenced workflow and output section")
-    if workflow_indices[0] >= output_indices[0]:
-        raise ValueError("verification body sections are out of order")
-    output_index = output_indices[0]
-    lines[output_index:output_index] = [VERIFY_ARTIFACT_INVOCATION, ""]
-    result = "\n".join(lines)
-    if not has_registered_verifier_invocation(result):
-        raise ValueError("verification invocation could not be inserted safely")
-    return result
-
-
-def scan_python_script(relpath: str, content: str) -> str | None:
-    """Reject every helper except an exact registered first-party artifact."""
-    if relpath != VERIFY_ARTIFACT_SCRIPT_PATH:
-        return "path is not registered as a first-party helper"
-    if content != VERIFY_ARTIFACT_SCRIPT:
-        return "content does not match the registered first-party helper"
-    return None
-
-
 __all__ = [
-    "VERIFY_ARTIFACT_INVOCATION",
-    "VERIFY_ARTIFACT_SCRIPT",
-    "VERIFY_ARTIFACT_SCRIPT_PATH",
     "commonmark_security_text",
-    "has_registered_verifier_invocation",
-    "insert_registered_verifier_invocation",
-    "is_verification_skill_name",
-    "registered_verifier_path_count",
+    "find_authored_instruction_match",
+    "find_sensitive_exfiltration_instruction",
+    "find_unsafe_authored_unicode",
     "scan_authored_executable_instructions",
-    "scan_python_script",
+    "scan_direct_execution_instruction",
 ]

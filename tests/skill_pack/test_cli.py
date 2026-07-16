@@ -13,6 +13,7 @@ import json
 
 import pytest
 
+from primr.config.models import PrimrModels
 from primr.skill_pack.cli import (
     _create_parser,
     _estimate,
@@ -22,7 +23,10 @@ from primr.skill_pack.cli import (
 from primr.skill_pack.config import (
     DEFAULT_ROLES,
     DEFAULT_SKILLS_PER_ROLE,
+    EVAL_CHARGEABLE_ATTEMPT_CAP,
+    EVAL_MODEL_RETRIES,
     MAX_AUTO_RESOLVE_PAIRS,
+    MAX_EVAL_CASES,
     SkillPackConfig,
     SkillPackFormat,
 )
@@ -191,6 +195,125 @@ class TestEstimate:
             will_collect_evidence=False,
         )
         assert enabled - disabled >= 0.015 * MAX_AUTO_RESOLVE_PAIRS
+
+    def test_behavioral_eval_estimate_matches_reachable_call_count(self):
+        base = SkillPackConfig(
+            roles_count=1,
+            skills_per_role=1,
+            max_refine_iterations=0,
+            run_pack_coherence_pass=False,
+        )
+        enabled = SkillPackConfig(
+            roles_count=1,
+            skills_per_role=1,
+            max_refine_iterations=0,
+            run_pack_coherence_pass=False,
+            with_evals=True,
+            eval_cases_per_skill=3,
+        )
+
+        base_cost, _ = _estimate(base, will_collect_evidence=False)
+        eval_cost, _ = _estimate(enabled, will_collect_evidence=False)
+
+        max_output_tokens = 4_000 + 3 * (2 * 1_500 + 2 * 4_000)
+        output_rate = PrimrModels.get_price(PrimrModels.GROK_MODEL)[1]
+        assert eval_cost - base_cost >= (
+            max_output_tokens * output_rate / 1_000_000 * EVAL_CHARGEABLE_ATTEMPT_CAP
+        )
+
+    def test_behavioral_eval_estimate_uses_execution_case_cap(self):
+        base = SkillPackConfig(
+            roles_count=1,
+            skills_per_role=1,
+            max_refine_iterations=0,
+            run_pack_coherence_pass=False,
+        )
+        enabled = SkillPackConfig(
+            roles_count=1,
+            skills_per_role=1,
+            max_refine_iterations=0,
+            run_pack_coherence_pass=False,
+            with_evals=True,
+            eval_cases_per_skill=10_000,
+        )
+
+        base_cost, _ = _estimate(base, will_collect_evidence=False)
+        eval_cost, _ = _estimate(enabled, will_collect_evidence=False)
+
+        max_output_tokens = 4_000 + MAX_EVAL_CASES * (2 * 1_500 + 2 * 4_000)
+        output_rate = PrimrModels.get_price(PrimrModels.GROK_MODEL)[1]
+        assert eval_cost - base_cost >= (
+            max_output_tokens * output_rate / 1_000_000 * EVAL_CHARGEABLE_ATTEMPT_CAP
+        )
+
+    def test_behavioral_eval_estimate_accounts_for_sequential_runtime(self):
+        default = SkillPackConfig(with_evals=True)
+        maximum = SkillPackConfig(
+            roles_count=15,
+            skills_per_role=5,
+            with_evals=True,
+            eval_cases_per_skill=MAX_EVAL_CASES,
+        )
+
+        assert _estimate(default, will_collect_evidence=False)[1] >= 423
+        assert _estimate(maximum, will_collect_evidence=False)[1] >= 13_163
+
+    def test_behavioral_eval_maximum_estimate_covers_output_ceiling(self):
+        base = SkillPackConfig(
+            roles_count=15,
+            skills_per_role=5,
+            max_refine_iterations=0,
+            run_pack_coherence_pass=False,
+        )
+        enabled = SkillPackConfig(
+            roles_count=15,
+            skills_per_role=5,
+            max_refine_iterations=0,
+            run_pack_coherence_pass=False,
+            with_evals=True,
+            eval_cases_per_skill=MAX_EVAL_CASES,
+        )
+
+        base_cost, _ = _estimate(base, will_collect_evidence=False)
+        eval_cost, _ = _estimate(enabled, will_collect_evidence=False)
+        output_rate = PrimrModels.get_price(PrimrModels.GROK_MODEL)[1]
+        output_ceiling = 75 * (4_000 + MAX_EVAL_CASES * 11_000) * output_rate / 1_000_000
+
+        assert eval_cost - base_cost >= output_ceiling * EVAL_CHARGEABLE_ATTEMPT_CAP
+
+    def test_behavioral_eval_retry_ceiling_matches_execution(self):
+        assert EVAL_CHARGEABLE_ATTEMPT_CAP == EVAL_MODEL_RETRIES + 1
+
+    def test_zero_behavioral_eval_cases_add_no_provider_cost(self):
+        base = SkillPackConfig(
+            roles_count=1,
+            skills_per_role=1,
+            max_refine_iterations=0,
+            run_pack_coherence_pass=False,
+        )
+        enabled = SkillPackConfig(
+            roles_count=1,
+            skills_per_role=1,
+            max_refine_iterations=0,
+            run_pack_coherence_pass=False,
+            with_evals=True,
+            eval_cases_per_skill=0,
+        )
+
+        assert (
+            _estimate(enabled, will_collect_evidence=False)[0]
+            == _estimate(
+                base,
+                will_collect_evidence=False,
+            )[0]
+        )
+
+    @pytest.mark.parametrize("n_cases", [-1, MAX_EVAL_CASES + 1, 1.5, True])
+    def test_behavioral_eval_case_count_is_validated(self, n_cases: object):
+        config = SkillPackConfig(eval_cases_per_skill=n_cases)
+
+        with pytest.raises(ValueError, match="eval_cases_per_skill"):
+            config.validate()
 
 
 class TestRunSkillsCliEarlyReturns:

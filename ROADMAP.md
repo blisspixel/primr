@@ -917,7 +917,40 @@ and [best-practices guide](https://platform.claude.com/docs/en/agents-and-tools/
 - **Skill-level evals with grader - SHIPPED (Tier 4, `--with-evals`):**
   per skill, generate task cases + assertions, run the task WITH vs WITHOUT
   the skill, grade both blind, report the pass-rate delta, and write
-  `evals/evals.json` (`skill_pack/behavioral_eval.py`).
+  `evals/evals.json` (`skill_pack/behavioral_eval.py`). Generated cases pass
+  a field-specific control-plane boundary before model execution, grader inputs
+  are nonce-fenced, and packaged eval JSON passes a bounded form of Anthropic's
+  current `expectations` schema before either supported artifact format is
+  written. The optional `files` key is accepted only when empty until Primr can
+  package and integrity-check companion eval assets; nonempty references fail
+  closed rather than shipping dangling paths. New bundles use the upstream
+  field names while the earlier Primr `assertions` form remains readable. This
+  closes direct-bundle instruction carriers without blocking realistic
+  code-generation or strictly review-only fenced code tasks. The boundary
+  canonicalizes CommonMark and links before validation, rechecks decoded
+  Unicode, rejects execution intent around review blocks, rejects sensitive
+  credential access and transfer, and rejects Markdown links because hidden
+  destinations and definitions are not required by the eval schema. Review
+  fences admit executable examples only under an inert frame and still scan
+  all content for prompt control plus comment prose for unsafe operational and
+  sensitive-data instructions. A shared,
+  typed CommonMark security surface owns canonicalization and link policy;
+  evaluation schema and control-plane policy live together in a focused
+  validator. Task arms and their graders use fresh stateless calls that retain
+  the configured model and reasoning tier without generation history. Cost
+  approval reserves the exact one generation plus four calls per case,
+  model-registry pricing, token ceilings, sequential runtime, and the same
+  strict two-attempt cap enforced at execution. OpenAI-compatible SDK retries
+  are disabled at construction so Primr's explicit loop is the sole retry
+  owner and the approved attempt cap is also the physical HTTP-request cap.
+  The admission grammar covers response-oriented secret disclosure, common
+  credential artifacts, terminal entry, executable-result coreference, and
+  artifact activation while preserving bounded business-task and
+  credential-metadata reporting forms. It also binds adjacent-clause secret
+  pronouns, recognizes structural terminal and interpreter sinks, scans inline
+  comments by language, blocks lexically non-public raw HTTP targets without
+  DNS, preserves pure non-Latin prose, and skips skills whose generated cases
+  are all inadmissible rather than recording a zero-case benchmark.
 - **Agent-handoff declarations in SKILL.md frontmatter** - PARTIAL: the
   primr-namespaced `metadata` block (role, provenance, confidence,
   context-token budget, MCP/A2A refresh hint) is available as an explicit
@@ -1304,7 +1337,15 @@ service toolchain as a reviewed architectural investment.
 ### Adopted (load-bearing today)
 
 - Ruff as the single linter (`E/F/W/I/N/UP/B/C4/C90/SIM/RUF/PIE/PT/TCH`), line-length 100. CI hard-fails on lint violations under `src/primr/` and separately checks formatting across `src/` and `tests/`. `target-version = py312` matches the supported floor so local and hosted linting enforce one language baseline.
-- mypy (authoritative config in `mypy.ini`, `python_version = 3.12`) on an incremental strict ratchet: a relaxed global with complex SDK-bound modules `ignore_errors`'d, plus a growing **strict allowlist** of fully-verified modules that require `disallow_untyped_defs` + `disallow_incomplete_defs` (currently `skill_pack.{schema,config,curation,planner,saved_plan,industry}`, `utils.content_sanitizer`, `utils.logging_config`, `data.hiring_signals`). The allowlist only grows. (The former `[tool.mypy]` block in `pyproject.toml` was dead config and has been removed.)
+- mypy (authoritative config in `mypy.ini`, `python_version = 3.12`) on an
+  incremental strict ratchet: a relaxed global with complex SDK-bound modules
+  `ignore_errors`'d, plus a growing **strict allowlist** of fully verified
+  modules. The skill-pack schema, planning, saved-plan, language-projection,
+  command grammar, execution-dataflow, eval-validation, Markdown-safety,
+  script-safety, and verifier boundaries now require both
+  `disallow_untyped_defs` and `disallow_incomplete_defs`, as do credential
+  instruction safety, logging, and hiring signals. The allowlist only grows.
+  (The former `pyproject.toml` mypy block was dead config and has been removed.)
 - Ships `py.typed` - primr is a good typing citizen for downstream importers.
 - Property-based tests (Hypothesis) for core invariants; a hard-gated hardcoded-secret scanner in CI.
 - No silent `xfail` rot: `xfail_strict = true` (an unexpectedly-passing xfail fails the run); the suite currently uses zero xfail markers.
@@ -1319,7 +1360,12 @@ service toolchain as a reviewed architectural investment.
   reduced four package-inclusive import-cycle components to two, and made new
   or growing cycle components, empty modules, and unexplained sub-40-line
   modules fail architecture tests. Fresh interpreters verify both import orders
-  against the local source tree. Evidence: 12,718 tests passed with 86.20
+  against the local source tree. The subsequent skill-pack hardening slice
+  applied the same boundary test: language lexing and execution dataflow now
+  own cohesive security seams, while verifier placement moved into its
+  existing asset registry; all six resulting modules stay below the
+  approximate 800-line review threshold with directed dependencies and no
+  compatibility shims. Evidence: 12,718 tests passed with 86.20
   percent branch coverage on 2026-07-14. Next, burn down the broad core
   component one verified back edge at a time, then merge only single-consumer
   helpers that lack an independent policy, trust, lifecycle, adapter, or test
@@ -1340,7 +1386,13 @@ The current active engineering initiative. Each item is verified locally, then l
 
 ### Phased ratchets (tracked, not yet started - Phase 2/3)
 
-- **mypy strict expansion**: SHIPPED a nine-module strict allowlist in `mypy.ini` (`skill_pack.{schema,config,curation,planner,saved_plan,industry}`, `utils.content_sanitizer`, `utils.logging_config`, `data.hiring_signals`) and consolidated the duplicate config (removed the dead `pyproject` `[tool.mypy]` block; bumped `python_version` to 3.12). Remaining: keep growing the allowlist module-by-module toward eventual `--strict`, and burn down the ~45 `ignore_errors` modules. Evaluate Astral `ty` as a fast local supplement (not the CI gate while it is preview).
+- **mypy strict expansion**: SHIPPED a 17-module strict allowlist in `mypy.ini`,
+  including every skill-pack trust boundary touched by the 1.35.3 hardening,
+  and consolidated the duplicate config by removing the dead `pyproject.toml`
+  mypy block and setting the Python baseline to 3.12. Remaining: keep growing
+  the allowlist module by module toward eventual `--strict`, and burn down the
+  roughly 45 `ignore_errors` modules. Evaluate Astral `ty` as a fast local
+  supplement, not the CI gate while it is preview.
 - **One-time `ruff format` reflow** - SHIPPED. Formatted 173 files in a single behavior-preserving commit; `ruff format --check` is now enforced in pre-commit and CI. `E501` stays ignored deliberately: `ruff format` already wraps code lines, so the remaining >100-char lines are strings / URLs / comments where wrapping hurts readability - enforcing E501 there would be churn without value. `target-version = py312` now matches the supported floor; any resulting pyupgrade rewrites are enforced by the normal lint gate.
 - **Complexity budget**: add `C901` + `max-complexity` once the documented monsters are refactored (`perform_fast_research` ~1900 lines, `_execute_consulting_research` ~270 lines - Active Queue #23).
 - **Parse-don't-validate boundaries**: parse external data once at the system boundary into rich domain types - `NewType` / frozen dataclasses / Pydantic `strict=True, extra='forbid'` - so core logic never receives raw, possibly-invalid primitives. Targets the MCP / API input boundary first (most MCP inputs are JSON-schema-validated today); audit and fill gaps, not a blanket conversion.

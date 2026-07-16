@@ -16,6 +16,21 @@ _PREFIX_SEPARATOR = r"(?:\s*(?:,|->|=>|:|-|\u2013|\u2014|\()\s*|\s+)"
 COMMAND_INSTRUCTION_PREFIX_PATTERN = (
     rf"(?:(?:please|then|next|now|finally|always|first)\b{_PREFIX_SEPARATOR}|"
     rf"after\s+that\b{_PREFIX_SEPARATOR}|be\s+sure\s+to\s+|can\s+you\s+|"
+    r"be\s+sure\s+and\s+|"
+    r"(?:do\s+not|don't|must\s+not|never|should\s+not)\s+"
+    r"(?:avoid|fail|forget|hesitate|neglect|refuse)\s+to\s+|"
+    r"(?:do\s+not|don't|must\s+not|never|should\s+not)\s+avoid\s+|"
+    r"(?:do\s+not|don't|must\s+not|never|should\s+not)\s+"
+    r"(?:abstain|refrain)\s+from\s+|"
+    r"remember\s+to\s+|"
+    r"make\s+sure\s+to\s+|the\s+next\s+step\s+is\s+to\s+|"
+    r"(?:i\s+need\s+you|the\s+agent\s+is\s+required)\s+to\s+|"
+    r"(?:i|we)\s+(?:expect|require|want)\s+you\s+to\s+|"
+    r"go\s+ahead\s+and\s+|proceed\s+(?:by|to)\s+|ensure\s+(?:that\s+)?you\s+|"
+    r"(?:it\s+is\s+(?:essential|necessary|required)|"
+    r"(?:the|your)\s+(?:job|task)\s+is)\s+to\s+|"
+    r"you\s+(?:are\s+(?:(?:expected|required|supposed)\s+to|to)|ought\s+to)\s+|"
+    r"see\s+that\s+you\s+|"
     r"(?:could|would)\s+you\s+|kindly\s+|"
     r"(?:you|it|the\s+agent|agents?)\s+"
     r"(?:can|must|shall|should|will|need(?:s)?\s+to)\s+(?:always\s+)?|"
@@ -24,17 +39,18 @@ COMMAND_INSTRUCTION_PREFIX_PATTERN = (
     rf"to\s+continue\b{_PREFIX_SEPARATOR}|proceed\s+with\s+|"
     r"download(?:\s+the\s+payload)?\s+(?:with|using)\s+)"
 )
-EXECUTABLE_SUFFIX_RE = re.compile(
+_EXECUTABLE_SUFFIX_PATTERN = (
     r"\.(?:py|pyw|sh|bash|zsh|fish|ps1|bat|cmd|js|mjs|cjs|ts|tsx|jsx|rb|pl|"
-    r"php|lua|r|vbs|exe|dll|scr|msi|jar)$",
-    re.IGNORECASE,
+    r"php|lua|r|vbs|exe|com|dll|scr|msi|jar|hta|wsf|msc|cpl|lnk|reg)"
 )
+EXECUTABLE_SUFFIX_PATTERN = _EXECUTABLE_SUFFIX_PATTERN
+EXECUTABLE_SUFFIX_RE = re.compile(rf"{_EXECUTABLE_SUFFIX_PATTERN}$", re.IGNORECASE)
 SHELL_METACHAR_RE = re.compile(
     r"(?:\|\||&&|[|;]|\$\(|(?<![=-])>{1,2}(?!=)|(?<![=-])<(?![=-])|\r|\n)"
 )
 SHELL_OPERATOR_COMMAND_RE = re.compile(r"^(?:&\s*(?:\{|\S)|\.\s+|\$\(|<\(|>{1,2}(?=\S)|:\s*>{1,2})")
 KNOWN_EXECUTION_LAUNCHER_RE = re.compile(
-    r"^(?:py|python(?:3(?:\.\d+)?)?|node|deno|bun|ruby|perl|php|java|dotnet|"
+    r"^(?:py|pypy3?|cpython|python(?:3(?:\.\d+)?)?|node|deno|bun|ruby|perl|php|java|dotnet|"
     r"cmd|cscript|wscript|rscript|pwsh|powershell|bash|csh|dash|ksh|tcsh|zsh|fish|sh|"
     r"go|groovy|julia|lua|luajit|r|swift|mshta|"
     r"osascript|rundll32|regsvr32|certutil|bitsadmin|env|uv|npx|pnpx|pnpm|"
@@ -44,121 +60,30 @@ KNOWN_EXECUTION_LAUNCHER_RE = re.compile(
 PATH_SHAPED_COMMAND_RE = re.compile(r"^(?:[A-Za-z]:[/\\]|[/\\]{1,2}|\.{1,2}[/\\])")
 
 _SHELL_COMMAND_NAMES = frozenset(
-    {
-        "base64",
-        "call",
-        "cat",
-        "chmod",
-        "chown",
-        "copy",
-        "cp",
-        "curl",
-        "del",
-        "echo",
-        "erase",
-        "eval",
-        "exec",
-        "iex",
-        "irm",
-        "iwr",
-        "kill",
-        "killall",
-        "ln",
-        "md",
-        "mkdir",
-        "move",
-        "mv",
-        "nc",
-        "ncat",
-        "nice",
-        "nohup",
-        "printf",
-        "rd",
-        "ren",
-        "rm",
-        "rmdir",
-        "robocopy",
-        "reboot",
-        "rsync",
-        "scp",
-        "setsid",
-        "shutdown",
-        "socat",
-        "ssh",
-        "saps",
-        "start",
-        "tee",
-        "touch",
-        "type",
-        "timeout",
-        "wget",
-        "xcopy",
-        "xargs",
-    }
+    re.findall(
+        r"[a-z0-9-]+",
+        "base64 call cat chmod chown copy cp curl del echo erase eval exec iex irm iwr kill "
+        "killall ln md mkdir move mv nc ncat nice nohup printf rd ren rm rmdir robocopy reboot "
+        "rsync scp setsid shutdown socat ssh saps start tee touch type timeout wget xcopy xargs",
+    )
 )
 _POSITIONAL_COMMAND_NAMES = frozenset(
-    {
-        "aws",
-        "apt",
-        "apt-get",
-        "az",
-        "brew",
-        "bundle",
-        "cargo",
-        "cd",
-        "choco",
-        "composer",
-        "dir",
-        "dnf",
-        "docker",
-        "gcloud",
-        "gh",
-        "git",
-        "gradle",
-        "helm",
-        "kubectl",
-        "make",
-        "mvn",
-        "net",
-        "npm",
-        "oc",
-        "pip",
-        "podman",
-        "poetry",
-        "reg",
-        "scoop",
-        "service",
-        "systemctl",
-        "terraform",
-        "winget",
-        "yum",
-    }
+    re.findall(
+        r"[a-z0-9-]+",
+        "aws apt apt-get az brew bundle cargo cd choco composer dir dnf docker gcloud gh git "
+        "gradle helm kubectl make mvn net npm oc pip podman poetry reg scoop service systemctl "
+        "terraform winget yum",
+    )
 )
 _NO_ARGUMENT_COMMAND_NAMES = frozenset(
     {"dir", "hostname", "id", "ipconfig", "ls", "pwd", "uname", "ver", "whoami"}
 )
 _CASE_INSENSITIVE_COMMAND_NAMES = frozenset(
-    {
-        "call",
-        "copy",
-        "del",
-        "echo",
-        "erase",
-        "iex",
-        "irm",
-        "iwr",
-        "md",
-        "mkdir",
-        "move",
-        "rd",
-        "ren",
-        "rmdir",
-        "robocopy",
-        "saps",
-        "start",
-        "type",
-        "xcopy",
-    }
+    re.findall(
+        r"[a-z]+",
+        "call copy del echo erase iex irm iwr md mkdir move rd ren rmdir robocopy saps start "
+        "type xcopy",
+    )
 )
 _ARGUMENT_SHAPE_REQUIRED_COMMAND_NAMES = frozenset({"curl", "wget"})
 _COMMAND_WRAPPERS = frozenset({"command", "doas", "sudo"})
@@ -234,14 +159,16 @@ _POWERSHELL_VERBS = frozenset(
 _GO_RUN_RE = re.compile(r"^go\s+run\b")
 _COMMAND_OPTION_RE = re.compile(r"^(?:--?[A-Za-z]|/[A-Za-z])")
 _COMMAND_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=\S+$")
+_SHELL_COMMAND_WORD_EXPANSION_RE = re.compile(
+    r"(?:\$(?:[@*#?!$-]|[A-Za-z_][A-Za-z0-9_]*|\{[^}\r\n]+\}|\([^\r\n]*\))|"
+    r"%[A-Za-z_][A-Za-z0-9_]*%|![A-Za-z_][A-Za-z0-9_]*!|`[^`\r\n]*`)"
+)
 _FILE_ARGUMENT_RE = re.compile(r"^[A-Za-z0-9_-]+\.[A-Za-z][A-Za-z0-9]{0,15}(?:,\S+)?$")
 _RUN_NOUN_COMPOUNDS = frozenset({"rate", "time"})
 _IMPERATIVE_PROSE_CONNECTORS = frozenset(
     {"by", "for", "from", "in", "into", "of", "on", "to", "with"}
 )
-_BUSINESS_ACTION_OBJECTS = frozenset(
-    {"account", "evidence", "findings", "intake", "owner", "questions", "requirements", "scope"}
-)
+_AMBIGUOUS_BUSINESS_COMMAND_NAMES = frozenset({"call", "copy", "move", "start", "type"})
 _DECLARATIVE_PREDICATES = frozenset(
     {
         "are",
@@ -331,6 +258,16 @@ def _has_command_shaped_argument(tokens: list[str], candidate: str) -> bool:
         except ValueError:
             return True
     return False
+
+
+def has_command_shaped_argument(candidate: str) -> bool:
+    """Return whether a command candidate contains an executable argument shape."""
+    tokens = [
+        token
+        for raw_token in FIRST_COMMAND_TOKEN_RE.findall(candidate)
+        if (token := unwrap_command_token(raw_token))
+    ]
+    return _has_command_shaped_argument(tokens, candidate)
 
 
 def _is_powershell_cmdlet(token: str) -> bool:
@@ -454,7 +391,7 @@ def _decode_shell_command_word(candidate: str) -> tuple[str, bool] | None:
     return "".join(decoded), shell_syntax
 
 
-def _is_known_command_name(token: str) -> bool:
+def is_known_command_name(token: str) -> bool:
     token_casefold = token.casefold()
     return bool(
         token_casefold in _SHELL_COMMAND_NAMES
@@ -463,6 +400,19 @@ def _is_known_command_name(token: str) -> bool:
         or token_casefold in _COMMAND_WRAPPERS
         or KNOWN_EXECUTION_LAUNCHER_RE.fullmatch(token)
         or _is_powershell_cmdlet(token)
+    )
+
+
+def _is_plain_business_noun_phrase(tokens: list[str]) -> bool:
+    """Recognize an ordinary noun phrase without maintaining a domain lexicon."""
+    return bool(
+        len(tokens) > 1
+        and tokens[0].casefold() in _AMBIGUOUS_BUSINESS_COMMAND_NAMES
+        and all(
+            re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9'-]*", token) is not None
+            and not is_known_command_name(token)
+            for token in tokens[1:]
+        )
     )
 
 
@@ -517,11 +467,23 @@ def _is_sentence_case_command_prose(
         and candidate.rstrip().endswith((".", "!", "?"))
         and (
             (len(tokens) > 1 and tokens[1].casefold() in COMMAND_DETERMINERS)
-            or any(word in _BUSINESS_ACTION_OBJECTS for word in following_words)
+            or _is_plain_business_noun_phrase(tokens)
         )
     ):
         return True
     return any(word in _DECLARATIVE_PREDICATES for word in following_words)
+
+
+def _is_prefixed_business_task(
+    tokens: list[str],
+    candidate: str,
+    *,
+    argument_shape: bool,
+) -> bool:
+    """Recognize polite business actions that share names with shell tools."""
+    if argument_shape or not candidate.rstrip().endswith((".", "!", "?")):
+        return False
+    return _is_plain_business_noun_phrase(tokens)
 
 
 def is_declarative_run_noun_compound(command: str) -> bool:
@@ -565,9 +527,13 @@ def looks_like_standalone_shell_command(
     ]
     if not tokens:
         return False
+    while len(tokens) > 1 and _COMMAND_ASSIGNMENT_RE.fullmatch(tokens[0]):
+        tokens.pop(0)
+    if _SHELL_COMMAND_WORD_EXPANSION_RE.search(tokens[0]):
+        return True
     shell_escaped_command = False
-    decoded_first = _decode_shell_command_word(candidate)
-    if decoded_first is not None and _is_known_command_name(decoded_first[0]):
+    decoded_first = _decode_shell_command_word(" ".join(tokens))
+    if decoded_first is not None and is_known_command_name(decoded_first[0]):
         tokens[0] = decoded_first[0]
         shell_escaped_command = decoded_first[1]
     wrapped = False
@@ -583,13 +549,19 @@ def looks_like_standalone_shell_command(
         if urlsplit(first).scheme.casefold() in {"http", "https"}:
             return False
     except ValueError:
-        pass
+        return False
     command_text = " ".join(tokens)
     if wrapped:
         return True
     if shell_escaped_command:
         return True
     argument_shape = _has_command_shaped_argument(tokens, command_text)
+    if instruction_prefix and _is_prefixed_business_task(
+        tokens,
+        candidate,
+        argument_shape=argument_shape,
+    ):
+        return False
     if _is_sentence_case_command_prose(
         first,
         tokens,
@@ -638,13 +610,16 @@ def looks_like_standalone_shell_command(
 __all__ = [
     "COMMAND_DETERMINERS",
     "COMMAND_INSTRUCTION_PREFIX_PATTERN",
+    "EXECUTABLE_SUFFIX_PATTERN",
     "EXECUTABLE_SUFFIX_RE",
     "FIRST_COMMAND_TOKEN_RE",
     "KNOWN_EXECUTION_LAUNCHER_RE",
     "PATH_SHAPED_COMMAND_RE",
     "SHELL_METACHAR_RE",
     "SHELL_OPERATOR_COMMAND_RE",
+    "has_command_shaped_argument",
     "is_declarative_run_noun_compound",
+    "is_known_command_name",
     "looks_like_standalone_shell_command",
     "unwrap_command_token",
 ]

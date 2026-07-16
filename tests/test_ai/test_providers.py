@@ -115,16 +115,109 @@ class TestAvailability:
 class TestClientInit:
     def test_lazy_init_constructs_openai_client_with_url_and_key(self) -> None:
         provider = _make_provider()
-        with patch("openai.OpenAI") as mock_openai:
+        http_client = object()
+        with (
+            patch("openai.DefaultHttpxClient", return_value=http_client) as mock_http_client,
+            patch("openai.OpenAI") as mock_openai,
+        ):
             provider._get_client()
-        mock_openai.assert_called_once_with(api_key="test-key", base_url="https://example.test/v1")
+        mock_http_client.assert_called_once_with(follow_redirects=False)
+        mock_openai.assert_called_once_with(
+            api_key="test-key",
+            base_url="https://example.test/v1",
+            max_retries=0,
+            http_client=http_client,
+        )
 
     def test_lazy_init_caches_client(self) -> None:
         provider = _make_provider()
-        with patch("openai.OpenAI") as mock_openai:
+        with (
+            patch("openai.DefaultHttpxClient", return_value=object()) as mock_http_client,
+            patch("openai.OpenAI") as mock_openai,
+        ):
             provider._get_client()
             provider._get_client()
         assert mock_openai.call_count == 1
+        assert mock_http_client.call_count == 1
+
+    def test_explicit_retry_cap_is_the_http_request_cap(self, monkeypatch) -> None:
+        import httpx
+        import openai
+
+        from primr.ai.providers import openai_compatible
+
+        request_count = 0
+
+        def respond_unavailable(request: httpx.Request) -> httpx.Response:
+            nonlocal request_count
+            request_count += 1
+            return httpx.Response(
+                503,
+                request=request,
+                json={"error": {"message": "service unavailable", "type": "server_error"}},
+            )
+
+        with httpx.Client(
+            transport=httpx.MockTransport(respond_unavailable),
+            follow_redirects=False,
+        ) as transport_client:
+            monkeypatch.setattr(
+                openai,
+                "DefaultHttpxClient",
+                lambda **_kwargs: transport_client,
+            )
+            monkeypatch.setattr(openai_compatible.time, "sleep", lambda _seconds: None)
+            provider = _make_provider()
+
+            with pytest.raises(RuntimeError, match="after 2 attempts"):
+                provider.chat(
+                    [{"role": "user", "content": "test"}],
+                    model="test-model",
+                    retries=1,
+                )
+
+            assert request_count == 2
+
+    def test_transport_does_not_follow_redirects_outside_retry_cap(self, monkeypatch) -> None:
+        import httpx
+        import openai
+
+        request_count = 0
+
+        def redirect_then_fail(request: httpx.Request) -> httpx.Response:
+            nonlocal request_count
+            request_count += 1
+            if request.url.host == "example.test":
+                return httpx.Response(
+                    307,
+                    request=request,
+                    headers={"location": "https://redirect.test/v1/chat/completions"},
+                )
+            return httpx.Response(
+                503,
+                request=request,
+                json={"error": {"message": "service unavailable", "type": "server_error"}},
+            )
+
+        with httpx.Client(
+            transport=httpx.MockTransport(redirect_then_fail),
+            follow_redirects=False,
+        ) as transport_client:
+            monkeypatch.setattr(
+                openai,
+                "DefaultHttpxClient",
+                lambda **_kwargs: transport_client,
+            )
+            provider = _make_provider()
+
+            with pytest.raises(RuntimeError):
+                provider.chat(
+                    [{"role": "user", "content": "test"}],
+                    model="test-model",
+                    retries=1,
+                )
+
+            assert request_count == 1
 
     def test_missing_key_raises_provider_unavailable(self) -> None:
         provider = OpenAICompatibleProvider(

@@ -159,3 +159,20 @@ tree, and the repository passed 12,718 tests at 86.20 percent branch coverage.
 The next task is P1: produce the exact internal edge ledger for the remaining
 25-member core component and remove its lowest-risk back edge as one atomic,
 behavior-preserving change.
+
+### Safety-boundary cohesion addendum
+
+The 2026-07-15 skill-pack hardening work applied the same boundary test before
+release. `eval_validation.py` fell from 923 lines to 340 by moving language
+lexing into the 687-line `code_comment_projection.py` trust boundary.
+`command_grammar.py` fell from 940 lines to 625 by moving cross-sentence
+execution and persistence analysis into the 342-line
+`execution_dataflow.py` boundary. `script_safety.py` fell from 878 lines to
+749 by moving verifier placement and registry policy into the existing
+296-line `verifier_asset.py` owner.
+
+The source-module delta is two. Both additions own independently changing
+security grammars, depend in one direction on lower-level lexical policy, and
+have direct regression tests as well as packaging-boundary tests. No
+compatibility shim or mutually dependent fragment was introduced. This work
+does not replace P1, whose scope remains the broad core import component.

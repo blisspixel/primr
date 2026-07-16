@@ -7,6 +7,8 @@ auditable without mixing its implementation into prose-safety parsing.
 
 from __future__ import annotations
 
+from .markdown_safety import SECURITY_COMMONMARK, commonmark_security_text
+
 VERIFY_ARTIFACT_SCRIPT_PATH = "scripts/verify-artifact.py"
 VERIFY_ARTIFACT_INVOCATION = f"Run: python {VERIFY_ARTIFACT_SCRIPT_PATH} <artifact>"
 
@@ -161,8 +163,134 @@ if __name__ == "__main__":
     sys.exit(0 if verify(sys.argv[1]) else 1)
 '''
 
+_VERIFICATION_SKILL_NAME_MARKERS = ("validat", "review", "check", "verif")
+
+
+def is_verification_skill_name(name: str) -> bool:
+    """Return whether a skill name declares the verification role contract."""
+    tokens = name.casefold().split("-")
+    return any(
+        token.startswith(marker) for token in tokens for marker in _VERIFICATION_SKILL_NAME_MARKERS
+    )
+
+
+def registered_verifier_path_count(text: str) -> int:
+    """Count raw or CommonMark-decoded helper-path mentions.
+
+    ``max`` avoids double-counting ordinary visible references while still
+    detecting entity-encoded text and path mentions hidden in Markdown syntax.
+    """
+    raw_count = text.casefold().count(VERIFY_ARTIFACT_SCRIPT_PATH.casefold())
+    decoded_count = (
+        commonmark_security_text(text).casefold().count(VERIFY_ARTIFACT_SCRIPT_PATH.casefold())
+    )
+    return max(raw_count, decoded_count)
+
+
+def _top_level_block_line_indices(
+    text: str,
+    *,
+    token_type: str,
+    raw_line: str,
+    tag: str | None = None,
+) -> list[int]:
+    """Locate exact, visible CommonMark blocks at document level.
+
+    Token levels distinguish ordinary top-level blocks from visually similar
+    content nested in lists or block quotes. Requiring the exact source line
+    also excludes alternate Markdown syntax and inline markup that happens to
+    render to the same text.
+    """
+    lines = text.splitlines()
+    indices: list[int] = []
+    for token in SECURITY_COMMONMARK.parse(text):
+        if token.type != token_type or token.level != 0 or token.map is None:
+            continue
+        if tag is not None and token.tag != tag:
+            continue
+        start, end = token.map
+        if end != start + 1 or start >= len(lines) or lines[start].strip() != raw_line:
+            continue
+        indices.append(start)
+    return indices
+
+
+def has_registered_verifier_invocation(body: str) -> bool:
+    """Return whether the exact invocation appears once in unfenced workflow prose."""
+    lines = body.splitlines()
+    if sum(line.strip() == VERIFY_ARTIFACT_INVOCATION for line in lines) != 1:
+        return False
+    if registered_verifier_path_count(body) != 1:
+        return False
+    workflow_indices = _top_level_block_line_indices(
+        body,
+        token_type="heading_open",
+        tag="h2",
+        raw_line="## Workflow",
+    )
+    invocation_indices = _top_level_block_line_indices(
+        body,
+        token_type="paragraph_open",
+        raw_line=VERIFY_ARTIFACT_INVOCATION,
+    )
+    output_indices = _top_level_block_line_indices(
+        body,
+        token_type="heading_open",
+        tag="h2",
+        raw_line="## Output Format",
+    )
+    if not (len(workflow_indices) == len(invocation_indices) == len(output_indices) == 1):
+        return False
+    workflow_index = workflow_indices[0]
+    invocation_index = invocation_indices[0]
+    output_index = output_indices[0]
+    return workflow_index < invocation_index < output_index
+
+
+def insert_registered_verifier_invocation(body: str) -> str:
+    """Insert the registered invocation before the unfenced output heading."""
+    lines = [line for line in body.splitlines() if line.strip() != VERIFY_ARTIFACT_INVOCATION]
+    body_without_invocation = "\n".join(lines)
+    workflow_indices = _top_level_block_line_indices(
+        body_without_invocation,
+        token_type="heading_open",
+        tag="h2",
+        raw_line="## Workflow",
+    )
+    output_indices = _top_level_block_line_indices(
+        body_without_invocation,
+        token_type="heading_open",
+        tag="h2",
+        raw_line="## Output Format",
+    )
+    if len(workflow_indices) != 1 or len(output_indices) != 1:
+        raise ValueError("verification body must have one unfenced workflow and output section")
+    if workflow_indices[0] >= output_indices[0]:
+        raise ValueError("verification body sections are out of order")
+    output_index = output_indices[0]
+    lines[output_index:output_index] = [VERIFY_ARTIFACT_INVOCATION, ""]
+    result = "\n".join(lines)
+    if not has_registered_verifier_invocation(result):
+        raise ValueError("verification invocation could not be inserted safely")
+    return result
+
+
+def scan_python_script(relpath: str, content: str) -> str | None:
+    """Reject every helper except an exact registered first-party artifact."""
+    if relpath != VERIFY_ARTIFACT_SCRIPT_PATH:
+        return "path is not registered as a first-party helper"
+    if content != VERIFY_ARTIFACT_SCRIPT:
+        return "content does not match the registered first-party helper"
+    return None
+
+
 __all__ = [
     "VERIFY_ARTIFACT_INVOCATION",
     "VERIFY_ARTIFACT_SCRIPT",
     "VERIFY_ARTIFACT_SCRIPT_PATH",
+    "has_registered_verifier_invocation",
+    "insert_registered_verifier_invocation",
+    "is_verification_skill_name",
+    "registered_verifier_path_count",
+    "scan_python_script",
 ]
