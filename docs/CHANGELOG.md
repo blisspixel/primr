@@ -15,7 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `primr --list-recent` now groups primary report deliverables separately from
   calibration, QA, and verification diagnostics, prints root-relative paths so
   same-named files are distinguishable, and labels each row with a short type
-  tag. Root help epilog leads with the first-run lifecycle (`init` through
+  tag. Within Deliverables, named product reports rank above empty or
+  incidental files while preserving newest-first order inside each rank.
+  Root help epilog leads with the first-run lifecycle (`init` through
   `--list-recent`) and includes `primr skills`.
 
 ### Added

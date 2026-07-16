@@ -202,8 +202,9 @@ missing-file state without returning report body content. Exact adjacent
 Markdown, TXT, DOCX, and PDF siblings are included even when an older producer
 attached only its primary path; current producers attach their job-scoped run
 manifest explicitly. `primr --list-recent` uses the same bounded inventory
-model locally and groups primary deliverables separately from calibration, QA,
-and verification diagnostics; add `--json` for a versioned object.
+model locally, groups primary deliverables separately from calibration, QA,
+and verification diagnostics, and ranks named product reports above empty or
+incidental files; add `--json` for a versioned object.
 They can inspect attached QA outcomes with
 `primr://output/qa_summary/by_job/{job_id}`, which returns compact
 score/status/count metadata without detailed QA or report body text.

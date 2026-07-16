@@ -77,6 +77,35 @@ def _type_label(record: ArtifactRecord) -> str:
     return labels.get(record.artifact_type, record.artifact_type.replace("_", " "))
 
 
+_PRIMARY_NAME_MARKERS = (
+    "strategic_overview",
+    "ai_strategy",
+    "skills_pack",
+    "company_overview",
+)
+
+
+def _is_primary_deliverable_name(name: str) -> bool:
+    lowered = name.lower()
+    return any(marker in lowered for marker in _PRIMARY_NAME_MARKERS)
+
+
+def _sort_deliverables(rows: list[ArtifactRecord]) -> list[ArtifactRecord]:
+    """Prefer named product reports, then non-empty files, then newest first.
+
+    Uses a stable sort: newest-first first, then rank so relative recency holds
+    within each rank bucket.
+    """
+    newest_first = sorted(rows, key=lambda record: record.modified_at or "", reverse=True)
+    return sorted(
+        newest_first,
+        key=lambda record: (
+            0 if _is_primary_deliverable_name(record.path.name) else 1,
+            0 if (record.size_bytes or 0) > 0 else 1,
+        ),
+    )
+
+
 def list_recent_outputs(
     output_dir: str | Path,
     *,
@@ -157,6 +186,8 @@ def list_recent_outputs(
         rows = [record for record in records if _group(record) == group]
         if not rows:
             continue
+        if group == "Deliverables":
+            rows = _sort_deliverables(rows)
         limit = _GROUP_LIMITS[group]
         print(f"{group}:")
         for index, record in enumerate(rows[:limit], 1):

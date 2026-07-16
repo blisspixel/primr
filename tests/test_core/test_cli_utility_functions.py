@@ -82,6 +82,32 @@ class TestListRecentOutputs:
         assert "Acme_Strategic_Overview.md" in deliverable_block
         assert "calibration.json" not in deliverable_block
 
+    def test_ranks_named_reports_above_empty_incidental_files(self, output_dir, capsys):
+        import os
+        import time
+
+        incidental = output_dir / "scratch_notes.md"
+        empty_report = output_dir / "empty_scratch.md"
+        primary = output_dir / "Acme_Strategic_Overview_07-15-2026.md"
+        incidental.write_text("noise", encoding="utf-8")
+        empty_report.write_text("", encoding="utf-8")
+        primary.write_text("full report body", encoding="utf-8")
+        # Make incidental newest so mtime alone would rank it first.
+        now = time.time()
+        os.utime(incidental, (now + 10, now + 10))
+        os.utime(empty_report, (now + 20, now + 20))
+        os.utime(primary, (now, now))
+
+        list_recent_outputs()
+        out = capsys.readouterr().out
+        deliverable_block = out[
+            out.index("Deliverables:") : out.index("-" * 60, out.index("Deliverables:"))
+        ]
+        primary_pos = deliverable_block.index("Acme_Strategic_Overview_07-15-2026.md")
+        incidental_pos = deliverable_block.index("scratch_notes.md")
+        empty_pos = deliverable_block.index("empty_scratch.md")
+        assert primary_pos < incidental_pos < empty_pos
+
     def test_caps_listing_at_20(self, output_dir, capsys):
         # Create 25 fake .docx files
         for i in range(25):
