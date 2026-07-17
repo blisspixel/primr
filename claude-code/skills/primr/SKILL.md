@@ -1,7 +1,7 @@
 ---
 name: primr
-description: Generate a consultant-grade strategic intelligence brief on a company through Primr's metered pipeline. Use for a named Primr report, full strategic dossier, Strategic Overview, or strategy module. Route zero-incremental-spend dossier requests to primr-zero, quick briefs to host web research, and DNS-only requests to primr recon.
-argument-hint: "Company Name" https://company.url [--mode full|premium|scrape|deep] [--platform aws|ms|gcp] [--strategy-type ai|customer_experience|...]
+description: Generate a consultant-grade strategic intelligence brief on a company through Primr's metered pipeline. Use for a named Primr report, full strategic dossier, Strategic Overview, or strategy module. Intercept free, no-API-spend, and existing-agent-plan requests before estimating and route them to Primr Zero, with an inline primr prep fallback when primr-zero is unavailable. Route quick briefs to host web research and DNS-only requests to primr recon.
+argument-hint: '"Company Name" https://company.url [--mode full|premium|scrape|deep] [--platform aws|ms|gcp] [--strategy-type ai|customer_experience|...]'
 allowed-tools: Bash(primr:*), Read
 ---
 
@@ -56,13 +56,28 @@ Look at your own available-tools list before choosing transport:
 
 Do not call an MCP tool speculatively to test connectivity. To get from CLI-only to MCP, the user adds primr to their host's MCP config (the snippet is `{ "command": "primr", "args": ["mcp"] }`; see the `clients/` directory in the primr repo for per-host paths).
 
-## Zero-cost host handoff
+## Zero-cost host handoff (precedes billable modes)
 
-When the user wants a substantial dossier with no provider key, GPU, or
-incremental API spend, prefer the dedicated `primr-zero` skill. Its collection
-step is:
+Treat any request for a free version, zero cost, no API key or API spend, or
+use of an existing Claude, Codex, Copilot, Gemini, Cowork, or other agent plan
+as a request for **Primr Zero**. This routing decision takes precedence over
+the billable cost gate and applies even after a paid estimate was shown,
+declined, or cancelled. Stop the paid workflow before continuing. Never answer
+"there is no free tier": the provider-backed Primr pipeline has no free mode,
+but Primr Zero is a supported workflow.
+
+Tell the user that Primr Zero uses keyless `primr prep` collection with zero
+Primr model calls, followed by research and synthesis in the current agent
+host. Only describe the complete workflow as zero incremental spend after
+verifying that the host is plan-backed and will not bill API usage or
+overages.
+
+If the dedicated `primr-zero` skill is available, use it. If it is unavailable,
+stale, or cannot be loaded from the current skill, do not deny the free path or
+stall. Follow this inline fallback:
 
 ```bash
+primr --version
 primr prep "Company" https://company.example --dry-run
 primr prep "Company" https://company.example
 ```
@@ -71,9 +86,15 @@ The dry run must report `$0.00` and zero model calls. The real command performs
 public network requests, emits a bounded evidence bundle and portable skill,
 and fails closed against model egress even when keys are configured. Disclose
 the network activity, but do not require spend approval for this zero-dollar
-collection. The surrounding host then researches and writes from its own plan
-allowance. Never pass host OAuth tokens or cookies into Primr, and never switch
-to a paid run silently.
+collection. Read the emitted `prep_manifest.json`, `source_index.json`,
+`research_packet.md`, and `HOST_WORKFLOW.md` in that order, then follow the
+emitted `primr-zero/SKILL.md` for host research, writing, and QA. Never pass
+host OAuth tokens or cookies into Primr, and never switch to a paid run
+silently.
+
+`--mode scrape` is still a billable provider-backed mode, typically around
+`$0.10`. It is not Primr Zero and must not be presented as the free or cheapest
+available path when the user asked for `$0`.
 
 ## The billable cost gate (non-negotiable)
 
@@ -83,7 +104,12 @@ primr runs cost real money and real time. **Never** launch a run without:
 2. **Reporting the estimate** verbatim - quoted dollars and minutes, plus what mode and what strategy.
 3. **Getting explicit user approval** in the conversation. "Want me to launch it?" → wait for "yes" / "go" / equivalent. A user asking *"how much would it cost"* is **not** approval.
 
-If the user pushes back on cost, suggest a cheaper mode (`scrape` ~$0.10, or `--no-ai-strategy` around ~$0.76-$0.79 on the measured xAI plus Gemini recipe) before walking away. If they want premium depth, surface `--premium` (~$5) and re-estimate.
+If the user pushes back on cost or asks whether a free version exists, offer
+the Primr Zero route above first. Only if they explicitly prefer a cheaper
+provider-backed run should you suggest `scrape` (~$0.10) or
+`--no-ai-strategy` (around ~$0.76-$0.79 on the measured xAI plus Gemini
+recipe), then re-estimate. If they want premium depth, surface `--premium`
+(~$5) and re-estimate.
 
 The MCP server enforces this gate via `primr://agent/governance`; the CLI does not, so on CLI you are the gate.
 

@@ -10,6 +10,10 @@ This is the living section. Update from real failures.
 - Editing built-in strategies: they are in the package; drop custom YAML in override path instead.
 - Real company data in prompts or logs: always sanitize; use ExampleCo in examples.
 - Assuming local capacity is free: local still has runtime and must pass the same eval gates as cloud for quality.
+- Answering "no free tier" or offering billable scrape mode after a user asks
+  for free Primr: stop the paid workflow and route to Primr Zero. If the
+  separate `primr-zero` skill is missing or stale, use the inline `primr prep`
+  fallback in the main skill and continue from the emitted host workflow.
 
 See main SKILL.md for core rules. Load this only when debugging a primr invocation failure.
 
