@@ -114,6 +114,21 @@ This checks structure and citation discipline. It is not factual verification.
 Perform a separate evidence review for unsupported claims, contradictions,
 source independence, dates, uncertainty labels, and recommendation logic.
 
+## Hand off to downstream tools
+
+When the user requests another skill or document workflow, pass explicit input
+paths instead of making it rediscover the account folder. The Markdown dossier
+is the primary input. Add only relevant strategy modules and user-provided
+notes when they exist.
+
+If several Primr outputs are available, use `primr --list-recent --json` and
+select the artifact with `artifact_role: primary_report`, then any requested
+`artifact_role: strategy_module` artifacts. Preserve citations, confidence
+labels, contradictions, and evidence gaps. The downstream consumer owns its
+output format, destination, approval gates, and final QA. Do not assume a
+specific skill, audience, brand, or renderer, and do not run an unrequested
+downstream workflow.
+
 ## Handle limits defensively
 
 - Never switch to API billing, overage credits, or a paid Primr run silently.

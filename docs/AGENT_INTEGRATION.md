@@ -60,8 +60,10 @@ Important MCP concepts:
 - `research_company` launches approved research jobs.
 - Job resources expose status and output paths.
 - `primr://output/artifacts/by_job/{job_id}` exposes compact artifact metadata
-  for one owned job without report body content. Use it before requesting full
-  report previews or reading files directly.
+  for one owned job without report body content, including physical types and
+  semantic roles for primary reports, strategy modules, diagnostics, and run
+  metadata. Use it before requesting full report previews or reading files
+  directly.
 - `primr://output/qa_summary/by_job/{job_id}` exposes compact QA score/status
   and count metadata for attached QA JSON sidecars and text QA reports without
   detailed QA or report body content.
@@ -211,9 +213,11 @@ Preferred patterns:
 
 A job is complete only when the job state reports completion and the expected report artifact exists.
 For agent handoff, read `primr://output/artifacts/by_job/{job_id}` first to
-confirm which artifacts exist, their classifications, sizes, timestamps, and
-hashes. Request `primr://output/by_job/{job_id}` only when the agent needs a
-report preview for summarization. If QA artifacts are attached, read
+confirm which artifacts exist, their classifications, semantic roles, sizes,
+timestamps, and hashes. Select the Markdown `primary_report` and only relevant
+`strategy_module` paths for downstream document workflows. Request
+`primr://output/by_job/{job_id}` only when the agent needs a report preview for
+summarization. If QA artifacts are attached, read
 `primr://output/qa_summary/by_job/{job_id}` before loading any QA body text.
 Read `primr://output/usage_summary/by_job/{job_id}` when the handoff needs
 run cost, timing, approval, execution, or artifact-count metadata.

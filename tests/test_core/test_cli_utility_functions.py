@@ -119,7 +119,8 @@ class TestListRecentOutputs:
     def test_json_lists_output_run_state_and_trace(self, output_dir, tmp_path, capsys):
         import json
 
-        (output_dir / "report.md").write_text("body", encoding="utf-8")
+        overview = output_dir / "Acme_Strategic_Overview_07-17-2026.md"
+        overview.write_text("body", encoding="utf-8")
         run_dir = tmp_path / "working" / "Acme" / "run"
         run_dir.mkdir(parents=True)
         (run_dir / "_run_state.json").write_text("{}", encoding="utf-8")
@@ -130,11 +131,14 @@ class TestListRecentOutputs:
         assert list_recent_outputs(json_output=True) == 0
         payload = json.loads(capsys.readouterr().out)
         assert payload["schema"] == "primr.artifact-inventory"
+        assert payload["schema_version"] == "1.1"
         assert {row["artifact_type"] for row in payload["artifacts"]} >= {
             "report_markdown",
             "run_state",
             "scrape_trace",
         }
+        by_name = {row["file_name"]: row for row in payload["artifacts"]}
+        assert by_name[overview.name]["artifact_role"] == "primary_report"
 
     def test_missing_custom_output_root_returns_nonzero(self, output_dir, tmp_path, capsys):
         assert list_recent_outputs(output_dir=str(tmp_path / "missing")) == 1

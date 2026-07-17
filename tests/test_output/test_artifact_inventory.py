@@ -2,6 +2,7 @@ import pytest
 
 from primr.output.artifact_inventory import (
     classify_artifact,
+    infer_artifact_role,
     inventory_explicit,
     inventory_explicit_result,
     scan_artifact_roots,
@@ -46,6 +47,36 @@ def test_bounded_scan_finds_deliverables_qa_and_fallbacks(tmp_path):
 def test_classification_covers_manifest_and_verification(tmp_path):
     assert classify_artifact(tmp_path / "run_manifest.json") == "run_manifest"
     assert classify_artifact(tmp_path / "verification.json") == "verification_summary"
+
+
+@pytest.mark.parametrize(
+    ("file_name", "expected_role"),
+    [
+        ("Acme_Strategic_Overview_07-17-2026.md", "primary_report"),
+        ("Acme_Host_Assisted_Strategic_Overview_07-17-2026.md", "primary_report"),
+        ("Acme_AI_Strategy_AZURE_07-17-2026.docx", "strategy_module"),
+        ("Acme_Customer_Experience_Strategy_07-17-2026.md", "strategy_module"),
+        ("Acme_Security_Compliance_Strategy_07-17-2026.md", "strategy_module"),
+        ("Acme_Data_Fabric_Strategy_07-17-2026.md", "strategy_module"),
+        ("Acme_Cloud_Migration_Strategy_07-17-2026.md", "strategy_module"),
+        ("Acme_Data_Strategy_07-17-2026.md", "strategy_module"),
+        ("Acme_AI_First_Transformation_07-17-2026.md", "strategy_module"),
+        ("Acme_Skills_Ideation_07-17-2026.pdf", "strategy_module"),
+        ("Acme_Skills_Pack_Report.md", "skill_pack"),
+        ("Acme_Custom_Assessment.md", "report"),
+        ("Acme_QA.json", "diagnostic"),
+        ("run_manifest.json", "run_metadata"),
+        ("insights.json", "supporting_artifact"),
+    ],
+)
+def test_artifact_roles_are_content_free_and_bounded(tmp_path, file_name, expected_role):
+    path = tmp_path / file_name
+    artifact_type = classify_artifact(path)
+
+    assert infer_artifact_role(path, artifact_type) == expected_role
+    record = inventory_explicit([path])[0]
+    assert record.artifact_role == expected_role
+    assert record.as_dict()["artifact_role"] == expected_role
 
 
 def test_scan_keeps_newest_matches_and_reports_limits(tmp_path):

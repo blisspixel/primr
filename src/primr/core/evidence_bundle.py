@@ -542,6 +542,15 @@ Run `primr --analyze-report <path>` for deterministic artifact QA. Then review
 unsupported claims, source independence, contradictions, dates, uncertainty
 labels, and whether each recommendation follows from evidence. Do not describe
 deterministic QA as factual verification.
+
+## Optional downstream handoff
+
+When the user requests another skill or document workflow, pass the explicit
+Markdown report path as its primary input. If several Primr deliverables are
+available, use `primr --list-recent --json` and select `primary_report` plus only
+the relevant `strategy_module` artifacts. Add user-provided notes explicitly,
+preserve citations, confidence labels, and evidence gaps, and let the downstream
+consumer own its output format, destination, approval gates, and final QA.
 """
 
 
