@@ -13,10 +13,12 @@ from primr.config.inference import (
 
 class _InferenceConfig(Protocol):
     @property
-    def inference_profile(self) -> str: ...
+    def inference_profile(self) -> str:
+        raise NotImplementedError
 
     @property
-    def acknowledge_host_agent_may_bill(self) -> bool: ...
+    def acknowledge_host_agent_may_bill(self) -> bool:
+        raise NotImplementedError
 
 
 class _CostEstimate(Protocol):
@@ -37,9 +39,11 @@ HOST_AGENT_RUNTIME_WARNING = (
 
 
 class _Console(Protocol):
-    def error(self, message: str) -> None: ...
+    def error(self, message: str) -> None:
+        raise NotImplementedError
 
-    def warn(self, message: str) -> None: ...
+    def warn(self, message: str) -> None:
+        raise NotImplementedError
 
 
 def validate_inference_options(

@@ -24,7 +24,7 @@ from primr.mcp_server.resource_summary_utils import (
     sorted_counts,
 )
 from primr.mcp_server.server_context import MCPServerContext
-from primr.qa.calibration_runner import (
+from primr.qa.calibration_sidecars import (
     calibration_sidecar_matches_report,
     report_path_for_sidecar,
     sidecar_path_for,

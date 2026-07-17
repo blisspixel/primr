@@ -32,7 +32,12 @@ from primr.utils.logging_config import get_logger
 from primr.utils.model_policy import require_model_calls_allowed
 
 logger = get_logger("grok_client")
-_extract_retry_after_seconds = extract_retry_after_seconds
+
+
+def _extract_retry_after_seconds(error: Exception) -> float | None:
+    """Compatibility wrapper around the shared retry-delay parser."""
+    return extract_retry_after_seconds(error)
+
 
 # ---------------------------------------------------------------------------
 # Session-level token tracking (per-model for accurate cost reporting)

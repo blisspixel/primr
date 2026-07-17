@@ -26,9 +26,6 @@ from primr.a2a.authz import (
     authorize_a2a_skill,
 )
 from primr.a2a.call_context import (
-    LOCAL_A2A_CLIENT_ID as LOCAL_A2A_CLIENT_ID,
-)
-from primr.a2a.call_context import (
     mcp_context_client_id as _a2a_client_id,
 )
 from primr.a2a.cancellation import handle_cancel_request

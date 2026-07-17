@@ -16,15 +16,15 @@ from __future__ import annotations
 
 import argparse
 import logging
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TypeVar
 
 import yaml  # type: ignore[import-untyped]
 
-if TYPE_CHECKING:
-    from primr.core.cli import Command
-
 logger = logging.getLogger(__name__)
+_CommandT = TypeVar("_CommandT")
+
 
 # The argparse help epilog (examples + mode reference). Kept here rather than
 # inline in cli._create_parser so cli.py stays under its file-size ceiling.
@@ -261,30 +261,32 @@ def add_research_input_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _determine_command(args: argparse.Namespace) -> Command:
+def _determine_command(
+    args: argparse.Namespace,
+    command_factory: Callable[[str], _CommandT],
+    positional_commands: Mapping[str, _CommandT],
+    flag_commands: Sequence[tuple[str, _CommandT]],
+) -> _CommandT:
     """Determine which command to run based on parsed args."""
-    # Import here to avoid a circular dependency (cli imports from this module).
-    from primr.core.cli import _FLAG_COMMANDS, _POSITIONAL_COMMANDS, Command
-
     if args.company:
-        cmd = _POSITIONAL_COMMANDS.get(args.company.lower())
+        cmd = positional_commands.get(args.company.lower())
         if cmd is not None:
             return cmd
 
-    for attr, cmd in _FLAG_COMMANDS:
+    for attr, cmd in flag_commands:
         if getattr(args, attr, None):
             return cmd
 
     if getattr(args, "qa_recent", None) is not None:
-        return Command.QA_RECENT
+        return command_factory("qa-recent")
 
     if getattr(args, "enrich", False) and getattr(args, "batch", None):
-        return Command.ENRICH
+        return command_factory("enrich")
 
     if getattr(args, "batch", None):
-        return Command.BATCH
+        return command_factory("batch")
 
     if args.csv:
-        return Command.BATCH
+        return command_factory("batch")
 
-    return Command.RESEARCH
+    return command_factory("research")

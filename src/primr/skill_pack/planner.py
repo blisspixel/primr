@@ -32,15 +32,6 @@ from typing import Any
 
 from primr.skill_pack.archetypes import load_archetypes, match_archetype
 from primr.skill_pack.curation import (
-    _drop_excess_to_cap as _drop_excess_to_cap,
-)
-from primr.skill_pack.curation import (
-    _materialize_added_role as _materialize_added_role,
-)
-from primr.skill_pack.curation import (
-    _normalize_curation_key as _normalize_curation_key,
-)
-from primr.skill_pack.curation import (
     apply_curation,
 )
 from primr.skill_pack.discovery import (

@@ -21,7 +21,7 @@ def _safe_int(value: Any) -> int:
 
 def load_calibration_counts(report_path: Path) -> dict[str, int] | None:
     """Read calibration counts from a report sidecar, if present."""
-    from primr.qa.calibration_runner import (
+    from primr.qa.calibration_sidecars import (
         calibration_sidecar_matches_report,
         sidecar_path_for,
     )

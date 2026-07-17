@@ -276,11 +276,16 @@ def _build_pack_report_md(
         "",
         "## Security Review Required",
         "",
-        "Generated SKILL.md and reference prose is untrusted content. Review every file before "
-        "installation or sideloading. Primr rejects structural and explicit executable carriers "
-        "and admits executable bytes only through its exact first-party registry, but it cannot "
-        "determine the intent of every natural-language instruction. Keep host tool allowlists, "
-        "approval gates, and sandboxing enabled.",
+        " ".join(
+            [
+                "Generated SKILL.md and reference prose is untrusted content.",
+                "Review every file before installation or sideloading.",
+                "Primr rejects structural and explicit executable carriers and admits executable",
+                "bytes only through its exact first-party registry, but it cannot determine the",
+                "intent of every natural-language instruction.",
+                "Keep host tool allowlists, approval gates, and sandboxing enabled.",
+            ]
+        ),
         "",
         "## Configuration",
         "",

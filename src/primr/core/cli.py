@@ -423,7 +423,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
     parsed = parser.parse_args(_rewrite_company_command_args(args, parser))
     get = getattr
 
-    command = _determine_command(parsed)
+    command = _determine_command(parsed, Command, _POSITIONAL_COMMANDS, _FLAG_COMMANDS)
 
     mode = MODE_MAP.get(parsed.mode, parsed.mode)
 

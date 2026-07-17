@@ -14,10 +14,6 @@ from primr.ai.deep_research import (
     get_deep_research_orchestrator,
 )
 from primr.ai.deep_research import ResearchResult as DeepResearchResult
-from primr.core.temporary_files import (
-    _cleanup_file_with_retry as _cleanup_file_with_retry,
-)
-from primr.core.temporary_files import temp_context_file as temp_context_file
 from primr.utils.errors import ResearchError
 from primr.utils.logging_config import get_logger
 from primr.utils.observability import Metrics, emit_metrics, operation_context

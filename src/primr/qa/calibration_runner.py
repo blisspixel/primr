@@ -40,12 +40,6 @@ from primr.qa.calibration_sidecars import (
     calibration_sidecar_matches_artifact,
     sidecar_path_for,
 )
-from primr.qa.calibration_sidecars import (
-    calibration_sidecar_matches_report as calibration_sidecar_matches_report,
-)
-from primr.qa.calibration_sidecars import (
-    report_path_for_sidecar as report_path_for_sidecar,
-)
 from primr.qa.label_calibration import (
     DEFAULT_MAX_PER_LABEL,
     TRACEABLE_LABELS,

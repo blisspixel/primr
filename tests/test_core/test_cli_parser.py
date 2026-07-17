@@ -10,14 +10,20 @@ import argparse
 from unittest.mock import patch
 
 from primr.core import cli_parser
-from primr.core.cli import Command, _create_parser  # we need the real enum to compare
+from primr.core.cli import _FLAG_COMMANDS, _POSITIONAL_COMMANDS, Command, _create_parser
 from primr.core.cli_help import _create_scoped_help_parser
 from primr.core.cli_parser import (
-    _determine_command,
+    _determine_command as _determine_command_impl,
+)
+from primr.core.cli_parser import (
     _discover_strategies,
     _get_strategy_choices,
     _get_strategy_help,
 )
+
+
+def _determine_command(args: argparse.Namespace) -> Command:
+    return _determine_command_impl(args, Command, _POSITIONAL_COMMANDS, _FLAG_COMMANDS)
 
 
 def _reset_cache():

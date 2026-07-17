@@ -70,6 +70,7 @@ COPY deploy/runner.py /app/runner.py
 COPY deploy/manifest.py /app/manifest.py
 COPY deploy/storage.py /app/storage.py
 COPY deploy/__init__.py /app/deploy/__init__.py
+COPY deploy/observability.py /app/deploy/observability.py
 COPY deploy/control_plane/ /app/deploy/control_plane/
 
 # Create deploy package structure for imports
