@@ -29,7 +29,7 @@ canonical_skills:
   - name: aks-and-container-apps
     display_name: AKS, Container Apps, and modern hosting
     summary: |
-      Run production AKS with workload identity, integrate Argo CD
+      Operate production AKS with workload identity, integrate Argo CD
       or GitHub Actions, choose between AKS and Container Apps based on
       operational fit, and harden ingress with Application Gateway WAF.
   - name: data-platform-on-azure
@@ -45,7 +45,7 @@ canonical_skills:
       Azure CLI scripts, and KQL queries; validate via what-if
       deployments before apply.
 ai_augmentation_patterns:
-  - Generate first-pass Bicep modules from intent, then run what-if
+  - Generate first-pass Bicep modules from intent, then perform what-if analysis
     against a staging subscription.
   - Use Copilot in Azure portal to summarize Defender alerts and
     Advisor recommendations.

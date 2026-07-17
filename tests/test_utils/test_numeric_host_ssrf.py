@@ -12,6 +12,7 @@ import pytest
 from primr.utils.security import (
     canonicalize_numeric_host,
     is_safe_url,
+    non_public_host_block_reason,
     numeric_host_block_reason,
 )
 
@@ -101,6 +102,36 @@ class TestNumericHostBlockReason:
         assert numeric_host_block_reason(host) is None
 
 
+class TestNonPublicHostBlockReason:
+    @pytest.mark.parametrize(
+        "host",
+        [
+            "localhost",
+            "localhost。",
+            "service.localhost",
+            "169.254.169.254",
+            "127.0.0.1",
+            "127。0。0。1",
+            "metadata。google。internal",
+            "intranet",
+            "printer.local",
+            "service.home.arpa",
+            "database.internal",
+            "router.lan",
+            "host.localdomain",
+            "\ud800.example",
+            "::1",
+            "fc00::1",
+        ],
+    )
+    def test_blocks_lexically_non_public_hosts_without_dns(self, host):
+        assert non_public_host_block_reason(host) is not None
+
+    @pytest.mark.parametrize("host", ["example.com", "8.8.8.8", "2606:4700:4700::1111"])
+    def test_allows_public_hosts_and_unresolved_domains(self, host):
+        assert non_public_host_block_reason(host) is None
+
+
 class TestIsSafeUrlNumericBackstop:
     @pytest.mark.parametrize(
         "url",
@@ -109,9 +140,12 @@ class TestIsSafeUrlNumericBackstop:
             "http://2130706433/",
             "http://127.1/",
             "http://2852039166/",
+            "http://intranet/",
+            "http://printer.local/",
+            "http://\ud800.example/",
         ],
     )
-    def test_blocks_obfuscated_loopback_metadata(self, url):
+    def test_blocks_lexically_non_public_targets(self, url):
         safe, reason = is_safe_url(url)
         assert safe is False
         assert reason

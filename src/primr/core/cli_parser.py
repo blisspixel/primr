@@ -16,15 +16,15 @@ from __future__ import annotations
 
 import argparse
 import logging
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TypeVar
 
 import yaml  # type: ignore[import-untyped]
 
-if TYPE_CHECKING:
-    from primr.core.cli import Command
-
 logger = logging.getLogger(__name__)
+_CommandT = TypeVar("_CommandT")
+
 
 # The argparse help epilog (examples + mode reference). Kept here rather than
 # inline in cli._create_parser so cli.py stays under its file-size ceiling.
@@ -35,17 +35,23 @@ Research Modes:
   deep     Autonomous AI web research + hiring signals (~11-17 min, ~$2.50)
   parallel Both engines in parallel (legacy, ~25 min)
 
-Examples:
+Common first-run path:
   primr init                                         # Guided first-run setup
+  primr doctor                                       # System diagnostics
+  primr keys set xai                                 # Store xAI/Grok key in user config
+  primr keys set gemini                              # Store Gemini key in user config
   primr "Acme Corp" https://acme.example --dry-run  # Estimate cost and time only
-  primr "Acme Corp" https://acme.example
+  primr "Acme Corp" https://acme.example             # Launch after you accept the estimate
+  primr --check-jobs                                 # Read-only status (cloud + latest local)
+  primr --list-recent                                # Recent deliverables vs diagnostics
+  primr --resume-latest                              # Finalize completed interrupted cloud jobs
+
+Examples:
   primr prep "Acme Corp" https://acme.example       # $0 API evidence bundle for a host agent
+  primr skills "Acme Corp" https://acme.example     # Agent Skills pack (~$0.30 default)
   primr "Acme Corp" acme.example --mode deep
   primr "Acme Corp" acme.example --mode scrape       # Build Site Corpus + Extract Insights
-  primr keys set gemini                              # Store Gemini key in user config
-  primr keys set xai                                 # Store xAI/Grok key in user config
   primr keys list                                    # Show configured provider keys
-  primr doctor                                       # System diagnostics
   primr doctor --fix                                 # Diagnose, then launch guided fixes
   primr update                                       # Upgrade primr to the latest release
   primr update --check                               # Check for a newer version without installing
@@ -116,6 +122,26 @@ def enable_shell_completion(parser: argparse.ArgumentParser) -> None:
     except ImportError:
         return
     argcomplete.autocomplete(parser)
+
+
+def add_inference_arguments(parser: argparse.ArgumentParser) -> None:
+    """Register capability-routing options and the host-billing safety gate."""
+
+    parser.add_argument(
+        "--inference",
+        choices=["cloud", "hybrid"],
+        default="cloud",
+        dest="inference_profile",
+        help="Inference profile for routed experimental stages",
+    )
+    parser.add_argument(
+        "--acknowledge-host-agent-may-bill",
+        action="store_true",
+        help=(
+            "Allow the unpromoted hybrid Codex pilot after acknowledging that its "
+            "session may use metered billing outside Primr's estimate (single runs only)"
+        ),
+    )
 
 
 def _discover_strategies() -> list[dict[str, str]]:
@@ -235,30 +261,32 @@ def add_research_input_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _determine_command(args: argparse.Namespace) -> Command:
+def _determine_command(
+    args: argparse.Namespace,
+    command_factory: Callable[[str], _CommandT],
+    positional_commands: Mapping[str, _CommandT],
+    flag_commands: Sequence[tuple[str, _CommandT]],
+) -> _CommandT:
     """Determine which command to run based on parsed args."""
-    # Import here to avoid a circular dependency (cli imports from this module).
-    from primr.core.cli import _FLAG_COMMANDS, _POSITIONAL_COMMANDS, Command
-
     if args.company:
-        cmd = _POSITIONAL_COMMANDS.get(args.company.lower())
+        cmd = positional_commands.get(args.company.lower())
         if cmd is not None:
             return cmd
 
-    for attr, cmd in _FLAG_COMMANDS:
+    for attr, cmd in flag_commands:
         if getattr(args, attr, None):
             return cmd
 
     if getattr(args, "qa_recent", None) is not None:
-        return Command.QA_RECENT
+        return command_factory("qa-recent")
 
     if getattr(args, "enrich", False) and getattr(args, "batch", None):
-        return Command.ENRICH
+        return command_factory("enrich")
 
     if getattr(args, "batch", None):
-        return Command.BATCH
+        return command_factory("batch")
 
     if args.csv:
-        return Command.BATCH
+        return command_factory("batch")
 
-    return Command.RESEARCH
+    return command_factory("research")

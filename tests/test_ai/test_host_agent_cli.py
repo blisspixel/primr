@@ -12,6 +12,7 @@ from primr.ai.host_agent_cli import (
     CodexCliHostAgentRunner,
     HostAgentExecutionError,
     codex_cli_backend,
+    supported_host_agent_backends,
 )
 from primr.ai.host_agent_runner import (
     HostAgentBillingMode,
@@ -171,3 +172,25 @@ def test_codex_cli_backend_preserves_explicit_plan_billing() -> None:
     )
 
     assert backend.billing_mode is BillingMode.HOST_PLAN_USAGE
+
+
+def test_supported_backend_is_unverified_without_billing_acknowledgment(monkeypatch) -> None:
+    monkeypatch.delenv("PRIMR_ACKNOWLEDGE_HOST_AGENT_MAY_BILL", raising=False)
+    monkeypatch.setattr(CodexCliHostAgentRunner, "is_available", lambda _self: True)
+
+    (backend,) = supported_host_agent_backends()
+
+    assert backend.billing_mode is BillingMode.UNKNOWN
+    assert backend.metadata["billing_acknowledged"] is False
+    assert backend.metadata["promotion_status"] == "experimental_eval_pending"
+
+
+def test_supported_backend_records_potentially_metered_acknowledgment(monkeypatch) -> None:
+    monkeypatch.setenv("PRIMR_ACKNOWLEDGE_HOST_AGENT_MAY_BILL", "1")
+    monkeypatch.setattr(CodexCliHostAgentRunner, "is_available", lambda _self: True)
+
+    (backend,) = supported_host_agent_backends()
+
+    assert backend.billing_mode is BillingMode.POTENTIALLY_METERED
+    assert backend.metadata["billing_acknowledged"] is True
+    assert backend.metadata["promotion_status"] == "experimental_eval_pending"

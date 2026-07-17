@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from primr.config.env import load_primr_env
+from primr.types import ConfigurationError
 
 # Load environment variables (safe, no validation)
 load_primr_env()
@@ -58,25 +59,6 @@ _gemini_api_key: str | None = os.getenv("GEMINI_API_KEY")
 _search_api_key: str | None = os.getenv("SEARCH_API_KEY")
 _search_engine_id: str | None = os.getenv("SEARCH_ENGINE_ID")
 _xai_api_key: str | None = os.getenv("XAI_API_KEY")
-
-
-class ConfigurationError(Exception):
-    """Raised when required configuration is missing or invalid.
-
-    Note: This is a separate class from primr.utils.errors.ConfigurationError
-    due to circular import constraints (config <- utils <- config). Code that
-    catches ConfigurationError should import from whichever module raised it.
-    """
-
-    def __init__(self, message: str, guidance: str | None = None):
-        super().__init__(message)
-        self.message = message
-        self.guidance = guidance
-
-    def __str__(self) -> str:
-        if self.guidance:
-            return f"{self.message}\n  Guidance: {self.guidance}"
-        return self.message
 
 
 def get_gemini_api_key() -> str:

@@ -88,6 +88,21 @@ class TestHandleEnrich:
 
 
 class TestHandleBatch:
+    def test_rejects_experimental_host_fanout(self, monkeypatch):
+        batch_mock = MagicMock(return_value=0)
+        monkeypatch.setattr("primr.core.cli.process_batch", batch_mock)
+
+        result = _handle_batch(
+            _config(
+                batch_file="/path.csv",
+                inference_profile="hybrid",
+                acknowledge_host_agent_may_bill=True,
+            )
+        )
+
+        assert result == 1
+        batch_mock.assert_not_called()
+
     def test_batch_file_takes_priority(self, monkeypatch):
         batch_mock = MagicMock(return_value=0)
         monkeypatch.setattr("primr.core.cli.process_batch", batch_mock)

@@ -17,8 +17,8 @@ from primr.qa.calibration_baseline_decision import (
     read_operator_decision_record,
     write_operator_decision_record,
 )
+from primr.qa.calibration_judge_agreement import JudgeAgreement
 from primr.qa.calibration_runner import (
-    JudgeAgreement,
     JudgeSelection,
     ReportCalibrationOutcome,
     aggregate_per_label,

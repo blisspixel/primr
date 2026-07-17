@@ -20,6 +20,7 @@ import pytest
 
 from primr.skill_pack.config import SkillPackConfig, SkillPackFormat
 from primr.skill_pack.pipeline import run_skill_pack_pipeline
+from primr.skill_pack.saved_plan import load_plan
 
 # Reuse the rich mock from test_pipeline.py so authoring + validation
 # stay aligned with the canonical fixture.
@@ -200,6 +201,31 @@ class TestFromPlanPaths:
                 config=config,
                 output_dir=tmp_path / "output",
             )
+
+    def test_prepared_plan_is_the_single_execution_snapshot(
+        self, tmp_path: Path, working_dir: Path
+    ):
+        plan_path = self._generate_plan(tmp_path, working_dir)
+        prepared_plan = load_plan(plan_path)
+        plan_path.unlink()
+        config = SkillPackConfig(
+            roles_count=len(prepared_plan.final_roster),
+            skills_per_role=2,
+            from_plan_path=str(plan_path),
+            plan_only=True,
+        )
+
+        pack, _ = run_skill_pack_pipeline(
+            company_name="Acme Corp",
+            company_url="https://acme.example",
+            working_dir=working_dir,
+            config=config,
+            output_dir=tmp_path / "output",
+            prepared_plan=prepared_plan,
+        )
+
+        assert pack.plan is prepared_plan
+        assert pack.roles == []
 
 
 # =============================================================================

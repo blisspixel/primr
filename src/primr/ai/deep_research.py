@@ -70,6 +70,7 @@ from primr.config.settings import get_settings
 from primr.utils.content_sanitizer import fence_untrusted
 from primr.utils.errors import AIError
 from primr.utils.logging_config import get_logger
+from primr.utils.url_helpers import normalized_hostname, public_web_url
 
 logger = get_logger("ai.deep_research")
 
@@ -3450,8 +3451,6 @@ class ReportFormatter:
 
     def _format_numbered_citations(self, content: str, citations: list[dict[str, str]]) -> str:
         """Apply numbered citation formatting with clickable links and resolved URLs."""
-        from urllib.parse import urlparse
-
         if not citations:
             return content
 
@@ -3500,7 +3499,7 @@ class ReportFormatter:
             # Build clean references list
             ref_lines = ["\n\n---\n\n## References\n"]
             for i, citation in enumerate(seen_urls.values(), 1):
-                url = citation.get("url", "")
+                url = public_web_url(citation.get("url", ""))
                 title = citation.get("title", "")
 
                 if url:
@@ -3512,8 +3511,7 @@ class ReportFormatter:
                         )
                         ref_lines.append(f"{i}. {display_text} (link unavailable)")
                     else:
-                        parsed = urlparse(url)
-                        domain = parsed.netloc.replace("www.", "")
+                        domain = normalized_hostname(url, strip_www=True)
                         # Use domain as display text if title looks like a redirect URL
                         if "vertexaisearch" in title.lower() or not title:
                             display_text = domain

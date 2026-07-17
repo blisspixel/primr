@@ -206,6 +206,22 @@ class TestFormatNumberedCitations:
         assert "## References" in result
         assert "[Example](https://example.com/a)" in result
 
+    def test_reference_url_removes_credentials(self):
+        f = ReportFormatter()
+        citations = [
+            {
+                "number": "1",
+                "url": "https://user:secret@example.com:8443/a",
+                "title": "Example",
+            }
+        ]
+
+        result = f._format_numbered_citations("Body [cite: 1]", citations)
+
+        assert "[Example](https://example.com:8443/a)" in result
+        assert "user" not in result
+        assert "secret" not in result
+
     def test_dedupes_repeated_urls(self):
         f = ReportFormatter()
         content = "Body [cite: 1]"

@@ -122,6 +122,15 @@ For the `fast.source_relevance` host-agent pilot, use `--eval-source-relevance-f
 
 The generated `source_relevance_stage_quality_evidence.json` feeds the same review-only stage scorecard as other route evidence. It does not promote host execution by itself; promotion still requires representative samples, route observations, and human-reviewed acceptance criteria.
 
+The single-company runtime opt-in, `--inference hybrid
+--acknowledge-host-agent-may-bill`, exists only to collect controlled route
+observations for this unpromoted pilot. It does not satisfy the quality gate.
+Run the exact research command with `--dry-run` first: Primr labels the route
+`potentially_metered`, and any Codex host charge remains outside the estimate
+and `--budget`. Do not use the opt-in for batch research. A promotion decision
+still requires a representative labeled host-vs-cloud fixture, the resulting
+scorecard, and documented human review.
+
 For protected-site access classification, use `--eval-page-access-fixture` to
 score labeled sanitized HTML cases or trace-derived `access_assessment`
 predictions. The generated `page_access_stage_eval.json`,
@@ -202,13 +211,25 @@ continue to measure both failure directions as classifier behavior changes.
   cloud-vs-local agreement metadata into each calibration sidecar. Offline eval
   pools those counts into `## Judge Agreement` and CSV columns
   `judge_agreement_compared` / `judge_agreement_rate`. Agreement remains a
-  baseline-readiness signal, not a quality gate.
+  baseline-readiness signal, not a quality gate. The raw report-bound sidecar
+  also records each disagreement as a body-free pointer containing only the
+  sampled claim index and the cloud and local verdicts. `claim_index` is the
+  zero-based index into that sidecar's top-level `claims` array, including
+  preceding non-decidable claims. Operators can resolve those pointers against
+  the claims already bound into that sidecar for human adjudication. Compact MCP
+  and A2A calibration summaries deliberately omit the pointer list and all raw
+  claim or source content.
 - Calibration pack manifest: add `--pack-manifest path/to/pack.json` to
   `primr calibrate` or its `--dry-run` preview to freeze the selected reports,
   sidecar state, sampled-claim counts, judge-call estimate, per-label totals,
   evidence-review summary, inference source-copy counts, judge-agreement
   metadata, and report/sidecar content fingerprints before running a
   multi-report baseline.
+- Report binding: every newly written calibration sidecar records the exact
+  report byte size and SHA-256 digest it evaluated. Pack aggregation and the
+  compact MCP/A2A calibration summary reject legacy sidecars and any binding
+  that no longer matches the current report. A nearby filename is not treated
+  as evidence ownership.
 - Curated pack selection: add `--pack-selection path/to/selection.json` when
   the baseline needs explicit representative coverage instead of "latest N"
   report selection. The selection file uses
@@ -330,7 +351,13 @@ Design rules (these hold for any setup, not a particular machine):
   `judge: {kind, model}` so a calibration number always says what judged it.
   Local call failures produce no sidecar for that report and are reported as
   calibration failures.
-- **Trust is measured, not assumed.** `--judge-compare` runs cloud and local over the same claims (cloud verdicts are the result of record and are billed exactly once) and reports the agreement rate. If your local model agrees ~90%+, future calibration runs can go local-first and recurring judge cost drops to zero.
+- **Trust is measured, not assumed.** `--judge-compare` runs cloud and local over
+  the same claims (cloud verdicts are the result of record and are billed
+  exactly once) and reports the agreement rate. It also preserves body-free
+  disagreement pointers in each raw sidecar so operator review can identify
+  false positives and false negatives before trusting the local path. If your
+  local model agrees ~90%+, future calibration runs can go local-first and
+  recurring judge cost drops to zero.
 - **Dry-run spend follows the requested judge policy.** Explicit local-only
   previews report `$0.00` estimated cloud spend and write
   `estimated_cloud_cost_usd: 0.0` in pack manifests. `--judge auto` always

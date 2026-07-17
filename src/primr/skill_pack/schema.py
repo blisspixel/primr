@@ -81,14 +81,13 @@ class RoleEvidence:
 class BundledFile:
     """A progressive-disclosure resource shipped alongside a SKILL.md.
 
-    `relpath` is relative to the skill's own folder and must live under
-    `references/` (load-on-demand markdown) or `scripts/` (a deterministic
-    helper the agent runs instead of re-deriving logic per call). The
-    Anthropic Agent Skills standard treats these as the second/third tiers
-    of progressive disclosure — kept out of the always-loaded SKILL.md body.
+    `relpath` is relative to the skill's own folder. Authored content may use
+    `references/` for load-on-demand markdown. Executable `scripts/` entries
+    are limited to exact registered first-party helpers. Companion resources
+    stay outside the always-loaded SKILL.md body.
     """
 
-    relpath: str  # e.g. "references/api-patterns.md" or "scripts/validate.py"
+    relpath: str  # e.g. "references/api-patterns.md" or "scripts/verify-artifact.py"
     content: str
 
 
@@ -102,8 +101,8 @@ class Skill:
     body: str  # the SKILL.md body (post-frontmatter)
     references: list[str] = field(default_factory=list)
     canonical_skill_basis: str | None = None  # archetype skill this was grounded in
-    # Progressive-disclosure resources written under the skill folder
-    # (references/*.md, scripts/*.py). Empty for simple single-file skills.
+    # Progressive-disclosure resources written under the skill folder.
+    # Executable entries must be exact registered first-party helpers.
     bundled_files: list[BundledFile] = field(default_factory=list)
 
 
@@ -305,6 +304,7 @@ class SkillPackArtifacts:
     report_md_path: str | None = None  # output_dir/<Company>_Skills_Pack_Report.md
     manifest_uuid: str | None = None
     skill_md_paths: list[str] = field(default_factory=list)
+    publication_warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -314,4 +314,5 @@ class SkillPackArtifacts:
             "report_md_path": self.report_md_path,
             "manifest_uuid": self.manifest_uuid,
             "skill_md_paths": list(self.skill_md_paths),
+            "publication_warnings": list(self.publication_warnings),
         }

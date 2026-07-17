@@ -10,6 +10,7 @@ Requirements: 1.1-1.10, 15.1-15.5, 16.1-16.10, 20.1-20.5
 import asyncio
 import contextlib
 import contextvars
+import ipaddress
 import logging
 import signal
 import sys
@@ -32,6 +33,19 @@ TransportType = Literal["stdio", "streamable-http"]
 # Shutdown timeouts (seconds)
 SHUTDOWN_WORK_COMPLETION_TIMEOUT = 5  # Max time to wait for current work
 SHUTDOWN_TOTAL_TIMEOUT = 10  # Total shutdown timeout
+
+
+def _is_loopback_host(host: str) -> bool:
+    """Return whether a listener host is explicitly confined to loopback."""
+    normalized = host.casefold()
+    if normalized == "localhost":
+        return True
+    if normalized.startswith("[") and normalized.endswith("]"):
+        normalized = normalized[1:-1]
+    try:
+        return ipaddress.ip_address(normalized).is_loopback
+    except ValueError:
+        return False
 
 
 class PrimrMCPServer:
@@ -338,6 +352,18 @@ class PrimrMCPServer:
             self.port,
         )
 
+        is_loopback = _is_loopback_host(self.host)
+
+        # Disabling authentication is a local-development convenience only.
+        # Plaintext opt-in acknowledges upstream TLS termination; it must not
+        # also become an implicit opt-out from identity and scope enforcement.
+        if not self.require_auth and not is_loopback:
+            raise RuntimeError(
+                f"Refusing to bind unauthenticated MCP HTTP to non-loopback "
+                f"host {self.host!r}. Authentication may only be disabled on "
+                "an explicit loopback listener."
+            )
+
         # Check plaintext security. We refuse to bind to a non-loopback
         # address without explicit opt-in: the previous behavior was a
         # warning-only check, which silently exposed plaintext MCP on
@@ -346,7 +372,7 @@ class PrimrMCPServer:
         # terminate TLS in front (Azure Container Apps ingress, an nginx
         # reverse proxy, etc.) must pass --allow-plaintext to acknowledge
         # the container speaks HTTP.
-        if not self.allow_plaintext and self.host not in ("127.0.0.1", "localhost", "::1"):
+        if not self.allow_plaintext and not is_loopback:
             raise RuntimeError(
                 f"Refusing to bind MCP HTTP to non-loopback host {self.host!r} "
                 "without --allow-plaintext. Pass --allow-plaintext only when "

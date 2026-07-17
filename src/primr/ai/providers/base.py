@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from threading import Lock
 from typing import Any
 
 
@@ -53,7 +54,7 @@ class _UsageAccumulator:
     output_tokens: int = 0
     cached_input_tokens: int = 0
     by_model: dict[str, dict[str, int]] = field(default_factory=dict)
-    _lock: Any = field(default_factory=lambda: __import__("threading").Lock(), repr=False)
+    _lock: Any = field(default_factory=Lock, repr=False)
 
     def record(
         self,

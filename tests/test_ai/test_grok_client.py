@@ -1,5 +1,7 @@
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
+import openai
 import pytest
 
 from primr.ai import grok_client
@@ -34,6 +36,26 @@ class _FakeResponse:
     def __init__(self, text: str):
         self.choices = [SimpleNamespace(message=SimpleNamespace(content=text))]
         self.usage = SimpleNamespace(prompt_tokens=11, completion_tokens=7)
+
+
+def test_lazy_grok_client_disables_sdk_retries(monkeypatch):
+    http_client = object()
+    http_factory = MagicMock(return_value=http_client)
+    factory = MagicMock(return_value=object())
+    monkeypatch.setattr(openai, "DefaultHttpxClient", http_factory)
+    monkeypatch.setattr(openai, "OpenAI", factory)
+    monkeypatch.setattr(grok_client, "_client", None)
+    monkeypatch.setenv("XAI_API_KEY", "test-key")
+
+    grok_client._get_grok_client()
+
+    http_factory.assert_called_once_with(follow_redirects=False)
+    factory.assert_called_once_with(
+        api_key="test-key",
+        base_url="https://api.x.ai/v1",
+        max_retries=0,
+        http_client=http_client,
+    )
 
 
 def test_retryable_classifier_includes_503():
@@ -133,6 +155,42 @@ def test_continuous_session_history_persists_across_turns(monkeypatch):
     # Two user + two assistant turns, no system prompt
     roles = [m["role"] for m in session.history]
     assert roles == ["user", "assistant", "user", "assistant"]
+
+
+def test_continuous_session_stateless_send_preserves_configuration_without_history(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_grok_llm(prompt: str, **kwargs: object) -> str:
+        captured.update({"prompt": prompt, **kwargs})
+        return "stateless output"
+
+    monkeypatch.setattr(grok_client, "grok_llm", fake_grok_llm)
+    session = grok_client.ContinuousReasoningSession(
+        model="grok-4.3",
+        system_prompt="persistent context",
+        reasoning_effort="high",
+    )
+
+    output = session.send_stateless(
+        "isolated task",
+        system_prompt="eval system",
+        temperature=0.2,
+        max_tokens=1_500,
+        retries=1,
+    )
+
+    assert output == "stateless output"
+    assert captured == {
+        "prompt": "isolated task",
+        "system_prompt": "eval system",
+        "model": "grok-4.3",
+        "temperature": 0.2,
+        "max_tokens": 1_500,
+        "retries": 1,
+        "reasoning_effort": "high",
+    }
+    assert session.turns == 0
+    assert session.history == [{"role": "system", "content": "persistent context"}]
 
 
 def test_continuous_session_rolls_back_user_turn_on_error(monkeypatch):

@@ -25,7 +25,7 @@ canonical_skills:
   - name: vendor-and-procurement-workflow
     display_name: Vendor and procurement workflow
     summary: |
-      Run intake, requirements collection, vendor comparison, approval
+      Manage intake, requirements collection, vendor comparison, approval
       routing, renewal tracking, and stakeholder communication.
   - name: operating-metrics
     display_name: Operating metrics and dashboards
@@ -36,7 +36,7 @@ canonical_skills:
     display_name: Cross-functional program management
     summary: |
       Coordinate work across teams, maintain risk and dependency logs,
-      run decision meetings, and keep executive updates action-oriented.
+      facilitate decision meetings, and keep executive updates action-oriented.
   - name: ai-assisted-operations
     display_name: AI-assisted operations analysis
     summary: |

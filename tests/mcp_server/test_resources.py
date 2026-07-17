@@ -16,6 +16,7 @@ from mcp.types import ListResourcesRequest, ReadResourceRequest, ReadResourceReq
 from primr.mcp_server.security import PathValidator
 from primr.mcp_server.server import create_mcp_server
 from primr.mcp_server.types import ResearchStage
+from primr.qa.artifact_fingerprints import artifact_fingerprint
 from primr.qa.calibration_baseline import build_calibration_baseline
 
 
@@ -1199,6 +1200,7 @@ class TestCalibrationSummaryByJobResource:
             json.dumps(
                 {
                     "report_file": report_path.name,
+                    "report_artifact": artifact_fingerprint(report_path),
                     "max_per_label": 10,
                     "judge": {
                         "kind": "local",
@@ -1211,6 +1213,13 @@ class TestCalibrationSummaryByJobResource:
                         "compared": 4,
                         "agreed": 3,
                         "agreement": 0.75,
+                        "disagreements": [
+                            {
+                                "claim_index": 2,
+                                "cloud_verdict": "traceable",
+                                "local_verdict": "untraceable",
+                            }
+                        ],
                     },
                     "per_label": {
                         "Confirmed": {
@@ -1328,6 +1337,7 @@ class TestCalibrationSummaryByJobResource:
         summary = data["summaries"][0]
         assert summary["artifact_type"] == "calibration_sidecar"
         assert summary["parsed"] is True
+        assert summary["report_binding_valid"] is True
         assert summary["raw_claims_included"] is False
         assert summary["claim_text_included"] is False
         assert summary["source_urls_included"] is False
@@ -1388,6 +1398,57 @@ class TestCalibrationSummaryByJobResource:
         data = json.loads(result.root.contents[0].text)
         assert data["summary_count"] == 1
         assert data["summaries"][0]["parsed"] is True
+
+    @pytest.mark.asyncio
+    async def test_rejects_sidecar_after_report_bytes_change(self, server, tmp_path):
+        report = tmp_path / "Acme_Report.md"
+        report.write_text("# Original report", encoding="utf-8")
+        self._write_calibration_sidecar(report)
+        report.write_text("# Mutated report", encoding="utf-8")
+        job = server.job_store.create("Acme Corp", "full")
+        job.output_paths = [str(report)]
+        server.job_store.update(job)
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/calibration_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        summary = data["summaries"][0]
+        assert summary["parsed"] is False
+        assert summary["parse_error"] == "report_artifact_mismatch"
+        assert "claims_sampled" not in summary
+
+    @pytest.mark.asyncio
+    async def test_rejects_sidecar_when_bound_report_is_missing(self, server, tmp_path):
+        report = tmp_path / "Acme_Report.md"
+        report.write_text("# Original report", encoding="utf-8")
+        sidecar = self._write_calibration_sidecar(report)
+        report.unlink()
+        job = server.job_store.create("Acme Corp", "full")
+        job.output_paths = [str(sidecar)]
+        server.job_store.update(job)
+
+        handler = server.server.request_handlers[ReadResourceRequest]
+        result = await handler(
+            ReadResourceRequest(
+                method="resources/read",
+                params=ReadResourceRequestParams(
+                    uri=f"primr://output/calibration_summary/by_job/{job.job_id}"
+                ),
+            )
+        )
+
+        data = json.loads(result.root.contents[0].text)
+        summary = data["summaries"][0]
+        assert summary["parsed"] is False
+        assert summary["parse_error"] == "report_artifact_mismatch"
 
     @pytest.mark.asyncio
     async def test_returns_not_found_when_no_calibration_sidecar_exists(self, server, tmp_path):
@@ -1497,6 +1558,7 @@ class TestCalibrationBaselineInspectionResource:
                     "report_path": f"output/Company{index}_Strategic_Overview.md",
                     "report_file": f"Company{index}_Strategic_Overview.md",
                     "sidecar_exists": True,
+                    "sidecar_matches_report": True,
                     "claims_sampled": 2,
                     "judgeable_claims": 2,
                     "coverage_tags": ["clean"] if index % 2 == 0 else ["blocked_origin"],

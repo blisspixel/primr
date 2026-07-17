@@ -107,6 +107,27 @@ class TestSearchQueryConstruction:
             site_part = params["q"].split("-site:")[1] if "-site:" in params["q"] else ""
             assert not site_part.startswith("www.")
 
+    def test_site_filter_omits_explicit_port(self):
+        """A URL port is not part of Google's site-restriction hostname."""
+        from primr.data.search_utils import _search_google
+
+        with (
+            patch("primr.data.search_utils._google_api_available", True),
+            patch("primr.data.search_utils.requests.get") as mock_get,
+        ):
+            mock_response = Mock()
+            mock_response.json.return_value = {
+                "items": [{"link": "https://example.com/article", "title": "Test"}]
+            }
+            mock_response.raise_for_status = Mock()
+            mock_get.return_value = mock_response
+
+            _search_google("news", "Test Co", "https://www.example.com:8443/path")
+
+            query = mock_get.call_args_list[0].kwargs["params"]["q"]
+            assert "-site:example.com" in query
+            assert ":8443" not in query
+
     def test_no_site_filter_when_no_website(self):
         """No -site: filter when website is None or empty."""
         from primr.data.search_utils import _search_google
@@ -699,6 +720,25 @@ class TestDDGSearch:
 
             assert len(results) == 1
             assert "news.com" in results[0]["url"]
+
+    def test_ddg_domain_filter_is_port_agnostic_and_boundary_aware(self):
+        """Own subdomains are excluded without hiding lookalike domains."""
+        from primr.data.search_utils import _search_ddg
+
+        mock_ddg_results = [
+            {"title": "Own", "href": "https://news.acme.com/update", "body": "..."},
+            {"title": "Lookalike", "href": "https://notacme.com/story", "body": "..."},
+            {"title": "News", "href": "https://news.example/story", "body": "..."},
+        ]
+        with patch("ddgs.DDGS") as mock_ddgs:
+            mock_ddgs.return_value.text.return_value = mock_ddg_results
+
+            results = _search_ddg("news", "Acme Corp", "https://www.acme.com:8443", num_results=5)
+
+        assert [result["url"] for result in results] == [
+            "https://notacme.com/story",
+            "https://news.example/story",
+        ]
 
     def test_ddg_handles_rate_limit(self):
         """DDG rate limit should return empty and record failure."""

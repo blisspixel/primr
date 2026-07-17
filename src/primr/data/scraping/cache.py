@@ -201,7 +201,7 @@ class ScrapeCache:
 
         if raw_file.exists() and meta_file.exists():
             try:
-                with open(meta_file) as f:
+                with open(meta_file, encoding="utf-8") as f:
                     meta = json.load(f)
 
                 # Check TTL. Clamp the age to a non-negative range: a
@@ -238,7 +238,7 @@ class ScrapeCache:
             with open(raw_file, "wb") as f:
                 f.write(content)
 
-            with open(meta_file, "w") as f:
+            with open(meta_file, "w", encoding="utf-8") as f:
                 json.dump(
                     {
                         "url": url,
@@ -270,7 +270,7 @@ class ScrapeCache:
 
         if text_file.exists() and meta_file.exists():
             try:
-                with open(meta_file) as f:
+                with open(meta_file, encoding="utf-8") as f:
                     meta = json.load(f)
 
                 # Check TTL. Same clock-skew clamp as get_raw above: a
@@ -305,7 +305,7 @@ class ScrapeCache:
             with open(text_file, "w", encoding="utf-8") as f:
                 f.write(text)
 
-            with open(meta_file, "w") as f:
+            with open(meta_file, "w", encoding="utf-8") as f:
                 json.dump(
                     {
                         "url": url,
@@ -343,7 +343,7 @@ class ScrapeCache:
             if f.suffix == ".json" and "_meta" in f.name:
                 try:
                     if max_age_hours is not None:
-                        with open(f) as mf:
+                        with open(f, encoding="utf-8") as mf:
                             meta = json.load(mf)
                         cached_time = datetime.fromisoformat(meta["timestamp"])
                         age_hours = (datetime.now() - cached_time).total_seconds() / 3600
@@ -366,7 +366,7 @@ class ScrapeCache:
                         data_file.unlink()
                     cleared += 1
                 except (OSError, json.JSONDecodeError, KeyError, ValueError):
-                    pass
+                    continue
 
         return cleared
 

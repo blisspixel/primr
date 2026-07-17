@@ -40,6 +40,25 @@ ProgressCallback = Callable[[int, int, str], None]
 ErrorCallback = Callable[[Exception, str], None]
 
 
+class ConfigurationError(Exception):
+    """Raised when required configuration is missing or invalid.
+
+    The legacy configuration facade and typed error hierarchy share this
+    dependency-leaf class so their exception identity remains compatible
+    without either higher-level module importing the other.
+    """
+
+    def __init__(self, message: str, guidance: str | None = None):
+        super().__init__(message)
+        self.message = message
+        self.guidance = guidance
+
+    def __str__(self) -> str:
+        if self.guidance:
+            return f"{self.message}\n  Guidance: {self.guidance}"
+        return self.message
+
+
 # =============================================================================
 # ENUMS
 # =============================================================================

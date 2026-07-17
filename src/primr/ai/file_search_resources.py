@@ -28,6 +28,13 @@ _PRIMR_RESOURCE_PREFIX = "primr-"
 _DEFAULT_STALE_AGE_SECONDS = 3600.0
 
 
+def _create_genai_client(api_key: str) -> Any:
+    """Construct the cleanup client without importing a high-level consumer."""
+    from google import genai
+
+    return genai.Client(api_key=api_key, http_options=default_genai_http_options())
+
+
 def _is_primr_owned(resource: Any) -> bool:
     """True if a Gemini cache/store carries the Primr display-name prefix.
 
@@ -86,13 +93,11 @@ def cleanup_orphaned_resources(
     Returns:
         Dict with counts: ``{"caches_deleted": N, "stores_deleted": N}``.
     """
-    from primr.ai.deep_research import _require_genai_dependency, genai
     from primr.config.settings import get_settings
 
-    _require_genai_dependency()
     settings = get_settings()
     key = api_key or settings.api.gemini_key
-    client = genai.Client(api_key=key, http_options=default_genai_http_options())
+    client = _create_genai_client(key)
 
     if stale_age_seconds is None:
         try:

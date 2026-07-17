@@ -22,6 +22,8 @@ from primr.mcp_server.security import PathValidator
 from primr.skill_pack.config import (
     DEFAULT_ROLES,
     DEFAULT_SKILLS_PER_ROLE,
+    MAX_AUTO_RESOLVE_PAIRS,
+    MAX_ROLES,
     SkillPackConfig,
     SkillPackFormat,
 )
@@ -52,7 +54,7 @@ def _mcp_server_for(arguments):
     """
     roots: list[str] = ["output", "logs", "working"]
     tmp_base = Path(tempfile.gettempdir()).resolve()
-    for key in ("report_path", "destination", "from_jd_path"):
+    for key in ("report_path", "destination", "from_jd_path", "from_plan_path"):
         val = arguments.get(key)
         if not val:
             continue
@@ -65,6 +67,38 @@ def _mcp_server_for(arguments):
     server = MagicMock()
     server.path_validator = PathValidator(allowed_roots=roots)
     return server
+
+
+def _write_saved_plan(path: Path, roles_count: int) -> None:
+    roles = [
+        {
+            "name": f"role-{index}",
+            "display_name": f"Role {index}",
+            "confidence": "Confirmed",
+            "summary": f"Role {index} summary",
+            "evidence": {
+                "provenance": "posting",
+                "posting_count": 1,
+                "citations": [f"Role {index} posting"],
+            },
+        }
+        for index in range(roles_count)
+    ]
+    path.write_text(
+        json.dumps(
+            {
+                "observed": roles,
+                "plausible": [],
+                "gap_flagged": [],
+                "operator_added": [],
+                "operator_skipped": [],
+                "final_roster": roles,
+                "industry": {},
+                "evidence_summary": {},
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 async def _call(name, arguments, mcp_server=None):
@@ -163,6 +197,44 @@ def test_estimate_cost_includes_remote_icon_allowance():
     assert remote["cost_usd"] > local["cost_usd"]
 
 
+def test_estimate_cost_scales_with_refinement_fan_out():
+    one_turn = spt._estimate_skill_pack_cost(
+        5,
+        3,
+        has_report_path=True,
+        max_refine_iterations=1,
+    )
+    five_turns = spt._estimate_skill_pack_cost(
+        5,
+        3,
+        has_report_path=True,
+        max_refine_iterations=5,
+    )
+    assert five_turns["cost_usd"] > one_turn["cost_usd"]
+
+
+def test_estimate_cost_reserves_every_reachable_refinement_call():
+    estimate = spt._estimate_skill_pack_cost(
+        15,
+        5,
+        has_report_path=True,
+        max_refine_iterations=5,
+    )
+    reachable_refinement_cost = 0.015 * (15 * 5 * 5 + MAX_AUTO_RESOLVE_PAIRS)
+    assert estimate["cost_usd"] >= reachable_refinement_cost
+
+
+def test_zero_per_skill_refinement_still_prices_auto_resolution():
+    estimate = spt._estimate_skill_pack_cost(
+        1,
+        1,
+        has_report_path=True,
+        max_refine_iterations=0,
+    )
+    base_without_auto_resolution = 0.03 + 0.02 + 0.02
+    assert estimate["cost_usd"] >= (base_without_auto_resolution + 0.015 * MAX_AUTO_RESOLVE_PAIRS)
+
+
 # ---------------------------------------------------------------------------
 # estimate_skill_pack handler
 # ---------------------------------------------------------------------------
@@ -176,11 +248,23 @@ async def test_estimate_requires_company_name():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("value", [True, 1.5, "not-an-integer"])
+async def test_estimate_rejects_non_integer_numeric_arguments(value):
+    payload = await _call(
+        "estimate_skill_pack",
+        {"company_name": "Acme Corp", "roles_count": value},
+    )
+    assert payload["error"] is True
+    assert "roles_count must be an integer" in payload["message"]
+
+
+@pytest.mark.asyncio
 async def test_estimate_defaults_applied():
     payload = await _call("estimate_skill_pack", {"company_name": "Acme Corp"})
     assert payload["company_name"] == "Acme Corp"
     assert payload["roles_count"] == DEFAULT_ROLES
     assert payload["skills_per_role"] == DEFAULT_SKILLS_PER_ROLE
+    assert payload["max_refine_iterations"] == 2
     assert payload["uses_existing_report"] is False
     assert payload["remote_icons"] is False
     assert "cost_usd" in payload
@@ -234,6 +318,46 @@ async def test_estimate_with_career_urls_flags_collection():
 
     assert payload["uses_career_urls"] is True
     assert payload["uses_existing_report"] is False
+
+
+@pytest.mark.asyncio
+async def test_estimate_from_plan_uses_exact_saved_roster(tmp_path):
+    plan = tmp_path / "role_plan.json"
+    _write_saved_plan(plan, 4)
+
+    payload = await _call(
+        "estimate_skill_pack",
+        {
+            "company_name": "Acme Corp",
+            "report_path": str(tmp_path),
+            "from_plan_path": str(plan),
+            "roles_count": 1,
+        },
+    )
+
+    expected = spt._estimate_skill_pack_cost(4, DEFAULT_SKILLS_PER_ROLE, True)
+    assert payload["roles_count"] == 4
+    assert payload["requested_roles_count"] == 1
+    assert payload["uses_saved_plan"] is True
+    assert payload["cost_usd"] == expected["cost_usd"]
+
+
+@pytest.mark.asyncio
+async def test_estimate_rejects_from_plan_outside_allowed_roots(tmp_path):
+    server = MagicMock()
+    server.path_validator = PathValidator(allowed_roots=[str(tmp_path)])
+
+    payload = await _call(
+        "estimate_skill_pack",
+        {
+            "company_name": "Acme Corp",
+            "from_plan_path": str(Path(__file__).resolve()),
+        },
+        mcp_server=server,
+    )
+
+    assert payload["error"] is True
+    assert "from_plan_path rejected" in payload["message"]
 
 
 # ---------------------------------------------------------------------------
@@ -634,6 +758,23 @@ async def test_non_numeric_cost_cap_is_rejected_when_enforced(monkeypatch, tmp_p
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf"])
+async def test_non_finite_cost_cap_is_rejected(monkeypatch, tmp_path, value):
+    monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
+    payload = await _call(
+        "generate_skill_pack",
+        {
+            "company_name": "Acme Corp",
+            "report_path": str(tmp_path),
+            "max_estimated_cost_usd": value,
+        },
+    )
+
+    assert payload["error"] is True
+    assert "finite and > 0" in payload["message"]
+
+
+@pytest.mark.asyncio
 async def test_missing_cost_cap_is_rejected_when_enforced(monkeypatch, tmp_path):
     # Fail closed: enforcement on but NO cap supplied must be rejected, not run.
     monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
@@ -682,6 +823,281 @@ async def test_roles_override_estimate_uses_effective_count(monkeypatch, tmp_pat
 
 
 @pytest.mark.asyncio
+async def test_saved_plan_estimate_uses_effective_count(monkeypatch, tmp_path):
+    monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
+    plan = tmp_path / "role_plan.json"
+    _write_saved_plan(plan, 5)
+    one_role = spt._estimate_skill_pack_cost(1, 3, has_report_path=True)["cost_usd"]
+
+    payload = await _call(
+        "generate_skill_pack",
+        {
+            "company_name": "Acme Corp",
+            "report_path": str(tmp_path),
+            "from_plan_path": str(plan),
+            "roles_count": 1,
+            "max_estimated_cost_usd": one_role,
+        },
+    )
+
+    assert payload["error"] is True
+    assert "exceeds cap" in payload["message"]
+
+
+@pytest.mark.asyncio
+async def test_duplicate_override_estimate_and_generate_share_effective_count(
+    monkeypatch,
+    tmp_path,
+    patched_pipeline,
+):
+    monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
+    estimate_args = {
+        "company_name": "Acme Corp",
+        "report_path": str(tmp_path),
+        "roles_override": ["Account Executive", "Account Executive"],
+    }
+    estimate = await _call("estimate_skill_pack", estimate_args)
+    assert estimate["roles_count"] == 1
+
+    generated = await _call(
+        "generate_skill_pack",
+        {
+            **estimate_args,
+            "max_estimated_cost_usd": estimate["cost_usd"],
+            "approval_token": estimate["approval_token"],
+        },
+    )
+
+    assert generated["company_name"] == "Acme Corp"
+    config = patched_pipeline["run"].call_args.kwargs["config"]
+    assert config.roles_count == 1
+    assert config.roles_override == ["Account Executive"]
+
+
+@pytest.mark.asyncio
+async def test_automatic_roles_add_estimate_keeps_final_cap(tmp_path):
+    payload = await _call(
+        "estimate_skill_pack",
+        {
+            "company_name": "Acme Corp",
+            "report_path": str(tmp_path),
+            "roles_count": 5,
+            "roles_add": ["Account Executive", "Procurement Manager"],
+        },
+    )
+
+    assert payload["roles_count"] == 5
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("field", ["roles_override", "roles_add", "roles_skip"])
+async def test_approval_token_rejects_operator_roster_substitution(
+    monkeypatch,
+    tmp_path,
+    patched_pipeline,
+    field,
+):
+    monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
+    estimate_args = {
+        "company_name": "Acme Corp",
+        "report_path": str(tmp_path),
+        field: ["approved-role"],
+    }
+    estimate = await _call("estimate_skill_pack", estimate_args)
+
+    generated = await _call(
+        "generate_skill_pack",
+        {
+            **estimate_args,
+            field: ["changed-role"],
+            "max_estimated_cost_usd": 100.0,
+            "approval_token": estimate["approval_token"],
+        },
+    )
+
+    assert generated["error_type"] == "invalid_approval_token"
+    assert "arguments do not match" in generated["message"]
+    patched_pipeline["run"].assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_approval_token_rejects_refinement_iteration_swap(
+    monkeypatch,
+    tmp_path,
+    patched_pipeline,
+):
+    monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
+    estimate = await _call(
+        "estimate_skill_pack",
+        {
+            "company_name": "Acme Corp",
+            "report_path": str(tmp_path),
+            "max_refine_iterations": 1,
+        },
+    )
+
+    generated = await _call(
+        "generate_skill_pack",
+        {
+            "company_name": "Acme Corp",
+            "report_path": str(tmp_path),
+            "max_refine_iterations": 5,
+            "max_estimated_cost_usd": 100.0,
+            "approval_token": estimate["approval_token"],
+        },
+    )
+
+    assert generated["error_type"] == "invalid_approval_token"
+    assert "arguments do not match" in generated["message"]
+    patched_pipeline["run"].assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_approval_token_rejects_same_size_saved_plan_substitution(
+    monkeypatch,
+    tmp_path,
+    patched_pipeline,
+):
+    monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
+    first = tmp_path / "first_plan.json"
+    second = tmp_path / "second_plan.json"
+    _write_saved_plan(first, 1)
+    _write_saved_plan(second, 1)
+    second_payload = json.loads(second.read_text(encoding="utf-8"))
+    for field in ("observed", "final_roster"):
+        second_payload[field][0]["name"] = "different-role"
+        second_payload[field][0]["display_name"] = "Different Role"
+    second.write_text(json.dumps(second_payload), encoding="utf-8")
+
+    estimate = await _call(
+        "estimate_skill_pack",
+        {
+            "company_name": "Acme Corp",
+            "report_path": str(tmp_path),
+            "from_plan_path": str(first),
+        },
+    )
+    generated = await _call(
+        "generate_skill_pack",
+        {
+            "company_name": "Acme Corp",
+            "report_path": str(tmp_path),
+            "from_plan_path": str(second),
+            "max_estimated_cost_usd": estimate["cost_usd"],
+            "approval_token": estimate["approval_token"],
+        },
+    )
+
+    assert generated["error_type"] == "invalid_approval_token"
+    assert "arguments do not match" in generated["message"]
+    patched_pipeline["run"].assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        {"industry": "sensitive-plan-marker"},
+        {
+            "final_roster": [
+                {
+                    "name": "role-a",
+                    "display_name": "Role A",
+                    "evidence": {"posting_count": "sensitive-plan-marker"},
+                }
+            ]
+        },
+        {
+            "final_roster": [
+                {
+                    "name": "sensitive-plan-marker_underscore",
+                    "display_name": "Role A",
+                }
+            ]
+        },
+    ],
+)
+async def test_malformed_saved_plan_errors_are_sanitized(tmp_path, mutation):
+    plan = tmp_path / "role_plan.json"
+    payload = {
+        "final_roster": [{"name": "role-a", "display_name": "Role A"}],
+        **mutation,
+    }
+    plan.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = await _call(
+        "estimate_skill_pack",
+        {
+            "company_name": "Acme Corp",
+            "from_plan_path": str(plan),
+        },
+    )
+
+    assert result["error"] is True
+    assert "sensitive-plan-marker" not in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_saved_plan_rejects_oversized_industry_prompt(tmp_path):
+    plan = tmp_path / "role_plan.json"
+    plan.write_text(
+        json.dumps(
+            {
+                "final_roster": [{"name": "role-a", "display_name": "Role A"}],
+                "industry": {"business_model": "x" * 1_001},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = await _call(
+        "estimate_skill_pack",
+        {"company_name": "Acme Corp", "from_plan_path": str(plan)},
+    )
+
+    assert result["error"] is True
+    assert "industry.business_model" in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_oversized_saved_plan_is_rejected_before_pipeline(tmp_path, patched_pipeline):
+    plan = tmp_path / "role_plan.json"
+    _write_saved_plan(plan, MAX_ROLES + 1)
+
+    payload = await _call(
+        "generate_skill_pack",
+        {
+            "company_name": "Acme Corp",
+            "report_path": str(tmp_path),
+            "from_plan_path": str(plan),
+        },
+    )
+
+    assert payload["error"] is True
+    assert "at most" in payload["message"]
+    patched_pipeline["run"].assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_generate_rejects_from_plan_outside_allowed_roots(tmp_path):
+    server = MagicMock()
+    server.path_validator = PathValidator(allowed_roots=[str(tmp_path)])
+
+    payload = await _call(
+        "generate_skill_pack",
+        {
+            "company_name": "Acme Corp",
+            "report_path": str(tmp_path),
+            "from_plan_path": str(Path(__file__).resolve()),
+        },
+        mcp_server=server,
+    )
+
+    assert payload["error"] is True
+    assert "from_plan_path rejected" in payload["message"]
+
+
+@pytest.mark.asyncio
 async def test_path_outside_allowed_roots_is_rejected():
     # An absolute server path outside the allowed roots must be refused.
     payload = await _call(
@@ -724,7 +1140,7 @@ async def test_comma_string_role_lists_are_coerced(tmp_path, patched_pipeline):
 @pytest.mark.asyncio
 async def test_plan_only_and_from_plan_path_mapped(tmp_path, patched_pipeline):
     plan_json = tmp_path / "role_plan.json"
-    plan_json.write_text("{}", encoding="utf-8")
+    _write_saved_plan(plan_json, 3)
     await _call(
         "generate_skill_pack",
         {
@@ -743,6 +1159,10 @@ async def test_plan_only_and_from_plan_path_mapped(tmp_path, patched_pipeline):
     assert cfg.allow_recon_only is True
     assert cfg.emit_agent_metadata is True
     assert cfg.remote_icon_generation is True
+    assert cfg.roles_count == 3
+    prepared_plan = patched_pipeline["run"].call_args.kwargs["prepared_plan"]
+    assert prepared_plan is not None
+    assert len(prepared_plan.final_roster) == 3
 
 
 @pytest.mark.asyncio

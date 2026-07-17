@@ -178,6 +178,10 @@ class TestRunnerFiles:
         """Copies manifest.py to container."""
         assert re.search(r"COPY.*manifest\.py", dockerfile_content), "Missing COPY for manifest.py"
 
+    def test_copies_runner_observability_dependency(self, dockerfile_content: str) -> None:
+        """Copies the deployment observability module imported by runner.py."""
+        assert "COPY deploy/observability.py /app/deploy/observability.py" in dockerfile_content
+
 
 class TestSecurityBestPractices:
     """Test security best practices."""

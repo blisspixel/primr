@@ -246,7 +246,6 @@ from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from urllib.parse import urlparse
 
 if TYPE_CHECKING:
     from primr.core.research_framing import ResearchFraming
@@ -308,6 +307,8 @@ from primr.utils.observability import (
     log_job_summary,
     log_structured,
 )
+from primr.utils.url_helpers import normalized_hostname
+from primr.utils.validators import sanitize_for_filename
 
 load_primr_env()
 
@@ -399,11 +400,9 @@ def create_working_folder(company_name, website, reuse_incomplete: bool = False)
     """
     from datetime import datetime
 
-    if not company_name and website:
-        parsed_url = urlparse(website)
-        company_name = parsed_url.netloc.replace("www.", "").replace(".", "_")
+    from primr.core.workspace import derive_working_folder_name
 
-    folder_name = company_name.replace(" ", "_") if company_name else "Unknown_Company"
+    folder_name = derive_working_folder_name(company_name, website)
 
     company_root = os.path.join(WORKING_DIR, folder_name)
 
@@ -950,7 +949,7 @@ def perform_scrape_only(
         console.fail("Scrape mode requires a website URL")
         return None
 
-    display_name = company_name or urlparse(website).netloc
+    display_name = company_name or normalized_hostname(website, strip_www=True)
 
     # Create working folder (silent)
     folder_path = folder_path or create_working_folder(company_name, website)
@@ -2477,7 +2476,7 @@ def _save_strategy_output(
 
     date_str = datetime.now().strftime("%m-%d-%Y")
     vendor_suffix = f"_{platform.upper()}" if platform != "agnostic" else ""
-    base_name = f"{company_name}_{strategy_label}{vendor_suffix}_{date_str}"
+    base_name = f"{sanitize_for_filename(company_name, max_length=200)}_{strategy_label}{vendor_suffix}_{date_str}"
     destination_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
     destination_dir.mkdir(parents=True, exist_ok=True)
     internal_dir = Path(diagnostics_dir) if diagnostics_dir is not None else destination_dir
@@ -2603,13 +2602,10 @@ def _extract_domain(url: str) -> str | None:
     Uses recon's own validator for normalization.
     Returns None if the URL cannot be parsed into a valid domain.
     """
-    from urllib.parse import urlparse as _urlparse
-
     try:
         from recon_tool.validator import validate_domain
 
-        parsed = _urlparse(url)
-        raw = parsed.netloc or parsed.path.split("/")[0]
+        raw = normalized_hostname(url)
         return validate_domain(raw)
     except (ValueError, Exception):
         return None
@@ -2649,7 +2645,7 @@ def perform_research(
         console.error("No company name or website provided")
         return None
 
-    display_name: str = company_name or (urlparse(website or "").netloc if website else "")
+    display_name: str = company_name or normalized_hostname(website or "", strip_www=True)
     folder_path = create_working_folder(company_name, website, reuse_incomplete=resume_local)
     explicit_platforms = platforms is not None
     if platforms is None:
@@ -3302,7 +3298,7 @@ def perform_deep_research(
         discovery_notes_path: Path to discovery notes file (for logging/tracking)
         discovery_notes_content: Loaded content of discovery notes (freeform meeting insights)
     """
-    display_name: str = company_name or (urlparse(website or "").netloc if website else "")
+    display_name: str = company_name or normalized_hostname(website or "", strip_www=True)
     folder_path = folder_path or create_working_folder(company_name, website)
     run_output_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
     run_output_dir.mkdir(parents=True, exist_ok=True)
@@ -3833,7 +3829,7 @@ def _convert_deep_research_to_docx(
     from primr.output.output_utils import OUTPUT_DIR
 
     date_str = datetime.now().strftime("%m-%d-%Y")
-    base_name = f"{company_name}_Strategic_Overview_{date_str}"
+    base_name = f"{sanitize_for_filename(company_name, 200)}_Strategic_Overview_{date_str}"
     destination_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
     destination_dir.mkdir(parents=True, exist_ok=True)
     internal_dir = Path(diagnostics_dir) if diagnostics_dir is not None else destination_dir

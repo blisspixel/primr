@@ -4,14 +4,15 @@ These are deterministic, zero-network gates that fail CI when the codebase
 drifts away from its stated conventions. They are intentionally cheap and
 boring: their job is to make "slop" fail a gate instead of a review comment.
 
-Four rules enforced here:
+Six rules enforced here:
 
 1. **No new giant files / monsters can't grow.** A rise-only per-file line
    ceiling. New files must stay under ``NEW_FILE_MAX_LINES``; the existing
    large files are pinned at their current size in ``FILE_LINE_CEILINGS`` and
    may not exceed it. The fix for a failure is to *split the file*, not to bump
    the ceiling; ceilings only ever ratchet **down** (and a deliberate
-   reduction when a file shrinks is welcome).
+   reduction when a file shrinks is welcome). A split must still create a
+   coherent boundary; line count alone is not a design reason.
 
 2. **One JSON library.** stdlib ``json`` only; no orjson/ujson/simplejson
    creeping in as a "faster" second way.
@@ -22,6 +23,12 @@ Four rules enforced here:
 4. **Acyclic MCP controller boundary.** Only composition roots may import the
    concrete MCP server module. Other consumers use the structural context.
 
+5. **No accidental micro-modules.** Sub-40-line modules require an explicit
+   architectural rationale, and empty non-package modules are forbidden.
+
+6. **Import-cycle ratchet.** Existing broad cycle components are pinned and
+   may only shrink. New or growing first-party import cycles fail CI.
+
 See CLAUDE.md ("Use the one seam") and ROADMAP → Engineering Standards.
 """
 
@@ -29,6 +36,8 @@ from __future__ import annotations
 
 import ast
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -45,17 +54,17 @@ NEW_FILE_MAX_LINES = 1000
 # When a file is split and shrinks, lower its ceiling (or drop it once under
 # NEW_FILE_MAX_LINES). Never raise a ceiling to make a growing file pass.
 FILE_LINE_CEILINGS: dict[str, int] = {
-    "core/research_agent.py": 4351,
+    "core/research_agent.py": 4347,
     "core/cli.py": 3366,
-    "ai/deep_research.py": 3887,
+    "ai/deep_research.py": 3885,
     "data/scraping/browsers.py": 1835,
-    "data/hiring_signals.py": 1582,
+    "data/hiring_signals.py": 1577,
     "core/model_eval.py": 1832,
-    "data/scrape.py": 1836,
+    "data/scrape.py": 1832,
     "mcp_server/tools.py": 1519,
     "data/fallback_sources.py": 1084,
     "agentic/hooks.py": 1022,
-    "core/research_orchestrator.py": 1079,
+    "core/research_orchestrator.py": 1007,
     "data/scraping/orchestrator.py": 1064,
     "data/scraping/structured_content.py": 1067,
 }
@@ -67,6 +76,234 @@ def _line_count(path: Path) -> int:
 
 def _src_py_files() -> list[Path]:
     return [p for p in SRC_ROOT.rglob("*.py") if "__pycache__" not in p.parts]
+
+
+MIN_MODULE_REVIEW_LINES = 40
+
+# Small modules can be excellent boundaries. This ledger prevents file-count
+# growth from becoming an unreviewed side effect of the maximum-size ratchet.
+# Entries must state the boundary they own; a new tiny module fails until its
+# reason is reviewed here. When an entry grows past the threshold, remove it.
+INTENTIONAL_TINY_MODULES: dict[str, str] = {
+    "__main__.py": "python -m primr composition shim",
+    "a2a/skill_ids.py": "wire-protocol skill identifiers",
+    "a2a/status_events.py": "A2A status-event translation boundary",
+    "ai/deep_research_polling.py": "pure polling schedule policy",
+    "config/sections_config.py": "section configuration compatibility surface",
+    "core/cli_vendor.py": "vendor command composition boundary",
+    "data/first_party_url.py": "first-party URL policy seam",
+    "mcp_server/cloud_detect.py": "cloud-runtime adapter",
+    "mcp_server/qa_operations.py": "shared QA operation boundary",
+    "mcp_server/resource_summary_utils.py": "compact resource-summary policy",
+    "mcp_server/server_context.py": "cross-transport structural context",
+    "mcp_server/worker_environment.py": "least-privilege worker environment boundary",
+    "primr_cli.py": "legacy console-entry compatibility shim",
+    "qa/artifact_fingerprints.py": "artifact identity policy",
+    "qa/calibration_judge_agreement.py": "judge-agreement calculation seam",
+    "utils/timeutils.py": "shared UTC clock seam",
+}
+
+
+def test_tiny_modules_have_reviewed_boundaries():
+    """Sub-40-line modules must own a reviewed boundary, not just moved lines."""
+    current = {
+        path.relative_to(SRC_ROOT).as_posix()
+        for path in _src_py_files()
+        if path.name != "__init__.py" and _line_count(path) < MIN_MODULE_REVIEW_LINES
+    }
+    documented = set(INTENTIONAL_TINY_MODULES)
+    undocumented = sorted(current - documented)
+    stale = sorted(documented - current)
+    assert not undocumented, (
+        "New tiny modules need a real "
+        "policy, protocol, lifecycle, adapter, composition, or test boundary; "
+        "do not add a rationale for line-count-only splits.\n"
+        f"Undocumented: {undocumented}"
+    )
+    assert not stale, f"Remove tiny-module rationale entries that grew or disappeared: {stale}"
+
+
+def test_no_empty_non_package_modules():
+    """Empty source modules add a navigation hop without owning behavior."""
+    empty = sorted(
+        path.relative_to(SRC_ROOT).as_posix()
+        for path in _src_py_files()
+        if path.name != "__init__.py" and not path.read_text(encoding="utf-8").strip()
+    )
+    assert not empty, "Remove empty non-package modules:\n" + "\n".join(empty)
+
+
+EXPECTED_IMPORT_CYCLES = {
+    frozenset(
+        {
+            "primr",
+            "primr.core.cli",
+            "primr.core.cli_budget",
+            "primr.core.cli_dispatch",
+            "primr.core.cli_doctor",
+            "primr.core.cli_dryrun",
+            "primr.core.cli_errors",
+            "primr.core.cli_init",
+            "primr.core.cli_plan",
+            "primr.core.cli_update",
+            "primr.core.cli_vendor",
+            "primr.core.deep_research_runner",
+            "primr.core.fast_run_collection",
+            "primr.core.fast_run_gaps",
+            "primr.core.fast_run_sections",
+            "primr.core.fast_run_setup",
+            "primr.core.fast_run_strategy",
+            "primr.core.fast_run_summary",
+            "primr.core.fast_run_trust",
+            "primr.core.fast_run_validation",
+            "primr.core.refine",
+            "primr.core.research_agent",
+            "primr.core.research_orchestrator",
+            "primr.core.section_regeneration",
+        }
+    ),
+    frozenset(
+        {
+            "primr.ai.client",
+            "primr.ai.grok_client",
+            "primr.ai.llm",
+            "primr.ai.routing",
+            "primr.config.eval_profiles",
+            "primr.core.deep_budget",
+            "primr.core.model_eval",
+            "primr.pipeline.llm_failover",
+            "primr.utils.cost_estimator",
+        }
+    ),
+    frozenset(
+        {
+            "primr.data.fallback_sources",
+            "primr.data.first_party_pdf",
+            "primr.data.first_party_structured_data",
+        }
+    ),
+}
+
+
+def _module_name(path: Path) -> str:
+    parts = path.relative_to(SRC_ROOT).with_suffix("").parts
+    if parts[-1] == "__init__":
+        parts = parts[:-1]
+    return ".".join(("primr", *parts))
+
+
+def _resolved_internal_imports(
+    path: Path,
+    tree: ast.AST,
+    known_modules: set[str],
+) -> set[str]:
+    targets: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            targets.update(alias.name for alias in node.names if alias.name in known_modules)
+            continue
+        if not isinstance(node, ast.ImportFrom):
+            continue
+        base = _resolved_import_from_module(path, node)
+        if base in known_modules:
+            targets.add(base)
+        targets.update(
+            f"{base}.{alias.name}"
+            for alias in node.names
+            if f"{base}.{alias.name}" in known_modules
+        )
+    return targets
+
+
+def _strongly_connected_components(graph: dict[str, set[str]]) -> set[frozenset[str]]:
+    index = 0
+    indexes: dict[str, int] = {}
+    lowlinks: dict[str, int] = {}
+    stack: list[str] = []
+    on_stack: set[str] = set()
+    components: set[frozenset[str]] = set()
+
+    def visit(node: str) -> None:
+        nonlocal index
+        indexes[node] = index
+        lowlinks[node] = index
+        index += 1
+        stack.append(node)
+        on_stack.add(node)
+        for target in graph[node]:
+            if target not in indexes:
+                visit(target)
+                lowlinks[node] = min(lowlinks[node], lowlinks[target])
+            elif target in on_stack:
+                lowlinks[node] = min(lowlinks[node], indexes[target])
+        if lowlinks[node] != indexes[node]:
+            return
+        component: set[str] = set()
+        while stack:
+            member = stack.pop()
+            on_stack.remove(member)
+            component.add(member)
+            if member == node:
+                break
+        if len(component) > 1:
+            components.add(frozenset(component))
+
+    for node in sorted(graph):
+        if node not in indexes:
+            visit(node)
+    return components
+
+
+def test_first_party_import_cycles_match_burndown_baseline():
+    """New or growing import-cycle components fail; existing ones may shrink."""
+    files = _src_py_files()
+    known_modules = {_module_name(path) for path in files}
+    graph = {
+        _module_name(path): _resolved_internal_imports(
+            path,
+            ast.parse(path.read_text(encoding="utf-8"), filename=str(path)),
+            known_modules,
+        )
+        for path in files
+    }
+    actual = _strongly_connected_components(graph)
+    assert actual == EXPECTED_IMPORT_CYCLES, (
+        "First-party import-cycle baseline changed. New or larger cycles must "
+        "be removed. If a cycle shrank, tighten EXPECTED_IMPORT_CYCLES.\n"
+        f"Expected: {sorted(map(sorted, EXPECTED_IMPORT_CYCLES))}\n"
+        f"Actual: {sorted(map(sorted, actual))}"
+    )
+
+
+@pytest.mark.parametrize(
+    "modules",
+    [
+        ("primr.ai.deep_research", "primr.ai.file_search_resources"),
+        ("primr.ai.file_search_resources", "primr.ai.deep_research"),
+        ("primr.config.models", "primr.config.settings"),
+        ("primr.config.settings", "primr.config.models"),
+        ("primr.config.config", "primr.utils.errors"),
+        ("primr.utils.errors", "primr.config.config"),
+        ("primr.utils", "primr.utils.security"),
+        ("primr.utils.security", "primr.utils"),
+    ],
+)
+def test_removed_cycle_pairs_import_cleanly_in_fresh_interpreters(modules):
+    """Former cycle pairs remain order-independent without partial modules."""
+    source_parent = str(SRC_ROOT.parent)
+    expected_package = str((SRC_ROOT / "__init__.py").resolve())
+    imports = "; ".join(f"import {module}" for module in modules)
+    statement = (
+        f"import sys; sys.path.insert(0, {source_parent!r}); import primr; "
+        f"assert primr.__file__ == {expected_package!r}; {imports}"
+    )
+    subprocess.run(
+        [sys.executable, "-B", "-c", statement],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
 
 
 def test_no_file_exceeds_its_line_ceiling():

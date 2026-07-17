@@ -85,6 +85,7 @@ from primr.core.cli_dryrun import run_dry_run
 from primr.core.cli_errors import guard_dispatch
 from primr.core.cli_eval_args import add_eval_arguments
 from primr.core.cli_help import add_init_doctor_arguments, maybe_print_scoped_help
+from primr.core.cli_inference import prepare_batch_inference_runtime, prepare_inference_runtime
 from primr.core.cli_init import (
     _ensure_project_env_file as _ensure_project_env_file,
 )
@@ -118,6 +119,7 @@ from primr.core.cli_memory import (
 from primr.core.cli_parser import (
     CLI_EPILOG,
     _determine_command,
+    add_inference_arguments,
     add_research_input_arguments,
     enable_shell_completion,
 )
@@ -270,9 +272,9 @@ class CLIConfig:
     premium_mode: bool = False  # Force Gemini + Deep Research pipeline
     grok_tier: str = "hybrid"  # Grok model tier: fast, hybrid, max
     inference_profile: str = "cloud"  # Capability-routing profile for wired stages
-    continuous_reasoning: bool = (
-        True  # Default-on after the n=3 pilot; --no-continuous-reasoning to disable
-    )
+    acknowledge_host_agent_may_bill: bool = False
+    # Default on after the n=3 pilot; --no-continuous-reasoning disables it.
+    continuous_reasoning: bool = True
     no_qa: bool = False  # Disable automatic quality assessment
     verify: bool = False  # Run post-QA claim verification
     budget_usd: float | None = None  # Per-run cost ceiling (--budget)
@@ -421,7 +423,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
     parsed = parser.parse_args(_rewrite_company_command_args(args, parser))
     get = getattr
 
-    command = _determine_command(parsed)
+    command = _determine_command(parsed, Command, _POSITIONAL_COMMANDS, _FLAG_COMMANDS)
 
     mode = MODE_MAP.get(parsed.mode, parsed.mode)
 
@@ -572,6 +574,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         ),
         grok_tier=getattr(parsed, "grok_tier", "hybrid"),
         inference_profile=getattr(parsed, "inference_profile", "cloud"),
+        acknowledge_host_agent_may_bill=getattr(parsed, "acknowledge_host_agent_may_bill", False),
         continuous_reasoning=continuous_reasoning,
         no_qa=getattr(parsed, "no_qa", False),
         verify=getattr(parsed, "verify", False),
@@ -998,13 +1001,7 @@ def _create_parser() -> argparse.ArgumentParser:
         dest="grok_tier",
         help="Grok model tier: fast (4.3 low-effort + 4.20-nr, ~$4.36 base), hybrid (4.3 + 4.20-nr, default), max (4.3 everywhere, ~$3.75)",
     )
-    parser.add_argument(
-        "--inference",
-        choices=["cloud", "hybrid"],
-        default="cloud",
-        dest="inference_profile",
-        help="Inference profile for routed experimental stages",
-    )
+    add_inference_arguments(parser)
     parser.add_argument(
         "--continuous-reasoning",
         action="store_true",
@@ -1378,7 +1375,8 @@ def _handle_enrich(config: CLIConfig) -> int:
 
 def _handle_batch(config: CLIConfig) -> int:
     """Handle batch processing (Excel or CSV)."""
-    # New --batch flag takes priority
+    if not prepare_batch_inference_runtime(config, console):
+        return 1
     if config.batch_file:
         return process_batch(
             config.batch_file,
@@ -2436,6 +2434,9 @@ def _handle_research(config: CLIConfig) -> int:
         console.error(f"Invalid website URL: {e.reason}")
         return 1
 
+    if not prepare_inference_runtime(config, console):
+        return 1
+
     # Run preflight checks before starting the pipeline
     console.step("Preflight checks")
     preflight_ok, preflight_errors = _run_preflight_checks(
@@ -2535,7 +2536,6 @@ def _handle_research(config: CLIConfig) -> int:
     strategy_types = estimate_strategy_types(config) or None
 
     os.environ["PRIMR_BROWSER_SESSION_MODE"] = config.browser_session_mode
-    os.environ["PRIMR_INFERENCE_PROFILE"] = config.inference_profile
     if config.browser_headed:
         os.environ["PRIMR_BROWSER_HEADED"] = "1"
     else:

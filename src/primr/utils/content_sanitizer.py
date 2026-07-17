@@ -31,6 +31,10 @@ import unicodedata
 from dataclasses import dataclass, field
 from enum import Enum
 
+from primr.utils.sensitive_instruction_safety import (
+    find_sensitive_exfiltration_instruction,
+)
+
 logger = logging.getLogger(__name__)
 
 # Triple-angle delimiters and literal UNTRUSTED_*_BEGIN/END marker words are how
@@ -125,6 +129,67 @@ _RTL_OVERRIDE_CHARS = frozenset(
         "\u2068",  # First strong isolate
         "\u2069",  # Pop directional isolate
     }
+)
+
+# Explicit ranges complete Unicode 17's Default_Ignorable_Code_Point set
+# together with the category-Cf rejection in find_unsafe_instruction_unicode.
+_DEFAULT_IGNORABLE_RANGES = (
+    (0x034F, 0x034F),
+    (0x115F, 0x1160),
+    (0x17B4, 0x17B5),
+    (0x180B, 0x180F),
+    (0x2065, 0x2065),
+    (0x3164, 0x3164),
+    (0xFE00, 0xFE0F),
+    (0xFFA0, 0xFFA0),
+    (0xFFF0, 0xFFF8),
+    (0x1BCA0, 0x1BCA3),
+    (0x1D173, 0x1D17A),
+    (0xE0000, 0xE0FFF),
+)
+_AUTHORED_PROMPT_CONTROL_PATTERNS = (
+    re.compile(
+        r"\b(?:ignore|disregard|forget)\b[^\n]{0,60}"
+        r"(?:previous|prior|earlier|preceding|above|foregoing)\b[^\n]{0,40}"
+        r"(?:instruction|directive|prompt|message|context|rule|guidance|persona|system)",
+        re.IGNORECASE,
+    ),
+)
+_AUTHORED_AGENT_INSTRUCTION_PATTERNS = (
+    *_AUTHORED_PROMPT_CONTROL_PATTERNS,
+    re.compile(
+        r"\b(?:run|execute|invoke)\b[^\n]{0,40}"
+        r"(?:bash|powershell|pwsh|zsh|\bsh\b|terminal|sudo|/bin/|"
+        r"(?:shell|bash|system|terminal)\s+command)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:run|execute|invoke|paste|enter|type)\b[^\n]{0,30}"
+        r"\b(?:this|that|these|below|the\s+following|the\s+next)\b"
+        r"[^\n]{0,25}\b(?:commands?|scripts?|code|payloads?|snippets?|one[-\s]?liners?)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\brm\s+-[rf]{1,2}\b|\bdel\s+/[a-z]|\bformat\s+[a-z]:|\bmkfs\b|"
+        r"\bdd\s+if=|\bchmod\s+[0-7]{3,4}\b|:\(\)\s*\{\s*:\s*\|\s*:|"
+        r"\bshutdown\b\s+-|\bsudo\s+rm\b|>\s*/dev/sd",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:delet|remov|wip|purg|eras|destroy|overwrit|encrypt|exfiltrat|corrupt)\w*\b"
+        r"[^\n]{0,30}\b(?:local|system|your|all)\b[^\n]{0,15}"
+        r"\b(?:file|files|data|disk|drive|machine|directory|folder|host|home)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\bcurl\b[^\n]{0,200}\bhttps?://", re.IGNORECASE),
+    re.compile(r"\bwget\b[^\n]{0,200}\bhttps?://", re.IGNORECASE),
+    re.compile(r"```(?:bash|sh|shell|zsh|powershell|pwsh|cmd)\b", re.IGNORECASE),
+    re.compile(r"<\s*tool[^>]*>|<\s*function[^>]*>", re.IGNORECASE),
+    re.compile(r"\ballowed[-_ ]?tools\s*:", re.IGNORECASE),
+    re.compile(r"```\s*ya?ml\s*\n\s*---", re.IGNORECASE),
+    re.compile(r"<\s*allowed-tools", re.IGNORECASE),
+    re.compile(r"\bfile://", re.IGNORECASE),
+    re.compile(r"\$\{[^}]+\}"),
 )
 
 # Prompt injection detection patterns
@@ -239,6 +304,40 @@ _INJECTION_PATTERNS = [
         "Context manipulation attempt",
     ),
 ]
+_SOURCE_INJECTION_PATTERNS = tuple(pattern for pattern, _description in _INJECTION_PATTERNS)
+
+# Authored agent instructions legitimately contain example conversation labels,
+# role directions, and output constraints. The final package gate therefore
+# uses this high-confidence subset instead of promoting every advisory source-
+# sanitization heuristic to a ship blocker.
+_AUTHORED_INJECTION_PATTERNS = (
+    re.compile(
+        r"(?:^|\n)\s*SYSTEM\s*:",
+    ),
+    re.compile(
+        r"(?:^|\n)\s*System\s*:\s*(?=(?:(?:kindly|please)\s+)?(?:act\s+as|"
+        r"assume\s+the\s+role|behave\s+as|disregard|follow|forget|grant|ignore|"
+        r"never|obey|override|pretend|reveal|send|use|you\s+are\s+now)\b)",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\[SYSTEM\]", re.IGNORECASE),
+    re.compile(r"<\/?system(?:\s[^>]*)?>", re.IGNORECASE),
+    re.compile(
+        r"\b(?:you\s+are\s+now|act\s+as|behave\s+as|roleplay\s+as|"
+        r"pretend(?:\s+to\s+be|\s+you\s+are)|assume\s+the\s+role\s+of)\s*:?\s*"
+        r"(?:an?\s+|the\s+)?(?:(?:different|privileged|unrestricted)\s+)*"
+        r"(?:admin(?:istrator)?|ai|assistant|developer|root|superuser|"
+        r"system(?:\s+administrator)?)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:output|respond|reply|answer)\s+(?:only|exclusively|just)\s+"
+        r"(?:with|in|using)\s+(?:the\s+)?(?:content|format|instructions?|payload|text)\b"
+        r"[^\n]{0,80}\b(?:requested|specified|provided)\b[^\n]{0,40}"
+        r"\b(?:message|prompt|instruction)\b",
+        re.IGNORECASE,
+    ),
+)
 
 # Maximum content length (prevents resource exhaustion)
 _MAX_CONTENT_LENGTH = 500_000  # ~500KB
@@ -357,6 +456,58 @@ def _strip_injection_patterns(text: str) -> str:
 # =============================================================================
 # PUBLIC API
 # =============================================================================
+
+
+def find_unsafe_instruction_unicode(text: str) -> str | None:
+    """Return the first invisible or control character unsafe in instructions."""
+    for char in text:
+        codepoint = ord(char)
+        category = unicodedata.category(char)
+        if category == "Cf" or (category == "Cc" and char not in "\t\n\r"):
+            return f"U+{codepoint:04X}"
+        if any(start <= codepoint <= end for start, end in _DEFAULT_IGNORABLE_RANGES):
+            return f"U+{codepoint:04X}"
+    return None
+
+
+def find_authored_prompt_control(text: str) -> str | None:
+    """Return a high-confidence control-plane directive in authored prose."""
+    scan_text = re.sub(r"[\r\n]+", " ", text)
+    if shared_hit := find_prompt_injection(scan_text, authored_output=True):
+        return shared_hit
+    for pattern in _AUTHORED_PROMPT_CONTROL_PATTERNS:
+        if match := pattern.search(scan_text):
+            return match.group(0)
+    return None
+
+
+def find_authored_agent_instruction(text: str) -> str | None:
+    """Return an unsafe operational directive in authored agent prose."""
+    scan_text = re.sub(r"[\r\n]+", " ", text)
+    if exfiltration := find_sensitive_exfiltration_instruction(scan_text):
+        return exfiltration
+    if prompt_control := find_authored_prompt_control(scan_text):
+        return prompt_control
+    for pattern in _AUTHORED_AGENT_INSTRUCTION_PATTERNS:
+        if match := pattern.search(scan_text):
+            return match.group(0)
+    return None
+
+
+def find_prompt_injection(text: str, *, authored_output: bool = False) -> str | None:
+    """Return the first canonical prompt-injection marker in ``text``.
+
+    Source sanitization uses the broad advisory grammar. Final authored-output
+    gates use only high-confidence forms so legitimate examples, role guidance,
+    and output constraints do not become false-positive ship blockers.
+    """
+    if not text:
+        return None
+    patterns = _AUTHORED_INJECTION_PATTERNS if authored_output else _SOURCE_INJECTION_PATTERNS
+    for pattern in patterns:
+        if match := pattern.search(text):
+            return match.group(0)
+    return None
 
 
 class ContentSanitizer:

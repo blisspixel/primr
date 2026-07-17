@@ -7,6 +7,7 @@ boundary unchanged.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -30,11 +31,27 @@ MIN_SKILLS_PER_ROLE = 1
 MAX_SKILLS_PER_ROLE = 5
 DEFAULT_ROLES = 5
 DEFAULT_SKILLS_PER_ROLE = 3
+DEFAULT_EVAL_CASES = 3
+MAX_EVAL_CASES = 20
+EVAL_GENERATION_OUTPUT_TOKEN_CAP = 4_000
+EVAL_TASK_OUTPUT_TOKEN_CAP = 1_500
+EVAL_GRADER_OUTPUT_TOKEN_CAP = 4_000
+EVAL_GENERATION_INPUT_TOKEN_RESERVE = 12_000
+EVAL_CASE_INPUT_TOKEN_RESERVE = 39_000
+EVAL_CALL_SECONDS = 20
+EVAL_MODEL_RETRIES = 1
+EVAL_CHARGEABLE_ATTEMPT_CAP = EVAL_MODEL_RETRIES + 1
 
 # Per-skill refinement iteration cap. Beyond 2, diminishing-returns dominate
 # (validated in the broader QA refinement design — same cap as the planned
 # report-refinement loop).
 DEFAULT_MAX_REFINE_ITERATIONS = 2
+MAX_REFINE_ITERATIONS = 5
+
+# Pack-level coherence auto-resolution is a separate provider-call surface
+# from per-skill refinement. Bound it so estimates and execution share one
+# deterministic worst-case fan-out.
+MAX_AUTO_RESOLVE_PAIRS = 10
 
 # Per-role cost ceiling — pipeline aborts a role if its share exceeds this
 # even before CostGuardHook fires at the global level.
@@ -79,10 +96,10 @@ class SkillPackConfig:
     # cases + assertions, run the task WITH the skill vs WITHOUT it, grade
     # both, and report the pass-rate delta — proving the skill changes
     # output, not just that it is well-formed. Also writes evals/evals.json
-    # per skill. Expensive (~3 LLM calls per case per skill), so OFF by
-    # default; enable with the CLI --with-evals flag.
+    # per skill. Each skill uses one generation call plus four calls per case
+    # (two task arms and two graders), so this is OFF by default.
     with_evals: bool = False
-    eval_cases_per_skill: int = 3
+    eval_cases_per_skill: int = DEFAULT_EVAL_CASES
 
     # Optional primr-namespaced `metadata` block in each SKILL.md frontmatter
     # (role, provenance, confidence, approx context-token budget, and refresh
@@ -125,8 +142,9 @@ class SkillPackConfig:
 
     # Path to a previously-persisted role_plan.json. When set, the
     # planning step is skipped and the pipeline authors against the
-    # plan's final_roster verbatim. Supports the plan -> inspect -> author
-    # workflow without re-running the planning LLM calls.
+    # validated plan final_roster. The global role cap and optional curation
+    # are applied before cost approval and authoring. Supports the plan ->
+    # inspect -> author workflow without re-running planning LLM calls.
     from_plan_path: str | None = None
 
     # Path to an operator-supplied job description or role brief. The pipeline
@@ -160,30 +178,34 @@ class SkillPackConfig:
 
     def validate(self) -> None:
         """Raise ValueError on out-of-bounds config."""
-        if not MIN_ROLES <= self.roles_count <= MAX_ROLES:
-            raise ValueError(f"roles_count must be {MIN_ROLES}-{MAX_ROLES}, got {self.roles_count}")
         if not MIN_SKILLS_PER_ROLE <= self.skills_per_role <= MAX_SKILLS_PER_ROLE:
             raise ValueError(
                 f"skills_per_role must be {MIN_SKILLS_PER_ROLE}-{MAX_SKILLS_PER_ROLE}, "
                 f"got {self.skills_per_role}"
             )
-        if self.max_refine_iterations < 0:
-            raise ValueError("max_refine_iterations must be >= 0")
-        if self.max_cost_per_role_usd <= 0:
-            raise ValueError("max_cost_per_role_usd must be > 0")
-        if self.max_total_cost_usd is not None and self.max_total_cost_usd <= 0:
-            raise ValueError("max_total_cost_usd must be > 0 when set")
+        if not 0 <= self.max_refine_iterations <= MAX_REFINE_ITERATIONS:
+            raise ValueError(f"max_refine_iterations must be 0-{MAX_REFINE_ITERATIONS}")
+        if type(self.eval_cases_per_skill) is not int or not (
+            0 <= self.eval_cases_per_skill <= MAX_EVAL_CASES
+        ):
+            raise ValueError(f"eval_cases_per_skill must be 0-{MAX_EVAL_CASES}")
+        if not math.isfinite(self.max_cost_per_role_usd) or self.max_cost_per_role_usd <= 0:
+            raise ValueError("max_cost_per_role_usd must be finite and > 0")
+        if self.max_total_cost_usd is not None and (
+            not math.isfinite(self.max_total_cost_usd) or self.max_total_cost_usd <= 0
+        ):
+            raise ValueError("max_total_cost_usd must be finite and > 0 when set")
 
         # Light hygiene on operator-supplied role names.
         def _clean(raw_list: list[str], flag_name: str) -> list[str]:
             cleaned: list[str] = []
             seen: set[str] = set()
-            for raw in raw_list:
+            for index, raw in enumerate(raw_list):
                 label = str(raw).strip()
                 if not label or label.lower() in seen:
                     continue
                 if len(label) > 80:
-                    raise ValueError(f"{flag_name} entry exceeds 80 characters: {label!r}")
+                    raise ValueError(f"{flag_name} entry {index + 1} exceeds 80 characters")
                 seen.add(label.lower())
                 cleaned.append(label)
             if len(cleaned) > MAX_ROLES:
@@ -196,6 +218,14 @@ class SkillPackConfig:
         self.roles_add = _clean(self.roles_add, "roles_add")
         self.roles_skip = _clean(self.roles_skip, "roles_skip")
         self.career_urls = normalize_career_urls(self.career_urls)
+
+        # The validated, deduplicated override roster is authoritative. Keep
+        # one normalized count so CLI estimates, MCP approval tokens, and the
+        # pipeline cannot disagree when duplicate override labels were given.
+        if self.roles_override:
+            self.roles_count = len(self.roles_override)
+        if not MIN_ROLES <= self.roles_count <= MAX_ROLES:
+            raise ValueError(f"roles_count must be {MIN_ROLES}-{MAX_ROLES}, got {self.roles_count}")
 
         # Clash detection across all three list flags. Operator intent is
         # ambiguous when the same label appears in more than one list:
@@ -218,6 +248,15 @@ class SkillPackConfig:
                     f"{left_name} and {right_name} share entries: "
                     f"{sorted(clashes)}. A role cannot appear in both."
                 )
+
+    @property
+    def effective_roles_count(self) -> int:
+        """Return the maximum roster size used for cost estimation."""
+        if self.roles_override:
+            return len(self.roles_override)
+        # Automatic planning treats roles_count as a final cap. Added roles
+        # displace discovered roles instead of expanding that cap.
+        return self.roles_count
 
     @property
     def emit_claude(self) -> bool:

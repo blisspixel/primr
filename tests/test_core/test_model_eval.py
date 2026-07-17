@@ -165,11 +165,13 @@ def _write_calibration_sidecar(
     judge_agreement: dict | None = None,
 ) -> None:
     """Persist a `primr calibrate` sidecar next to a staged report."""
+    from primr.qa.artifact_fingerprints import artifact_fingerprint
     from primr.qa.calibration_runner import sidecar_path_for
 
     sidecar_path_for(report_path).write_text(
         json.dumps(
             {
+                "report_artifact": artifact_fingerprint(report_path),
                 "per_label": per_label,
                 "validation_rubric": validation_rubric or {},
                 "judge_agreement": judge_agreement or {},
@@ -281,6 +283,35 @@ def test_eval_corrupt_sidecar_ignored(tmp_path: Path):
 
     result = _run_eval(tmp_path, "eval-calib-003")
     assert result.metrics[0].calibrated is False
+
+
+@pytest.mark.parametrize("invalid_binding", ["legacy", "stale", "missing_report"])
+def test_eval_ignores_sidecars_not_bound_to_current_report(tmp_path: Path, invalid_binding: str):
+    from primr.core.eval_calibration import load_calibration_counts
+    from primr.qa.calibration_runner import sidecar_path_for
+
+    full_dir = tmp_path / "evals" / f"eval-calib-{invalid_binding}" / "full"
+    report = full_dir / "ExampleCo_Strategic_Overview_02-25-2026.md"
+    _write_sample_report(report, "ExampleCo")
+    _write_calibration_sidecar(report, {"Confirmed": {"traceable": 5}})
+
+    if invalid_binding == "legacy":
+        sidecar = sidecar_path_for(report)
+        payload = json.loads(sidecar.read_text(encoding="utf-8"))
+        payload.pop("report_artifact")
+        sidecar.write_text(json.dumps(payload), encoding="utf-8")
+    elif invalid_binding == "stale":
+        report.write_text(report.read_text(encoding="utf-8") + "\nChanged.\n", encoding="utf-8")
+    else:
+        report.unlink()
+
+    if invalid_binding == "missing_report":
+        assert load_calibration_counts(report) is None
+        return
+
+    result = _run_eval(tmp_path, f"eval-calib-{invalid_binding}")
+    assert result.metrics[0].calibrated is False
+    assert result.profile_summaries[0].calibrated_report_count == 0
 
 
 def _summary(profile: str, confirmed_traceability: float | None, **overrides):

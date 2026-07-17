@@ -103,7 +103,7 @@ no API billing or overages. Subscription terms, plan limits, electricity, and
 network access still apply. See
 [Zero-Cost and Host-Assisted Research](docs/ZERO_COST.md) for install paths,
 capability fallbacks, and the difference between this host-native path and the
-internal/eval-only in-pipeline Codex runner.
+explicitly gated, unpromoted in-pipeline Codex pilot.
 
 ## Provider-Backed First Run
 
@@ -166,6 +166,10 @@ Primr treats spend and egress as explicit control surfaces:
   optional strategy documents after the required Deep Research task completes.
 - Required Deep Research tasks cannot be stopped mid-flight once started, and
   scrape mode remains estimate-gated only.
+- The unpromoted Codex source-relevance pilot requires `--inference hybrid`
+  plus `--acknowledge-host-agent-may-bill`, is limited to single-company runs,
+  and may incur host charges that are excluded from `--dry-run` totals and
+  `--budget`.
 - Remote Cowork icon generation, vendor-research refresh, and Gemini PDF
   extraction are opt-in controls rather than key-presence side effects.
 - Outbound URLs and redirects are guarded against internal-network and
@@ -202,7 +206,9 @@ missing-file state without returning report body content. Exact adjacent
 Markdown, TXT, DOCX, and PDF siblings are included even when an older producer
 attached only its primary path; current producers attach their job-scoped run
 manifest explicitly. `primr --list-recent` uses the same bounded inventory
-model locally; add `--json` for a versioned object.
+model locally, groups primary deliverables separately from calibration, QA,
+and verification diagnostics, and ranks named product reports above empty or
+incidental files; add `--json` for a versioned object.
 They can inspect attached QA outcomes with
 `primr://output/qa_summary/by_job/{job_id}`, which returns compact
 score/status/count metadata without detailed QA or report body text.

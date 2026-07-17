@@ -29,21 +29,35 @@ def _has_provider_routed_standard_key() -> bool:
     )
 
 
-def _standard_mode_label(grok_tier: str) -> str:
+def _full_mode_label(grok_tier: str) -> str:
+    """Human label for the default full research path (CLI --mode full)."""
     tier_labels = {"fast": "Grok 4.1", "hybrid": "Grok 4.3 hybrid", "max": "Grok 4.3 max"}
     if os.environ.get("XAI_API_KEY"):
-        return f"standard ({tier_labels.get(grok_tier, 'Grok')})"
+        return f"full ({tier_labels.get(grok_tier, 'Grok')})"
     if os.environ.get("GEMINI_API_KEY"):
-        return "standard (Gemini routed)"
+        return "full (Gemini routed)"
     if os.environ.get("OPENAI_API_KEY"):
-        return "standard (OpenAI routed)"
+        return "full (OpenAI routed)"
     if os.environ.get("ANTHROPIC_API_KEY"):
-        return "standard (Anthropic routed)"
-    return "standard (provider-routed)"
+        return "full (Anthropic routed)"
+    return "full (provider-routed)"
 
 
 def run_dry_run(config: CLIConfig) -> int:
     """Show the cost estimate for a run without executing it."""
+    from primr.core.cli_inference import (
+        inference_estimate_metadata,
+        validate_inference_options,
+    )
+
+    inference_error = validate_inference_options(
+        config.inference_profile,
+        config.acknowledge_host_agent_may_bill,
+    )
+    if inference_error:
+        console.error(inference_error)
+        return 1
+
     # Resolve mode: same logic as _handle_research.
     if config.premium_mode and config.fast_mode:
         console.error("Cannot use both --fast and --premium. Choose one.")
@@ -72,7 +86,7 @@ def run_dry_run(config: CLIConfig) -> int:
     if use_premium_mode:
         mode_label = "premium (Gemini + Deep Research)"
     elif use_fast_mode:
-        mode_label = _standard_mode_label(config.grok_tier)
+        mode_label = _full_mode_label(config.grok_tier)
     else:
         mode_label = config.mode
 
@@ -99,6 +113,7 @@ def run_dry_run(config: CLIConfig) -> int:
                 mode_label=mode_label,
                 ai_strategy=config.ai_strategy,
                 budget_enforcement=budget_enforcement,
+                inference=inference_estimate_metadata(config),
             )
         )
         return 0

@@ -6,9 +6,11 @@ Provides consistent request handling, headers, and timeouts.
 
 import logging
 from collections.abc import Mapping
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 import requests
+
+from primr.utils.url_helpers import normalized_hostname
 
 from .config import DEFAULT_TIMEOUT_REQUESTS
 from .profiles import HttpHeaderProfile, get_random_http_profile
@@ -193,10 +195,9 @@ def extract_host(url: str) -> str:
         url: Full URL
 
     Returns:
-        Host portion of URL (e.g., "example.com")
+        Canonical hostname without credentials, port, or DNS root dot
     """
-    parsed = urlparse(url)
-    return parsed.netloc.lower()
+    return normalized_hostname(url)
 
 
 def is_same_domain(url1: str, url2: str) -> bool:

@@ -471,11 +471,12 @@ def audit_security_event(event_type: str, component: str = "general"):
 # URL VALIDATION FOR SSRF PROTECTION
 # =============================================================================
 
-from primr.utils import url_security as _url_security
+import primr.utils.url_security as _url_security
 
 SafeUrlResolution = _url_security.SafeUrlResolution
 canonicalize_numeric_host = _url_security.canonicalize_numeric_host
 is_safe_url = _url_security.is_safe_url
+non_public_host_block_reason = _url_security.non_public_host_block_reason
 numeric_host_block_reason = _url_security.numeric_host_block_reason
 resolve_safe_url_for_connect = _url_security.resolve_safe_url_for_connect
 validate_final_url_after_redirect = _url_security.validate_final_url_after_redirect

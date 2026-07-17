@@ -35,6 +35,8 @@ from primr.skill_pack.config import (
     DEFAULT_MAX_REFINE_ITERATIONS,
     DEFAULT_ROLES,
     DEFAULT_SKILLS_PER_ROLE,
+    MAX_AUTO_RESOLVE_PAIRS,
+    MAX_REFINE_ITERATIONS,
     MAX_ROLES,
     MAX_SKILLS_PER_ROLE,
     MIN_ROLES,
@@ -43,6 +45,8 @@ from primr.skill_pack.config import (
     SkillPackConfig,
     SkillPackFormat,
 )
+from primr.skill_pack.saved_plan import prepare_saved_plan, saved_plan_approval_basis
+from primr.skill_pack.schema import RolePlan
 
 if TYPE_CHECKING:
     from mcp.server import Server
@@ -67,7 +71,8 @@ def register_skill_pack_tools(server: Server, mcp_server: MCPServerContext) -> l
             description=(
                 "Estimate cost and time to produce a skill pack for a "
                 "company. Call this BEFORE generate_skill_pack to satisfy "
-                "the standard estimate-first gate. ~$0.20-0.35, 30-120s."
+                "the standard estimate-first gate. Cost scales with the "
+                "requested roster, skill count, and refinement cap."
             ),
             inputSchema={
                 "type": "object",
@@ -103,11 +108,36 @@ def register_skill_pack_tools(server: Server, mcp_server: MCPServerContext) -> l
                         "maximum": MAX_ROLES,
                         "default": DEFAULT_ROLES,
                     },
+                    "from_plan_path": {
+                        "type": "string",
+                        "description": (
+                            "Optional allowed-root path to a saved role_plan.json. "
+                            "The estimate uses its exact validated final roster."
+                        ),
+                    },
+                    "roles_override": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                    "roles_add": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                    "roles_skip": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
                     "skills_per_role": {
                         "type": "integer",
                         "minimum": MIN_SKILLS_PER_ROLE,
                         "maximum": MAX_SKILLS_PER_ROLE,
                         "default": DEFAULT_SKILLS_PER_ROLE,
+                    },
+                    "max_refine_iterations": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": MAX_REFINE_ITERATIONS,
+                        "default": DEFAULT_MAX_REFINE_ITERATIONS,
                     },
                     "remote_icons": {
                         "type": "boolean",
@@ -193,7 +223,7 @@ def register_skill_pack_tools(server: Server, mcp_server: MCPServerContext) -> l
                     "max_refine_iterations": {
                         "type": "integer",
                         "minimum": 0,
-                        "maximum": 5,
+                        "maximum": MAX_REFINE_ITERATIONS,
                         "default": DEFAULT_MAX_REFINE_ITERATIONS,
                     },
                     "destination": {
@@ -305,6 +335,7 @@ def _estimate_skill_pack_cost(
     skills_per_role: int,
     has_report_path: bool,
     remote_icons: bool = False,
+    max_refine_iterations: int = DEFAULT_MAX_REFINE_ITERATIONS,
 ) -> dict[str, float]:
     """Return {cost_usd, min_minutes, max_minutes}.
 
@@ -316,8 +347,11 @@ def _estimate_skill_pack_cost(
         cost += 0.05  # standalone evidence collection
     cost += 0.02  # discovery
     cost += 0.03 * roles_count  # authoring (per role)
-    cost += 0.015 * roles_count * skills_per_role * 0.3  # refinement (30% need it)
+    # Reserve every reachable refinement call. Approval and hard cost gates
+    # must use a safe upper bound, not an expected 30 percent failure rate.
+    cost += 0.015 * roles_count * skills_per_role * max_refine_iterations
     cost += 0.02  # pack coherence pass
+    cost += 0.015 * MAX_AUTO_RESOLVE_PAIRS  # bounded overlap auto-resolution
     if remote_icons:
         cost += REMOTE_ICON_GENERATION_ESTIMATE_USD
     cost = round(cost * 1.15, 3)  # 15% safety margin
@@ -379,6 +413,40 @@ def _pipeline_error_response(exc: Exception) -> TextContent:
     return _error_response(f"Unexpected error: {exc}")
 
 
+def _prepare_from_plan_path(
+    from_plan_path: str,
+    *,
+    roles_add: list[str],
+    roles_skip: list[str],
+    mcp_server: MCPServerContext,
+) -> tuple[str | None, RolePlan | None, TextContent | None]:
+    """Resolve, contain, load, and curate one MCP saved-plan snapshot."""
+    plan_result = mcp_server.path_validator.validate(from_plan_path)
+    if not plan_result.valid or plan_result.resolved_path is None:
+        return (
+            None,
+            None,
+            _error_response(
+                f"from_plan_path rejected: {plan_result.error_message or 'invalid path'}"
+            ),
+        )
+    if not plan_result.resolved_path.is_file():
+        return (
+            None,
+            None,
+            _error_response("from_plan_path does not exist or is not a file"),
+        )
+    try:
+        plan = prepare_saved_plan(
+            plan_result.resolved_path,
+            roles_add=roles_add,
+            roles_skip=roles_skip,
+        )
+    except (RuntimeError, ValueError, OSError) as exc:
+        return None, None, _pipeline_error_response(exc)
+    return str(plan_result.resolved_path), plan, None
+
+
 def _coerce_list(raw: object) -> list[str]:
     if not raw:
         return []
@@ -389,6 +457,18 @@ def _coerce_list(raw: object) -> list[str]:
     return []
 
 
+def _integer_argument(arguments: dict[str, Any], name: str, default: int) -> int:
+    raw = arguments.get(name)
+    if raw is None:
+        return default
+    if isinstance(raw, bool) or (isinstance(raw, float) and not raw.is_integer()):
+        raise ValueError(f"{name} must be an integer")
+    try:
+        return int(raw)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(f"{name} must be an integer") from exc
+
+
 async def handle_skill_pack_tool(
     name: str,
     arguments: dict[str, Any],
@@ -396,43 +476,101 @@ async def handle_skill_pack_tool(
 ) -> list[TextContent] | None:
     """Dispatch for skill_pack MCP tools. Returns None when `name` is not ours."""
     if name == "estimate_skill_pack":
-        return await _handle_estimate_skill_pack(arguments)
+        return await _handle_estimate_skill_pack(arguments, mcp_server)
     if name == "generate_skill_pack":
         return await _handle_generate_skill_pack(arguments, mcp_server)
     return None
 
 
-async def _handle_estimate_skill_pack(arguments: dict[str, Any]) -> list[TextContent]:
+async def _handle_estimate_skill_pack(
+    arguments: dict[str, Any],
+    mcp_server: MCPServerContext,
+) -> list[TextContent]:
     company_name = str(arguments.get("company_name", "")).strip()
     if not company_name:
         return [_error_response("company_name is required")]
 
-    roles_count = int(arguments.get("roles_count") or DEFAULT_ROLES)
-    skills_per_role = int(arguments.get("skills_per_role") or DEFAULT_SKILLS_PER_ROLE)
+    try:
+        roles_count = _integer_argument(arguments, "roles_count", DEFAULT_ROLES)
+        skills_per_role = _integer_argument(
+            arguments,
+            "skills_per_role",
+            DEFAULT_SKILLS_PER_ROLE,
+        )
+        max_refine = _integer_argument(
+            arguments,
+            "max_refine_iterations",
+            DEFAULT_MAX_REFINE_ITERATIONS,
+        )
+    except ValueError as exc:
+        return [_error_response(f"Invalid config: {exc}")]
     remote_icons = bool(arguments.get("remote_icons") or False)
     has_report_path = bool(arguments.get("report_path"))
     has_jd_path = bool(arguments.get("from_jd_path") or arguments.get("from_jd"))
+    from_plan_path = str(arguments.get("from_plan_path") or "").strip() or None
+    roles_override = _coerce_list(arguments.get("roles_override"))
+    roles_add = _coerce_list(arguments.get("roles_add"))
+    roles_skip = _coerce_list(arguments.get("roles_skip"))
     try:
         career_urls = normalize_career_urls(_coerce_list(arguments.get("career_urls")))
     except ValueError as exc:
         return [_error_response(f"Invalid career_urls: {exc}")]
 
+    try:
+        estimate_config = SkillPackConfig(
+            roles_count=roles_count,
+            skills_per_role=skills_per_role,
+            max_refine_iterations=max_refine,
+            roles_override=roles_override,
+            roles_add=roles_add,
+            roles_skip=roles_skip,
+            from_plan_path=from_plan_path,
+        )
+        estimate_config.validate()
+    except ValueError as exc:
+        return [_error_response(f"Invalid config: {exc}")]
+
+    prepared_plan: RolePlan | None = None
+    if from_plan_path and not estimate_config.roles_override:
+        resolved_plan_path, prepared_plan, plan_error = _prepare_from_plan_path(
+            from_plan_path,
+            roles_add=estimate_config.roles_add,
+            roles_skip=estimate_config.roles_skip,
+            mcp_server=mcp_server,
+        )
+        if plan_error is not None:
+            return [plan_error]
+        estimate_config.from_plan_path = resolved_plan_path
+
+    effective_roles = (
+        len(prepared_plan.final_roster)
+        if prepared_plan is not None
+        else estimate_config.effective_roles_count
+    )
+    saved_plan_sha256, saved_plan_prompt_chars = (
+        saved_plan_approval_basis(prepared_plan) if prepared_plan is not None else (None, 0)
+    )
+
     cost_uses_existing_evidence = bool(
         has_report_path or (has_jd_path and not arguments.get("company_url") and not career_urls)
     )
     estimate = _estimate_skill_pack_cost(
-        roles_count,
+        effective_roles,
         skills_per_role,
         has_report_path=cost_uses_existing_evidence,
         remote_icons=remote_icons,
+        max_refine_iterations=max_refine,
     )
     payload = {
         "company_name": company_name,
-        "roles_count": roles_count,
+        "roles_count": effective_roles,
+        "requested_roles_count": roles_count,
         "skills_per_role": skills_per_role,
+        "max_refine_iterations": max_refine,
         "uses_existing_report": has_report_path,
         "uses_operator_role_brief": has_jd_path,
         "uses_career_urls": bool(career_urls),
+        "uses_saved_plan": prepared_plan is not None,
         "remote_icons": remote_icons,
         **estimate,
         "notes": (
@@ -448,11 +586,17 @@ async def _handle_estimate_skill_pack(arguments: dict[str, Any]) -> list[TextCon
         issue_approval_token(
             tool_name="generate_skill_pack",
             approval_args=skill_pack_approval_args(
-                effective_roles=roles_count,
+                effective_roles=effective_roles,
                 skills_per_role=skills_per_role,
                 has_report_path=cost_uses_existing_evidence,
                 has_operator_role_brief=has_jd_path,
                 has_career_urls=bool(career_urls),
+                max_refine_iterations=max_refine,
+                saved_plan_sha256=saved_plan_sha256,
+                saved_plan_prompt_chars=saved_plan_prompt_chars,
+                roles_override=estimate_config.roles_override,
+                roles_add=estimate_config.roles_add,
+                roles_skip=estimate_config.roles_skip,
                 remote_icons=remote_icons,
             ),
             max_cost_usd=float(estimate["cost_usd"]),
@@ -492,10 +636,21 @@ async def _handle_generate_skill_pack(
             )
         ]
 
-    roles_count = int(arguments.get("roles_count") or DEFAULT_ROLES)
-    skills_per_role = int(arguments.get("skills_per_role") or DEFAULT_SKILLS_PER_ROLE)
+    try:
+        roles_count = _integer_argument(arguments, "roles_count", DEFAULT_ROLES)
+        skills_per_role = _integer_argument(
+            arguments,
+            "skills_per_role",
+            DEFAULT_SKILLS_PER_ROLE,
+        )
+        max_refine = _integer_argument(
+            arguments,
+            "max_refine_iterations",
+            DEFAULT_MAX_REFINE_ITERATIONS,
+        )
+    except ValueError as exc:
+        return [_error_response(f"Invalid config: {exc}")]
     formats_value = str(arguments.get("formats") or SkillPackFormat.BOTH.value)
-    max_refine = int(arguments.get("max_refine_iterations") or DEFAULT_MAX_REFINE_ITERATIONS)
     destination = arguments.get("destination") or "output"
     max_cost = arguments.get("max_estimated_cost_usd")
     allow_recon_only = bool(arguments.get("allow_recon_only") or False)
@@ -512,13 +667,65 @@ async def _handle_generate_skill_pack(
     if from_jd_error is not None:
         return [from_jd_error]
 
+    parsed_max_cost: float | None = None
+    if max_cost is not None:
+        try:
+            parsed_max_cost = float(max_cost)
+        except (TypeError, ValueError):
+            return [_error_response("max_estimated_cost_usd must be a number")]
+
+    try:
+        config = SkillPackConfig(
+            roles_count=(len(roles_override) if roles_override else roles_count),
+            skills_per_role=skills_per_role,
+            formats=SkillPackFormat(formats_value),
+            max_refine_iterations=max_refine,
+            run_pack_coherence_pass=True,
+            reuse_existing_evidence=bool(report_path),
+            max_cost_per_role_usd=DEFAULT_MAX_COST_PER_ROLE_USD,
+            max_total_cost_usd=parsed_max_cost,
+            allow_recon_only=allow_recon_only,
+            emit_agent_metadata=emit_agent_metadata,
+            remote_icon_generation=remote_icons,
+            roles_override=roles_override,
+            roles_add=roles_add,
+            roles_skip=roles_skip,
+            plan_only=plan_only,
+            from_plan_path=str(from_plan_path) if from_plan_path else None,
+            from_jd_path=from_jd_path,
+            career_urls=career_urls,
+        )
+        config.validate()
+    except ValueError as exc:
+        return [_error_response(f"Invalid config: {exc}")]
+
+    prepared_plan: RolePlan | None = None
+    if config.from_plan_path and not config.roles_override:
+        resolved_plan_path, prepared_plan, plan_error = _prepare_from_plan_path(
+            config.from_plan_path,
+            roles_add=config.roles_add,
+            roles_skip=config.roles_skip,
+            mcp_server=mcp_server,
+        )
+        if plan_error is not None:
+            return [plan_error]
+        assert prepared_plan is not None
+        config.from_plan_path = resolved_plan_path
+        config.roles_count = len(prepared_plan.final_roster)
+
     # Cost gate. Estimate on the EFFECTIVE roster size that will actually be
     # authored, not the raw roles_count: roles_override replaces the count and
     # roles_add augments it, so estimating on roles_count alone let a caller
     # pass roles_count=1 with 15 overrides and slip past a cap sized for one
     # role. Capped at MAX_ROLES (the pipeline's hard ceiling).
-    effective_roles = len(roles_override) if roles_override else roles_count
-    effective_roles = min(effective_roles + len(roles_add), MAX_ROLES)
+    effective_roles = (
+        len(prepared_plan.final_roster)
+        if prepared_plan is not None
+        else config.effective_roles_count
+    )
+    saved_plan_sha256, saved_plan_prompt_chars = (
+        saved_plan_approval_basis(prepared_plan) if prepared_plan is not None else (None, 0)
+    )
     cost_uses_existing_evidence = bool(
         report_path or (from_jd_path and not company_url and not career_urls)
     )
@@ -527,6 +734,7 @@ async def _handle_generate_skill_pack(
         skills_per_role,
         has_report_path=cost_uses_existing_evidence,
         remote_icons=remote_icons,
+        max_refine_iterations=max_refine,
     )
     if _is_cost_cap_enforced():
         # Fail closed: when server-side caps are enforced, a cost-incurring run
@@ -542,10 +750,8 @@ async def _handle_generate_skill_pack(
                     "re-call with max_estimated_cost_usd at or above it."
                 )
             ]
-        try:
-            cap = float(max_cost)
-        except (TypeError, ValueError):
-            return [_error_response("max_estimated_cost_usd must be a number")]
+        assert parsed_max_cost is not None
+        cap = parsed_max_cost
         if estimate["cost_usd"] > cap:
             return [
                 _error_response(
@@ -563,6 +769,12 @@ async def _handle_generate_skill_pack(
                 has_report_path=cost_uses_existing_evidence,
                 has_operator_role_brief=bool(from_jd_path),
                 has_career_urls=bool(career_urls),
+                max_refine_iterations=max_refine,
+                saved_plan_sha256=saved_plan_sha256,
+                saved_plan_prompt_chars=saved_plan_prompt_chars,
+                roles_override=config.roles_override,
+                roles_add=config.roles_add,
+                roles_skip=config.roles_skip,
                 remote_icons=remote_icons,
             ),
             estimated_cost_usd=float(estimate["cost_usd"]),
@@ -570,31 +782,6 @@ async def _handle_generate_skill_pack(
         )
         if approval_error is not None:
             return [TextContent(type="text", text=json.dumps(approval_error))]
-
-    try:
-        config = SkillPackConfig(
-            roles_count=(len(roles_override) if roles_override else roles_count),
-            skills_per_role=skills_per_role,
-            formats=SkillPackFormat(formats_value),
-            max_refine_iterations=max_refine,
-            run_pack_coherence_pass=True,
-            reuse_existing_evidence=bool(report_path),
-            max_cost_per_role_usd=DEFAULT_MAX_COST_PER_ROLE_USD,
-            max_total_cost_usd=float(max_cost) if max_cost is not None else None,
-            allow_recon_only=allow_recon_only,
-            emit_agent_metadata=emit_agent_metadata,
-            remote_icon_generation=remote_icons,
-            roles_override=roles_override,
-            roles_add=roles_add,
-            roles_skip=roles_skip,
-            plan_only=plan_only,
-            from_plan_path=from_plan_path,
-            from_jd_path=from_jd_path,
-            career_urls=career_urls,
-        )
-        config.validate()
-    except ValueError as exc:
-        return [_error_response(f"Invalid config: {exc}")]
 
     # Working directory: existing report path or fresh temp dir + standalone evidence.
     if report_path:
@@ -656,6 +843,7 @@ async def _handle_generate_skill_pack(
             working_dir=working_dir,
             config=config,
             output_dir=output_dir,
+            prepared_plan=prepared_plan,
         )
     except (FileNotFoundError, ValueError, RuntimeError, OSError) as exc:
         return [_pipeline_error_response(exc)]

@@ -2,6 +2,40 @@
 
 from __future__ import annotations
 
+import math
+import re
+
+MAX_RETRY_AFTER_SECONDS = 90.0
+
+
+def _positive_finite_seconds(value: object) -> float | None:
+    """Parse and cap a finite positive delay from untrusted response metadata."""
+    try:
+        seconds = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(seconds) or seconds <= 0:
+        return None
+    return min(seconds, MAX_RETRY_AFTER_SECONDS)
+
+
+def extract_retry_after_seconds(error: Exception) -> float | None:
+    """Return a finite positive Retry-After delay from headers or error text."""
+    response = getattr(error, "response", None)
+    headers = getattr(response, "headers", None)
+    if headers and hasattr(headers, "get"):
+        retry_after = headers.get("retry-after")
+        if retry_after is None:
+            retry_after = headers.get("Retry-After")
+        if (seconds := _positive_finite_seconds(retry_after)) is not None:
+            return seconds
+
+    match = re.search(
+        r"retry after\s+(\d+(?:\.\d+)?(?:e[+-]?\d+)?)",
+        str(error).casefold(),
+    )
+    return _positive_finite_seconds(match.group(1)) if match else None
+
 
 def is_billing_exhausted(error: Exception | str) -> bool:
     """Return True when an error indicates credits or spending limit exhaustion.

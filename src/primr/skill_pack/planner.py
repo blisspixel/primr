@@ -25,15 +25,15 @@ invariant.
 
 from __future__ import annotations
 
-import json
 import logging
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from primr.skill_pack.archetypes import load_archetypes, match_archetype
-from primr.skill_pack.config import MAX_ROLES
+from primr.skill_pack.curation import (
+    apply_curation,
+)
 from primr.skill_pack.discovery import (
     EmptyHiringEvidenceError,
     hiring_evidence_is_empty,
@@ -44,8 +44,13 @@ from primr.skill_pack.industry import classify_industry
 from primr.skill_pack.plan_artifacts import persist_plan
 from primr.skill_pack.posting_coverage import assess_posting_coverage
 from primr.skill_pack.prompts_loader import extract_json, load_skill_pack_prompt
+from primr.skill_pack.saved_plan import (
+    SavedPlanValidationError,
+    load_plan,
+    prepare_saved_plan,
+    saved_plan_approval_basis,
+)
 from primr.skill_pack.schema import (
-    IndustryClassification,
     Role,
     RoleEvidence,
     RolePlan,
@@ -313,241 +318,6 @@ def _merge_and_cap(
 
 
 # =============================================================================
-# Operator curation (--roles-add, --roles-skip)
-# =============================================================================
-
-
-_CURATION_NAME_RE = re.compile(r"[^a-z0-9]+")
-
-
-def _normalize_curation_key(label: str) -> str:
-    """Lowercase + collapse non-alphanumerics into hyphens. Matches the
-    same shape used to generate role slugs so add/skip input is robust to
-    variations like ``"Marketing Manager"`` vs ``"marketing-manager"``."""
-    return _CURATION_NAME_RE.sub("-", label.lower()).strip("-")
-
-
-def _materialize_added_role(label: str) -> Role:
-    """Turn one --roles-add label into a Role with provenance=override.
-
-    Archetype matching runs against the label so authoring picks up the
-    closest scaffolding. Mirrors `_materialize_override_roles` in
-    pipeline.py but is called here because curation runs inside the
-    planner — keeping the override path in pipeline.py for the
-    "bypass planning entirely" case.
-    """
-    slug = _normalize_curation_key(label) or "operator-role"
-    match = match_archetype(label)
-    archetype_slug = match.archetype.slug if match.archetype is not None else None
-    return Role(
-        name=slug,
-        display_name=label,
-        confidence="Operator",
-        summary=f"Operator-supplied role: {label}.",
-        evidence=RoleEvidence(
-            sources=["override"],
-            dns_signals=[],
-            posting_count=0,
-            archetype=archetype_slug,
-            provenance=RoleProvenance.OVERRIDE,
-            citations=["operator override"],
-        ),
-    )
-
-
-def _match_skip_target(role: Role, skip_keys: set[str]) -> bool:
-    """True when this role should be dropped per --roles-skip.
-
-    Matches against role.name (the kebab-case slug) and role.display_name,
-    both normalized through `_normalize_curation_key` so operator input
-    is robust. Exact match only — no substring magic.
-    """
-    candidates = {
-        _normalize_curation_key(role.name),
-        _normalize_curation_key(role.display_name),
-    }
-    return bool(candidates & skip_keys)
-
-
-def _drop_excess_to_cap(roster: list[Role], cap: int) -> tuple[list[Role], list[Role]]:
-    """Enforce the MAX_ROLES cap with operator-priority trim order.
-
-    Trim order (head of trim list is the first to go):
-      1. plausible roles (research / industry provenance)
-      2. observed roles (posting provenance)
-      3. operator-supplied roles (override provenance) — never trimmed
-
-    Returns (kept, trimmed) so the trimmed entries can flow to
-    gap_flagged for plan-artifact transparency.
-    """
-    if len(roster) <= cap:
-        return list(roster), []
-
-    overflow = len(roster) - cap
-    # Mark each role with a priority key: lower number = trim first.
-    priority: dict[int, int] = {}
-    for idx, role in enumerate(roster):
-        prov = role.evidence.provenance
-        if prov in (RoleProvenance.RESEARCH, RoleProvenance.INDUSTRY):
-            priority[idx] = 0
-        elif prov == RoleProvenance.POSTING:
-            priority[idx] = 1
-        else:
-            priority[idx] = 2
-
-    # Sort indices by (trim-priority ASC, original index DESC) so we drop
-    # the LAST low-priority entries first — preserves the natural order
-    # the planner produced for the survivors.
-    trim_order = sorted(
-        range(len(roster)),
-        key=lambda i: (priority[i], -i),
-    )
-    drop_indices = set(trim_order[:overflow])
-
-    kept = [r for i, r in enumerate(roster) if i not in drop_indices]
-    trimmed = [r for i, r in enumerate(roster) if i in drop_indices]
-    return kept, trimmed
-
-
-def apply_curation(
-    plan: RolePlan,
-    *,
-    roles_add: list[str],
-    roles_skip: list[str],
-    cap: int = MAX_ROLES,
-) -> None:
-    """Apply operator curation in place: skip first, then add.
-
-    Order is significant: skip-then-add means an operator can swap a
-    role with `--roles-skip "Marketing Manager" --roles-add
-    "Demand Generation Manager"` and have the swap behave as expected
-    even when both names normalize to similar archetypes.
-
-    Updates the plan's `final_roster`, `gap_flagged`, `operator_added`,
-    and `operator_skipped` fields. Raises RuntimeError when curation
-    leaves an empty roster — the check runs as a preflight against the
-    intended post-curation state BEFORE any plan mutation so the input
-    plan is preserved on the error path.
-
-    Returns nothing — the plan is mutated when validation passes.
-    """
-    # --- Preflight: validate the curation BEFORE mutating the plan ------
-    # Compute the post-skip survivor count and combine with the projected
-    # add count to know the final roster size. If that count is zero we
-    # raise without touching plan state.
-    skip_keys = {_normalize_curation_key(s) for s in roles_skip if s.strip()}
-    survivors_after_skip = (
-        [r for r in plan.final_roster if not _match_skip_target(r, skip_keys)]
-        if skip_keys
-        else list(plan.final_roster)
-    )
-    # roles_add itself might be entirely deduped — but the operator must
-    # supply at least one effective recovery role for the preflight to
-    # pass when skip empties the roster. Conservative count: assume every
-    # entry survives. The actual add pass below applies real dedup.
-    projected_total = len(survivors_after_skip) + len(roles_add)
-    if projected_total == 0:
-        raise RuntimeError(
-            "Curation would leave an empty roster — every role was "
-            "skipped and no replacements were added. Re-run with fewer "
-            "--roles-skip entries or supply --roles-add to fill the "
-            "roster. (Plan unchanged.)"
-        )
-
-    # --- Skip pass -------------------------------------------------------
-    if skip_keys:
-        existing_keys: set[str] = set()
-        for role in plan.final_roster:
-            existing_keys.add(_normalize_curation_key(role.name))
-            existing_keys.add(_normalize_curation_key(role.display_name))
-        unmatched = skip_keys - existing_keys
-        for key in sorted(unmatched):
-            logger.warning("--roles-skip %r did not match any role in the plan", key)
-
-        plan.final_roster = survivors_after_skip
-        plan.operator_skipped = sorted(skip_keys)
-
-    # --- Add pass --------------------------------------------------------
-    added: list[Role] = []
-    if roles_add:
-        existing_name_keys = {_normalize_curation_key(r.name) for r in plan.final_roster}
-        existing_display_keys = {_normalize_curation_key(r.display_name) for r in plan.final_roster}
-        # Archetype dedup is scoped to DISCOVERED roles only. Operator
-        # additions that target the same archetype as a planner-produced
-        # role are dropped (existing role keeps its citations), but two
-        # operator additions that happen to map to the same archetype
-        # are BOTH kept — the operator typed two distinct labels for a
-        # reason. Name dedup still catches identical labels within the
-        # add list.
-        discovered_archetypes = {
-            r.evidence.archetype for r in plan.final_roster if r.evidence.archetype is not None
-        }
-
-        for label in roles_add:
-            candidate = _materialize_added_role(label)
-            cand_name_key = _normalize_curation_key(candidate.name)
-            cand_display_key = _normalize_curation_key(candidate.display_name)
-
-            if cand_name_key in existing_name_keys or cand_display_key in existing_display_keys:
-                logger.warning(
-                    "--roles-add %r — already in roster; skipping duplicate",
-                    label,
-                )
-                continue
-
-            if (
-                candidate.evidence.archetype is not None
-                and candidate.evidence.archetype in discovered_archetypes
-            ):
-                logger.warning(
-                    "--roles-add %r — archetype %s already covered by a "
-                    "discovered role; skipping duplicate. Pair with "
-                    "--roles-skip if you want to force this label.",
-                    label,
-                    candidate.evidence.archetype,
-                )
-                continue
-
-            added.append(candidate)
-            # Only name-key tracking updates as adds accumulate; archetype
-            # dedup intentionally does NOT grow with operator additions.
-            existing_name_keys.add(cand_name_key)
-            existing_display_keys.add(cand_display_key)
-
-        plan.operator_added = added
-        plan.final_roster = plan.final_roster + added
-
-    # --- Cap pass --------------------------------------------------------
-    kept, trimmed = _drop_excess_to_cap(plan.final_roster, cap)
-    if trimmed:
-        plan.gap_flagged = plan.gap_flagged + trimmed
-        logger.info(
-            "Curation cap trimmed %d role(s) to gap_flagged "
-            "(operator-priority order: plausible -> observed -> never override)",
-            len(trimmed),
-        )
-    plan.final_roster = kept
-
-    # Refresh evidence_summary counters so the plan_md / report reflect
-    # the post-curation reality.
-    plan.evidence_summary["operator_added_count"] = len(plan.operator_added)
-    plan.evidence_summary["operator_skipped_count"] = len(plan.operator_skipped)
-    plan.evidence_summary["final_roster_count"] = len(plan.final_roster)
-    plan.evidence_summary["gap_flagged_count"] = len(plan.gap_flagged)
-
-    # Defensive empty-roster guard. The preflight above catches the
-    # planned-empty case, but if every --roles-add entry was deduped
-    # against the discovered set we can still land here. Raise rather
-    # than ship an empty pack.
-    if not plan.final_roster:
-        raise RuntimeError(
-            "Curation left an empty roster — every --roles-add entry "
-            "deduped against the discovered roster and all discovered "
-            "roles were skipped. Use distinct labels for --roles-add."
-        )
-
-
-# =============================================================================
 # Public entry point
 # =============================================================================
 
@@ -756,86 +526,10 @@ def plan_roles(
     return plan
 
 
-def load_plan(json_path: Path) -> RolePlan:
-    """Load a previously-persisted RolePlan from its JSON sidecar.
-
-    Used by --from-plan to author against an approved or hand-edited
-    plan without re-running the planning LLM calls. Wraps OS-level and
-    JSON parse errors in RuntimeError with a helpful message so the
-    pipeline's existing error path renders cleanly.
-    """
-    try:
-        raw = json_path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise RuntimeError(f"Could not read role plan at {json_path}: {exc}") from exc
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(
-            f"Role plan at {json_path} is not valid JSON: {exc}. "
-            "If you hand-edited it, re-run --plan-only to regenerate."
-        ) from exc
-    if not isinstance(data, dict):
-        raise RuntimeError(
-            f"Role plan at {json_path} is not a JSON object (got {type(data).__name__})."
-        )
-
-    def _hydrate_role(entry: Any) -> Role:
-        # A hand-edited plan can carry a non-object role entry (e.g. a bare
-        # string) or a non-object ``evidence``. Fail with the same helpful
-        # RuntimeError the rest of load_plan promises, rather than a raw
-        # AttributeError from ``.get`` on a str.
-        if not isinstance(entry, dict):
-            raise RuntimeError(
-                f"Role plan at {json_path} has a non-object role entry: {entry!r}. "
-                "If you hand-edited it, re-run --plan-only to regenerate."
-            )
-        evidence = entry.get("evidence")
-        if not isinstance(evidence, dict):
-            evidence = {}
-        provenance_val = str(evidence.get("provenance") or "posting").strip().lower()
-        try:
-            provenance = RoleProvenance(provenance_val)
-        except ValueError:
-            provenance = RoleProvenance.POSTING
-        return Role(
-            name=str(entry.get("name", "")).strip(),
-            display_name=str(entry.get("display_name", "")).strip(),
-            confidence=str(entry.get("confidence", "Inferred")).strip(),
-            summary=str(entry.get("summary", "")).strip(),
-            evidence=RoleEvidence(
-                sources=[str(s) for s in evidence.get("sources", [])],
-                dns_signals=[str(s) for s in evidence.get("dns_signals", [])],
-                posting_count=int(evidence.get("posting_count") or 0),
-                archetype=evidence.get("archetype"),
-                provenance=provenance,
-                citations=[str(c) for c in evidence.get("citations", [])],
-            ),
-        )
-
-    industry_raw = data.get("industry") or {}
-    industry = IndustryClassification(
-        business_model=str(industry_raw.get("business_model") or "Unknown"),
-        industry_vertical=str(industry_raw.get("industry_vertical") or "Unknown"),
-        company_stage=str(industry_raw.get("company_stage") or "Unknown"),
-        employee_estimate=str(industry_raw.get("employee_estimate") or "Unknown"),
-        confidence=str(industry_raw.get("confidence") or "Low"),
-        cited_evidence=[str(c) for c in industry_raw.get("cited_evidence", [])],
-        source=str(industry_raw.get("source") or "loaded"),
-    )
-
-    return RolePlan(
-        observed=[_hydrate_role(r) for r in data.get("observed", [])],
-        plausible=[_hydrate_role(r) for r in data.get("plausible", [])],
-        gap_flagged=[_hydrate_role(r) for r in data.get("gap_flagged", [])],
-        operator_added=[_hydrate_role(r) for r in data.get("operator_added", [])],
-        operator_skipped=[str(s) for s in data.get("operator_skipped", [])],
-        final_roster=[_hydrate_role(r) for r in data.get("final_roster", [])],
-        industry=industry,
-        evidence_summary=dict(data.get("evidence_summary") or {}),
-        plan_md_path=data.get("plan_md_path"),
-        plan_json_path=str(json_path),
-    )
-
-
-__all__ = ["load_plan", "plan_roles"]
+__all__ = [
+    "SavedPlanValidationError",
+    "load_plan",
+    "plan_roles",
+    "prepare_saved_plan",
+    "saved_plan_approval_basis",
+]
