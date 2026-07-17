@@ -191,7 +191,7 @@ Primr separates credential types:
 - Provider API keys, such as `XAI_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, and `ANTHROPIC_API_KEY`, pay for direct model calls inside Primr.
 - Agent-host credentials operate the surrounding host and do not automatically replace provider API keys.
 - `primr-zero` keeps synthesis inside that surrounding host and never passes its credentials into Primr.
-- Primr has an internal/eval-only Codex runner for `fast.source_relevance`, but it is not exposed as an inference profile. Codex authentication can be plan-backed or API-key billed, and Primr cannot prove which billing mode applies.
+- Primr has an unpromoted Codex runner for `fast.source_relevance`. It becomes eligible only for an explicitly acknowledged, single-company hybrid experiment. Codex authentication can be plan-backed or API-key billed, Primr cannot prove which applies, and unknown host charges remain outside Primr's estimate and budget.
 - Local and gateway endpoints are first-class paths when configured and measured, but full local report profiles remain roadmap work.
 
 Do not paste browser-session cookies, personal web app tokens, or unofficial subscription proxy credentials into Primr.

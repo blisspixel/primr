@@ -55,7 +55,7 @@ def build_run_estimate(config: CLIConfig, *, fast_mode: bool, premium_mode: bool
     """
     from primr.utils.cost_estimator import estimate_cost
 
-    return estimate_cost(
+    estimate = estimate_cost(
         config.mode,
         config.ai_strategy,
         num_vendors=estimate_vendor_count(config),
@@ -66,6 +66,10 @@ def build_run_estimate(config: CLIConfig, *, fast_mode: bool, premium_mode: bool
         grok_tier=config.grok_tier,
         strategy_types=estimate_strategy_types(config),
     )
+    from primr.core.cli_inference import append_inference_estimate_note
+
+    append_inference_estimate_note(config, estimate)
+    return estimate
 
 
 def activate_run_budget(

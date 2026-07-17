@@ -27,6 +27,13 @@ class TestWorkspaceConfig:
 
         assert config.folder_name == "Acme_Corp"
 
+    def test_folder_name_normalizes_trailing_period_for_windows(self):
+        from primr.core.workspace import WorkspaceConfig
+
+        config = WorkspaceConfig(base_dir=Path("/tmp"), company_name="Acme, Inc.")
+
+        assert config.folder_name == "Acme,_Inc"
+
     def test_folder_name_from_website(self):
         """Folder name derived from website when no company name."""
         from primr.core.workspace import WorkspaceConfig
@@ -36,6 +43,20 @@ class TestWorkspaceConfig:
         )
 
         assert config.folder_name == "example_com"
+
+    @pytest.mark.parametrize(
+        ("website", "expected"),
+        [
+            ("https://www.example.com:8443", "example_com"),
+            ("https://notwww.example.com", "notwww_example_com"),
+        ],
+    )
+    def test_folder_name_uses_hostname_without_corrupting_domain(self, website, expected):
+        from primr.core.workspace import WorkspaceConfig
+
+        config = WorkspaceConfig(base_dir=Path("/tmp"), company_name="", website=website)
+
+        assert config.folder_name == expected
 
     def test_folder_name_default(self):
         """Default folder name when neither company nor website provided."""
@@ -91,6 +112,21 @@ class TestCreateWorkingFolder:
                 folder = create_working_folder(None, "https://www.example.com")
                 assert os.path.exists(folder)
                 assert "example_com" in folder
+            finally:
+                ws.WORKING_DIR = original_dir
+
+    def test_creates_folder_from_website_without_port(self):
+        from primr.core.workspace import create_working_folder
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            import primr.core.workspace as ws
+
+            original_dir = ws.WORKING_DIR
+            ws.WORKING_DIR = tmpdir
+            try:
+                folder = create_working_folder(None, "https://www.example.com:8443")
+                assert Path(folder).parent.parent == Path(tmpdir)
+                assert Path(folder).parent.name == "example_com"
             finally:
                 ws.WORKING_DIR = original_dir
 

@@ -33,6 +33,8 @@ from typing import Protocol
 from primr.config.config import OUTPUT_DIR, PROJECT_ROOT
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
+from primr.utils.url_helpers import normalized_hostname, public_web_url
+from primr.utils.validators import sanitize_for_filename
 
 logger = get_logger("ai_strategy")
 
@@ -399,7 +401,7 @@ def _validate_preflight(config: AIStrategyConfig) -> list[str]:
     try:
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         test_file = os.path.join(OUTPUT_DIR, ".write_test")
-        with open(test_file, "w") as f:
+        with open(test_file, "w", encoding="utf-8") as f:
             f.write("test")
         os.remove(test_file)
     except Exception as e:
@@ -607,7 +609,6 @@ def _process_citations(content: str) -> str:
     - Resolves Google redirect URLs to final destinations
     """
     import re
-    from urllib.parse import urlparse
 
     from primr.ai.deep_research import resolve_citation_urls_sync
 
@@ -645,16 +646,16 @@ def _process_citations(content: str) -> str:
                 num = citation.get("number", "")
                 url = citation.get("url", "")
                 title = citation.get("title", "")
+                safe_url = public_web_url(url)
 
-                if url:
-                    parsed = urlparse(url)
-                    domain = parsed.netloc.replace("www.", "")
+                if safe_url:
+                    domain = normalized_hostname(safe_url, strip_www=True)
                     # Use domain as display text if title looks like a redirect URL
                     if "vertexaisearch" in title.lower() or not title:
                         display_text = domain
                     else:
                         display_text = title
-                    cleaned_lines.append(f"{num}. [{display_text}]({url})")
+                    cleaned_lines.append(f"{num}. [{display_text}]({safe_url})")
                 elif title:
                     cleaned_lines.append(f"{num}. {title}")
 
@@ -675,7 +676,8 @@ def _save_strategy_outputs(
 
     date_str = datetime.now().strftime("%m-%d-%Y")
     vendor_tag = f"_{platform.value.upper()}" if platform.value.lower() != "agnostic" else ""
-    base_name = f"{company_name}_AI_Strategy{vendor_tag}_{date_str}"
+    artifact_name = sanitize_for_filename(company_name, max_length=200)
+    base_name = f"{artifact_name}_AI_Strategy{vendor_tag}_{date_str}"
     outputs: dict[str, str | None] = {"md": None, "txt": None, "docx": None}
 
     try:

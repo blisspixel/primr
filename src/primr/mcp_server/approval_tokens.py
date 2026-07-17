@@ -68,6 +68,12 @@ def skill_pack_approval_args(
     has_report_path: bool,
     has_operator_role_brief: bool,
     has_career_urls: bool,
+    max_refine_iterations: int,
+    saved_plan_sha256: str | None,
+    saved_plan_prompt_chars: int,
+    roles_override: list[str],
+    roles_add: list[str],
+    roles_skip: list[str],
     remote_icons: bool = False,
 ) -> dict[str, Any]:
     """Return the cost-affecting approval shape for skill-pack generation."""
@@ -77,6 +83,12 @@ def skill_pack_approval_args(
         "uses_existing_report": bool(has_report_path),
         "uses_operator_role_brief": bool(has_operator_role_brief),
         "uses_career_urls": bool(has_career_urls),
+        "max_refine_iterations": int(max_refine_iterations),
+        "saved_plan_sha256": saved_plan_sha256,
+        "saved_plan_prompt_chars": int(saved_plan_prompt_chars),
+        "roles_override": list(roles_override),
+        "roles_add": list(roles_add),
+        "roles_skip": list(roles_skip),
         "remote_icons": bool(remote_icons),
     }
 

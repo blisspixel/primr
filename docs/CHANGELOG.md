@@ -7,6 +7,248 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Default research dry-run and cost-estimate labels now use the product CLI
+  mode name `full` (for example `full (Grok 4.3 hybrid)`), matching
+  `--mode full` and root help instead of the internal "standard" path name.
+- `primr --list-recent` now groups primary report deliverables separately from
+  calibration, QA, and verification diagnostics, prints root-relative paths so
+  same-named files are distinguishable, and labels each row with a short type
+  tag. Within Deliverables, named product reports rank above empty or
+  incidental files while preserving newest-first order inside each rank.
+  Root help epilog leads with the first-run lifecycle (`init` through
+  `--list-recent`) and includes `primr skills`.
+
+### Added
+
+- Added an explicit, single-company experimental gate for the unpromoted Codex
+  `fast.source_relevance` route. `--inference hybrid` still uses cloud by
+  default; host execution additionally requires
+  `--acknowledge-host-agent-may-bill`, records potentially metered billing and
+  pending-eval status in route metadata, and rejects host eligibility without
+  a recorded acknowledgment. Hybrid retains the already-estimated cloud
+  baseline when no runner qualifies; a selected host failure keeps all sources
+  without a second cloud call. Dry-run text and JSON disclose that host charges
+  are unknown, excluded from the estimate, and outside `--budget`. Batch
+  fan-out is rejected.
+- Added a graph-backed architecture cohesion plan and deterministic fitness
+  gates for first-party import cycles, empty source modules, and unexplained
+  sub-40-line modules. Package re-export edges are part of the cycle baseline,
+  while reviewed security, policy, lifecycle, adapter, protocol, and
+  composition boundaries remain explicitly permitted.
+- Cloud-vs-local calibration comparisons now preserve each disagreement as a
+  body-free pointer in the raw report-bound sidecar. Its zero-based claim index
+  resolves into the sidecar's top-level `claims` array for human adjudication,
+  while compact MCP and A2A summaries continue to omit disagreement details and
+  raw claim or source content.
+- Added weekly manual-triggerable dependency auditing with locked `pip-audit`
+  coverage for every shipped extra and a pinned Trivy filesystem scan.
+- Added lock-derived, hash-complete build and runtime dependency manifests for
+  both production Dockerfiles. Container builds now install the local wheel
+  without resolving a second dependency graph, and CI builds and smoke-tests
+  both production image surfaces from their documented build contexts.
+
+### Fixed
+
+- Raised the MCP dependency floor and lock to 1.28.1, which contains the fix
+  for CVE-2026-59950; the locked dependency audit is clean again.
+- Root-help release integrity now compares parsed command examples, so added
+  explanatory help lines cannot be mistaken for executable launch commands.
+- Skill-pack executable-instruction admission now rejects leading environment
+  assignments, dynamic shell command words, additional Windows executable
+  types, persistence through login profiles, CPython and indirect interpreter
+  sinks, CMD comment variants, and executable directives hidden after
+  ECMAScript regex literals. Sensitive-data policy also treats stacked
+  negations and transformed ciphertext or Base64 transfers as affirmative
+  exfiltration instead of safe prose.
+- Behavioral-evaluation runtime estimates now reserve the bounded retry wait as
+  well as call time. OpenAI-compatible transports disable automatic redirects
+  alongside SDK retries so the declared attempt cap also bounds physical HTTP
+  requests, and authored HTTP targets with malformed or out-of-range ports
+  fail closed.
+- Split three newly expanded skill-pack security modules at cohesive trust
+  boundaries: language-aware comment projection, execution dataflow, and the
+  existing verifier-asset registry. Every resulting module is below the
+  approximate 800-line review threshold without compatibility shims or
+  circular dependencies. All eight touched trust-boundary modules now sit in
+  the enforced mypy annotation-completeness allowlist.
+- Reduced first-party import-cycle components from four to two without adding
+  a source module. Gemini resource cleanup no longer imports its high-blast
+  deep-research consumer, model defaults now live in the dependency-leaf
+  registry, configuration errors share an existing stdlib-only leaf, and URL
+  security imports its concrete submodule instead of cycling through the
+  package facade. Fresh-interpreter tests verify both import orders against the
+  local source tree. The empty, unused scraping compatibility module was
+  removed.
+- Saved skill-pack plans now pass one bounded, strict admission boundary before
+  estimation or execution. CLI and MCP approval tokens bind the canonical
+  curated roster, exact saved-plan content, refinement depth, role controls,
+  evidence shape, and remote-icon choice, while execution consumes the same
+  in-memory snapshot instead of rereading mutable input. Cost estimates now
+  reserve the full refinement and pack-level reconciliation ceilings, count
+  the effective roster exactly, and reject non-finite prices.
+- Pack-level overlap repair now resolves at most ten distinct canonical skill
+  pairs, deduplicates aliases, and preserves stable skill identity across
+  sequential repairs. Failed authoring and saved-plan validation diagnostics no
+  longer reflect untrusted role names or malformed values.
+- Company names that cannot be represented portably as filesystem components
+  are rejected before research begins, including Windows-reserved characters,
+  device aliases, and the current-directory component. Legitimate trailing
+  punctuation remains available for report titles but is normalized in path
+  components. Temporary research context files also release their raw
+  descriptor before they are consumed, preventing Windows handle leaks and
+  nondeterministic cleanup failures.
+- URL-derived domains and artifact names now use canonical hostnames instead of
+  raw authorities. Explicit ports and credentials no longer leak into working
+  directory names, search exclusions, hiring probes, citations, scrape
+  artifacts, or low-value URL checks. IDNA 2008 conversion keeps distinct
+  internationalized domains from colliding, invalid ports fail closed, and only
+  a leading `www.` label is removed.
+- DuckDuckGo own-site filtering now respects DNS label boundaries, so a target
+  such as `acme.com` excludes its real subdomains without discarding unrelated
+  domains such as `notacme.com`. Google site exclusions and validated external
+  source filtering now remain correct when the configured website has an
+  explicit port. External-source allowlists preserve a deliberately narrow
+  `www` scope, and remembered rate-limit state uses the same canonical host key
+  when a site runs on a custom port.
+- Calibration sidecars now bind to the exact report bytes they evaluated.
+  Pack manifests and compact MCP/A2A calibration summaries reject legacy,
+  missing, or stale report bindings instead of presenting unrelated evidence.
+  Manifest report and sidecar metadata is parsed, validated, fingerprinted, and
+  embedded from one byte snapshot so concurrent file changes fail later
+  integrity inspection instead of creating internally inconsistent evidence.
+- Production recovery now executes built-in same-call and backoff retries,
+  records only actions actually attempted, and exposes deterministic sleep
+  injection for tests. Recovery telemetry listener failures no longer discard
+  successful retry results, and route plus resilience state updates now share a
+  per-run serialized read-modify-write transaction so concurrent workers cannot
+  overwrite one another's events.
+- A2A interruptions after durable job creation can no longer strand an active
+  job. Cancellation before supervisor ownership records `CANCELLED`; an
+  interrupted supervisor startup preserves its authoritative cleanup result or
+  records `FAILED` when ownership never completed.
+- Local artifact and heartbeat overwrites now tolerate bounded, transient
+  Windows sharing violations while preserving atomic replacement, prior data,
+  and temp-file cleanup on persistent failure.
+- The standalone security scanner now produces Windows-safe output, inspects
+  executable syntax instead of matching comments and strings, detects genuine
+  text-mode encoding omissions, and uses the canonical `pip-audit` CI gate.
+  The ten real encoding omissions it identified now use explicit UTF-8.
+
+### Security
+
+- Behavioral-evaluation JSON is no longer an unchecked agent-instruction
+  carrier. Generated cases are bounded and screened before any with-skill,
+  baseline, or grader call; grader inputs are nonce-fenced; and packaged eval
+  files require a bounded form of Anthropic's current `expectations` schema
+  with unique keys and identifiers. The optional `files` key is recognized
+  only when empty because Primr does not yet package eval input assets; nonempty
+  references fail closed instead of becoming dangling paths. Primr's earlier
+  `assertions` form remains readable. Unsafe and default-ignorable Unicode,
+  control-plane overrides, affirmative credential exfiltration, executable
+  launch directions, alternate eval files, oversized payloads, and cross-skill
+  name mismatches fail closed without blocking fenced code-review data or
+  explicit prohibitions and descriptive security-review tasks. Zero-case
+  requests make no provider call. Packaging validates the admitted file set
+  once before writing either artifact format. Fenced input is admitted only
+  behind a strict review-only frame, and execution intent before or after the
+  block fails closed. Images, active or local link destinations, executable
+  paths, common imperative frames, sensitive credential reads or transfers,
+  and the complete [Unicode 17 default-ignorable set](https://www.unicode.org/Public/17.0.0/ucd/DerivedCoreProperties.txt)
+  are covered both raw and after bounded recursive CommonMark entity, percent,
+  and Unicode compatibility decoding; residual encoded layers fail closed.
+  Clause-level negation and exception handling
+  separates inert security review from later credential access or transfer.
+  Markdown links and definitions fail closed because their hidden destinations
+  are unnecessary for eval artifacts. Review-fenced examples retain their
+  inert code-review use case while fence metadata, embedded prompt control,
+  and unsafe comment prose are checked. CommonMark canonicalization and link
+  policy now have one typed shared seam; eval schema and control-plane policy
+  share a focused validator. Task arms and both graders run statelessly so
+  case-generation context cannot leak into the baseline, while retaining the
+  caller's configured model and reasoning tier. Behavioral-eval approval now
+  prices the actual one generation plus four calls per case from the model
+  registry, reserves every output ceiling and bounded input budget, includes
+  sequential runtime, and uses the same strict two-attempt cap as execution.
+  OpenAI-compatible SDK retries are disabled so the explicit Primr loop is the
+  sole retry owner; a transport-level regression proves that two approved
+  attempts issue exactly two HTTP requests. Credential screening now covers
+  response-oriented disclosure, common token and credential-file forms, and
+  chained metadata-to-value transfers without rejecting metadata-only
+  governance reporting. Adjacent-clause pronouns and output synonyms cannot
+  detach raw values from their credential antecedent. Execution screening now
+  covers structural terminal and console entry, interpreter data sinks,
+  downloaded-result coreference, boot, and click activation while preserving
+  ordinary alphanumeric business tasks and non-executable downloaded-data use.
+  Language-aware fence scanners inspect inline comments, including ECMAScript
+  template interpolations and native CMD `REM` forms, without treating quoted
+  comment markers or template text as instructions. Bounded instruction grammar
+  also covers transformed-secret transfer, persistence destinations,
+  downloaded executable activation, and interpreter evaluation while retaining
+  explicit prohibitions and metadata-only credential inventories. Raw HTTP
+  targets that are malformed, lexically local, private, reserved, or cloud
+  metadata endpoints fail closed without a DNS side effect, including targets
+  followed by prose delimiters. Mixed-script and same-script command confusables are checked without
+  rejecting pure Greek, Cyrillic, Armenian, or accented-Latin prose. Skills
+  with no valid generated cases are skipped instead of being reported as
+  benchmarked.
+- Saved plans reject oversized files, amplified prompts, malformed structures,
+  nonportable roles, and rosters above the global cap before provider work.
+  Operator curation is atomic and cannot silently discard approved operator
+  roles. Approval tokens are content-bound, so same-sized plan substitutions or
+  post-estimate curation changes fail closed.
+- Skill-pack authoring now accepts only markdown references from model-proposed
+  companions and applies a CommonMark-aware structural executable-payload
+  boundary across agent-consumed fields: fenced and indented code blocks,
+  including container-nested, table-cell, entity-encoded, and mixed-whitespace
+  forms, raw HTML except the verifier's literal artifact placeholder, plus
+  multiline program syntax, direct or determiner-wrapped executable commands,
+  common instruction-prefix variants, operational YAML/JSON keys, non-empty
+  argument vectors, and correlated process file and argument specifications,
+  helper-materialization directions, and unregistered executable references
+  fail closed. Link destinations, titles, and used or unused CommonMark
+  reference definitions are decoded before inspection. Multiline code and
+  embedded JSON reconstruction have explicit work and size bounds. YAML
+  aliases, anchors, explicit tags, token overflows, and input overflows fail
+  closed before safe basic-value loading. Role
+  metadata is covered, and generated SKILL.md frontmatter uses
+  control-normalized JSON/YAML scalars with an exact parsed-structure round trip.
+  Recon, hiring, industry, role, and citation evidence is sanitized and
+  nonce-fenced before authoring, and the final rejection boundary uses the
+  shared detector's high-confidence authored-output policy. Invalid role names
+  fail before a provider call. Scalar process
+  specifications, Ruby and Perl command placements, executable output-format
+  directives, and verifier paths outside the canonical workflow are rejected.
+  Ordinary workflow prose such as `Start with an intake step` and `Call the
+  Salesforce API` remains valid.
+  This boundary is defense in depth and deliberately makes no claim to infer the
+  intent of arbitrary prose. Pack reports require review before installation and
+  retain host tool allowlists, approval gates, and sandboxing as trust boundaries.
+  The packager admits executable bytes
+  only at the registered first-party path, on the one verifier skill, with its
+  canonical invocation. The verifier rejects absolute, UNC, device, traversal,
+  alternate-stream, symlink, and junction paths before open, then uses a
+  nonblocking bounded regular-file reader with strict UTF-8 and content-safe
+  errors that do not reflect untrusted paths or bytes. Companion and collision
+  paths reject Windows device basenames and overlong components. Distinct
+  companies whose names sanitize to one output token receive deterministic
+  collision suffixes while same-company reruns preserve identity. Same-day
+  packaging now stages a complete tree before replacing only marker-owned or
+  narrowly recognized legacy output; links, mounts, and unrelated directories
+  are refused, Windows renames retry, and exhausted post-commit cleanup is
+  reported without mislabeling a published pack as failed.
+- Raised Pillow to 12.3.0, closing the five advisories affecting the previous
+  12.2.0 lock, and added a dependency-floor regression gate.
+- JWT verification now preserves explicit empty scopes instead of granting
+  legacy defaults, rejects malformed scope claims, and fails closed on
+  boolean, non-finite, or exactly expired time claims. Age-limited static admin
+  tokens no longer bypass rotation through the token cache, and non-finite
+  admin-token max-age configuration is rejected or ignored safely.
+- MCP HTTP refuses unauthenticated non-loopback listeners even when plaintext
+  is explicitly acknowledged, preventing a development switch from becoming
+  remote anonymous access.
+
 ## [1.35.2] - 2026-07-12
 
 ### Fixed

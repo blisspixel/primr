@@ -33,6 +33,10 @@ from primr.ai.host_agent_runner import (
     render_host_agent_prompt,
 )
 from primr.ai.routing import Role
+from primr.config.inference import (
+    EXPERIMENTAL_HOST_PROMOTION_STATUS,
+    host_agent_may_bill_acknowledged,
+)
 
 CODEX_CLI_BACKEND_ID = "codex-cli"
 
@@ -213,6 +217,7 @@ def codex_cli_backend(
     """Return the Codex CLI host-runner capability row."""
 
     is_available = CodexCliHostAgentRunner().is_available() if available is None else available
+    normalized_billing_mode = BillingMode(billing_mode)
     return BackendCapabilities(
         backend_id=CODEX_CLI_BACKEND_ID,
         kind=BackendKind.HOST_AGENT,
@@ -222,7 +227,7 @@ def codex_cli_backend(
         max_context_tokens=128_000,
         supports_structured_output=True,
         latency_class=LatencyClass.STANDARD,
-        billing_mode=billing_mode,
+        billing_mode=normalized_billing_mode,
         available=is_available,
         official_host_runner=True,
         metadata={
@@ -230,6 +235,8 @@ def codex_cli_backend(
             "transport": "codex_cli_exec",
             "sandbox": "read-only",
             "web_search": "disabled",
+            "billing_acknowledged": normalized_billing_mode is BillingMode.POTENTIALLY_METERED,
+            "promotion_status": EXPERIMENTAL_HOST_PROMOTION_STATUS,
         },
     )
 
@@ -237,7 +244,12 @@ def codex_cli_backend(
 def supported_host_agent_backends() -> tuple[BackendCapabilities, ...]:
     """Return supported official host-agent backends for runtime routing."""
 
-    return (codex_cli_backend(),)
+    billing_mode = (
+        BillingMode.POTENTIALLY_METERED
+        if host_agent_may_bill_acknowledged()
+        else BillingMode.UNKNOWN
+    )
+    return (codex_cli_backend(billing_mode=billing_mode),)
 
 
 def run_host_agent_stage(

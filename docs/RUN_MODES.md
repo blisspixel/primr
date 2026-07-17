@@ -45,12 +45,22 @@ path. `--inference hybrid` enables the backend-freedom utility-stage pilots:
 resolve their legacy utility models through the capability router, log safe
 route metadata, append body-free `stage_routes` entries to `_run_state.json`,
 and then execute through existing provider seams. The public CLI exposes only
-`cloud` and `hybrid`. An internal/eval-only Codex adapter exists, but Codex CLI
-authentication does not tell Primr whether a run uses plan allowance or metered
-API-key billing. It is therefore not a supported inference profile. Use
+`cloud` and `hybrid`.
+
+`fast.source_relevance` also has an unpromoted, experimental Codex CLI route.
+It remains disabled unless a single-company command includes both
+`--inference hybrid` and `--acknowledge-host-agent-may-bill`. Codex CLI
+authentication does not tell Primr whether a session uses plan allowance or
+metered billing, so the route is recorded as `potentially_metered`; its unknown
+host charge is excluded from `--dry-run` totals and `--budget`. The route uses
+a read-only sandbox with web search and shell tools disabled. If no runner
+qualifies, hybrid keeps the already-estimated cloud baseline. If a selected
+host execution fails, source filtering keeps all sources without making a
+second cloud call. This explicit pilot has not cleared its hybrid-vs-cloud
+promotion eval and is not a validated default. Batch use is rejected. Use
 `primr-zero` inside a verified plan-backed host for the supported plan-native
-path. Local profiles also remain unexposed until stage adapters and evals clear
-the promotion bar.
+path. Local profiles remain unexposed until stage adapters and evals clear the
+promotion bar.
 
 ## Strategy Generation
 

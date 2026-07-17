@@ -24,7 +24,11 @@ from primr.mcp_server.resource_summary_utils import (
     sorted_counts,
 )
 from primr.mcp_server.server_context import MCPServerContext
-from primr.qa.calibration_runner import sidecar_path_for
+from primr.qa.calibration_sidecars import (
+    calibration_sidecar_matches_report,
+    report_path_for_sidecar,
+    sidecar_path_for,
+)
 
 if TYPE_CHECKING:
     from mcp.server.lowlevel.helper_types import ReadResourceContents
@@ -147,6 +151,12 @@ def _calibration_artifact_summary(index: int, path: Path) -> dict[str, Any]:
 
     if not isinstance(payload, dict):
         return _parse_error_summary(metadata, "invalid_calibration_payload")
+    try:
+        report_path = report_path_for_sidecar(path)
+    except ValueError:
+        return _parse_error_summary(metadata, "invalid_calibration_sidecar_name")
+    if not calibration_sidecar_matches_report(report_path, payload):
+        return _parse_error_summary(metadata, "report_artifact_mismatch")
 
     per_label = _dict_payload(payload.get("per_label"))
     label_summaries = _label_summaries(per_label)
@@ -156,6 +166,7 @@ def _calibration_artifact_summary(index: int, path: Path) -> dict[str, Any]:
     return {
         **metadata,
         "parsed": True,
+        "report_binding_valid": True,
         "full_content_included": False,
         "raw_claims_included": False,
         "claim_text_included": False,

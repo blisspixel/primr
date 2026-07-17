@@ -156,10 +156,25 @@ class TestInferenceProfile:
     def test_default_is_cloud(self):
         config = parse_args(["Acme", "https://acme.example"])
         assert config.inference_profile == "cloud"
+        assert config.acknowledge_host_agent_may_bill is False
 
     def test_hybrid_profile_parses(self):
         config = parse_args(["Acme", "https://acme.example", "--inference", "hybrid"])
         assert config.inference_profile == "hybrid"
+
+    def test_host_billing_acknowledgment_parses(self):
+        config = parse_args(
+            [
+                "Acme",
+                "https://acme.example",
+                "--inference",
+                "hybrid",
+                "--acknowledge-host-agent-may-bill",
+            ]
+        )
+
+        assert config.inference_profile == "hybrid"
+        assert config.acknowledge_host_agent_may_bill is True
 
 
 class TestSkipConfirm:
@@ -307,7 +322,7 @@ class TestJsonFlag:
         assert rc == 0
         payload = json.loads(capsys.readouterr().out)  # stdout must be pure JSON
         assert "total_cost" in payload
-        assert payload["mode_label"].startswith("standard")
+        assert payload["mode_label"].startswith("full")
 
     def test_dry_run_json_includes_budget_policy_when_budget_is_set(self, capsys):
         import json

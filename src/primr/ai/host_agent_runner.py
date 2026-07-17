@@ -31,6 +31,7 @@ class HostAgentBillingMode(str, Enum):
 
     HOST_PLAN_USAGE = "host_plan_usage"
     API_CREDITS = "api_credits"
+    POTENTIALLY_METERED = "potentially_metered"
     UNKNOWN = "unknown"
 
 
@@ -46,6 +47,7 @@ class HostAgentPolicy:
     max_wall_seconds: int = 600
     max_output_chars: int = 100_000
     allow_api_credit_handoff: bool = False
+    allow_potentially_metered_handoff: bool = False
 
     def __post_init__(self) -> None:
         billing_mode = HostAgentBillingMode(self.billing_mode)
@@ -56,6 +58,11 @@ class HostAgentPolicy:
             raise ValueError("max_output_chars must be positive")
         if billing_mode is HostAgentBillingMode.API_CREDITS and not self.allow_api_credit_handoff:
             raise ValueError("API credit handoff requires explicit approval")
+        if (
+            billing_mode is HostAgentBillingMode.POTENTIALLY_METERED
+            and not self.allow_potentially_metered_handoff
+        ):
+            raise ValueError("Potentially metered host handoff requires explicit acknowledgment")
 
 
 @dataclass(frozen=True)
@@ -160,6 +167,8 @@ def render_host_agent_prompt(packet: HostAgentStagePacket) -> str:
             f"- max_wall_seconds: {packet.policy.max_wall_seconds}",
             f"- max_output_chars: {packet.policy.max_output_chars}",
             f"- allow_api_credit_handoff: {packet.policy.allow_api_credit_handoff}",
+            "- allow_potentially_metered_handoff: "
+            f"{packet.policy.allow_potentially_metered_handoff}",
         ]
     )
     return "\n".join(lines)

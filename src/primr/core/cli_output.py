@@ -25,6 +25,7 @@ def cost_estimate_json(
     mode_label: str,
     ai_strategy: bool,
     budget_enforcement: dict[str, object] | None = None,
+    inference: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Structured cost estimate for ``--dry-run --json`` (estimate-first for agents)."""
     data: dict[str, object] = dataclasses.asdict(estimate)
@@ -32,6 +33,8 @@ def cost_estimate_json(
     data["includes_ai_strategy"] = ai_strategy
     if budget_enforcement is not None:
         data["budget_enforcement"] = budget_enforcement
+    if inference is not None:
+        data["inference"] = inference
     return data
 
 

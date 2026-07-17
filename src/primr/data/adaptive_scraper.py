@@ -169,7 +169,7 @@ class DomainLearner:
         try:
             path = Path(self._storage_path)
             if path.exists():
-                with open(path) as f:
+                with open(path, encoding="utf-8") as f:
                     data = json.load(f)
 
                 for domain, profile_data in data.items():
@@ -216,7 +216,7 @@ class DomainLearner:
                     "total_successes": profile.total_successes,
                 }
 
-            with open(path, "w") as f:
+            with open(path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
 
         except PermissionError as e:

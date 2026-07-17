@@ -16,6 +16,7 @@ Security:
 import hashlib
 import hmac
 import logging
+import math
 import os
 import time
 from dataclasses import dataclass, field
@@ -95,6 +96,11 @@ class AuthConfig:
     # L4: Maximum age in hours for admin tokens from first use (None = no expiry)
     admin_token_max_age_hours: float | None = None
 
+    def __post_init__(self) -> None:
+        max_age = self.admin_token_max_age_hours
+        if max_age is not None and not math.isfinite(max_age):
+            raise ValueError("admin_token_max_age_hours must be finite")
+
     @classmethod
     def from_env(cls) -> "AuthConfig":
         """Load auth config from environment variables."""
@@ -145,10 +151,13 @@ class AuthConfig:
         if max_age_str:
             try:
                 admin_token_max_age_hours = float(max_age_str)
+                if not math.isfinite(admin_token_max_age_hours):
+                    raise ValueError("value must be finite")
             except ValueError:
                 logger.warning(
                     f"Invalid MCP_ADMIN_TOKEN_MAX_AGE_HOURS value: {max_age_str!r}. Ignoring."
                 )
+                admin_token_max_age_hours = None
 
         return cls(
             admin_tokens=admin_tokens,
@@ -213,13 +222,21 @@ class PrimrTokenVerifier:
             logger.warning("Empty or invalid token provided")
             return None
 
-        # Check cache first
+        token_hash = self._hash_token(token)
+
+        # Static admin tokens with an age policy must be checked on every use.
+        # JWTs and non-expiring static tokens may use the bounded cache.
         cached = self._get_cached(token)
         if cached:
-            return cached
+            is_age_limited_admin = (
+                token_hash in self._admin_token_hashes
+                and self.config.admin_token_max_age_hours is not None
+            )
+            if not is_age_limited_admin:
+                return cached
+            self._token_cache.pop(token, None)
 
         # Check if it's a static admin token (using constant-time comparison)
-        token_hash = self._hash_token(token)
         is_admin = False
         for stored_hash in self._admin_token_hashes:
             if hmac.compare_digest(token_hash, stored_hash):
@@ -232,7 +249,7 @@ class PrimrTokenVerifier:
                     self._admin_token_first_use[token_hash] = now
                 first_use = self._admin_token_first_use[token_hash]
                 max_age_seconds = self.config.admin_token_max_age_hours * 3600
-                if now - first_use > max_age_seconds:
+                if now - first_use >= max_age_seconds:
                     logger.warning(
                         f"Admin token expired: first used {now - first_use:.0f}s ago, "
                         f"max age is {max_age_seconds:.0f}s. Rotate the token."
@@ -245,7 +262,8 @@ class PrimrTokenVerifier:
                 scopes=[ADMIN_SCOPE, READ_SCOPE, "write", RESEARCH_SCOPE, DELEGATE_SCOPE],
                 expires_at=None,  # Static tokens don't expire
             )
-            self._cache_token(token, access)
+            if self.config.admin_token_max_age_hours is None:
+                self._cache_token(token, access)
             logger.info(f"Admin token authenticated: client_id={access.client_id}")
             return access
 
@@ -335,6 +353,9 @@ class PrimrTokenVerifier:
             # least-privilege callers; no-scope tokens retain the legacy
             # read/write default for backwards compatibility.
             scopes = self._extract_scopes(payload)
+            if scopes is None:
+                logger.warning("Rejected JWT with malformed scope claim")
+                return None
             if role == "admin":
                 for scope in (ADMIN_SCOPE, READ_SCOPE, "write", RESEARCH_SCOPE, DELEGATE_SCOPE):
                     if scope not in scopes:
@@ -353,23 +374,23 @@ class PrimrTokenVerifier:
             logger.warning("JWT verification failed: %s", e)
             return None
 
-    def _extract_scopes(self, payload: dict) -> list[str]:
-        """Extract scopes from JWT claims or return legacy defaults."""
-        explicit_scopes = self._coerce_scope_claim(payload.get("scope"))
-        if not explicit_scopes:
-            explicit_scopes = self._coerce_scope_claim(payload.get("scp"))
-        if explicit_scopes:
-            return explicit_scopes
+    def _extract_scopes(self, payload: dict) -> list[str] | None:
+        """Extract explicit scopes, preserving empty and malformed claims."""
+        for claim_name in ("scope", "scp"):
+            if claim_name in payload:
+                return self._coerce_scope_claim(payload[claim_name])
         return [READ_SCOPE, "write"]
 
-    def _coerce_scope_claim(self, raw_scopes: object) -> list[str]:
+    def _coerce_scope_claim(self, raw_scopes: object) -> list[str] | None:
         """Normalize OAuth scope claims from strings or arrays."""
         if isinstance(raw_scopes, str):
             candidates = raw_scopes.replace(",", " ").split()
         elif isinstance(raw_scopes, list):
-            candidates = [item for item in raw_scopes if isinstance(item, str)]
+            if not all(isinstance(item, str) for item in raw_scopes):
+                return None
+            candidates = raw_scopes
         else:
-            return []
+            return None
 
         seen: set[str] = set()
         scopes: list[str] = []
@@ -471,17 +492,17 @@ class PrimrTokenVerifier:
             return "Reserved subject claim"
 
         # Check expiration
-        exp = payload.get("exp")
-        if exp:
-            if not isinstance(exp, int | float):
+        if "exp" in payload:
+            exp = payload["exp"]
+            if isinstance(exp, bool) or not isinstance(exp, int | float) or not math.isfinite(exp):
                 return "Invalid exp claim type"
-            if time.time() > exp:
+            if time.time() >= exp:
                 return f"Token expired at {exp}"
 
         # Check not-before
-        nbf = payload.get("nbf")
-        if nbf:
-            if not isinstance(nbf, int | float):
+        if "nbf" in payload:
+            nbf = payload["nbf"]
+            if isinstance(nbf, bool) or not isinstance(nbf, int | float) or not math.isfinite(nbf):
                 return "Invalid nbf claim type"
             if time.time() < nbf:
                 return f"Token not valid until {nbf}"
@@ -515,7 +536,7 @@ class PrimrTokenVerifier:
                 return None
 
             # Check token expiration
-            if access.expires_at and time.time() > access.expires_at:
+            if access.expires_at is not None and time.time() >= access.expires_at:
                 del self._token_cache[token]
                 return None
 

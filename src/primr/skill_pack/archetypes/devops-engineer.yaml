@@ -43,7 +43,7 @@ canonical_skills:
     summary: |
       Use LLMs to draft Terraform modules, GitHub Actions workflows,
       and Kubernetes manifests from intent; require human review for
-      production changes and run plan/diff before apply.
+      production changes and perform plan/diff before apply.
 ai_augmentation_patterns:
   - Generate first-pass Helm chart values for new environments.
   - Auto-draft GitHub Actions workflows from spec; review for

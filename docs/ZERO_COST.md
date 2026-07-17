@@ -116,17 +116,18 @@ for MCP and guidance placement outside the zero-cost path.
 
 These are related but different integrations.
 
-| Property | Host-native `primr-zero` | Internal Codex eval adapter |
+| Property | Host-native `primr-zero` | Experimental Codex adapter |
 |----------|--------------------------|-----------------------------|
 | Who owns the workflow | The current agent host | The Primr eval harness |
 | Input | Prep bundle or host-native web research | A bounded internal stage packet |
-| Current reach | Research, synthesis, report writing, and review within the host's capabilities | Internal/eval-only `fast.source_relevance` pilot, not exposed by the CLI |
+| Current reach | Research, synthesis, report writing, and review within the host's capabilities | Unpromoted `fast.source_relevance` pilot, eligible only for explicitly acknowledged single-company hybrid runs |
 | Provider keys and billing | Prep needs no provider key. Host synthesis is plan-native only after the host is verified not to bill API usage or overages. | Codex authentication can be plan-backed or API-key billed, and Primr cannot prove which applies. The adapter is not advertised as zero-cost. |
 | Failure behavior | Preserve partial artifacts and stop at the host boundary | The internal agent profile records runner unavailability and uses deterministic fallbacks rather than silently spending API dollars |
 
-The host-native path is the practical no-key, no-GPU option today. The
-Codex adapter is an internal/eval-only backend-freedom slice, not a subscription
-proxy, user-selectable profile, or zero-cost Primr route.
+The host-native path is the practical no-key, no-GPU option today. The Codex
+adapter is an explicitly gated, unpromoted backend-freedom slice, not a
+subscription proxy, separate inference profile, or zero-cost Primr route. Its
+unknown host charges are outside Primr's estimate and budget.
 
 ## What Primr adds beyond a generic research prompt
 

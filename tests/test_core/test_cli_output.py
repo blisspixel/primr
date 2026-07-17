@@ -29,12 +29,12 @@ def _estimate() -> CostEstimate:
 
 class TestCostEstimateJson:
     def test_includes_dataclass_fields_and_context(self):
-        d = cost_estimate_json(_estimate(), mode_label="standard (Grok)", ai_strategy=True)
+        d = cost_estimate_json(_estimate(), mode_label="full (Grok)", ai_strategy=True)
         assert d["mode"] == "fast"
         assert d["total_cost"] == 0.06
         assert d["estimated_input_tokens"] == 1000
         assert d["notes"] == ["a note"]
-        assert d["mode_label"] == "standard (Grok)"
+        assert d["mode_label"] == "full (Grok)"
         assert d["includes_ai_strategy"] is True
 
     def test_is_json_serializable(self):
@@ -56,6 +56,21 @@ class TestCostEstimateJson:
         )
 
         assert d["budget_enforcement"] == budget
+
+    def test_includes_inference_metadata_when_supplied(self):
+        inference = {
+            "profile": "hybrid",
+            "host_agent": {"billing_mode": "potentially_metered"},
+        }
+
+        d = cost_estimate_json(
+            _estimate(),
+            mode_label="x",
+            ai_strategy=False,
+            inference=inference,
+        )
+
+        assert d["inference"] == inference
 
 
 class TestResearchResultJson:

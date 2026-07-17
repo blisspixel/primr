@@ -25,6 +25,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+import primr.mcp_server.server as server_module
 from primr.mcp_server.server import create_mcp_server
 
 
@@ -132,6 +133,37 @@ def _http_server(**kwargs):
 
 
 class TestRunHttp:
+    @pytest.mark.parametrize(
+        ("host", "expected"),
+        [
+            ("localhost", True),
+            ("LOCALHOST", True),
+            ("127.0.0.1", True),
+            ("127.255.255.254", True),
+            ("::1", True),
+            ("[::1]", True),
+            ("0.0.0.0", False),
+            ("::", False),
+            ("192.0.2.1", False),
+            ("example.test", False),
+        ],
+    )
+    def test_loopback_host_classification(self, host, expected):
+        """Only explicit loopback names and addresses are treated as local."""
+        assert server_module._is_loopback_host(host) is expected
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("host", ["0.0.0.0", "::", "192.0.2.1", "example.test"])
+    async def test_run_http_refuses_unauthenticated_non_loopback(self, host):
+        """Authentication cannot be disabled on a remotely reachable listener."""
+        s = _http_server(host=host, allow_plaintext=True, require_auth=False)
+        with (
+            patch("primr.mcp_server.server.configure_http_logging"),
+            patch.object(s, "_setup_signal_handlers"),
+            pytest.raises(RuntimeError, match=r"unauthenticated.*non-loopback"),
+        ):
+            await s.run_http()
+
     @pytest.mark.asyncio
     async def test_run_http_refuses_plaintext_non_loopback(self):
         """Binding a non-loopback host without --allow-plaintext is refused."""

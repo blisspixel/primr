@@ -233,6 +233,35 @@ def test_api_credit_handoff_requires_explicit_policy_approval() -> None:
     assert allowed.primary is not None
 
 
+def test_potentially_metered_host_requires_explicit_acknowledgment() -> None:
+    requirements = StageRequirements(
+        stage_id="source-relevance",
+        role=Role.UTILITY,
+        accepts_host_agent=True,
+    )
+    backend = _host(billing_mode=BillingMode.POTENTIALLY_METERED)
+
+    denied = route_stage(
+        requirements,
+        (backend,),
+        RoutingPolicy(profile=InferenceProfile.HYBRID),
+    )
+    allowed = route_stage(
+        requirements,
+        (backend,),
+        RoutingPolicy(
+            profile=InferenceProfile.HYBRID,
+            allow_potentially_metered_handoff=True,
+        ),
+    )
+
+    assert denied.primary is None
+    assert denied.rejections[0].reasons == ("potentially_metered_handoff_not_acknowledged",)
+    assert allowed.primary is not None
+    assert allowed.primary.estimated_cost_usd is None
+    assert "potentially_metered" in allowed.primary.reasons
+
+
 def test_hybrid_prefers_zero_runtime_for_low_trust_but_cloud_for_high_trust() -> None:
     low_trust = StageRequirements(
         stage_id="summarize-page",

@@ -70,6 +70,7 @@ class BillingMode(str, Enum):
     API_DOLLARS = "api_dollars"
     API_CREDITS = "api_credits"
     HOST_PLAN_USAGE = "host_plan_usage"
+    POTENTIALLY_METERED = "potentially_metered"
     ZERO_API_RUNTIME = "zero_api_runtime"
     UNKNOWN = "unknown"
 
@@ -264,6 +265,7 @@ class RoutingPolicy:
     allow_profile_fallback: bool = False
     require_official_host_runner: bool = True
     allow_api_credit_handoff: bool = False
+    allow_potentially_metered_handoff: bool = False
     prefer_zero_api_runtime: bool = False
 
     def __post_init__(self) -> None:
@@ -441,12 +443,14 @@ def backend_meets_requirements(
     if _LATENCY_RANK[backend_latency] > _LATENCY_RANK[acceptable_latency]:
         rejections.append("latency_too_slow")
     if backend_kind is BackendKind.HOST_AGENT:
-        if not requirements.accepts_host_agent:
-            rejections.append("host_agent_not_allowed_for_stage")
-        if policy.require_official_host_runner and not backend.official_host_runner:
-            rejections.append("unofficial_host_runner")
-        if billing_mode is BillingMode.UNKNOWN:
-            rejections.append("host_billing_unverified")
+        rejections.extend(
+            _host_agent_rejections(
+                backend,
+                requirements,
+                policy,
+                billing_mode,
+            )
+        )
     if backend_kind is BackendKind.LOCAL and not requirements.accepts_local:
         rejections.append("local_not_allowed_for_stage")
     if backend_kind is BackendKind.GATEWAY and not requirements.accepts_gateway:
@@ -468,7 +472,11 @@ def backend_meets_requirements(
         "meets_context",
         "profile_primary" if profile_rank == 0 else "profile_fallback",
     ]
-    if billing_mode in (BillingMode.HOST_PLAN_USAGE, BillingMode.ZERO_API_RUNTIME):
+    if billing_mode in (
+        BillingMode.HOST_PLAN_USAGE,
+        BillingMode.POTENTIALLY_METERED,
+        BillingMode.ZERO_API_RUNTIME,
+    ):
         reasons.append(billing_mode.value)
     if requirements.requires_web_search:
         reasons.append("supports_web_search")
@@ -479,6 +487,27 @@ def backend_meets_requirements(
     return True, tuple(reasons)
 
 
+def _host_agent_rejections(
+    backend: BackendCapabilities,
+    requirements: StageRequirements,
+    policy: RoutingPolicy,
+    billing_mode: BillingMode,
+) -> tuple[str, ...]:
+    rejections: list[str] = []
+    if not requirements.accepts_host_agent:
+        rejections.append("host_agent_not_allowed_for_stage")
+    if policy.require_official_host_runner and not backend.official_host_runner:
+        rejections.append("unofficial_host_runner")
+    if billing_mode is BillingMode.UNKNOWN:
+        rejections.append("host_billing_unverified")
+    if (
+        billing_mode is BillingMode.POTENTIALLY_METERED
+        and not policy.allow_potentially_metered_handoff
+    ):
+        rejections.append("potentially_metered_handoff_not_acknowledged")
+    return tuple(rejections)
+
+
 def estimate_stage_cost(
     requirements: StageRequirements,
     backend: BackendCapabilities,
@@ -487,6 +516,8 @@ def estimate_stage_cost(
 
     if backend.billing_mode in (BillingMode.HOST_PLAN_USAGE, BillingMode.ZERO_API_RUNTIME):
         return 0.0
+    if backend.billing_mode is BillingMode.POTENTIALLY_METERED:
+        return None
     if backend.input_cost_per_million is None or backend.output_cost_per_million is None:
         return None
     return (requirements.expected_input_tokens / 1_000_000) * backend.input_cost_per_million + (

@@ -31,7 +31,7 @@ from primr.skill_pack.authoring import author_all_roles
 from primr.skill_pack.behavioral_eval import run_pack_behavioral_evals
 from primr.skill_pack.config import MAX_ROLES, SkillPackConfig
 from primr.skill_pack.packager import package_skill_pack
-from primr.skill_pack.planner import apply_curation, load_plan, plan_roles
+from primr.skill_pack.planner import plan_roles
 from primr.skill_pack.refiner import (
     attach_coherence_findings_as_issues,
     auto_resolve_overlaps,
@@ -39,6 +39,7 @@ from primr.skill_pack.refiner import (
     run_pack_coherence_pass,
 )
 from primr.skill_pack.role_brief import attach_role_brief_evidence
+from primr.skill_pack.saved_plan import prepare_saved_plan
 from primr.skill_pack.schema import (
     IssueSeverity,
     Role,
@@ -147,6 +148,7 @@ def run_skill_pack_pipeline(
     *,
     industry_context: str = "(unknown)",
     reasoning_session: Any | None = None,
+    prepared_plan: RolePlan | None = None,
 ) -> tuple[SkillPack, SkillPackArtifacts]:
     """Run the full pipeline. Returns (pack, artifacts).
 
@@ -161,6 +163,8 @@ def run_skill_pack_pipeline(
             improve authoring grounding. Used when no plan industry
             classification is available.
         reasoning_session: Optional ContinuousReasoningSession.
+        prepared_plan: Optional validated saved-plan snapshot. Cost-gated
+            callers pass it so estimation and execution use identical roles.
 
     Raises ValueError on config out-of-bounds, FileNotFoundError on
     missing evidence, RuntimeError if no roles survive refinement, and
@@ -198,24 +202,15 @@ def run_skill_pack_pipeline(
             "[skill_pack] Phase 1: loading saved plan from %s",
             config.from_plan_path,
         )
-        plan = load_plan(Path(config.from_plan_path))
-        if config.roles_add or config.roles_skip:
-            # When --from-plan is in use, honor the saved plan size + adds
-            # rather than the user's --roles flag, but never exceed the
-            # global MAX_ROLES ceiling. _drop_excess_to_cap trims plausible
-            # first, then observed, never operator-added.
-            curation_cap = min(
-                MAX_ROLES,
-                max(
-                    config.roles_count,
-                    len(plan.final_roster) + len(config.roles_add),
-                ),
-            )
-            apply_curation(
-                plan,
-                roles_add=list(config.roles_add),
-                roles_skip=list(config.roles_skip),
-                cap=curation_cap,
+        plan = prepared_plan or prepare_saved_plan(
+            Path(config.from_plan_path),
+            roles_add=config.roles_add,
+            roles_skip=config.roles_skip,
+        )
+        if len(plan.final_roster) > MAX_ROLES:
+            raise RuntimeError(
+                f"Saved plan at {config.from_plan_path} may contain at most "
+                f"{MAX_ROLES} final roles; found {len(plan.final_roster)}."
             )
         roles = list(plan.final_roster)
         if not roles:
@@ -311,30 +306,46 @@ def run_skill_pack_pipeline(
     # -- Phase 5b: pack-level coherence -----------------------------------
     if config.run_pack_coherence_pass and pack.roles:
         logger.info("[skill_pack] Phase 5b: pack coherence pass")
+        coherence: dict[str, Any] | None = None
         try:
             coherence = run_pack_coherence_pass(pack, reasoning_session=reasoning_session)
-            # Auto-resolve overlapping/colliding pairs (mutates coherence to
-            # drop resolved entries) before recording the remaining findings.
-            if config.auto_resolve_overlaps:
-                resolved = auto_resolve_overlaps(
-                    pack,
-                    coherence,
-                    _build_company_context(company_name, company_url, roles),
-                    reasoning_session=reasoning_session,
-                )
-                if resolved:
-                    logger.info(
-                        "[skill_pack] Phase 5b: auto-resolved %d overlap pair(s)",
-                        len(resolved),
-                    )
-            pack.validation = attach_coherence_findings_as_issues(pack, coherence)
         except Exception as exc:
             logger.warning("Pack coherence pass failed (non-fatal): %s", exc)
 
+        if coherence is not None:
+            if config.auto_resolve_overlaps:
+                try:
+                    resolved = auto_resolve_overlaps(
+                        pack,
+                        coherence,
+                        _build_company_context(company_name, company_url, roles),
+                        reasoning_session=reasoning_session,
+                    )
+                    if resolved:
+                        logger.info(
+                            "[skill_pack] Phase 5b: auto-resolved %d overlap pair(s)",
+                            len(resolved),
+                        )
+                except Exception as exc:
+                    logger.warning("Pack overlap auto-resolution failed (non-fatal): %s", exc)
+                finally:
+                    # The resolver commits accepted pairs incrementally and
+                    # can fail on a later pair. Revalidate every exit path so
+                    # partially mutated agent instructions never bypass gates.
+                    pack.validation = validate_pack(pack)
+            pack.validation = attach_coherence_findings_as_issues(pack, coherence)
+
+    pack_level_hard_findings = [
+        issue for issue in pack.validation.hard_issues if issue.role_name is None
+    ]
+    if pack_level_hard_findings:
+        codes = ", ".join(sorted({issue.code for issue in pack_level_hard_findings}))
+        raise RuntimeError(f"Pipeline blocked by pack-level HARD findings: {codes}")
+
     # Drop failing roles BEFORE the expensive opt-in passes so we never spend
     # trigger-optimization / behavioral-eval LLM budget on roles that are
-    # about to be discarded for unrecovered HARD findings (incl. a HARD
-    # PACK-STRAT from coherence). Cowork won't accept them either.
+    # about to be discarded for unrecovered role-level HARD findings. Cowork
+    # won't accept them either.
     _drop_failing_roles(pack)
     if not pack.roles:
         raise RuntimeError(
@@ -346,6 +357,11 @@ def run_skill_pack_pipeline(
     # -- Phase 5c: trigger-description optimization (opt-in) ---------------
     if config.optimize_triggers and pack.roles:
         logger.info("[skill_pack] Phase 5c: trigger-description optimization")
+        coherence_issues = [
+            issue
+            for issue in pack.validation.issues
+            if issue.code in ("PACK-OVERLAP-LLM", "PACK-TRIGGER", "PACK-VOICE", "PACK-STRAT")
+        ]
         try:
             trigger_results = optimize_pack_triggers(
                 pack,
@@ -354,17 +370,21 @@ def run_skill_pack_pipeline(
                 reasoning_session=reasoning_session,
             )
             pack.trigger_results = trigger_results
-            # Descriptions changed — re-validate, then re-attach coherence
-            # findings so the report reflects the optimized descriptions.
-            coherence_issues = [
-                i
-                for i in pack.validation.issues
-                if i.code in ("PACK-OVERLAP-LLM", "PACK-TRIGGER", "PACK-VOICE", "PACK-STRAT")
-            ]
-            pack.validation = validate_pack(pack)
-            pack.validation.issues.extend(coherence_issues)
         except Exception as exc:
             logger.warning("Trigger optimization failed (non-fatal): %s", exc)
+        finally:
+            # The optimizer mutates descriptions and can fail after a partial
+            # update. Revalidate every exit path before any later stage can
+            # consume or package those agent-facing fields.
+            pack.validation = validate_pack(pack)
+            pack.validation.issues.extend(coherence_issues)
+
+        _drop_failing_roles(pack)
+        if not pack.roles:
+            raise RuntimeError(
+                "Trigger optimization produced no valid roles after security revalidation. "
+                "Inspect the validation report for HARD findings."
+            )
 
     # -- Phase 5d: behavioral evaluation (opt-in, expensive) --------------
     if config.with_evals and pack.roles:

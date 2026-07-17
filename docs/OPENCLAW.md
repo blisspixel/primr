@@ -44,7 +44,10 @@ primr-mcp --help
 
 
 
-### 2. Copy the OpenClaw assets
+### 2. Copy the OpenClaw assets and pinned build inputs
+
+The sandbox image is built from the same source and dependency lock snapshot as
+the installed release. Keep these files together in the OpenClaw build context.
 
 
 
@@ -53,12 +56,24 @@ primr-mcp --help
 # Linux/macOS
 
 cp -r openclaw/* ~/.openclaw/
+cp pyproject.toml MANIFEST.in README.md ~/.openclaw/
+cp -r src ~/.openclaw/src
+mkdir -p ~/.openclaw/deploy
+cp deploy/build-requirements.lock deploy/runtime-requirements.lock ~/.openclaw/deploy/
 
 
 
 # Windows
 
-xcopy /E openclaw %USERPROFILE%\.openclaw```
+xcopy /E /I /Y openclaw %USERPROFILE%\.openclaw
+xcopy /E /I /Y src %USERPROFILE%\.openclaw\src
+if not exist %USERPROFILE%\.openclaw\deploy mkdir %USERPROFILE%\.openclaw\deploy
+copy /Y pyproject.toml %USERPROFILE%\.openclaw\
+copy /Y MANIFEST.in %USERPROFILE%\.openclaw\
+copy /Y README.md %USERPROFILE%\.openclaw\
+copy /Y deploy\build-requirements.lock %USERPROFILE%\.openclaw\deploy\
+copy /Y deploy\runtime-requirements.lock %USERPROFILE%\.openclaw\deploy\
+```
 
 
 

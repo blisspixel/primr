@@ -73,6 +73,9 @@ class TestExtractDomain:
     def test_strips_www(self):
         assert _extract_domain("https://www.example.org/path") == "example.org"
 
+    def test_ignores_explicit_port(self):
+        assert _extract_domain("https://www.example.org:8443/path") == "example.org"
+
 
 # ---------------------------------------------------------------------------
 # 9.2 — Recon pre-flight logic (unit-level, no full pipeline)

@@ -115,6 +115,14 @@ def test_safe_working_subdir_valid(tmp_path):
     assert result.parent == tmp_path.resolve()
 
 
+def test_safe_working_subdir_normalizes_trailing_period(tmp_path):
+    with patch.object(output_utils, "WORKING_DIR", str(tmp_path)):
+        result = _safe_working_subdir("Acme, Inc.")
+
+    assert result.name == "Acme,_Inc"
+    assert result.parent == tmp_path.resolve()
+
+
 def test_safe_working_subdir_rejects_traversal(tmp_path):
     import pytest
 

@@ -22,6 +22,7 @@ import json
 import os
 import tempfile
 import threading
+from contextlib import suppress
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
@@ -39,6 +40,13 @@ def format_timestamp(dt: datetime) -> str:
 def utc_now() -> datetime:
     """Get current UTC time."""
     return datetime.now(timezone.utc)
+
+
+def _atomic_replace(source: Path, target: Path) -> None:
+    """Use Primr's shared retry seam only when the local backend writes."""
+    from primr.utils.atomic_io import atomic_replace
+
+    atomic_replace(source, target)
 
 
 @runtime_checkable
@@ -200,14 +208,11 @@ class LocalStore:
             os.close(fd)
             temp_file = Path(temp_path)
             temp_file.write_bytes(data)
-            # Use replace() instead of rename() to allow overwriting on Windows
-            temp_file.replace(path)
+            _atomic_replace(temp_file, path)
         except Exception:
             # Clean up temp file on error
-            try:
+            with suppress(OSError):
                 Path(temp_path).unlink()
-            except OSError:
-                pass
             raise
 
     def get(self, key: str) -> bytes | None:
@@ -279,7 +284,7 @@ class LocalStore:
             try:
                 os.close(fd)
                 temp_file = Path(temp_path)
-                temp_file.write_text(manifest.to_json())
+                temp_file.write_text(manifest.to_json(), encoding="utf-8")
 
                 # Check again before rename (minimize race window)
                 if manifest_path.exists():
@@ -291,10 +296,8 @@ class LocalStore:
                 raise
             except Exception:
                 # Clean up temp file on error
-                try:
+                with suppress(OSError):
                     Path(temp_path).unlink()
-                except OSError:
-                    pass
                 raise
 
     def get_manifest(self, job_id: str) -> JobManifest | None:
@@ -324,14 +327,11 @@ class LocalStore:
         try:
             os.close(fd)
             temp_file = Path(temp_path)
-            temp_file.write_text(json.dumps(heartbeat, indent=2))
-            # Use replace() instead of rename() to allow overwriting on Windows
-            temp_file.replace(heartbeat_path)
+            temp_file.write_text(json.dumps(heartbeat, indent=2), encoding="utf-8")
+            _atomic_replace(temp_file, heartbeat_path)
         except Exception:
-            try:
+            with suppress(OSError):
                 Path(temp_path).unlink()
-            except OSError:
-                pass
             raise
 
 

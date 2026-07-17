@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from primr.config.env import load_primr_env
-from primr.config.models import PrimrModels
+from primr.config.model_registry import DEFAULT_FLASH_MODEL, DEFAULT_PRO_MODEL
 from primr.utils.errors import ConfigurationError
 
 # Load environment variables
@@ -252,34 +252,32 @@ class AIConfig:
     """
     AI model configuration.
 
-    Model assignments (update PrimrModels to change globally):
+    Model assignments (update model_registry defaults to change globally):
         - flash_model: Fast tasks (summarization, filtering) - cheap
         - pro_model: Complex tasks (report generation, reasoning) - expensive
         - fast_model/reasoning_model: Aliases for flash/pro
     """
 
-    # Primary model assignments - pull from PrimrModels
+    # Primary model assignments come from the dependency-leaf registry.
     flash_model: str = field(
-        default_factory=lambda: os.getenv("AI_FAST_MODEL", PrimrModels.FLASH_MODEL)
+        default_factory=lambda: os.getenv("AI_FAST_MODEL", DEFAULT_FLASH_MODEL)
     )
     pro_model: str = field(
-        default_factory=lambda: os.getenv("AI_REASONING_MODEL", PrimrModels.PRO_MODEL)
+        default_factory=lambda: os.getenv("AI_REASONING_MODEL", DEFAULT_PRO_MODEL)
     )
 
     # Task-specific aliases (for backward compatibility)
-    fast_model: str = field(
-        default_factory=lambda: os.getenv("AI_FAST_MODEL", PrimrModels.FAST_MODEL)
-    )
+    fast_model: str = field(default_factory=lambda: os.getenv("AI_FAST_MODEL", DEFAULT_FLASH_MODEL))
     reasoning_model: str = field(
-        default_factory=lambda: os.getenv("AI_REASONING_MODEL", PrimrModels.REASONING_MODEL)
+        default_factory=lambda: os.getenv("AI_REASONING_MODEL", DEFAULT_PRO_MODEL)
     )
 
     # Legacy aliases (backward compatible)
     research_model: str = field(
-        default_factory=lambda: os.getenv("AI_RESEARCH_MODEL", PrimrModels.FAST_MODEL)
+        default_factory=lambda: os.getenv("AI_RESEARCH_MODEL", DEFAULT_FLASH_MODEL)
     )
     report_model: str = field(
-        default_factory=lambda: os.getenv("AI_REPORT_MODEL", PrimrModels.PRO_MODEL)
+        default_factory=lambda: os.getenv("AI_REPORT_MODEL", DEFAULT_PRO_MODEL)
     )
 
     max_retries: int = 3

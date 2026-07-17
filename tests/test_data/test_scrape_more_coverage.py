@@ -296,6 +296,39 @@ class TestScrapeExternalSources:
             )
         assert list(result) == ["https://keep.example/a"]
 
+    def test_allowed_domains_use_hostname_boundaries_and_strip_userinfo(self):
+        orch = Mock()
+        orch.scrape_url.return_value = SimpleNamespace(success=True, extracted_text="x" * 200)
+        with patch("primr.data.scrape.get_external_orchestrator", return_value=orch):
+            result = scrape_external_sources(
+                [
+                    {"url": "https://keep.example@evil.example/bypass"},
+                    {"url": "https://user:secret@news.keep.example/story"},
+                    {"url": "https://notkeep.example/lookalike"},
+                ],
+                max_sources=3,
+                allowed_domains=["keep.example"],
+            )
+
+        assert list(result) == ["https://news.keep.example/story"]
+        orch.scrape_url.assert_called_once_with("https://news.keep.example/story")
+
+    def test_www_specific_allowlist_does_not_authorize_sibling_subdomains(self):
+        orch = Mock()
+        orch.scrape_url.return_value = SimpleNamespace(success=True, extracted_text="x" * 200)
+        with patch("primr.data.scrape.get_external_orchestrator", return_value=orch):
+            result = scrape_external_sources(
+                [
+                    {"url": "https://news.keep.example/story"},
+                    {"url": "https://docs.www.keep.example/guide"},
+                ],
+                max_sources=2,
+                allowed_domains=["www.keep.example"],
+            )
+
+        assert list(result) == ["https://docs.www.keep.example/guide"]
+        orch.scrape_url.assert_called_once_with("https://docs.www.keep.example/guide")
+
     def test_skips_short_content(self):
         orch = Mock()
         orch.scrape_url.return_value = SimpleNamespace(success=True, extracted_text="short")
@@ -359,6 +392,22 @@ class TestScrapeExternalSourcesValidated:
             )
         assert result == {}
         # Main-site entry skipped before scraping/validation.
+        llm_mock.assert_not_called()
+        orch.scrape_url.assert_not_called()
+
+    def test_skips_main_site_when_configured_url_has_port(self):
+        orch = self._orch()
+        with (
+            patch("primr.data.scrape.get_external_orchestrator", return_value=orch),
+            patch("primr.ai.llm.llm") as llm_mock,
+        ):
+            result = scrape_external_sources_validated(
+                [{"url": "https://www.acme.example/news", "title": "home"}],
+                company_name="Acme Corp",
+                website="https://acme.example:8443",
+            )
+
+        assert result == {}
         llm_mock.assert_not_called()
         orch.scrape_url.assert_not_called()
 

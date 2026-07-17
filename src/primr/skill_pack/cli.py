@@ -9,13 +9,25 @@ from __future__ import annotations
 
 import argparse
 import logging
+import math
 import sys
 import tempfile
 from pathlib import Path
 
+from primr.ai.error_policy import MAX_RETRY_AFTER_SECONDS
+from primr.config.models import PrimrModels
 from primr.skill_pack.config import (
     DEFAULT_ROLES,
     DEFAULT_SKILLS_PER_ROLE,
+    EVAL_CALL_SECONDS,
+    EVAL_CASE_INPUT_TOKEN_RESERVE,
+    EVAL_CHARGEABLE_ATTEMPT_CAP,
+    EVAL_GENERATION_INPUT_TOKEN_RESERVE,
+    EVAL_GENERATION_OUTPUT_TOKEN_CAP,
+    EVAL_GRADER_OUTPUT_TOKEN_CAP,
+    EVAL_TASK_OUTPUT_TOKEN_CAP,
+    MAX_AUTO_RESOLVE_PAIRS,
+    MAX_EVAL_CASES,
     MAX_ROLES,
     MAX_SKILLS_PER_ROLE,
     MIN_ROLES,
@@ -26,8 +38,36 @@ from primr.skill_pack.config import (
 )
 from primr.skill_pack.evidence import collect_evidence
 from primr.skill_pack.pipeline import run_skill_pack_pipeline
+from primr.skill_pack.saved_plan import prepare_saved_plan
 
 logger = logging.getLogger(__name__)
+
+
+def _behavioral_eval_estimate(skill_count: int, cases_per_skill: int) -> tuple[float, int]:
+    """Reserve token ceilings and sequential runtime for behavioral evals."""
+    if skill_count <= 0 or cases_per_skill <= 0:
+        return 0.0, 0
+    model = PrimrModels.GROK_MODEL
+    generation_cost = PrimrModels.calculate_cost(
+        model,
+        EVAL_GENERATION_INPUT_TOKEN_RESERVE,
+        EVAL_GENERATION_OUTPUT_TOKEN_CAP,
+    )
+    case_output_tokens = 2 * (EVAL_TASK_OUTPUT_TOKEN_CAP + EVAL_GRADER_OUTPUT_TOKEN_CAP)
+    case_cost = PrimrModels.calculate_cost(
+        model,
+        EVAL_CASE_INPUT_TOKEN_RESERVE,
+        case_output_tokens,
+    )
+    cost = (
+        skill_count * (generation_cost + cases_per_skill * case_cost) * EVAL_CHARGEABLE_ATTEMPT_CAP
+    )
+    calls = skill_count * (1 + 4 * cases_per_skill)
+    seconds_per_call = EVAL_CALL_SECONDS * EVAL_CHARGEABLE_ATTEMPT_CAP + MAX_RETRY_AFTER_SECONDS * (
+        EVAL_CHARGEABLE_ATTEMPT_CAP - 1
+    )
+    minutes = math.ceil(calls * seconds_per_call / 60)
+    return cost, minutes
 
 
 def _create_parser() -> argparse.ArgumentParser:
@@ -139,8 +179,10 @@ def _create_parser() -> argparse.ArgumentParser:
             "Behavioral evaluation: for each skill, run task cases WITH the "
             "skill vs WITHOUT it, grade both, and report the pass-rate delta "
             "(proves the skill changes output). Also writes evals/evals.json "
-            "per skill. Expensive (~3 LLM calls per case per skill); off by "
-            "default."
+            "per skill. Generated cases fail closed when they carry executable "
+            "instructions, credential access, or non-public HTTP targets; "
+            "skills with no admitted cases are skipped. Uses one generation "
+            "plus four LLM calls per case; off by default."
         ),
     )
     parser.add_argument(
@@ -241,7 +283,12 @@ def _is_skills_command(args: list[str] | None) -> bool:
     return len(argv) >= 1 and argv[0] == "skills"
 
 
-def _estimate(config: SkillPackConfig, *, will_collect_evidence: bool) -> tuple[float, int]:
+def _estimate(
+    config: SkillPackConfig,
+    *,
+    will_collect_evidence: bool,
+    effective_roles_count: int | None = None,
+) -> tuple[float, int]:
     """Cheap cost / time estimate for the dry-run path.
 
     Numbers come from the budget plan in the design doc:
@@ -251,29 +298,35 @@ def _estimate(config: SkillPackConfig, *, will_collect_evidence: bool) -> tuple[
       - Refinement (only if HARD findings): ~$0.02 per failing skill
       - Pack coherence: ~$0.02
     """
+    roles_count = effective_roles_count or config.effective_roles_count
     cost = 0.0
     minutes = 0.0
     if will_collect_evidence:
         cost += 0.04
         minutes += 1.0
     cost += 0.02  # discovery
-    cost += 0.03 * config.roles_count  # authoring
-    # Assume 30% of skills need refinement (conservative).
-    cost += 0.015 * config.roles_count * config.skills_per_role * 0.3
+    cost += 0.03 * roles_count  # authoring
+    # Cost approval must reserve every reachable refinement call.
+    cost += 0.015 * roles_count * config.skills_per_role * config.max_refine_iterations
     if config.run_pack_coherence_pass:
         cost += 0.02
+        if config.auto_resolve_overlaps:
+            cost += 0.015 * MAX_AUTO_RESOLVE_PAIRS
     if config.optimize_triggers:
         # ~3-4 LLM calls per skill (generate evals, score, optimize, re-score).
-        cost += 0.02 * config.roles_count * config.skills_per_role
-        minutes += 0.25 * config.roles_count
+        cost += 0.02 * roles_count * config.skills_per_role
+        minutes += 0.25 * roles_count
     if config.with_evals:
-        # ~1 gen + 3 calls per case (with/baseline/grade x2) per skill.
-        calls_per_skill = 1 + config.eval_cases_per_skill * 3
-        cost += 0.006 * calls_per_skill * config.roles_count * config.skills_per_role
-        minutes += 0.5 * config.roles_count
+        effective_cases = min(max(0, config.eval_cases_per_skill), MAX_EVAL_CASES)
+        eval_cost, eval_minutes = _behavioral_eval_estimate(
+            roles_count * config.skills_per_role,
+            effective_cases,
+        )
+        cost += eval_cost
+        minutes += eval_minutes
     if config.remote_icon_generation:
         cost += REMOTE_ICON_GENERATION_ESTIMATE_USD
-    minutes += 0.5 * config.roles_count
+    minutes += 0.5 * roles_count
     return cost, max(1, int(minutes))
 
 
@@ -318,7 +371,7 @@ def run_skills_cli(args: list[str] | None) -> int:
     from_plan_path: str | None = parsed.from_plan
     if from_plan_path:
         plan_path_obj = Path(from_plan_path).expanduser().resolve()
-        if not plan_path_obj.exists():
+        if not plan_path_obj.is_file():
             print(
                 f"Error: --from-plan path does not exist: {plan_path_obj}",
                 file=sys.stderr,
@@ -363,13 +416,32 @@ def run_skills_cli(args: list[str] | None) -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
 
+    prepared_plan = None
+    if config.from_plan_path and not config.roles_override:
+        try:
+            prepared_plan = prepare_saved_plan(
+                Path(config.from_plan_path),
+                roles_add=config.roles_add,
+                roles_skip=config.roles_skip,
+            )
+        except RuntimeError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 2
+        config.roles_count = len(prepared_plan.final_roster)
+
     if parsed.dry_run:
+        effective_roles_count = (
+            len(prepared_plan.final_roster)
+            if prepared_plan is not None
+            else config.effective_roles_count
+        )
         cost, minutes = _estimate(
             config,
             will_collect_evidence=bool((company_url or config.career_urls) and not from_report),
+            effective_roles_count=effective_roles_count,
         )
         print(f"Skill pack estimate for {company_name}:")
-        print(f"  Roles: {config.roles_count} x {config.skills_per_role} skills")
+        print(f"  Roles: {effective_roles_count} x {config.skills_per_role} skills")
         print(f"  Formats: {config.formats.value}")
         print(f"  Estimated cost: ~${cost:.2f}")
         print(f"  Estimated time: ~{minutes} min")
@@ -418,6 +490,7 @@ def run_skills_cli(args: list[str] | None) -> int:
             working_dir=working_dir,
             config=config,
             output_dir=output_dir,
+            prepared_plan=prepared_plan,
         )
     except FileNotFoundError as exc:
         print(f"Evidence missing: {exc}", file=sys.stderr)

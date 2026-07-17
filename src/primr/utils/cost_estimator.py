@@ -777,10 +777,11 @@ def _estimate_fast_mode_cost(
     }
     tier_label = tier_labels.get(grok_tier, "Grok")
     mode_provider = _provider_label_for_model(reasoning_model)
+    # Product CLI mode name is "full"; parenthetical names the priced backend path.
     estimate_mode = (
-        f"standard ({tier_label})"
+        f"full ({tier_label})"
         if mode_provider == "Grok" or grok_tier == "max"
-        else f"standard ({mode_provider} routed)"
+        else f"full ({mode_provider} routed)"
     )
     tier_desc = f"{reasoning_model} reasoning + {writing_model} writing + {utility_model} utility"
     if grok_tier == "fast":
@@ -790,7 +791,7 @@ def _estimate_fast_mode_cost(
         )
     elif grok_tier == "max":
         tier_desc = f"{reasoning_model} for all stages (max tier)"
-    notes = [f"Standard mode: {tier_desc}"]
+    notes = [f"Full mode: {tier_desc}"]
     if include_ai_strategy:
         notes.append(f"AI Strategy via {strategy_provider} ({num_vendors} vendor(s))")
     if yaml_strategy_types:

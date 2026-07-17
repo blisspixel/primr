@@ -23,6 +23,7 @@ from primr.core.run_state_io import _update_run_state
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
 from primr.utils.observability import JobSummary, log_job_summary
+from primr.utils.validators import sanitize_for_filename
 
 logger = get_logger("core.fast_run_summary")
 
@@ -95,7 +96,8 @@ def finalize_fast_run(
 
     date_str = datetime.now().strftime("%m-%d-%Y")
     fallback_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
-    fallback_md = fallback_dir / f"{company_name or display_name}_Strategic_Overview_{date_str}.md"
+    artifact_name = sanitize_for_filename(company_name or display_name, max_length=200)
+    fallback_md = fallback_dir / f"{artifact_name}_Strategic_Overview_{date_str}.md"
     primary_output_path = str(fallback_md) if fallback_md.exists() else docx_path
 
     artifacts_passed = bool(docx_path) and all(

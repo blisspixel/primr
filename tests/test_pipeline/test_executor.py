@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from primr.pipeline.executor import (
     BackgroundAbort,
     RecoveryContext,
@@ -176,6 +178,92 @@ class TestRecoveryEventsRecording:
         assert recovery_events[0].success is True
         assert recovery_events[0].stage == "section_writing"
         assert recovery_events[0].action == "retry_same"
+
+    def test_listener_failure_cannot_discard_successful_recovery(self) -> None:
+        """Best-effort telemetry cannot change a recovered stage result."""
+        calls = 0
+
+        def fail_once() -> str:
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise RuntimeError("transient error")
+            return "recovered"
+
+        def unavailable_listener(_event: BackgroundAbort | RecoveryEvent) -> None:
+            raise OSError("state persistence unavailable")
+
+        executor = RecoveryExecutor(
+            event_listener=unavailable_listener,
+            sleep_fn=lambda _delay: None,
+        )
+
+        result = executor.execute(PipelineStage.ANALYSIS, fail_once)
+
+        assert result.success is True
+        assert result.output == "recovered"
+        assert calls == 2
+
+    def test_unavailable_actions_are_not_recorded_as_attempted(self) -> None:
+        """The executor reports only recovery actions it actually executes."""
+        events: list[BackgroundAbort | RecoveryEvent] = []
+        calls = 0
+
+        def always_fail() -> None:
+            nonlocal calls
+            calls += 1
+            raise RuntimeError("transient failure")
+
+        executor = RecoveryExecutor(event_listener=events.append)
+        result = executor.execute(PipelineStage.SECTION_WRITING, always_fail)
+
+        assert calls == 2
+        assert result.success is False
+        assert result.actions_taken == [RecoveryActionType.RETRY_SAME]
+        assert len(events) == 1
+        assert events[0].action == "retry_same"
+        assert events[0].success is False
+
+    def test_builtin_backoff_retry_sleeps_before_reinvocation(self) -> None:
+        """Backoff recovery delays once, then invokes the original callable."""
+        delays: list[float] = []
+        calls = 0
+
+        def fail_once() -> str:
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise RuntimeError("transient failure")
+            return "recovered"
+
+        executor = RecoveryExecutor(sleep_fn=delays.append)
+        result = executor.execute(PipelineStage.ANALYSIS, fail_once)
+
+        assert result.success is True
+        assert result.output == "recovered"
+        assert result.actions_taken == [RecoveryActionType.RETRY_BACKOFF]
+        assert calls == 2
+        assert len(delays) == 1
+        assert 1.0 <= delays[0] <= 1.2
+
+    @pytest.mark.parametrize("terminal_error", ["quota exceeded", "invalid API key"])
+    def test_builtin_retry_reraises_new_nonretryable_failure(self, terminal_error: str) -> None:
+        """A retry cannot downgrade a newly exposed terminal provider failure."""
+        calls = 0
+
+        def transient_then_terminal() -> None:
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise RuntimeError("HTTP 500 from provider")
+            raise RuntimeError(terminal_error)
+
+        executor = RecoveryExecutor(sleep_fn=lambda _delay: None)
+
+        with pytest.raises(RuntimeError, match=terminal_error):
+            executor.execute(PipelineStage.ANALYSIS, transient_then_terminal)
+
+        assert calls == 2
 
     def test_recovery_event_to_dict(self) -> None:
         """RecoveryEvent.to_dict() produces the expected structure."""

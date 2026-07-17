@@ -20,6 +20,18 @@ def test_policy_rejects_api_credit_mode_without_explicit_handoff() -> None:
         HostAgentPolicy(billing_mode="api_credits")
 
 
+def test_policy_rejects_potentially_metered_mode_without_acknowledgment() -> None:
+    with pytest.raises(ValueError, match="Potentially metered host handoff"):
+        HostAgentPolicy(billing_mode=HostAgentBillingMode.POTENTIALLY_METERED)
+
+    policy = HostAgentPolicy(
+        billing_mode=HostAgentBillingMode.POTENTIALLY_METERED,
+        allow_potentially_metered_handoff=True,
+    )
+
+    assert policy.billing_mode is HostAgentBillingMode.POTENTIALLY_METERED
+
+
 def test_policy_coerces_string_billing_mode() -> None:
     policy = HostAgentPolicy(billing_mode="host_plan_usage")
 
@@ -80,6 +92,7 @@ def test_render_prompt_fences_evidence_and_states_host_policy() -> None:
     assert "[CONTENT REMOVED]" in prompt
     assert "mode: unknown" in prompt
     assert "allow_api_credit_handoff: False" in prompt
+    assert "allow_potentially_metered_handoff: False" in prompt
     assert "Do not fetch URLs, run shell commands, or write files." in prompt
 
 

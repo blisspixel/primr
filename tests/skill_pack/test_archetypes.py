@@ -10,6 +10,9 @@ from primr.skill_pack.archetypes import (
     load_archetypes,
     match_archetype,
 )
+from primr.skill_pack.role_references import build_role_family_reference
+from primr.skill_pack.schema import Role, RoleEvidence
+from primr.skill_pack.validator import scan_bundled_content
 
 
 def test_archetypes_load_at_least_one():
@@ -26,6 +29,24 @@ def test_archetypes_required_fields():
         # Every canonical skill name should be kebab-case-ish
         for skill in archetype.canonical_skills:
             assert skill.name == skill.name.lower(), f"{slug}/{skill.name}: not lowercase"
+
+
+def test_all_archetype_role_references_pass_packaging_security_boundary():
+    for slug, archetype in load_archetypes().items():
+        role = Role(
+            name=slug,
+            display_name=archetype.display_name,
+            confidence="Canonical",
+            evidence=RoleEvidence(archetype=slug),
+        )
+        reference = build_role_family_reference(
+            role,
+            company_name="ExampleCo",
+            company_url="https://example.test",
+            archetype=archetype,
+        )
+
+        assert scan_bundled_content(reference.relpath, reference.content) is None, slug
 
 
 def test_exact_slug_match():

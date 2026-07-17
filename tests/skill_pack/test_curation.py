@@ -22,7 +22,7 @@ from __future__ import annotations
 import pytest
 
 from primr.skill_pack.config import MAX_ROLES, SkillPackConfig
-from primr.skill_pack.planner import (
+from primr.skill_pack.curation import (
     _drop_excess_to_cap,
     _materialize_added_role,
     _normalize_curation_key,
@@ -235,6 +235,28 @@ class TestApplyCuration:
         assert "account-executive" in added_names
         assert "senior-account-executive" in added_names
 
+    def test_saved_operator_additions_do_not_block_same_archetype(self):
+        prior = _role(
+            "account-executive",
+            provenance=RoleProvenance.OVERRIDE,
+            archetype="salesforce-admin",
+        )
+        plan = _plan(final=[prior])
+        plan.operator_added = [prior]
+
+        apply_curation(
+            plan,
+            roles_add=["Senior Account Executive"],
+            roles_skip=[],
+            cap=5,
+        )
+
+        assert [role.name for role in plan.operator_added] == [
+            "account-executive",
+            "senior-account-executive",
+        ]
+        assert plan.evidence_summary["operator_added_count"] == 2
+
     def test_warning_emitted_when_archetype_dedup_drops_add(self, caplog):
         # Bug 2 regression: archetype-based dedup must surface as a
         # WARNING so the operator sees that their --roles-add entry was
@@ -275,6 +297,27 @@ class TestApplyCuration:
         assert RoleProvenance.POSTING in kept_provs
         gap_provs = {r.evidence.provenance for r in plan.gap_flagged}
         assert RoleProvenance.RESEARCH in gap_provs or RoleProvenance.INDUSTRY in gap_provs
+
+    def test_cap_failure_preserves_existing_operator_roster_and_metadata(self):
+        existing = [
+            _role(f"operator-{index}", provenance=RoleProvenance.OVERRIDE)
+            for index in range(MAX_ROLES)
+        ]
+        plan = _plan(final=existing)
+        plan.operator_added = list(existing)
+        plan.evidence_summary["operator_added_count"] = MAX_ROLES
+
+        with pytest.raises(RuntimeError, match="cannot preserve every operator"):
+            apply_curation(
+                plan,
+                roles_add=["One More Operator Role"],
+                roles_skip=[],
+                cap=MAX_ROLES,
+            )
+
+        assert plan.final_roster == existing
+        assert plan.operator_added == existing
+        assert plan.evidence_summary["operator_added_count"] == MAX_ROLES
 
     def test_skip_removes_everything_raises(self):
         plan = _plan(observed=[_role("a"), _role("b")])
@@ -336,7 +379,7 @@ class TestLoadPlanErrorWrap:
     JSONDecodeError, so the pipeline error path renders cleanly."""
 
     def test_malformed_json_raises_runtime_error(self, tmp_path):
-        from primr.skill_pack.planner import load_plan
+        from primr.skill_pack.saved_plan import load_plan
 
         bad = tmp_path / "role_plan.json"
         bad.write_text("{not-json: }", encoding="utf-8")
@@ -344,18 +387,18 @@ class TestLoadPlanErrorWrap:
             load_plan(bad)
 
     def test_missing_file_raises_runtime_error(self, tmp_path):
-        from primr.skill_pack.planner import load_plan
+        from primr.skill_pack.saved_plan import load_plan
 
         missing = tmp_path / "does-not-exist.json"
         with pytest.raises(RuntimeError, match="Could not read"):
             load_plan(missing)
 
     def test_non_object_json_raises_runtime_error(self, tmp_path):
-        from primr.skill_pack.planner import load_plan
+        from primr.skill_pack.saved_plan import load_plan
 
         list_json = tmp_path / "role_plan.json"
         list_json.write_text("[]", encoding="utf-8")
-        with pytest.raises(RuntimeError, match="not a JSON object"):
+        with pytest.raises(RuntimeError, match="JSON object"):
             load_plan(list_json)
 
 
@@ -427,6 +470,13 @@ class TestProvenanceFallbackRaises:
 
 
 class TestConfigValidation:
+    @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+    @pytest.mark.parametrize("field", ["max_cost_per_role_usd", "max_total_cost_usd"])
+    def test_non_finite_cost_limits_raise(self, field, value):
+        config = SkillPackConfig(**{field: value})
+        with pytest.raises(ValueError, match="finite and > 0"):
+            config.validate()
+
     def test_clash_between_add_and_skip_raises(self):
         config = SkillPackConfig(
             roles_count=5,

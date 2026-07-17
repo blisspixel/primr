@@ -31,12 +31,25 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from urllib.parse import urlparse
 
 from primr.config.config import WORKING_DIR
 from primr.utils.logging_config import get_logger
+from primr.utils.url_helpers import normalized_hostname
+from primr.utils.validators import company_path_component, sanitize_for_filename
 
 logger = get_logger("workspace")
+
+
+def derive_working_folder_name(company_name: str | None, website: str | None = None) -> str:
+    """Return one portable working-directory component for a research target."""
+    if company_name:
+        return company_path_component(company_name)
+    if website:
+        hostname = normalized_hostname(website, strip_www=True)
+        if hostname:
+            domain = hostname.replace(".", "_")
+            return sanitize_for_filename(domain)
+    return "Unknown_Company"
 
 
 # =============================================================================
@@ -63,12 +76,7 @@ class WorkspaceConfig:
     @property
     def folder_name(self) -> str:
         """Derive folder name from company name or website."""
-        if self.company_name:
-            return self.company_name.replace(" ", "_")
-        if self.website:
-            netloc = urlparse(self.website).netloc
-            return netloc.replace("www.", "").replace(".", "_")
-        return "Unknown_Company"
+        return derive_working_folder_name(self.company_name, self.website)
 
     @property
     def folder_path(self) -> Path:
@@ -122,11 +130,7 @@ def create_working_folder(
     """
     from datetime import datetime
 
-    if not company_name and website:
-        parsed_url = urlparse(website)
-        company_name = parsed_url.netloc.replace("www.", "").replace(".", "_")
-
-    folder_name = company_name.replace(" ", "_") if company_name else "Unknown_Company"
+    folder_name = derive_working_folder_name(company_name, website)
 
     if use_run_id:
         # Create timestamped run folder: Company_Name/2026-01-09_0845

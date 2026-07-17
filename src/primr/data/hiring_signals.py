@@ -8,7 +8,6 @@ signals; and persists audit artifacts under `<working>/_hiring/`.
 
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 import os
@@ -58,6 +57,7 @@ from primr.data.hiring_signal_selection import (
     metadata_roles_from_postings as _metadata_roles_from_postings,
 )
 from primr.utils.observability import log_structured
+from primr.utils.url_helpers import normalized_hostname, normalized_web_origin, public_web_url
 
 logger = logging.getLogger(__name__)
 
@@ -244,11 +244,10 @@ def _candidate_slugs(
             _add(_slugify(str(slug)))
 
     # Website hostname — "example.com" → "example", "acme-corp.io" → "acme-corp"
-    with contextlib.suppress(Exception):
-        host = urlparse(website).netloc.lower().removeprefix("www.")
-        root = host.split(".")[0] if host else ""
-        if root:
-            _add(_slugify(root))
+    host = normalized_hostname(website, strip_www=True)
+    root = host.split(".")[0] if host else ""
+    if root:
+        _add(_slugify(root))
 
     # Company name variants
     name = (company_name or "").strip()
@@ -918,10 +917,9 @@ def _discover_via_web_search(
         return []
 
     domain_hint = ""
-    with contextlib.suppress(Exception):
-        host = urlparse(website).netloc.lower().removeprefix("www.")
-        if host:
-            domain_hint = f" {host}"
+    host = normalized_hostname(website, strip_www=True)
+    if host:
+        domain_hint = f" {host}"
 
     query = f'"{company_name}" jobs OR careers OR hiring{domain_hint}'
     out: list[Posting] = []
@@ -1002,37 +1000,34 @@ def _careers_url_candidates(website: str, corpus: dict[str, str] | None) -> list
     seen: set[str] = set()
 
     if corpus:
-        for url in corpus:
+        for raw_url in corpus:
+            if not (url := public_web_url(raw_url)):
+                continue
             path = urlparse(url).path.lower()
-            host = urlparse(url).netloc.lower()
-            if any(p in path for p in ("/careers", "/jobs")) and url not in seen:
-                seen.add(url)
-                urls.append(url)
-            elif (
-                any(host.startswith(p + ".") for p in _CAREERS_SUBDOMAIN_PREFIXES)
-                and url not in seen
-            ):
-                # Corpus pages on a careers subdomain are also candidates.
+            host = normalized_hostname(url)
+            path_match = any(part in path for part in ("/careers", "/jobs"))
+            host_match = any(
+                host.startswith(f"{prefix}.") for prefix in _CAREERS_SUBDOMAIN_PREFIXES
+            )
+            if (path_match or host_match) and url not in seen:
                 seen.add(url)
                 urls.append(url)
 
-    with contextlib.suppress(Exception):
-        parsed = urlparse(website)
-        root_host = parsed.netloc.lower().removeprefix("www.") if parsed.netloc else ""
-        scheme = parsed.scheme or "https"
+    root_host = normalized_hostname(website, strip_www=True)
+    root = normalized_web_origin(website)
+    scheme = urlparse(root).scheme if root else "https"
 
-        # Subdomain candidates first — they're often the canonical
-        # company-facing careers URL and frequently redirect to the
-        # backing ATS in a way that lets us discover the tenant slug.
-        if root_host:
-            for prefix in _CAREERS_SUBDOMAIN_PREFIXES:
-                candidate = f"{scheme}://{prefix}.{root_host}/"
-                if candidate not in seen:
-                    seen.add(candidate)
-                    urls.append(candidate)
+    # Subdomain candidates first. A custom port belongs only to the supplied
+    # origin; carrying it onto a distinct careers host changes the endpoint.
+    if root_host:
+        for prefix in _CAREERS_SUBDOMAIN_PREFIXES:
+            candidate = f"{scheme}://{prefix}.{root_host}/"
+            if candidate not in seen:
+                seen.add(candidate)
+                urls.append(candidate)
 
-        # On-path candidates against the supplied website root.
-        root = f"{scheme}://{parsed.netloc}" if parsed.netloc else website
+    # On-path candidates retain a valid custom port but never userinfo.
+    if root:
         for path in _CAREERS_PATHS:
             candidate = urljoin(root.rstrip("/") + "/", path.lstrip("/"))
             if candidate not in seen:
@@ -1104,7 +1099,7 @@ def _detect_ats_redirect(
 ) -> tuple[str, list[Posting]] | None:
     """Dispatch a known ATS final URL to its provider fetcher."""
     parsed = urlparse(final_url)
-    host = parsed.netloc.lower().removeprefix("www.")
+    host = normalized_hostname(final_url, strip_www=True)
     if not host:
         return None
 

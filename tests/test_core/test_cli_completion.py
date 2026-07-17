@@ -15,7 +15,15 @@ class TestCliEpilog:
         assert _create_parser().epilog == CLI_EPILOG
 
     def test_epilog_has_key_examples(self):
-        for token in ("Research Modes:", "Examples:", "primr init", "primr recon acme.com"):
+        for token in (
+            "Research Modes:",
+            "Common first-run path:",
+            "Examples:",
+            "primr init",
+            "primr skills",
+            "--list-recent",
+            "primr recon acme.com",
+        ):
             assert token in CLI_EPILOG
 
 

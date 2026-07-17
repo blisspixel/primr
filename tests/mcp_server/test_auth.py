@@ -12,6 +12,7 @@ import time
 
 import pytest
 
+import primr.mcp_server.auth as auth_module
 from primr.mcp_server.auth import (
     AuthConfig,
     AuthContext,
@@ -194,6 +195,57 @@ class TestPrimrTokenVerifier:
         assert result.scopes == ["read", "research"]
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("claim_name", "claim_value"),
+        [("scope", ""), ("scope", []), ("scp", ""), ("scp", [])],
+    )
+    async def test_explicit_empty_scope_claim_grants_no_scopes(
+        self,
+        verifier,
+        claim_name,
+        claim_value,
+    ):
+        token = create_signed_jwt(
+            {
+                "sub": "unscoped-user",
+                claim_name: claim_value,
+                "exp": int(time.time()) + 3600,
+            }
+        )
+
+        result = await verifier.verify_token(token)
+
+        assert result is not None
+        assert result.scopes == []
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("claim_name", "claim_value"),
+        [
+            ("scope", 1),
+            ("scope", ["read", 1]),
+            ("scope", {"read": True}),
+            ("scp", 1),
+            ("scp", ["read", 1]),
+        ],
+    )
+    async def test_malformed_scope_claim_is_rejected(
+        self,
+        verifier,
+        claim_name,
+        claim_value,
+    ):
+        token = create_signed_jwt(
+            {
+                "sub": "malformed-scope-user",
+                claim_name: claim_value,
+                "exp": int(time.time()) + 3600,
+            }
+        )
+
+        assert await verifier.verify_token(token) is None
+
+    @pytest.mark.asyncio
     async def test_verify_jwt_admin_role(self, verifier):
         """JWT with admin role gets admin scope."""
         token = create_signed_jwt(
@@ -245,6 +297,37 @@ class TestPrimrTokenVerifier:
         result = await verifier.verify_token(token)
 
         assert result is None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("expiration", [0, False, True, "0", [], float("nan"), float("inf")])
+    async def test_reject_invalid_exp_claims(self, verifier, expiration):
+        token = create_signed_jwt({"sub": "user-123", "exp": expiration})
+
+        assert await verifier.verify_token(token) is None
+
+    @pytest.mark.asyncio
+    async def test_expiration_boundary_is_rejected_before_cache_return(self, verifier, monkeypatch):
+        now = [1000.0]
+        monkeypatch.setattr(auth_module.time, "time", lambda: now[0])
+        token = create_signed_jwt({"sub": "user-123", "exp": 1001.0})
+
+        assert await verifier.verify_token(token) is not None
+        now[0] = 1001.0
+
+        assert await verifier.verify_token(token) is None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("not_before", [False, True, "0", [], float("nan"), float("inf")])
+    async def test_reject_invalid_nbf_claims(self, verifier, not_before):
+        token = create_signed_jwt(
+            {
+                "sub": "user-123",
+                "nbf": not_before,
+                "exp": int(time.time()) + 3600,
+            }
+        )
+
+        assert await verifier.verify_token(token) is None
 
     @pytest.mark.asyncio
     async def test_reject_unsigned_jwt(self, verifier):
@@ -1014,6 +1097,31 @@ class TestAdminTokenMaxAge:
         assert result is None
 
     @pytest.mark.asyncio
+    async def test_cached_admin_token_does_not_bypass_max_age(self, monkeypatch):
+        now = [1000.0]
+        monkeypatch.setattr(auth_module.time, "time", lambda: now[0])
+        verifier = PrimrTokenVerifier(
+            AuthConfig(
+                admin_tokens={"expiring-token"},
+                admin_token_max_age_hours=1 / 3600,
+            )
+        )
+
+        assert await verifier.verify_token("expiring-token") is not None
+        now[0] = 1001.0
+
+        assert await verifier.verify_token("expiring-token") is None
+
+    @pytest.mark.asyncio
+    async def test_zero_admin_token_max_age_rejects_first_use(self, monkeypatch):
+        monkeypatch.setattr(auth_module.time, "time", lambda: 1000.0)
+        verifier = PrimrTokenVerifier(
+            AuthConfig(admin_tokens={"disabled-token"}, admin_token_max_age_hours=0.0)
+        )
+
+        assert await verifier.verify_token("disabled-token") is None
+
+    @pytest.mark.asyncio
     async def test_admin_token_no_expiry_by_default(self):
         """Admin tokens don't expire when max age is not set."""
         config = AuthConfig(
@@ -1070,6 +1178,28 @@ class TestAdminTokenMaxAge:
 
         assert config.admin_token_max_age_hours is None
         assert "Invalid MCP_ADMIN_TOKEN_MAX_AGE_HOURS" in caplog.text
+
+    @pytest.mark.parametrize("value", ["nan", "inf", "-inf"])
+    def test_non_finite_max_age_from_env_is_ignored(self, monkeypatch, caplog, value):
+        import logging
+
+        monkeypatch.delenv("AZURE_CLIENT_ID", raising=False)
+        monkeypatch.delenv("MCP_JWT_SECRET", raising=False)
+        monkeypatch.delenv("MCP_ADMIN_TOKENS", raising=False)
+        monkeypatch.delenv("MCP_JWT_ISSUER", raising=False)
+        monkeypatch.delenv("MCP_JWT_AUDIENCE", raising=False)
+        monkeypatch.setenv("MCP_ADMIN_TOKEN_MAX_AGE_HOURS", value)
+
+        with caplog.at_level(logging.WARNING):
+            config = AuthConfig.from_env()
+
+        assert config.admin_token_max_age_hours is None
+        assert "Invalid MCP_ADMIN_TOKEN_MAX_AGE_HOURS" in caplog.text
+
+    @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+    def test_programmatic_non_finite_max_age_is_rejected(self, value):
+        with pytest.raises(ValueError, match="must be finite"):
+            AuthConfig(admin_token_max_age_hours=value)
 
 
 class TestAuthMiddlewareEnforcement:

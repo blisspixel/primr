@@ -246,8 +246,16 @@ class TestExtractHost:
         assert extract_host("https://example.com/path") == "example.com"
 
     def test_extracts_host_with_port(self):
-        """Should extract host with port."""
-        assert extract_host("https://example.com:8080/path") == "example.com:8080"
+        """Should exclude the port from the per-host identity."""
+        assert extract_host("https://example.com:8080/path") == "example.com"
+
+    def test_excludes_credentials_and_dns_root_dot(self):
+        """Should return only the canonical hostname used by rate-limit state."""
+        assert extract_host("https://user:secret@Example.COM.:8080/path") == "example.com"
+
+    def test_invalid_url_returns_empty_host(self):
+        """Should fail closed when the URL authority is invalid."""
+        assert extract_host("https://example.com:invalid/path") == ""
 
     def test_extracts_subdomain(self):
         """Should include subdomain."""

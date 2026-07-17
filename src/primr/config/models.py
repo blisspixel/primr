@@ -105,6 +105,8 @@ KEY CHANGES SINCE v1.22.0:
 from dataclasses import dataclass
 
 from primr.config.model_registry import (
+    DEFAULT_FLASH_MODEL,
+    DEFAULT_PRO_MODEL,
     GrokTier,
     ModelConfig,
     ModelRegistry,
@@ -174,8 +176,8 @@ class PrimrModels:
     # =========================================================================
     # PRIMARY MODELS - UPDATE THESE TO CHANGE MODELS GLOBALLY
     # =========================================================================
-    FLASH_MODEL = ModelRegistry.GEMINI_3_FLASH.name  # Cheap - $0.50/$3 per 1M
-    PRO_MODEL = ModelRegistry.GEMINI_3_1_PRO.name  # Smart - $2/$12 (≤200k) | $4/$18 (>200k)
+    FLASH_MODEL = DEFAULT_FLASH_MODEL  # Cheap - $0.50/$3 per 1M
+    PRO_MODEL = DEFAULT_PRO_MODEL  # Smart - $2/$12 (≤200k) | $4/$18 (>200k)
     DEEP_RESEARCH_AGENT = ModelRegistry.DEEP_RESEARCH_AGENT  # Autonomous 12+ page reports
 
     # =========================================================================

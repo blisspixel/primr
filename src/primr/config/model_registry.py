@@ -862,3 +862,9 @@ class ModelRegistry:
     # heavier deep-research-max-preview-04-2026 variant also exists.
     # =========================================================================
     DEEP_RESEARCH_AGENT = "deep-research-preview-04-2026"
+
+
+# Runtime defaults live with the registry data so settings and pricing can
+# depend on one leaf module without depending on each other.
+DEFAULT_FLASH_MODEL = ModelRegistry.GEMINI_3_FLASH.name
+DEFAULT_PRO_MODEL = ModelRegistry.GEMINI_3_1_PRO.name

@@ -83,9 +83,11 @@ strict about formatting and structure in the final document pipeline.
   matching; producers attach job-scoped manifests explicitly. Bounded root
   scans do not follow directory symlinks or read artifact bodies.
   `primr --list-recent --json` exposes the local
-  `primr.artifact-inventory` v1.0 form. Explicit MCP inventories cap metadata
-  inspection at 256 paths and report `truncated: true` when more owned paths
-  exist, preventing unbounded hashing work.
+  `primr.artifact-inventory` v1.0 form. Human `primr --list-recent` groups
+  primary report deliverables separately from calibration, QA, and verification
+  diagnostics and prints root-relative paths with short type tags. Explicit MCP
+  inventories cap metadata inspection at 256 paths and report `truncated: true`
+  when more owned paths exist, preventing unbounded hashing work.
 
 The writing and regeneration prompts carry an explicit prohibition against the
 internal-scaffolding markers the cleanup strips, sourced from a single shared

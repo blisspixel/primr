@@ -17,7 +17,7 @@ canonical_skills:
   - name: product-discovery-and-research
     display_name: Customer discovery and research synthesis
     summary: |
-      Run continuous discovery interviews, synthesize findings into
+      Conduct continuous discovery interviews, synthesize findings into
       problem statements, validate with quantitative data, and decide
       what NOT to build.
   - name: roadmap-and-prioritization
@@ -35,7 +35,7 @@ canonical_skills:
   - name: stakeholder-alignment-and-comms
     display_name: Stakeholder alignment and written communication
     summary: |
-      Author memos that survive scrutiny, run productive review
+      Author memos that survive scrutiny, facilitate productive review
       meetings, manage upstream and downstream stakeholder commitments,
       and escalate cleanly.
   - name: ai-feature-discovery-and-evaluation

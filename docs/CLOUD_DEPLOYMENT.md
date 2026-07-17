@@ -88,6 +88,22 @@ echo "sk-..." | ./deploy.sh secrets set OPENAI_API_KEY -
 
 ## Configuration
 
+### Rebuilding Container Dependency Locks
+
+The production Dockerfiles install dependency exports generated from `uv.lock`
+with uv 0.11.17. Regenerate both files whenever the lock changes, then run the
+supply-chain tests before committing them:
+
+```bash
+uv export --locked --only-group release --prune cyclonedx-bom --prune twine --no-emit-project --no-header --no-annotate --output-file deploy/build-requirements.lock
+uv export --locked --no-dev --extra api --no-emit-project --no-header --no-annotate --output-file deploy/runtime-requirements.lock
+uv run --no-sync pytest tests/test_supply_chain_pins.py
+```
+
+CI builds and smoke-tests both `deploy/Dockerfile` and
+`openclaw/Dockerfile.primr`. The exported files intentionally omit generated
+headers so the byte-for-byte lock check is stable under the pinned uv release.
+
 ### Environment Variables
 
 | Variable | Description | Default |

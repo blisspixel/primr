@@ -14,12 +14,16 @@ Requirements: 2.1, 2.4, 2.5, 2.8, 2.9, 2.11, 2.12
 
 import importlib.util
 import json
+import subprocess
 import sys
 import threading
+from pathlib import Path
 from types import ModuleType
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def _has_module(name: str) -> bool:
@@ -46,6 +50,33 @@ from deploy.storage import (
     S3Store,
     create_store,
 )
+
+
+def test_cloud_storage_module_import_does_not_require_primr_package() -> None:
+    """Cloud reconciler bundles can import storage without packaging Primr."""
+    script = """
+import builtins
+import sys
+
+sys.path.insert(0, sys.argv[1])
+original_import = builtins.__import__
+
+def reject_primr(name, *args, **kwargs):
+    if name == "primr" or name.startswith("primr."):
+        raise ModuleNotFoundError("primr intentionally unavailable")
+    return original_import(name, *args, **kwargs)
+
+builtins.__import__ = reject_primr
+import deploy.storage
+"""
+    completed = subprocess.run(
+        [sys.executable, "-I", "-c", script, str(ROOT)],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
 
 
 def create_test_manifest(job_id: str = "test-123", status: str = "SUCCEEDED") -> JobManifest:
@@ -138,6 +169,50 @@ class TestLocalStore:
 
         file_path = tmp_path / "test" / "job-123" / "artifact.txt"
         assert file_path.read_bytes() == b"updated"
+
+    def test_put_retries_a_transient_windows_sharing_lock(self, tmp_path):
+        """A short-lived destination lock does not break an atomic overwrite."""
+        from primr.utils import atomic_io
+
+        store = LocalStore(tmp_path, "test")
+        store.put("job-123/artifact.txt", b"original")
+        original_replace = atomic_io.os.replace
+        attempts = 0
+
+        def replace_after_one_failure(source, target):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise PermissionError("simulated sharing violation")
+            return original_replace(source, target)
+
+        with (
+            patch("primr.utils.atomic_io.os.replace", side_effect=replace_after_one_failure),
+            patch("primr.utils.atomic_io.time.sleep"),
+        ):
+            store.put("job-123/artifact.txt", b"updated")
+
+        assert attempts == 2
+        assert store.get("job-123/artifact.txt") == b"updated"
+
+    def test_put_cleans_temp_file_after_persistent_replace_failure(self, tmp_path):
+        """A persistent lock fails closed and leaves the prior artifact intact."""
+        store = LocalStore(tmp_path, "test")
+        store.put("job-123/artifact.txt", b"original")
+
+        with (
+            patch(
+                "primr.utils.atomic_io.os.replace",
+                side_effect=PermissionError("simulated persistent sharing violation"),
+            ),
+            patch("primr.utils.atomic_io.time.sleep"),
+            pytest.raises(PermissionError, match="persistent sharing violation"),
+        ):
+            store.put("job-123/artifact.txt", b"updated")
+
+        artifact_dir = tmp_path / "test" / "job-123"
+        assert (artifact_dir / "artifact.txt").read_bytes() == b"original"
+        assert list(artifact_dir.glob("artifact_*.tmp")) == []
 
     def test_get_returns_content(self, tmp_path):
         """Test that get returns file content."""

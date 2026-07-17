@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, patch
 from primr.ai.file_search_resources import (
     _DEFAULT_STALE_AGE_SECONDS,
     _PRIMR_RESOURCE_PREFIX,
+    _create_genai_client,
     _is_primr_owned,
     _resource_age_seconds,
     cleanup_orphaned_resources,
@@ -121,24 +122,19 @@ def _patched_environ():
 class TestCleanupOrphanedResources:
     def _setup(self, monkeypatch, caches=None, stores=None):
         monkeypatch.delenv("PRIMR_CLEANUP_STALE_AGE_SECONDS", raising=False)
-        # Patch the deferred imports
         client = MagicMock()
         client.caches.list.return_value = caches or []
         client.file_search_stores.list.return_value = stores or []
         # Document listing returns empty by default
         client.file_search_stores.documents.list.return_value = []
 
-        fake_genai = MagicMock()
-        fake_genai.Client.return_value = client
-
         monkeypatch.setattr("primr.config.settings.get_settings", _fake_settings)
-        # Patch the deep_research imports used by cleanup_orphaned_resources.
-        # Use module-object setattr because attribute-path resolution collides
-        # with the same-named `deep_research` function exported at module top.
-        import primr.ai.deep_research as dr_mod
-
-        monkeypatch.setattr(dr_mod, "genai", fake_genai)
-        monkeypatch.setattr(dr_mod, "_require_genai_dependency", lambda: None)
+        client_factory = MagicMock(return_value=client)
+        monkeypatch.setattr(
+            "primr.ai.file_search_resources._create_genai_client",
+            client_factory,
+        )
+        client._factory = client_factory
         return client
 
     def test_no_resources_returns_zero_counts(self, monkeypatch):
@@ -246,17 +242,16 @@ class TestCleanupOrphanedResources:
         assert result["caches_deleted"] == 1
 
     def test_explicit_api_key_used(self, monkeypatch):
-        self._setup(monkeypatch)
-        with patch("primr.ai.deep_research.genai") as fake_genai:
-            client = MagicMock()
-            client.caches.list.return_value = []
-            client.file_search_stores.list.return_value = []
-            fake_genai.Client.return_value = client
-            cleanup_orphaned_resources(api_key="custom-key")
-            kwargs = fake_genai.Client.call_args.kwargs
-            assert kwargs["api_key"] == "custom-key"
-            # Every genai client carries a finite HTTP timeout (hang fix)
-            assert kwargs["http_options"].timeout > 0
+        client = self._setup(monkeypatch)
+        cleanup_orphaned_resources(api_key="custom-key")
+        client._factory.assert_called_once_with("custom-key")
+
+    def test_client_factory_uses_finite_http_timeout(self):
+        with patch("google.genai.Client") as client_factory:
+            _create_genai_client("custom-key")
+        kwargs = client_factory.call_args.kwargs
+        assert kwargs["api_key"] == "custom-key"
+        assert kwargs["http_options"].timeout > 0
 
     def test_list_caches_exception_swallowed(self, monkeypatch):
         client = self._setup(monkeypatch)

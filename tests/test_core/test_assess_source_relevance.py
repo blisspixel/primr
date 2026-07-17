@@ -191,8 +191,71 @@ class TestAssessSourceRelevance:
         assert "content about Acme 0" in packet.evidence["source_1"]
         assert packet.output_schema == {"type": "array", "items": {"type": "integer"}}
         assert packet.policy.billing_mode is HostAgentBillingMode.HOST_PLAN_USAGE
+        assert packet.policy.allow_potentially_metered_handoff is False
         assert host_mock.call_args.kwargs["kind"] == "codex"
         llm_mock.assert_not_called()
+
+    def test_acknowledged_metered_route_passes_host_policy_gate(self, monkeypatch):
+        sources = _ten_sources()
+        route = SimpleNamespace(
+            model_name="codex-cli",
+            execution_mode="host_agent",
+            host_agent_kind="codex",
+            billing_mode="potentially_metered",
+            billing_acknowledged=True,
+            log_metadata=lambda: {
+                "stage_id": "fast.source_relevance",
+                "inference_profile": "hybrid",
+                "backend_id": "codex-cli",
+                "backend_kind": "host_agent",
+                "billing_mode": "potentially_metered",
+                "billing_acknowledged": True,
+                "routed": True,
+                "execution_mode": "host_agent",
+            },
+        )
+        host_mock = MagicMock(return_value=SimpleNamespace(text="[1, 2, 3, 4]"))
+        monkeypatch.setattr(
+            "primr.ai.stage_routing.resolve_stage_model",
+            MagicMock(return_value=route),
+        )
+        monkeypatch.setattr("primr.core.source_relevance.run_host_agent_stage", host_mock)
+
+        result = _assess_source_relevance("Acme", sources)
+
+        assert len(result) == 4
+        packet = host_mock.call_args.args[0]
+        assert packet.policy.billing_mode is HostAgentBillingMode.POTENTIALLY_METERED
+        assert packet.policy.allow_potentially_metered_handoff is True
+
+    def test_metered_route_without_recorded_acknowledgment_fails_closed(self, monkeypatch):
+        sources = _ten_sources()
+        route = SimpleNamespace(
+            model_name="codex-cli",
+            execution_mode="host_agent",
+            host_agent_kind="codex",
+            billing_mode="potentially_metered",
+            billing_acknowledged=False,
+            log_metadata=lambda: {
+                "stage_id": "fast.source_relevance",
+                "inference_profile": "hybrid",
+                "backend_id": "codex-cli",
+                "backend_kind": "host_agent",
+                "billing_mode": "potentially_metered",
+                "billing_acknowledged": False,
+                "routed": True,
+                "execution_mode": "host_agent",
+            },
+        )
+        host_mock = MagicMock()
+        monkeypatch.setattr(
+            "primr.ai.stage_routing.resolve_stage_model",
+            MagicMock(return_value=route),
+        )
+        monkeypatch.setattr("primr.core.source_relevance.run_host_agent_stage", host_mock)
+
+        assert _assess_source_relevance("Acme", sources) == sources
+        host_mock.assert_not_called()
 
     def test_unavailable_agent_route_keeps_sources_without_cloud_llm(self, monkeypatch, tmp_path):
         sources = _ten_sources()

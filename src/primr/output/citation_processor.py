@@ -9,7 +9,9 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
+from primr.utils.url_helpers import normalized_hostname, public_web_url
 
 
 class CitationStyle(Enum):
@@ -88,9 +90,6 @@ class CitationProcessor:
         Returns:
             CitationResult with transformed content and citation list
         """
-        if self.style == CitationStyle.INLINE:
-            # Preserve URLs as-is
-            return CitationResult(transformed_content=content, citations=[], reference_map={})
 
         def replace_link(match: re.Match[str]) -> str:
             text = match.group(1)
@@ -100,7 +99,13 @@ class CitationProcessor:
             if not url.startswith(("http://", "https://")):
                 return str(match.group(0))  # Keep original
 
-            ref_num = self.get_reference_number(url, text)
+            safe_url = public_web_url(url)
+            if not safe_url:
+                return text
+            if self.style == CitationStyle.INLINE:
+                return f"[{text}]({safe_url})"
+
+            ref_num = self.get_reference_number(safe_url, text)
             return f"{text} [{ref_num}]"
 
         transformed = self.MARKDOWN_LINK_PATTERN.sub(replace_link, content)
@@ -125,7 +130,10 @@ class CitationProcessor:
             Reference number (1-indexed)
         """
         # Normalize URL for deduplication
-        normalized_url = self._normalize_url(url)
+        safe_url = public_web_url(url)
+        if not safe_url:
+            raise ValueError("Citation URL must be a valid public HTTP(S) URL")
+        normalized_url = self._normalize_url(safe_url)
 
         if normalized_url in self._url_to_ref:
             return self._url_to_ref[normalized_url]
@@ -136,7 +144,9 @@ class CitationProcessor:
 
         # Create citation entry
         citation = SourceCitation(
-            url=url, title=title or self._extract_domain(url), reference_number=ref_num
+            url=safe_url,
+            title=title or self._extract_domain(safe_url),
+            reference_number=ref_num,
         )
         self._citations.append(citation)
 
@@ -180,9 +190,10 @@ class CitationProcessor:
         - Removes trailing slashes from path
         """
         try:
-            from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
-
-            parsed = urlparse(url)
+            safe_url = public_web_url(url)
+            if not safe_url:
+                return ""
+            parsed = urlparse(safe_url)
 
             # Normalize scheme and netloc to lowercase
             scheme = parsed.scheme.lower()
@@ -221,12 +232,7 @@ class CitationProcessor:
     def _extract_domain(self, url: str) -> str:
         """Extract domain name from URL for use as default title."""
         try:
-            parsed = urlparse(url)
-            domain = parsed.netloc
-            # Remove www. prefix
-            if domain.startswith("www."):
-                domain = domain[4:]
-            return domain
+            return normalized_hostname(url, strip_www=True)
         except Exception:
             return url
 

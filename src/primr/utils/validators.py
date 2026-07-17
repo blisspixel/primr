@@ -27,6 +27,38 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+_WINDOWS_FILENAME_CHARACTERS = frozenset('<>:"|?*')
+_WINDOWS_DEVICE_NAMES = frozenset(
+    {"con", "conin$", "conout$", "prn", "aux", "nul"}
+    | {f"com{index}" for index in range(1, 10)}
+    | {f"lpt{index}" for index in range(1, 10)}
+)
+
+
+def is_portable_path_component(component: str, *, max_length: int = 255) -> bool:
+    """Return whether one path component is portable across supported hosts.
+
+    The check is intentionally platform-independent so artifacts created on a
+    POSIX host do not become unextractable or device-bound on Windows.
+    """
+    if (
+        not isinstance(component, str)
+        or not component
+        or not component.isascii()
+        or len(component) > max_length
+    ):
+        return False
+    if component in {".", ".."} or component.endswith((" ", ".")):
+        return False
+    if any(separator in component for separator in ("/", "\\")):
+        return False
+    if any(ord(character) < 0x20 for character in component):
+        return False
+    if not _WINDOWS_FILENAME_CHARACTERS.isdisjoint(component):
+        return False
+    windows_stem = component.split(".", 1)[0].rstrip(" ").casefold()
+    return windows_stem not in _WINDOWS_DEVICE_NAMES
+
 
 class InputValidationError(ValueError):
     """
@@ -100,6 +132,9 @@ def validate_url(
     # Check host
     if require_host and not parsed.netloc:
         raise InputValidationError("url", "URL must have a host")
+
+    if parsed.username is not None or parsed.password is not None:
+        raise InputValidationError("url", "URL cannot contain user credentials")
 
     # urllib validates port range lazily when parsed.port is accessed.
     try:
@@ -675,7 +710,7 @@ def validate_company_name(name: str, min_length: int = 1, max_length: int = 200)
     # joined. Without this gate, MCP/CLI callers could write artifacts
     # outside OUTPUT_DIR/WORKING_DIR by sending names like "../../tmp/x"
     # or "/etc/x".
-    if any(sep in name for sep in ("/", "\\")) or ".." in name:
+    if name == "." or any(sep in name for sep in ("/", "\\")) or ".." in name:
         raise InputValidationError(
             "company_name",
             "Company name cannot contain path separators or traversal sequences",
@@ -687,6 +722,26 @@ def validate_company_name(name: str, min_length: int = 1, max_length: int = 200)
     # Reject control characters that confuse downstream filesystem APIs.
     if any(ord(c) < 0x20 for c in name):
         raise InputValidationError("company_name", "Company name contains control characters")
+
+    # Company names are used as directory components and filename prefixes
+    # throughout the pipeline. Reject characters that Windows reserves even
+    # when the current host is POSIX so a valid run remains portable and does
+    # not fail only after billable research has completed.
+    if not _WINDOWS_FILENAME_CHARACTERS.isdisjoint(name):
+        raise InputValidationError(
+            "company_name",
+            "Company name contains characters reserved by supported filesystems",
+        )
+
+    # Windows device aliases do not identify ordinary filesystem entries.
+    # The restriction also applies when an extension is present, so compare
+    # the stem before the first dot.
+    windows_stem = name.split(".", 1)[0].rstrip(" ").casefold()
+    if windows_stem in _WINDOWS_DEVICE_NAMES:
+        raise InputValidationError(
+            "company_name",
+            "Company name is reserved by a supported filesystem",
+        )
 
     return name
 
@@ -737,6 +792,18 @@ def sanitize_for_filename(name: str, max_length: int = 100, replacement: str = "
         return "unnamed"
 
     return sanitized
+
+
+def company_path_component(name: str) -> str:
+    """Return a validated, portable filesystem component for a company name.
+
+    Display punctuation is preserved by :func:`validate_company_name`; only
+    the path representation is normalized. In particular, trailing periods in
+    legitimate names such as ``Acme, Inc.`` cannot alias another directory on
+    Windows.
+    """
+    validated = validate_company_name(name)
+    return sanitize_for_filename(validated.replace(" ", "_"), max_length=200)
 
 
 # =============================================================================

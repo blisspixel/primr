@@ -9,7 +9,7 @@ import json
 from typing import Any
 from unittest.mock import patch
 
-from primr.skill_pack.config import SkillPackConfig
+from primr.skill_pack.config import MAX_AUTO_RESOLVE_PAIRS, SkillPackConfig
 from primr.skill_pack.refiner import _actionable_findings, auto_resolve_overlaps, refine_role
 from primr.skill_pack.schema import Role, RoleEvidence, RoleProvenance, Skill, SkillPack
 
@@ -221,3 +221,155 @@ def test_auto_resolve_reverts_when_refinement_breaks_skill():
     # Original body preserved; entry remains for the report.
     assert pack.roles[0].skills[1].body == _GOOD_BODY
     assert len(coherence["semantic_overlaps"]) == 1
+
+
+def test_auto_resolve_caps_distinct_provider_calls():
+    owner = _skill("producing-owner-reports", _GOOD_BODY)
+    targets = [
+        _skill(f"reporting-target-{index}", _GOOD_BODY)
+        for index in range(MAX_AUTO_RESOLVE_PAIRS + 2)
+    ]
+    pack = SkillPack(
+        company_name="Test Co",
+        company_url=None,
+        generated_at="2026-01-01T00:00:00+00:00",
+        roles=[_role(owner, *targets)],
+    )
+    coherence = {
+        "semantic_overlaps": [
+            {
+                "skill_a": f"software-asset-manager/{owner.name}",
+                "skill_b": f"software-asset-manager/{target.name}",
+                "overlap_summary": "Overlapping report scopes.",
+            }
+            for target in targets
+        ]
+    }
+
+    with patch(
+        "primr.skill_pack.refiner.refine_skill",
+        side_effect=lambda skill, *_args, **_kwargs: skill,
+    ) as refine:
+        resolved = auto_resolve_overlaps(pack, coherence, "Test Co context")
+
+    assert refine.call_count == MAX_AUTO_RESOLVE_PAIRS
+    assert len(resolved) == MAX_AUTO_RESOLVE_PAIRS
+    assert len(coherence["semantic_overlaps"]) == 2
+
+
+def test_auto_resolve_deduplicates_pair_across_coherence_categories():
+    pack = _pack_with_two_skills()
+    skill_a = "software-asset-manager/producing-cost-savings-reports"
+    skill_b = "software-asset-manager/reporting-managed-services-margins"
+    coherence = {
+        "semantic_overlaps": [
+            {
+                "skill_a": skill_a,
+                "skill_b": skill_b,
+                "overlap_summary": "Overlapping report scopes.",
+            }
+        ],
+        "trigger_collisions": [
+            {
+                "skill_a": "reporting-managed-services-margins",
+                "skill_b": "producing-cost-savings-reports",
+                "fix": "Separate the triggers.",
+            }
+        ],
+    }
+
+    with patch(
+        "primr.skill_pack.refiner.refine_skill",
+        side_effect=lambda skill, *_args, **_kwargs: skill,
+    ) as refine:
+        resolved = auto_resolve_overlaps(pack, coherence, "Test Co context")
+
+    assert refine.call_count == 1
+    assert len(resolved) == 1
+    assert coherence["semantic_overlaps"] == []
+    assert coherence["trigger_collisions"] == []
+
+
+def test_auto_resolve_rejects_unresolved_and_self_pairs_before_cap():
+    pack = _pack_with_two_skills()
+    valid_a = "software-asset-manager/producing-cost-savings-reports"
+    valid_b = "software-asset-manager/reporting-managed-services-margins"
+    coherence = {
+        "semantic_overlaps": [
+            {
+                "skill_a": "missing-skill-a",
+                "skill_b": "missing-skill-b",
+                "overlap_summary": "Unresolvable.",
+            }
+            for _ in range(MAX_AUTO_RESOLVE_PAIRS)
+        ]
+        + [
+            {
+                "skill_a": valid_a,
+                "skill_b": "producing-cost-savings-reports",
+                "overlap_summary": "Self pair through aliases.",
+            }
+            for _ in range(MAX_AUTO_RESOLVE_PAIRS)
+        ]
+        + [
+            {
+                "skill_a": valid_a,
+                "skill_b": valid_b,
+                "overlap_summary": "Valid pair.",
+            }
+        ]
+    }
+
+    with patch(
+        "primr.skill_pack.refiner.refine_skill",
+        side_effect=lambda skill, *_args, **_kwargs: skill,
+    ) as refine:
+        resolved = auto_resolve_overlaps(pack, coherence, "Test Co context")
+
+    assert refine.call_count == 1
+    assert len(resolved) == 1
+
+
+def test_auto_resolve_preserves_identity_for_repeated_target():
+    first = _skill("producing-first-reports", _GOOD_BODY)
+    second = _skill("reporting-shared-target", _GOOD_BODY)
+    third = _skill("producing-third-reports", _GOOD_BODY)
+    pack = SkillPack(
+        company_name="Test Co",
+        company_url=None,
+        generated_at="2026-01-01T00:00:00+00:00",
+        roles=[_role(first, second, third)],
+    )
+    prefix = "software-asset-manager/"
+    coherence = {
+        "semantic_overlaps": [
+            {
+                "skill_a": prefix + first.name,
+                "skill_b": prefix + second.name,
+                "overlap_summary": "First overlap.",
+            },
+            {
+                "skill_a": prefix + third.name,
+                "skill_b": prefix + second.name,
+                "overlap_summary": "Second overlap.",
+            },
+        ]
+    }
+
+    def _renamed_refinement(skill, *_args, **_kwargs):
+        return Skill(
+            name="model-renamed-the-skill",
+            display_name=skill.display_name,
+            description=skill.description,
+            body=skill.body,
+        )
+
+    with patch(
+        "primr.skill_pack.refiner.refine_skill",
+        side_effect=_renamed_refinement,
+    ) as refine:
+        resolved = auto_resolve_overlaps(pack, coherence, "Test Co context")
+
+    assert refine.call_count == 2
+    assert len(resolved) == 2
+    assert pack.roles[0].skills[1].name == "reporting-shared-target"

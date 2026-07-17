@@ -32,6 +32,7 @@ from primr.a2a.task_store import PrimrTaskStore
 from primr.a2a.types import A2ATaskMapping
 from primr.mcp_server.resource_auth import TRUSTED_LOCAL_A2A_AUTH_CONTEXT
 from primr.mcp_server.types import ResearchStage
+from primr.qa.artifact_fingerprints import artifact_fingerprint
 
 
 class TestExtractSkillId:
@@ -940,6 +941,149 @@ class TestPrimrAgentExecutor:
         assert audit_event["status"] == "success"
         assert audit_event["estimated_cost_usd"] == estimate["estimated_cost_usd"]
         assert audit_event["max_estimated_cost_usd"] == estimate["estimated_cost_usd"]
+
+    @pytest.mark.asyncio
+    async def test_research_working_event_failure_terminalizes_created_job(
+        self, executor, event_queue, context, monkeypatch
+    ):
+        """A queue failure after job creation cannot leave an accepted job active."""
+        monkeypatch.delenv("PRIMR_ENFORCE_MCP_COST_CAPS", raising=False)
+        context.task_id = "task-queue-failure"
+        context.context_id = "ctx-queue-failure"
+        context.message = {
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": '{"url": "https://example.com", "name": "Example"}',
+                }
+            ],
+            "metadata": {"skillId": "research_company"},
+        }
+        event_queue.enqueue_event = AsyncMock(side_effect=[RuntimeError("queue unavailable"), None])
+
+        await executor.execute(context, event_queue)
+
+        assert executor._mcp.job_store.get_active() is None
+        terminal = executor._mcp.job_store.get_latest_terminal()
+        assert terminal is not None
+        assert terminal.current_stage == ResearchStage.FAILED
+        assert terminal.error_type == "a2a_working_event_failed"
+
+    @pytest.mark.asyncio
+    async def test_research_cancellation_during_working_event_terminalizes_created_job(
+        self, executor, event_queue, context, monkeypatch
+    ):
+        """Request cancellation before worker launch records terminal job truth."""
+        monkeypatch.delenv("PRIMR_ENFORCE_MCP_COST_CAPS", raising=False)
+        context.task_id = "task-cancelled-before-launch"
+        context.context_id = "ctx-cancelled-before-launch"
+        context.message = {
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": '{"url": "https://example.com", "name": "Example"}',
+                }
+            ],
+            "metadata": {"skillId": "research_company"},
+        }
+        enqueue_started = asyncio.Event()
+        never_complete = asyncio.Event()
+
+        async def block_working_event(_event):
+            enqueue_started.set()
+            await never_complete.wait()
+
+        event_queue.enqueue_event = block_working_event
+        request_task = asyncio.create_task(executor.execute(context, event_queue))
+        await asyncio.wait_for(enqueue_started.wait(), timeout=1)
+        request_task.cancel()
+
+        with pytest.raises(asyncio.CancelledError):
+            await request_task
+
+        assert executor._mcp.job_store.get_active() is None
+        terminal = executor._mcp.job_store.get_latest_terminal()
+        assert terminal is not None
+        assert terminal.current_stage == ResearchStage.CANCELLED
+        assert terminal.error_type == "a2a_request_cancelled_before_worker_start"
+        audit_event = _audit_events(executor)[-1]
+        assert audit_event["status"] == "exception"
+        assert audit_event["error_type"] == "CancelledError"
+
+    @pytest.mark.asyncio
+    async def test_research_worker_start_failure_terminalizes_created_job(
+        self, executor, event_queue, context, monkeypatch
+    ):
+        """Supervisor launch failure commits FAILED before returning an A2A error."""
+        monkeypatch.delenv("PRIMR_ENFORCE_MCP_COST_CAPS", raising=False)
+        executor._mcp._skip_background_tasks = False
+        monkeypatch.setattr(
+            executor._mcp.job_supervisor,
+            "start",
+            AsyncMock(side_effect=RuntimeError("spawn failed")),
+        )
+        context.task_id = "task-spawn-failure"
+        context.context_id = "ctx-spawn-failure"
+        context.message = {
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": '{"url": "https://example.com", "name": "Example"}',
+                }
+            ],
+            "metadata": {"skillId": "research_company"},
+        }
+
+        await executor.execute(context, event_queue)
+
+        assert executor._mcp.job_store.get_active() is None
+        terminal = executor._mcp.job_store.get_latest_terminal()
+        assert terminal is not None
+        assert terminal.current_stage == ResearchStage.FAILED
+        assert terminal.error_type == "worker_spawn_failed"
+
+    @pytest.mark.asyncio
+    async def test_research_cancellation_during_worker_start_records_failed_startup(
+        self, executor, event_queue, context, monkeypatch
+    ):
+        """Cancellation while the supervisor starts cannot strand an active job."""
+        monkeypatch.delenv("PRIMR_ENFORCE_MCP_COST_CAPS", raising=False)
+        executor._mcp._skip_background_tasks = False
+        start_entered = asyncio.Event()
+        never_complete = asyncio.Event()
+
+        async def block_worker_start(**_kwargs):
+            start_entered.set()
+            await never_complete.wait()
+
+        monkeypatch.setattr(executor._mcp.job_supervisor, "start", block_worker_start)
+        context.task_id = "task-cancelled-during-spawn"
+        context.context_id = "ctx-cancelled-during-spawn"
+        context.message = {
+            "parts": [
+                {
+                    "kind": "text",
+                    "text": '{"url": "https://example.com", "name": "Example"}',
+                }
+            ],
+            "metadata": {"skillId": "research_company"},
+        }
+
+        request_task = asyncio.create_task(executor.execute(context, event_queue))
+        await asyncio.wait_for(start_entered.wait(), timeout=1)
+        request_task.cancel()
+
+        with pytest.raises(asyncio.CancelledError):
+            await request_task
+
+        assert executor._mcp.job_store.get_active() is None
+        terminal = executor._mcp.job_store.get_latest_terminal()
+        assert terminal is not None
+        assert terminal.current_stage == ResearchStage.FAILED
+        assert terminal.error_type == "worker_start_cancelled"
+        audit_event = _audit_events(executor)[-1]
+        assert audit_event["status"] == "exception"
+        assert audit_event["error_type"] == "CancelledError"
 
     @pytest.mark.asyncio
     async def test_stage_scorecard_summary_requires_read_scope(
@@ -2002,6 +2146,7 @@ class TestPrimrAgentExecutor:
             json.dumps(
                 {
                     "report_file": report_path.name,
+                    "report_artifact": artifact_fingerprint(report_path),
                     "max_per_label": 10,
                     "judge": {
                         "kind": "local",
@@ -2014,6 +2159,13 @@ class TestPrimrAgentExecutor:
                         "compared": 4,
                         "agreed": 3,
                         "agreement": 0.75,
+                        "disagreements": [
+                            {
+                                "claim_index": 2,
+                                "cloud_verdict": "traceable",
+                                "local_verdict": "untraceable",
+                            }
+                        ],
                     },
                     "per_label": {
                         "Confirmed": {

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import MagicMock
 
 from primr.ai.capability_routing import BillingMode, InferenceProfile
@@ -19,6 +20,7 @@ from primr.ai.stage_routing import (
     stage_usage_delta,
 )
 from primr.config.models import PrimrModels
+from primr.core.run_state_io import _append_recovery_event, _load_run_state
 
 
 def _clear_provider_env(monkeypatch) -> None:
@@ -179,6 +181,77 @@ def test_hybrid_scrape_summary_preserves_cloud_until_host_stage_is_wired(monkeyp
     assert route.model_name == PrimrModels.SCRAPING_MODEL
     assert route.backend_kind == "cloud_api"
     assert route.execution_mode == "llm"
+
+
+def test_hybrid_source_relevance_requires_acknowledgment_for_metered_host(monkeypatch) -> None:
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+    monkeypatch.delenv("PRIMR_ACKNOWLEDGE_HOST_AGENT_MAY_BILL", raising=False)
+    monkeypatch.setattr(
+        "primr.ai.stage_routing._supported_host_agent_backends",
+        lambda stage_id: (
+            (
+                codex_cli_backend(
+                    available=True,
+                    billing_mode=BillingMode.POTENTIALLY_METERED,
+                ),
+            )
+            if stage_id == "fast.source_relevance"
+            else ()
+        ),
+    )
+
+    route = resolve_stage_model(
+        "fast.source_relevance",
+        legacy_model_type="fast",
+        profile="hybrid",
+        availability_snapshots=(),
+    )
+
+    assert route.model_name == PrimrModels.FLASH_MODEL
+    assert route.backend_kind == "cloud_api"
+    assert route.execution_mode == "llm"
+    assert route.billing_acknowledged is False
+    assert "potentially_metered_handoff_not_acknowledged" in route.rejections
+    assert (
+        "potentially_metered_handoff_not_acknowledged"
+        in route.log_metadata()["fallback_rejections"]
+    )
+
+
+def test_hybrid_source_relevance_routes_to_acknowledged_metered_host(monkeypatch) -> None:
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+    monkeypatch.setenv("PRIMR_ACKNOWLEDGE_HOST_AGENT_MAY_BILL", "1")
+    monkeypatch.setattr(
+        "primr.ai.stage_routing._supported_host_agent_backends",
+        lambda stage_id: (
+            (
+                codex_cli_backend(
+                    available=True,
+                    billing_mode=BillingMode.POTENTIALLY_METERED,
+                ),
+            )
+            if stage_id == "fast.source_relevance"
+            else ()
+        ),
+    )
+
+    route = resolve_stage_model(
+        "fast.source_relevance",
+        legacy_model_type="fast",
+        profile="hybrid",
+        availability_snapshots=(),
+    )
+
+    assert route.model_name == "codex-cli"
+    assert route.backend_kind == "host_agent"
+    assert route.billing_mode == "potentially_metered"
+    assert route.estimated_cost_usd is None
+    assert route.execution_mode == "host_agent"
+    assert route.billing_acknowledged is True
+    assert route.log_metadata()["billing_acknowledged"] is True
+    assert route.log_metadata()["promotion_status"] == "experimental_eval_pending"
 
 
 def test_agent_profile_for_unwired_stage_does_not_fall_back_to_cloud(monkeypatch) -> None:
@@ -404,6 +477,29 @@ def test_record_stage_route_usage_appends_body_free_run_state(tmp_path, monkeypa
     assert record["duration_seconds"] == 1.235
     assert "prompt" not in record
     assert "response" not in record
+
+
+def test_concurrent_route_and_recovery_records_preserve_both_streams(tmp_path, monkeypatch) -> None:
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+    route = resolve_stage_model(
+        "fast.source_relevance",
+        legacy_model_type="fast",
+        profile="cloud",
+    )
+
+    def record(index: int) -> None:
+        if index % 2:
+            record_stage_route_usage(tmp_path, route, outcome=f"selected-{index}")
+        else:
+            _append_recovery_event(str(tmp_path), {"index": index})
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(record, range(40)))
+
+    state = _load_run_state(str(tmp_path))
+    assert len(state["stage_routes"]) == 20
+    assert len(state["recovery_events"]) == 20
 
 
 def test_record_stage_route_usage_appends_actual_usage_delta(tmp_path, monkeypatch) -> None:

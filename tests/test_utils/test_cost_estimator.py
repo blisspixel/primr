@@ -642,16 +642,16 @@ class TestFastModeAIStrategy:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setenv("XAI_API_KEY", "fake-test-key")
         estimate = estimate_cost("complete", fast_mode=True, use_historical=False)
-        assert estimate.mode == "standard (Grok 4.3 hybrid)"
+        assert estimate.mode == "full (Grok 4.3 hybrid)"
 
     def test_fast_mode_explicit_fast_tier_label(self, monkeypatch):
-        """Fast mode with explicit fast tier should report 'standard (Grok 4.3 (low-effort))'."""
+        """Fast mode with explicit fast tier should report 'full (Grok 4.3 (low-effort))'."""
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.setenv("XAI_API_KEY", "fake-test-key")
         estimate = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="fast")
-        assert estimate.mode == "standard (Grok 4.3 (low-effort))"
+        assert estimate.mode == "full (Grok 4.3 (low-effort))"
 
 
 class TestGrokTier:
@@ -793,7 +793,7 @@ class TestGrokTier:
         estimate = estimate_cost(
             "complete", fast_mode=True, use_historical=False, grok_tier="hybrid"
         )
-        assert estimate.mode == "standard (Grok 4.3 hybrid)"
+        assert estimate.mode == "full (Grok 4.3 hybrid)"
 
     def test_hybrid_tier_mode_label_with_gemini(self, monkeypatch):
         """Hybrid tier estimate should name Gemini when routed through Gemini."""
@@ -804,12 +804,12 @@ class TestGrokTier:
         estimate = estimate_cost(
             "complete", fast_mode=True, use_historical=False, grok_tier="hybrid"
         )
-        assert estimate.mode == "standard (Gemini routed)"
+        assert estimate.mode == "full (Gemini routed)"
 
     def test_max_tier_mode_label(self):
         """Max tier estimate should have correct mode label."""
         estimate = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="max")
-        assert estimate.mode == "standard (Grok 4.3 max)"
+        assert estimate.mode == "full (Grok 4.3 max)"
 
     def test_fast_tier_cost_range_xai_only(self, monkeypatch):
         """Fast tier in legacy XAI-only mode: grok-4.3 reasoning + grok-4.20-nr writing,
@@ -850,7 +850,7 @@ class TestGrokTier:
         est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="hybrid")
 
         notes = " ".join(est.notes)
-        assert est.mode == "standard (OpenAI routed)"
+        assert est.mode == "full (OpenAI routed)"
         assert est.deep_research_cost == 0.0
         assert "o4-mini reasoning" in notes
         assert "gpt-5.4-nano writing" in notes
@@ -867,7 +867,7 @@ class TestGrokTier:
         est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="hybrid")
 
         notes = " ".join(est.notes)
-        assert est.mode == "standard (Anthropic routed)"
+        assert est.mode == "full (Anthropic routed)"
         assert est.deep_research_cost == 0.0
         assert f"{ModelRegistry.ANTHROPIC_SONNET.name} reasoning" in notes
         assert "claude-haiku-4-5 writing" in notes

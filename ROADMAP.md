@@ -61,7 +61,10 @@ Current priority order:
    judge-agreement metadata, so partial sidecar coverage cannot make a pack
    look ready by aggregate counts alone. Calibration pack manifests now carry
    report and sidecar byte sizes plus SHA-256 content hashes so a baseline
-   candidate names the exact artifacts it measured. `primr calibrate
+   candidate names the exact artifacts it measured. Calibration sidecars also
+   bind themselves to the exact report bytes they evaluated; pack aggregation
+   and compact MCP/A2A readback reject missing or stale bindings. `primr
+   calibrate
    --inspect-baseline` prints the same blocker set as machine-readable JSON for
    operators and agent control planes, including current-file fingerprint
    missing/mismatch checks that do not return report bodies, and MCP exposes the
@@ -94,6 +97,16 @@ Current priority order:
    Decision records can now be re-inspected with a body-free readback that
    verifies the baseline fingerprint still matches and the current template
    still allows the recorded decision before agents trust the record.
+   **Current measured-baseline milestone COMPLETE (2026-07-13):** five distinct
+   reports cover every required representative tag, 50 evidence reviews are
+   present, cloud and local judges agree on 33 of 37 comparable claims, and all
+   ten report or sidecar fingerprints pass inspection. The measured Confirmed
+   floor is 30 percent across three contributing reports. Operator review
+   deliberately records `keep_report_only` because two reports lack a
+   decidable Confirmed floor. Raw report-bound sidecars preserve each
+   disagreement as a body-free claim-index and verdict pointer while compact
+   MCP and A2A summaries remain body-free. Recalibration on a fully decidable
+   production corpus is follow-up work, not a blocker to priority 2.
 2. **Backend freedom production wiring.** Provider abstractions and pure routing
    foundations exist, and `core/stage_inventory.py` now records router-ready
    capability requirements and promotion gates for fast-mode and premium
@@ -104,10 +117,14 @@ Current priority order:
    `fast.scrape_summary`, `fast.source_relevance`, and
    `fast.hiring_signals` now consume the capability router behind the
    `--inference cloud|hybrid` flag while executing through existing provider
-   seams. `fast.source_relevance` also has an internal/eval-only Codex CLI
-   adapter. It is not exposed through the public CLI because Codex
+   seams. `fast.source_relevance` also has a bounded Codex CLI
+   adapter. The first promotion-safety slice now exposes it only as an
+   unpromoted, single-company experimental route when the operator supplies
+   `--inference hybrid --acknowledge-host-agent-may-bill`. Codex
    authentication does not prove whether execution uses plan allowance or
-   metered API-key billing. Runtime route resolution
+   metered API-key billing, so route and estimate metadata says
+   `potentially_metered`, excludes unknown host charges from the Primr estimate
+   and budget, and rejects batch fan-out. Runtime route resolution
    consumes sanitized env-only cloud provider availability snapshots by
    default, can accept injected quota snapshots, and records body-free
    availability metadata without collecting live quota data or probing local
@@ -119,15 +136,17 @@ Current priority order:
    scrape summary writes deterministic source excerpts, hiring signals use
    deterministic triage plus posting metadata, and both record
    `agent_profile_unavailable` route fallbacks instead of invoking cloud LLMs;
-   the next architecture unlock is
-   expanding host/local candidates only with stage-specific adapters and
-   stage-scoped eval data. Stage scorecard artifacts are now available through
+   the next architecture unlock is the representative source-relevance
+   host-vs-cloud comparison. The explicit host gate is not promotion and cloud
+   remains the validated baseline. Broader host/local candidates still require
+   stage-specific adapters and stage-scoped eval data. Stage scorecard artifacts are now available through
    the eval CLI and compact MCP readback at
    `primr://eval/stage_scorecard/{eval_id}` without exposing prompt, report,
    quality-source, or raw run-state content. Website-summary local-stage evals
    now write scorecard-ready structured quality evidence as report-only input,
    and source-relevance labeled fixtures now write body-free precision, recall,
-   F1, and exact-match evidence for review-only host/cloud scorecards.
+   F1, and exact-match evidence for review-only host/cloud scorecards. No
+   representative standing source-relevance corpus has cleared that gate yet.
 3. **Agent control-plane consumption resources and A2A parity.** MCP already has
    scopes, approval tokens, tool/resource-read audit events, and budget
    propagation. A2A now shares the HTTP bearer-token auth context and enforces
@@ -263,7 +282,7 @@ into generic agent middleware.
 - Five providers wired: xAI (Grok), Google (Gemini), OpenAI, Anthropic, Ollama (local)
 - Provider abstraction at `src/primr/ai/providers/` - `Provider` ABC, `OpenAICompatibleProvider` (xAI/OpenAI/Ollama/vLLM), `GeminiProvider`, `AnthropicProvider`
 - `pick_model_for_role` chooses the best model from configured providers; `primr doctor` shows what each key unlocks
-- Pure capability router foundation shipped in `src/primr/ai/capability_routing.py`: `StageRequirements`, backend capability rows, cloud/agent/hybrid/local profiles, billing-mode guards, ordered route plans, explicit rejection reasons, and pure availability-to-backend annotation. Runtime consumption is now wired for `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` behind `--inference cloud|hybrid`, with an internal/eval-only Codex CLI adapter for `fast.source_relevance` and capped body-free route usage records persisted to `_run_state.json`. Codex route metadata does not prove whether authentication is plan-backed or API-key billed.
+- Pure capability router foundation shipped in `src/primr/ai/capability_routing.py`: `StageRequirements`, backend capability rows, cloud/agent/hybrid/local profiles, billing-mode guards, ordered route plans, explicit rejection reasons, and pure availability-to-backend annotation. Runtime consumption is now wired for `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` behind `--inference cloud|hybrid`, with an explicitly acknowledged, single-company Codex experiment for `fast.source_relevance` and capped body-free route usage records persisted to `_run_state.json`. Codex route metadata reports potentially metered billing and pending-eval status; it does not prove whether authentication is plan-backed or API-key billed.
 - Provider availability foundation shipped across `src/primr/ai/provider_availability.py` and `src/primr/ai/provider_availability_collectors.py`: normalized quota windows, binding headroom, elapsed-reset handling, stale last-known-good snapshots, deterministic provider ranking, non-secret cloud provider configuration snapshots, generic local OpenAI-compatible availability probes, sanitized routing metadata, and `primr doctor` visibility. Official live cloud quota/status collectors and production execution wiring remain planned.
 - Provider-aware fallback chain: WRITING/UTILITY prefer GEMINI > OPENAI > ANTHROPIC > XAI; REASONING prefers XAI (cached) > GEMINI > OPENAI > ANTHROPIC
 - Cross-provider dispatch in `grok_llm` and `llm()` so writing-tier calls reach the right provider when the resolved model is non-Grok
@@ -327,7 +346,7 @@ into generic agent middleware.
 - Product over middleware - integrations should act as a disciplined control plane for Primr's long-running research jobs, not turn Primr into a generic orchestration framework.
 - Artifact-first delivery - the main unit of value is a report, strategy, or evaluation artifact, not a stream of chat-sized tool responses.
 - The pipeline is the product - Primr's value is the 9-tier scraping engine, the org-aware link selection, the research deepening, the cross-validation, the deterministic QA gate, the eval harness, the crash recovery, and the cost estimation. None of these are model calls. The model is a commodity; the orchestration pipeline is the moat.
-- Credentials are transport, not product identity. API keys, official agent-account auth, enterprise gateways, and local models are all ways to run the same pipeline. Do not bake a provider, billing model, or subscription workaround into the core loop. The default routing goal is the lowest incremental spend that clears the measured quality bar: local or gateway capacity when configured and explicitly approved, then any official host runner whose billing basis is proven or explicitly acknowledged, then the best validated sub-dollar direct API recipe, with premium paths opt-in and justified by measured lift. Direct APIs remain the reproducible baseline and fallback. An official automation seam alone does not prove plan-backed billing, so the Codex in-pipeline adapter remains internal/eval-only. `primr-zero` is the supported plan-native path, with host OAuth and session state kept inside the host. Local and gateway profiles are validated recipes, not second-class forks. As local AI hardware improves, the same eval gate should let $0 API local stages graduate from utility support to hybrid default, and eventually to full-run default where they honestly match the quality bar.
+- Credentials are transport, not product identity. API keys, official agent-account auth, enterprise gateways, and local models are all ways to run the same pipeline. Do not bake a provider, billing model, or subscription workaround into the core loop. The default routing goal is the lowest incremental spend that clears the measured quality bar: local or gateway capacity when configured and explicitly approved, then any official host runner whose billing basis is proven or explicitly acknowledged, then the best validated sub-dollar direct API recipe, with premium paths opt-in and justified by measured lift. Direct APIs remain the reproducible baseline and fallback. An official automation seam alone does not prove plan-backed billing, so the Codex in-pipeline adapter is an explicitly gated experiment with its quality eval still pending. `primr-zero` is the supported plan-native path, with host OAuth and session state kept inside the host. Local and gateway profiles are validated recipes, not second-class forks. As local AI hardware improves, the same eval gate should let $0 API local stages graduate from utility support to hybrid default, and eventually to full-run default where they honestly match the quality bar.
 - Evidence before language - Primr is Python-first because its product layer is
   I/O-heavy and benefits from Python's research, data, document, and AI
   ecosystems, not because the project imposes language purity. Improve the
@@ -431,8 +450,10 @@ per-module coverage ratchet unlocked by the refactor:
   reasoning strength, uncertainty honesty, and business relevance dimensions,
   and the eval scorecard surfaces pooled `## Evidence Review` report-only
   metrics plus CSV columns. `--judge-compare` also stamps per-report
-  cloud-vs-local agreement into calibration sidecars, and offline eval surfaces
-  pooled `## Judge Agreement` report-only metrics plus CSV columns.
+  cloud-vs-local agreement into calibration sidecars, including body-free
+  claim-index and verdict pointers for disagreements, and offline eval surfaces
+  pooled `## Judge Agreement` report-only metrics plus CSV columns. Compact MCP
+  and A2A summaries omit those pointers and all raw claim or source content.
   `--pack-manifest` writes a local JSON manifest of the selected reports,
   sidecar state, estimates, per-label totals, inference source-copy counts,
   and judge-agreement metadata so a representative pack can be frozen before
@@ -848,6 +869,13 @@ and [best-practices guide](https://platform.claude.com/docs/en/agents-and-tools/
   requires intake, scope guardrail, human checkpoint, and worked input/output
   markers, and `author_skill.yaml` now asks for those hand-built-skill patterns
   directly.
+- **Saved-plan admission and approval parity - SHIPPED (2026-07-14):** saved
+  plans are byte-bounded, structurally validated, prompt-bounded, globally
+  capped, and curated atomically before estimation. CLI and MCP estimates bind
+  and price the same prepared in-memory plan snapshot that execution consumes,
+  including full refinement and bounded pack-level reconciliation fan-out.
+  Canonical plan content and all cost-relevant controls are covered by the
+  approval token, and diagnostics do not reflect untrusted plan values.
 - **Business-role archetype coverage - SHIPPED (2026-06-19):** the bundled
   archetype catalog now covers sales, marketing, people operations, finance,
   legal/compliance, and operations roles, matching the universal-function roster
@@ -860,19 +888,75 @@ and [best-practices guide](https://platform.claude.com/docs/en/agents-and-tools/
   if it beats the original on a held-out split (`skill_pack/trigger_eval.py`).
 - **Progressive disclosure with `references/` and `scripts/` subfolders -
   SHIPPED (Tier 3):** `BundledFile` on the schema; authoring may emit
-  `references/*.md` (load-on-demand) and `scripts/*.py` (deterministic
-  helpers); packager writes them to both the Claude tree and the Cowork zip;
-  `BUNDLE-PATH` validates paths and drops unsafe ones.
+  `references/*.md` for load-on-demand context, while reviewed first-party
+  code supplies executable helpers. The packager writes accepted companions
+  to both output formats; `BUNDLE-PATH` validates paths and drops unsafe ones.
 - **"Solve, don't punt" hardening - SHIPPED (Tier 3):** the authoring prompt
-  instructs the model to ship the actual `scripts/<name>.py` when a workflow
-  needs a deterministic helper, rather than telling the agent to write it.
-  Maintenance follow-up: the guaranteed fallback `scripts/verify-artifact.py`
-  now performs a real local structural check on generated artifacts instead of
-  shipping placeholder verification code.
+  requires deterministic checks to be specified in the workflow. Executable
+  companion output is discarded rather than treated as sandboxed Python. A
+  structural `SEC-EXEC` boundary uses a CommonMark parser to reject every
+  fenced or indented code block, including nested container forms, reject raw
+  HTML except the verifier's literal artifact placeholder, plus
+  explicit interpreter and command forms, machine-readable execution keys,
+  non-empty argument vectors, correlated process file and argument specifications,
+  helper-materialization directions, and unregistered executable references
+  in agent-consumed authored fields. Link destinations, titles, and used or
+  unused CommonMark reference definitions are decoded before inspection, and
+  multiline code and embedded JSON reconstruction are explicitly bounded; it
+  does not pretend to infer arbitrary prose semantics. The
+  guaranteed `scripts/verify-artifact.py` is an exact registered first-party
+  artifact with bounded regular-file scanning over portable, workspace-relative,
+  link-free local paths; altered or additional scripts fail the `SEC-BUNDLE`
+  gate and are dropped again by the packager. The final
+  `ROLE-VERIFIER` invariant also survives refinement and overlap resolution.
+  Every external authoring-evidence field is sanitized and nonce-fenced as data,
+  and the final package boundary reuses its high-confidence authored-output
+  prompt-injection policy without blocking legitimate examples and role prose.
+  Generated instruction prose is explicitly treated as untrusted and requires
+  review before installation or sideloading. `SEC-EXEC` remains a defense-in-depth
+  structural and explicit-carrier backstop; host tool allowlists, approval gates,
+  and sandboxing remain mandatory because arbitrary natural-language intent is
+  not mechanically decidable.
+  Same-day output is built in a fresh sibling and replaces only marker-owned or
+  narrowly recognized legacy trees; links, mounts, and unrelated directories
+  fail closed, and bounded Windows rename/cleanup behavior is explicit.
 - **Skill-level evals with grader - SHIPPED (Tier 4, `--with-evals`):**
   per skill, generate task cases + assertions, run the task WITH vs WITHOUT
   the skill, grade both blind, report the pass-rate delta, and write
-  `evals/evals.json` (`skill_pack/behavioral_eval.py`).
+  `evals/evals.json` (`skill_pack/behavioral_eval.py`). Generated cases pass
+  a field-specific control-plane boundary before model execution, grader inputs
+  are nonce-fenced, and packaged eval JSON passes a bounded form of Anthropic's
+  current `expectations` schema before either supported artifact format is
+  written. The optional `files` key is accepted only when empty until Primr can
+  package and integrity-check companion eval assets; nonempty references fail
+  closed rather than shipping dangling paths. New bundles use the upstream
+  field names while the earlier Primr `assertions` form remains readable. This
+  closes direct-bundle instruction carriers without blocking realistic
+  code-generation or strictly review-only fenced code tasks. The boundary
+  canonicalizes CommonMark and links before validation, rechecks decoded
+  Unicode, rejects execution intent around review blocks, rejects sensitive
+  credential access and transfer, and rejects Markdown links because hidden
+  destinations and definitions are not required by the eval schema. Review
+  fences admit executable examples only under an inert frame and still scan
+  all content for prompt control plus comment prose for unsafe operational and
+  sensitive-data instructions. A shared,
+  typed CommonMark security surface owns canonicalization and link policy;
+  evaluation schema and control-plane policy live together in a focused
+  validator. Task arms and their graders use fresh stateless calls that retain
+  the configured model and reasoning tier without generation history. Cost
+  approval reserves the exact one generation plus four calls per case,
+  model-registry pricing, token ceilings, sequential runtime, and the same
+  strict two-attempt cap enforced at execution. OpenAI-compatible SDK retries
+  are disabled at construction so Primr's explicit loop is the sole retry
+  owner and the approved attempt cap is also the physical HTTP-request cap.
+  The admission grammar covers response-oriented secret disclosure, common
+  credential artifacts, terminal entry, executable-result coreference, and
+  artifact activation while preserving bounded business-task and
+  credential-metadata reporting forms. It also binds adjacent-clause secret
+  pronouns, recognizes structural terminal and interpreter sinks, scans inline
+  comments by language, blocks lexically non-public raw HTTP targets without
+  DNS, preserves pure non-Latin prose, and skips skills whose generated cases
+  are all inadmissible rather than recording a zero-case benchmark.
 - **Agent-handoff declarations in SKILL.md frontmatter** - PARTIAL: the
   primr-namespaced `metadata` block (role, provenance, confidence,
   context-token budget, MCP/A2A refresh hint) is available as an explicit
@@ -936,7 +1020,7 @@ Reduce manual work when new model variants drop by automating the eval-and-compa
 
 ### 18. Capability-Requirement Routing Layer
 
-Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The first stage-requirements slice is in place as a pure router, and `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` now consume it at runtime behind `--inference cloud|hybrid` with route usage metadata persisted in the run state. The Codex adapter remains internal/eval-only until its billing basis can be proven or explicitly acknowledged; the remaining work is broader production wiring, provider-health integration, billing-verifiable host/local adapters, and per-stage eval-backed tuning.
+Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The first stage-requirements slice is in place as a pure router, and `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` now consume it at runtime behind `--inference cloud|hybrid` with route usage metadata persisted in the run state. The Codex adapter is available only as an explicitly acknowledged, single-company experiment with potentially metered billing and pending-eval metadata; the remaining work is its representative host-vs-cloud comparison, broader production wiring, provider-health integration, billing-verifiable host/local adapters, and per-stage eval-backed tuning.
 
 - **Shipped foundation:** `StageRequirements`, `BackendCapabilities`, `RoutingPolicy`, and `route_stage()` return ordered cloud/gateway/host-agent/local candidates with explicit rejection reasons and no live provider calls
 - **Shipped availability foundation:** `ProviderQuotaSnapshot`, `QuotaWindow`, `availability_decision()`, and `provider_with_most_headroom()` normalize provider quota windows and stale last-known-good service availability without live provider calls
@@ -1259,14 +1343,39 @@ service toolchain as a reviewed architectural investment.
 ### Adopted (load-bearing today)
 
 - Ruff as the single linter (`E/F/W/I/N/UP/B/C4/C90/SIM/RUF/PIE/PT/TCH`), line-length 100. CI hard-fails on lint violations under `src/primr/` and separately checks formatting across `src/` and `tests/`. `target-version = py312` matches the supported floor so local and hosted linting enforce one language baseline.
-- mypy (authoritative config in `mypy.ini`, `python_version = 3.12`) on an incremental strict ratchet: a relaxed global with complex SDK-bound modules `ignore_errors`'d, plus a growing **strict allowlist** of fully-verified modules that require `disallow_untyped_defs` + `disallow_incomplete_defs` (currently `skill_pack.{schema,config,planner,industry}`, `utils.content_sanitizer`, `utils.logging_config`, `data.hiring_signals`). The allowlist only grows. (The former `[tool.mypy]` block in `pyproject.toml` was dead config and has been removed.)
+- mypy (authoritative config in `mypy.ini`, `python_version = 3.12`) on an
+  incremental strict ratchet: a relaxed global with complex SDK-bound modules
+  `ignore_errors`'d, plus a growing **strict allowlist** of fully verified
+  modules. The skill-pack schema, planning, saved-plan, language-projection,
+  command grammar, execution-dataflow, eval-validation, Markdown-safety,
+  script-safety, and verifier boundaries now require both
+  `disallow_untyped_defs` and `disallow_incomplete_defs`, as do credential
+  instruction safety, logging, and hiring signals. The allowlist only grows.
+  (The former `pyproject.toml` mypy block was dead config and has been removed.)
 - Ships `py.typed` - primr is a good typing citizen for downstream importers.
 - Property-based tests (Hypothesis) for core invariants; a hard-gated hardcoded-secret scanner in CI.
 - No silent `xfail` rot: `xfail_strict = true` (an unexpectedly-passing xfail fails the run); the suite currently uses zero xfail markers.
 - SSRF protection on every outbound URL (`primr.utils.security`); content sanitization for prompt-injection defense.
 - Single source of version truth enforced by `tests/test_release_integrity.py` (pyproject ↔ `__version__` ↔ ROADMAP "Current State" ↔ `CITATION.cff`).
 - No-real-company-data rule across the repo (see `docs/CONTRIBUTING.md`).
-- **Anti-slop development contract** (`CLAUDE.md` at repo root, committed - distinct from `AGENTS.md`, which is the *operate-primr* product artifact): names the single seams (async via `run_sync`, console/logging/config/json/atomic-io, the closed HTTP-client set), the no-new-giant-file rule, the verify-current-APIs rule (the stale-API/hallucinated-package guard), the CLI verb convention, and the pre-PR slop check. `CLAUDE.md`/`AGENTS.md` follow the June-2026 split (Claude Code reads `CLAUDE.md` natively; `AGENTS.md` is the cross-tool operate-guide). Enforced, not aspirational: `tests/test_architecture.py` is a deterministic fitness suite carrying a **rise-only per-file line ceiling** (the 14 files >1,000 lines are pinned and may not grow; new files cap at 1,000 - the "no giant file" ratchet), a **single-JSON-library** gate (stdlib `json` only), and an agent-contract-exists check. Async-seam and config-as-leaf gates are deferred pending a small burndown; HTTP is deliberately *not* single-seam-gated (the 5-client multi-tier scraping stack is the design, not drift).
+- **Anti-slop development contract** (`CLAUDE.md` at repo root, committed - distinct from `AGENTS.md`, which is the *operate-primr* product artifact): names the single seams (async via `run_sync`, console/logging/config/json/atomic-io, the closed HTTP-client set), the no-new-giant-file rule, the verify-current-APIs rule (the stale-API/hallucinated-package guard), the CLI verb convention, and the pre-PR slop check. `CLAUDE.md`/`AGENTS.md` follow the June-2026 split (Claude Code reads `CLAUDE.md` natively; `AGENTS.md` is the cross-tool operate-guide). Enforced, not aspirational: `tests/test_architecture.py` is a deterministic fitness suite carrying a **rise-only per-file line ceiling** (the 13 files >1,000 lines are pinned and may not grow; new files cap at 1,000 - the "no giant file" ratchet), a **single-JSON-library** gate (stdlib `json` only), and an agent-contract-exists check. Async-seam and config-as-leaf gates are deferred pending a small burndown; HTTP is deliberately *not* single-seam-gated (the 5-client multi-tier scraping stack is the design, not drift).
+- **Architecture cohesion ratchet - P0 SHIPPED, P1 QUEUED:** the graph-backed
+  [`architecture cohesion plan`](docs/design/24-architecture-cohesion-plan.md)
+  balances the existing maximum-file-size gate with dependency direction and
+  small-module justification. The first slice removed an unused empty module,
+  reduced four package-inclusive import-cycle components to two, and made new
+  or growing cycle components, empty modules, and unexplained sub-40-line
+  modules fail architecture tests. Fresh interpreters verify both import orders
+  against the local source tree. The subsequent skill-pack hardening slice
+  applied the same boundary test: language lexing and execution dataflow now
+  own cohesive security seams, while verifier placement moved into its
+  existing asset registry; all six resulting modules stay below the
+  approximate 800-line review threshold with directed dependencies and no
+  compatibility shims. Evidence: 12,718 tests passed with 86.20
+  percent branch coverage on 2026-07-14. Next, burn down the broad core
+  component one verified back edge at a time, then merge only single-consumer
+  helpers that lack an independent policy, trust, lifecycle, adapter, or test
+  boundary.
 
 ### In progress - Phase 1: infrastructure & cheap gates
 
@@ -1283,7 +1392,13 @@ The current active engineering initiative. Each item is verified locally, then l
 
 ### Phased ratchets (tracked, not yet started - Phase 2/3)
 
-- **mypy strict expansion**: SHIPPED a first real strict allowlist in `mypy.ini` (7 modules: `skill_pack.{schema,config,planner,industry}`, `utils.content_sanitizer`, `utils.logging_config`, `data.hiring_signals`) and consolidated the duplicate config (removed the dead `pyproject` `[tool.mypy]` block; bumped `python_version` to 3.12). Remaining: keep growing the allowlist module-by-module toward eventual `--strict`, and burn down the ~45 `ignore_errors` modules. Evaluate Astral `ty` as a fast local supplement (not the CI gate while it is preview).
+- **mypy strict expansion**: SHIPPED a 17-module strict allowlist in `mypy.ini`,
+  including every skill-pack trust boundary touched by the 1.35.3 hardening,
+  and consolidated the duplicate config by removing the dead `pyproject.toml`
+  mypy block and setting the Python baseline to 3.12. Remaining: keep growing
+  the allowlist module by module toward eventual `--strict`, and burn down the
+  roughly 45 `ignore_errors` modules. Evaluate Astral `ty` as a fast local
+  supplement, not the CI gate while it is preview.
 - **One-time `ruff format` reflow** - SHIPPED. Formatted 173 files in a single behavior-preserving commit; `ruff format --check` is now enforced in pre-commit and CI. `E501` stays ignored deliberately: `ruff format` already wraps code lines, so the remaining >100-char lines are strings / URLs / comments where wrapping hurts readability - enforcing E501 there would be churn without value. `target-version = py312` now matches the supported floor; any resulting pyupgrade rewrites are enforced by the normal lint gate.
 - **Complexity budget**: add `C901` + `max-complexity` once the documented monsters are refactored (`perform_fast_research` ~1900 lines, `_execute_consulting_research` ~270 lines - Active Queue #23).
 - **Parse-don't-validate boundaries**: parse external data once at the system boundary into rich domain types - `NewType` / frozen dataclasses / Pydantic `strict=True, extra='forbid'` - so core logic never receives raw, possibly-invalid primitives. Targets the MCP / API input boundary first (most MCP inputs are JSON-schema-validated today); audit and fill gaps, not a blanket conversion.

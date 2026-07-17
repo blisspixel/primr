@@ -30,8 +30,16 @@ if TYPE_CHECKING:
 
     from primr.qa.label_calibration import EvidenceReview
 
-from primr.qa.artifact_fingerprints import artifact_fingerprint
+from primr.qa.artifact_fingerprints import artifact_bytes_fingerprint, artifact_fingerprint
+from primr.qa.calibration_judge_agreement import JudgeAgreement, JudgeDisagreement
 from primr.qa.calibration_selection import CalibrationPackSelection
+from primr.qa.calibration_sidecars import (
+    SIDECAR_SUFFIX as SIDECAR_SUFFIX,
+)
+from primr.qa.calibration_sidecars import (
+    calibration_sidecar_matches_artifact,
+    sidecar_path_for,
+)
 from primr.qa.label_calibration import (
     DEFAULT_MAX_PER_LABEL,
     TRACEABLE_LABELS,
@@ -43,10 +51,6 @@ from primr.qa.label_calibration import (
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("qa.calibration_runner")
-
-# Sidecar filename suffix appended to the full report filename, so the
-# pairing survives reports that share a stem across extensions.
-SIDECAR_SUFFIX = ".calibration.json"
 
 # Default per-judge-call cost assumption for the dry-run preview (fast-tier,
 # one-word answer, ~1.2k tokens in). Deliberately conservative.
@@ -65,11 +69,6 @@ class ReportCalibrationOutcome:
     sidecar_path: Path | None = None
     per_label: dict[str, Any] = field(default_factory=dict)
     error: str | None = None
-
-
-def sidecar_path_for(report_path: Path) -> Path:
-    """The calibration sidecar path for a report file."""
-    return report_path.with_name(report_path.name + SIDECAR_SUFFIX)
 
 
 @dataclass
@@ -339,8 +338,9 @@ def run_calibration(
     outcomes: list[ReportCalibrationOutcome] = []
     for path in report_paths:
         try:
-            content = path.read_text(encoding="utf-8")
-        except OSError as e:
+            report_bytes = path.read_bytes()
+            content = report_bytes.decode("utf-8")
+        except (OSError, UnicodeDecodeError) as e:
             outcomes.append(
                 ReportCalibrationOutcome(
                     report_path=path,
@@ -351,6 +351,7 @@ def run_calibration(
                 )
             )
             continue
+        report_artifact = artifact_bytes_fingerprint(report_bytes)
 
         claims = extract_labeled_claims(content, max_per_label=max_per_label)
         judgeable = [c for c in claims if c.label in TRACEABLE_LABELS and c.source_urls]
@@ -384,11 +385,23 @@ def run_calibration(
             continue
         payload = report.to_dict()
         payload["report_file"] = path.name
+        payload["report_artifact"] = report_artifact
         payload["max_per_label"] = max_per_label
         payload["judge"] = selection.to_metadata()
 
         sidecar: Path | None = None
         if write_sidecar:
+            if artifact_fingerprint(path) != report_artifact:
+                outcomes.append(
+                    ReportCalibrationOutcome(
+                        report_path=path,
+                        claims_sampled=len(claims),
+                        judgeable_claims=len(judgeable),
+                        estimated_judge_calls=judge_calls,
+                        error="report_changed_during_calibration",
+                    )
+                )
+                continue
             sidecar = sidecar_path_for(path)
             sidecar.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
             logger.info("Calibration sidecar written: %s", sidecar)
@@ -404,27 +417,6 @@ def run_calibration(
             )
         )
     return outcomes
-
-
-@dataclass(frozen=True)
-class JudgeAgreement:
-    """Cloud-vs-local judge agreement over the same decidable claims.
-
-    The cheap way to decide whether a *particular* local setup can be
-    trusted with calibration: judge the same claims with both backends
-    once, and let the agreement rate speak. Only claims both judges could
-    decide (traceable/untraceable) are compared.
-    """
-
-    compared: int
-    agreed: int
-    local_model: str
-
-    @property
-    def agreement(self) -> float | None:
-        if not self.compared:
-            return None
-        return self.agreed / self.compared
 
 
 _DECIDED = ("traceable", "untraceable")
@@ -497,8 +489,9 @@ def compare_judges(
         )
         report_compared = 0
         report_agreed = 0
-        for cloud_result, local_result in zip(
-            cloud_report.results, local_report.results, strict=True
+        report_disagreements: list[JudgeDisagreement] = []
+        for claim_index, (cloud_result, local_result) in enumerate(
+            zip(cloud_report.results, local_report.results, strict=True)
         ):
             if cloud_result.verdict in _DECIDED and local_result.verdict in _DECIDED:
                 compared += 1
@@ -506,10 +499,19 @@ def compare_judges(
                 if cloud_result.verdict == local_result.verdict:
                     agreed += 1
                     report_agreed += 1
+                else:
+                    report_disagreements.append(
+                        JudgeDisagreement(
+                            claim_index=claim_index,
+                            cloud_verdict=cloud_result.verdict,
+                            local_verdict=local_result.verdict,
+                        )
+                    )
         per_report[path] = JudgeAgreement(
             compared=report_compared,
             agreed=report_agreed,
             local_model=local_selection.model,
+            disagreements=tuple(report_disagreements),
         )
 
     agreement = JudgeAgreement(compared=compared, agreed=agreed, local_model=local_selection.model)
@@ -528,12 +530,9 @@ def _stamp_judge_agreement(
         agreement = per_report.get(outcome.report_path)
         if agreement is None:
             continue
-        try:
-            payload = json.loads(outcome.sidecar_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        payload = _read_sidecar_payload(outcome.report_path)
+        if payload is None:
             logger.warning("Could not stamp judge agreement into %s", outcome.sidecar_path)
-            continue
-        if not isinstance(payload, dict):
             continue
         payload["judge_agreement"] = {
             "scope": "report",
@@ -541,6 +540,7 @@ def _stamp_judge_agreement(
             "compared": agreement.compared,
             "agreed": agreement.agreed,
             "agreement": agreement.agreement,
+            "disagreements": [item.to_dict() for item in agreement.disagreements],
         }
         outcome.sidecar_path.write_text(
             json.dumps(payload, indent=2, ensure_ascii=False),
@@ -548,15 +548,41 @@ def _stamp_judge_agreement(
         )
 
 
-def _read_sidecar_payload(report_path: Path) -> dict[str, Any] | None:
+def _read_sidecar_payload(
+    report_path: Path,
+    *,
+    report_artifact: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    payload, _fingerprint = _read_sidecar_snapshot(
+        report_path,
+        report_artifact=report_artifact,
+    )
+    return payload
+
+
+def _read_sidecar_snapshot(
+    report_path: Path,
+    *,
+    report_artifact: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    """Read, validate, and fingerprint a sidecar from one byte snapshot."""
+
     sidecar = sidecar_path_for(report_path)
-    if not sidecar.exists():
-        return None
     try:
-        payload = json.loads(sidecar.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    return payload if isinstance(payload, dict) else None
+        content = sidecar.read_bytes()
+    except OSError:
+        return None, {"size_bytes": None, "content_hash": None}
+    fingerprint = artifact_bytes_fingerprint(content)
+    try:
+        payload = json.loads(content.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None, fingerprint
+    if not isinstance(payload, dict):
+        return None, fingerprint
+    expected_artifact = report_artifact or artifact_fingerprint(report_path)
+    if not calibration_sidecar_matches_artifact(expected_artifact, payload):
+        return None, fingerprint
+    return payload, fingerprint
 
 
 def write_calibration_pack_manifest(
@@ -574,7 +600,16 @@ def write_calibration_pack_manifest(
     """Write a manifest freezing the selected calibration pack."""
     by_report = {outcome.report_path: outcome for outcome in outcomes}
     total_calls = sum(outcome.estimated_judge_calls for outcome in outcomes)
-    sidecar_per_label = _aggregate_existing_sidecar_per_label(report_paths)
+    report_fingerprints = {path: artifact_fingerprint(path) for path in report_paths}
+    sidecar_snapshots = {
+        path: _read_sidecar_snapshot(path, report_artifact=report_fingerprints[path])
+        for path in report_paths
+    }
+    sidecar_payloads = {path: snapshot[0] for path, snapshot in sidecar_snapshots.items()}
+    sidecar_per_label = _aggregate_existing_sidecar_per_label(
+        report_paths,
+        sidecar_payloads=sidecar_payloads,
+    )
     if judge_metadata is not None:
         judge_meta = judge_metadata
     elif judge_selection is not None:
@@ -598,7 +633,14 @@ def write_calibration_pack_manifest(
                 requested_judge_mode=requested_judge_mode,
             ),
             "failures": sum(1 for outcome in outcomes if outcome.error),
-            "sidecars_present": sum(1 for path in report_paths if sidecar_path_for(path).exists()),
+            "sidecars_present": sum(
+                1
+                for _payload, fingerprint in sidecar_snapshots.values()
+                if fingerprint["content_hash"] is not None
+            ),
+            "sidecars_bound_to_reports": sum(
+                1 for payload in sidecar_payloads.values() if payload is not None
+            ),
         },
         "per_label": aggregate_per_label(outcomes),
         "existing_sidecar_per_label": sidecar_per_label,
@@ -629,16 +671,17 @@ def write_calibration_pack_manifest(
     for report_path in report_paths:
         outcome = by_report.get(report_path)
         sidecar = sidecar_path_for(report_path)
-        sidecar_payload = _read_sidecar_payload(report_path)
-        report_fingerprint = artifact_fingerprint(report_path)
-        sidecar_fingerprint = artifact_fingerprint(sidecar)
+        sidecar_payload = sidecar_payloads[report_path]
+        report_fingerprint = report_fingerprints[report_path]
+        sidecar_fingerprint = sidecar_snapshots[report_path][1]
         entry: dict[str, Any] = {
             "report_path": report_path.as_posix(),
             "report_file": report_path.name,
             "report_size_bytes": report_fingerprint["size_bytes"],
             "report_content_hash": report_fingerprint["content_hash"],
             "sidecar_path": sidecar.as_posix(),
-            "sidecar_exists": sidecar.exists(),
+            "sidecar_exists": sidecar_fingerprint["content_hash"] is not None,
+            "sidecar_matches_report": sidecar_payload is not None,
             "sidecar_size_bytes": sidecar_fingerprint["size_bytes"],
             "sidecar_content_hash": sidecar_fingerprint["content_hash"],
             "claims_sampled": outcome.claims_sampled if outcome else 0,
@@ -661,7 +704,11 @@ def write_calibration_pack_manifest(
     return payload
 
 
-def _aggregate_existing_sidecar_per_label(report_paths: list[Path]) -> dict[str, dict[str, int]]:
+def _aggregate_existing_sidecar_per_label(
+    report_paths: list[Path],
+    *,
+    sidecar_payloads: dict[Path, dict[str, Any] | None] | None = None,
+) -> dict[str, dict[str, int]]:
     totals: dict[str, dict[str, int]] = {}
     keys = (
         "sampled",
@@ -673,7 +720,11 @@ def _aggregate_existing_sidecar_per_label(report_paths: list[Path]) -> dict[str,
         "source_copied",
     )
     for report_path in report_paths:
-        payload = _read_sidecar_payload(report_path)
+        payload = (
+            sidecar_payloads.get(report_path)
+            if sidecar_payloads is not None
+            else _read_sidecar_payload(report_path)
+        )
         per_label = payload.get("per_label", {}) if payload else {}
         if not isinstance(per_label, dict):
             continue

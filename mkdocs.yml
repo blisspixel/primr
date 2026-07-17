@@ -108,6 +108,7 @@ nav:
       - Eval plan: design/eval-plan.md
       - Provider expansion: design/provider-expansion.md
       - Orchestrator refactor map: design/23-orchestrator-refactor-map.md
+      - Architecture cohesion plan: design/24-architecture-cohesion-plan.md
       - "2.0: agent control plane": design/2.0-agent-control-plane.md
       - "2.0: backend freedom": design/2.0-backend-freedom.md
       - "2.0: research memory": design/2.0-research-memory.md

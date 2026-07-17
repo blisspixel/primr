@@ -216,6 +216,8 @@ def _run_source_relevance_host_agent(
     source_summaries: list[str],
 ) -> str:
     runner_kind = route.host_agent_kind or HostAgentKind.CODEX.value
+    potentially_metered = route.billing_mode == HostAgentBillingMode.POTENTIALLY_METERED.value
+    billing_acknowledged = potentially_metered and route.billing_acknowledged
     result = run_host_agent_stage(
         HostAgentStagePacket(
             stage_id="fast.source_relevance",
@@ -229,6 +231,7 @@ def _run_source_relevance_host_agent(
                 billing_mode=HostAgentBillingMode(route.billing_mode),
                 max_wall_seconds=180,
                 max_output_chars=10_000,
+                allow_potentially_metered_handoff=billing_acknowledged,
             ),
         ),
         kind=runner_kind,

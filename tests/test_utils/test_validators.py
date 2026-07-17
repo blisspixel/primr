@@ -12,6 +12,7 @@ from hypothesis import strategies as st
 
 from primr.utils.validators import (
     InputValidationError,
+    is_portable_path_component,
     safe_json_get,
     safe_json_parse,
     sanitize_for_filename,
@@ -19,6 +20,47 @@ from primr.utils.validators import (
     validate_file_path,
     validate_url,
 )
+
+# =============================================================================
+# UNIT TESTS - is_portable_path_component
+# =============================================================================
+
+
+class TestIsPortablePathComponent:
+    @pytest.mark.parametrize("component", ["data-engineer", "notes.md", "alpha_beta"])
+    def test_accepts_portable_components(self, component: str):
+        assert is_portable_path_component(component)
+
+    @pytest.mark.parametrize(
+        "component",
+        [
+            "",
+            ".",
+            "..",
+            "con",
+            "nul.txt",
+            "con.helper.py",
+            "CONIN$",
+            "CONOUT$.txt",
+            "NUL .txt",
+            "COM1 .log",
+            "COM¹.txt",
+            "bad/name",
+            "bad\\name",
+            "bad:name",
+            "trailing.",
+            "trailing ",
+            "control\x00name",
+            "café",
+        ],
+    )
+    def test_rejects_nonportable_components(self, component: str):
+        assert not is_portable_path_component(component)
+
+    def test_enforces_caller_selected_length_limit(self):
+        assert is_portable_path_component("a" * 12, max_length=12)
+        assert not is_portable_path_component("a" * 13, max_length=12)
+
 
 # =============================================================================
 # UNIT TESTS - validate_url
@@ -67,6 +109,11 @@ class TestValidateUrl:
         """Should reject out-of-range ports during validation."""
         with pytest.raises(InputValidationError, match="port"):
             validate_url("https://example.com:99999/path")
+
+    def test_rejects_user_credentials(self):
+        """Company URLs must not carry credentials into artifacts or logs."""
+        with pytest.raises(InputValidationError, match="credentials"):
+            validate_url("https://user:secret@example.com/private")
 
     def test_custom_allowed_schemes(self):
         """Should accept custom allowed schemes."""

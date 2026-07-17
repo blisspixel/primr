@@ -60,6 +60,16 @@ def test_convert_to_docx_no_website(tmp_path, monkeypatch):
     assert out is not None
 
 
+def test_convert_to_docx_uses_portable_artifact_name(tmp_path, monkeypatch):
+    monkeypatch.setattr("primr.core.deep_research_runner.OUTPUT_DIR", str(tmp_path))
+    with patch("primr.output.markdown_converter.markdown_to_docx"):
+        out = _convert_deep_research_to_docx("# Body", "Acme, Inc.", None)
+
+    assert out is not None
+    assert "Acme, Inc_Strategic_Overview" in out
+    assert "Acme, Inc._Strategic_Overview" not in out
+
+
 def test_convert_to_docx_permission_retry(tmp_path, monkeypatch):
     monkeypatch.setattr("primr.core.deep_research_runner.OUTPUT_DIR", str(tmp_path))
     calls = {"n": 0}

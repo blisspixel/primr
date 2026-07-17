@@ -46,6 +46,10 @@ dependencies = [
     # core runtime requirement, not an optional add-on.
     "openai>=1.0.0",
     "requests>=2.34.0",
+    # Directly used for IDNA 2008 hostname canonicalization. Keeping Unicode
+    # domains in ASCII form prevents faß.de/fass.de case-fold collisions at
+    # first-party filtering boundaries.
+    "idna>=3.7",
     "beautifulsoup4>=4.12.0",
     "fpdf>=1.7.2",
     "python-docx>=0.8.11",
@@ -54,6 +58,9 @@ dependencies = [
     "openpyxl>=3.1.0",
     "pytesseract>=0.3.10",
     "markdown>=3.4.0",
+    # Directly parses model-authored CommonMark at the executable-content
+    # boundary. Do not rely on Rich's transitive dependency for this control.
+    "markdown-it-py>=4.0.0",
     "colorama>=0.4.6",
     "rich>=13.0.0",
     "python-dotenv>=1.0.0",
@@ -65,7 +72,7 @@ dependencies = [
     "curl_cffi>=0.5.0",
     "DrissionPage>=4.0.0",
     "ddgs>=9.0.0",
-    "mcp>=1.0.0",
+    "mcp>=1.28.1",
     "defusedxml",
     "typer>=0.9.0",
     # Security floor (DoS, CVE-2026-54282/54283): form-parsing limits silently
@@ -79,10 +86,12 @@ dependencies = [
     #   python-multipart  CVE-2026-53538/53539/53540  quadratic-time DoS
     #   msgpack           GHSA-6v7p-g79w-8964
     #   pydantic-settings GHSA-4xgf-cpjx-pc3j
+    #   pillow            PYSEC-2026-2253 through PYSEC-2026-2257
     "cryptography>=48.0.1",
     "python-multipart>=0.0.31",
     "msgpack>=1.2.1",
     "pydantic-settings>=2.14.2",
+    "pillow>=12.3.0",
 ]
 
 [project.optional-dependencies]
@@ -93,6 +102,7 @@ dev = [
     "pytest-cov>=4.0.0",
     "hypothesis>=6.0.0",
     "mypy>=1.0.0",
+    "types-PyYAML",
     "ruff>=0.15.5,<0.16.0",
     "bandit>=1.7.0",
     "pip-audit>=2.7.0",

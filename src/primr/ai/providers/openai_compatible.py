@@ -16,16 +16,32 @@ from __future__ import annotations
 
 import os
 import random
-import re
 import time
 from typing import Any
 
+from primr.ai.error_policy import extract_retry_after_seconds as _extract_retry_after_seconds
 from primr.ai.provider_availability import LocalCapacityBusyError
 from primr.ai.providers.base import ChatResponse, Provider, ProviderUnavailableError
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("ai.providers.openai_compatible")
 _LOCAL_INTERNAL_RETRY_CAP_SECONDS = 20.0
+
+
+def create_openai_sdk_client(
+    openai_module: Any,
+    *,
+    api_key: str,
+    base_url: str,
+) -> Any:
+    """Create a transport whose retries and redirects are bounded by Primr."""
+    http_client = openai_module.DefaultHttpxClient(follow_redirects=False)
+    return openai_module.OpenAI(
+        api_key=api_key,
+        base_url=base_url,
+        max_retries=0,
+        http_client=http_client,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -83,31 +99,6 @@ def _is_temperature_unsupported(error: Exception) -> bool:
         or "only the default" in text
         or "only supports" in text
     )
-
-
-def _extract_retry_after_seconds(error: Exception) -> float | None:
-    """Best-effort extraction of server-directed retry delay (Retry-After header)."""
-    response = getattr(error, "response", None)
-    headers = getattr(response, "headers", None)
-    if headers:
-        retry_after = headers.get("retry-after")
-        if retry_after:
-            try:
-                value = float(retry_after)
-                if value > 0:
-                    return value
-            except (TypeError, ValueError):
-                pass
-
-    match = re.search(r"retry after\s+(\d+(?:\.\d+)?)", str(error).lower())
-    if match:
-        try:
-            value = float(match.group(1))
-            if value > 0:
-                return value
-        except ValueError:
-            pass
-    return None
 
 
 def _compute_backoff_delay(attempt: int, *, base: float = 5.0, cap: float = 90.0) -> float:
@@ -203,7 +194,11 @@ class OpenAICompatibleProvider(Provider):
                 f"{self._api_key_env} is not set. The {self.name} provider needs it."
             )
 
-        self._client = openai.OpenAI(api_key=api_key, base_url=self._base_url)
+        self._client = create_openai_sdk_client(
+            openai,
+            api_key=api_key,
+            base_url=self._base_url,
+        )
         return self._client
 
     # -----------------------------------------------------------------

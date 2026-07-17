@@ -40,6 +40,7 @@ from primr.data.scraping import (
 from primr.data.scraping.discovery import is_probably_content_url
 from primr.data.scraping.org_profile import classify_organization_type
 from primr.data.scraping.tier_registry import get_available_tiers
+from primr.utils import url_helpers as url_tools
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
 
@@ -78,7 +79,6 @@ def _looks_like_low_signal_wrapper_url(url: str, website: str) -> bool:
     """Drop bare wrapper paths like /acme or /fdc when they mirror the host label."""
     try:
         parsed_url = urlparse(url)
-        parsed_site = urlparse(website)
     except ValueError:
         return False
 
@@ -90,9 +90,7 @@ def _looks_like_low_signal_wrapper_url(url: str, website: str) -> bool:
     if segment in _USEFUL_SINGLE_SEGMENT_PATHS or "-" in segment:
         return False
 
-    host_labels = [
-        label for label in parsed_site.netloc.lower().replace("www.", "").split(".") if label
-    ]
+    host_labels = url_tools.normalized_hostname(website, strip_www=True).split(".")
     return segment in host_labels[:2]
 
 
@@ -699,7 +697,7 @@ def fetch_web_content(
         ]
         return [link.url for link in filtered_links[:limit]]
 
-    domain = urlparse(website).netloc
+    domain = url_tools.normalized_hostname(website, strip_www=True) or "website"
     orchestrator = get_orchestrator(enable_vision=use_vision)
     resume_selected_urls_prefetch = _load_resume_selected_links()
     resumed_text_pages_prefetch = _load_existing_raw_texts()
@@ -1338,7 +1336,7 @@ def scrape_external_sources(
     Args:
         search_results: List of search result dicts with 'url' key
         max_sources: Maximum sources to scrape
-        allowed_domains: Optional list of allowed domain substrings
+        allowed_domains: Optional exact domains whose subdomains are also allowed
 
     Returns:
         Dict mapping URL -> extracted text
@@ -1350,15 +1348,15 @@ def scrape_external_sources(
     count = 0
 
     for result in search_results:
-        url = result.get("url")
+        url = url_tools.public_web_url(str(result.get("url") or ""))
         if not url:
             continue
 
         # Filter by allowed domains if specified
-        if allowed_domains:
-            domain = urlparse(url).netloc.lower()
-            if not any(allowed in domain for allowed in allowed_domains):
-                continue
+        if allowed_domains and not any(
+            url_tools.hostname_is_same_or_subdomain(url, allowed) for allowed in allowed_domains
+        ):
+            continue
 
         scrape_result = orchestrator.scrape_url(url)
 
@@ -1423,7 +1421,7 @@ def scrape_external_sources_validated(
         os.makedirs(raw_folder, exist_ok=True)
 
     # Extract domain from website for context
-    target_domain = urlparse(website).netloc.lower().replace("www.", "") if website else ""
+    target_domain = url_tools.normalized_hostname(website, strip_www=True)
 
     external_idx = 0
     for result in search_results:
@@ -1435,9 +1433,8 @@ def scrape_external_sources_validated(
         # Skip if it's the company's MAIN website (exact match only)
         # We want to KEEP subdomains like investors.company.com, blog.company.com
         # Only filter: company.com, www.company.com
-        source_domain = urlparse(url).netloc.lower()
-        source_domain_no_www = source_domain.replace("www.", "")
-        if target_domain and source_domain_no_www == target_domain:
+        source_domain = url_tools.normalized_hostname(url, strip_www=True)
+        if target_domain and source_domain == target_domain:
             # Exact match - this is the main site, skip it
             continue
 
@@ -1455,8 +1452,7 @@ def scrape_external_sources_validated(
 
         # Save raw scrape incrementally if working folder provided
         if raw_folder:
-            source_domain = urlparse(url).netloc.replace("www.", "")
-            safe_name = source_domain[:30]
+            safe_name = url_tools.safe_hostname_token(url)
             raw_file = os.path.join(raw_folder, f"ext_{external_idx:03d}_{safe_name}.txt")
             try:
                 with open(raw_file, "w", encoding="utf-8") as f:

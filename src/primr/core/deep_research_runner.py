@@ -27,13 +27,14 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Protocol
-from urllib.parse import urlparse
 
 from primr.config.config import OUTPUT_DIR
 from primr.core.workspace import create_working_folder, save_section_output
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
 from primr.utils.observability import correlation_scope, log_structured
+from primr.utils.url_helpers import normalized_hostname
+from primr.utils.validators import sanitize_for_filename
 
 logger = get_logger("deep_research_runner")
 
@@ -154,7 +155,7 @@ class DeepResearchConfig:
         if self.company_name:
             return self.company_name
         if self.website:
-            return urlparse(self.website).netloc
+            return normalized_hostname(self.website, strip_www=True) or "Unknown"
         return "Unknown"
 
     @classmethod
@@ -324,7 +325,7 @@ def validate_preflight(config: DeepResearchConfig) -> PreflightResult:
     try:
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         test_file = os.path.join(OUTPUT_DIR, ".write_test")
-        with open(test_file, "w") as f:
+        with open(test_file, "w", encoding="utf-8") as f:
             f.write("test")
         os.remove(test_file)
         result.add(
@@ -557,7 +558,8 @@ def _convert_deep_research_to_docx(
     from primr.output.markdown_converter import markdown_to_docx
 
     date_str = datetime.now().strftime("%m-%d-%Y")
-    base_name = f"{company_name}_Strategic_Overview_{date_str}"
+    artifact_name = sanitize_for_filename(company_name, max_length=200)
+    base_name = f"{artifact_name}_Strategic_Overview_{date_str}"
 
     try:
         from primr.output.final_artifact import normalize_final_punctuation

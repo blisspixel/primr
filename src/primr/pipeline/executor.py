@@ -19,6 +19,7 @@ that the executor consults.
 from __future__ import annotations
 
 import random
+import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -29,9 +30,12 @@ from primr.pipeline.recovery import (
     build_default_recovery_table,
 )
 from primr.pipeline.stages import PipelineStage, is_background
+from primr.utils.logging_config import get_logger
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+logger = get_logger(__name__)
 
 
 # =============================================================================
@@ -93,6 +97,10 @@ def reduce_queries(original_count: int) -> int:
         return 1
     reduced = original_count // 2
     return max(reduced, 1)
+
+
+def _is_non_retryable_error(error: Exception) -> bool:
+    return classify_error(error) in (ErrorCategory.QUOTA, ErrorCategory.CONFIGURATION)
 
 
 # =============================================================================
@@ -173,15 +181,40 @@ class RecoveryExecutor:
         recovery_table: RecoveryTable | None = None,
         action_handlers: ActionHandlerRegistry | None = None,
         event_listener: Callable[[RecoveryEvent | BackgroundAbort], None] | None = None,
+        sleep_fn: Callable[[float], None] | None = None,
     ) -> None:
         self._table = recovery_table or build_default_recovery_table()
         self._handlers: ActionHandlerRegistry = action_handlers or {}
         self._event_listener = event_listener
+        self._sleep_fn = sleep_fn or time.sleep
+
+    def _builtin_action_handler(
+        self,
+        action_type: RecoveryActionType,
+        callable_fn: Callable[[], Any],
+    ) -> Callable[[RecoveryContext], Any] | None:
+        """Resolve recovery actions that can safely reuse the stage callable."""
+        if action_type not in {
+            RecoveryActionType.RETRY_SAME,
+            RecoveryActionType.RETRY_BACKOFF,
+        }:
+            return None
+
+        def retry(context: RecoveryContext) -> Any:
+            if action_type == RecoveryActionType.RETRY_BACKOFF:
+                attempt = max(context.attempt - 1, 0)
+                self._sleep_fn(compute_backoff(attempt))
+            return callable_fn()
+
+        return retry
 
     def _emit_recovery_event(self, event: RecoveryEvent | BackgroundAbort) -> None:
-        """Forward a recovery event to the listener callback."""
+        """Forward best-effort telemetry without changing stage semantics."""
         if self._event_listener is not None:
-            self._event_listener(event)
+            try:
+                self._event_listener(event)
+            except Exception:
+                logger.exception("Recovery event listener failed for %s", event.stage)
 
     def execute(
         self,
@@ -215,15 +248,8 @@ class RecoveryExecutor:
             ctx.last_error = exc
             ctx.attempt += 1
 
-            # Classify the error
-            category = classify_error(exc)
-
-            # Quota errors abort immediately regardless of stage type
-            if category == ErrorCategory.QUOTA:
-                raise
-
-            # Configuration errors are non-retryable
-            if category == ErrorCategory.CONFIGURATION:
+            # Quota and configuration errors are non-retryable.
+            if _is_non_retryable_error(exc):
                 raise
 
             # --- Background stage: abort on 429 or budget_stressed ---
@@ -275,10 +301,11 @@ class RecoveryExecutor:
         for action in hierarchy.actions:
             action_type = action.action_type
             handler = self._handlers.get((stage, action_type))
+            if handler is None:
+                handler = self._builtin_action_handler(action_type, callable_fn)
 
             if handler is None:
-                # No handler registered — skip this action
-                actions_taken.append(action_type)
+                # The action needs stage-specific behavior that is unavailable.
                 continue
 
             try:
@@ -299,7 +326,10 @@ class RecoveryExecutor:
                     actions_taken=actions_taken,
                 )
             except Exception as handler_exc:
-                # Handler failed — log and continue to next action
+                # Reclassify every new failure. A retry can expose a terminal
+                # quota or configuration problem that the original transient
+                # error did not reveal.
+                non_retryable = _is_non_retryable_error(handler_exc)
                 event = RecoveryEvent(
                     timestamp=datetime.now().isoformat(),
                     stage=stage.value,
@@ -311,6 +341,8 @@ class RecoveryExecutor:
                 actions_taken.append(action_type)
                 ctx.last_error = handler_exc
                 ctx.attempt += 1
+                if non_retryable:
+                    raise
 
         # All actions exhausted — terminal failure
         return StageResult(

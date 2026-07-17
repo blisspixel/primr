@@ -8,6 +8,7 @@ all of which are testable without spinning up the full pipeline.
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -286,6 +287,11 @@ class TestCreateWorkingFolder:
         folder = create_working_folder("", "https://acme.example")
         # Falls back to domain-derived name
         assert "acme_example" in folder
+
+    def test_website_fallback_omits_port(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("primr.core.research_agent.WORKING_DIR", str(tmp_path))
+        folder = create_working_folder("", "https://www.acme.example:8443")
+        assert Path(folder).parent.name == "acme_example"
 
     def test_default_when_no_input(self, tmp_path, monkeypatch):
         monkeypatch.setattr("primr.core.research_agent.WORKING_DIR", str(tmp_path))

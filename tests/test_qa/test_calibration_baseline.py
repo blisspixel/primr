@@ -105,6 +105,7 @@ def _manifest(
             "report_file": f"Company{index}_Strategic_Overview.md",
             "sidecar_path": f"output/Company{index}_Strategic_Overview.md.calibration.json",
             "sidecar_exists": include_sidecars,
+            "sidecar_matches_report": include_sidecars,
             "claims_sampled": 2,
             "judgeable_claims": 2,
             "estimated_judge_calls": 2,
@@ -720,6 +721,28 @@ def test_build_baseline_names_missing_sidecar_remediation() -> None:
         and "sidecar payload" in item["action"]
         for item in baseline["next_actions"]["items"]
     )
+
+
+def test_inspect_baseline_names_stale_sidecar_as_unusable() -> None:
+    manifest = _manifest(5)
+    reports = manifest["reports"]
+    assert isinstance(reports, list)
+    stale = reports[0]
+    assert isinstance(stale, dict)
+    stale["sidecar_matches_report"] = False
+    stale.pop("sidecar")
+
+    baseline = build_calibration_baseline(manifest, minimum_reports=5)
+    inspection = inspect_calibration_baseline(baseline)
+
+    assert "missing_calibration_sidecars" in baseline["reasons"]
+    assert baseline["reports"][0]["sidecar_exists"] is True
+    assert baseline["reports"][0]["sidecar_matches_report"] is False
+    assert inspection["counts"]["missing_sidecars"] == 1
+    blocker = inspection["blockers"]["missing_sidecars"][0]
+    assert blocker["report_file"] == "Company0_Strategic_Overview.md"
+    assert blocker["sidecar_exists"] is True
+    assert blocker["sidecar_matches_report"] is False
 
 
 def test_build_baseline_requires_declared_representative_coverage() -> None:

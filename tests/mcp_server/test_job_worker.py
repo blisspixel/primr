@@ -357,6 +357,7 @@ os._exit(0)
     # protocol pipe must arrive with the worker, not with that descendant.
     if process.stdin is not None:
         process.stdin.close()
+    process.stdout.close()
     if process.stderr is not None:
         process.stderr.close()
 

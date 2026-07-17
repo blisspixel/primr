@@ -107,6 +107,14 @@ class TestRunIdentity:
         setup = _resolve(company_name=None)
         assert setup.display_name == "acme.example"
 
+    def test_display_name_fallback_omits_credentials_and_port(self):
+        setup = _resolve(
+            company_name=None,
+            website="https://user:secret@acme.example:8443/private",
+        )
+
+        assert setup.display_name == "acme.example"
+
     def test_existing_folder_path_preserved(self, tmp_path):
         existing = str(tmp_path / "resume-folder")
         assert _resolve(folder_path=existing).folder_path == existing

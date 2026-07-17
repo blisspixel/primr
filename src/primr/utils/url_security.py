@@ -32,6 +32,9 @@ _METADATA_HOSTS = frozenset(
         "metadata.goog",
     }
 )
+_LOCAL_HOSTNAMES = frozenset({"localhost", "localhost.localdomain"})
+_LOCAL_HOST_SUFFIXES = (".home.arpa", ".internal", ".lan", ".local", ".localdomain")
+_IDNA_DOT_TRANSLATION = str.maketrans({"\u3002": ".", "\uff0e": ".", "\uff61": "."})
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,12 +174,8 @@ def _parse_url_for_ssrf(url: str) -> tuple[ParseResult | None, str | None, int |
         return None, None, None, "URL has no hostname"
 
     hostname = parsed.hostname.lower()
-    if hostname in _METADATA_HOSTS:
-        return None, None, None, "Cloud metadata endpoints are blocked"
-
-    numeric_block = numeric_host_block_reason(hostname)
-    if numeric_block:
-        return None, None, None, numeric_block
+    if host_block := non_public_host_block_reason(hostname):
+        return None, None, None, host_block
 
     try:
         port = parsed.port or (443 if scheme == "https" else 80)
@@ -224,6 +223,53 @@ def _resolved_ip_block_reason(ip_str: str) -> str | None:
                 return "Private/reserved IP addresses are blocked"
 
     return None
+
+
+def non_public_host_block_reason(host: str) -> str | None:
+    """Return a reason for a host that is lexically known to be non-public.
+
+    Unlike :func:`is_safe_url`, this check performs no DNS lookup. It is suited
+    to validating authored instructions where network access would be an
+    inappropriate side effect, while connect-time callers must still use the
+    full redirect-aware SSRF guard.
+    """
+    import ipaddress
+
+    hostname = host.strip().translate(_IDNA_DOT_TRANSLATION).rstrip(".").casefold()
+    try:
+        hostname = hostname.encode("idna").decode("ascii").rstrip(".").casefold()
+    except UnicodeError:
+        return "Invalid internationalized hostname"
+    if hostname in _LOCAL_HOSTNAMES or hostname.endswith(".localhost"):
+        return "Localhost targets are blocked"
+    if hostname in _METADATA_HOSTS:
+        return "Cloud metadata endpoints are blocked"
+    if numeric_reason := numeric_host_block_reason(hostname):
+        return numeric_reason
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        address = None
+    if address is not None:
+        return _resolved_ip_block_reason(hostname)
+    labels = hostname.split(".")
+    if len(hostname) > 253 or any(
+        not label
+        or len(label) > 63
+        or label.startswith("-")
+        or label.endswith("-")
+        or any(
+            not (character.isascii() and character.isalnum()) and character != "-"
+            for character in label
+        )
+        for label in labels
+    ):
+        return "Invalid hostname syntax"
+    if "." not in hostname:
+        return "Single-label hostnames are blocked"
+    if hostname.endswith(_LOCAL_HOST_SUFFIXES):
+        return "Local and special-use hostnames are blocked"
+    return _resolved_ip_block_reason(hostname)
 
 
 def _resolve_public_ips(hostname: str, port: int) -> tuple[list[str], str | None]:

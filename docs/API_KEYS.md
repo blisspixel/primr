@@ -39,23 +39,27 @@ seats. The intended Primr model is:
   confirm that the host will not bill API usage or overages.
 
 Do not paste ChatGPT or Claude web-session credentials into Primr. Do not route
-through unofficial subscription proxies. An internal/eval-only Codex adapter
-uses official `codex exec` with a read-only sandbox, disabled web search and
-shell tools, no approvals, no persisted history, and schema-constrained output.
-It is not a supported inference profile. Codex can authenticate through a
-ChatGPT plan or an API key, and Primr cannot determine which billing mode an
-installed session uses. The adapter neither reads nor stores that credential
-and must not be advertised as a zero-cost route.
+through unofficial subscription proxies. An unpromoted Codex adapter uses
+official `codex exec` with a read-only sandbox, disabled web search and shell
+tools, no approvals, no persisted history, and schema-constrained output.
+For controlled single-company testing, it is gated behind `--inference hybrid
+--acknowledge-host-agent-may-bill` and is limited to
+`fast.source_relevance`. Codex can authenticate through a ChatGPT plan or an
+API key, and Primr cannot determine which billing mode an installed session
+uses. Primr therefore records the route as `potentially_metered`, excludes any
+host charge from its estimate and budget, and rejects batch fan-out. The
+adapter neither reads nor stores the credential, has not cleared its promotion
+eval, and must not be advertised as a zero-cost or validated route.
 
 | Host | Supported boundary | Notes |
 |------|--------------------|-------|
-| Codex | Use `primr-zero` inside an authenticated Codex host after verifying that the session is plan-backed and will not incur API usage or overages | Primr neither reads nor stores the host credential. The internal Codex eval adapter is not a supported user route, and API-key sign-in can mean usage-based OpenAI API billing. |
+| Codex | Use `primr-zero` inside an authenticated Codex host after verifying that the session is plan-backed and will not incur API usage or overages | Primr neither reads nor stores the host credential. The in-pipeline source-relevance route is an explicit, unpromoted pilot, and API-key sign-in can mean usage-based OpenAI API billing. |
 | Claude Code | Use `primr-zero` inside the authenticated Claude Code host | Primr has no Claude Code in-pipeline runner and must never receive or relay Claude subscription OAuth credentials. Direct Anthropic calls require `ANTHROPIC_API_KEY`. |
 
 This keeps billing honest: API-keyed stages show estimated dollars, local stages
-show $0 API plus runtime, and a future host runner may claim plan usage only
-after that billing basis is proven or the operator explicitly acknowledges that
-metered API billing may apply.
+show $0 API plus runtime, and a host route claims plan usage only when that
+billing basis is proven. Explicitly acknowledged but unverified execution is
+reported as potentially metered instead.
 
 ### Search Provider Configuration
 

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from primr.qa.artifact_fingerprints import artifact_fingerprint
 from primr.qa.calibration_runner import (
     ReportCalibrationOutcome,
     aggregate_per_label,
@@ -81,6 +82,7 @@ def _partial_confirmed_floor_manifest(report_count: int = 5) -> dict[str, object
                 "report_path": f"output/Company{index}_Strategic_Overview.md",
                 "report_file": f"Company{index}_Strategic_Overview.md",
                 "sidecar_exists": True,
+                "sidecar_matches_report": True,
                 "claims_sampled": 2,
                 "judgeable_claims": 2,
                 "coverage_tags": ["clean"] if index % 2 == 0 else ["blocked_origin"],
@@ -183,6 +185,7 @@ class TestLiveRun:
         assert outcome.sidecar_path == sidecar_path_for(path)
         payload = json.loads(outcome.sidecar_path.read_text(encoding="utf-8"))
         assert payload["report_file"] == path.name
+        assert payload["report_artifact"] == artifact_fingerprint(path)
         assert payload["per_label"]["Confirmed"]["traceable"] == 1
         assert payload["per_label"]["Confirmed"]["no_source"] == 1
         assert payload["per_label"]["Reported"]["traceable"] == 1
@@ -202,6 +205,27 @@ class TestLiveRun:
         assert outcome.sidecar_path is None
         assert not sidecar_path_for(path).exists()
         assert outcome.per_label["Confirmed"]["traceable"] == 1
+
+    def test_report_change_during_judging_prevents_sidecar_write(self, tmp_path):
+        path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        mutated = False
+
+        def mutate_report_once(claim: str, source: str) -> bool:
+            nonlocal mutated
+            if not mutated:
+                path.write_text(path.read_text(encoding="utf-8") + "\nChanged", encoding="utf-8")
+                mutated = True
+            return bool(claim and source)
+
+        (outcome,) = run_calibration(
+            [path],
+            fetch_fn=lambda url: f"source text from {url}",
+            judge_fn=mutate_report_once,
+        )
+
+        assert outcome.error == "report_changed_during_calibration"
+        assert outcome.sidecar_path is None
+        assert not sidecar_path_for(path).exists()
 
     def test_unreadable_report_records_error_not_crash(self, tmp_path):
         good = _write_report(tmp_path, "Good_Strategic_Overview_01-01-2026.md")
@@ -304,8 +328,129 @@ class TestPackManifest:
         assert report_entry["sidecar_exists"] is True
         assert report_entry["sidecar_size_bytes"] == sidecar_path_for(path).stat().st_size
         assert report_entry["sidecar_content_hash"].startswith("sha256:")
+        assert report_entry["sidecar_matches_report"] is True
         assert report_entry["sidecar"]["judge"] == {"kind": "cloud", "model": "fast-tier"}
         assert report_entry["sidecar"]["per_label"]["Confirmed"]["traceable"] == 1
+
+    def test_manifest_rejects_sidecar_after_report_content_changes(self, tmp_path):
+        path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        outcomes = run_calibration(
+            [path],
+            fetch_fn=lambda u: "source text",
+            judge_fn=lambda c, t: True,
+        )
+        path.write_text(REPORT + "\nMaterial revision after calibration.\n", encoding="utf-8")
+
+        payload = write_calibration_pack_manifest(
+            tmp_path / "calibration-pack.json",
+            [path],
+            outcomes,
+            max_per_label=10,
+        )
+
+        report_entry = payload["reports"][0]
+        assert report_entry["sidecar_exists"] is True
+        assert report_entry["sidecar_matches_report"] is False
+        assert "sidecar" not in report_entry
+        assert payload["existing_sidecar_per_label"] == {}
+        assert payload["totals"]["sidecars_bound_to_reports"] == 0
+
+        from primr.qa.calibration_baseline import build_calibration_baseline
+
+        baseline = build_calibration_baseline(payload, minimum_reports=1)
+        assert baseline["ready"] is False
+        assert "missing_calibration_sidecars" in baseline["reasons"]
+
+    def test_manifest_uses_one_report_snapshot_for_binding_and_fingerprint(
+        self, tmp_path, monkeypatch
+    ):
+        from primr.qa import calibration_runner
+        from primr.qa.artifact_fingerprints import artifact_fingerprint
+        from primr.qa.calibration_baseline import (
+            build_calibration_baseline,
+            inspect_calibration_baseline,
+        )
+
+        path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        outcomes = run_calibration(
+            [path],
+            fetch_fn=lambda _url: "source text",
+            judge_fn=lambda _claim, _source: True,
+        )
+        original_read = calibration_runner._read_sidecar_snapshot
+
+        def read_then_mutate(report_path, *, report_artifact=None):
+            snapshot = original_read(report_path, report_artifact=report_artifact)
+            report_path.write_text(REPORT + "\nConcurrent revision.\n", encoding="utf-8")
+            return snapshot
+
+        monkeypatch.setattr(calibration_runner, "_read_sidecar_snapshot", read_then_mutate)
+
+        payload = write_calibration_pack_manifest(
+            tmp_path / "calibration-pack.json",
+            [path],
+            outcomes,
+            max_per_label=10,
+        )
+
+        entry = payload["reports"][0]
+        sidecar = json.loads(sidecar_path_for(path).read_text(encoding="utf-8"))
+        captured = {
+            "size_bytes": entry["report_size_bytes"],
+            "content_hash": entry["report_content_hash"],
+        }
+        assert entry["sidecar_matches_report"] is True
+        assert sidecar["report_artifact"] == captured
+        assert artifact_fingerprint(path) != captured
+
+        baseline = build_calibration_baseline(payload, minimum_reports=1)
+        inspection = inspect_calibration_baseline(baseline)
+        assert inspection["ready"] is False
+        assert inspection["artifact_integrity"]["mismatched"] >= 1
+
+    def test_manifest_uses_one_sidecar_snapshot_for_payload_and_fingerprint(
+        self, tmp_path, monkeypatch
+    ):
+        from primr.qa import calibration_runner
+        from primr.qa.calibration_baseline import (
+            build_calibration_baseline,
+            inspect_calibration_baseline,
+        )
+
+        path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md")
+        outcomes = run_calibration(
+            [path],
+            fetch_fn=lambda _url: "source text",
+            judge_fn=lambda _claim, _source: True,
+        )
+        sidecar_path = sidecar_path_for(path)
+        original_read = calibration_runner._read_sidecar_snapshot
+
+        def read_then_mutate(report_path, *, report_artifact=None):
+            snapshot = original_read(report_path, report_artifact=report_artifact)
+            current = json.loads(sidecar_path.read_text(encoding="utf-8"))
+            current["per_label"]["Confirmed"]["traceable"] = 999
+            sidecar_path.write_text(json.dumps(current), encoding="utf-8")
+            return snapshot
+
+        monkeypatch.setattr(calibration_runner, "_read_sidecar_snapshot", read_then_mutate)
+
+        payload = write_calibration_pack_manifest(
+            tmp_path / "calibration-pack.json",
+            [path],
+            outcomes,
+            max_per_label=10,
+        )
+
+        entry = payload["reports"][0]
+        assert entry["sidecar_matches_report"] is True
+        assert entry["sidecar"]["per_label"]["Confirmed"]["traceable"] == 1
+        assert entry["sidecar_content_hash"] != artifact_fingerprint(sidecar_path)["content_hash"]
+
+        baseline = build_calibration_baseline(payload, minimum_reports=1)
+        inspection = inspect_calibration_baseline(baseline)
+        assert inspection["ready"] is False
+        assert inspection["artifact_integrity"]["mismatched"] >= 1
 
     def test_manifest_can_record_compare_judge_plan(self, tmp_path):
         from primr.qa.calibration_runner import JudgeSelection
@@ -557,6 +702,18 @@ class TestJudgeComparison:
             "compared": 2,
             "agreed": 0,
             "agreement": 0.0,
+            "disagreements": [
+                {
+                    "claim_index": 0,
+                    "cloud_verdict": "traceable",
+                    "local_verdict": "untraceable",
+                },
+                {
+                    "claim_index": 1,
+                    "cloud_verdict": "traceable",
+                    "local_verdict": "untraceable",
+                },
+            ],
         }
 
     def test_full_agreement(self, tmp_path):
@@ -571,6 +728,36 @@ class TestJudgeComparison:
             cloud_judge_fn=lambda c, t: True,
         )
         assert agreement.agreement == 1.0
+        payload = json.loads(sidecar_path_for(path).read_text(encoding="utf-8"))
+        assert payload["judge_agreement"]["disagreements"] == []
+
+    def test_disagreement_index_resolves_top_level_claim_after_nondecidable(self, tmp_path):
+        from primr.qa.calibration_runner import JudgeSelection, compare_judges
+
+        report = """## Executive Summary
+An uncited claim comes first. (Confirmed)
+A cited claim comes second. (Reported) [cite: 1]
+
+## Sources
+[cite: 1] https://news.example.com/second
+"""
+        path = _write_report(tmp_path, "Acme_Strategic_Overview_01-01-2026.md", report)
+        local = JudgeSelection(kind="local", model="m:7b", judge_fn=lambda c, t: False)
+
+        compare_judges(
+            [path],
+            local_selection=local,
+            fetch_fn=lambda u: "supporting text",
+            cloud_judge_fn=lambda c, t: True,
+        )
+
+        payload = json.loads(sidecar_path_for(path).read_text(encoding="utf-8"))
+        pointer = payload["judge_agreement"]["disagreements"][0]
+        assert pointer["claim_index"] == 1
+        claim = payload["claims"][pointer["claim_index"]]
+        assert claim["sentence"].startswith("A cited claim comes second.")
+        assert claim["verdict"] == pointer["cloud_verdict"] == "traceable"
+        assert pointer["local_verdict"] == "untraceable"
 
     def test_cloud_judge_billed_once_per_pair(self, tmp_path):
         from primr.qa.calibration_runner import JudgeSelection, compare_judges
@@ -609,6 +796,7 @@ class TestJudgeComparison:
         payload = json.loads(sidecar_path_for(path).read_text(encoding="utf-8"))
         assert payload["judge_agreement"]["compared"] == 0
         assert payload["judge_agreement"]["agreement"] is None
+        assert payload["judge_agreement"]["disagreements"] == []
 
 
 class TestCLIWiring:

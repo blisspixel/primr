@@ -201,6 +201,15 @@ class TestDeepResearchConfig:
         )
         assert config.display_name == "example.com"
 
+    def test_display_name_omits_url_credentials_and_port(self):
+        config = DeepResearchConfig(
+            company_name=None,
+            website="https://user:secret@example.com:8443/private",
+            mode=DeepResearchMode.COMPLETE,
+        )
+
+        assert config.display_name == "example.com"
+
     def test_display_name_unknown(self):
         """Test display name is Unknown when nothing provided."""
         config = DeepResearchConfig(company_name=None, website=None, mode=DeepResearchMode.COMPLETE)

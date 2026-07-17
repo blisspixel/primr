@@ -10,6 +10,7 @@ from a2a.server.apps.jsonrpc.jsonrpc_app import (
 )
 
 from primr.mcp_server.auth import RESERVED_CLIENT_IDS
+from primr.mcp_server.resource_auth import is_trusted_local_a2a_context
 
 LOCAL_A2A_CLIENT_ID = "a2a"
 
@@ -60,3 +61,19 @@ def context_client_id(context: Any) -> str | None:
     if user_name.casefold() in RESERVED_CLIENT_IDS:
         return None
     return user_name
+
+
+def mcp_context_client_id(mcp_server: Any) -> str:
+    """Resolve an A2A owner id from the MCP server's trusted auth context."""
+    context = getattr(mcp_server, "_auth_context", None)
+    if is_trusted_local_a2a_context(context):
+        return LOCAL_A2A_CLIENT_ID
+    if context is not None and getattr(context, "is_authenticated", False):
+        client_id = getattr(context, "client_id", None)
+        if (
+            isinstance(client_id, str)
+            and client_id
+            and client_id.casefold() not in RESERVED_CLIENT_IDS
+        ):
+            return client_id
+    return "anonymous"

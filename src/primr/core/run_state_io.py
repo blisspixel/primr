@@ -16,14 +16,27 @@ long-running pipeline.
 from __future__ import annotations
 
 import json
-import logging
 import os
+import tempfile
+import threading
+from collections.abc import Callable
+from contextlib import suppress
 from datetime import datetime
 from typing import Any
 
 from primr.utils.atomic_io import atomic_replace
+from primr.utils.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
+
+_RUN_STATE_LOCKS: dict[str, Any] = {}
+_RUN_STATE_LOCKS_GUARD = threading.Lock()
+
+
+def _run_state_lock(folder_path: str) -> Any:
+    key = os.path.normcase(os.path.abspath(folder_path))
+    with _RUN_STATE_LOCKS_GUARD:
+        return _RUN_STATE_LOCKS.setdefault(key, threading.RLock())
 
 
 def _run_state_file(folder_path: str) -> str:
@@ -50,52 +63,59 @@ def _load_run_state(folder_path: str) -> dict[str, Any]:
 
 def _save_run_state(folder_path: str, state: dict[str, Any]) -> None:
     """Persist run state JSON without aborting the run on transient Windows locks."""
-    path = _run_state_file(folder_path)
-    tmp = f"{path}.{os.getpid()}.tmp"
-    os.makedirs(folder_path, exist_ok=True)
-    payload = json.dumps(state, indent=2)
-    with open(tmp, "w", encoding="utf-8") as f:
-        f.write(payload)
-        f.flush()
-        os.fsync(f.fileno())
-
-    try:
-        atomic_replace(tmp, path)
-        return
-    except PermissionError as exc:
-        logger.warning(
-            "Atomic run state save failed for %s; falling back to direct overwrite: %s",
-            path,
-            exc,
+    with _run_state_lock(folder_path):
+        path = _run_state_file(folder_path)
+        os.makedirs(folder_path, exist_ok=True)
+        payload = json.dumps(state, indent=2)
+        fd, tmp = tempfile.mkstemp(
+            dir=folder_path,
+            prefix="._run_state.",
+            suffix=".tmp",
         )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
 
-    try:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(payload)
-    finally:
-        if os.path.exists(tmp):
             try:
+                atomic_replace(tmp, path)
+                return
+            except PermissionError as exc:
+                logger.warning(
+                    "Atomic run state save failed for %s; falling back to direct overwrite: %s",
+                    path,
+                    exc,
+                )
+
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(payload)
+        finally:
+            with suppress(OSError):
                 os.remove(tmp)
-            except OSError:
-                logger.debug("Failed to remove stale run-state temp file %s", tmp, exc_info=True)
+
+
+def _mutate_run_state(
+    folder_path: str,
+    mutation: Callable[[dict[str, Any]], object],
+) -> None:
+    """Apply one serialized read-modify-write transaction to run state."""
+    with _run_state_lock(folder_path):
+        state = _load_run_state(folder_path)
+        mutation(state)
+        state["updated_at"] = datetime.now().isoformat()
+        _save_run_state(folder_path, state)
 
 
 def _update_run_state(folder_path: str, **updates: Any) -> None:
     """Merge updates into run state file and refresh timestamp."""
-    state = _load_run_state(folder_path)
-    state.update(updates)
-    state["updated_at"] = datetime.now().isoformat()
-    _save_run_state(folder_path, state)
+    _mutate_run_state(folder_path, lambda state: state.update(updates))
 
 
 def _append_run_event(
     folder_path: str, phase: str, status: str, message: str, **extra: Any
 ) -> None:
     """Append a timeline event into run state."""
-    state = _load_run_state(folder_path)
-    events = state.get("events", [])
-    if not isinstance(events, list):
-        events = []
     event: dict[str, Any] = {
         "ts": datetime.now().isoformat(),
         "phase": phase,
@@ -104,10 +124,15 @@ def _append_run_event(
     }
     if extra:
         event["extra"] = extra
-    events.append(event)
-    state["events"] = events[-200:]
-    state["updated_at"] = datetime.now().isoformat()
-    _save_run_state(folder_path, state)
+
+    def append_event(state: dict[str, Any]) -> None:
+        events = state.get("events", [])
+        if not isinstance(events, list):
+            events = []
+        events.append(event)
+        state["events"] = events[-200:]
+
+    _mutate_run_state(folder_path, append_event)
 
 
 def _ensure_resilience_keys(state: dict[str, Any]) -> dict[str, Any]:
@@ -120,35 +145,30 @@ def _ensure_resilience_keys(state: dict[str, Any]) -> dict[str, Any]:
 
 def _append_model_health_event(folder_path: str, event_dict: dict[str, Any]) -> None:
     """Append a ModelHealthEvent dict to the ``model_health`` array."""
-    state = _load_run_state(folder_path)
-    _ensure_resilience_keys(state)
-    state["model_health"].append(event_dict)
-    state["model_health"] = state["model_health"][-200:]
-    state["updated_at"] = datetime.now().isoformat()
-    _save_run_state(folder_path, state)
+    _append_resilience_event(folder_path, "model_health", event_dict)
 
 
 def _append_recovery_event(folder_path: str, event_dict: dict[str, Any]) -> None:
     """Append a recovery event dict to the ``recovery_events`` array."""
-    state = _load_run_state(folder_path)
-    _ensure_resilience_keys(state)
-    state["recovery_events"].append(event_dict)
-    state["recovery_events"] = state["recovery_events"][-200:]
-    state["updated_at"] = datetime.now().isoformat()
-    _save_run_state(folder_path, state)
+    _append_resilience_event(folder_path, "recovery_events", event_dict)
 
 
 def _append_background_abort(folder_path: str, event_dict: dict[str, Any]) -> None:
     """Append a background abort dict to the ``background_aborts`` array."""
-    state = _load_run_state(folder_path)
-    _ensure_resilience_keys(state)
-    state["background_aborts"].append(event_dict)
-    state["background_aborts"] = state["background_aborts"][-200:]
-    state["updated_at"] = datetime.now().isoformat()
-    _save_run_state(folder_path, state)
+    _append_resilience_event(folder_path, "background_aborts", event_dict)
+
+
+def _append_resilience_event(folder_path: str, key: str, event_dict: dict[str, Any]) -> None:
+    def append_event(state: dict[str, Any]) -> None:
+        _ensure_resilience_keys(state)
+        state[key].append(event_dict)
+        state[key] = state[key][-200:]
+
+    _mutate_run_state(folder_path, append_event)
 
 
 def _init_run_state_with_resilience(folder_path: str, base_state: dict[str, Any]) -> None:
     """Initialize run state with resilience keys included."""
-    _ensure_resilience_keys(base_state)
-    _save_run_state(folder_path, base_state)
+    with _run_state_lock(folder_path):
+        _ensure_resilience_keys(base_state)
+        _save_run_state(folder_path, base_state)

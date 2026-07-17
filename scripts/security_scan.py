@@ -4,16 +4,16 @@ Security scanning script for Primr.
 
 Runs multiple security checks:
 1. Bandit - Python security linter
-2. Safety - Dependency vulnerability scanner
+2. pip-audit - Dependency vulnerability scanner
 3. Custom checks - Hardcoded secrets, unsafe patterns
 
 Usage:
     python scripts/security_scan.py
-    python scripts/security_scan.py --fix  # Auto-fix where possible
     python scripts/security_scan.py --ci   # CI mode (exit code on issues)
 """
 
 import argparse
+import ast
 import re
 import subprocess
 import sys
@@ -36,17 +36,17 @@ def print_header(text: str) -> None:
 
 def print_ok(text: str) -> None:
     """Print success message."""
-    print(f"{GREEN}✓ {text}{RESET}")
+    print(f"{GREEN}[PASS] {text}{RESET}")
 
 
 def print_warn(text: str) -> None:
     """Print warning message."""
-    print(f"{YELLOW}⚠ {text}{RESET}")
+    print(f"{YELLOW}[WARN] {text}{RESET}")
 
 
 def print_error(text: str) -> None:
     """Print error message."""
-    print(f"{RED}✗ {text}{RESET}")
+    print(f"{RED}[FAIL] {text}{RESET}")
 
 
 def run_bandit() -> tuple[bool, list[str]]:
@@ -56,7 +56,7 @@ def run_bandit() -> tuple[bool, list[str]]:
     try:
         result = subprocess.run(
             [
-                "python",
+                sys.executable,
                 "-m",
                 "bandit",
                 "-r",
@@ -96,37 +96,28 @@ def run_bandit() -> tuple[bool, list[str]]:
         return True, []  # Don't fail if not installed
 
 
-def run_safety() -> tuple[bool, list[str]]:
-    """Run Safety dependency vulnerability scanner."""
-    print_header("Running Safety Dependency Scanner")
+def run_dependency_audit() -> tuple[bool, list[str]]:
+    """Run the repository's canonical pip-audit dependency gate."""
+    print_header("Running pip-audit Dependency Scanner")
+    result = subprocess.run(
+        [sys.executable, "-m", "pip_audit"],
+        capture_output=True,
+        text=True,
+    )
 
-    try:
-        result = subprocess.run(
-            ["python", "-m", "safety", "check", "--full-report"],
-            capture_output=True,
-            text=True,
-        )
-
-        if result.returncode == 0:
-            print_ok("No known vulnerabilities in dependencies")
-            return True, []
-
-        # Parse vulnerabilities
-        vulns = []
-        for line in result.stdout.split("\n"):
-            if "vulnerability" in line.lower() or "CVE-" in line:
-                vulns.append(line.strip())
-
-        if vulns:
-            print_warn(f"Safety found {len(vulns)} potential vulnerabilities:")
-            for vuln in vulns[:5]:
-                print(f"  {vuln}")
-
-        return False, vulns
-
-    except FileNotFoundError:
-        print_warn("Safety not installed. Run: pip install safety")
+    if result.returncode == 0:
+        print_ok("No known vulnerabilities in dependencies")
         return True, []
+
+    output = "\n".join(part for part in (result.stdout, result.stderr) if part)
+    findings = [line.strip() for line in output.splitlines() if line.strip()]
+    if findings:
+        print_error(f"pip-audit failed with {len(findings)} output line(s):")
+        for finding in findings[:5]:
+            print(f"  {finding}")
+    else:
+        print_error("pip-audit failed without diagnostic output")
+    return False, findings
 
 
 def check_hardcoded_secrets() -> tuple[bool, list[str]]:
@@ -195,41 +186,13 @@ def check_unsafe_patterns() -> tuple[bool, list[str]]:
     """Check for unsafe code patterns."""
     print_header("Checking for Unsafe Code Patterns")
 
-    unsafe_patterns = [
-        (r"\beval\s*\(", "Use of eval()"),
-        (r"\bexec\s*\(", "Use of exec()"),
-        (r"pickle\.loads?\s*\(", "Use of pickle (potential RCE)"),
-        (r"subprocess.*shell\s*=\s*True", "subprocess with shell=True"),
-        (r"yaml\.load\s*\([^)]*\)", "Unsafe yaml.load (use safe_load)"),
-        (r"__import__\s*\(", "Dynamic import"),
-        (r"os\.system\s*\(", "Use of os.system"),
-        (
-            r"random\.(choice|randint|random)\s*\(.*(?:token|secret|key|password)",
-            "Insecure random for secrets",
-        ),
-        # Only flag MD5/SHA1 if NOT marked as usedforsecurity=False
-        (
-            r"hashlib\.(md5|sha1)\s*\([^)]*\)(?!.*usedforsecurity\s*=\s*False)",
-            "Weak hash algorithm (use sha256+ or add usedforsecurity=False)",
-        ),
-    ]
-
     issues = []
     src_path = Path("src/primr")
 
     for py_file in src_path.rglob("*.py"):
         try:
             content = py_file.read_text(encoding="utf-8")
-
-            for pattern, description in unsafe_patterns:
-                if re.search(pattern, content):
-                    # Get line number
-                    for i, line in enumerate(content.split("\n"), 1):
-                        if re.search(pattern, line):
-                            # Skip if in comment
-                            if line.strip().startswith("#"):
-                                continue
-                            issues.append(f"{py_file}:{i}: {description}")
+            issues.extend(_unsafe_source_issues(py_file, content))
 
         except Exception as e:
             print_warn(f"Could not read {py_file}: {e}")
@@ -242,6 +205,77 @@ def check_unsafe_patterns() -> tuple[bool, list[str]]:
 
     print_ok("No unsafe patterns detected")
     return True, []
+
+
+def _unsafe_source_issues(path: Path, source: str) -> list[str]:
+    """Return unsafe executable calls without matching comments or strings."""
+    try:
+        tree = ast.parse(source, filename=str(path))
+    except SyntaxError as exc:
+        line = exc.lineno or 1
+        return [f"{path}:{line}: Python source could not be parsed"]
+
+    issues: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        description = _unsafe_call_description(node)
+        if description is not None:
+            issues.append(f"{path}:{node.lineno}: {description}")
+    return issues
+
+
+def _unsafe_call_description(call: ast.Call) -> str | None:
+    """Classify a security-sensitive call, if present."""
+    name = _qualified_name(call.func)
+    direct_checks = {
+        "eval": "Use of eval()",
+        "builtins.eval": "Use of eval()",
+        "exec": "Use of exec()",
+        "builtins.exec": "Use of exec()",
+        "pickle.load": "Use of pickle (potential RCE)",
+        "pickle.loads": "Use of pickle (potential RCE)",
+        "yaml.load": "Unsafe yaml.load (use safe_load)",
+        "__import__": "Dynamic import",
+        "builtins.__import__": "Dynamic import",
+        "os.system": "Use of os.system",
+    }
+    if name in direct_checks:
+        return direct_checks[name]
+
+    if name.startswith("subprocess.") and _literal_keyword(call, "shell") is True:
+        return "subprocess with shell=True"
+
+    if name in {"hashlib.md5", "hashlib.sha1"}:
+        if _literal_keyword(call, "usedforsecurity") is not False:
+            return "Weak hash algorithm (use sha256+ or add usedforsecurity=False)"
+
+    if name in {"random.choice", "random.randint", "random.random"}:
+        argument_text = ast.dump(ast.Tuple(elts=[*call.args, *[kw.value for kw in call.keywords]]))
+        if re.search(r"token|secret|key|password", argument_text, re.IGNORECASE):
+            return "Insecure random for secrets"
+    return None
+
+
+def _qualified_name(node: ast.expr) -> str:
+    """Return a dotted name for a simple call target."""
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        prefix = _qualified_name(node.value)
+        return f"{prefix}.{node.attr}" if prefix else node.attr
+    return ""
+
+
+def _literal_keyword(call: ast.Call, name: str) -> object:
+    """Return a keyword's literal value, or a unique non-literal sentinel."""
+    for keyword in call.keywords:
+        if keyword.arg == name and isinstance(keyword.value, ast.Constant):
+            return keyword.value.value
+    return _NON_LITERAL
+
+
+_NON_LITERAL = object()
 
 
 def check_yaml_safety() -> tuple[bool, list[str]]:
@@ -263,8 +297,8 @@ def check_yaml_safety() -> tuple[bool, list[str]]:
                         if not line.strip().startswith("#"):
                             issues.append(f"{py_file}:{i}: Unsafe yaml.load()")
 
-        except Exception:
-            pass
+        except (OSError, UnicodeError) as exc:
+            issues.append(f"{py_file}: Could not inspect YAML usage ({type(exc).__name__})")
 
     if issues:
         print_error(f"Found {len(issues)} unsafe YAML loading:")
@@ -283,29 +317,13 @@ def check_file_encoding() -> tuple[bool, list[str]]:
     issues = []
     src_path = Path("src/primr")
 
-    # Pattern for open() calls without encoding (text mode)
-    re.compile(r"open\s*\([^)]*\)")
-
     for py_file in src_path.rglob("*.py"):
         try:
             content = py_file.read_text(encoding="utf-8")
+            issues.extend(_text_open_issues(py_file, content))
 
-            for i, line in enumerate(content.split("\n"), 1):
-                if line.strip().startswith("#"):
-                    continue
-
-                # Check for open() calls
-                if "open(" in line:
-                    # Skip binary mode
-                    if "'rb'" in line or '"rb"' in line or "'wb'" in line or '"wb"' in line:
-                        continue
-                    # Check for encoding
-                    if "encoding" not in line and "encoding=" not in line:
-                        # Could be a false positive, but worth flagging
-                        issues.append(f"{py_file}:{i}: open() without encoding")
-
-        except Exception:
-            pass
+        except (OSError, UnicodeError) as exc:
+            issues.append(f"{py_file}: Could not inspect file encoding ({type(exc).__name__})")
 
     if issues:
         print_warn(f"Found {len(issues)} file operations without explicit encoding:")
@@ -320,11 +338,41 @@ def check_file_encoding() -> tuple[bool, list[str]]:
     return True, []
 
 
+def _text_open_issues(path: Path, source: str) -> list[str]:
+    """Find built-in text-mode ``open`` calls without an explicit encoding."""
+    try:
+        tree = ast.parse(source, filename=str(path))
+    except SyntaxError as exc:
+        line = exc.lineno or 1
+        return [f"{path}:{line}: Python source could not be parsed"]
+
+    issues: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or _qualified_name(node.func) != "open":
+            continue
+        mode = _open_mode(node)
+        if "b" in mode or any(keyword.arg == "encoding" for keyword in node.keywords):
+            continue
+        issues.append(f"{path}:{node.lineno}: open() without encoding")
+    return issues
+
+
+def _open_mode(call: ast.Call) -> str:
+    """Return the literal open mode, defaulting conservatively to text read."""
+    mode_node: ast.expr | None = call.args[1] if len(call.args) > 1 else None
+    for keyword in call.keywords:
+        if keyword.arg == "mode":
+            mode_node = keyword.value
+            break
+    if isinstance(mode_node, ast.Constant) and isinstance(mode_node.value, str):
+        return mode_node.value
+    return "r"
+
+
 def main() -> int:
     """Run all security checks."""
     parser = argparse.ArgumentParser(description="Security scanning for Primr")
     parser.add_argument("--ci", action="store_true", help="CI mode (strict)")
-    parser.add_argument("--fix", action="store_true", help="Auto-fix where possible")
     args = parser.parse_args()
 
     print(f"\n{BLUE}Primr Security Scanner{RESET}")
@@ -342,9 +390,9 @@ def main() -> int:
         ("File Encoding", check_file_encoding),
     ]
 
-    # Safety check is optional (may have false positives)
+    # CI mode includes the same dependency audit used by the workflow gate.
     if args.ci:
-        checks.append(("Safety", run_safety))
+        checks.append(("pip-audit", run_dependency_audit))
 
     for name, check_func in checks:
         try:

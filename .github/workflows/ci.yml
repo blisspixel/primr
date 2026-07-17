@@ -38,6 +38,7 @@ jobs:
         timeout-minutes: 5
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
+          version: "0.11.17"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
           cache-suffix: ${{ runner.os }}-py${{ matrix.python-version }}
@@ -52,7 +53,7 @@ jobs:
         # gate in this job (they importorskip without the SDK), instead of only
         # in the separate uncovered a2a-tests job, this counts the a2a package
         # in the global coverage ratchet.
-        run: uv sync --locked --extra dev --extra api --extra a2a --extra docs
+        run: uv sync --locked --all-extras
 
       # Lint / type-check / security gates are version-independent, so run them
       # once on the primary interpreter to save matrix minutes.
@@ -173,6 +174,7 @@ jobs:
         timeout-minutes: 5
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
+          version: "0.11.17"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
           cache-suffix: ${{ runner.os }}-py3.13-cross-platform
@@ -211,6 +213,7 @@ jobs:
         timeout-minutes: 5
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
+          version: "0.11.17"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
           cache-suffix: ${{ runner.os }}-py3.13-a2a
@@ -234,8 +237,7 @@ jobs:
   # Cloud Run manifests, is a documented platform false-positive justified-ignored
   # in .trivyignore, see that file), so this blocks on any new HIGH/CRITICAL
   # fixable vuln or misconfig. Complements the pip-audit + bandit hard gates.
-  # Dependency bumps this gate demands are reviewed through Dependabot or
-  # applied by hand when a coordinated upgrade needs local judgment.
+  # Dependency bumps this gate demands are applied by hand after review.
   supply-chain-scan:
     runs-on: ubuntu-latest
     name: Supply-chain scan (Trivy)
@@ -258,3 +260,36 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"
+
+  container-builds:
+    runs-on: ubuntu-latest
+    name: Production container builds
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Build job runner image
+        run: docker build --file deploy/Dockerfile --tag primr-job-runner:ci .
+
+      - name: Smoke test job runner imports
+        run: >-
+          docker run --rm --entrypoint python primr-job-runner:ci
+          -c "import primr; import deploy.runner; import deploy.storage"
+
+      - name: Build OpenClaw MCP image
+        run: |
+          context="$RUNNER_TEMP/primr-openclaw-context"
+          mkdir -p "$context/deploy"
+          cp -R openclaw/. "$context/"
+          cp pyproject.toml MANIFEST.in README.md "$context/"
+          cp -R src "$context/src"
+          cp deploy/build-requirements.lock deploy/runtime-requirements.lock "$context/deploy/"
+          docker build --file "$context/Dockerfile.primr" --tag primr-openclaw:ci "$context"
+
+      - name: Smoke test OpenClaw CLI entry points
+        run: >-
+          docker run --rm --entrypoint sh primr-openclaw:ci
+          -c "primr --version && primr-mcp --help >/dev/null"

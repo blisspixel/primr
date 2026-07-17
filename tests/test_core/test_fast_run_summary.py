@@ -87,6 +87,17 @@ class TestFinalize:
         result = _call(env)
         assert result == str(md)
 
+    def test_fallback_filename_is_portable(self, env):
+        from datetime import datetime
+
+        date_str = datetime.now().strftime("%m-%d-%Y")
+        md = env["tmp"] / f"Acme, Inc_Strategic_Overview_{date_str}.md"
+        md.write_text("# report", encoding="utf-8")
+
+        result = _call(env, company_name="Acme, Inc.", display_name="Acme, Inc.")
+
+        assert result == str(md)
+
     def test_run_state_metrics_persisted(self, env):
         _call(env)
         state = env["run_state"]

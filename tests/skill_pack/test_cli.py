@@ -13,6 +13,7 @@ import json
 
 import pytest
 
+from primr.config.models import PrimrModels
 from primr.skill_pack.cli import (
     _create_parser,
     _estimate,
@@ -22,9 +23,37 @@ from primr.skill_pack.cli import (
 from primr.skill_pack.config import (
     DEFAULT_ROLES,
     DEFAULT_SKILLS_PER_ROLE,
+    EVAL_CHARGEABLE_ATTEMPT_CAP,
+    EVAL_MODEL_RETRIES,
+    MAX_AUTO_RESOLVE_PAIRS,
+    MAX_EVAL_CASES,
     SkillPackConfig,
     SkillPackFormat,
 )
+
+
+def _write_saved_plan(path, roles_count: int) -> None:
+    roles = [
+        {
+            "name": f"role-{index}",
+            "display_name": f"Role {index}",
+            "confidence": "Confirmed",
+            "summary": f"Role {index} summary",
+            "evidence": {"provenance": "posting", "posting_count": 1},
+        }
+        for index in range(roles_count)
+    ]
+    path.write_text(
+        json.dumps(
+            {
+                "observed": roles,
+                "final_roster": roles,
+                "industry": {},
+                "evidence_summary": {},
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 class TestIsSkillsCommand:
@@ -132,6 +161,160 @@ class TestEstimate:
         )
         assert remote > local
 
+    def test_refinement_cost_scales_with_iteration_cap(self):
+        low, _ = _estimate(
+            SkillPackConfig(max_refine_iterations=1),
+            will_collect_evidence=False,
+        )
+        high, _ = _estimate(
+            SkillPackConfig(max_refine_iterations=5),
+            will_collect_evidence=False,
+        )
+        assert high > low
+
+    def test_refinement_estimate_reserves_every_reachable_call(self):
+        config = SkillPackConfig(
+            roles_count=15,
+            skills_per_role=5,
+            max_refine_iterations=5,
+        )
+        cost, _ = _estimate(config, will_collect_evidence=False)
+        reachable_refinement_cost = 0.015 * (15 * 5 * 5 + MAX_AUTO_RESOLVE_PAIRS)
+        assert cost >= reachable_refinement_cost
+
+    def test_zero_per_skill_refinement_still_prices_auto_resolution(self):
+        enabled, _ = _estimate(
+            SkillPackConfig(max_refine_iterations=0),
+            will_collect_evidence=False,
+        )
+        disabled, _ = _estimate(
+            SkillPackConfig(
+                max_refine_iterations=0,
+                run_pack_coherence_pass=False,
+            ),
+            will_collect_evidence=False,
+        )
+        assert enabled - disabled >= 0.015 * MAX_AUTO_RESOLVE_PAIRS
+
+    def test_behavioral_eval_estimate_matches_reachable_call_count(self):
+        base = SkillPackConfig(
+            roles_count=1,
+            skills_per_role=1,
+            max_refine_iterations=0,
+            run_pack_coherence_pass=False,
+        )
+        enabled = SkillPackConfig(
+            roles_count=1,
+            skills_per_role=1,
+            max_refine_iterations=0,
+            run_pack_coherence_pass=False,
+            with_evals=True,
+            eval_cases_per_skill=3,
+        )
+
+        base_cost, _ = _estimate(base, will_collect_evidence=False)
+        eval_cost, _ = _estimate(enabled, will_collect_evidence=False)
+
+        max_output_tokens = 4_000 + 3 * (2 * 1_500 + 2 * 4_000)
+        output_rate = PrimrModels.get_price(PrimrModels.GROK_MODEL)[1]
+        assert eval_cost - base_cost >= (
+            max_output_tokens * output_rate / 1_000_000 * EVAL_CHARGEABLE_ATTEMPT_CAP
+        )
+
+    def test_behavioral_eval_estimate_uses_execution_case_cap(self):
+        base = SkillPackConfig(
+            roles_count=1,
+            skills_per_role=1,
+            max_refine_iterations=0,
+            run_pack_coherence_pass=False,
+        )
+        enabled = SkillPackConfig(
+            roles_count=1,
+            skills_per_role=1,
+            max_refine_iterations=0,
+            run_pack_coherence_pass=False,
+            with_evals=True,
+            eval_cases_per_skill=10_000,
+        )
+
+        base_cost, _ = _estimate(base, will_collect_evidence=False)
+        eval_cost, _ = _estimate(enabled, will_collect_evidence=False)
+
+        max_output_tokens = 4_000 + MAX_EVAL_CASES * (2 * 1_500 + 2 * 4_000)
+        output_rate = PrimrModels.get_price(PrimrModels.GROK_MODEL)[1]
+        assert eval_cost - base_cost >= (
+            max_output_tokens * output_rate / 1_000_000 * EVAL_CHARGEABLE_ATTEMPT_CAP
+        )
+
+    def test_behavioral_eval_estimate_accounts_for_sequential_runtime(self):
+        default = SkillPackConfig(with_evals=True)
+        maximum = SkillPackConfig(
+            roles_count=15,
+            skills_per_role=5,
+            with_evals=True,
+            eval_cases_per_skill=MAX_EVAL_CASES,
+        )
+
+        assert _estimate(default, will_collect_evidence=False)[1] >= 423
+        assert _estimate(maximum, will_collect_evidence=False)[1] >= 13_163
+
+    def test_behavioral_eval_maximum_estimate_covers_output_ceiling(self):
+        base = SkillPackConfig(
+            roles_count=15,
+            skills_per_role=5,
+            max_refine_iterations=0,
+            run_pack_coherence_pass=False,
+        )
+        enabled = SkillPackConfig(
+            roles_count=15,
+            skills_per_role=5,
+            max_refine_iterations=0,
+            run_pack_coherence_pass=False,
+            with_evals=True,
+            eval_cases_per_skill=MAX_EVAL_CASES,
+        )
+
+        base_cost, _ = _estimate(base, will_collect_evidence=False)
+        eval_cost, _ = _estimate(enabled, will_collect_evidence=False)
+        output_rate = PrimrModels.get_price(PrimrModels.GROK_MODEL)[1]
+        output_ceiling = 75 * (4_000 + MAX_EVAL_CASES * 11_000) * output_rate / 1_000_000
+
+        assert eval_cost - base_cost >= output_ceiling * EVAL_CHARGEABLE_ATTEMPT_CAP
+
+    def test_behavioral_eval_retry_ceiling_matches_execution(self):
+        assert EVAL_CHARGEABLE_ATTEMPT_CAP == EVAL_MODEL_RETRIES + 1
+
+    def test_zero_behavioral_eval_cases_add_no_provider_cost(self):
+        base = SkillPackConfig(
+            roles_count=1,
+            skills_per_role=1,
+            max_refine_iterations=0,
+            run_pack_coherence_pass=False,
+        )
+        enabled = SkillPackConfig(
+            roles_count=1,
+            skills_per_role=1,
+            max_refine_iterations=0,
+            run_pack_coherence_pass=False,
+            with_evals=True,
+            eval_cases_per_skill=0,
+        )
+
+        assert (
+            _estimate(enabled, will_collect_evidence=False)[0]
+            == _estimate(
+                base,
+                will_collect_evidence=False,
+            )[0]
+        )
+
+    @pytest.mark.parametrize("n_cases", [-1, MAX_EVAL_CASES + 1, 1.5, True])
+    def test_behavioral_eval_case_count_is_validated(self, n_cases: object):
+        config = SkillPackConfig(eval_cases_per_skill=n_cases)
+
+        with pytest.raises(ValueError, match="eval_cases_per_skill"):
+            config.validate()
+
 
 class TestRunSkillsCliEarlyReturns:
     def test_missing_url_without_from_report_errors(self, capsys):
@@ -206,6 +389,38 @@ class TestRunSkillsCliEarlyReturns:
         # roles_count follows the override label count (2), not the default.
         assert "Roles: 2" in captured.out
 
+    def test_duplicate_overrides_use_deduplicated_count(self, capsys):
+        rc = run_skills_cli(
+            [
+                "skills",
+                "Acme",
+                "https://acme.example",
+                "--roles-override",
+                "Account Executive,Account Executive",
+                "--dry-run",
+            ]
+        )
+
+        assert rc == 0
+        assert "Roles: 1 x" in capsys.readouterr().out
+
+    def test_automatic_roles_add_does_not_expand_final_count(self, capsys):
+        rc = run_skills_cli(
+            [
+                "skills",
+                "Acme",
+                "https://acme.example",
+                "--roles",
+                "5",
+                "--roles-add",
+                "Account Executive,Procurement Manager",
+                "--dry-run",
+            ]
+        )
+
+        assert rc == 0
+        assert "Roles: 5 x" in capsys.readouterr().out
+
     def test_from_plan_nonexistent_path_errors(self, capsys):
         rc = run_skills_cli(
             [
@@ -229,7 +444,7 @@ class TestRunSkillsCliEarlyReturns:
 
     def test_from_plan_existing_path_passes_validation(self, capsys, tmp_path):
         plan_file = tmp_path / "role_plan.json"
-        plan_file.write_text(json.dumps({"final_roster": []}), encoding="utf-8")
+        _write_saved_plan(plan_file, 4)
         rc = run_skills_cli(
             [
                 "skills",
@@ -241,4 +456,24 @@ class TestRunSkillsCliEarlyReturns:
             ]
         )
         assert rc == 0
-        assert "Skill pack estimate" in capsys.readouterr().out
+        output = capsys.readouterr().out
+        assert "Skill pack estimate" in output
+        assert "Roles: 4" in output
+
+    def test_from_plan_dry_run_rejects_empty_roster(self, capsys, tmp_path):
+        plan_file = tmp_path / "role_plan.json"
+        plan_file.write_text(json.dumps({"final_roster": []}), encoding="utf-8")
+
+        rc = run_skills_cli(
+            [
+                "skills",
+                "Acme",
+                "https://acme.example",
+                "--from-plan",
+                str(plan_file),
+                "--dry-run",
+            ]
+        )
+
+        assert rc == 2
+        assert "empty final_roster" in capsys.readouterr().err

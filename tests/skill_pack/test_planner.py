@@ -12,8 +12,16 @@ from unittest.mock import patch
 
 import pytest
 
+from primr.skill_pack.config import MAX_ROLES
 from primr.skill_pack.discovery import EmptyHiringEvidenceError
-from primr.skill_pack.planner import _merge_and_cap, load_plan, plan_roles
+from primr.skill_pack.planner import _merge_and_cap, plan_roles
+from primr.skill_pack.saved_plan import (
+    MAX_SAVED_PLAN_BYTES,
+    MAX_SAVED_PLAN_PROMPT_CHARS,
+    SavedPlanValidationError,
+    load_plan,
+    saved_plan_approval_basis,
+)
 from primr.skill_pack.schema import Role, RoleEvidence, RoleProvenance
 
 
@@ -445,16 +453,166 @@ def test_load_plan_rejects_non_object_role_entry(tmp_path):
     AttributeError from .get on a str."""
     bad = tmp_path / "role_plan.json"
     bad.write_text(json.dumps({"observed": ["sales-manager"]}), encoding="utf-8")
-    with pytest.raises(RuntimeError, match="non-object role entry"):
+    with pytest.raises(SavedPlanValidationError, match=r"observed\[0\].*object"):
         load_plan(bad)
 
 
-def test_load_plan_coerces_non_object_evidence(tmp_path):
+def test_load_plan_rejects_nonportable_role_name_without_reflecting_it(tmp_path):
+    plan = tmp_path / "role_plan.json"
+    plan.write_text(
+        json.dumps({"final_roster": [{"name": "SENSITIVE_ROLE_MARKER", "display_name": "Role A"}]}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SavedPlanValidationError, match=r"final_roster\[0\]\.name") as caught:
+        load_plan(plan)
+
+    assert "SENSITIVE_ROLE_MARKER" not in str(caught.value)
+
+
+def test_load_plan_rejects_non_object_evidence_without_reflecting_value(tmp_path):
     plan = tmp_path / "role_plan.json"
     plan.write_text(
         json.dumps({"observed": [{"name": "x", "display_name": "X", "evidence": "oops"}]}),
         encoding="utf-8",
     )
-    loaded = load_plan(plan)  # must not raise
-    assert loaded.observed[0].name == "x"
-    assert loaded.observed[0].evidence.posting_count == 0
+    with pytest.raises(SavedPlanValidationError, match=r"observed\[0\]\.evidence") as caught:
+        load_plan(plan)
+    assert "oops" not in str(caught.value)
+
+
+def test_load_plan_rejects_final_roster_above_global_cap(tmp_path):
+    plan = tmp_path / "role_plan.json"
+    roles = [
+        {"name": f"role-{index}", "display_name": f"Role {index}"} for index in range(MAX_ROLES + 1)
+    ]
+    plan.write_text(json.dumps({"final_roster": roles}), encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match=rf"at most {MAX_ROLES}"):
+        load_plan(plan)
+
+
+def test_load_plan_rejects_oversized_input_before_json_parsing(tmp_path):
+    plan = tmp_path / "role_plan.json"
+    plan.write_bytes(b" " * (MAX_SAVED_PLAN_BYTES + 1))
+
+    with pytest.raises(RuntimeError, match="input limit"):
+        load_plan(plan)
+
+
+def test_load_plan_rejects_invalid_utf8(tmp_path):
+    plan = tmp_path / "role_plan.json"
+    plan.write_bytes(b'{"final_roster": []}\xff')
+
+    with pytest.raises(RuntimeError, match="not valid UTF-8"):
+        load_plan(plan)
+
+
+def test_load_plan_rejects_non_list_final_roster(tmp_path):
+    plan = tmp_path / "role_plan.json"
+    plan.write_text(json.dumps({"final_roster": "role-a"}), encoding="utf-8")
+
+    with pytest.raises(SavedPlanValidationError, match=r"final_roster.*list"):
+        load_plan(plan)
+
+
+@pytest.mark.parametrize(
+    ("payload", "field"),
+    [
+        (
+            {
+                "final_roster": [
+                    {
+                        "name": "x",
+                        "display_name": "X",
+                        "evidence": {"posting_count": "secret-marker"},
+                    }
+                ]
+            },
+            "posting_count",
+        ),
+        (
+            {"final_roster": [{"name": "x", "display_name": "X"}], "industry": "secret-marker"},
+            "industry",
+        ),
+        (
+            {
+                "final_roster": [{"name": "x", "display_name": "X"}],
+                "operator_skipped": "secret-marker",
+            },
+            "operator_skipped",
+        ),
+    ],
+)
+def test_load_plan_sanitizes_malformed_field_errors(tmp_path, payload, field):
+    plan = tmp_path / "role_plan.json"
+    plan.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(SavedPlanValidationError, match=field) as caught:
+        load_plan(plan)
+
+    assert "secret-marker" not in str(caught.value)
+
+
+def test_load_plan_rejects_prompt_amplification(tmp_path):
+    plan = tmp_path / "role_plan.json"
+    plan.write_text(
+        json.dumps(
+            {
+                "final_roster": [{"name": "x", "display_name": "X"}],
+                "industry": {"business_model": "x" * 1_001},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SavedPlanValidationError, match=r"industry\.business_model"):
+        load_plan(plan)
+
+
+def test_load_plan_rejects_aggregate_prompt_amplification(tmp_path):
+    plan = tmp_path / "role_plan.json"
+    plan.write_text(
+        json.dumps(
+            {
+                "final_roster": [
+                    {
+                        "name": "role-a",
+                        "display_name": "Role A",
+                        "evidence": {"citations": ["x" * 2_000 for _ in range(32)]},
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SavedPlanValidationError, match="authoring content exceeds"):
+        load_plan(plan)
+
+
+def test_saved_plan_approval_basis_is_canonical_and_content_bound(tmp_path):
+    first = tmp_path / "first.json"
+    second = tmp_path / "second.json"
+    payload = {
+        "final_roster": [
+            {
+                "name": "sales-lead",
+                "display_name": "Sales Lead",
+                "summary": "Owns enterprise sales.",
+            }
+        ],
+        "industry": {"business_model": "B2B SaaS"},
+    }
+    first.write_text(json.dumps(payload), encoding="utf-8")
+    second.write_text(json.dumps(payload, indent=4, sort_keys=True), encoding="utf-8")
+
+    first_digest, first_chars = saved_plan_approval_basis(load_plan(first))
+    second_digest, second_chars = saved_plan_approval_basis(load_plan(second))
+    assert (first_digest, first_chars) == (second_digest, second_chars)
+    assert first_chars < MAX_SAVED_PLAN_PROMPT_CHARS
+
+    payload["final_roster"][0]["summary"] = "Owns partner sales."
+    second.write_text(json.dumps(payload), encoding="utf-8")
+    changed_digest, _ = saved_plan_approval_basis(load_plan(second))
+    assert changed_digest != first_digest

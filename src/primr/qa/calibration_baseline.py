@@ -29,6 +29,7 @@ from primr.qa.calibration_baseline_review import (
     render_operator_decision_template_markdown,
     render_operator_review_markdown,
 )
+from primr.qa.calibration_sidecars import has_usable_sidecar, usable_sidecar_payload
 
 BASELINE_FORMAT = "primr.calibration_baseline.v1"
 INSPECTION_FORMAT = "primr.calibration_readiness_inspection.v1"
@@ -118,7 +119,7 @@ def inspect_calibration_baseline(
     representation = _dict_value(baseline, "representation")
     totals = _dict_value(baseline, "totals")
 
-    missing_sidecars = [report for report in reports if not report.get("sidecar_exists")]
+    missing_sidecars = [report for report in reports if not has_usable_sidecar(report)]
     calibration_failures = [report for report in reports if report.get("error")]
     missing_evidence = [report for report in reports if not _has_evidence_reviews(report)]
     missing_agreement = [report for report in reports if not _has_judge_agreement(report)]
@@ -228,7 +229,9 @@ def build_calibration_baseline(
         totals = {}
 
     report_count = _safe_int(totals.get("reports"), default=len(reports))
-    reports_with_payloads = sum(1 for report in reports if isinstance(report.get("sidecar"), dict))
+    reports_with_payloads = sum(
+        1 for report in reports if usable_sidecar_payload(report) is not None
+    )
     sidecars_present = _safe_int(totals.get("sidecars_present"), default=reports_with_payloads)
     failures = _safe_int(totals.get("failures"))
     sidecar_counts = _aggregate_sidecar_counts(reports)
@@ -533,7 +536,7 @@ def render_calibration_baseline_markdown(baseline: dict[str, Any]) -> str:
         agreement_compared = _safe_int(report.get("judge_agreement_compared"))
         lines.append(
             f"| {report.get('report_file', '')} | "
-            f"{'yes' if report.get('sidecar_exists') else 'no'} | "
+            f"{'yes' if has_usable_sidecar(report) else 'no'} | "
             f"{evidence_reviews if evidence_reviews else 'missing'} | "
             f"{agreement_compared if agreement_compared else 'missing'} | "
             f"{report.get('claims_sampled', 0)} | {report.get('judgeable_claims', 0)} | "
@@ -564,8 +567,8 @@ def _report_entries(manifest: dict[str, Any]) -> list[dict[str, Any]]:
 def _aggregate_sidecar_counts(reports: list[dict[str, Any]]) -> dict[str, int]:
     totals = dict.fromkeys(_COUNT_KEYS, 0)
     for report in reports:
-        sidecar = report.get("sidecar")
-        if not isinstance(sidecar, dict):
+        sidecar = usable_sidecar_payload(report)
+        if sidecar is None:
             continue
         counts = calibration_counts_from_payload(sidecar)
         for key in _COUNT_KEYS:
@@ -577,8 +580,8 @@ def _sidecar_coverage_counts(reports: list[dict[str, Any]]) -> dict[str, int]:
     reports_with_evidence = 0
     reports_with_agreement = 0
     for report in reports:
-        sidecar = report.get("sidecar")
-        if not isinstance(sidecar, dict):
+        sidecar = usable_sidecar_payload(report)
+        if sidecar is None:
             continue
         counts = calibration_counts_from_payload(sidecar)
         if _safe_int(counts.get("evidence_source_reviews")) > 0:
@@ -810,8 +813,7 @@ def _inspection_measurement_summary(
 
 
 def _report_summary(report: dict[str, Any]) -> dict[str, Any]:
-    sidecar = report.get("sidecar")
-    sidecar_payload = sidecar if isinstance(sidecar, dict) else {}
+    sidecar_payload = usable_sidecar_payload(report) or {}
     counts = calibration_counts_from_payload(sidecar_payload) if sidecar_payload else {}
     evidence_source_reviews = _safe_int(counts.get("evidence_source_reviews"))
     judge_agreement_compared = _safe_int(counts.get("judge_agreement_compared"))
@@ -822,6 +824,7 @@ def _report_summary(report: dict[str, Any]) -> dict[str, Any]:
         "report_content_hash": _optional_string(report.get("report_content_hash")),
         "sidecar_path": report.get("sidecar_path"),
         "sidecar_exists": bool(report.get("sidecar_exists")),
+        "sidecar_matches_report": report.get("sidecar_matches_report") is True,
         "sidecar_size_bytes": _optional_int(report.get("sidecar_size_bytes")),
         "sidecar_content_hash": _optional_string(report.get("sidecar_content_hash")),
         "error": report.get("error"),
@@ -875,6 +878,8 @@ def _report_blocker(
         "report_size_bytes": _optional_int(report.get("report_size_bytes")),
         "report_content_hash": _optional_string(report.get("report_content_hash")),
         "sidecar_path": report.get("sidecar_path"),
+        "sidecar_exists": bool(report.get("sidecar_exists")),
+        "sidecar_matches_report": report.get("sidecar_matches_report") is True,
         "sidecar_size_bytes": _optional_int(report.get("sidecar_size_bytes")),
         "sidecar_content_hash": _optional_string(report.get("sidecar_content_hash")),
         "coverage_tags": _string_list(report.get("coverage_tags")),

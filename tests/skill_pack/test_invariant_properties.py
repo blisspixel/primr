@@ -13,7 +13,8 @@ from __future__ import annotations
 from hypothesis import given
 from hypothesis import strategies as st
 
-from primr.skill_pack.planner import _drop_excess_to_cap, _merge_and_cap
+from primr.skill_pack.curation import _drop_excess_to_cap
+from primr.skill_pack.planner import _merge_and_cap
 from primr.skill_pack.schema import Role, RoleEvidence, RoleProvenance
 
 # Trim-priority each provenance maps to in _drop_excess_to_cap (lower = first out).

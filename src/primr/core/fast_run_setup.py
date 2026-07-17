@@ -16,11 +16,11 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from urllib.parse import urlparse
 
 from primr.config.models import GrokTier, PrimrModels
 from primr.utils.logging_config import get_logger
 from primr.utils.observability import log_structured
+from primr.utils.url_helpers import normalized_hostname
 
 logger = get_logger("core.fast_run_setup")
 
@@ -139,7 +139,7 @@ def resolve_fast_run_setup(
             model=grok_reasoning,
         )
 
-    display_name = company_name or (urlparse(website or "").netloc if website else "")
+    display_name = company_name or normalized_hostname(website or "", strip_www=True)
     resolved_folder = folder_path or create_working_folder(company_name, website)
 
     has_strategies = ai_strategy or bool(strategy_types)
