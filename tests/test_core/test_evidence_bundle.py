@@ -90,6 +90,13 @@ def test_collect_evidence_bundle_emits_bounded_host_handoff(tmp_path, monkeypatc
     assert result.hiring_postings == 1
     assert result.recon_collected is True
 
+    workflow = (result.bundle_dir / "HOST_WORKFLOW.md").read_text(encoding="utf-8")
+    normalized_workflow = " ".join(workflow.split())
+    assert "primr --list-recent --json" in workflow
+    assert "`primary_report`" in workflow
+    assert "`strategy_module`" in workflow
+    assert "downstream consumer own its output format" in normalized_workflow
+
 
 def test_collect_evidence_bundle_rejects_invalid_page_cap(tmp_path) -> None:
     with pytest.raises(ValueError, match="max_pages"):

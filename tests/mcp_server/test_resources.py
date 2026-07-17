@@ -233,7 +233,7 @@ class TestArtifactMetadataByJobResource:
 
     @pytest.mark.asyncio
     async def test_reads_owned_job_artifact_metadata_without_body(self, server, tmp_path):
-        report = tmp_path / "report.md"
+        report = tmp_path / "Acme_Strategic_Overview_07-17-2026.md"
         report.write_text("# Secret body that must not be returned", encoding="utf-8")
         missing = tmp_path / "missing.docx"
         job = server.job_store.create("Acme Corp", "full", owner_client_id="client-a")
@@ -254,13 +254,14 @@ class TestArtifactMetadataByJobResource:
 
         text = result.root.contents[0].text
         data = json.loads(text)
-        assert data["schema_version"] == "1.0"
+        assert data["schema_version"] == "1.1"
         assert data["job_id"] == job.job_id
         assert data["artifact_count"] == 2
         assert data["full_content_included"] is False
         assert "Secret body" not in text
         first = data["artifacts"][0]
         assert first["artifact_type"] == "report_markdown"
+        assert first["artifact_role"] == "primary_report"
         assert first["exists"] is True
         assert first["size_bytes"] == report.stat().st_size
         assert first["content_hash"].startswith("sha256:")

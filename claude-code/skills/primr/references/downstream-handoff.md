@@ -2,6 +2,24 @@
 
 A primr report is a starting point, not a destination. After a run completes, surface the obvious next step rather than letting the artifact sit unused. This file is the mapping from "what primr produced" to "what to offer the user next."
 
+## Tool-neutral document handoff
+
+Use the bounded artifact inventory before invoking a requested downstream skill
+or document workflow. MCP hosts should read
+`primr://output/artifacts/by_job/{job_id}`. CLI hosts should run
+`primr --list-recent --json`. Both surfaces return content-free metadata.
+
+Select the Markdown artifact with `artifact_role: primary_report` as the main
+input. Add only relevant `artifact_role: strategy_module` paths and explicit
+user-provided notes. Prefer exact paths over asking the downstream consumer to
+search an account folder. Preserve citations, confidence labels,
+contradictions, and evidence gaps in the handoff.
+
+The downstream consumer owns its audience, schema, output destination,
+rendering formats, approval gates, and final QA. Do not assume a particular
+skill, brand, vendor, or HTML, PDF, slide, or spreadsheet output. Do not run an
+unrequested downstream workflow.
+
 ## Strategic Overview (the primary deliverable)
 
 What just landed: a 21k-word markdown + DOCX at `output/<company>/<Company>_Strategic_Overview_<date>.md`, with 23 structured sections, SWOT, competitive landscape, discovery questions, citation appendix.

@@ -33,6 +33,16 @@ def test_primr_zero_references_are_present() -> None:
     assert actual == expected
 
 
+def test_primr_zero_defines_a_tool_neutral_downstream_handoff() -> None:
+    content = (SOURCE / "SKILL.md").read_text(encoding="utf-8")
+    normalized_content = " ".join(content.split())
+
+    assert "primr --list-recent --json" in content
+    assert "artifact_role: primary_report" in content
+    assert "artifact_role: strategy_module" in content
+    assert "Do not assume a specific skill" in normalized_content
+
+
 def test_packaged_skill_mirrors_are_current() -> None:
     matches, failures = mirrors_match()
     assert matches, "\n".join(failures)

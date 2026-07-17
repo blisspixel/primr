@@ -26,7 +26,8 @@ ARTIFACT_METADATA_BY_JOB_RESOURCE = Resource(
     name="Artifact Metadata by Job ID",
     description=(
         "Compact metadata for output artifacts attached to one owned job. "
-        "Returns paths, sizes, hashes, and timestamps without report body content."
+        "Returns semantic roles, paths, sizes, hashes, and timestamps without "
+        "report body content."
     ),
     mimeType="application/json",
 )
@@ -73,7 +74,7 @@ def read_artifact_metadata_by_job_resource(
     artifacts = [record.as_dict(index=index) for index, record in enumerate(inventory.records)]
     return _json_resource(
         {
-            "schema_version": "1.0",
+            "schema_version": "1.1",
             "resource": ARTIFACT_METADATA_BY_JOB_URI,
             "job_id": job.job_id,
             "status": job.get_status().value,

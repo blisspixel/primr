@@ -1930,9 +1930,9 @@ counts.
 #### primr://output/artifacts/by_job/{job_id}
 
 Compact, ownership-gated artifact metadata for one job. This resource returns
-file names, paths, sizes, hashes, timestamps, classifications, and missing-file
-state without report body content. Use it before requesting full report content
-or broad output previews.
+file names, paths, sizes, hashes, timestamps, physical classifications,
+semantic roles, and missing-file state without report body content. Use it
+before requesting full report content or broad output previews.
 
 HTTP callers can read only jobs owned by the authenticated client. Missing jobs
 and unowned jobs return the same `job_not_found` shape so clients cannot probe
@@ -1940,7 +1940,7 @@ for other job ids.
 
 ```json
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "resource": "primr://output/artifacts/by_job",
   "job_id": "job_abc123",
   "status": "completed",
@@ -1951,6 +1951,7 @@ for other job ids.
     {
       "index": 0,
       "artifact_type": "report_markdown",
+      "artifact_role": "primary_report",
       "file_name": "Acme_Corp_Strategic_Overview_06-28-2026.md",
       "file_path": "output/acme_corp/Acme_Corp_Strategic_Overview_06-28-2026.md",
       "exists": true,
@@ -1961,6 +1962,7 @@ for other job ids.
     {
       "index": 1,
       "artifact_type": "run_manifest",
+      "artifact_role": "run_metadata",
       "file_name": "run_manifest.json",
       "file_path": "output/acme_corp/run_manifest.json",
       "exists": true,
@@ -1971,6 +1973,7 @@ for other job ids.
     {
       "index": 2,
       "artifact_type": "report_docx",
+      "artifact_role": "primary_report",
       "file_name": "Acme_Corp_Strategic_Overview_06-28-2026.docx",
       "file_path": "output/acme_corp/Acme_Corp_Strategic_Overview_06-28-2026.docx",
       "exists": false

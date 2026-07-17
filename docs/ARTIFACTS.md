@@ -83,11 +83,27 @@ strict about formatting and structure in the final document pipeline.
   matching; producers attach job-scoped manifests explicitly. Bounded root
   scans do not follow directory symlinks or read artifact bodies.
   `primr --list-recent --json` exposes the local
-  `primr.artifact-inventory` v1.0 form. Human `primr --list-recent` groups
+  `primr.artifact-inventory` v1.1 form. Each row retains its physical
+  `artifact_type` and adds a content-free `artifact_role` for downstream
+  selection: `primary_report`, `strategy_module`, `skill_pack`, `report`,
+  `diagnostic`, `run_metadata`, or `supporting_artifact`. Known product names
+  are inferred from filenames; custom outputs fall back to `report` instead of
+  being guessed from document bodies. Human `primr --list-recent` groups
   primary report deliverables separately from calibration, QA, and verification
   diagnostics and prints root-relative paths with short type tags. Explicit MCP
   inventories cap metadata inspection at 256 paths and report `truncated: true`
   when more owned paths exist, preventing unbounded hashing work.
+
+## Downstream document handoff
+
+The artifact inventory is the neutral bridge from Primr into document skills,
+agent workflows, and other consumers. Start with the Markdown
+`primary_report`, add only relevant `strategy_module` artifacts and explicit
+user-provided context, and preserve citations, uncertainty labels,
+contradictions, and evidence gaps. The downstream consumer owns its business
+schema, audience, rendering formats, destination, approval gates, and final QA.
+Primr does not assume a particular sales process, brand, vendor, or HTML, PDF,
+slide, or spreadsheet renderer.
 
 The writing and regeneration prompts carry an explicit prohibition against the
 internal-scaffolding markers the cleanup strips, sourced from a single shared

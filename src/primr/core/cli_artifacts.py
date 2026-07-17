@@ -77,19 +77,6 @@ def _type_label(record: ArtifactRecord) -> str:
     return labels.get(record.artifact_type, record.artifact_type.replace("_", " "))
 
 
-_PRIMARY_NAME_MARKERS = (
-    "strategic_overview",
-    "ai_strategy",
-    "skills_pack",
-    "company_overview",
-)
-
-
-def _is_primary_deliverable_name(name: str) -> bool:
-    lowered = name.lower()
-    return any(marker in lowered for marker in _PRIMARY_NAME_MARKERS)
-
-
 def _sort_deliverables(rows: list[ArtifactRecord]) -> list[ArtifactRecord]:
     """Prefer named product reports, then non-empty files, then newest first.
 
@@ -100,7 +87,7 @@ def _sort_deliverables(rows: list[ArtifactRecord]) -> list[ArtifactRecord]:
     return sorted(
         newest_first,
         key=lambda record: (
-            0 if _is_primary_deliverable_name(record.path.name) else 1,
+            0 if record.artifact_role in {"primary_report", "strategy_module", "skill_pack"} else 1,
             0 if (record.size_bytes or 0) > 0 else 1,
         ),
     )
@@ -150,7 +137,7 @@ def list_recent_outputs(
         emit_json(
             {
                 "schema": "primr.artifact-inventory",
-                "schema_version": "1.0",
+                "schema_version": "1.1",
                 "command": "list-recent",
                 "roots": roots,
                 "artifact_count": len(records),
