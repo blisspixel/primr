@@ -296,6 +296,11 @@ into generic agent middleware.
 - A2A protocol (standalone or co-hosted with MCP)
 - OpenClaw integration with packaged skills plus governed research/strategy workflows
 - Claude Skills directory with MCP-first skill packages
+- Agent-host routing keeps `primr "Company" https://company.example` as the
+  public request and defaults it to Primr Zero when no explicit paid intent is
+  present. The host handles `primr prep` internally, configured keys never
+  imply spend consent, and explicit provider-backed requests retain the fresh
+  estimate and approval gate. Direct terminal CLI behavior is unchanged.
 - Agent governance surfaces for generic MCP clients: estimate-first prompts/resources, next-action hints, and server-enforced cost caps (`max_estimated_cost_usd`) - enforcement defaults ON for the HTTP transport (the networked, agent-facing surface), off for host-mediated stdio; `PRIMR_ENFORCE_MCP_COST_CAPS` overrides either way (`mcp_server/cost_caps.py`)
 - Long-running job guidance for agent clients: monitor/resume flows for standard runs and premium multi-vendor runs
 

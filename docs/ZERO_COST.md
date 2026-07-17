@@ -29,6 +29,28 @@ The host-assisted result is deliberately labeled as such. A subscription can
 provide capable reasoning, but it does not turn thin evidence into confirmed
 facts or make the result identical to a measured provider-backed Primr run.
 
+## Agent-host quick start
+
+When an agent can see this repository or the installed Primr skill, the user
+does not need to know the collection subcommand. The public request stays:
+
+```text
+primr "ExampleCo" https://example.co
+```
+
+Without explicit paid intent, the agent defaults to `primr-zero`, runs
+`primr prep` internally when it has shell access, then uses its current host
+tools for external research, synthesis, evidence review, and artifact handoff.
+It must not ask the user to choose `prep`, `scrape`, or `full`. It must not
+infer permission to spend from provider keys that happen to be configured.
+
+If host billing cannot be verified, the agent can still state that Primr model
+API spend is `$0.00`, but it must describe host cost as unknown or potentially
+metered rather than calling the complete workflow free. Explicitly paid or
+premium requests route to a fresh provider-backed estimate and approval gate.
+The direct terminal command remains provider-backed; this default applies to
+requests interpreted by an agent host.
+
 ## Keyless quick start
 
 Install Primr, but do not configure provider keys unless you also want the

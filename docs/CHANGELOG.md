@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Agent hosts now treat a bare `primr "Company" URL` request as Primr Zero by
+  default and keep `primr prep` as internal plumbing. Only explicit paid,
+  metered, provider-backed, premium, budget, provider-key, or provider-only
+  modifier intent selects the billable pipeline; configured keys alone are not
+  spend consent. Repository-local launch guidance and no-shell research
+  fallback make the same request usable across prepared coding workspaces and
+  research hosts without changing direct terminal CLI behavior.
 - Default research dry-run and cost-estimate labels now use the product CLI
   mode name `full` (for example `full (Grok 4.3 hybrid)`), matching
   `--mode full` and root help instead of the internal "standard" path name.

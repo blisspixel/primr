@@ -4,20 +4,61 @@ This file is portable agent guidance in the [agents.md](https://agents.md) forma
 
 > **Operating primr vs. building primr.** This file is for agents that *operate* the primr CLI/MCP to do research. If you are an agent (or human) here to *change primr's source code*, read [`CLAUDE.md`](CLAUDE.md) - the development contract - not this file.
 
-If you are an AI agent reading this in a primr-aware project: this is how to use the primr CLI and MCP server well.
+If you are an AI agent reading this in a primr-aware project: this is how to
+route and operate Primr without making the user learn its internal commands.
 
-Run a long, metered, autonomous research pipeline that turns a company URL into a structured strategic brief. primr is **not** another web-search tool. It combines DNS recon, multi-tier scraping, hiring-signal extraction, provider-backed AI synthesis, and structured report generation. A typical run produces a 23-section Strategic Overview plus an AI Strategy module by default, lands in `output/<company>/`, and feeds the rest of the user's analytical workflow.
+Primr has two serious research paths. **Primr Zero** combines deterministic
+Primr collection with the current agent host's research and reasoning. The
+**provider-backed pipeline** adds Primr-managed model synthesis,
+cross-validation, strategy generation, and rendering after an estimate and
+explicit spend approval. Both aim for useful strategic artifacts; the
+host-powered path is not a renamed scrape mode or a deliberately worse
+application.
+
+## Agent-host default
+
+When a request is addressed to an agent host, keep the public invocation
+simple:
+
+```bash
+primr "Company" https://company.example
+```
+
+Treat that bare company-and-URL request, "run Primr," and "build a full
+dossier" as **Primr Zero by default**. Use the `primr-zero` skill and run
+`primr prep` internally when a shell is available. Do not make the user choose
+between `prep`, `scrape`, and `full`, and do not ask for spend approval for the
+zero-model-call collection. Disclose its public network activity, then
+continue.
+
+Route to the provider-backed pipeline only when the user explicitly asks for
+paid, metered, provider-backed, or premium Primr; supplies a dollar budget;
+asks to use provider API keys; or provides provider-only CLI modifiers such as
+`--premium`, `--mode`, `--platform`, `--strategy-type`, or
+`--no-ai-strategy`. Configured API keys are capability, not consent to spend.
+
+This is an agent-routing rule, not a CLI compatibility change. When a human
+runs `primr "Company" https://company.example` directly in a terminal, the
+existing provider-backed CLI behavior remains unchanged and requires the
+normal estimate and approval discipline.
 
 ## When this is the right tool
 
-Use primr when the user wants the full pipeline:
+Use Primr Zero when the user wants substantial Primr research without explicit
+provider-spend intent:
 
-- "Run primr on Contoso" / "primr Contoso https://contoso.com"
-- "Build me the full strategic dossier for Acme - I have a discovery in two weeks"
-- "Generate the AI strategy module for the Acme report"
-- "Reload the hypotheses we have on Acme and refresh weak ones"
-- "Build the fullest dossier you can for $0 using my existing agent plan" -
-  use `primr prep` plus the portable `primr-zero` skill.
+- "Run Primr on ExampleCo" / "primr ExampleCo https://example.co"
+- "Build me the full strategic dossier for ExampleCo"
+- "Use this repository to research ExampleCo"
+- "Build the fullest dossier you can for $0 using my existing agent plan"
+
+Use the provider-backed pipeline when paid intent is explicit:
+
+- "Run the paid Primr pipeline on ExampleCo"
+- "Use my provider API keys after showing me the estimate"
+- "Run premium Primr with a budget of $5"
+- "Generate the paid AI strategy module for the ExampleCo report"
+- "Refresh ExampleCo with the provider-backed pipeline"
 
 **Do not** use primr for:
 
@@ -27,14 +68,29 @@ Use primr when the user wants the full pipeline:
   is not installed.
 - Reviewing an existing primr report's quality - still primr (`run_qa` MCP tool or `primr --qa <company>` CLI), but invoke that path directly without estimating a new run.
 
-If the user is ambiguous ("research Acme"), default to the host's built-in research path and offer primr as the upgrade for "I want the full dossier." primr's cost and runtime mean it should never auto-fire on a vague trigger.
+If the user is ambiguous ("research ExampleCo"), use the host's normal quick
+research path. If the user names Primr or points the agent at this repository,
+use the Agent-host default above. A vague research request must never trigger
+billable Primr.
 
 ## Before first invocation
 
-Confirm primr is installed and configured before the first call in a session:
+Resolve a working Primr launcher before the first call in a session. For Primr
+Zero, provider configuration is irrelevant:
 
 ```bash
 primr --version
+```
+
+If the current workspace is a Primr source checkout and `primr` is not on
+`PATH`, try `uv run --no-sync primr --version`. When that succeeds, use
+`uv run --no-sync primr` anywhere these instructions show `primr`. If neither
+launcher works, follow the install guidance below. Do not install or sync an
+environment without approval.
+
+Before a provider-backed run, also check its configuration:
+
+```bash
 primr doctor
 ```
 
@@ -48,7 +104,10 @@ provider-backed research, but they do not block `primr prep` or `primr recon`.
 
 ## Detecting MCP vs CLI
 
-Look at your own available-tools list before choosing transport:
+Choose Primr Zero versus provider-backed execution before choosing transport.
+Primr Zero collection uses `primr prep`; never call a billable MCP research
+tool as a substitute. For an explicitly provider-backed request, look at your
+available-tools list:
 
 - If you see `mcp__primr__*` tools (`mcp__primr__estimate_run`, `mcp__primr__research_company`, etc.) → **prefer MCP**. It returns structured objects, exposes job state via resources, and the cost gate is enforced server-side.
 - Otherwise → fall back to the `primr` CLI. Same workflow, file-based artifacts.
@@ -57,13 +116,14 @@ Do not call an MCP tool speculatively to test connectivity. To get from CLI-only
 
 ## Zero-cost host handoff (precedes billable modes)
 
-Treat any request for a free version, zero cost, no API key or API spend, or
-use of an existing Claude, Codex, Copilot, Gemini, Cowork, or other agent plan
-as a request for **Primr Zero**. This routing decision takes precedence over
-the billable cost gate and applies even after a paid estimate was shown,
-declined, or cancelled. Stop the paid workflow before continuing. Never answer
-"there is no free tier": the provider-backed Primr pipeline has no free mode,
-but Primr Zero is a supported workflow.
+Treat a bare Primr company-and-URL request in an agent host, any request for a
+free version, zero cost, no API key or API spend, or use of an existing Claude,
+Codex, Copilot, Gemini, Cowork, or other agent plan as a request for **Primr
+Zero**. This routing decision takes precedence over the billable cost gate and
+applies even after a paid estimate was shown, declined, or cancelled. Stop the
+paid workflow before continuing. Never answer "there is no free tier": the
+provider-backed Primr pipeline has no free mode, but Primr Zero is a supported
+workflow.
 
 Tell the user that Primr Zero uses keyless `primr prep` collection with zero
 Primr model calls, followed by research and synthesis in the current agent
@@ -73,7 +133,7 @@ overages.
 
 If the dedicated `primr-zero` skill is available, use it. If it is unavailable,
 stale, or cannot be loaded from the current skill, do not deny the free path or
-stall. Follow this inline fallback:
+stall. With shell access, follow this inline fallback:
 
 ```bash
 primr --version
@@ -90,6 +150,12 @@ collection. Read the emitted `prep_manifest.json`, `source_index.json`,
 emitted `primr-zero/SKILL.md` for host research, writing, and QA. Never pass
 host OAuth tokens or cookies into Primr, and never switch to a paid run
 silently.
+
+Without shell access, use the host's supported web research and file tools to
+follow the same Primr Zero report contract. Disclose that Primr DNS,
+browser-backed collection, ATS adapters, scrape traces, and local artifact QA
+were unavailable. If the host cannot research the web, ask for a prep bundle
+or source files instead of writing from model memory.
 
 `--mode scrape` is still a billable provider-backed mode, typically around
 `$0.10`. It is not Primr Zero and must not be presented as the free or cheapest
@@ -112,7 +178,11 @@ recipe), then re-estimate. If they want premium depth, surface `--premium`
 
 The MCP server enforces this gate via `primr://agent/governance`; the CLI does not, so on CLI you are the gate.
 
-## Default workflow
+The presence of a configured provider API key never satisfies approval. Paid
+intent chooses this path; the estimate and explicit approval authorize the
+specific run.
+
+## Provider-backed workflow
 
 1. **Estimate.** `estimate_run` (MCP) or `primr "Name" url --dry-run [flags]` (CLI). Capture the cost, time, page count, planned strategy.
 2. **Approve.** Quote the estimate, ask for go-ahead. Stop. Do not proceed without an explicit "yes."

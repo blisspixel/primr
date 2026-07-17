@@ -14,6 +14,10 @@ This is the living section. Update from real failures.
   for free Primr: stop the paid workflow and route to Primr Zero. If the
   separate `primr-zero` skill is missing or stale, use the inline `primr prep`
   fallback in the main skill and continue from the emitted host workflow.
+- Treating a bare `primr "Company" URL` request inside an agent host as consent
+  to run the provider-backed CLI: default to Primr Zero unless the user names
+  paid, metered, provider-backed, premium, budget, provider-key, or
+  provider-only modifier intent. Existing keys do not authorize spend.
 
 See main SKILL.md for core rules. Load this only when debugging a primr invocation failure.
 
