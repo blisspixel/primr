@@ -32,7 +32,12 @@ If you only want the skill - not the MCP server - paste this to Claude Code:
 
 > Fetch `https://raw.githubusercontent.com/blisspixel/primr/main/claude-code/skills/primr/SKILL.md` and save it to `~/.claude/skills/primr/SKILL.md`. Then fetch the four files under `https://raw.githubusercontent.com/blisspixel/primr/main/claude-code/skills/primr/references/` and save them under `~/.claude/skills/primr/references/`. Then run `pip install primr && primr init`.
 
-The skill works fine without the MCP server - it just falls back to the `primr` CLI for everything.
+The skill works fine without the MCP server - it just falls back to the `primr`
+CLI for everything. It also contains an inline Primr Zero handoff, so a later
+request for a free or existing-agent-plan run cannot be mistaken for the paid
+`--mode scrape` path even when the separate `primr-zero` skill is not installed.
+Install the full zero-cost skill below for its complete host research, report,
+and subscription-boundary contracts.
 
 ## Zero-cost skill-only install
 

@@ -51,6 +51,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Primr operator guidance now intercepts requests for a free version, no API
+  spend, or use of an existing agent plan before billable mode selection. It
+  routes to `primr-zero`, falls back inline to keyless `primr prep` when the
+  dedicated skill is missing or stale, and explicitly prevents the billable
+  `--mode scrape` path from being presented as the free option. The Claude
+  plugin manifest is synchronized with the package version so hosts can detect
+  updated skill instructions, and the operator skill frontmatter is valid YAML
+  for strict host loaders.
 - Raised the MCP dependency floor and lock to 1.28.1, which contains the fix
   for CVE-2026-59950; the locked dependency audit is clean again.
 - Root-help release integrity now compares parsed command examples, so added
