@@ -18,8 +18,21 @@ def test_primr_zero_skill_uses_portable_frontmatter() -> None:
     assert set(metadata) == {"name", "description"}
     assert metadata["name"] == "primr-zero"
     assert "zero Primr model API spend" in metadata["description"]
+    assert "bare Primr company-and-URL request" in metadata["description"]
     assert "Verify that the host is plan-backed" in metadata["description"]
     assert "TODO" not in content
+
+
+def test_primr_zero_is_the_agent_host_default_without_changing_cli_semantics() -> None:
+    content = (SOURCE / "SKILL.md").read_text(encoding="utf-8")
+    normalized = " ".join(content.split())
+
+    assert "## Agent-host default" in content
+    assert 'primr "Company" https://company.example' in content
+    assert "use this skill by default" in normalized
+    assert "Do not ask the user to choose a Primr mode" in normalized
+    assert "do not infer spend consent from configured provider keys" in normalized
+    assert "does not change the provider-backed behavior" in normalized
 
 
 def test_primr_zero_references_are_present() -> None:
@@ -53,7 +66,7 @@ def test_openai_interface_mentions_the_skill() -> None:
     data = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))
     prompt = data["interface"]["default_prompt"]
     assert "$primr-zero" in prompt
-    assert "Verify the host billing basis" in prompt
+    assert "verify the host billing basis" in prompt.lower()
     assert 25 <= len(data["interface"]["short_description"]) <= 64
 
 

@@ -4,7 +4,10 @@ This directory is the Claude Code plugin for
 [primr](https://github.com/blisspixel/primr). It bundles the Primr MCP server
 and three skills into one install:
 
-- **primr** - drives the full installed pipeline (cost gate, async lifecycle, mode selection). Needs `pip install primr` + API keys.
+- **primr** - routes a clean company-and-URL request to Primr Zero by default,
+  or drives the metered pipeline after explicit paid intent, an estimate, and
+  approval. Needs `pip install primr`; API keys are only for provider-backed
+  runs.
 - **primr-zero** - runs keyless `primr prep`, then uses Claude's existing plan allowance to research external gaps and write a substantial host-assisted dossier after the host is verified not to bill API usage or overages. Needs Primr, but no model API key or GPU.
 - **company-brief** - the primr research method as a standalone skill. Uses only the host's own tools (web search, page fetch, shell DNS lookups) at subscription cost: no primr install, no API keys, no GPU. A lighter brief (15-25 sources vs 40-55, no cross-validation or QA gates), but a real one, for people who have a Claude/Copilot plan and nothing else.
 
@@ -26,11 +29,23 @@ Then in Claude Code:
 That registers the MCP server (`primr mcp`, exposed as `mcp__primr__*` tools)
 and all three skills, loaded on demand from their descriptions.
 
+Then ask Claude:
+
+```text
+primr "ExampleCo" https://example.co
+```
+
+That bare request defaults to Primr Zero. Claude runs `primr prep` internally
+and uses its current research and reasoning surface, so the user does not need
+to choose an internal mode. Say "paid provider-backed Primr" or "premium
+Primr" to select the metered pipeline; Claude must still show the estimate and
+wait for approval. Configured API keys alone never select it.
+
 ## Skill-only install (no plugin)
 
 If you only want the skill - not the MCP server - paste this to Claude Code:
 
-> Fetch `https://raw.githubusercontent.com/blisspixel/primr/main/claude-code/skills/primr/SKILL.md` and save it to `~/.claude/skills/primr/SKILL.md`. Then fetch the four files under `https://raw.githubusercontent.com/blisspixel/primr/main/claude-code/skills/primr/references/` and save them under `~/.claude/skills/primr/references/`. Then run `pip install primr && primr init`.
+> Fetch `https://raw.githubusercontent.com/blisspixel/primr/main/claude-code/skills/primr/SKILL.md` and save it to `~/.claude/skills/primr/SKILL.md`. Then fetch the four files under `https://raw.githubusercontent.com/blisspixel/primr/main/claude-code/skills/primr/references/` and save them under `~/.claude/skills/primr/references/`. Then run `pip install primr`. Run `primr init` only if you also want provider-backed runs.
 
 The skill works fine without the MCP server - it just falls back to the `primr`
 CLI for everything. It also contains an inline Primr Zero handoff, so a later

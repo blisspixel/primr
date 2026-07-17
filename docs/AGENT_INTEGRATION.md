@@ -12,9 +12,35 @@ Do not describe the first path as an API-key substitute inside Primr. The host
 owns its research and reasoning; Primr owns deterministic evidence collection
 and the handoff artifacts.
 
+## Default Routing In An Agent Host
+
+Keep the user-facing request clean:
+
+```text
+primr "Company" https://company.example
+```
+
+Inside an agent host, that bare request defaults to Primr Zero. The host uses
+the `primr-zero` skill, runs `primr prep` internally when it has a shell, and
+continues through research, writing, QA, and artifact handoff without asking
+the user to choose a Primr mode. This also applies to requests such as "run
+Primr" or "build a full Primr dossier" when they do not contain explicit paid
+intent.
+
+Use the provider-backed pipeline only when the user explicitly asks for paid,
+metered, provider-backed, or premium Primr; supplies a dollar budget; asks to
+use provider API keys; or gives provider-only CLI modifiers. The presence of a
+configured key is not spend consent. Choose this route before choosing MCP or
+CLI transport so an available MCP research tool cannot accidentally turn a
+bare request into a billable run.
+
+This routing is guidance for agent conversations. It does not change the
+provider-backed behavior of `primr "Company" https://company.example` when a
+human runs it directly in a terminal.
+
 ## Operating Rules
 
-Any billable agent-driven Primr run must follow this lifecycle:
+Any explicitly billable agent-driven Primr run must follow this lifecycle:
 
 1. Estimate the exact run.
 2. Show the cost, time, mode, platform, and strategy choice.
@@ -23,21 +49,26 @@ Any billable agent-driven Primr run must follow this lifecycle:
 5. Monitor asynchronously.
 6. Read the output artifact before summarizing.
 
-Do not start billable work from a vague request like "research Acme." Use the
-host-native plan path, after verifying that it will not bill API usage or
-overages, or normal web research for quick briefs. Reserve provider-backed Primr
-for requests that need the full pipeline.
+Do not start billable work from a vague request like "research ExampleCo" or a
+bare Primr company-and-URL request. Use Primr Zero for a named Primr request and
+normal web research for an unnamed quick brief. Reserve provider-backed Primr
+for explicit paid intent.
 
 For hard-zero collection:
 
-1. Run `primr prep "Company" https://company.example --dry-run` when the user
-   wants to inspect the plan.
+1. Run `primr prep "Company" https://company.example --dry-run` internally and
+   verify that it reports `$0.00` and zero model calls.
 2. Explain that collection costs `$0.00` in model API spend but performs public
    network requests.
 3. Run `primr prep` without a spend-approval gate.
 4. Read `prep_manifest.json`, `source_index.json`, and `research_packet.md`.
 5. Use `primr-zero` in the current host to close external gaps and write the
    dossier without silently switching to API billing.
+
+If the host lacks a shell, use the skill's host-native research fallback and
+disclose that Primr DNS, adaptive scraping, ATS adapters, trace artifacts, and
+local QA were unavailable. If it cannot search the web, request a prep bundle
+or source files rather than writing from model memory.
 
 See [Zero-Cost and Host-Assisted Research](ZERO_COST.md) for the complete
 contract and failure behavior.

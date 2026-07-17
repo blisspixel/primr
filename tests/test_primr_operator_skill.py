@@ -11,6 +11,8 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CLAUDE_SKILL = REPO_ROOT / "claude-code" / "skills" / "primr" / "SKILL.md"
 AGENT_GUIDE = REPO_ROOT / "AGENTS.md"
+README = REPO_ROOT / "README.md"
+AGENT_INTEGRATION = REPO_ROOT / "docs" / "AGENT_INTEGRATION.md"
 
 
 def test_claude_operator_skill_frontmatter_is_valid() -> None:
@@ -19,8 +21,38 @@ def test_claude_operator_skill_frontmatter_is_valid() -> None:
     metadata = yaml.safe_load(frontmatter)
 
     assert metadata["name"] == "primr"
-    assert "free" in metadata["description"]
+    assert "bare Primr company-and-URL request" in metadata["description"]
+    assert "Default to Primr Zero" in metadata["description"]
+    assert "explicitly requests paid" in metadata["description"]
     assert metadata["argument-hint"].startswith('"Company Name" https://')
+
+
+def test_bare_primr_agent_requests_default_to_zero_without_new_syntax() -> None:
+    for path in (CLAUDE_SKILL, AGENT_GUIDE):
+        content = path.read_text(encoding="utf-8")
+        normalized = " ".join(content.split())
+
+        assert "## Agent-host default" in content
+        assert 'primr "Company" https://company.example' in content
+        assert "Primr Zero by default" in normalized
+        assert "Do not make the user choose" in normalized
+        assert "Configured API keys are capability, not consent to spend" in normalized
+        assert "not a CLI compatibility change" in normalized
+        assert "primr start" not in content.lower()
+        assert content.index("## Agent-host default") < content.index("## The billable cost gate")
+
+
+def test_public_docs_explain_agent_default_and_direct_cli_boundary() -> None:
+    for path in (README, AGENT_INTEGRATION):
+        content = path.read_text(encoding="utf-8")
+        normalized = " ".join(content.split())
+
+        assert 'primr "Company" https://company.example' in content or (
+            'primr "ExampleCo" https://example.co' in content
+        )
+        assert "defaults to Primr Zero" in normalized
+        assert "provider-backed" in normalized
+        assert "directly in a terminal" in normalized
 
 
 def test_operator_guides_intercept_zero_cost_requests_before_billable_modes() -> None:
@@ -56,6 +88,10 @@ def test_inline_zero_cost_fallback_is_complete() -> None:
         "primr-zero/SKILL.md",
     ):
         assert artifact in content
+
+    normalized = " ".join(content.split())
+    assert "Without shell access" in content
+    assert "instead of writing from model memory" in normalized
 
 
 def test_claude_plugin_version_matches_package_and_bundles_zero_skill() -> None:

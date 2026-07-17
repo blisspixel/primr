@@ -13,7 +13,15 @@ It reads public website pages, DNS records, hiring signals, and external sources
 primr "ExampleCo" https://example.co
 ```
 
-Typical output is a 23-section Strategic Overview as Markdown, TXT, DOCX, and best-effort PDF when a local converter is available. The default run also creates an AI Strategy module unless you pass `--no-ai-strategy`.
+In an agent chat, that clean request defaults to Primr Zero: Primr performs
+keyless evidence collection and the current host performs research and
+reasoning. When a human runs the command directly in a terminal, it retains the
+provider-backed CLI behavior described below.
+
+Typical provider-backed output is a 23-section Strategic Overview as Markdown,
+TXT, DOCX, and best-effort PDF when a local converter is available. The default
+provider-backed run also creates an AI Strategy module unless you pass
+`--no-ai-strategy`.
 
 ## What Primr Is For
 
@@ -31,6 +39,28 @@ Primr is not a generic crawler, a SaaS collaboration app, a model-serving platfo
 
 Use normal web search for a quick two-paragraph pre-call brief. Use Primr when
 you want the full evidence pipeline and durable artifacts.
+
+## Agent-Host Quick Start
+
+Point a capable agent at this repository and ask it:
+
+```text
+primr "ExampleCo" https://example.co
+```
+
+The agent should use Primr Zero unless you explicitly request paid, metered,
+provider-backed, or premium execution. It runs `primr prep` internally when a
+shell is available, uses its existing research and reasoning surface to build
+the dossier, runs artifact QA when possible, and hands exact output paths to
+any downstream workflow you request. You do not need to know or select the
+internal `prep` command.
+
+If the host has no shell, Primr Zero falls back to host-native web research and
+discloses which Primr collection signals were unavailable. A configured API
+key is never treated as permission to spend. To choose the paid pipeline, say
+so explicitly, for example: "Run paid provider-backed Primr, show me the
+estimate first." The agent must still wait for approval after showing that
+estimate.
 
 ## Quick Start
 
@@ -55,14 +85,20 @@ Or install with pipx:
 
 ```bash
 pipx install primr
-primr init
-primr doctor
+primr --version
 ```
 
 Plain pip also works:
 
 ```bash
 pip install primr
+primr --version
+```
+
+Initialize provider keys and browser dependencies only when you want the
+provider-backed pipeline:
+
+```bash
 primr init
 primr doctor
 ```
@@ -71,8 +107,9 @@ On Windows, use the installer or pipx if `primr` is not found after `pip install
 
 ## Keyless Quick Start
 
-If you already have a research-capable agent plan but no model API key or GPU,
-prepare a bounded evidence bundle locally and let that host do the synthesis:
+If you are operating Primr manually rather than through an agent, prepare a
+bounded evidence bundle locally and let a research-capable host do the
+synthesis:
 
 ```bash
 primr prep "ExampleCo" https://example.co --dry-run
@@ -140,6 +177,7 @@ See [Run Modes and Costs](docs/RUN_MODES.md) for the full mode matrix, platform 
 
 | Need | Command |
 |------|---------|
+| Full host-assisted dossier from an agent chat | `primr "Company" https://company.com` |
 | Keyless evidence bundle for an existing agent plan | `primr prep "Company" https://company.com` |
 | Estimate the next run | `primr "Company" https://company.com --dry-run` |
 | Standard Strategic Overview plus AI Strategy | `primr "Company" https://company.com` |
@@ -151,9 +189,11 @@ See [Run Modes and Costs](docs/RUN_MODES.md) for the full mode matrix, platform 
 | Agent Skills pack for downstream hosts | `primr skills "Company" https://company.com` |
 | Client-facing deliverables in a chosen folder | `primr "Company" https://company.com --output-dir "C:\Clients\Company"` |
 
-For agent-host operation, the same lifecycle applies: estimate, show the cost
-and mode, get explicit approval, launch, monitor asynchronously, then read the
-output artifact before summarizing it. See [Agent Integration](docs/AGENT_INTEGRATION.md).
+For agent-host operation, a bare Primr request defaults to Primr Zero and does
+not need a spend-approval pause. An explicitly paid request follows the full
+lifecycle: estimate, show the cost and mode, get explicit approval, launch,
+monitor asynchronously, then read the output artifact before summarizing it.
+See [Agent Integration](docs/AGENT_INTEGRATION.md).
 
 ## Cost and Safety Contract
 
