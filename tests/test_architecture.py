@@ -64,7 +64,7 @@ FILE_LINE_CEILINGS: dict[str, int] = {
     "mcp_server/tools.py": 1519,
     "data/fallback_sources.py": 1084,
     "agentic/hooks.py": 1022,
-    "core/research_orchestrator.py": 1011,
+    "core/research_orchestrator.py": 1007,
     "data/scraping/orchestrator.py": 1064,
     "data/scraping/structured_content.py": 1067,
 }
@@ -144,7 +144,6 @@ EXPECTED_IMPORT_CYCLES = {
             "primr.core.cli_dryrun",
             "primr.core.cli_errors",
             "primr.core.cli_init",
-            "primr.core.cli_parser",
             "primr.core.cli_plan",
             "primr.core.cli_update",
             "primr.core.cli_vendor",
@@ -171,15 +170,16 @@ EXPECTED_IMPORT_CYCLES = {
             "primr.ai.routing",
             "primr.config.eval_profiles",
             "primr.core.deep_budget",
-            "primr.core.eval_calibration",
             "primr.core.model_eval",
+            "primr.pipeline.llm_failover",
+            "primr.utils.cost_estimator",
+        }
+    ),
+    frozenset(
+        {
             "primr.data.fallback_sources",
             "primr.data.first_party_pdf",
             "primr.data.first_party_structured_data",
-            "primr.pipeline.llm_failover",
-            "primr.qa.calibration_runner",
-            "primr.qa.label_calibration",
-            "primr.utils.cost_estimator",
         }
     ),
 }
