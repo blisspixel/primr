@@ -124,6 +124,26 @@ def enable_shell_completion(parser: argparse.ArgumentParser) -> None:
     argcomplete.autocomplete(parser)
 
 
+def add_inference_arguments(parser: argparse.ArgumentParser) -> None:
+    """Register capability-routing options and the host-billing safety gate."""
+
+    parser.add_argument(
+        "--inference",
+        choices=["cloud", "hybrid"],
+        default="cloud",
+        dest="inference_profile",
+        help="Inference profile for routed experimental stages",
+    )
+    parser.add_argument(
+        "--acknowledge-host-agent-may-bill",
+        action="store_true",
+        help=(
+            "Allow the unpromoted hybrid Codex pilot after acknowledging that its "
+            "session may use metered billing outside Primr's estimate (single runs only)"
+        ),
+    )
+
+
 def _discover_strategies() -> list[dict[str, str]]:
     """Discover available strategy types from YAML configs.
 

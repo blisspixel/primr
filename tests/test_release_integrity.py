@@ -385,9 +385,10 @@ def test_cli_epilog_uses_current_default_cost_band() -> None:
     assert "~$0.89-$1.01" in CLI_EPILOG
     assert "~$6" not in CLI_EPILOG
     assert "60-90 min" not in CLI_EPILOG
-    assert CLI_EPILOG.index("--dry-run") < CLI_EPILOG.index(
-        'primr "Acme Corp" https://acme.example\n'
-    )
+    commands = [line.partition("  #")[0].strip() for line in CLI_EPILOG.splitlines()]
+    dry_run = 'primr "Acme Corp" https://acme.example --dry-run'
+    launch = 'primr "Acme Corp" https://acme.example'
+    assert commands.index(dry_run) < commands.index(launch)
 
 
 def test_keys_set_help_mentions_all_common_llm_providers(

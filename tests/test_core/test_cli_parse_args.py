@@ -156,10 +156,25 @@ class TestInferenceProfile:
     def test_default_is_cloud(self):
         config = parse_args(["Acme", "https://acme.example"])
         assert config.inference_profile == "cloud"
+        assert config.acknowledge_host_agent_may_bill is False
 
     def test_hybrid_profile_parses(self):
         config = parse_args(["Acme", "https://acme.example", "--inference", "hybrid"])
         assert config.inference_profile == "hybrid"
+
+    def test_host_billing_acknowledgment_parses(self):
+        config = parse_args(
+            [
+                "Acme",
+                "https://acme.example",
+                "--inference",
+                "hybrid",
+                "--acknowledge-host-agent-may-bill",
+            ]
+        )
+
+        assert config.inference_profile == "hybrid"
+        assert config.acknowledge_host_agent_may_bill is True
 
 
 class TestSkipConfirm:

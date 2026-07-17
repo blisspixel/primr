@@ -57,6 +57,21 @@ class TestCostEstimateJson:
 
         assert d["budget_enforcement"] == budget
 
+    def test_includes_inference_metadata_when_supplied(self):
+        inference = {
+            "profile": "hybrid",
+            "host_agent": {"billing_mode": "potentially_metered"},
+        }
+
+        d = cost_estimate_json(
+            _estimate(),
+            mode_label="x",
+            ai_strategy=False,
+            inference=inference,
+        )
+
+        assert d["inference"] == inference
+
 
 class TestResearchResultJson:
     def test_failed_when_no_path(self):

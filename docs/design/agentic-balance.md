@@ -273,9 +273,10 @@ API key. Do not scrape browser sessions, reverse-engineer private endpoints, or
 proxy through unofficial tools just to avoid API pricing. If Codex or Claude Code
 exposes an official authenticated local or automation surface, that is necessary
 but not sufficient for a public runner. Primr must also establish the billing
-basis or require an explicit acknowledgment. Until then, the Codex transport is
-internal/eval-only and the path stays API key, gateway, local, or host-native
-`primr-zero`. Host OAuth tokens and session state never enter Primr.
+basis or require an explicit acknowledgment. The current Codex transport is an
+unpromoted, single-company experiment behind that acknowledgment, while
+`primr-zero` remains the supported plan-native path. Host OAuth tokens and
+session state never enter Primr.
 
 For agentic balance, a host-account runner is just another Level-2 decision
 point. The model may decide the content inside a stage; primr still decides which

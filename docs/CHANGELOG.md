@@ -22,6 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added an explicit, single-company experimental gate for the unpromoted Codex
+  `fast.source_relevance` route. `--inference hybrid` still uses cloud by
+  default; host execution additionally requires
+  `--acknowledge-host-agent-may-bill`, records potentially metered billing and
+  pending-eval status in route metadata, and rejects host eligibility without
+  a recorded acknowledgment. Hybrid retains the already-estimated cloud
+  baseline when no runner qualifies; a selected host failure keeps all sources
+  without a second cloud call. Dry-run text and JSON disclose that host charges
+  are unknown, excluded from the estimate, and outside `--budget`. Batch
+  fan-out is rejected.
 - Added a graph-backed architecture cohesion plan and deterministic fitness
   gates for first-party import cycles, empty source modules, and unexplained
   sub-40-line modules. Package re-export edges are part of the cycle baseline,
@@ -41,6 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Raised the MCP dependency floor and lock to 1.28.1, which contains the fix
+  for CVE-2026-59950; the locked dependency audit is clean again.
+- Root-help release integrity now compares parsed command examples, so added
+  explanatory help lines cannot be mistaken for executable launch commands.
 - Skill-pack executable-instruction admission now rejects leading environment
   assignments, dynamic shell command words, additional Windows executable
   types, persistence through login profiles, CPython and indirect interpreter

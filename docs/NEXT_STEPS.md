@@ -339,9 +339,13 @@ Do next:
   `_run_state.json`, and execute through existing provider seams with today's
   role defaults preserved as fallback. The public CLI remains
   `--inference cloud|hybrid`. `fast.source_relevance` also has an
-  internal/eval-only Codex CLI adapter; no utility stage exposes host execution
-  until the adapter has billing provenance or an explicit billing acknowledgment
-  and clears its eval gate. Runtime
+  Codex CLI adapter. Its first promotion-safety slice is shipped as an
+  unpromoted, single-company experimental route: it additionally requires
+  `--acknowledge-host-agent-may-bill`, records the route as potentially metered
+  with pending-eval status, excludes unknown host charges from Primr estimates
+  and budgets, and rejects batch fan-out. This opt-in is not promotion; cloud
+  remains the validated baseline until a representative labeled host-vs-cloud
+  comparison and human review clear the stage gate. Runtime
   route resolution now consumes sanitized env-only cloud provider availability
   snapshots by default, can accept injected quota snapshots, and records
   body-free availability metadata without adding live quota collection or local
@@ -391,10 +395,12 @@ Done when:
   now have a CLI-accessible scorecard layer, and website-summary local-stage
   evals can produce either structural completeness evidence or local semantic
   judge-panel evidence for same-command scorecards. Source-relevance fixture
-  evals can also produce F1 quality evidence for the internal host-agent pilot. These
-  remain report-only scorecard evidence, not promotion gates; calibrated samples
-  and human-reviewed acceptance criteria are still required before any
-  promotion.
+  evals can also produce F1 quality evidence for the experimental host-agent
+  pilot. These remain report-only scorecard evidence, not promotion gates;
+  calibrated samples and human-reviewed acceptance criteria are still required
+  before any promotion. The next concrete slice is to curate that standing
+  source-relevance corpus and run the controlled host-vs-cloud comparison after
+  explicit approval of potentially metered host use and direct cloud spend.
 - No hidden provider dependency remains in the full-report path for the wired
   stage.
 

@@ -144,12 +144,43 @@ class TestSuccessPath:
         monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda x: x)
         monkeypatch.setattr("primr.utils.validators.validate_url", lambda x: x)
         monkeypatch.delenv("PRIMR_INFERENCE_PROFILE", raising=False)
+        monkeypatch.delenv("PRIMR_ACKNOWLEDGE_HOST_AGENT_MAY_BILL", raising=False)
 
-        result = _handle_research(_config(premium_mode=True, inference_profile="hybrid"))
+        result = _handle_research(
+            _config(
+                premium_mode=True,
+                inference_profile="hybrid",
+                acknowledge_host_agent_may_bill=True,
+            )
+        )
 
         assert result == 0
         assert perform_research_ok.called
         assert __import__("os").environ["PRIMR_INFERENCE_PROFILE"] == "hybrid"
+        assert __import__("os").environ["PRIMR_ACKNOWLEDGE_HOST_AGENT_MAY_BILL"] == "1"
+
+    def test_non_acknowledged_run_clears_stale_host_billing_consent(
+        self, passing_preflight, perform_research_ok, monkeypatch
+    ):
+        monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda x: x)
+        monkeypatch.setattr("primr.utils.validators.validate_url", lambda x: x)
+        monkeypatch.setenv("PRIMR_ACKNOWLEDGE_HOST_AGENT_MAY_BILL", "1")
+
+        result = _handle_research(_config(premium_mode=True, inference_profile="cloud"))
+
+        assert result == 0
+        assert "PRIMR_ACKNOWLEDGE_HOST_AGENT_MAY_BILL" not in __import__("os").environ
+
+    def test_billing_acknowledgment_without_hybrid_is_rejected(
+        self, passing_preflight, perform_research_ok, monkeypatch
+    ):
+        monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda x: x)
+        monkeypatch.setattr("primr.utils.validators.validate_url", lambda x: x)
+
+        result = _handle_research(_config(premium_mode=True, acknowledge_host_agent_may_bill=True))
+
+        assert result == 1
+        perform_research_ok.assert_not_called()
 
 
 class TestContextFiles:

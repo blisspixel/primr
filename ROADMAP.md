@@ -117,10 +117,14 @@ Current priority order:
    `fast.scrape_summary`, `fast.source_relevance`, and
    `fast.hiring_signals` now consume the capability router behind the
    `--inference cloud|hybrid` flag while executing through existing provider
-   seams. `fast.source_relevance` also has an internal/eval-only Codex CLI
-   adapter. It is not exposed through the public CLI because Codex
+   seams. `fast.source_relevance` also has a bounded Codex CLI
+   adapter. The first promotion-safety slice now exposes it only as an
+   unpromoted, single-company experimental route when the operator supplies
+   `--inference hybrid --acknowledge-host-agent-may-bill`. Codex
    authentication does not prove whether execution uses plan allowance or
-   metered API-key billing. Runtime route resolution
+   metered API-key billing, so route and estimate metadata says
+   `potentially_metered`, excludes unknown host charges from the Primr estimate
+   and budget, and rejects batch fan-out. Runtime route resolution
    consumes sanitized env-only cloud provider availability snapshots by
    default, can accept injected quota snapshots, and records body-free
    availability metadata without collecting live quota data or probing local
@@ -132,15 +136,17 @@ Current priority order:
    scrape summary writes deterministic source excerpts, hiring signals use
    deterministic triage plus posting metadata, and both record
    `agent_profile_unavailable` route fallbacks instead of invoking cloud LLMs;
-   the next architecture unlock is
-   expanding host/local candidates only with stage-specific adapters and
-   stage-scoped eval data. Stage scorecard artifacts are now available through
+   the next architecture unlock is the representative source-relevance
+   host-vs-cloud comparison. The explicit host gate is not promotion and cloud
+   remains the validated baseline. Broader host/local candidates still require
+   stage-specific adapters and stage-scoped eval data. Stage scorecard artifacts are now available through
    the eval CLI and compact MCP readback at
    `primr://eval/stage_scorecard/{eval_id}` without exposing prompt, report,
    quality-source, or raw run-state content. Website-summary local-stage evals
    now write scorecard-ready structured quality evidence as report-only input,
    and source-relevance labeled fixtures now write body-free precision, recall,
-   F1, and exact-match evidence for review-only host/cloud scorecards.
+   F1, and exact-match evidence for review-only host/cloud scorecards. No
+   representative standing source-relevance corpus has cleared that gate yet.
 3. **Agent control-plane consumption resources and A2A parity.** MCP already has
    scopes, approval tokens, tool/resource-read audit events, and budget
    propagation. A2A now shares the HTTP bearer-token auth context and enforces
@@ -276,7 +282,7 @@ into generic agent middleware.
 - Five providers wired: xAI (Grok), Google (Gemini), OpenAI, Anthropic, Ollama (local)
 - Provider abstraction at `src/primr/ai/providers/` - `Provider` ABC, `OpenAICompatibleProvider` (xAI/OpenAI/Ollama/vLLM), `GeminiProvider`, `AnthropicProvider`
 - `pick_model_for_role` chooses the best model from configured providers; `primr doctor` shows what each key unlocks
-- Pure capability router foundation shipped in `src/primr/ai/capability_routing.py`: `StageRequirements`, backend capability rows, cloud/agent/hybrid/local profiles, billing-mode guards, ordered route plans, explicit rejection reasons, and pure availability-to-backend annotation. Runtime consumption is now wired for `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` behind `--inference cloud|hybrid`, with an internal/eval-only Codex CLI adapter for `fast.source_relevance` and capped body-free route usage records persisted to `_run_state.json`. Codex route metadata does not prove whether authentication is plan-backed or API-key billed.
+- Pure capability router foundation shipped in `src/primr/ai/capability_routing.py`: `StageRequirements`, backend capability rows, cloud/agent/hybrid/local profiles, billing-mode guards, ordered route plans, explicit rejection reasons, and pure availability-to-backend annotation. Runtime consumption is now wired for `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` behind `--inference cloud|hybrid`, with an explicitly acknowledged, single-company Codex experiment for `fast.source_relevance` and capped body-free route usage records persisted to `_run_state.json`. Codex route metadata reports potentially metered billing and pending-eval status; it does not prove whether authentication is plan-backed or API-key billed.
 - Provider availability foundation shipped across `src/primr/ai/provider_availability.py` and `src/primr/ai/provider_availability_collectors.py`: normalized quota windows, binding headroom, elapsed-reset handling, stale last-known-good snapshots, deterministic provider ranking, non-secret cloud provider configuration snapshots, generic local OpenAI-compatible availability probes, sanitized routing metadata, and `primr doctor` visibility. Official live cloud quota/status collectors and production execution wiring remain planned.
 - Provider-aware fallback chain: WRITING/UTILITY prefer GEMINI > OPENAI > ANTHROPIC > XAI; REASONING prefers XAI (cached) > GEMINI > OPENAI > ANTHROPIC
 - Cross-provider dispatch in `grok_llm` and `llm()` so writing-tier calls reach the right provider when the resolved model is non-Grok
@@ -340,7 +346,7 @@ into generic agent middleware.
 - Product over middleware - integrations should act as a disciplined control plane for Primr's long-running research jobs, not turn Primr into a generic orchestration framework.
 - Artifact-first delivery - the main unit of value is a report, strategy, or evaluation artifact, not a stream of chat-sized tool responses.
 - The pipeline is the product - Primr's value is the 9-tier scraping engine, the org-aware link selection, the research deepening, the cross-validation, the deterministic QA gate, the eval harness, the crash recovery, and the cost estimation. None of these are model calls. The model is a commodity; the orchestration pipeline is the moat.
-- Credentials are transport, not product identity. API keys, official agent-account auth, enterprise gateways, and local models are all ways to run the same pipeline. Do not bake a provider, billing model, or subscription workaround into the core loop. The default routing goal is the lowest incremental spend that clears the measured quality bar: local or gateway capacity when configured and explicitly approved, then any official host runner whose billing basis is proven or explicitly acknowledged, then the best validated sub-dollar direct API recipe, with premium paths opt-in and justified by measured lift. Direct APIs remain the reproducible baseline and fallback. An official automation seam alone does not prove plan-backed billing, so the Codex in-pipeline adapter remains internal/eval-only. `primr-zero` is the supported plan-native path, with host OAuth and session state kept inside the host. Local and gateway profiles are validated recipes, not second-class forks. As local AI hardware improves, the same eval gate should let $0 API local stages graduate from utility support to hybrid default, and eventually to full-run default where they honestly match the quality bar.
+- Credentials are transport, not product identity. API keys, official agent-account auth, enterprise gateways, and local models are all ways to run the same pipeline. Do not bake a provider, billing model, or subscription workaround into the core loop. The default routing goal is the lowest incremental spend that clears the measured quality bar: local or gateway capacity when configured and explicitly approved, then any official host runner whose billing basis is proven or explicitly acknowledged, then the best validated sub-dollar direct API recipe, with premium paths opt-in and justified by measured lift. Direct APIs remain the reproducible baseline and fallback. An official automation seam alone does not prove plan-backed billing, so the Codex in-pipeline adapter is an explicitly gated experiment with its quality eval still pending. `primr-zero` is the supported plan-native path, with host OAuth and session state kept inside the host. Local and gateway profiles are validated recipes, not second-class forks. As local AI hardware improves, the same eval gate should let $0 API local stages graduate from utility support to hybrid default, and eventually to full-run default where they honestly match the quality bar.
 - Evidence before language - Primr is Python-first because its product layer is
   I/O-heavy and benefits from Python's research, data, document, and AI
   ecosystems, not because the project imposes language purity. Improve the
@@ -1014,7 +1020,7 @@ Reduce manual work when new model variants drop by automating the eval-and-compa
 
 ### 18. Capability-Requirement Routing Layer
 
-Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The first stage-requirements slice is in place as a pure router, and `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` now consume it at runtime behind `--inference cloud|hybrid` with route usage metadata persisted in the run state. The Codex adapter remains internal/eval-only until its billing basis can be proven or explicitly acknowledged; the remaining work is broader production wiring, provider-health integration, billing-verifiable host/local adapters, and per-stage eval-backed tuning.
+Provider abstraction and role-based routing shipped in v1.22.0/v1.23.0. The first stage-requirements slice is in place as a pure router, and `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` now consume it at runtime behind `--inference cloud|hybrid` with route usage metadata persisted in the run state. The Codex adapter is available only as an explicitly acknowledged, single-company experiment with potentially metered billing and pending-eval metadata; the remaining work is its representative host-vs-cloud comparison, broader production wiring, provider-health integration, billing-verifiable host/local adapters, and per-stage eval-backed tuning.
 
 - **Shipped foundation:** `StageRequirements`, `BackendCapabilities`, `RoutingPolicy`, and `route_stage()` return ordered cloud/gateway/host-agent/local candidates with explicit rejection reasons and no live provider calls
 - **Shipped availability foundation:** `ProviderQuotaSnapshot`, `QuotaWindow`, `availability_decision()`, and `provider_with_most_headroom()` normalize provider quota windows and stale last-known-good service availability without live provider calls

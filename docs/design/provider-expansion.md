@@ -1,7 +1,7 @@
 # Provider Expansion: OpenAI, Anthropic, Billing-Verifiable Hosts, Gateways, and Local
 
-Status: STARTED (provider pricing refreshed June 29, 2026; internal/eval-only
-Codex transport and host-native plan handoff shipped)
+Status: STARTED (provider pricing refreshed June 29, 2026; explicitly gated
+Codex experiment and host-native plan handoff shipped)
 ROADMAP anchor: Active Queue #26. Companion to
 [`2.0-backend-freedom.md`](2.0-backend-freedom.md) (routing architecture);
 this doc is the concrete provider catalog and delivery plan that routing
@@ -84,11 +84,11 @@ will route over.
   `ai/host_agent_runner.py`: bounded `HostAgentStagePacket`, billing policy,
   normalized result/provenance, and a prompt renderer that fences evidence with
   the existing content-sanitizer. The first concrete official-host process
-  runner uses `codex exec` for an internal/eval-only
-  `fast.source_relevance` pilot. The public CLI remains
-  `--inference cloud|hybrid` because Codex authentication does not prove whether
-  execution is plan-backed or API-key billed. Other stages still use their
-  declared backends.
+  runner uses `codex exec` for an unpromoted `fast.source_relevance` pilot. The
+  public CLI remains `--inference cloud|hybrid`; Codex becomes eligible only
+  for an explicitly acknowledged, single-company hybrid experiment because
+  authentication does not prove whether execution is plan-backed or API-key
+  billed. Other stages still use their declared backends.
   Separately, `primr prep` plus `primr-zero` provides a host-native evidence
   handoff without passing subscription credentials into Primr. Neither path
   treats subscription credentials as interchangeable with API keys.
@@ -280,11 +280,12 @@ the operator must explicitly acknowledge that metered API billing may apply.
    packet (`role`, prompt, evidence bundle, output schema, budget/plan policy)
    and returns structured text plus runner metadata. It is covered with fake
    runner tests.
-2. **First official-host transport - INTERNAL/EVAL-ONLY:** the Codex CLI adapter
+2. **First official-host transport - EXPERIMENTAL, EVAL PENDING:** the Codex CLI adapter
    handles `fast.source_relevance` through documented `codex exec` automation.
    It fails closed against silent API fallback when the eval harness selects the
-   internal agent profile. It is not exposed by the CLI because Primr cannot
-   prove whether Codex auth is plan-backed or API-key billed. Additional hosts
+   internal agent profile. A single-company hybrid command can now opt in only
+   with `--acknowledge-host-agent-may-bill`; Primr records potentially metered
+   billing and pending-eval status and rejects batch fan-out. Additional hosts
    and stages remain eval-gated.
 3. **Host-native handoff - SHIPPED:** `primr prep` emits a bounded evidence
    packet under a hard no-model-call policy, and `primr-zero` lets the

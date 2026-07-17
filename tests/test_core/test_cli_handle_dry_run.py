@@ -41,6 +41,59 @@ def mocks(monkeypatch):
 
 
 class TestDryRunFlags:
+    def test_host_billing_acknowledgment_requires_hybrid(self, capsys):
+        result = run_dry_run(
+            _config(
+                mode="scrape",
+                inference_profile="cloud",
+                acknowledge_host_agent_may_bill=True,
+            )
+        )
+
+        assert result == 1
+        assert "requires --inference hybrid" in capsys.readouterr().out
+
+    def test_human_estimate_discloses_uncapped_host_cost(self, capsys):
+        result = run_dry_run(
+            _config(
+                mode="scrape",
+                inference_profile="hybrid",
+                acknowledge_host_agent_may_bill=True,
+            )
+        )
+
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "Experimental host-agent usage is acknowledged" in out
+        assert "has not cleared its promotion eval" in out
+        assert "excluded from Estimated Total and --budget" in out
+
+    def test_json_estimate_discloses_uncapped_host_cost(self, capsys):
+        import json
+
+        result = run_dry_run(
+            _config(
+                mode="scrape",
+                json_output=True,
+                inference_profile="hybrid",
+                acknowledge_host_agent_may_bill=True,
+            )
+        )
+
+        assert result == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["inference"]["host_agent"] == {
+            "enabled": True,
+            "runner": "codex_cli",
+            "billing_mode": "potentially_metered",
+            "billing_acknowledged": True,
+            "promotion_status": "experimental_eval_pending",
+            "eligible_stages": ["fast.source_relevance"],
+            "cost_included_in_estimate": False,
+            "covered_by_budget": False,
+        }
+        assert any("excluded from Estimated Total" in note for note in payload["notes"])
+
     def test_fast_and_premium_together_fails(self, mocks):
         result = run_dry_run(_config(fast_mode=True, premium_mode=True))
         assert result == 1

@@ -45,6 +45,19 @@ def _full_mode_label(grok_tier: str) -> str:
 
 def run_dry_run(config: CLIConfig) -> int:
     """Show the cost estimate for a run without executing it."""
+    from primr.core.cli_inference import (
+        inference_estimate_metadata,
+        validate_inference_options,
+    )
+
+    inference_error = validate_inference_options(
+        config.inference_profile,
+        config.acknowledge_host_agent_may_bill,
+    )
+    if inference_error:
+        console.error(inference_error)
+        return 1
+
     # Resolve mode: same logic as _handle_research.
     if config.premium_mode and config.fast_mode:
         console.error("Cannot use both --fast and --premium. Choose one.")
@@ -100,6 +113,7 @@ def run_dry_run(config: CLIConfig) -> int:
                 mode_label=mode_label,
                 ai_strategy=config.ai_strategy,
                 budget_enforcement=budget_enforcement,
+                inference=inference_estimate_metadata(config),
             )
         )
         return 0

@@ -122,6 +122,15 @@ For the `fast.source_relevance` host-agent pilot, use `--eval-source-relevance-f
 
 The generated `source_relevance_stage_quality_evidence.json` feeds the same review-only stage scorecard as other route evidence. It does not promote host execution by itself; promotion still requires representative samples, route observations, and human-reviewed acceptance criteria.
 
+The single-company runtime opt-in, `--inference hybrid
+--acknowledge-host-agent-may-bill`, exists only to collect controlled route
+observations for this unpromoted pilot. It does not satisfy the quality gate.
+Run the exact research command with `--dry-run` first: Primr labels the route
+`potentially_metered`, and any Codex host charge remains outside the estimate
+and `--budget`. Do not use the opt-in for batch research. A promotion decision
+still requires a representative labeled host-vs-cloud fixture, the resulting
+scorecard, and documented human review.
+
 For protected-site access classification, use `--eval-page-access-fixture` to
 score labeled sanitized HTML cases or trace-derived `access_assessment`
 predictions. The generated `page_access_stage_eval.json`,

@@ -21,11 +21,13 @@ Run `primr init` for guided first-run setup. Set keys directly with `primr keys 
 Primr does not define or store agent-host credential variables. Authenticate
 inside the official host, and keep its OAuth tokens and session state there.
 `primr-zero` keeps the host-assisted workflow inside the selected host. Primr
-also has an internal/eval-only Codex adapter, but it is not a supported
-configuration surface because installed Codex authentication does not prove
-whether execution uses plan allowance or metered API-key billing. Never copy a
-Claude Code OAuth token, browser cookie, or other subscription credential into
-Primr. Direct provider calls still use the provider API keys listed above.
+also has an unpromoted Codex source-relevance adapter. A single-company
+experimental run can enable it only with `--inference hybrid` and
+`--acknowledge-host-agent-may-bill`, because installed Codex authentication
+does not prove whether execution uses plan allowance or metered API-key
+billing. Never copy a Claude Code OAuth token, browser cookie, or other
+subscription credential into Primr. Direct provider calls still use the
+provider API keys listed above.
 
 ### Optional Search Keys
 

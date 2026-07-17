@@ -26,6 +26,7 @@ from primr.ai.provider_availability_collectors import (
     collect_provider_availability_snapshots,
 )
 from primr.ai.routing import Role, pick_model_for_legacy_type
+from primr.config.inference import INFERENCE_PROFILE_ENV, host_agent_may_bill_acknowledged
 from primr.config.model_registry import ModelConfig
 from primr.config.models import PrimrModels
 from primr.core.stage_inventory import get_production_stage
@@ -35,7 +36,6 @@ if TYPE_CHECKING:
     from primr.ai.provider_availability import ProviderQuotaSnapshot
 
 logger = get_logger(__name__)
-INFERENCE_PROFILE_ENV = "PRIMR_INFERENCE_PROFILE"
 DEFAULT_INFERENCE_PROFILE = InferenceProfile.CLOUD
 StageUsageByModel = dict[str, dict[str, int]]
 
@@ -59,6 +59,8 @@ class StageModelRoute:
     availability: dict[str, Any] | None = None
     execution_mode: str = "llm"
     host_agent_kind: str | None = None
+    billing_acknowledged: bool = False
+    promotion_status: str | None = None
 
     def log_metadata(self) -> dict[str, Any]:
         """Return safe structured-log metadata for this route."""
@@ -77,6 +79,10 @@ class StageModelRoute:
         }
         if self.host_agent_kind:
             data["host_agent_kind"] = self.host_agent_kind
+        if self.billing_acknowledged:
+            data["billing_acknowledged"] = True
+        if self.promotion_status:
+            data["promotion_status"] = self.promotion_status
         if self.estimated_cost_usd is not None:
             data["estimated_cost_usd"] = round(self.estimated_cost_usd, 6)
         if self.rejections:
@@ -154,8 +160,12 @@ def resolve_stage_model(
     plan = route_stage(
         stage.to_requirements(),
         candidate_backends,
-        RoutingPolicy(profile=selected_profile),
+        RoutingPolicy(
+            profile=selected_profile,
+            allow_potentially_metered_handoff=host_agent_may_bill_acknowledged(),
+        ),
     )
+    rejection_reasons = tuple(reason for item in plan.rejections for reason in item.reasons)
     if plan.primary is not None:
         return _route_from_candidate(
             stage,
@@ -163,9 +173,9 @@ def resolve_stage_model(
             plan.primary.backend,
             plan.primary.estimated_cost_usd,
             plan.primary.reasons,
+            rejection_reasons if selected_profile is InferenceProfile.HYBRID else (),
         )
 
-    rejection_reasons = tuple(reason for item in plan.rejections for reason in item.reasons)
     if selected_profile is InferenceProfile.AGENT:
         return StageModelRoute(
             stage_id=stage.stage_id,
@@ -263,6 +273,7 @@ def _route_from_candidate(
     backend: BackendCapabilities,
     estimated_cost_usd: float | None,
     reasons: tuple[str, ...],
+    rejections: tuple[str, ...],
 ) -> StageModelRoute:
     backend_kind = BackendKind(backend.kind)
     execution_mode = "host_agent" if backend_kind is BackendKind.HOST_AGENT else "llm"
@@ -279,10 +290,12 @@ def _route_from_candidate(
         expected_output_tokens=stage.expected_output_tokens,
         routed=True,
         reasons=reasons,
-        rejections=(),
+        rejections=rejections,
         availability=_availability_metadata(backend),
         execution_mode=execution_mode,
         host_agent_kind=host_agent_kind,
+        billing_acknowledged=backend.metadata.get("billing_acknowledged") is True,
+        promotion_status=_optional_backend_metadata_text(backend, "promotion_status"),
     )
 
 
@@ -290,6 +303,16 @@ def _host_agent_kind(backend: BackendCapabilities) -> str | None:
     runner = backend.metadata.get("runner")
     if isinstance(runner, str) and runner.strip():
         return runner.strip()
+    return None
+
+
+def _optional_backend_metadata_text(
+    backend: BackendCapabilities,
+    key: str,
+) -> str | None:
+    value = backend.metadata.get(key)
+    if isinstance(value, str) and value.strip():
+        return value.strip()
     return None
 
 

@@ -103,7 +103,7 @@ no API billing or overages. Subscription terms, plan limits, electricity, and
 network access still apply. See
 [Zero-Cost and Host-Assisted Research](docs/ZERO_COST.md) for install paths,
 capability fallbacks, and the difference between this host-native path and the
-internal/eval-only in-pipeline Codex runner.
+explicitly gated, unpromoted in-pipeline Codex pilot.
 
 ## Provider-Backed First Run
 
@@ -166,6 +166,10 @@ Primr treats spend and egress as explicit control surfaces:
   optional strategy documents after the required Deep Research task completes.
 - Required Deep Research tasks cannot be stopped mid-flight once started, and
   scrape mode remains estimate-gated only.
+- The unpromoted Codex source-relevance pilot requires `--inference hybrid`
+  plus `--acknowledge-host-agent-may-bill`, is limited to single-company runs,
+  and may incur host charges that are excluded from `--dry-run` totals and
+  `--budget`.
 - Remote Cowork icon generation, vendor-research refresh, and Gemini PDF
   extraction are opt-in controls rather than key-presence side effects.
 - Outbound URLs and redirects are guarded against internal-network and

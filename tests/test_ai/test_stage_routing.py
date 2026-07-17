@@ -183,6 +183,77 @@ def test_hybrid_scrape_summary_preserves_cloud_until_host_stage_is_wired(monkeyp
     assert route.execution_mode == "llm"
 
 
+def test_hybrid_source_relevance_requires_acknowledgment_for_metered_host(monkeypatch) -> None:
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+    monkeypatch.delenv("PRIMR_ACKNOWLEDGE_HOST_AGENT_MAY_BILL", raising=False)
+    monkeypatch.setattr(
+        "primr.ai.stage_routing._supported_host_agent_backends",
+        lambda stage_id: (
+            (
+                codex_cli_backend(
+                    available=True,
+                    billing_mode=BillingMode.POTENTIALLY_METERED,
+                ),
+            )
+            if stage_id == "fast.source_relevance"
+            else ()
+        ),
+    )
+
+    route = resolve_stage_model(
+        "fast.source_relevance",
+        legacy_model_type="fast",
+        profile="hybrid",
+        availability_snapshots=(),
+    )
+
+    assert route.model_name == PrimrModels.FLASH_MODEL
+    assert route.backend_kind == "cloud_api"
+    assert route.execution_mode == "llm"
+    assert route.billing_acknowledged is False
+    assert "potentially_metered_handoff_not_acknowledged" in route.rejections
+    assert (
+        "potentially_metered_handoff_not_acknowledged"
+        in route.log_metadata()["fallback_rejections"]
+    )
+
+
+def test_hybrid_source_relevance_routes_to_acknowledged_metered_host(monkeypatch) -> None:
+    _clear_provider_env(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+    monkeypatch.setenv("PRIMR_ACKNOWLEDGE_HOST_AGENT_MAY_BILL", "1")
+    monkeypatch.setattr(
+        "primr.ai.stage_routing._supported_host_agent_backends",
+        lambda stage_id: (
+            (
+                codex_cli_backend(
+                    available=True,
+                    billing_mode=BillingMode.POTENTIALLY_METERED,
+                ),
+            )
+            if stage_id == "fast.source_relevance"
+            else ()
+        ),
+    )
+
+    route = resolve_stage_model(
+        "fast.source_relevance",
+        legacy_model_type="fast",
+        profile="hybrid",
+        availability_snapshots=(),
+    )
+
+    assert route.model_name == "codex-cli"
+    assert route.backend_kind == "host_agent"
+    assert route.billing_mode == "potentially_metered"
+    assert route.estimated_cost_usd is None
+    assert route.execution_mode == "host_agent"
+    assert route.billing_acknowledged is True
+    assert route.log_metadata()["billing_acknowledged"] is True
+    assert route.log_metadata()["promotion_status"] == "experimental_eval_pending"
+
+
 def test_agent_profile_for_unwired_stage_does_not_fall_back_to_cloud(monkeypatch) -> None:
     _clear_provider_env(monkeypatch)
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
