@@ -22,7 +22,7 @@ from __future__ import annotations
 import pytest
 
 from primr.skill_pack.config import MAX_ROLES, SkillPackConfig
-from primr.skill_pack.planner import (
+from primr.skill_pack.curation import (
     _drop_excess_to_cap,
     _materialize_added_role,
     _normalize_curation_key,
