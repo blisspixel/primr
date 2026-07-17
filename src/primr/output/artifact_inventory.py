@@ -16,7 +16,7 @@ _DIAGNOSTIC_ARTIFACT_TYPES = frozenset(
     {"calibration_sidecar", "qa_summary", "verification_summary"}
 )
 _PRIMARY_REPORT_MARKERS = ("strategic_overview", "company_overview")
-_NON_STRATEGY_NAMED_MODULE_MARKERS = ("ai_first_transformation", "skills_ideation")
+_ADDITIONAL_STRATEGY_MODULE_MARKERS = ("ai_first_transformation", "skills_ideation")
 
 
 def classify_artifact(path: Path) -> str:
@@ -57,7 +57,7 @@ def infer_artifact_role(path: Path, artifact_type: str | None = None) -> str:
             return "primary_report"
         padded_stem = f"_{stem}_"
         if "_strategy_" in padded_stem or any(
-            marker in stem for marker in _NON_STRATEGY_NAMED_MODULE_MARKERS
+            marker in stem for marker in _ADDITIONAL_STRATEGY_MODULE_MARKERS
         ):
             return "strategy_module"
         if "skills_pack" in stem:
