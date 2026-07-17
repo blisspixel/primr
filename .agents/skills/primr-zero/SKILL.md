@@ -1,6 +1,6 @@
 ---
 name: primr-zero
-description: Build a substantial, sourced Primr-style company dossier with zero Primr model API spend by combining keyless evidence collection with an official agent host. Use when the user has no API keys or GPU, wants to use an included Codex, Claude, Copilot, Gemini, Cowork, or other plan allowance, asks for a free or hard-zero Primr path, or supplies a Primr prep evidence bundle. Verify that the host is plan-backed and will not bill API usage or overages before promising zero total incremental spend.
+description: Build a substantial, sourced Primr-style company dossier with zero Primr model API spend by combining keyless evidence collection with an official agent host. Use when an agent host receives a bare Primr company-and-URL request without explicit paid intent, the user has no API keys or GPU, wants to use an included Codex, Claude, Copilot, Gemini, Cowork, or other plan allowance, asks for a free or hard-zero Primr path, or supplies a Primr prep evidence bundle. Verify that the host is plan-backed and will not bill API usage or overages before promising zero total incremental spend.
 ---
 
 # Primr Zero
@@ -11,11 +11,28 @@ hard-zero path only when the host is using included plan allowance without
 billable API-key usage or overages. Host plan limits, network access,
 electricity, and subscription cost still apply.
 
-Before synthesis, verify the billing surface using information the host makes
-available. If it is API-key-backed, permits paid overages, or cannot establish
-that this run stays within included allowance, do not promise zero total spend.
-Offer the user a plan-native host session, a checkpointed partial result, or a
-separately estimated and approved paid route.
+## Agent-host default
+
+When the current agent receives `primr "Company" https://company.example`,
+"run Primr," or "build a full Primr dossier" without explicit paid intent,
+use this skill by default. Keep that clean request as the public interface and
+run `primr prep` only as internal plumbing. Do not ask the user to choose a
+Primr mode, and do not infer spend consent from configured provider keys.
+
+Treat paid, metered, provider-backed, premium, explicit dollar-budget, or
+provider-key requests as paid intent and hand them to the estimate-and-approval
+workflow. This routing applies to requests addressed to an agent. It does not
+change the provider-backed behavior of a command that a human runs directly in
+a terminal.
+
+Before promising zero total incremental spend, verify the billing surface
+using information the host makes available. If it is API-key-backed, permits
+paid overages, or cannot establish that this run stays within included
+allowance, describe Primr model API spend as `$0.00` and the host cost as
+unknown or potentially metered. Do not silently switch paths. If the user
+specifically requires zero total incremental spend, offer a verified
+plan-native host session, a checkpointed partial result, or a separately
+estimated and approved paid route.
 
 ## Choose the path
 
@@ -40,6 +57,11 @@ primr --version
 primr prep "Company Name" https://company.example --dry-run
 primr prep "Company Name" https://company.example
 ```
+
+In a Primr source checkout where `primr` is not on `PATH`, first try
+`uv run --no-sync primr --version`. If it succeeds, use
+`uv run --no-sync primr` as the launcher for the prep commands. Do not install
+or synchronize dependencies without user approval.
 
 The dry run must report `$0.00`, zero model calls, and no host-plan use during
 collection. `primr prep` collects first-party pages, DNS signals, public hiring
