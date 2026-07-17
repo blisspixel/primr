@@ -22,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Artifact inventory schema 1.1 adds a content-free `artifact_role` to the
+  existing local and MCP metadata seam. Agents can select the primary overview,
+  relevant strategy modules, other reports, diagnostics, and run metadata for
+  downstream document workflows without reading bodies or assuming a specific
+  audience, brand, renderer, or output format. The zero-spend host workflow now
+  carries the same explicit-path handoff contract.
 - Added an explicit, single-company experimental gate for the unpromoted Codex
   `fast.source_relevance` route. `--inference hybrid` still uses cloud by
   default; host execution additionally requires

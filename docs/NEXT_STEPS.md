@@ -419,7 +419,8 @@ Do next:
 - Continue A2A parity now that the seven compact MCP job-scoped resource
   slices shipped:
   `primr://output/artifacts/by_job/{job_id}` returns ownership-gated file names,
-  paths, sizes, hashes, timestamps, and missing-file state for one job, and
+  paths, physical classifications, semantic roles, sizes, hashes, timestamps,
+  and missing-file state for one job, and
   `primr://output/qa_summary/by_job/{job_id}` returns compact QA score/status
   and count metadata, and
   `primr://output/usage_summary/by_job/{job_id}` returns compact cost, timing,

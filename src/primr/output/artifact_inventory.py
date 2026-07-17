@@ -11,6 +11,12 @@ from pathlib import Path
 
 _DELIVERABLE_SUFFIXES = frozenset({".md", ".txt", ".docx", ".pdf"})
 _NON_ARTIFACT_NAMES = frozenset({"readme.md", "changelog.md", "license.md", "license.txt"})
+_REPORT_ARTIFACT_TYPES = frozenset({"report_markdown", "report_text", "report_docx", "report_pdf"})
+_DIAGNOSTIC_ARTIFACT_TYPES = frozenset(
+    {"calibration_sidecar", "qa_summary", "verification_summary"}
+)
+_PRIMARY_REPORT_MARKERS = ("strategic_overview", "company_overview")
+_ADDITIONAL_STRATEGY_MODULE_MARKERS = ("ai_first_transformation", "skills_ideation")
 
 
 def classify_artifact(path: Path) -> str:
@@ -42,6 +48,28 @@ def classify_artifact(path: Path) -> str:
     }.get(suffix, "artifact")
 
 
+def infer_artifact_role(path: Path, artifact_type: str | None = None) -> str:
+    """Infer a content-free downstream role from a filename and artifact type."""
+    resolved_type = artifact_type or classify_artifact(path)
+    stem = path.stem.lower()
+    if resolved_type in _REPORT_ARTIFACT_TYPES:
+        if any(marker in stem for marker in _PRIMARY_REPORT_MARKERS):
+            return "primary_report"
+        padded_stem = f"_{stem}_"
+        if "_strategy_" in padded_stem or any(
+            marker in stem for marker in _ADDITIONAL_STRATEGY_MODULE_MARKERS
+        ):
+            return "strategy_module"
+        if "skills_pack" in stem:
+            return "skill_pack"
+        return "report"
+    if resolved_type in _DIAGNOSTIC_ARTIFACT_TYPES:
+        return "diagnostic"
+    if resolved_type in {"run_manifest", "run_state", "scrape_trace"}:
+        return "run_metadata"
+    return "supporting_artifact"
+
+
 def _hash_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -61,6 +89,11 @@ class ArtifactRecord:
     modified_at: str | None
     content_hash: str | None
     source: str
+
+    @property
+    def artifact_role(self) -> str:
+        """Return the semantic role used by downstream artifact consumers."""
+        return infer_artifact_role(self.path, self.artifact_type)
 
     @classmethod
     def inspect(cls, path: Path, *, source: str, include_hash: bool = False) -> ArtifactRecord:
@@ -82,6 +115,7 @@ class ArtifactRecord:
     def as_dict(self, *, index: int | None = None) -> dict[str, object]:
         data: dict[str, object] = {
             "artifact_type": self.artifact_type,
+            "artifact_role": self.artifact_role,
             "file_name": self.path.name,
             "file_path": str(self.path),
             "exists": self.exists,

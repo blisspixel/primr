@@ -109,6 +109,19 @@ host-native research and explicitly records which Primr collection advantages
 were unavailable. If it has neither web research nor supplied sources, it must
 stop rather than produce a current dossier from model memory.
 
+## Hand the dossier to another workflow
+
+After the host writes and reviews the Markdown dossier, it can pass the result
+to any requested document skill or agent workflow. Use
+`primr --list-recent --json` when several outputs exist, select the Markdown
+`primary_report`, and add only relevant `strategy_module` paths plus explicit
+user-provided notes. Pass exact paths, preserve citations and uncertainty, and
+let the downstream consumer own its schema, audience, output destination,
+rendering formats, approval gates, and final QA.
+
+This handoff is deliberately neutral. Primr does not assume a sales process,
+brand, cloud vendor, or HTML, PDF, slide, or spreadsheet renderer.
+
 See [Per-client install snippets](https://github.com/blisspixel/primr/tree/main/clients)
 for MCP and guidance placement outside the zero-cost path.
 
