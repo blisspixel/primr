@@ -7,7 +7,6 @@ staleness) safety policy.
 
 from __future__ import annotations
 
-import time
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -69,10 +68,11 @@ class TestResourceAgeSeconds:
         assert 590 < age < 610
 
     def test_falls_back_to_display_name_timestamp(self):
-        ts = int(time.time()) - 200
-        age = _resource_age_seconds(SimpleNamespace(display_name=f"primr-vendor_research_{ts}"))
-        assert age is not None
-        assert 199 < age < 201
+        now = 1_800_000_000.25
+        ts = int(now) - 200
+        with patch("primr.ai.file_search_resources.time.time", return_value=now):
+            age = _resource_age_seconds(SimpleNamespace(display_name=f"primr-vendor_research_{ts}"))
+        assert age == 200.25
 
     def test_returns_none_when_no_signal(self):
         assert _resource_age_seconds(SimpleNamespace()) is None
@@ -205,7 +205,7 @@ class TestCleanupOrphanedResources:
         client.file_search_stores.delete.assert_not_called()
 
     def test_env_var_override_for_stale_age(self, monkeypatch):
-        # Set the env var to a tighter window — 5s — so a 10s old resource qualifies.
+        # Set the environment to a 5s window so a 10s old resource qualifies.
         monkeypatch.setenv("PRIMR_CLEANUP_STALE_AGE_SECONDS", "5")
         self._setup(
             monkeypatch,

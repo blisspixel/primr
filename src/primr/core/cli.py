@@ -368,7 +368,7 @@ class CLIConfig:
 
     @property
     def cloud_vendors(self) -> tuple[str, ...]:
-        """Backward-compatible alias. Returns platforms or default Microsoft/private."""
+        """Backward-compatible alias. Returns platforms or the agnostic default."""
         if self.platforms is not None:
             return self.platforms
 
@@ -1006,7 +1006,7 @@ def _create_parser() -> argparse.ArgumentParser:
         choices=["fast", "hybrid", "max"],
         default="hybrid",
         dest="grok_tier",
-        help="Grok model tier: fast (4.3 low-effort + 4.20-nr, ~$4.36 base), hybrid (4.3 + 4.20-nr, default), max (4.3 everywhere, ~$3.75)",
+        help="Grok tier: fast, hybrid (default), or max; use --dry-run for price",
     )
     add_inference_arguments(parser)
     parser.add_argument(
@@ -1377,7 +1377,7 @@ def _handle_batch(config: CLIConfig) -> int:
             mode=config.mode,
             citation_style=config.citation_style,
             ai_strategy=config.ai_strategy,
-            platforms=config.cloud_vendors,
+            platforms=config.platforms,
             industry=config.industry,
             limit=config.limit,
             skip_confirm=config.skip_confirm,
@@ -1394,7 +1394,7 @@ def _handle_batch(config: CLIConfig) -> int:
         mode=config.mode,
         citation_style=config.citation_style,
         ai_strategy=config.ai_strategy,
-        platforms=config.cloud_vendors,
+        platforms=config.platforms,
     )
     return 0
 
@@ -2686,24 +2686,22 @@ def _handle_list_strategies(config: CLIConfig) -> int:
 
     console.banner("Available Strategy Documents")
 
-    console.info("Strategy documents are research tools to help you show up prepared")
-    console.info("for discovery conversations. They're NOT deliverables to hand over.")
+    console.info("Strategy documents are outside-in decision support grounded in evidence.")
+    console.info("Validate material assumptions before investment decisions.")
     console.blank()
 
     strategies_dir = Path(__file__).parent.parent / "prompts" / "strategies"
 
-    # Separate active vs placeholder strategies
     active: list[dict[str, str]] = []
     placeholders: list[dict[str, str]] = []
 
-    # AI Strategy is always first (built-in)
     active.append(
         {
             "name": "ai",
             "display_name": "AI Strategy",
-            "description": "Agentic AI transformation roadmap with vendor-specific recommendations (Azure/AWS/GCP)",
-            "usage": 'primr "Company" https://example.com --platform azure',
-            "standalone": 'primr --ai-strategy-only "report.md" --platform azure',
+            "description": "Business-first AI portfolio, economics, operating model, architecture, and governance",
+            "usage": 'primr "Company" https://example.com',
+            "standalone": "Do not use until its in-command cost gate is available",
         }
     )
 
@@ -2727,8 +2725,11 @@ def _handle_list_strategies(config: CLIConfig) -> int:
                     "description": desc,
                     "expected_pages": expected_pages,
                     "usage": f'primr "Company" https://example.com --strategy-type {stem}',
-                    "standalone": f'primr --ai-strategy-only "report.md" --strategy-type {stem}',
+                    "standalone": "Do not use until its in-command cost gate is available",
                 }
+                if stem == "skills":
+                    entry["usage"] = 'primr skills "Company" https://example.com'
+                    entry["standalone"] = "Not available; use primr skills"
                 if status == "placeholder":
                     placeholders.append(entry)
                 else:
@@ -2738,17 +2739,14 @@ def _handle_list_strategies(config: CLIConfig) -> int:
                 continue
 
     console.step(f"Available Strategies ({len(active)} active)")
-    console.blank()
-
     for s in active:
         console.ok(f"  {s['display_name']} ({s['name']})")
         if s.get("description"):
-            # Wrap long descriptions
             desc = s["description"]
             console.info(f"    {desc}")
         if s.get("expected_pages"):
             console.muted(f"    Expected: {s['expected_pages']} pages")
-        console.info(f"    In research run:  {s['usage']}")
+        console.info(f"    Command:          {s['usage']}")
         console.info(f"    Standalone:       {s['standalone']}")
         console.blank()
 
@@ -2761,17 +2759,12 @@ def _handle_list_strategies(config: CLIConfig) -> int:
                 console.info(f"    {s['description']}")
             console.blank()
 
+    console.warn("Do not use standalone generation until its in-command cost gate is available.")
     console.step("How to Generate Strategies")
     console.info(
         '  1. During research:   primr "Company" https://example.com --strategy-type customer_experience'
     )
-    console.info(
-        '  2. Standalone:        primr --ai-strategy-only "report.md" --strategy-type customer_experience'
-    )
-    console.info(
-        '  3. With notes:        primr --ai-strategy-only "report.md" --strategy-type ai --discovery-notes "notes.md"'
-    )
-    console.info('  4. Multi-vendor AI:   primr "Company" https://example.com --platform aws azure')
+    console.info('  2. Multi-platform AI: primr "Company" https://example.com --platform aws azure')
     console.blank()
 
     return 0
@@ -2924,7 +2917,7 @@ def process_batch(
     mode: str = "complete",
     citation_style: str = "numbered",
     ai_strategy: bool = True,
-    platforms: tuple[str, ...] = ("azure",),
+    platforms: tuple[str, ...] | None = None,
     industry: str | None = None,
     limit: int | None = None,
     skip_confirm: bool = True,
@@ -3321,7 +3314,7 @@ def process_csv(
     mode: str = "complete",
     citation_style: str = "numbered",
     ai_strategy: bool = True,
-    platforms: tuple[str, ...] = ("azure",),
+    platforms: tuple[str, ...] | None = None,
 ) -> None:
     """Process a CSV file for batch research."""
     import csv

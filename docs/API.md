@@ -1082,7 +1082,10 @@ are covered in the [Skill Pack Guide](SKILL_PACK.md#mcp-reference).
 
 #### estimate_run
 
-Get cost and time estimates before running research. For stricter agent governance, pass the approved estimate into `research_company.max_estimated_cost_usd`.
+Get cost and time estimates before running research. Always surface the exact
+estimate and get explicit user approval. When MCP cost-cap enforcement is
+active, pass the approved estimate into
+`research_company.max_estimated_cost_usd` with its `approval_token`.
 
 ```json
 {
@@ -1148,7 +1151,10 @@ is issued.
 
 #### estimate_strategy
 
-Get cost and time estimates before generating a strategy document. For stricter agent governance, pass the approved estimate into `generate_strategy.max_estimated_cost_usd`.
+Get cost and time estimates before generating a strategy document. Always
+surface the exact estimate and get explicit user approval. When MCP cost-cap
+enforcement is active, pass the approved estimate into
+`generate_strategy.max_estimated_cost_usd` with its `approval_token`.
 
 ```json
 {
@@ -1210,7 +1216,7 @@ agnostic AI Strategy by default. Set `platform` to bias it or
 | `no_ai_strategy` | boolean | No | Skip AI Strategy generation and return the base report only. Default: `false` |
 | `skip_qa` | boolean | No | Skip quality assessment. Default: `false` |
 | `verify` | boolean | No | Run post-QA claim verification. Default: `false` |
-| `destination` | string | No | Optional destination directory for output files. Artifacts are copied here in addition to the default output/ directory. |
+| `destination` | string | No | Optional destination under an allowed output root, such as `client-deliverables`. Artifacts are copied here in addition to the default output/ directory. Absolute paths outside configured roots are rejected. |
 | `max_estimated_cost_usd` | number or numeric string | Conditional | Hard ceiling for estimated run cost and runtime budget. Required when MCP cost-cap enforcement is active. Use a value at least as high as the approved estimate. |
 | `approval_token` | string | Conditional | Short-lived token returned by the matching `estimate_run`. Required when MCP cost-cap enforcement is active. |
 
@@ -1731,19 +1737,34 @@ Default governance contract for generic MCP clients.
   "schema_version": "1.0",
   "principles": [
     "Call estimate tools before any cost-incurring tool",
-    "Tell the user the action incurs real API charges",
-    "Get explicit approval before execution",
-    "Pass max_estimated_cost_usd into cost-incurring tools when possible"
+    "Tell the user that research and strategy generation incur real API cost",
+    "Get explicit user approval before execution",
+    "Pass max_estimated_cost_usd into cost-incurring tools when enforcement is enabled",
+    "Pass the approval_token returned by the matching estimate tool when enforcement is enabled",
+    "Treat Primr as a long-running async job system, not a synchronous request",
+    "If PRIMR_ENFORCE_MCP_COST_CAPS is enabled, cost-governed execution tools require max_estimated_cost_usd and approval_token"
   ],
   "research_flow": {
     "estimate_tool": "estimate_run",
     "execute_tool": "research_company",
-    "cap_argument": "max_estimated_cost_usd"
+    "cap_argument": "max_estimated_cost_usd",
+    "approval_argument": "approval_token",
+    "status_resource": "primr://research/status",
+    "wait_tool": "wait_for_status_change",
+    "expected_runtime": "standard runs are often 34-53 minutes; premium multi-vendor runs can reach 75-120 minutes",
+    "client_behavior": "launch once, then monitor and resume rather than waiting synchronously"
   },
   "strategy_flow": {
     "estimate_tool": "estimate_strategy",
     "execute_tool": "generate_strategy",
-    "cap_argument": "max_estimated_cost_usd"
+    "cap_argument": "max_estimated_cost_usd",
+    "approval_argument": "approval_token"
+  },
+  "skill_pack_flow": {
+    "estimate_tool": "estimate_skill_pack",
+    "execute_tool": "generate_skill_pack",
+    "cap_argument": "max_estimated_cost_usd",
+    "approval_argument": "approval_token"
   }
 }
 ```
@@ -2564,7 +2585,7 @@ Current configuration (no secrets exposed).
 {
   "available_modes": ["scrape", "deep", "full", "premium"],
   "available_strategies": {
-    "ai_strategy": "AI/ML transformation roadmap",
+    "ai_strategy": "Business-first AI portfolio, economics, operating model, architecture, and governance",
     "customer_experience": "CX improvement plan",
     "modern_security_compliance": "Security posture assessment",
     "data_fabric_strategy": "Data platform modernization",
@@ -2586,7 +2607,7 @@ List of available strategy types with metadata for Open Claw integration.
     {
       "id": "ai_strategy",
       "name": "AI Strategy",
-      "description": "AI/ML transformation roadmap with quick wins and bigger bets",
+      "description": "Business-first AI portfolio, economics, operating model, architecture, and governance",
       "requires_platform": true,
       "estimated_time_minutes": 15,
       "estimated_cost_usd": 2.5,

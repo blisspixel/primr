@@ -30,7 +30,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Protocol
 
-from primr.config.config import OUTPUT_DIR, PROJECT_ROOT
+from primr.config.config import OUTPUT_DIR
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
 from primr.utils.url_helpers import normalized_hostname, public_web_url
@@ -101,6 +101,7 @@ class AIStrategyConfig:
     force_refresh_vendor: bool = False
     timeout_seconds: int = 1800  # 30 minutes
     allow_vendor_refresh: bool | None = None
+    additional_context_paths: tuple[str, ...] = ()
 
     def validate(self) -> list[str]:
         """Validate configuration, return list of errors."""
@@ -112,6 +113,11 @@ class AIStrategyConfig:
                 errors.append(f"Company research file not found: {self.company_research_path}")
             elif os.path.getsize(self.company_research_path) == 0:
                 errors.append(f"Company research file is empty: {self.company_research_path}")
+        for context_path in self.additional_context_paths:
+            if not os.path.exists(context_path):
+                errors.append(f"Additional context file not found: {context_path}")
+            elif os.path.getsize(context_path) == 0:
+                errors.append(f"Additional context file is empty: {context_path}")
         return errors
 
 
@@ -181,6 +187,8 @@ def generate_ai_strategy_sync(
     on_progress: Callable[[str], None] | None = None,
     *,
     allow_vendor_refresh: bool | None = None,
+    additional_context_paths: tuple[str, ...] = (),
+    discovery_notes_content: str | None = None,
 ) -> str | None:
     """
     Generate AI strategy using Deep Research (synchronous).
@@ -192,6 +200,8 @@ def generate_ai_strategy_sync(
         force_refresh_vendor: If True, regenerate vendor research
         on_progress: Optional progress callback
         allow_vendor_refresh: Override environment-driven vendor refresh behavior
+        additional_context_paths: Other supplied evidence files to upload as context
+        discovery_notes_content: Optional operator-supplied meeting insights
 
     Returns:
         Path to generated DOCX file, or None if failed
@@ -205,6 +215,8 @@ def generate_ai_strategy_sync(
             company_research_path=company_research_path,
             force_refresh_vendor=force_refresh_vendor,
             allow_vendor_refresh=allow_vendor_refresh,
+            additional_context_paths=additional_context_paths,
+            discovery_notes_content=discovery_notes_content,
             on_progress=on_progress,
         )
     )
@@ -220,6 +232,8 @@ async def generate_ai_strategy(
     on_progress: Callable[[str], None] | None = None,
     *,
     allow_vendor_refresh: bool | None = None,
+    additional_context_paths: tuple[str, ...] = (),
+    discovery_notes_content: str | None = None,
 ) -> AIStrategyResult:
     """
     Generate AI strategy using Deep Research (async).
@@ -236,6 +250,8 @@ async def generate_ai_strategy(
         force_refresh_vendor: If True, regenerate vendor research
         on_progress: Optional progress callback
         allow_vendor_refresh: Override environment-driven vendor refresh behavior
+        additional_context_paths: Other supplied evidence files to upload as context
+        discovery_notes_content: Optional operator-supplied meeting insights
 
     Returns:
         AIStrategyResult with output paths and metadata
@@ -257,6 +273,7 @@ async def generate_ai_strategy(
         company_research_path=company_research_path,
         force_refresh_vendor=force_refresh_vendor,
         allow_vendor_refresh=allow_vendor_refresh,
+        additional_context_paths=additional_context_paths,
     )
 
     # Pre-flight validation
@@ -280,7 +297,7 @@ async def generate_ai_strategy(
     context_files, vendor_paths = await _gather_context(config, on_progress)
 
     # Build prompt
-    prompt = build_ai_strategy_prompt(company_name, vendor)
+    prompt = build_ai_strategy_prompt(company_name, vendor, discovery_notes_content)
 
     recovered_interaction_id: str | None = None
 
@@ -360,15 +377,21 @@ async def generate_ai_strategy(
     )
 
 
-def build_ai_strategy_prompt(company_name: str, platform: Platform) -> str:
+def build_ai_strategy_prompt(
+    company_name: str,
+    platform: Platform,
+    discovery_notes_content: str | None = None,
+) -> str:
     """
     Build Deep Research prompt for AI strategy.
 
-    Uses externalized YAML configuration from src/primr/prompts/ai_strategy.yaml
+    Uses externalized YAML configuration from
+    src/primr/prompts/strategies/ai_strategy.yaml
 
     Args:
         company_name: Name of the company
         platform: Platform preference
+        discovery_notes_content: Optional operator-supplied meeting insights
 
     Returns:
         Complete prompt string for Deep Research
@@ -378,6 +401,7 @@ def build_ai_strategy_prompt(company_name: str, platform: Platform) -> str:
     return build_from_yaml(
         company_name=company_name,
         platform=platform.value,
+        discovery_notes_content=discovery_notes_content,
     )
 
 
@@ -430,6 +454,10 @@ async def _gather_context(
     if config.company_research_path and os.path.exists(config.company_research_path):
         context_files.append(config.company_research_path)
 
+    for context_path in config.additional_context_paths:
+        if context_path not in context_files:
+            context_files.append(context_path)
+
     registry = get_registry()
     vendor_str = config.platform.value
 
@@ -451,6 +479,7 @@ async def _gather_context(
         from primr.core.vendor_research import (
             generate_vendor_research,
             get_or_generate_vendor_research,
+            get_vendor_research_path,
         )
 
         if config.platform != Platform.AGNOSTIC:
@@ -477,11 +506,7 @@ async def _gather_context(
                     f"Using {len(vendor_paths)} {vendor_str.upper()} research doc(s) as context"
                 )
 
-        agnostic_path = (
-            Path(PROJECT_ROOT)
-            / "vendor-research"
-            / f"vendor-research-agnostic-{datetime.now().strftime('%Y-%m')}.txt"
-        )
+        agnostic_path = get_vendor_research_path("agnostic")
         if agnostic_path.exists() and str(agnostic_path) not in context_files:
             context_files.append(str(agnostic_path))
 
@@ -730,4 +755,4 @@ def _save_strategy_outputs(
     return outputs
 
 
-# Usage tracking removed — consolidated in research_agent.py main pipeline
+# Usage tracking is consolidated in the research_agent.py main pipeline.

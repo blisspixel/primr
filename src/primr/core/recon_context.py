@@ -2,7 +2,7 @@
 Recon context formatter: converts TenantInfo into a structured text block
 for injection into strategy prompts.
 
-Pure function module — no side effects, no I/O.
+Pure function module with no side effects or I/O.
 """
 
 from __future__ import annotations
@@ -45,15 +45,16 @@ def format_recon_context(info: TenantInfo) -> str:
     """
     sections: list[str] = []
 
-    # Header — always present
+    # Header is always present.
     sections.append("=== Domain Intelligence (DNS Reconnaissance) ===")
     sections.append("")
     sections.append(
-        "This section contains verified technical intelligence about the company's "
-        "actual technology stack, detected from public DNS records and Microsoft "
-        "endpoints. These are FACTS, not hypotheses — the company has these services "
-        "configured on their domain. Use this to ground your recommendations in "
-        "what they actually run today."
+        "This section contains observed public configuration signals from DNS records "
+        "and Microsoft endpoints. A signal can support a hypothesis that a service is "
+        "configured, integrated, evaluated, or recently used. It does not by itself "
+        "prove an active contract, production adoption, primary platform, workload "
+        "placement, maturity, or spend. Preserve the stated confidence, corroborate "
+        "with other evidence, and name what must be validated."
     )
     sections.append("")
     sections.append(f"Domain: {info.queried_domain}")
@@ -62,18 +63,18 @@ def format_recon_context(info: TenantInfo) -> str:
     sections.append(f"Confidence: {info.confidence.value}")
     sections.append("")
 
-    # Detected Services — categorized for strategic relevance
+    # Detected services, categorized for strategic relevance.
     if info.services:
         sections.append(f"--- {SECTION_DETECTED_SERVICES} ---")
         sections.append(
             "These services were detected via DNS TXT, SPF, MX, CNAME, and NS records. "
-            "Each represents a verified vendor relationship."
+            "Treat each as a service indicator, not proof of an active vendor relationship."
         )
         for svc in info.services:
             sections.append(f"  - {svc}")
         sections.append("")
 
-    # AI & Productivity Intelligence — the key strategic signal
+    # AI and productivity intelligence is the key strategic signal.
     ai_slugs = {"openai", "anthropic", "mistral", "perplexity", "glean"}
     detected_ai = [s for s in info.slugs if s in ai_slugs]
     m365_detected = "microsoft365" in info.slugs
@@ -83,17 +84,17 @@ def format_recon_context(info: TenantInfo) -> str:
         sections.append("--- AI & Productivity Posture ---")
         if m365_detected:
             sections.append(
-                "  Microsoft 365 detected — their primary productivity platform is Microsoft. "
-                "Copilot for Microsoft 365 is the natural AI productivity play. "
-                "Recommendations should lead with Microsoft ecosystem tools (Azure OpenAI, "
-                "Copilot, Power Platform) while acknowledging alternatives."
+                "  Microsoft 365 domain configuration detected. Treat Microsoft as a likely "
+                "productivity ecosystem to validate. Evaluate Microsoft 365 Copilot and "
+                "adjacent Microsoft services for integration fit, while comparing credible "
+                "alternatives and avoiding assumptions about licenses or active use."
             )
         if gws_detected:
             sections.append(
-                "  Google Workspace detected — their primary productivity platform is Google. "
-                "Gemini for Workspace is the natural AI productivity play. "
-                "Recommendations should lead with Google ecosystem tools (Vertex AI, "
-                "Gemini, BigQuery) while acknowledging alternatives."
+                "  Google Workspace domain configuration detected. Treat Google as a likely "
+                "productivity ecosystem to validate. Evaluate Gemini for Workspace and "
+                "adjacent Google services for integration fit, while comparing credible "
+                "alternatives and avoiding assumptions about licenses or active use."
             )
         if detected_ai:
             ai_names = {
@@ -105,27 +106,22 @@ def format_recon_context(info: TenantInfo) -> str:
             }
             ai_list = [ai_names.get(s, s) for s in detected_ai]
             sections.append(
-                f"  AI tools already adopted: {', '.join(ai_list)}. "
-                "This company is already evaluating or deploying LLM-based workflows. "
-                "Recommendations should build on existing AI adoption, not start from scratch."
-            )
-        if not detected_ai and not m365_detected and not gws_detected:
-            sections.append(
-                "  No enterprise AI tools detected via DNS. This may indicate early-stage "
-                "AI exploration or tools deployed without domain verification."
+                f"  AI provider or product indicators detected: {', '.join(ai_list)}. "
+                "These may reflect domain verification, evaluation, integration, or active use. "
+                "Validate scope and ownership before treating them as deployed capabilities."
             )
         sections.append("")
 
-    # Signal Intelligence — strategic patterns
+    # Signal intelligence for strategic patterns.
     signal_insights = [i for i in info.insights if ":" in i and not i.startswith("Email security")]
     if signal_insights:
         sections.append(f"--- {SECTION_SIGNAL_INTELLIGENCE} ---")
         sections.append(
             "These signals are derived from cross-referencing detected services. "
-            "They indicate organizational patterns relevant to strategy."
+            "They are interpretations to corroborate, not direct observations of operating practice."
         )
         for insight in signal_insights:
-            sections.append(f"  - {insight}")
+            sections.append(f"  - Recon-derived interpretation to validate: {insight}")
         sections.append("")
 
     # Email Security
@@ -153,7 +149,7 @@ def format_recon_context(info: TenantInfo) -> str:
             sections.append(f"  - {insight}")
         sections.append("")
 
-    # Infrastructure — with strategic interpretation
+    # Infrastructure with strategic interpretation.
     infra_insights = [
         i
         for i in info.insights
@@ -176,7 +172,9 @@ def format_recon_context(info: TenantInfo) -> str:
             sections.append(f"  GCP infrastructure detected: {', '.join(detected_gcp)}")
         if detected_azure and detected_aws:
             sections.append(
-                "  Multi-cloud posture: Azure + AWS — recommendations should be cloud-agnostic or address both."
+                "  Multiple public-cloud infrastructure signals observed: Azure and AWS. "
+                "Evaluate an integrated multicloud or hybrid posture, but do not infer that "
+                "all workloads or control planes actively use both."
             )
         for insight in infra_insights:
             sections.append(f"  - {insight}")
@@ -211,8 +209,8 @@ def format_recon_context(info: TenantInfo) -> str:
     if detected_security:
         sections.append("--- Security Stack ---")
         sections.append(
-            "These security tools were detected via DNS. Use this to assess "
-            "current security maturity and identify gaps."
+            "These security service indicators were detected via DNS. Use them as "
+            "integration clues, not as a standalone measure of security maturity."
         )
         for slug in sorted(detected_security):
             sections.append(f"  - {slug}")
@@ -233,8 +231,8 @@ def format_recon_context(info: TenantInfo) -> str:
     if detected_data:
         sections.append("--- Data & Analytics Stack ---")
         sections.append(
-            "These data platforms were detected. Use this to assess "
-            "current data maturity and inform data fabric recommendations."
+            "These data and observability service indicators were detected. Validate "
+            "their scope before using them to assess data maturity or architecture."
         )
         for slug in sorted(detected_data):
             sections.append(f"  - {slug}")
@@ -262,8 +260,8 @@ def format_recon_context(info: TenantInfo) -> str:
     if detected_crm:
         sections.append("--- CRM & Go-to-Market Stack ---")
         sections.append(
-            "These CRM and sales/marketing tools were detected. Use this to assess "
-            "GTM maturity and inform CX recommendations."
+            "These CRM and sales or marketing service indicators were detected. Validate "
+            "their active scope before drawing conclusions about the go-to-market model."
         )
         for slug in sorted(detected_crm):
             sections.append(f"  - {slug}")
@@ -275,8 +273,8 @@ def format_recon_context(info: TenantInfo) -> str:
     if detected_hr:
         sections.append("--- HR & Operations Stack ---")
         sections.append(
-            "These HR and operations tools were detected. Use this to assess "
-            "workforce management maturity."
+            "These HR and operations service indicators were detected. Validate active "
+            "use and ownership before drawing workforce-management conclusions."
         )
         for slug in sorted(detected_hr):
             sections.append(f"  - {slug}")
@@ -289,7 +287,8 @@ def format_recon_context(info: TenantInfo) -> str:
         sections.append("--- File Sharing & Collaboration ---")
         sections.append(
             "These file sharing platforms were detected. Multiple platforms may "
-            "indicate migration or shadow IT."
+            "reflect intentional segmentation, migration, overlap, or dormant configuration. "
+            "Treat the explanation as a question to validate."
         )
         for slug in sorted(detected_file):
             sections.append(f"  - {slug}")

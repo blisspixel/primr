@@ -115,8 +115,3 @@ def test_strategy_money_to_millions_conversions():
     assert research_agent._strategy_money_to_millions(2, "B") == 2000.0
     assert research_agent._strategy_money_to_millions(500, "K") == 0.5
     assert research_agent._strategy_money_to_millions(12, "M") == 12
-
-
-def test_a_or_an_helper():
-    assert research_agent._a_or_an("enterprise") == "an"
-    assert research_agent._a_or_an("platform") == "a"

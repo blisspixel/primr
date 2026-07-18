@@ -69,7 +69,7 @@ class TestCLIConfig:
         assert config.mode == "complete"
         assert config.citation_style == "numbered"
         assert config.ai_strategy is True
-        assert config.cloud_vendor == "azure"
+        assert config.cloud_vendor == "agnostic"
         assert config.skip_confirm is True
         assert config.context_files == ()
         assert config.browser_session_mode == "persistent"
@@ -827,10 +827,10 @@ class TestPlatformFlag:
         assert config.platforms is None
 
     def test_cloud_vendors_property_default_when_none(self):
-        """Test CLIConfig.cloud_vendors returns Microsoft/private fallback when platforms is None."""
+        """Test CLIConfig.cloud_vendors returns one agnostic target by default."""
         config = CLIConfig(command=Command.RESEARCH, platforms=None)
-        assert config.cloud_vendors == ("azure", "private")
-        assert config.cloud_vendor == "azure"
+        assert config.cloud_vendors == ("agnostic",)
+        assert config.cloud_vendor == "agnostic"
 
     def test_cloud_vendors_property_with_platforms(self):
         """Test CLIConfig.cloud_vendors returns platforms when set."""

@@ -596,7 +596,9 @@ def _read_config(mcp_server: MCPServerContext) -> list[ReadResourceContents]:
     config = ConfigState(
         available_modes=[m.value for m in ResearchMode],
         available_strategies={
-            StrategyType.AI_STRATEGY.value: "AI/ML transformation roadmap",
+            StrategyType.AI_STRATEGY.value: (
+                "Business-first AI portfolio, economics, operating model, architecture, and governance"
+            ),
             StrategyType.CUSTOMER_EXPERIENCE.value: "CX improvement plan",
             StrategyType.MODERN_SECURITY_COMPLIANCE.value: "Security posture assessment",
             StrategyType.DATA_FABRIC_STRATEGY.value: "Data platform modernization",
@@ -629,7 +631,7 @@ def _read_agent_governance() -> list[ReadResourceContents]:
             "Call estimate tools before any cost-incurring tool",
             "Tell the user that research and strategy generation incur real API cost",
             "Get explicit user approval before execution",
-            "Pass max_estimated_cost_usd into cost-incurring tools when possible",
+            "Pass max_estimated_cost_usd into cost-incurring tools when enforcement is enabled",
             "Pass the approval_token returned by the matching estimate tool when enforcement is enabled",
             "Treat Primr as a long-running async job system, not a synchronous request",
             "If PRIMR_ENFORCE_MCP_COST_CAPS is enabled, cost-governed execution tools require max_estimated_cost_usd and approval_token",
@@ -641,7 +643,7 @@ def _read_agent_governance() -> list[ReadResourceContents]:
             "approval_argument": "approval_token",
             "status_resource": "primr://research/status",
             "wait_tool": "wait_for_status_change",
-            "expected_runtime": "standard runs are often 35-45 minutes; premium multi-vendor runs can reach 75-120 minutes",
+            "expected_runtime": "standard runs are often 34-53 minutes; premium multi-vendor runs can reach 75-120 minutes",
             "client_behavior": "launch once, then monitor and resume rather than waiting synchronously",
         },
         "strategy_flow": {
@@ -801,7 +803,7 @@ def _read_manifest_latest(mcp_server: MCPServerContext) -> list[ReadResourceCont
             parent = Path(output_path).parent
             manifest_files.extend(parent.glob("**/run_manifest.json"))
     else:
-        # stdio: legacy behavior — full scan.
+        # stdio: legacy behavior, full scan.
         manifest_files = list(output_dir.glob("**/run_manifest.json"))
     if not manifest_files:
         data = {

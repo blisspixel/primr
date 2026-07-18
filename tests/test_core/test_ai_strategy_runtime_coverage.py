@@ -37,11 +37,11 @@ def test_prompt_contains_company_and_date():
 @pytest.mark.parametrize(
     ("platform", "needle"),
     [
-        ("azure", "Microsoft 365 Copilot"),
-        ("aws", "Amazon Bedrock"),
-        ("gcp", "Vertex AI"),
-        ("agnostic", "MULTI-CLOUD AI STRATEGY"),
-        ("private", "NVIDIA DGX Cloud"),
+        ("azure", "Microsoft ecosystem emphasis"),
+        ("aws", "AWS ecosystem emphasis"),
+        ("gcp", "Google ecosystem emphasis"),
+        ("agnostic", "Vendor-neutral, multicloud, hybrid, and private evaluation"),
+        ("private", "Private, on-premises, edge, and accelerated infrastructure emphasis"),
     ],
 )
 def test_prompt_vendor_guidance(platform, needle):
@@ -51,12 +51,12 @@ def test_prompt_vendor_guidance(platform, needle):
 
 def test_prompt_unknown_vendor_falls_back_to_agnostic():
     prompt = build_ai_strategy_prompt("Acme", "weirdcloud")
-    assert "MULTI-CLOUD AI STRATEGY" in prompt
+    assert "Vendor-neutral, multicloud, hybrid, and private evaluation" in prompt
 
 
 def test_prompt_includes_discovery_notes():
     prompt = build_ai_strategy_prompt("Acme", "azure", discovery_notes_content="Note X")
-    assert "DISCOVERY NOTES (INTERNAL INSIGHTS)" in prompt
+    assert "DISCOVERY INSIGHTS (FROM MEETINGS)" in prompt
     assert "Note X" in prompt
 
 

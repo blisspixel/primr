@@ -211,7 +211,6 @@ class ReportAggregator:
 
         return f"""# Strategic Company Overview: {company_name}
 
-**Prepared by:** Primr Research System
 **Date:** {date_str}
 **Chapters:** {chapter_count}
 
@@ -219,7 +218,7 @@ class ReportAggregator:
 
 ## About This Document
 
-This comprehensive strategic overview was generated using Primr's Recursive Hierarchical Research Architecture. Each chapter represents an independent deep-dive research task, synthesizing information from the company's own materials (via File Search) and external market intelligence (via web search).
+This strategic overview synthesizes the company's own public materials and external market evidence. Each chapter is researched independently and reconciled into the full document.
 
 **Hierarchy of Truth:**
 1. Company Facts: Sourced from official company materials (highest authority)

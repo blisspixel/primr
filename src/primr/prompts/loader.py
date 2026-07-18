@@ -191,6 +191,7 @@ def build_ai_strategy_prompt(
     company_name: str,
     platform: str = "agnostic",
     current_date: str | None = None,
+    discovery_notes_content: str | None = None,
 ) -> str:
     """
     Build an AI strategy prompt from YAML configuration.
@@ -202,6 +203,7 @@ def build_ai_strategy_prompt(
         company_name: Name of the company
         platform: Platform preference (azure, aws, gcp, agnostic)
         current_date: Optional date string (defaults to current date)
+        discovery_notes_content: Optional meeting insights to sanitize and use as context
 
     Returns:
         Complete prompt string for Deep Research
@@ -218,6 +220,7 @@ def build_ai_strategy_prompt(
         platform=platform,
         current_date=current_date,
         has_stage1_context=True,  # AI strategy always uses company overview as context
+        discovery_notes_content=discovery_notes_content,
     )
 
     # Use PromptComposer to build the prompt

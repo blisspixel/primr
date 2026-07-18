@@ -51,6 +51,28 @@ class TestStrategyRegenerateSectionPrompt:
         )
         prompt = mock.call_args.args[0]
         assert SCAFFOLDING_PROHIBITION_GUIDANCE in prompt
+        assert "business-first AI strategy" in prompt
+        assert "not a predetermined vendor answer" in prompt
+        assert "Name services, prices" in prompt
+
+    def test_generic_strategy_is_not_reframed_as_ai(self, monkeypatch):
+        mock = MagicMock(return_value="## Service Model\n\nrewritten body")
+        monkeypatch.setattr("primr.ai.grok_client.grok_llm", mock)
+
+        _strategy_regenerate_section(
+            company_name="Acme Corp",
+            vendor="Customer Experience",
+            section_title="Service Model",
+            section_content="## Service Model\n\noriginal body",
+            new_evidence="NEW EVIDENCE",
+            analysis_workbook="WORKBOOK",
+            label="Customer Experience",
+        )
+
+        prompt = mock.call_args.args[0]
+        assert "Customer Experience document" in prompt
+        assert "business-first AI strategy" not in prompt
+        assert "PLATFORM EVALUATION EMPHASIS" not in prompt
 
     def test_prompt_requires_plain_text_validate_line(self, monkeypatch):
         # The strategy-regen prompt previously lacked the plain-text "What to

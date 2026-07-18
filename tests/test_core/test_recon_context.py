@@ -76,13 +76,13 @@ _SIGNAL_INSIGHTS = [
 _EMAIL_INSIGHTS = [
     "Email security 3/5 good (DMARC reject, DKIM, SPF strict)",
     "Email security 0/5 weak (no protections detected)",
-    "DMARC: none — email spoofing protection not enforced",
-    "No DKIM selectors — email signing not configured",
+    "DMARC: none; email spoofing protection not enforced",
+    "No DKIM selectors; email signing not configured",
 ]
 
 _AUTH_INSIGHTS = [
     "Federated identity via Okta",
-    "Federated identity (likely ADFS/Okta/Ping — enterprise SSO)",
+    "Federated identity (likely ADFS/Okta/Ping; enterprise SSO)",
     "Cloud-managed identity (Entra ID native)",
 ]
 
@@ -281,3 +281,37 @@ class TestFormatterDeterminism:
         headers1 = _extract_section_headers(result1)
         headers2 = _extract_section_headers(result2)
         assert headers1 == headers2, f"Section headers differ: {headers1} vs {headers2}"
+
+
+class TestReconEvidenceBoundaries:
+    """DNS signals must remain bounded observations in strategy context."""
+
+    def test_service_signals_do_not_claim_adoption_or_primary_platform(self):
+        info = TenantInfo(
+            tenant_id=None,
+            display_name="Example Organization",
+            default_domain="example.test",
+            queried_domain="example.test",
+            confidence=ConfidenceLevel.MEDIUM,
+            region=None,
+            sources=("dns",),
+            services=("Microsoft 365", "OpenAI"),
+            slugs=("microsoft365", "openai"),
+            auth_type=None,
+            dmarc_policy=None,
+            domain_count=1,
+            tenant_domains=(),
+            related_domains=(),
+            insights=("AI Adoption: openai",),
+        )
+
+        result = format_recon_context(info)
+
+        assert "observed public configuration signals" in result
+        assert "does not by itself prove an active contract" in result
+        assert "AI provider or product indicators detected" in result
+        assert "Recon-derived interpretation to validate: AI Adoption: openai" in result
+        assert "actual technology stack" not in result
+        assert "verified vendor relationship" not in result
+        assert "AI tools already adopted" not in result
+        assert "primary productivity platform is" not in result

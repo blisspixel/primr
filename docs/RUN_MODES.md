@@ -14,9 +14,9 @@ Dry-run output is the source of truth for the next run. The numbers below are cu
 
 | Mode | Command shape | Output | Typical time | Typical cost |
 |------|---------------|--------|--------------|--------------|
-| Default | `primr "Company" url` | Strategic Overview plus AI Strategy | 34-59 min | ~$0.89-$1.01 |
+| Default | `primr "Company" url` | Strategic Overview plus one integrated AI Strategy | 34-53 min | ~$0.89 |
 | Base report only | `primr "Company" url --no-ai-strategy` | Strategic Overview | 31-47 min | ~$0.76-$0.79 |
-| XAI-only default | `primr "Company" url` with no Gemini key | Strategic Overview plus AI Strategy | 37-59 min | ~$5.76 |
+| XAI-only default | `primr "Company" url` with no Gemini key | Strategic Overview plus one integrated AI Strategy | 34-53 min | ~$5.06 |
 | XAI-only base | `primr "Company" url --no-ai-strategy` with no Gemini key | Strategic Overview | 31-47 min | ~$4.36 |
 | Scrape | `primr "Company" url --mode scrape` | Site corpus plus insights | 5-10 min | ~$0.10 |
 | Deep | `primr "Company" url --mode deep` | Deep Research plus hiring signals | 11-17 min | ~$2.50 |
@@ -77,7 +77,25 @@ primr "Company" https://company.com --platform ms
 primr "Company" https://company.com --platform aws azure
 ```
 
-When `--platform` is omitted, Primr runs DNS recon first and uses strong cloud infrastructure signals to choose a strategy platform. If recon is unclear, the default posture is Azure plus private cloud and NVIDIA.
+`--platform ms` explicitly expands to `azure private`, creates two strategy
+artifacts, and must be estimated as a two-platform run. Use `--platform azure`
+when only a Microsoft ecosystem emphasis is intended.
+
+When `--platform` is omitted, Primr runs DNS recon first. No strong
+infrastructure signal produces one vendor-neutral AI Strategy. One strong
+ecosystem signal emphasizes that ecosystem in one strategy. Multiple strong
+ecosystem signals produce one integrated vendor-neutral strategy so the user
+does not receive an accidental artifact fan-out. Explicit multi-platform input
+still creates separate strategy artifacts and must be included in the estimate.
+
+The default AI Strategy starts with business economics, strategic tensions,
+industry direction, and value pools. It then builds a prioritized portfolio and
+connects each initiative to the complete observed technology and service stack,
+fully loaded unit economics, operating ownership, governance, and workload
+placement. Public cloud, multicloud, private or on-premises accelerated
+infrastructure, edge, and hybrid options are evaluated when the workload makes
+them material. A platform flag is an evaluation emphasis, not permission to
+ignore other detected ecosystems or skip credible alternatives.
 
 Strategy types are YAML-defined and discovered at runtime:
 
@@ -86,7 +104,10 @@ primr --list-strategies
 primr "Company" https://company.com --strategy-type customer_experience
 ```
 
-Common strategy families include AI, customer experience, modern security and compliance, data fabric, cloud migration, data strategy, AI-first transformation, and skills.
+Current selectable strategy documents include AI, customer experience, modern
+security and compliance, data fabric, and skills. Use `primr skills` for the
+skills pack workflow. `primr --list-strategies` is the installed source of
+truth; historical or placeholder YAML files are not selectable strategies.
 
 MCP `generate_strategy` is a standalone post-report path backed by one Gemini
 Deep Research task per document. Its current planning estimate is about $2.50,

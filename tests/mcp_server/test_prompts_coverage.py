@@ -49,6 +49,12 @@ class TestGetPrompt:
         text = result.root.messages[0].content.text
         assert "Company Research Workflow" in text
         assert "the target company" in text
+        assert "vendor-neutral AI Strategy by default" in text
+        assert 'platform="azure"' not in text
+        assert "Estimate Costs (Required)" in text
+        assert 'max_estimated_cost_usd=estimate["estimated_cost_usd"]' in text
+        assert 'approval_token=estimate["approval_token"]' in text
+        assert "34-53 minutes" in text
 
     @pytest.mark.asyncio
     async def test_research_workflow_with_company(self, server):
@@ -61,6 +67,14 @@ class TestGetPrompt:
         result = await _get_prompt(server, "strategy_selection")
         text = result.root.messages[0].content.text
         assert "Strategy Document Selection Guide" in text
+        assert "business-first decisions" in text
+        assert "A platform is an evaluation emphasis" in text
+        assert "Copilot" not in text
+        assert "Bedrock" not in text
+        assert "Vertex AI" not in text
+        assert "estimate = estimate_strategy(" in text
+        assert 'max_estimated_cost_usd=estimate["estimated_cost_usd"]' in text
+        assert 'approval_token=estimate["approval_token"]' in text
 
     @pytest.mark.asyncio
     async def test_strategy_selection_with_context(self, server):
@@ -74,6 +88,13 @@ class TestGetPrompt:
         text = result.root.messages[0].content.text
         assert "Governed Execution Contract" in text
         assert "estimate_run" in text
+        assert "agnostic AI Strategy by default" in text
+        assert "when `platform` is set" not in text
+        assert "Authenticated HTTP clients receive metadata" in text
+        assert 'destination="client-deliverables"' in text
+        assert 'destination="/path/to/output"' not in text
+        assert text.count('max_estimated_cost_usd=estimate["estimated_cost_usd"]') == 3
+        assert text.count('approval_token=estimate["approval_token"]') == 3
 
     @pytest.mark.asyncio
     async def test_unknown_prompt_raises(self, server):

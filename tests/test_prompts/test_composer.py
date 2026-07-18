@@ -55,8 +55,9 @@ class TestPromptComposer:
         )
         result = composer.compose("strategic_layer", context)
 
-        assert "HIERARCHY OF TRUTH" in result.content
+        assert "HIERARCHY OF EVIDENCE" in result.content
         assert "File Search Store" in result.content
+        assert "authoritative for company facts" not in result.content
 
     def test_compose_without_stage1_context(self):
         """Should not include hierarchy of truth when no stage1 context."""
@@ -275,7 +276,8 @@ class TestContextAwareProperties:
         result = composer.compose("strategic_layer", context)
 
         # Property: Should include hierarchy of truth instructions
-        assert "HIERARCHY OF TRUTH" in result.content or "File Search Store" in result.content
+        assert "HIERARCHY OF EVIDENCE" in result.content
+        assert "File Search Store" in result.content
 
     def test_no_stage1_context_still_valid(self):
         """
@@ -412,9 +414,9 @@ class TestVendorSpecificContentProperties:
         found = any(indicator in result.content for indicator in indicators)
         assert found, f"No vendor-specific content found for {vendor}"
 
-    def test_azure_includes_azure_services(self):
+    def test_azure_includes_current_microsoft_evaluation_guidance(self):
         """
-        Property: Azure vendor should include Azure-specific services.
+        Property: Azure selection should include current Microsoft evaluation guidance.
 
         **Feature: deep-research-prompt-architecture, Property 15: Vendor-Specific Content**
         **Validates: Requirements 5.2**
@@ -427,13 +429,13 @@ class TestVendorSpecificContentProperties:
         )
         result = composer.compose_strategy("ai_strategy", context)
 
-        # Should include Azure-specific services
-        assert "Azure" in result.content
-        assert "Microsoft" in result.content or "Copilot" in result.content
+        assert "Microsoft ecosystem emphasis" in result.content
+        assert "Verify current" in result.content
+        assert "credible alternative" in result.content
 
-    def test_aws_includes_aws_services(self):
+    def test_aws_includes_current_ecosystem_evaluation_guidance(self):
         """
-        Property: AWS vendor should include AWS-specific services.
+        Property: AWS selection should require current ecosystem evaluation.
 
         **Feature: deep-research-prompt-architecture, Property 15: Vendor-Specific Content**
         **Validates: Requirements 5.2**
@@ -446,13 +448,13 @@ class TestVendorSpecificContentProperties:
         )
         result = composer.compose_strategy("ai_strategy", context)
 
-        # Should include AWS-specific services
-        assert "AWS" in result.content or "Amazon" in result.content
-        assert "Bedrock" in result.content or "SageMaker" in result.content
+        assert "AWS ecosystem emphasis" in result.content
+        assert "Verify current official" in result.content
+        assert "credible alternative" in result.content
 
-    def test_gcp_includes_gcp_services(self):
+    def test_gcp_includes_current_google_evaluation_guidance(self):
         """
-        Property: GCP vendor should include GCP-specific services.
+        Property: GCP selection should require current Google evaluation.
 
         **Feature: deep-research-prompt-architecture, Property 15: Vendor-Specific Content**
         **Validates: Requirements 5.2**
@@ -465,9 +467,9 @@ class TestVendorSpecificContentProperties:
         )
         result = composer.compose_strategy("ai_strategy", context)
 
-        # Should include GCP-specific services
-        assert "Google" in result.content or "GCP" in result.content
-        assert "Vertex" in result.content or "Gemini" in result.content
+        assert "Google ecosystem emphasis" in result.content
+        assert "Verify current" in result.content
+        assert "credible alternative" in result.content
 
 
 class TestCustomStrategySharedComponentsProperties:
