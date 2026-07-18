@@ -120,3 +120,29 @@ def test_prep_cli_installs_packaged_skill(tmp_path, capsys) -> None:
     assert (destination / "SKILL.md").is_file()
     assert (destination / "references" / "report-contract.md").is_file()
     assert "installed" in capsys.readouterr().out.lower()
+
+
+def test_prep_skill_install_dry_run_is_non_mutating(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    destination = Path("skills") / "primr-zero"
+    expected_destination = tmp_path / destination
+    install = MagicMock()
+    monkeypatch.setattr("primr.core.cli_prep.install_bundled_skill", install)
+
+    code = run_prep_cli(["prep", "--install-skill", str(destination), "--dry-run"])
+
+    assert code == 0
+    install.assert_not_called()
+    assert not destination.exists()
+    output = capsys.readouterr().out
+    assert "Primr Zero skill installation plan" in output
+    assert f"Requested destination: {expected_destination}" in output
+    assert "Incremental API spend: $0.00" in output
+    assert "Model calls: 0" in output
+    assert "Network requests: 0" in output
+    assert "Files written: 0 (dry run)" in output
+    assert "installed" not in output.lower()

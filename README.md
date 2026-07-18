@@ -143,11 +143,19 @@ external gaps and write the dossier with the host allowance you already have,
 but verify that the host is plan-backed and will not bill API usage or overages
 before calling the whole workflow zero incremental spend.
 
+Prep assembles the bundle privately and publishes the dated directory only
+after its manifest is complete. A collection error or interruption leaves no
+discoverable partial bundle; a published `partial` status instead means the
+bundle is valid but coverage is limited.
+
 Install the packaged skill globally when you do not want a repository copy:
 
 ```bash
+primr prep --install-skill ~/.agents/skills/primr-zero --dry-run
 primr prep --install-skill ~/.agents/skills/primr-zero
 ```
+
+The install preview performs no network requests and writes no files.
 
 Claude Code uses `~/.claude/skills/primr-zero` instead.
 

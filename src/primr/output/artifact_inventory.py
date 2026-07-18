@@ -17,6 +17,7 @@ _DIAGNOSTIC_ARTIFACT_TYPES = frozenset(
 )
 _PRIMARY_REPORT_MARKERS = ("strategic_overview", "company_overview")
 _ADDITIONAL_STRATEGY_MODULE_MARKERS = ("ai_first_transformation", "skills_ideation")
+_PREP_STAGING_PREFIX = ".primr-prep-"
 
 
 def classify_artifact(path: Path) -> str:
@@ -220,6 +221,10 @@ def scan_artifact_roots(
                         truncated = True
                         break
                     visited_entries += 1
+                    if entry.is_dir(follow_symlinks=False) and entry.name.startswith(
+                        _PREP_STAGING_PREFIX
+                    ):
+                        continue
                     if entry.is_dir(follow_symlinks=False) and depth < max_depth:
                         stack.append((Path(entry.path), depth + 1))
                     elif entry.is_file(follow_symlinks=False):

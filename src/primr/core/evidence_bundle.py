@@ -31,6 +31,7 @@ MAX_HIRING_CHARS = 45_000
 MAX_POSTINGS_INDEX_CHARS = 2_000_000
 FENCE_OVERHEAD_RESERVE = 1_000
 PACKAGED_SKILL_PATH = ("resources", "skills", "primr-zero")
+PREP_STAGING_PREFIX = ".primr-prep-"
 
 
 @dataclass(frozen=True)
@@ -76,7 +77,36 @@ def collect_evidence_bundle(
     root.mkdir(parents=True, exist_ok=True)
     timestamp = started_at.strftime("%Y%m%d_%H%M%S_%f")
     folder_prefix = f"{sanitize_filename(company_name)}_Primr_Prep_{timestamp}_"
-    bundle_dir = Path(tempfile.mkdtemp(prefix=folder_prefix, dir=root)).resolve()
+
+    with tempfile.TemporaryDirectory(prefix=PREP_STAGING_PREFIX, dir=root) as staging_name:
+        staging_dir = Path(staging_name).resolve()
+        staged_result = _assemble_evidence_bundle(
+            company_name,
+            normalized_url,
+            bundle_dir=staging_dir,
+            started_at=started_at,
+            max_pages=max_pages,
+            include_recon=include_recon,
+            include_hiring=include_hiring,
+        )
+        unique_suffix = staging_dir.name.removeprefix(PREP_STAGING_PREFIX)
+        published_dir = (root / f"{folder_prefix}{unique_suffix}").resolve()
+        published_result = _rebase_evidence_bundle_result(staged_result, published_dir)
+        _publish_staged_bundle(staging_dir, published_dir)
+        return published_result
+
+
+def _assemble_evidence_bundle(
+    company_name: str,
+    normalized_url: str,
+    *,
+    bundle_dir: Path,
+    started_at: datetime,
+    max_pages: int,
+    include_recon: bool,
+    include_hiring: bool,
+) -> EvidenceBundleResult:
+    """Assemble and validate one unpublished evidence bundle."""
 
     from primr.data.scrape import fetch_web_content
     from primr.skill_pack.evidence import collect_evidence
@@ -205,6 +235,36 @@ def collect_evidence_bundle(
         recon_collected=bool(evidence_paths.get("recon")),
         coverage_warnings=tuple(coverage_warnings),
     )
+
+
+def _rebase_evidence_bundle_result(
+    result: EvidenceBundleResult,
+    published_dir: Path,
+) -> EvidenceBundleResult:
+    """Return result paths rebased from staging to the published directory."""
+
+    def published_path(path: Path) -> Path:
+        return published_dir / path.relative_to(result.bundle_dir)
+
+    return EvidenceBundleResult(
+        status=result.status,
+        bundle_dir=published_dir,
+        manifest_path=published_path(result.manifest_path),
+        host_packet_path=published_path(result.host_packet_path),
+        source_index_path=published_path(result.source_index_path),
+        workflow_path=published_path(result.workflow_path),
+        pages_collected=result.pages_collected,
+        hiring_postings=result.hiring_postings,
+        recon_collected=result.recon_collected,
+        coverage_warnings=result.coverage_warnings,
+    )
+
+
+def _publish_staged_bundle(staging_dir: Path, published_dir: Path) -> None:
+    """Publish a complete staged directory without replacing an existing bundle."""
+    if published_dir.exists():
+        raise FileExistsError(f"Refusing to replace existing prep bundle: {published_dir}")
+    staging_dir.rename(published_dir)
 
 
 def _render_scraped_content(

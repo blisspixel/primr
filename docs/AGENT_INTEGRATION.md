@@ -210,8 +210,10 @@ Claude Code in this checkout: .claude/skills/primr-zero/
 Repository skill install: <workspace>/.agents/skills/primr-zero/
 ```
 
-From an installed wheel, use `primr prep --install-skill <directory>` to copy
-the complete skill and references into any of those explicit destinations.
+From an installed wheel, use
+`primr prep --install-skill <directory> --dry-run` to preview the requested
+destination without network access or file writes, then remove `--dry-run` to
+copy the complete skill and references into that explicit destination.
 
 Claude Code discovers the checked `.claude/skills/primr/` and
 `.claude/skills/primr-zero/` project skills in this source checkout. Users may
