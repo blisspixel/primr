@@ -1184,8 +1184,10 @@ class TestAgentGovernanceResource:
         data = json.loads(result.root.contents[0].text)
         assert data["research_flow"]["cap_argument"] == "max_estimated_cost_usd"
         assert data["strategy_flow"]["cap_argument"] == "max_estimated_cost_usd"
-        assert "35-45 minutes" in data["research_flow"]["expected_runtime"]
+        assert "34-53 minutes" in data["research_flow"]["expected_runtime"]
         assert data["research_flow"]["wait_tool"] == "wait_for_status_change"
+        assert data["research_flow"]["approval_argument"] == "approval_token"
+        assert data["skill_pack_flow"]["approval_argument"] == "approval_token"
 
 
 class TestCalibrationSummaryByJobResource:
@@ -1750,6 +1752,7 @@ class TestConfigResource:
         assert "ai_strategy" in data["available_strategies"]
         assert "customer_experience" in data["available_strategies"]
         assert "skills" in data["available_strategies"]
+        assert "Business-first AI portfolio" in data["available_strategies"]["ai_strategy"]
 
     @pytest.mark.asyncio
     async def test_config_no_sensitive_data(self, server):

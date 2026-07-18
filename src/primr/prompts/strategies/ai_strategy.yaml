@@ -1,1002 +1,616 @@
 # AI Strategy Prompt Configuration
-# This file defines the structure and content requirements for AI strategy reports.
 #
-# Purpose: Board-level AI roadmap for strategic decision making.
-# Goal: Answer "What should we actually do with AI, and why?"
-# Audience: CIO, board members, executive leadership.
-#
-# Dependencies:
-#   - shared/epistemic_rules.yaml (epistemic standards)
-#   - shared/formatting.yaml (formatting rules)
-#   - shared/personas.yaml (ai_strategist persona)
+# Purpose: Business-first AI strategy and board decision support.
+# Goal: Answer "Where can AI create durable business value, what should leadership
+# decide, and what operating and technology choices make that value achievable?"
+# Audience: CEO, CIO, board, executive leadership, and accountable business owners.
 
 meta:
-  name: "AI Strategy Roadmap"
-  version: "1.0.0"
-  description: "Comprehensive AI strategy for board-level decision making"
+  name: "Business-First AI Strategy"
+  version: "2.0.0"
+  description: "Evidence-grounded AI strategy starting with business value, industry possibilities, and executive decisions"
   output_format: "markdown"
   output_filename: "{company_name}_AI_Strategy"
-  expected_pages: "15-30"
+  expected_pages: "18-30"
 
-# Override default persona for this strategy
 persona: "ai_strategist"
 
 document_purpose: |
-  This is an AI strategy document for internal preparation. The goal is to identify the
-  BEST opportunities for this company - what they should actually do with AI over the next
-  1-3 years to create real business value.
-  
-  BUT: A great idea does nothing if not adopted. This document must frame recommendations
-  in a way that maximizes the probability of ACTION, not just agreement.
-  
-  ADOPTION PSYCHOLOGY (apply throughout):
-  
-  1. FRAME AS LOSS AVOIDANCE, NOT JUST GAIN
-     - Bad: "AI could increase efficiency by 20%"
-     - Good: "Without AI, competitors will move 20% faster - the gap compounds monthly"
-     - Loss aversion is 2x stronger than gain motivation
-  
-  2. ANCHOR TO THEIR EXISTING PRIORITIES
-     - Don't introduce new goals. Connect AI to goals they already have.
-     - "This AI initiative directly supports your $50M growth target"
-     - Makes AI feel like accelerating existing strategy, not a distraction
-  
-  3. PROVIDE "INGREDIENTS" NOT FINISHED SOLUTIONS
-     - Give frameworks, benchmarks, selection criteria
-     - Let them feel they're making the decisions (even if guided)
-     - "Here are 3 approaches other companies use. Which fits your culture?"
-  
-  4. QUANTIFY COST OF INACTION
-     - "Every month of delay costs $X in competitive positioning"
-     - Make the status quo feel expensive and risky
-  
-  5. IDENTIFY THE INTERNAL CHAMPION
-     - Who will advocate for this internally? (Usually not the CEO)
-     - Frame recommendations to make THEM look smart
-     - "Your VP of Operations could position this as solving the Q3 bottleneck"
-  
-  6. MAKE YEAR 1 FEEL ACHIEVABLE
-     - Frame as "AI hygiene + 2 competitive necessities"
-     - Everything else is "sequenced optionality"
-     - Reduces perceived risk and ambition
-  
-  7. MATCH THEIR RISK POSTURE
-     - Risk-averse companies: Lead with risk containment, not upside
-     - Growth companies: Lead with competitive advantage
-     - The Strategic Overview report reveals which they are
-  
-  STRUCTURE:
-  - Present the BEST strategic ideas (what they should actually do)
-  - Frame each idea with adoption psychology (how to make it happen)
-  - Include stakeholder analysis (who needs to champion this)
-  - Provide ready-to-use framing (how the champion should pitch it internally)
-  
-  The output should be: "Here's what they should do AND here's how to make it happen."
-  - Workshop Design (co-creation agenda)
-  - Champion Enablement (ghostwriting templates)
-  
-  TONE: You're writing BOTH:
-  1. The strategic recommendations (show expertise, demonstrate what's possible)
-  2. The conversation script (facilitate them owning it)
-  
-  Without great ideas, there's nothing to facilitate. Without facilitation, great ideas
-  get scrutinized as "vendor pitches." You need both.
+  Produce transparent decision support for the CEO, CIO, board, and accountable
+  business leaders. Start with the company's strategy and economics, not with an
+  AI product catalog. The governing question is where better decisions, automation,
+  prediction, generation, or machine perception could materially improve:
+
+  - Revenue growth, retention, pricing, and market expansion
+  - Margin, cost to serve, throughput, cycle time, quality, and working capital
+  - Existing products and services, or credible new offerings and business models
+  - Customer, partner, and employee experience
+  - Risk, compliance, safety, resilience, and decision quality
+
+  AI is one possible means, not the objective. It is acceptable to conclude that a
+  conventional software, analytics, process, or policy change is better for a given
+  problem. Distinguish table-stakes adoption from capabilities that could become a
+  durable advantage for this specific company.
+
+  This is outside-in preparation based on public and operator-supplied evidence. It
+  must not pretend to know internal priorities, budgets, architecture, adoption, or
+  risk tolerance that have not been supplied. Recommendations are hypotheses and
+  choices to validate, with assumptions and disconfirming conditions made visible.
+
+  The document must help leaders decide what to fund, what to test, what not to do,
+  who owns each outcome, and what evidence would change the decision. It must never
+  use covert persuasion, misattribute authorship, manufacture urgency, or present a
+  favored vendor as the inevitable answer.
 
 context_instructions: |
-  You have access to context in the File Search Store. USE IT EXTENSIVELY.
-  
-  PRIMARY SOURCE - STRATEGIC COMPANY REPORT:
-  Your File Search Store contains a comprehensive strategic analysis of this company
-  (typically 15,000-20,000 words). This is your PRIMARY source. It includes:
-  - Executive Summary and company overview
-  - Products/Services and Target Customers analysis
-  - Competitive Differentiation and Financial Profile
-  - SWOT Analysis and Strategic Tensions
-  - Porter's Five Forces and Value Chain Analysis
-  - "Where They're Likely to Say Yes" - specific engagement opportunities
-  - Discovery Questions already identified
-  
-  READ THIS REPORT THOROUGHLY before writing. Every AI recommendation must connect
-  to specific insights from this strategic analysis. The report has already done
-  the hard work of understanding this company - build on it, don't ignore it.
-  
-  SECONDARY SOURCE - VENDOR RESEARCH:
-  Current information about cloud AI services (Azure, AWS, or GCP depending on
-  --platform flag). Use this for accurate technology recommendations with
-  proper service names, pricing context, and capability details.
-  
-  CRITICAL: The --platform flag is a BIAS, not a constraint. It tells you which
-  ecosystem to LEAD with in recommendations, but you must still:
-  - Acknowledge what the company actually runs (from DNS intelligence)
-  - Recommend the best AI tools regardless of platform when appropriate
-  - Include productivity AI (Copilot, Gemini, Claude, ChatGPT Enterprise) based
-    on what makes sense for the company, not just the selected platform
-  - If the company is on M365 but --platform is AWS, lead with AWS services for
-    infrastructure/ML but note that Copilot for M365 is still their natural
-    productivity AI play given their existing Microsoft investment
-  - Always consider multi-vendor AI strategies: a company might use Azure OpenAI
-    for enterprise apps, Anthropic Claude for reasoning tasks, and their platform
-    vendor's native AI for infrastructure
-  
-  Example: If --platform is "azure" but DNS shows they use Anthropic Claude:
-  "Lead architecture recommendations with Azure OpenAI Service and Azure AI Studio,
-  but note their existing Claude deployment — this suggests a multi-model strategy
-  where Azure provides the platform layer and Claude handles specialized reasoning."
-  
-  TERTIARY SOURCE - DNS INTELLIGENCE (RECON):
-  If present, your context includes a "Domain Intelligence (DNS Reconnaissance)"
-  document with VERIFIED facts about the company's actual technology stack,
-  detected from public DNS records. This is ground truth — not hypotheses.
-  
-  USE DNS INTELLIGENCE TO:
-  - Ground "Current State" sections in verified data: "DNS records confirm they
-    run [specific services], suggesting [maturity level]"
-  - Inform platform recommendations: If they're on Microsoft 365 with Azure DNS,
-    lead with Microsoft ecosystem (Copilot, Azure OpenAI) as the natural fit.
-    If they're on Google Workspace, lead with Gemini/Vertex AI.
-  - Detect existing AI adoption: If OpenAI, Anthropic, or other AI tools are
-    detected, acknowledge they're already in the game — don't pitch AI basics.
-    Build on what they have.
-  - Assess security maturity: If CrowdStrike, Okta, Zscaler are detected,
-    they have a mature security stack. Don't recommend basics.
-  - Identify their GTM model: Salesforce + Outreach = sales-led. Mixpanel +
-    Intercom = product-led. This shapes CX and AI recommendations.
-  - Note multi-cloud signals: If both Azure and AWS infrastructure detected,
-    recommendations should be cloud-agnostic or address both platforms.
-  
-  IMPORTANT: The DNS intelligence tells you their CURRENT productivity platform.
-  If they're on Microsoft 365, their AI productivity play is Copilot for M365.
-  If they're on Google Workspace, it's Gemini for Workspace. But ALSO consider
-  that they may be using or evaluating other AI providers (Anthropic Claude,
-  OpenAI ChatGPT Enterprise, etc.) alongside their primary platform — the DNS
-  data will show this if those tools have domain verification records.
-  
-  HOW TO USE CONTEXT:
-  - Search the strategic report for relevant sections before writing each part
-  - Quote or reference specific findings: "The strategic analysis notes that..."
-  - Connect AI opportunities to tensions/patterns already identified in the report
-  - Use the "Where They're Likely to Say Yes" section to inform Quick Wins
-  - Cross-reference DNS intelligence with strategic report findings
-  - Don't repeat generic AI advice - make it specific to THIS company's situation
-  
-  BAD: "They could use AI for customer service"
-  GOOD: "Given their 45,000+ client base and emphasis on the 'Open and Connected' 
-  ecosystem [from strategic report], an AI-powered integration assistant could 
-  reduce the support burden of maintaining 400+ partner APIs"
-  
-  BAD: "Consider Microsoft Copilot for productivity"
-  GOOD: "DNS confirms they run Microsoft 365 with federated auth via Okta and
-  Anthropic Claude enterprise. They're already in the AI game. The natural next
-  step is Copilot for M365 for broad productivity, while leveraging their existing
-  Claude deployment for specialized reasoning tasks."
+  Use the available context extensively, but preserve its evidence strength.
 
-# =============================================================================
-# WRITING QUALITY STANDARDS
-# =============================================================================
+  EVIDENCE ORDER:
+  1. Operator-supplied discovery notes are the strongest available evidence of
+     internal priorities and constraints, while still representing the perspective
+     of the people who supplied them.
+  2. The Strategic Overview is the primary synthesis of company strategy, customers,
+     products, economics, competition, tensions, risks, and public evidence.
+  3. Recon and hiring artifacts are direct public signals. They can reveal configured
+     domain services, advertised roles, and requested skills, but they do not prove
+     active production use, license scope, primary architecture, organizational
+     maturity, or future intent.
+  4. Current first-party company materials, official statistics, standards, filings,
+     primary research, and official product documentation support external claims.
+  5. Vendor research is secondary context for current capabilities and names. It must
+     not override company evidence or turn the report into a vendor pitch.
+
+  Build an evidence basis before recommendations. For material observations, state
+  the source type, confidence, implication, uncertainty, and validation question.
+  Surface contradictions rather than silently choosing the most convenient source.
+
+  Create a complete observed-stack inventory when signals exist. Cover productivity
+  and collaboration, identity and security, public cloud and hosting, data and
+  analytics, AI and model providers, CRM/ERP/HR and other enterprise applications,
+  integration and developer tooling, file/content systems, and private data-center,
+  edge, or accelerated-compute signals. "No signal" means unknown, not absent.
+
+  The selected platform is an evaluation emphasis, not an exclusive architecture.
+  Preserve every relevant detected ecosystem. A productivity-suite signal does not
+  prove a primary cloud. A DNS verification record does not prove broad AI adoption.
+  If multiple ecosystems appear, evaluate how they can coexist and where
+  interoperability, portability, governance, and commercial leverage matter.
+
+hard_requirements: |
+  REQUIRED NARRATIVE ORDER
+  1. Executive decisions and the business context
+  2. Business value pools and industry art of the possible
+  3. Evidence basis and likely current state
+  4. Prioritized initiative portfolio and explicit choices
+  5. Business case, unit economics, operating model, and adoption
+  6. Architecture and workload placement
+  7. Governance, risk, roadmap, and board actions
+
+  REQUIRED BUSINESS-VALUE LENS
+  - Identify the company's economic engine, strategic tensions, distinctive strengths,
+    and the two or three value pools that matter most.
+  - Separate revenue, margin, product/service, experience, workforce, resilience, and
+    risk value. Do not collapse all value into labor savings.
+  - Explain what must remain human-led or relationship-led because it is central to
+    trust, accountability, safety, or differentiation.
+
+  REQUIRED INDUSTRY ART OF THE POSSIBLE
+  - Research what leading organizations, adjacent industries, customers, suppliers,
+    and credible new entrants are doing now.
+  - Separate proven patterns, emerging patterns, frontier possibilities, and hype.
+  - Explain which capabilities are becoming table stakes and which could create
+    company-specific advantage. Cite current primary or official sources.
+
+  REQUIRED INITIATIVE DECISION CARD
+  Every prioritized initiative must state:
+  - Business outcome and accountable executive owner
+  - Affected customer, employee, partner, product, or operational journey
+  - Evidence and assumptions, including what is still unknown
+  - Baseline and target business metric, expressed as a range when estimated
+  - Current-stack fit and required data, process, integration, and change dependencies
+  - Primary architecture option and at least one credible alternative
+  - Build, buy, partner, or combine rationale
+  - Fully loaded cost and business unit economics, not only model or token cost
+  - 30-day discovery action, 90-day test, decision gate, and sequencing dependency
+  - Success KPI, leading indicator, risk control, kill criterion, and revisit trigger
+
+  REQUIRED WORKLOAD-PLACEMENT ANALYSIS
+  Evaluate only material options, but consider the full decision space: embedded SaaS,
+  managed public-cloud AI, multiple public clouds, private or on-premises accelerated
+  infrastructure, edge or disconnected deployment, and hybrid combinations. Compare:
+  - Data residency, sovereignty, privacy, intellectual property, and regulatory needs
+  - Latency, connectivity, offline operation, safety, and survivability
+  - Sustained throughput, utilization, capacity, model size, and accelerator demand
+  - Integration with the observed identity, data, security, application, and operations stack
+  - Model choice, portability, observability, evaluation, and exit options
+  - Skills, operating burden, support, time to value, commercial terms, and fully loaded TCO
+
+  Do not prescribe a data center or accelerator purchase merely because it is possible.
+  Private, on-premises, or edge processing earns a recommendation only when workload
+  scale, utilization, latency, sovereignty, safety, resilience, or control justifies
+  the capital and operating burden. Likewise, do not assume public cloud is always
+  cheaper or strategically superior. State what measurements are needed to decide.
+
+  REQUIRED GOVERNANCE AND ECONOMICS
+  - Tie governance depth to use-case consequences, autonomy, affected people, and the
+    full AI lifecycle. Include testing, human accountability, incident response,
+    monitoring, change control, decommissioning, and third-party risk.
+  - Use business unit metrics such as cost per case, decision, transaction, product,
+    customer outcome, or service delivered. Connect technical costs to value.
+  - Include people, process redesign, data work, integration, security, evaluation,
+    change management, vendor commitments, cloud, SaaS, data-center, and support costs.
+
+  REQUIRED EVIDENCE DISCIPLINE
+  - Use compact [cite: N] references for material factual claims and recommendations.
+  - End with one ## Sources section containing the cited URLs.
+  - Verify current vendor and service names against official documentation. Mark
+    preview, regional, or unconfirmed capabilities accurately.
+  - Verification is an outcome, not an instruction. If current official evidence is
+    not present and this run cannot browse, do not assert a current product name,
+    feature, price, availability, or lifecycle state. State the capability requirement,
+    evidence gap, and exact validation action instead.
+  - Never invent internal baselines, dollar values, adoption rates, product usage,
+    or competitor deployments. When evidence is insufficient, provide the formula,
+    required inputs, and validation action instead of a fabricated number.
 
 writing_standards: |
-  SECTION-APPROPRIATE TONE:
-  
-  For OBSERVATION sections (Current State, Competitive Landscape):
-  - Humble and exploratory: "Based on public signals, we hypothesize..."
-  - Surface questions to validate in conversation
-  - Acknowledge what we can't know from outside
-  
-  For FRAMEWORK sections (Prioritization Filters, ROI Models, Governance, Architecture):
-  - Apply frameworks rigorously - this is where structured thinking adds value
-  - Prioritization matrices, governance tiers, ROI models are useful tools
-  - Ground every assessment in specific evidence
-  - Draw out implications - what does each finding suggest?
-  
-  For RECOMMENDATION sections (Quick Wins, Bigger Bets, Strategic Choices):
-  - Frame as one perspective among many: "Here's one way to think about this..."
-  - "This is just our take based on what we can see - you might see it differently"
-  - Include specific technologies as examples, not prescriptions: "Something like Azure OpenAI could work here, though there are other options"
-  - ROI as rough estimates: "Ballpark ROI might be 2-4× if our assumptions hold..."
-  - Always acknowledge we might be wrong: "This assumes X, but if Y is true instead..."
-  
-  COMPETITIVE CLAIMS:
-  - Use directional language: "materially faster", "order-of-magnitude improvement"
-  - Avoid precise multiples that invite challenge: NOT "13× faster"
-  - Frame as "directional threat" not precise measurement
-  - Soften: "near-real-time decisions for certain segments" vs "instant decisioning"
-  
-  ROI AND INVESTMENT:
-  - Present as ranges: "$2-4M investment" not "$3.2M"
-  - Explicit assumptions: "Assuming 20% adoption in Year 1..."
-  - Include uncertainty: "ROI of 2-4× over 18-24 months, depending on..."
-  - For risk-averse organizations: emphasize risk avoidance alongside upside
-  - Match the company's culture: aggressive companies want upside, conservative ones want downside protection
-  
-  VENDOR SPECIFICS:
-  - Frame as "one perspective" not definitive recommendations: "From our research, something like..."
-  - "This is just one way to think about it - there are other valid approaches..."
-  - "Worth considering tools like Agent365, though other vendors have similar offerings"
-  - Always acknowledge alternatives: "Azure/AWS/GCP all have versions of this..."
-  - The goal is to spark thinking, not lock in decisions
-  
-  THROUGHOUT:
-  - Specific over generic: actual product names, numbers, comparisons
-  - Connected to THIS company's situation
-  - No numbered section headings (use natural titles)
-  - Cite sources and flag uncertainty
+  Write for executives who need to make tradeoffs. Lead each section with the decision
+  or implication, then show the evidence and reasoning. Use plain language before
+  technical detail. Be ambitious about possibilities and conservative about claims.
 
-# =============================================================================
-# DATA SOURCES
-# =============================================================================
-# These files are uploaded to File Search Store as context for Deep Research.
-# The vendor field filters which files are used based on --cloud-vendor flag.
+  Prefer a small, ranked portfolio over a long use-case catalog. Explain why an item
+  won, why another lost, what it enables later, and what would change the ranking.
+  Name alternatives and tradeoffs without repeating empty caveats.
 
-data_sources:
-  - name: "vendor_research_azure"
-    path: "vendor-research/vendor-research-azure-2025-12.txt"
-    description: "Latest Azure AI services and capabilities from Microsoft Ignite 2024/2025"
-    vendor: "azure"
-    required: false
-  - name: "vendor_research_aws"
-    path: "vendor-research/vendor-research-aws-2025-12.txt"
-    description: "Latest AWS AI services and capabilities from re:Invent 2024"
-    vendor: "aws"
-    required: false
-  - name: "vendor_research_gcp"
-    path: "vendor-research/vendor-research-gcp-2025-12.txt"
-    description: "Latest GCP AI services and capabilities from Google Cloud Next 2024"
-    vendor: "gcp"
-    required: false
-  - name: "vendor_research_agnostic"
-    path: "vendor-research/vendor-research-agnostic-2025-12.txt"
-    description: "Cloud-agnostic AI guidance and multi-cloud comparison"
-    vendor: "agnostic"
-    required: false
-  - name: "vendor_research_private"
-    path: "vendor-research/vendor-research-private-2026-03.txt"
-    description: "NVIDIA AI Enterprise, DGX, NIM, and private cloud AI infrastructure"
-    vendor: "private"
-    required: false
+  Use tables when they clarify value pools, evidence, portfolio ranking, workload
+  placement, economics, sequencing, ownership, or risk. Keep prose readable in
+  Markdown, plain text, DOCX, and PDF. Do not rely on color alone.
 
-# =============================================================================
-# EPISTEMIC RULES (Strategy-Specific Overrides)
-# =============================================================================
+  Avoid inflated urgency, generic inevitability, precise unsupported returns, and
+  stale vendor-event references. Do not use manipulative sales language. Do not make
+  a person look like the author of work they did not author.
 
 epistemic_rules:
+  framework_constraints: |
+    Follow only the sections defined in this AI Strategy contract. Do not add SWOT,
+    Porter's Five Forces, value-chain, or other frameworks unless a section explicitly
+    requests them and they improve a named executive decision.
+  audience_consistency: |
+    Write for the CEO, CIO, board, executive leadership, and accountable business
+    owners. The document is transparent decision support that can be shared with the
+    company. It is not internal sales preparation, a consulting pitch, or junior analysis.
+  engagement_realism: |
+    For each initiative, identify the accountable outcome owner, funding source if known,
+    decision dependencies, adoption burden, credible internal and external alternatives,
+    and evidence required to release more investment. Never invent a budget or decision
+    timeline. Do not assume a consulting engagement, favored supplier, or sales motion.
   confidence_labeling: |
-    REQUIRED: Label every significant claim and recommendation:
-    
-    For FACTS about the company:
-    - **Confirmed**: From the strategic report with citations
-    - **Reported**: From credible sources but not verified
-    - **Estimated**: Calculated or inferred
-    - **Hypothesis**: Our interpretation to validate
-    
-    For AI RECOMMENDATIONS:
-    - "Low-regret / proven pattern" - widely adopted, strong evidence base
-    - "Context-dependent bet" - success depends on company-specific factors
-    - "Exploratory / frontier" - emerging capability, higher uncertainty
-    
-    Example: "Given their 45,000+ client base (Confirmed - company website), 
-    an AI-powered support assistant could reduce ticket volume by 20-40% 
-    (Context-dependent bet - depends on current support maturity)"
-  transformation_rule: |
-    If a sentence implies inevitability, failure, or "only viable path", rewrite it as a scenario comparison.
-    Example: Instead of "Companies that don't adopt AI will fail", write "Organizations that move early 
-    may gain compounding advantages, while delayed adoption increases the cost of catching up."
-  hypothesis_framing: |
-    Frame assessments of current state as hypotheses to validate, not facts.
-    Use language like "Based on [evidence], we hypothesize..."
-  avoid_overreach: |
-    The strategic report you're building on is itself a hypothesis document.
-    Don't compound speculation on speculation:
-    - If the report says "estimated revenue of $1B" don't calculate precise ROI from it
-    - If the report hypothesizes about internal priorities, don't build recommendations assuming it's true
-    - Use ranges for ROI projections, not point estimates
-    - Acknowledge when recommendations depend on unverified assumptions
+    Label material company claims as Confirmed, Reported, Estimated, or Hypothesis.
+    Label recommendations as Low-regret pattern, Context-dependent bet, or Frontier
+    option. Keep an observation separate from the inference drawn from it.
+  avoid_compounded_inference: |
+    Do not turn one hypothesis into the factual premise of another. If an upstream
+    company fact is uncertain, carry that uncertainty into the recommendation and
+    make validation a decision gate.
   numeric_precision: |
-    For ROI and investment figures:
-    - Use ranges: "$2-4M investment" not "$3.2M"
-    - State assumptions explicitly: "Assuming 20% adoption in Year 1..."
-    - Acknowledge uncertainty: "ROI of 2-4× over 18-24 months, depending on..."
-    - For risk-averse organizations: emphasize risk avoidance alongside upside
+    Use ranges with explicit assumptions. If the baseline is unknown, provide a
+    calculation model and the inputs leadership must obtain. Do not fabricate a
+    company-specific ROI from an industry benchmark.
+  scenario_comparison: |
+    Replace statements of inevitability with scenario comparisons. Include an
+    option to defer or use conventional technology when that is credible.
+  source_honesty: |
+    DNS, hiring, and public web signals have bounded meanings. State what each signal
+    supports and what it cannot establish without internal validation.
 
 formatting:
-  paragraphs: "Write in full paragraphs for strategic sections"
-  bullets: "Use bullets only for specific recommendations or lists"
-  tone: "Strategic and direct, like a CIO presenting to the board"
-  citations: "Cite sources per the Research and Validation Protocol"
-  tables: "Include ROI tables, comparison matrices, timeline tables"
+  paragraphs: "Use concise paragraphs for reasoning and implications"
+  bullets: "Use bullets for decisions, requirements, and bounded lists"
+  tone: "Direct, evidence-grounded, and suitable for CEO, CIO, and board review"
+  citations: "Use compact inline references and one final Sources appendix"
+  tables: "Use accessible tables with explicit headers and units"
 
 heuristics:
-  ten_twenty_seventy: |
-    The "10-20-70 Rule": Allocate roughly 10% effort to algorithms, 20% to technology
-    infrastructure, and 70% to people, processes, and cultural transformation.
-    Most AI projects fail due to change management, not technology.
-  j_curve: |
-    The "J-Curve": Expect productivity to dip during the learning phase before surging.
-    Leadership must be prepared for a 2-4 month adjustment period.
-  rag_default: |
-    Default to RAG over fine-tuning for 90% of enterprise use cases. Fine-tune only when
-    you need to change the model's style, format, or domain-specific reasoning.
+  business_first: |
+    If a recommendation starts with a product name, rewrite it to start with the
+    business outcome, accountable owner, and decision to be made.
+  portfolio_not_catalog: |
+    Rank a few initiatives across value, evidence, feasibility, risk, adoption load,
+    and option value. A longer list is not a deeper strategy.
+  complementary_assets: |
+    Treat data, process design, skills, incentives, governance, integration, and
+    operating ownership as part of the investment rather than implementation detail.
+  unit_economics: |
+    Move from cost per token or call toward cost and value per business outcome.
+  workload_fit: |
+    Select deployment location from workload requirements and economics, not from
+    vendor preference or a universal cloud-versus-data-center rule.
 
-research_validation_protocol: |
-  For every vendor service, tool, or capability named in this document:
-  1. Verify current name: Confirm the service still exists and has not been renamed or deprecated
-  2. Status: Note if GA (Generally Available) or Preview/Beta
-  3. Region availability: Flag if limited to specific regions
-  4. Compliance certifications: Note relevant certifications (SOC2, HIPAA, FedRAMP) if applicable
-  5. Citation: Link to official product page or release note with date
-  6. Pricing: If pricing varies, cite pricing page and state assumptions
-  7. Unconfirmed flag: If anything cannot be verified through search, mark as "UNCONFIRMED"
-
-
-# =============================================================================
-# STRATEGIC CONTEXT
-# =============================================================================
-
-strategic_context:
-  agentic_transformation: |
-    We are in the "Agentic Era" where AI evolves from passive assistants to proactive agents
-    capable of planning, reasoning, and executing multi-step workflows autonomously. The key
-    distinction is between "AI-enabled" (AI bolted onto legacy processes) vs "AI-native"
-    (intelligence as the foundational operating substrate). The competitive advantage lies
-    not in "using AI" but in "becoming agentic." Not every function needs to become agentic
-    immediately. The strategy must distinguish where autonomy creates real economic leverage
-    versus where it adds unnecessary risk.
-
-# =============================================================================
-# SECTIONS
-# =============================================================================
+# Vendor research is resolved dynamically so shipped prompts do not pin dated
+# conference notes or stale product catalogs.
+data_sources: []
 
 sections:
-  # =============================================================================
-  # PART A: THE IDEAS (What's Possible - Traditional Strategy Content)
-  # =============================================================================
-  
-  - id: strategic_thesis
-    name: "AI Strategic Thesis"
-    part: 1
-    purpose: "Establish the recommended direction before diving into specifics"
-    subsections:
-      - id: why_non_optional
-        name: "Why AI Becomes Structurally Non-Optional"
-        covers:
-          - "Scale: Data volumes that exceed human processing capacity"
-          - "Complexity: Decision spaces too large for manual analysis"
-          - "Speed: Competitive requirements demanding faster response"
-          - "Labor constraints: Talent scarcity, cost pressures, skill gaps"
-          - "Customer expectations: Rising baseline for personalization"
-        depth: |
-          Be specific to the company's situation. Reframe AI as structural necessity, not enthusiasm.
-          
-          Key framing principle: AI should ENABLE what makes this company distinctive, not replace it.
-          - For service-oriented companies: "AI lets [Company] remain a [service/relationship/trust] company at scale"
-          - For efficiency-focused companies: "AI accelerates [Company]'s cost advantage"
-          - For innovation-focused companies: "AI amplifies [Company]'s ability to move fast"
-          
-          Match the framing to what the company research reveals about their identity and strategy.
-      - id: transformation_path
-        name: "Recommended Transformation Path"
-        covers:
-          - "AI-enabled vs AI-native recommendation with rationale"
-          - "Proposed primary value lever (cost, revenue, risk, differentiation)"
-          - "Recommended priorities with specific reasoning"
-          - "Suggested deprioritizations with revisit conditions"
-          - "Change management reality (70% of budget to people/process)"
-        depth: |
-          Avoid generic statements. Be specific to the company's situation.
-          Frame Year 1 as "AI hygiene + two competitive necessities" - everything else 
-          becomes sequenced optionality. This reduces perceived ambition while maintaining 
-          strategic direction.
-
   - id: executive_summary
-    name: "Executive Summary"
+    name: "Executive Decision Brief (Executive Summary)"
     part: 1
-    purpose: "The 'so what' for the board"
+    purpose: "Give leaders the decision, value logic, uncertainty, and next move on one page"
     covers:
-      - "Why AI matters for THIS company specifically"
-      - "The recommended investment level and expected ROI"
-      - "The 3 most important things to do in the next 12 months"
-    depth: "2-3 paragraphs. Concise and actionable."
+      - "Company-specific business context and the two or three value pools that matter most"
+      - "Recommended portfolio, investment posture, and what is deliberately deferred"
+      - "Top board and executive decisions, owners, and next 30-day actions"
+      - "Largest assumptions, risks, and evidence that could change the recommendation"
+    depth: "Approximately 500-700 words. Write this last so it reflects the analysis."
 
-  - id: current_state
-    name: "Likely Current State (Hypotheses to Validate)"
+  - id: strategic_thesis
+    name: "Business Strategy and AI Strategic Thesis"
     part: 2
-    purpose: "Frame assessments as hypotheses since we lack internal visibility"
+    purpose: "Derive the role of AI from the company's economic engine and strategy"
     subsections:
-      - id: data_platform_maturity
-        name: "Data Platform Maturity (Hypothesis)"
+      - id: economic_engine
+        name: "Economic Engine and Strategic Tensions"
         covers:
-          - "Likely data sources based on industry"
-          - "Probable challenges based on industry patterns"
-          - "Signals observed from public information"
-      - id: technology_signals
-        name: "Technology Signals (What We Can Observe)"
+          - "How the company creates, delivers, and captures value"
+          - "Growth, margin, customer, product, workforce, and risk tensions"
+          - "Distinctive capabilities and relationships that should be amplified or protected"
+      - id: value_pool_thesis
+        name: "Value Pool Thesis"
         covers:
-          - "Cloud posture signals"
-          - "Tech stack hints from job postings"
-          - "Digital maturity signals"
-      - id: organizational_readiness
-        name: "Organizational Readiness (Industry Baseline)"
+          - "Ranked value pools with business rationale"
+          - "Where AI may matter and where conventional change is likely better"
+          - "What should remain human-led and why"
+      - id: strategic_options
+        name: "Strategic Posture Options"
         covers:
-          - "AI adoption curve position"
-          - "Change management capacity"
-          - "Likely constraints"
-      - id: anti_patterns
-        name: "Common Anti-Patterns to Discuss"
-        covers:
-          - "Pilot proliferation"
-          - "Tool sprawl"
-          - "Data foundation gaps"
-    depth: "Frame each assessment as 'Based on [evidence], we hypothesize...'"
+          - "Pragmatic adopter, capability builder, and business-model innovator options"
+          - "Risk, capital, time-to-value, and option-value tradeoffs"
+          - "Recommended posture and conditions under which another option wins"
+    depth: "Business language only until the strategic posture is clear. Do not name vendors here."
 
   - id: competitive_landscape
-    name: "Competitive AI Landscape"
-    part: 2
-    purpose: "Understand competitive positioning on AI"
-    covers:
-      - "One competitor ahead on AI: Who, what specifically, what's the directional gap"
-      - "One peer making common AI mistakes: What to avoid"
-      - "Value at stake over 24 months (best-case, likely-case, delayed-action)"
-    depth: |
-      Specific examples with evidence, but use directional language for competitive claims:
-      - "Materially faster" not "13× faster"
-      - "Order-of-magnitude improvement" not precise multiples
-      - "Near-real-time for certain segments" not "instant decisioning"
-      This protects credibility if someone challenges a figure in a live conversation.
-
-  - id: architecture_posture
-    name: "Recommended AI Architecture Posture"
+    name: "Industry Direction and Art of the Possible"
     part: 3
-    purpose: "Define what they SHOULD build toward - as reference architecture, not commitment"
+    purpose: "Show what is changing in the industry before selecting technologies"
     subsections:
-      - id: knowledge_grounding
-        name: "Knowledge Grounding Pattern (RAG as Default)"
+      - id: adoption_baseline
+        name: "Industry Adoption and Operating Patterns"
         covers:
-          - "RAG as default pattern recommendation"
-          - "Vector database and embedding strategy"
-          - "When to fine-tune vs RAG"
-          - "Data sources to prioritize"
-      - id: identity_access
-        name: "Identity, Access, and Audit"
+          - "Current adoption by industry, firm size, and business function where evidence exists"
+          - "Proven patterns, emerging patterns, frontier options, and common failure modes"
+          - "Complementary capabilities associated with productive adoption"
+      - id: ecosystem_moves
+        name: "Competitor, Customer, Supplier, and Adjacent-Market Moves"
         covers:
-          - "User authentication to AI systems"
-          - "Service principal for AI agents"
-          - "Audit logging requirements"
-          - "PII handling policies"
-      - id: agent_boundaries
-        name: "Agent Boundaries and Kill Switches"
+          - "Specific sourced examples and their strategic implications"
+          - "Table-stakes capabilities versus possible differentiators"
+          - "New entrants, substitutes, and business-model pressure"
+      - id: scenarios
+        name: "Three Plausible Industry Scenarios"
         covers:
-          - "Autonomy vs human approval boundaries"
-          - "Dollar/impact thresholds"
-          - "Runaway agent detection"
-          - "Escalation paths"
-      - id: platform_components
-        name: "Reusable Platform Components"
+          - "Measured evolution, accelerated adoption, and disruption scenarios"
+          - "Leading indicators and implications for the company's timing"
+    depth: "Use current primary, official, or first-party sources. Do not infer a competitor deployment without evidence."
+
+  - id: current_state
+    name: "Evidence Basis and Likely Current State"
+    part: 4
+    purpose: "Separate observed facts, bounded signals, hypotheses, contradictions, and unknowns"
+    subsections:
+      - id: evidence_ledger
+        name: "Evidence and Assumption Ledger"
         covers:
-          - "Common prompt templates and guardrails"
-          - "Shared vector stores and knowledge bases"
-          - "Centralized model endpoints"
-          - "Evaluation and monitoring infrastructure"
-          - "Cost allocation mechanisms"
-    depth: |
-      Frame as ONE PERSPECTIVE, not the definitive answer:
-      - "Here's one way to approach this architecture..."
-      - "Tools like [specific service] are one option - there are others with similar capabilities"
-      - "This is just our take based on current market research"
-      - Always acknowledge alternatives exist and might be better fits
-      - The goal is to provide a starting point for their own evaluation, not make the decision for them
+          - "Source type, observation, confidence, implication, limitation, and validation question"
+          - "Contradictions and material evidence gaps"
+      - id: business_readiness
+        name: "Business and Operating Readiness"
+        covers:
+          - "Leadership ownership, process clarity, baseline metrics, adoption capacity, and change load"
+          - "Advertised skills and hiring direction without treating job postings as deployed capability"
+      - id: complete_stack
+        name: "Observed Technology and Service Stack"
+        covers:
+          - "Productivity, identity, security, cloud, hosting, data, AI providers, enterprise apps, integration, developer tooling, content, data center, and edge"
+          - "Observed signal versus inferred use, with confidence and validation need"
+          - "Platform coexistence, portability, gaps, and likely integration boundaries"
+      - id: readiness_constraints
+        name: "Constraints and Prerequisites"
+        covers:
+          - "Data rights and quality, process ownership, integration, security, skills, procurement, and governance"
+    depth: "Do not score maturity from a service list alone. Unknown is a valid result."
 
   - id: opportunity_domains
-    name: "AI Opportunity Domains"
-    part: 4
-    purpose: "Specific recommendations tailored to the company"
+    name: "Business Value Portfolio"
+    part: 5
+    purpose: "Develop company-specific opportunities by value pool rather than technology category"
     subsections:
-      - id: productivity_ai
-        name: "Productivity AI by Persona"
+      - id: growth_value
+        name: "Growth, Retention, Pricing, and Market Expansion"
         covers:
-          - "3-4 key personas identified"
-          - "Specific productivity AI for each persona"
-      - id: process_automation
-        name: "Process Automation"
+          - "Revenue, conversion, retention, cross-sell, pricing, and channel opportunities"
+      - id: margin_value
+        name: "Margin, Throughput, Quality, and Working Capital"
         covers:
-          - "3-5 high-value automation opportunities"
-          - "Specific to company's operations"
-      - id: conversational_ai
-        name: "Conversational AI"
+          - "Cost to serve, cycle time, capacity, defects, rework, forecasting, and asset utilization"
+      - id: product_value
+        name: "Products, Services, and Business Models"
         covers:
-          - "Internal (employee-facing) recommendations"
-          - "External (customer-facing) recommendations"
-      - id: agentic_ai
-        name: "Agentic AI"
+          - "Existing-offering improvement, AI-enabled services, credible new products, and monetization"
+      - id: experience_value
+        name: "Customer, Partner, and Employee Experience"
         covers:
-          - "2-3 agentic AI opportunities"
-          - "Connected to data, apps, services"
-      - id: generative_bi
-        name: "Generative BI and Analytics"
+          - "Moments where faster, more relevant, or more consistent decisions change outcomes"
+      - id: resilience_value
+        name: "Risk, Safety, Compliance, and Resilience"
         covers:
-          - "Analytics evolution recommendations"
-      - id: traditional_ml
-        name: "Traditional AI/ML"
-        covers:
-          - "Forecasting, churn prediction, etc."
-      - id: security_governance
-        name: "Security, Governance, and Responsible AI"
-        covers:
-          - "Framework recommendations"
-    depth: "Do not give generic advice. Connect every recommendation to their actual business."
+          - "Error reduction, fraud, compliance, security, continuity, key-person risk, and decision quality"
+    depth: "Generate a broad candidate set, then carry only the strongest evidence-backed items forward."
 
   - id: prioritization_filters
-    name: "Prioritization Filters"
-    part: 5
-    purpose: "Framework for evaluating all candidate initiatives"
+    name: "Portfolio Prioritization and Explicit Choices"
+    part: 6
+    purpose: "Make selection logic visible and comparable"
     covers:
-      - "Expected Business Impact"
-      - "Data Readiness"
-      - "Integration Complexity"
-      - "Adoption and Change Load"
-      - "Risk and Compliance Exposure"
-    depth: "Apply these filters to all recommendations"
-
-  - id: roi_models
-    name: "ROI Model Selection"
-    part: 5
-    purpose: "Use appropriate ROI model for each recommendation type"
-    covers:
-      - "Productivity ROI (labor savings, throughput)"
-      - "Revenue ROI (conversion, retention, pricing)"
-      - "Risk ROI (compliance, security, error reduction)"
-      - "Risk Containment ROI (avoiding downside, not just generating upside)"
+      - "Business value and strategic differentiation"
+      - "Evidence confidence and measurability"
+      - "Time to value and option value"
+      - "Data, process, integration, and stack readiness"
+      - "Adoption load and accountable ownership"
+      - "Risk, autonomy, affected people, and regulatory exposure"
+      - "Fully loaded unit economics and commercial flexibility"
     depth: |
-      Include specific calculation frameworks. Present ROI as RANGES with explicit assumptions:
-      - "ROI of 2-4× over 18-24 months, assuming..."
-      - "Investment of $2-4M depending on scope"
-      - "Payback period of 12-18 months if adoption reaches 20%+"
-      
-      Match ROI framing to company culture (from company research):
-      - Risk-averse/conservative companies: ELEVATE RISK CONTAINMENT as first-order benefit
-        - Reduced compliance backlog, fewer manual errors, lower key-person dependency
-      - Growth-focused companies: Lead with revenue and competitive advantage
-      - Efficiency-focused companies: Lead with cost reduction and productivity
-      
-      The company research should reveal which framing will resonate.
+      Show the scored or reasoned ranking, sensitivity to uncertain assumptions, and
+      why the selected portfolio wins. Include an explicit What NOT to Pursue table
+      with rationale, revisit trigger, and signal to watch.
 
   - id: quick_wins
-    name: "Five Quick Wins (Start in 90 Days)"
-    part: 5
-    purpose: "Immediate, high-confidence opportunities"
-    covers:
-      - "The Opportunity"
-      - "Why It Matters for the company"
-      - "Why It Won (prioritization rationale)"
-      - "Technology (specific tools with citations, framed as reference architecture)"
-      - "Implementation requirements"
-      - "ROI Calculation with ranges and explicit assumptions"
-      - "Success Metrics"
-    depth: |
-      Each Quick Win needs comprehensive detail. Frame Year 1 as:
-      "AI hygiene + two competitive necessities"
-      
-      ROI should be presented as ranges:
-      - "Expected savings of $500K-$1.2M annually, assuming..."
-      - "Productivity improvement of 15-25% for target personas"
-      - "Payback in 6-12 months depending on adoption curve"
-      
-      Technology recommendations should feel optional:
-      - "One approach would be [specific tool]..."
-      - "Reference architecture could include..."
+    name: "Initiative Decision Cards: Quick Wins and Bigger Bets"
+    part: 7
+    purpose: "Turn the ranked portfolio into falsifiable, owned decisions"
+    subsections:
+      - id: quick_win_cards
+        name: "Three to Five Quick Wins"
+        covers:
+          - "Low-regret tests that can begin within 90 days"
+          - "Complete initiative decision card for each"
+      - id: bigger_bets
+        name: "Two to Four Bigger Bets"
+        covers:
+          - "Transformational options that require capability, data, operating-model, or product investment"
+          - "Complete initiative decision card for each"
+      - id: conventional_alternatives
+        name: "Where AI Is Not the Best First Move"
+        covers:
+          - "Process, policy, analytics, integration, or conventional automation alternatives"
+          - "Conditions that would justify revisiting AI"
+    depth: "Apply every field in the required initiative decision card. Do not invent baselines or returns."
 
-  - id: compounding_logic
-    name: "Compounding Logic Across the AI Portfolio"
-    part: 5
-    purpose: "Show how early initiatives enable later bets"
-    covers:
-      - "Data generation dependencies"
-      - "Trust-building dependencies"
-      - "Infrastructure dependencies"
-    depth: "Make dependencies explicit. Show how portfolio builds on itself."
-
-  - id: bigger_bets
-    name: "Five Bigger Bets (6-18 Month Horizon)"
-    part: 5
-    purpose: "Transformational opportunities requiring more investment"
-    covers:
-      - "Technology architecture"
-      - "ROI model"
-      - "Risk factors"
-      - "Governance tier"
-    depth: "Comprehensive details for each bet"
-
-  - id: strategic_choices
-    name: "Explicit Strategic Choices (What We Are Choosing NOT to Pursue)"
-    part: 5
-    purpose: "Frame deprioritizations as deliberate strategic choices - boards love knowing what not to do"
-    covers:
-      - "What it is"
-      - "Why it is tempting"
-      - "What focus it enables"
-      - "Revisit trigger"
-      - "Signal to watch"
-    depth: |
-      Signals strategic clarity, not avoidance. This section often resonates most strongly 
-      with boards because it demonstrates discipline.
-      
-      Tailor the "do not pursue" list to what the company research reveals:
-      - Service/trust-focused companies: Reject fully autonomous customer-facing AI, human-replacing AI
-      - Cost-focused companies: Reject expensive custom model training when APIs suffice
-      - Speed-focused companies: Reject governance-heavy approaches that slow innovation
-      
-      Frame as: "We are choosing to preserve [what makes this company distinctive] by NOT pursuing..."
-
-  - id: hypotheses
-    name: "What Would Have to Be True (Key Hypotheses)"
-    part: 5
-    purpose: "Turn recommendations into testable experiments"
-    covers:
-      - "Conditions for success"
-      - "Early signals to monitor"
-      - "Disconfirming evidence"
-    depth: "Acknowledges uncertainty while providing learning framework"
+  - id: roi_models
+    name: "Business Case, Unit Economics, and ROI"
+    part: 8
+    purpose: "Connect technology and transformation cost to business outcomes"
+    subsections:
+      - id: value_models
+        name: "Value Models"
+        covers:
+          - "Revenue, margin, product, experience, workforce, risk, and resilience value"
+          - "Baseline, formula, range, assumptions, confidence, and attribution limits"
+      - id: fully_loaded_cost
+        name: "Fully Loaded Cost and Capacity"
+        covers:
+          - "People, process, data, integration, security, evaluation, change, vendor, cloud, SaaS, data-center, edge, and support cost"
+          - "Capacity, utilization, commitment, and scaling assumptions"
+      - id: unit_economics
+        name: "Business Unit Economics"
+        covers:
+          - "Cost and value per case, decision, transaction, customer outcome, product, or service"
+          - "Leading indicators, breakeven conditions, and time to value"
+      - id: funding_options
+        name: "Investment Scenarios"
+        covers:
+          - "Minimum viable learning, balanced portfolio, and accelerated option"
+          - "Capital, operating cost, risk, and option-value tradeoffs"
+    depth: "Use formulas instead of fabricated company numbers when internal inputs are missing."
 
   - id: organizational_model
-    name: "AI Practice Group Structure"
-    part: 6
-    purpose: "How to organize for sustained AI innovation"
+    name: "Operating Model, Ownership, and Adoption"
+    part: 9
+    purpose: "Make business ownership and durable capability explicit"
+    covers:
+      - "Executive sponsor, business outcome owner, product owner, technology owner, data owner, risk owner, and frontline participation"
+      - "Federated versus centralized responsibilities based on current organization and portfolio"
+      - "Build, buy, partner, and capability-transfer choices"
+      - "Workflow redesign, incentives, training, support, and adoption measurement"
+      - "Experiment intake, reusable platform capabilities, funding, and retirement"
+    depth: "Do not prescribe a new executive title without evidence that authority or accountability is missing."
+
+  - id: architecture_posture
+    name: "Architecture and Workload Placement"
+    part: 10
+    purpose: "Translate earned business choices into an interoperable technical posture"
     subsections:
-      - id: governance_traffic_light
-        name: "Governance Traffic Light System"
+      - id: architecture_principles
+        name: "Architecture Principles"
         covers:
-          - "Green (Low Risk): Internal, non-PII data. Auto-approved."
-          - "Yellow (Medium Risk): Customer data, proprietary IP. AI CoE Review."
-          - "Red (High Risk): Health/Financial decisions, autonomous agents. Board sign-off."
-      - id: operating_model
-        name: "Operating Model for Experimentation and Failure"
+          - "Identity, authorization, data boundaries, audit, observability, evaluation, and human accountability"
+          - "Model choice and routing, portability, open interfaces, and exit options"
+          - "Reuse versus initiative-specific components"
+      - id: stack_fit
+        name: "Current-Stack Fit and Integration"
         covers:
-          - "How to handle AI initiative failures"
-          - "Learning and iteration framework"
-      - id: investment_framework
-        name: "Investment Framework"
+          - "How every relevant observed ecosystem affects the target posture"
+          - "Contradictions, missing capabilities, integration boundaries, and migration avoidance"
+      - id: placement_matrix
+        name: "Workload Placement Decision Matrix"
         covers:
-          - "Year 1 Investment Estimate"
-          - "ROI Framework"
-          - "Build vs. Buy vs. Partner guidance"
-    depth: "Practical organizational recommendations"
+          - "Embedded SaaS, managed public cloud, multicloud, private/on-premises accelerated, edge/disconnected, and hybrid options"
+          - "Data, latency, safety, sovereignty, utilization, capacity, skills, operating burden, TCO, and time-to-value criteria"
+          - "Primary recommendation, credible alternative, measurements required, and exit path"
+      - id: autonomy_boundaries
+        name: "Automation and Autonomy Boundaries"
+        covers:
+          - "Read, recommend, draft, transact, and autonomous action levels"
+          - "Human approval, confidence, value, safety, and legal thresholds"
+          - "Identity, least privilege, audit, rollback, rate limits, and kill controls"
+    depth: "Technical detail follows the business portfolio. Evaluate hybrid and accelerated processing when justified, not by default."
 
   - id: risk_analysis
-    name: "Risk Analysis"
-    part: 7
-    purpose: "Comprehensive risk assessment - this section builds trust with risk-aware leadership"
-    subsections:
-      - id: value_at_stake
-        name: "The Value at Stake"
-        covers:
-          - "Best case scenario (with ranges)"
-          - "Likely case scenario (with ranges)"
-          - "Delayed action scenario (competitive cost of waiting)"
-        depth: "Present as ranges, not deterministic outcomes. Acknowledge uncertainty explicitly."
-      - id: risk_containment_benefits
-        name: "Risk Containment Benefits"
-        covers:
-          - "Reduced compliance backlog"
-          - "Fewer manual errors and rework"
-          - "Lower key-person dependency"
-          - "Improved audit trail and governance"
-          - "Faster regulatory response capability"
-        depth: |
-          For risk-averse organizations, this is as compelling as upside.
-          Frame AI as reducing operational risk, not just generating returns.
-          Tailor emphasis based on what company research reveals about their risk posture.
-      - id: technology_risks
-        name: "Technology Risks"
-        covers:
-          - "Vendor lock-in"
-          - "Model obsolescence"
-          - "Integration complexity"
-          - "Data quality dependencies"
-      - id: organizational_risks
-        name: "Organizational Risks"
-        covers:
-          - "Change resistance"
-          - "Skills gaps"
-          - "Competing priorities"
-      - id: ai_security_risks
-        name: "AI-Specific Security Risks"
-        covers:
-          - "Jailbreaks"
-          - "Hallucinations"
-          - "Model drift"
-    depth: "Specific risks with mitigation strategies"
+    name: "Governance, Risk, and Trust"
+    part: 11
+    purpose: "Scale controls with consequences and lifecycle risk"
+    covers:
+      - "Use-case inventory, impact classification, accountable approval, and accepted residual risk"
+      - "Data and IP rights, privacy, security, bias, accuracy, misuse, safety, model and vendor risk"
+      - "Pre-deployment testing, evaluation thresholds, red teaming where warranted, and release evidence"
+      - "Production monitoring, human escalation, incident response, change control, and decommissioning"
+      - "Third-party, open-model, supply-chain, regulatory, and contractual risk"
+      - "Risk containment value and the cost of control"
+    depth: "Align controls with current authoritative frameworks and the company's jurisdiction and risk tolerance."
+
+  - id: compounding_logic
+    name: "Roadmap, Dependencies, and Learning Gates"
+    part: 12
+    purpose: "Sequence value, capability, and evidence without creating a pilot graveyard"
+    covers:
+      - "0-30 day decision and measurement work"
+      - "31-90 day tests with owners, baselines, and kill criteria"
+      - "3-12 month capability and portfolio sequence"
+      - "12-36 month options that remain contingent on evidence"
+      - "Data, trust, integration, skill, and platform dependencies"
+      - "Scale, pause, stop, and revisit gates"
+    depth: "Show how early work creates reusable assets or evidence for later bets. Retire initiatives that do neither."
 
   - id: board_summary
-    name: "Board Summary (ONE PAGE)"
-    part: 8
-    purpose: "Executive summary for board presentation"
+    name: "Board Decision Summary"
+    part: 13
+    purpose: "Make the required decisions and accountability unmistakable"
     covers:
-      - "Strategic Thesis (1 paragraph)"
-      - "The 5 Most Important Decisions (with investment and ROI)"
-      - "Investment Summary (Total Year 1 Ask)"
-      - "Expected Year 1 Returns"
-      - "What We Are Choosing NOT to Do (3 items)"
-      - "Key Risks Acknowledged (Top 3 with mitigation)"
-    depth: "MUST fit on ONE PAGE (approximately 500-600 words)"
+      - "Five or fewer decisions with recommended option and credible alternative"
+      - "Value at stake, investment range or required inputs, and confidence"
+      - "Owner, decision date, dependency, risk acceptance, and next evidence gate"
+      - "What leadership is choosing not to fund now"
+      - "Questions the board should ask management"
+    depth: "One decision table plus concise interpretation. Do not repeat the executive brief."
+
+  - id: decision_enablement
+    name: "Transparent Decision Enablement Toolkit"
+    part: 14
+    purpose: "Help stakeholders challenge, improve, and own the decisions openly"
+    subsections:
+      - id: evidence_review
+        name: "Evidence and Assumption Review"
+        covers:
+          - "Most consequential assumptions, supporting evidence, dissenting evidence, and validation owner"
+      - id: decision_questions
+        name: "Executive and Technical Decision Questions"
+        covers:
+          - "Questions that expose goals, constraints, tradeoffs, readiness, risk tolerance, and alternatives"
+      - id: stakeholder_accountability
+        name: "Stakeholder Accountability Map"
+        covers:
+          - "Decision rights, outcome ownership, affected groups, reviewers, operators, and escalation"
+      - id: workshop_design
+        name: "Decision Workshop Agenda"
+        covers:
+          - "Shared evidence, value-pool ranking, option comparison, risk review, decision, and follow-up"
+          - "Selection criteria disclosed before scoring"
+          - "Recorded dissent, unresolved questions, and owners"
+      - id: decision_memo
+        name: "Decision Memo Template"
+        covers:
+          - "Problem, evidence, options, recommendation, economics, risk, owner, decision, and review date"
+          - "Accurate authorship and contribution record"
+    depth: "Facilitate informed consent and constructive challenge. Do not use covert persuasion or favored scoring criteria."
 
   - id: next_steps
-    name: "Next Steps (Next 30 Days)"
-    part: 9
-    purpose: "Specific, actionable next steps"
+    name: "Next 30 Days"
+    part: 15
+    purpose: "Close with bounded actions that improve the next decision"
     covers:
-      - "Action items with owners"
-      - "Target dates"
-      - "Dependencies"
-    depth: "Concrete and actionable"
-
-  # =============================================================================
-  # PART B: THE FACILITATION TOOLKIT (How to Make Them Own It)
-  # =============================================================================
-  
-  - id: facilitation_undeniable_truths
-    name: "FACILITATION TOOLKIT: Undeniable Truths"
-    part: 10
-    purpose: "Axioms that force the client to derive conclusions themselves"
-    covers:
-      - "For each major recommendation above, provide the 'undeniable truth' that leads to it"
-      - "Format: Mathematical/logical fact → Client derives conclusion"
-      - "Example: 'At your scale of 45K clients, manual X is mathematically impossible' → They conclude: 'We need automation'"
-    depth: |
-      Extract 3-5 undeniable truths from the strategy above. These are FACTS that make
-      your recommendations the only logical path. Frame as observations, not pitches.
-
-  - id: facilitation_socratic_sequences
-    name: "FACILITATION TOOLKIT: Socratic Question Sequences"
-    part: 10
-    purpose: "Question sequences that lead client to articulate solutions"
-    covers:
-      - "For top 3 opportunities, provide 4-question sequence"
-      - "Situation → Problem → Implication → Need-Payoff"
-      - "Client articulates solution, you agree"
-    depth: |
-      For each major opportunity (Quick Wins, Bigger Bets), provide the question sequence
-      that leads them to derive it themselves. They own what they articulate.
-
-  - id: facilitation_pain_amplification
-    name: "FACILITATION TOOLKIT: Pain Amplification Points"
-    part: 10
-    purpose: "Rational data + emotional consequences for key stakeholders"
-    covers:
-      - "Quantify cost of inaction (Rational Drowning)"
-      - "Connect to personal consequences (Emotional Impact)"
-      - "Format: 'This costs $X/month AND is why your team works weekends'"
-    depth: |
-      For each major pain point, provide both the rational cost AND the emotional impact
-      on the specific stakeholder. Logic + emotion = decision.
-
-  - id: facilitation_stakeholder_map
-    name: "FACILITATION TOOLKIT: Stakeholder Inception Map"
-    part: 10
-    purpose: "Who to incept and how (Miller Heiman framework)"
-    subsections:
-      - id: economic_buyer_strategy
-        name: "Economic Buyer Strategy"
-        covers:
-          - "Who likely controls budget (based on company research)"
-          - "Inception approach: Financial (ROI as profit protection)"
-          - "Key message tailored to this company"
-      - id: user_buyer_strategy
-        name: "User Buyer Strategy"
-        covers:
-          - "Who will use the solution daily"
-          - "Inception approach: Functional (IKEA Effect in workshops)"
-          - "Let them design workflow/interface"
-      - id: technical_buyer_strategy
-        name: "Technical Buyer Strategy"
-        covers:
-          - "Who can veto (IT/Legal/Security)"
-          - "Inception approach: Rational Drowning (specs/whitepapers)"
-          - "Neutralize objections with overwhelming data"
-      - id: coach_champion_strategy
-        name: "Coach/Champion Strategy (PRIMARY TARGET)"
-        covers:
-          - "Who is likely internal ally (based on company research)"
-          - "Make them the hero - they 'discovered' the solution"
-          - "Provide ghostwritten materials (next section)"
-    depth: |
-      Map the four buying influences for THIS company. The Coach is critical - you sell
-      THROUGH them, not TO them. Make them look like a genius.
-
-  - id: facilitation_workshop_design
-    name: "FACILITATION TOOLKIT: Workshop Co-Creation Agenda"
-    part: 10
-    purpose: "The workshop agenda as a covert sales funnel"
-    covers:
-      - "5-phase agenda: Icebreaker → Pain Mining → Ideation → Selection → Prototyping"
-      - "CLIENT HOLDS THE PEN during prototyping (IKEA Effect)"
-      - "Facilitation hacks: Parking Lot, Yes Ladder, Reframe Dissent"
-      - "The Closing: 'Here is the roadmap YOU designed'"
-    depth: |
-      Provide the specific workshop agenda for THIS company:
-      1. Icebreaker (build safety)
-      2. Pain Mining (Rose/Thorn/Bud - make problem undeniable)
-      3. Ideation (seed with case studies, use "How Might We" questions)
-      4. Selection (criteria that favor your solution)
-      5. Prototyping (they draw roadmap, you refine, they hold pen)
-      
-      Result: Artifact becomes "their roadmap" - rejecting it = rejecting their own work.
-
-  - id: facilitation_champion_enablement
-    name: "FACILITATION TOOLKIT: Champion Ghostwriting Templates"
-    part: 10
-    purpose: "Ready-to-use materials for internal champion"
-    subsections:
-      - id: inception_email_template
-        name: "Inception Email Template"
-        covers:
-          - "Email for Champion to send to Economic Buyer"
-          - "Attributes YOUR strategy to THEM"
-          - "Uses company-specific pain points and data"
-      - id: business_case_outline
-        name: "Trojan Business Case Outline"
-        covers:
-          - "Executive summary using EXACT workshop phrasing"
-          - "Problem statement in their words"
-          - "Solution described generically first"
-          - "ROI with explicit assumptions"
-      - id: roi_calculator_design
-        name: "Interactive ROI Calculator Design"
-        covers:
-          - "Variables they input (yellow cells)"
-          - "Formulas that produce 'Cost of Inaction'"
-          - "IKEA Effect: They own output because it's 'their numbers'"
-    depth: |
-      Provide actual templates customized for THIS company:
-      
-      Email Template:
-      Subject: Strategic Opportunity: Addressing the [Specific Pain] Latency
-      
-      "[Executive Name],
-      I've been analyzing our bottlenecks in [Specific Process]. The data suggests 
-      we're bleeding [Specific Cost] due to inefficiency.
-      
-      I've been exploring modern approaches, specifically [Incepted Concept from strategy].
-      There's an opportunity to turn this cost center into competitive advantage.
-      
-      I've sketched a preliminary roadmap (attached). I engaged [Consultancy] to 
-      sanity-check my assumptions - their benchmarks confirm [Specific ROI]%.
-      
-      Can we discuss during budget review?
-      [Champion Name]"
-      
-      Result: Champion looks like genius. You're just "sanity-checking."
-
-# =============================================================================
-# VENDOR-SPECIFIC GUIDANCE
-# =============================================================================
+      - "Actions, accountable owners, target dates, dependencies, and expected evidence"
+      - "Data and baseline requests"
+      - "Architecture or vendor questions to validate only after business priorities are agreed"
+      - "Decision calendar and review cadence"
+    depth: "Every action must produce evidence, reduce risk, or enable a named decision."
 
 vendor_guidance:
   azure:
-    display_name: "Microsoft Azure"
-    key_services:
-      productivity_copilots:
-        - "Microsoft 365 Copilot (Word, Excel, PowerPoint, Outlook, Teams)"
-        - "Copilot Studio (build custom copilots and agents)"
-        - "Work IQ (personalized AI based on work patterns)"
-      agentic_ai:
-        - "Agent 365 (AI agent control plane, governance, monitoring)"
-        - "Foundry (unified AI platform for building and deploying agents)"
-        - "Power Automate with AI Builder"
-        - "Semantic Kernel for agent orchestration"
-      data_analytics:
-        - "Microsoft Fabric (unified analytics platform)"
-        - "Fabric IQ (semantic layer for AI-ready data)"
-        - "Azure AI Search (vector search, RAG)"
-        - "Power BI with Copilot"
-      ai_development:
-        - "Azure OpenAI Service (GPT-4, GPT-4o, o1 models)"
-        - "Azure AI Foundry (model catalog, fine-tuning)"
-        - "GitHub Copilot for developers"
-      security_governance:
-        - "Entra Agent ID (identity for AI agents)"
-        - "Microsoft Purview (data governance, compliance)"
-        - "Microsoft Defender for Cloud (AI security)"
-        - "Responsible AI dashboard"
-    research_sources: "Microsoft Ignite 2025 and recent Azure updates"
+    display_name: "Microsoft ecosystem emphasis"
+    guidance: |
+      Treat Microsoft as an evaluation emphasis, not an exclusive answer. Verify current
+      official names and capabilities for productivity, agents and model access, data and
+      analytics, identity, security, governance, integration, operations, hybrid control,
+      and edge. Preserve detected non-Microsoft AI, data, cloud, and enterprise platforms.
+      Compare at least one credible alternative for every material architecture decision.
+    comparison_areas:
+      - "Business fit and integration with the observed productivity, identity, data, security, and application stack"
+      - "Model and agent choice, portability, evaluation, governance, and commercial terms"
+      - "Public cloud, multicloud, hybrid, private, and edge workload placement when material"
+      - "Fully loaded unit economics, operating burden, and exit options"
+    research_sources: "current official Microsoft documentation, release notes, pricing, architecture guidance, and compliance materials"
 
   aws:
-    display_name: "Amazon Web Services (AWS)"
-    key_services:
-      productivity_assistants:
-        - "Amazon Q (AI assistant for business and developers)"
-        - "Amazon Q in Connect (customer service AI)"
-        - "Amazon Q Business (enterprise knowledge assistant)"
-      agentic_ai:
-        - "Amazon Bedrock Agents (autonomous AI agents)"
-        - "AWS Step Functions for AI orchestration"
-        - "Amazon Bedrock Flows (visual agent builder)"
-      data_analytics:
-        - "Amazon SageMaker (ML platform)"
-        - "Amazon Bedrock Knowledge Bases (RAG)"
-        - "Amazon QuickSight Q (natural language BI)"
-        - "AWS Glue for data integration"
-      ai_development:
-        - "Amazon Bedrock (Claude, Llama, Titan, Mistral models)"
-        - "Amazon SageMaker JumpStart (model hub)"
-        - "Amazon CodeWhisperer for developers"
-        - "PartyRock (no-code AI app builder)"
-      security_governance:
-        - "Amazon Bedrock Guardrails (content filtering, PII protection)"
-        - "AWS IAM for AI access control"
-        - "Amazon Macie (data security)"
-        - "AWS CloudTrail for AI audit logging"
-    research_sources: "AWS re:Invent 2024 and recent AWS updates"
+    display_name: "AWS ecosystem emphasis"
+    guidance: |
+      Treat AWS as an evaluation emphasis, not an exclusive answer. Verify current official
+      names and capabilities for models, agents, data, analytics, security, governance,
+      integration, operations, hybrid, and edge. Preserve detected productivity suites,
+      non-AWS AI providers, data platforms, and other clouds. Compare at least one credible
+      alternative for every material architecture decision.
+    comparison_areas:
+      - "Business fit and integration with the observed identity, data, security, application, and productivity stack"
+      - "Model and agent choice, portability, evaluation, governance, and commercial terms"
+      - "Public cloud, multicloud, hybrid, private, and edge workload placement when material"
+      - "Fully loaded unit economics, operating burden, and exit options"
+    research_sources: "current official AWS documentation, release notes, pricing, architecture guidance, and compliance materials"
 
   gcp:
-    display_name: "Google Cloud Platform (GCP)"
-    key_services:
-      productivity_assistants:
-        - "Gemini for Google Workspace (Docs, Sheets, Slides, Gmail, Meet)"
-        - "Gemini for Google Cloud (cloud console assistant)"
-        - "NotebookLM (AI research assistant)"
-      agentic_ai:
-        - "Vertex AI Agent Builder (build and deploy agents)"
-        - "Vertex AI Extensions (connect agents to APIs)"
-        - "Google Cloud Workflows for orchestration"
-      data_analytics:
-        - "BigQuery with Gemini (natural language SQL)"
-        - "Vertex AI Search (enterprise search)"
-        - "Looker with Gemini (conversational BI)"
-        - "Dataplex for data governance"
-      ai_development:
-        - "Vertex AI (Gemini Pro, Gemini Ultra, PaLM models)"
-        - "Vertex AI Model Garden (model catalog)"
-        - "Gemini Code Assist for developers"
-        - "Vertex AI Studio (prompt design, tuning)"
-      security_governance:
-        - "Vertex AI Model Monitoring"
-        - "Google Cloud IAM for AI"
-        - "Data Loss Prevention API"
-        - "Cloud Audit Logs"
-    research_sources: "Google Cloud Next 2024 and recent GCP updates"
-
-  agnostic:
-    display_name: "Cloud Agnostic (Multi-Cloud)"
+    display_name: "Google ecosystem emphasis"
     guidance: |
-      Compare and recommend the best services across Azure, AWS, and GCP for each use case.
-      Consider:
-      - Which vendor has the strongest offering for each domain?
-      - Interoperability and avoiding vendor lock-in
-      - Cost comparison across platforms
-      - Enterprise readiness and support
+      Treat Google as an evaluation emphasis, not an exclusive answer. Verify current
+      official names and capabilities for productivity, models, agents, data, analytics,
+      security, governance, distributed cloud, and edge. Preserve detected non-Google AI,
+      data, cloud, and enterprise platforms. Compare at least one credible alternative for
+      every material architecture decision.
     comparison_areas:
-      - "Foundation models: Azure OpenAI vs Amazon Bedrock vs Vertex AI"
-      - "Productivity AI: M365 Copilot vs Amazon Q vs Gemini for Workspace"
-      - "Agent platforms: Copilot Studio vs Bedrock Agents vs Agent Builder"
-      - "Data platforms: Fabric vs SageMaker/Bedrock vs BigQuery/Vertex"
-      - "Governance: Purview vs Bedrock Guardrails vs Vertex AI governance"
+      - "Business fit and integration with the observed productivity, identity, data, security, and application stack"
+      - "Model and agent choice, portability, evaluation, governance, and commercial terms"
+      - "Public cloud, multicloud, hybrid, private, and edge workload placement when material"
+      - "Fully loaded unit economics, operating burden, and exit options"
+    research_sources: "current official Google Cloud documentation, release notes, pricing, architecture guidance, and compliance materials"
 
   private:
-    display_name: "Private Cloud / NVIDIA"
-    key_services:
-      gpu_infrastructure:
-        - "NVIDIA DGX Cloud (managed GPU clusters)"
-        - "NVIDIA DGX SuperPOD / DGX B200 / GB200 NVL72 (on-prem)"
-        - "NVIDIA HGX / MGX (modular GPU server platforms)"
-      ai_platform_inference:
-        - "NVIDIA AI Enterprise (end-to-end AI platform)"
-        - "NVIDIA NIM microservices (optimized model inference)"
-        - "NVIDIA TensorRT-LLM (inference optimization)"
-        - "NVIDIA Triton Inference Server (multi-model serving)"
-      model_training:
-        - "NVIDIA NeMo (LLM training and fine-tuning)"
-        - "NVIDIA CUDA / cuDNN (GPU-accelerated computing)"
-        - "NVIDIA Base Command Manager (cluster orchestration)"
-      agentic_ai:
-        - "NVIDIA AI Blueprints (pre-built agentic RAG, digital humans)"
-        - "NVIDIA Morpheus (cybersecurity AI pipeline)"
-        - "NVIDIA Metropolis (vision AI, video analytics)"
-      infrastructure_partners:
-        - "VMware Private AI Foundation with NVIDIA"
-        - "Red Hat OpenShift AI"
-        - "Dell AI Factory with NVIDIA"
-        - "HPE GreenLake for Large Language Models"
-      open_source_mlops:
-        - "Kubeflow (ML pipelines on Kubernetes)"
-        - "MLflow (experiment tracking, model registry)"
-        - "Ray (distributed training and serving)"
-        - "vLLM / Ollama / TGI (self-hosted inference)"
-    research_sources: "NVIDIA GTC 2025, NVIDIA AI Enterprise releases, and partner announcements"
+    display_name: "Private, on-premises, edge, and accelerated infrastructure emphasis"
+    guidance: |
+      Evaluate private or accelerated infrastructure as a workload-placement option, not a
+      predetermined purchase. Compare current NVIDIA and credible alternative hardware,
+      software, open-model, orchestration, and operations ecosystems. Require evidence for
+      sustained utilization, latency, disconnected operation, sovereignty, safety,
+      resilience, model control, or TCO before recommending capital investment. Include a
+      managed-cloud alternative, hybrid operating model, capacity plan, support model, and
+      exit path.
+    comparison_areas:
+      - "Accelerator demand, throughput, utilization, capacity, power, facilities, networking, and storage"
+      - "Open and proprietary models, inference and training stacks, portability, and support"
+      - "Cloud burst, hybrid control plane, edge/disconnected operation, and data movement"
+      - "Capital and operating cost, skills, reliability, security, governance, and refresh risk"
+    research_sources: "current official accelerator-vendor, server-partner, open-source project, and platform documentation"
+
+  agnostic:
+    display_name: "Vendor-neutral, multicloud, hybrid, and private evaluation"
+    guidance: |
+      Start from the complete observed stack and business portfolio. Compare embedded SaaS,
+      model providers, public clouds, data platforms, private accelerated infrastructure,
+      edge, open-source components, and hybrid combinations only where they are material.
+      Do not force a single strategic vendor. Recommend the simplest credible primary
+      posture, at least one alternative, interoperability boundaries, commercial leverage,
+      and an exit path. Verify all named services against current official sources.
+    comparison_areas:
+      - "Productivity and collaboration AI across the detected work environment"
+      - "Model, agent, data, integration, identity, security, governance, and observability layers"
+      - "Embedded SaaS, managed public cloud, multicloud, private/on-premises accelerated, edge, and hybrid placement"
+      - "Open-source and commercial options, portability, lock-in, resilience, and exit costs"
+      - "Business unit economics, fully loaded TCO, time to value, skills, and operating burden"
+
+footer: |
+  End with one ## Sources section. List only URLs cited in the document, using
+  descriptive titles and current official or primary sources wherever available.

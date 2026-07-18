@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The default AI Strategy now uses one canonical business-first contract across
+  the fast, standard, async, and MCP-compatible prompt paths. It begins with
+  company economics, strategic tensions, industry direction, art of the
+  possible, and ranked value pools before technology. Initiative decision
+  cards now require accountable owners, evidence, alternatives, fully loaded
+  unit economics, tests, controls, kill criteria, and revisit triggers. The
+  architecture section evaluates the complete observed stack plus public,
+  multicloud, private, on-premises accelerated, edge, and hybrid placement only
+  when workload requirements justify them.
+- Default platform selection now produces one integrated strategy: agnostic
+  when recon has no strong infrastructure signal, the detected ecosystem when
+  there is one strong signal, and vendor-neutral integration when several
+  ecosystems are detected. Explicit multi-platform commands still fan out.
+  DNS-derived context now states its evidence limits instead of claiming an
+  active contract, production adoption, primary platform, maturity, or spend.
+  The default xAI plus Gemini estimate is therefore about $0.89 and 34-53
+  minutes; explicit two-platform fan-out remains about $1.01 and 37-59 minutes.
+- Standard AI Strategy evidence assembly now bundles bounded recon and hiring
+  artifacts when present, in addition to the Strategic Overview, insights, gap
+  analysis, workbook, and discovery notes. Deep Research also retains supplied
+  context files. Strategy-specific epistemic and formatting rules are applied
+  by the composer. Current product claims require official evidence or an
+  explicit evidence gap, and shipped AI YAML no longer pins dated catalogs.
+- Strategy reports no longer receive a generated-by attribution line. Operator
+  discovery notes are described as perspective-bearing evidence and remain
+  sanitized before prompt composition.
 - `primr doctor` now treats a valid no-key installation as ready with warnings:
   keyless prep and recon remain available while provider-backed research is
   marked unavailable. Its default connectivity check no longer sends a model

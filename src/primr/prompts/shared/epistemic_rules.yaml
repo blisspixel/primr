@@ -52,9 +52,9 @@ rules:
     - What would we expect to see if this hypothesis were wrong?
     
     Example:
-    **Hypothesis**: MRI is transitioning to a data orchestration platform
-    **Counter-Hypothesis**: MRI is primarily a financial system of record with 
-    good integrations, and "data orchestration" is marketing language rather 
+    **Hypothesis**: Example Organization is transitioning to a data orchestration platform
+    **Counter-Hypothesis**: Example Organization is primarily a financial system of record with
+    good integrations, and "data orchestration" is marketing language rather
     than strategic reality. Evidence to validate: actual data flows, API usage 
     patterns, customer use cases beyond financial reporting.
 

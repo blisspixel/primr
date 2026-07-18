@@ -124,21 +124,25 @@ def _strategy_regenerate_section(
     new_evidence: str,
     analysis_workbook: str,
     model: str | None = None,
+    label: str = "AI Strategy",
 ) -> str:
     """
     Phase 6 helper: Re-writes one weak strategy section with additional evidence.
 
     Returns the re-generated section content (starting with ## heading).
     """
-    from primr.core.research_agent import _a_or_an, _default_writing_model
+    from primr.core.research_agent import _default_writing_model
+    from primr.core.strategy_enrichment_contract import strategy_document_context
     from primr.pipeline.llm_failover import LLMRole, call_with_failover
 
     # T1 boundary: freshly scraped page text enters only as fenced data.
     new_evidence = fence_untrusted("NEW_EVIDENCE", new_evidence)
-    article = _a_or_an(vendor.upper())
-    prompt = f"""Re-write this section of {article} {vendor.upper()} strategy document for {company_name},
+    document_label, emphasis = strategy_document_context(label, vendor)
+    prompt = f"""Re-write this section of a {document_label} for {company_name},
 incorporating the NEW EVIDENCE provided below. Make the section specific, actionable,
 and tied to this company's actual situation.
+
+{emphasis}
 
 SECTION TO REWRITE:
 {section_content}
@@ -151,8 +155,9 @@ ANALYSIS CONTEXT (for background):
 
 RULES:
 - Start with: ## {section_title}
-- Connect {vendor.upper()} capabilities to THIS company's specific needs
-- Include specific services, pricing tiers, or implementation approaches where evidence supports it
+- Connect capabilities to THIS company's specific business outcomes and constraints
+- Name services, prices, availability, or lifecycle states only when the new evidence is current and official
+- Otherwise state the capability requirement, evidence gap, and validation action
 - Label claims: Confirmed, Reported, Estimated, Hypothesis
 - Keep citations compact, usually at paragraph ends, and use [cite: N] references in the body
 - Keep roughly the same scope as the original section
@@ -163,9 +168,10 @@ RULES:
 {SCAFFOLDING_PROHIBITION_GUIDANCE}"""
 
     system_prompt = (
-        f"You are a senior strategy consultant rewriting a section of {article} {vendor.upper()} "
-        f"strategy document for {company_name}. Incorporate new evidence to make the section "
-        "more specific and actionable. Be conservative on cost estimates."
+        f"You are a senior strategy consultant rewriting a section of a {document_label} "
+        f"for {company_name}. {emphasis} "
+        "Incorporate new evidence to make the section more specific and actionable. "
+        "Be conservative on cost estimates."
     )
 
     writing_model = model or _default_writing_model()

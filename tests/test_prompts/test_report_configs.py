@@ -144,18 +144,12 @@ class TestAIStrategyConfig:
         assert "aws" in vendor_guidance, "Missing AWS guidance"
         assert "gcp" in vendor_guidance, "Missing GCP guidance"
 
-    def test_has_data_sources(self):
-        """ai_strategy.yaml has data sources for vendor research."""
+    def test_vendor_research_is_not_pinned(self):
+        """ai_strategy.yaml leaves current vendor research to the live run."""
         registry = get_registry()
         strategy = registry.get("ai")
 
-        assert len(strategy.data_sources) > 0, "No data sources defined"
-
-        # Should have sources for multiple vendors
-        vendors = [ds.vendor for ds in strategy.data_sources if ds.vendor]
-        assert "azure" in vendors
-        assert "aws" in vendors
-        assert "gcp" in vendors
+        assert strategy.data_sources == []
 
 
 class TestStrategyExtensibility:

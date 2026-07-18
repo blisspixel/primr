@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -218,6 +219,34 @@ def test_ci_builds_documentation_strictly() -> None:
 
     assert "--extra docs" in ci_workflow or "--all-extras" in ci_workflow
     assert "mkdocs build --strict" in ci_workflow
+
+
+def test_public_api_ai_strategy_copy_matches_live_catalog() -> None:
+    from primr.mcp_server.strategy_catalog import get_strategy_catalog
+
+    api_docs = (REPO_ROOT / "docs" / "API.md").read_text(encoding="utf-8")
+    ai_strategy = next(item for item in get_strategy_catalog() if item["id"] == "ai_strategy")
+    description = ai_strategy["description"]
+
+    assert f'"ai_strategy": "{description}"' in api_docs
+    assert f'"description": "{description}"' in api_docs
+    assert "AI/ML transformation roadmap" not in api_docs
+
+
+def test_public_api_governance_example_matches_live_resource() -> None:
+    from primr.mcp_server.resources import _read_agent_governance
+
+    api_docs = (REPO_ROOT / "docs" / "API.md").read_text(encoding="utf-8")
+    match = re.search(
+        r"#### primr://agent/governance\n.*?```json\n(?P<body>.*?)\n```",
+        api_docs,
+        re.DOTALL,
+    )
+    assert match is not None
+    documented = json.loads(match.group("body"))
+    live = json.loads(_read_agent_governance()[0].content)
+
+    assert documented == live
 
 
 def test_public_install_guidance_avoids_remote_code_piping() -> None:
@@ -445,7 +474,8 @@ def test_built_sdist_matches_release_inventory(tmp_path: Path) -> None:
 
 
 def test_cli_epilog_uses_current_default_cost_band() -> None:
-    assert "~$0.89-$1.01" in CLI_EPILOG
+    assert "~$0.89" in CLI_EPILOG
+    assert "~$0.89-$1.01" not in CLI_EPILOG
     assert "~$6" not in CLI_EPILOG
     assert "60-90 min" not in CLI_EPILOG
     commands = [line.partition("  #")[0].strip() for line in CLI_EPILOG.splitlines()]

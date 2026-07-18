@@ -16,9 +16,11 @@ from __future__ import annotations
 
 import os
 from collections.abc import Sequence
+from pathlib import Path
 
 from primr.utils.content_sanitizer import fence_untrusted
 from primr.utils.logging_config import get_logger
+from primr.utils.observability import log_structured
 
 logger = get_logger(__name__)
 
@@ -29,25 +31,22 @@ __all__ = [
     "build_strategy_context_prefix",
     "build_strategy_prompt_parts",
     "read_artifact_blocks",
+    "write_strategy_context_bundle",
 ]
 
-# Working-folder artifacts enriching per-vendor AI strategies. The YAML
-# strategies additionally pull recon context and hiring signals (those
-# particularly strengthen the `skills`, CX, security, and data-fabric
-# strategies). Each entry is (relative path, char limit).
+# Working-folder artifacts enriching every strategy. Each entry is
+# (relative path, char limit). AI Strategy needs the same recon and hiring
+# evidence as the other strategy types so its stack and workforce conclusions
+# do not depend only on the synthesized company report.
 AI_STRATEGY_ARTIFACTS: tuple[tuple[str, int], ...] = (
-    ("insights.txt", 20_000),
-    ("gap_analysis.md", 15_000),
-    ("analysis_workbook.md", 20_000),
-)
-
-YAML_STRATEGY_ARTIFACTS: tuple[tuple[str, int], ...] = (
     ("insights.txt", 20_000),
     ("gap_analysis.md", 15_000),
     ("analysis_workbook.md", 20_000),
     ("_recon_context.txt", 10_000),
     ("_hiring/hiring_signals.md", 15_000),
 )
+
+YAML_STRATEGY_ARTIFACTS = AI_STRATEGY_ARTIFACTS
 
 # Trust boundary for the working-folder artifacts above. insights.txt fences
 # its verbatim scraped-external block at assembly (insights_assembly), so
@@ -70,20 +69,33 @@ def read_artifact_blocks(folder_path: str, artifact_specs: Sequence[tuple[str, i
     a damaged artifact weakens context but never blocks strategy generation.
     """
     blocks: list[str] = []
+    artifact_status: dict[str, str] = {}
     for artifact_name, artifact_limit in artifact_specs:
         artifact_path = os.path.join(folder_path, artifact_name)
         if not os.path.exists(artifact_path):
+            artifact_status[artifact_name] = "missing"
             continue
         try:
             with open(artifact_path, encoding="utf-8") as fh:
                 artifact_content = fh.read()[:artifact_limit]
         except Exception as e:
+            artifact_status[artifact_name] = "unreadable"
             logger.warning("Failed to read artifact %s: %s", artifact_name, e)
             continue
-        if artifact_content.strip():
-            if artifact_name in UNTRUSTED_ARTIFACTS:
-                artifact_content = fence_untrusted("ARTIFACT", artifact_content)
-            blocks.append(f"--- {artifact_name} ---\n{artifact_content}")
+        if not artifact_content.strip():
+            artifact_status[artifact_name] = "blank"
+            continue
+        artifact_status[artifact_name] = "present"
+        if artifact_name in UNTRUSTED_ARTIFACTS:
+            artifact_content = fence_untrusted("ARTIFACT", artifact_content)
+        blocks.append(f"--- {artifact_name} ---\n{artifact_content}")
+    log_structured(
+        "info",
+        "Strategy artifact coverage",
+        artifact_status=artifact_status,
+        present=sum(status == "present" for status in artifact_status.values()),
+        expected=len(artifact_specs),
+    )
     return blocks
 
 
@@ -113,3 +125,41 @@ def build_strategy_prompt_parts(
         suffix += "\n\n" + "\n\n".join(volatile_blocks)
     suffix += "\n\n---\n\n" + strategy_prompt
     return cached_prefix, suffix
+
+
+def write_strategy_context_bundle(
+    folder_path: str,
+    company_report_path: str | None,
+    artifact_specs: Sequence[tuple[str, int]] = AI_STRATEGY_ARTIFACTS,
+) -> str | None:
+    """Write one bounded, trust-labeled strategy context file for file-upload paths."""
+    report_content = ""
+    if company_report_path and os.path.exists(company_report_path):
+        try:
+            report_content = Path(company_report_path).read_text(encoding="utf-8")
+        except OSError as exc:
+            logger.warning(
+                "Failed to read strategy report context %s: %s", company_report_path, exc
+            )
+
+    artifact_blocks = read_artifact_blocks(folder_path, artifact_specs)
+    log_structured(
+        "info",
+        "Strategy context bundle",
+        report_included=bool(report_content.strip()),
+        artifacts_available=len(artifact_blocks),
+        artifacts_expected=len(artifact_specs),
+    )
+    if not report_content.strip() and not artifact_blocks:
+        return None
+
+    bundle_path = Path(folder_path) / "_strategy_context.md"
+    try:
+        bundle_path.write_text(
+            build_strategy_context_prefix(report_content, artifact_blocks),
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        logger.warning("Failed to write strategy context bundle %s: %s", bundle_path, exc)
+        return company_report_path if report_content.strip() else None
+    return str(bundle_path)

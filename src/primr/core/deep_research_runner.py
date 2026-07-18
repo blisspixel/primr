@@ -632,6 +632,7 @@ async def _generate_ai_strategy(
         company_name=config.company_name or config.display_name,
         platform=config.platform,
         company_research_path=company_research_path,
+        additional_context_paths=config.context_files,
         force_refresh_vendor=config.refresh_vendor_research,
     )
 
@@ -642,4 +643,4 @@ async def _generate_ai_strategy(
     return None
 
 
-# Usage tracking removed — consolidated in research_agent.py main pipeline
+# Usage tracking is consolidated in the research_agent.py main pipeline.

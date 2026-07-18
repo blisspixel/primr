@@ -49,13 +49,13 @@ def get_vendor_news_ttl_days() -> int:
             if value > 0:
                 return value
             logger.warning(
-                "PRIMR_VENDOR_NEWS_TTL_DAYS must be positive, got %r — using default %d",
+                "PRIMR_VENDOR_NEWS_TTL_DAYS must be positive, got %r; using default %d",
                 raw,
                 DEFAULT_VENDOR_NEWS_TTL_DAYS,
             )
         except ValueError:
             logger.warning(
-                "PRIMR_VENDOR_NEWS_TTL_DAYS is not an integer: %r — using default %d",
+                "PRIMR_VENDOR_NEWS_TTL_DAYS is not an integer: %r; using default %d",
                 raw,
                 DEFAULT_VENDOR_NEWS_TTL_DAYS,
             )
@@ -176,7 +176,7 @@ def is_vendor_research_current(vendor: str, max_age_days: int | None = None) -> 
     """
     Check if we have fresh vendor research (within max_age_days).
 
-    AI moves fast — monthly is too stale, biweekly is borderline. The
+    AI moves fast. Monthly is too stale and biweekly is borderline. The
     default TTL is weekly, overridable via ``PRIMR_VENDOR_NEWS_TTL_DAYS``
     (see :func:`get_vendor_news_ttl_days`).
 
@@ -190,7 +190,7 @@ def is_vendor_research_current(vendor: str, max_age_days: int | None = None) -> 
     """
     if max_age_days is None:
         max_age_days = get_vendor_news_ttl_days()
-    # Check manually curated files — these are always preferred but still age-checked
+    # Check manually curated files. They are preferred but still age-checked.
     manual_path = get_manual_research_path(vendor)
     if manual_path and manual_path.exists():
         mtime = datetime.fromtimestamp(manual_path.stat().st_mtime)
@@ -528,7 +528,7 @@ def _validate_vendor_research_preflight(vendor: str) -> list[str]:
 
     # Check the actual output directory is writable. Generated vendor research
     # is saved in the per-user cache (see get_vendor_research_path), so
-    # validate that directory — or an unwritable output dir is only discovered
+    # validate that directory, or an unwritable output dir is only discovered
     # after the expensive Deep Research call has completed.
     vendor_dir = get_vendor_research_dir()
     try:
@@ -587,7 +587,6 @@ OUTPUT FORMAT (Start the document with this exact header)
 
 # {meta["name"]} AI Services and Capabilities
 
-**Prepared by:** Primr Research System
 **Date:** {current_date}
 
 ---

@@ -348,6 +348,8 @@ async def test_gather_context_with_company_research(tmp_path):
 
     research = tmp_path / "research.md"
     research.write_text("body", encoding="utf-8")
+    notes = tmp_path / "operator-notes.md"
+    notes.write_text("constraint", encoding="utf-8")
 
     registry = MagicMock()
     registry.get_context_files.return_value = []
@@ -359,12 +361,15 @@ async def test_gather_context_with_company_research(tmp_path):
         company_name="Acme",
         platform=Platform.AGNOSTIC,
         company_research_path=str(research),
+        additional_context_paths=(str(notes), str(research)),
     )
 
     with patch.dict("sys.modules", {"primr.prompts.registry": fake_registry_mod}):
         context_files, vendor_paths = await _gather_context(config)
 
     assert str(research) in context_files
+    assert str(notes) in context_files
+    assert context_files.count(str(research)) == 1
 
 
 @pytest.mark.asyncio

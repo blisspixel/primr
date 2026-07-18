@@ -84,10 +84,11 @@ def _get_research_workflow_prompt(arguments: dict) -> list[PromptMessage]:
 - Read `primr://research/modes` to confirm current mode guidance and defaults
 - For {company_name}, choose the lightest mode that still answers the user's question
 
-## Step 2: Estimate Costs (Recommended)
+## Step 2: Estimate Costs (Required)
 Before starting research, call `estimate_run` to get mode-specific cost and time estimates. Do not call `research_company` until the user approves that spend:
 ```
-estimate_run(company_url="https://example.com", mode="full")
+estimate = estimate_run(company_url="https://example.com", mode="full")
+# Surface the exact estimate and get explicit user approval.
 ```
 
 ## Step 3: Execute Research
@@ -98,11 +99,15 @@ research_company(
     company_name="{company_name}",
     company_url="https://example.com",
     mode="full",
-    platform="azure"  # Optional: for AI strategy
+    max_estimated_cost_usd=estimate["estimated_cost_usd"],
+    approval_token=estimate["approval_token"]
 )
 ```
+Full and premium runs include one vendor-neutral AI Strategy by default. Set
+`platform` only when the user wants a specific ecosystem evaluated as an
+emphasis. Use `no_ai_strategy=true` only when the approved scope is report-only.
 3. For long-running jobs, prefer `wait_for_status_change` or poll `primr://research/status`
-4. Expect standard runs to take roughly 35-45 minutes, and premium multi-vendor runs to take up to 75-120 minutes
+4. Expect standard runs to take roughly 34-53 minutes, and premium multi-vendor runs to take up to 75-120 minutes
 5. Design the client to resume from job state rather than holding a synchronous request open for the full run
 
 ## Step 4: Evaluate Results
@@ -124,7 +129,8 @@ If strategy documents are needed:
 - Use **deep** mode when website is heavily protected or inaccessible
 - Use **full** mode for the standard end-to-end workflow
 - Use **premium** when the user explicitly wants maximum-depth research
-- Add `platform` parameter when AI strategy is needed
+- Omit `platform` for one integrated vendor-neutral AI Strategy
+- Set `platform` only for a user-requested ecosystem emphasis
 
 ## Error Handling
 - **url_unreachable**: Try `mode=deep` which doesn't require site access
@@ -154,10 +160,13 @@ def _get_strategy_selection_prompt(arguments: dict) -> list[PromptMessage]:
 ## Available Strategy Types
 
 ### ai_strategy
-**Use when:** Client needs AI/ML transformation roadmap
-**Focus:** Agentic AI, organizational design, investment frameworks
-**Best for:** Technology companies, digital transformation initiatives
-**Requires:** `platform` parameter (azure, aws, or gcp)
+**Use when:** Leaders need business-first decisions about growth, efficiency,
+service or product improvement, risk, and where AI can create defensible value
+**Focus:** Economic engine, industry art of the possible, prioritized value
+portfolio, unit economics, operating model, governance, and workload placement
+**Best for:** CEO, CIO, and board decisions across industries
+**Standalone requirement:** Pass `platform`; choose `agnostic` unless the user
+asked for a specific ecosystem emphasis
 
 ### customer_experience
 **Use when:** Client needs CX improvement plan
@@ -175,9 +184,15 @@ def _get_strategy_selection_prompt(arguments: dict) -> list[PromptMessage]:
 **Best for:** Data-intensive organizations, analytics modernization
 
 ## Platform Selection (for ai_strategy)
-- **azure**: Microsoft ecosystem, enterprise integration, Copilot focus
-- **aws**: Broad service portfolio, startup-friendly, Bedrock/SageMaker
-- **gcp**: AI/ML focus, data analytics strength, Vertex AI
+- **agnostic**: Default integrated evaluation across the complete observed stack
+- **azure**, **aws**, or **gcp**: Emphasize that public-cloud ecosystem while
+  still evaluating credible alternatives
+- **private**: Emphasize private, on-premises, edge, or accelerated infrastructure
+  when workload economics, sovereignty, latency, or scale justify it
+
+A platform is an evaluation emphasis, not a predetermined recommendation. The
+strategy must start from business outcomes and consider hybrid placement when
+the evidence and workload support it.
 
 ## Selection Criteria
 1. Review the research report for company focus areas
@@ -187,22 +202,29 @@ def _get_strategy_selection_prompt(arguments: dict) -> list[PromptMessage]:
 
 ## Example Usage
 ```
-estimate_strategy(
+estimate = estimate_strategy(
     strategy_type="ai_strategy",
-    platform="azure"
+    platform="agnostic"
 )
 
 generate_strategy(
     report_path="output/acme_corp/report.md",
     strategy_type="ai_strategy",
-    platform="azure"
+    platform="agnostic",
+    max_estimated_cost_usd=estimate["estimated_cost_usd"],
+    approval_token=estimate["approval_token"]
 )
 ```
+
+Assign the `estimate_strategy` result to `estimate`, surface its exact cost,
+and get explicit user approval before calling `generate_strategy`.
 
 ## Tips
 - Read the research report first to understand the company
 - Multiple strategies can be generated from the same report
-- AI strategy requires platform; others don't
+- Full and premium research already include one agnostic AI Strategy by default
+- Standalone AI strategy estimates require an explicit platform; use `agnostic`
+  unless the user asks for an ecosystem emphasis
 - Check QA score after generation to ensure quality
 """
 
@@ -221,33 +243,34 @@ def _get_governed_execution_prompt() -> list[PromptMessage]:
 Use this contract whenever a Primr MCP client may trigger paid work.
 
 ## Required pattern
-1. Call `estimate_run` first — this includes AI strategy cost when platform is specified.
+1. Call `estimate_run` first. Full and premium estimates include one agnostic AI Strategy by default.
 2. Tell the user the total cost (research + strategy combined) and get ONE explicit approval.
 3. Pass `max_estimated_cost_usd` and the returned `approval_token` into `research_company` when server-side MCP cost enforcement is active.
-4. Do NOT call `estimate_strategy` or `generate_strategy` separately — strategy is included in the research job when `platform` is set.
+4. Do NOT call `estimate_strategy` or `generate_strategy` separately for a new full or premium run. Its AI Strategy is included unless `no_ai_strategy=true`.
 5. Treat research as a long-running async job; poll `check_jobs` for completion.
-6. When `check_jobs` returns status "completed", the response includes full artifact content (report + strategy MD files) inline — no filesystem access needed.
+6. On completion, local stdio clients receive inline artifact content by default. Authenticated HTTP clients receive metadata and owned-job resource pointers; read those resources for report bodies.
 
 ## Standard flow (research + strategy in one approval)
 ```text
-estimate = estimate_run(company_url="https://example.com", mode="full", platforms=["azure"])
-# → shows combined cost for research + AI strategy
-# → user approves once
+estimate = estimate_run(company_url="https://example.com", mode="full")
+# shows combined cost for research plus one agnostic AI Strategy
+# user approves once
 
-research_company(company_name="ExampleCo", company_url="https://example.com", mode="full", platform="azure", max_estimated_cost_usd=estimate["estimated_cost_usd"], approval_token=estimate["approval_token"])
-# → returns job_id immediately
+research_company(company_name="ExampleCo", company_url="https://example.com", mode="full", max_estimated_cost_usd=estimate["estimated_cost_usd"], approval_token=estimate["approval_token"])
+# returns job_id immediately
 
 check_jobs(job_id="...")
-# → when completed, response includes artifacts[].content with full MD files
+# local stdio includes artifact content by default
+# HTTP returns metadata and owned-job resource pointers
 ```
 
 ## Optional: destination directory
 ```text
-research_company(company_name="ExampleCo", company_url="https://example.com", platform="azure", destination="/path/to/output")
-# → artifacts are also copied to the specified directory
+research_company(company_name="ExampleCo", company_url="https://example.com", mode="full", destination="client-deliverables", max_estimated_cost_usd=estimate["estimated_cost_usd"], approval_token=estimate["approval_token"])
+# artifacts are also copied to the specified directory
 ```
 
-## Adding a strategy to an existing report (rare — only when strategy was not part of the original run)
+## Adding a strategy to an existing report
 ```text
 estimate = estimate_strategy(strategy_type="customer_experience")
 generate_strategy(report_path="output/report.md", strategy_type="customer_experience", max_estimated_cost_usd=estimate["estimated_cost_usd"], approval_token=estimate["approval_token"])

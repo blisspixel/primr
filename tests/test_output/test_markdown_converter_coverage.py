@@ -172,7 +172,7 @@ def test_strip_markdown_header_block_empty():
 
 
 def test_strip_markdown_header_block_removes_header():
-    md = "# Title\n\n**Prepared by:** X\n**Date:** Y\n\n---\n\nBody content here"
+    md = "# Title\n\n**Status:** Draft\n**Date:** Y\n\n---\n\nBody content here"
     out = strip_markdown_header_block(md)
     assert "Title" not in out
     assert "Body content here" in out

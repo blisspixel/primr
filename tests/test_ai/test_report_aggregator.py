@@ -82,7 +82,8 @@ class TestReportAggregator:
 
         assert "TestCorp" in header
         assert "10" in header
-        assert "Hierarchy of Truth" in header
+        assert "Hierarchy of Evidence" in header
+        assert "Hierarchy of Truth" not in header
 
     def test_generate_toc(self, aggregator: ReportAggregator) -> None:
         """Test table of contents generation - clean format without status markers."""
