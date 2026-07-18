@@ -148,6 +148,11 @@ after its manifest is complete. A collection error or interruption leaves no
 discoverable partial bundle; a published `partial` status instead means the
 bundle is valid but coverage is limited.
 
+Prep also enters through the lightweight CLI path, so previews do not load the
+provider-backed command graph. Ctrl-C returns exit code 130 with recovery
+guidance. Check the output directory before retrying collection, and inspect an
+interrupted skill destination before using it.
+
 Install the packaged skill globally when you do not want a repository copy:
 
 ```bash

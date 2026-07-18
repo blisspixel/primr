@@ -15,6 +15,7 @@ or network call.
 
 from __future__ import annotations
 
+import socket
 from unittest.mock import patch
 
 import pytest
@@ -66,5 +67,9 @@ class TestEgressGuardrails:
         above are real SSRF rejections, not the guard refusing everything)."""
         from primr.utils.security import is_safe_url
 
-        safe, _reason = is_safe_url("https://example.com/page")
+        public_resolution = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))]
+        with patch("socket.getaddrinfo", return_value=public_resolution):
+            safe, reason = is_safe_url("https://example.com/page")
+
         assert safe is True
+        assert reason is None

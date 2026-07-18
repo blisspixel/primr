@@ -19,6 +19,11 @@ def main(args: list[str] | None = None) -> int:
         print(f"primr {__version__}")
         return 0
 
+    if argv and argv[0] == "prep":
+        from primr.cli_prep import run_prep_cli
+
+        return run_prep_cli(argv)
+
     from primr.core.cli import main as run_operational_cli
 
     return run_operational_cli(argv)

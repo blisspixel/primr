@@ -69,6 +69,12 @@ For hard-zero collection:
    JSON inventory before passing its exact path to a requested downstream
    workflow.
 
+Treat prep exit code 130 as an intentional interruption, not a completed or
+failed bundle. Inspect the configured output root before retrying because
+publication may already have completed at the interruption boundary. If a
+portable skill installation returns 130, inspect its destination before use or
+retry because installation updates files individually.
+
 If the host lacks a shell, cannot launch Primr, or cannot install it with user
 approval, use the skill's host-native research fallback. Installation is not a
 prerequisite for useful Zero-path research. Disclose that Primr DNS, adaptive

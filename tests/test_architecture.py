@@ -55,7 +55,7 @@ NEW_FILE_MAX_LINES = 1000
 # NEW_FILE_MAX_LINES). Never raise a ceiling to make a growing file pass.
 FILE_LINE_CEILINGS: dict[str, int] = {
     "core/research_agent.py": 4347,
-    "core/cli.py": 3364,
+    "core/cli.py": 3360,
     "ai/deep_research.py": 3885,
     "data/scraping/browsers.py": 1835,
     "data/hiring_signals.py": 1577,
@@ -91,6 +91,7 @@ INTENTIONAL_TINY_MODULES: dict[str, str] = {
     "a2a/status_events.py": "A2A status-event translation boundary",
     "ai/deep_research_polling.py": "pure polling schedule policy",
     "config/sections_config.py": "section configuration compatibility surface",
+    "core/cli_prep.py": "legacy prep-command import compatibility surface",
     "core/cli_help.py": "backward-compatible CLI help import surface",
     "core/cli_vendor.py": "vendor command composition boundary",
     "data/first_party_url.py": "first-party URL policy seam",

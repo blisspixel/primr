@@ -70,6 +70,12 @@ publishes it only after the manifest is complete. An in-process error or
 interruption removes the staging directory, so artifact discovery sees either
 a validated bundle or nothing from that attempt.
 
+The prep command uses the lightweight public entry path for both console and
+`python -m primr` execution. If collection is interrupted, it returns exit code
+130, removes any incomplete staging, and asks you to inspect the output root
+before retrying. If skill installation is interrupted, inspect that destination
+before using or retrying it because installation updates files individually.
+
 The command writes a dated directory under `output/` containing:
 
 - `prep_manifest.json`: versioned execution, coverage, quality, hashes, and
