@@ -18,7 +18,23 @@ primr --resume-latest
 primr "Company Name" https://company.com --resume-local
 ```
 
-When a cloud job is complete, `--check-jobs` prints the next command but leaves the pending record intact. Normal runs and `--resume-latest` acknowledge the provider job only after their outer output boundary verifies every required artifact is a nonempty regular file. Recovery writes canonical `.md`, `.txt`, and `.docx` outputs. If finalization fails, Primr writes a fallback text artifact and retains the job so canonical conversion can be retried.
+When a cloud job is complete, `--check-jobs` prints the next command but leaves
+the pending record intact. Normal runs and `--resume-latest` acknowledge the
+provider job only after their outer output boundary verifies every required
+artifact is a nonempty regular file. Recovery renders `.md`, `.txt`, and
+`.docx` files in a same-filesystem staging directory, verifies the complete
+set, and then promotes the canonical paths. An in-process promotion failure
+or user interruption removes newly published files and restores any
+pre-existing outputs. Staged and pre-existing artifacts must be regular,
+nonempty files; symbolic links are rejected. Provider interaction ids are
+converted to contained, collision-resistant filename tokens rather than used
+as paths. If rendering or publication fails, Primr atomically attempts a
+fallback text artifact and retains the job so canonical conversion can be
+retried. A failed fallback is reported without preventing later pending jobs
+from being checked. If the pending-job registry is malformed, contains a
+non-object job entry, or is unreadable, both inspection and finalization return
+nonzero and state that no job state was changed. They do not misreport
+unreadable state as an empty queue.
 
 Background interaction creation is persisted immediately. Polling and status
 inspection never acknowledge it. Preflight validation does not launch a
@@ -28,7 +44,10 @@ Provider-terminal jobs remain visible during inspection. Explicit resume reports
 
 ## Local Run State
 
-`--check-jobs` also prints the latest readable local run state when one exists, including only fields that are present. It always prints the exact `_run_state.json` path for deeper diagnosis.
+`--check-jobs` also prints the latest readable local run state when one exists,
+including only fields that are present. It always prints the exact
+`_run_state.json` path for deeper diagnosis and tells the operator to rerun the
+original company and URL with `--resume-local`.
 
 Inspect that file only when the summary is insufficient:
 

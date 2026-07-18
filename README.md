@@ -72,6 +72,13 @@ Requirements:
 - API keys are required only for provider-backed research. The measured low-cost default uses xAI plus Gemini.
 - Browser dependencies installed by `primr init` for browser-backed scraping tiers.
 
+On a sound keyless install, `primr doctor` returns ready with warnings: prep and
+recon remain available while provider-backed research is clearly marked
+unavailable. Doctor never sends a model-generation request, so its connectivity
+section cannot consume model tokens. When a Gemini key is present, the separate
+orphaned-resource inventory makes non-generative list requests and labels any
+failure as a warning rather than claiming model connectivity.
+
 Install the versioned package with pipx:
 
 ```bash
@@ -293,6 +300,15 @@ audit log. A2A skill calls and task cancellation use the same audit log with
 hashed message/result payloads, hashed caller ids, granted scopes, duration,
 outcome, and job id when present; raw message text, task ids, URLs, report
 paths, raw results, and caller ids are not persisted.
+MCP and A2A doctor responses expose only body-free audit-sink state such as
+`not_observed`, `ok`, or `degraded`, recent write/read outcomes, malformed-event
+count, and bounded-tail state. They never expose the audit path, event bodies,
+URLs, caller ids, or exception messages.
+Audit events normalize registered tool, scope, and resource labels, hash
+unrecognized identifiers, reject oversized records, and return only events that
+match the explicit versioned audit schema. Additive persisted fields are not
+returned. Audit reads and writes reject symbolic-link targets, and sink health
+reports replacement or truncation after a successful write.
 
 With `--output-dir`, Primr writes customer-facing Markdown and DOCX deliverables to that folder while keeping TXT mirrors and validation diagnostics in the run diagnostics directory.
 

@@ -498,6 +498,73 @@ class TestDoctorCloud:
         assert data["cloud_mode"] is True
         assert "cloud_diagnostics" in data
 
+    @pytest.mark.asyncio
+    async def test_failed_live_cloud_probe_cannot_report_healthy(self, server):
+        with (
+            patch("primr.mcp_server.cloud_detect.is_cloud_mode", return_value=True),
+            patch(
+                "primr.mcp_server.tools._get_cloud_diagnostics",
+                new=AsyncMock(
+                    return_value={
+                        "container_app_health": {
+                            "status": "error",
+                            "probe_performed": True,
+                        }
+                    }
+                ),
+            ),
+        ):
+            data = await _call(server, "doctor", {})
+
+        assert data["status"] != "healthy"
+        assert {
+            "component": "cloud.container_app_health",
+            "status": "error",
+        } in data["checks"]
+
+    @pytest.mark.asyncio
+    async def test_live_cloud_probe_does_not_echo_response_body(self, monkeypatch):
+        from primr.mcp_server.tools import _get_cloud_diagnostics
+
+        marker = "private-health-response-marker"
+        response = MagicMock(status_code=200)
+        response.json.return_value = {"status": "ok", "detail": marker}
+        client = MagicMock()
+        client.get = AsyncMock(return_value=response)
+        context = MagicMock()
+        context.__aenter__ = AsyncMock(return_value=client)
+        context.__aexit__ = AsyncMock(return_value=None)
+        monkeypatch.setenv("PRIMR_CONTROL_PLANE_URL", "https://health.example")
+
+        with patch("httpx.AsyncClient", return_value=context):
+            diagnostics = await _get_cloud_diagnostics()
+
+        assert marker not in str(diagnostics)
+        response.json.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("invalid_limit", ["nan", "inf", "-inf", "-1"])
+    async def test_invalid_cost_limits_degrade_with_strict_json(self, monkeypatch, invalid_limit):
+        from primr.mcp_server.doctor_status import attach_cloud_diagnostics
+        from primr.mcp_server.tools import _get_cloud_diagnostics
+
+        response = MagicMock(status_code=200)
+        client = MagicMock()
+        client.get = AsyncMock(return_value=response)
+        context = MagicMock()
+        context.__aenter__ = AsyncMock(return_value=client)
+        context.__aexit__ = AsyncMock(return_value=None)
+        monkeypatch.setenv("PRIMR_MAX_JOB_COST_USD", invalid_limit)
+
+        with patch("httpx.AsyncClient", return_value=context):
+            diagnostics = await _get_cloud_diagnostics()
+
+        health = {"status": "healthy", "checks": [], "warnings": []}
+        attach_cloud_diagnostics(health, diagnostics)
+        assert diagnostics["cost_governor"]["status"] == "error"
+        assert health["status"] == "degraded"
+        assert "NaN" not in json.dumps(diagnostics, allow_nan=False)
+
 
 # ---------------------------------------------------------------------------
 # show_usage (cloud mode)

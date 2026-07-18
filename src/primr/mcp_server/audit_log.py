@@ -5,11 +5,10 @@ from __future__ import annotations
 import base64
 import binascii
 import functools
-import hashlib
 import json
 import logging
-import math
-import re
+import os
+import stat
 import time
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
@@ -22,42 +21,58 @@ from urllib.parse import parse_qs, urlparse
 
 from mcp.server.lowlevel.helper_types import ReadResourceContents
 
+from primr.mcp_server.audit_schema import (
+    MCPAuditEvent,
+    _a2a_tool_name,
+    _approval_identifier,
+    _bounded_label,
+    _hash_text,
+    _mcp_tool_name,
+    _normalized_scopes,
+    _normalized_transport,
+    _optional_error_code,
+    _optional_float,
+    _optional_string,
+    _otel_span_projection,
+    _project_safe_audit_event,
+    _resource_job_id,
+    _resource_kind,
+)
 from primr.mcp_server.resource_auth import is_local_stdio_context
-from primr.mcp_server.tool_authz import ADMIN_SCOPE
+from primr.mcp_server.tool_authz import (
+    ADMIN_SCOPE,
+)
 
 if TYPE_CHECKING:
     from mcp.types import TextContent
 
 logger = logging.getLogger(__name__)
 
+_MAX_RECENT_READ_BYTES = 1024 * 1024
+_MAX_AUDIT_EVENT_BYTES = 16 * 1024
 
-@dataclass(frozen=True)
-class MCPAuditEvent:
-    """One MCP governance audit event."""
 
-    schema_version: str
-    event_id: str
-    request_id: str
-    timestamp: str
-    transport: str
-    tool_name: str
-    status: str
-    duration_ms: int
-    actor: str | None
-    client_id_hash: str | None
-    authenticated: bool
-    auth_scopes: list[str]
-    args_hash: str
-    event_type: str = "tool_call"
-    result_hash: str | None = None
-    approval_token_id: str | None = None
-    job_id: str | None = None
-    resource_kind: str | None = None
-    resource_uri_hash: str | None = None
-    estimated_cost_usd: float | None = None
-    max_estimated_cost_usd: float | None = None
-    error_type: str | None = None
-    error_code: int | str | None = None
+@dataclass
+class _AuditSinkState:
+    """Body-free observations about the local audit JSONL sink."""
+
+    file_observed: bool = False
+    write_attempted: bool = False
+    last_write_succeeded: bool | None = None
+    last_write_attempt_at: str | None = None
+    last_write_success_at: str | None = None
+    last_write_failure_at: str | None = None
+    consecutive_write_failures: int = 0
+    last_write_error_type: str | None = None
+    read_attempted: bool = False
+    last_read_succeeded: bool | None = None
+    last_read_attempt_at: str | None = None
+    last_read_success_at: str | None = None
+    last_read_failure_at: str | None = None
+    last_read_error_type: str | None = None
+    malformed_event_count: int = 0
+    read_truncated: bool = False
+    incomplete_tail: bool = False
 
 
 class MCPAuditLog:
@@ -73,6 +88,80 @@ class MCPAuditLog:
     ) -> None:
         self.path = _resolve_audit_path(audit_log_path, journal_path)
         self._lock = Lock()
+        self._health_lock = Lock()
+        self._health = _AuditSinkState()
+        self._last_write_identity: tuple[int, int] | None = None
+        self._last_write_size: int | None = None
+
+    def health_snapshot(self) -> dict[str, Any]:
+        """Return sink state without paths, event data, or exception messages."""
+        with self._health_lock:
+            state = asdict(self._health)
+            last_write_identity = self._last_write_identity
+            last_write_size = self._last_write_size
+
+        file_replaced_after_write = False
+        file_truncated_after_write = False
+
+        if state["write_attempted"] or state["read_attempted"]:
+            try:
+                metadata = self.path.lstat()
+            except FileNotFoundError:
+                state["file_observed"] = False
+            except OSError as exc:
+                observed_at = _utc_timestamp()
+                state["file_observed"] = False
+                state["read_attempted"] = True
+                state["last_read_succeeded"] = False
+                state["last_read_attempt_at"] = observed_at
+                state["last_read_failure_at"] = observed_at
+                state["last_read_error_type"] = type(exc).__name__
+            else:
+                state["file_observed"] = stat.S_ISREG(metadata.st_mode)
+                if not state["file_observed"] and state["last_read_succeeded"] is not False:
+                    state["last_read_succeeded"] = False
+                    state["last_read_error_type"] = "NonRegularFile"
+                elif state["file_observed"] and state["last_write_succeeded"] is True:
+                    current_identity = _file_identity(metadata)
+                    file_replaced_after_write = (
+                        last_write_identity is not None and current_identity != last_write_identity
+                    )
+                    file_truncated_after_write = (
+                        last_write_size is not None and metadata.st_size < last_write_size
+                    )
+
+        write_failed = state["write_attempted"] and state["last_write_succeeded"] is False
+        read_failed = state["read_attempted"] and state["last_read_succeeded"] is False
+        disappeared_after_write = (
+            state["write_attempted"]
+            and state["last_write_succeeded"] is True
+            and not state["file_observed"]
+        )
+        if (
+            write_failed
+            or read_failed
+            or disappeared_after_write
+            or state["malformed_event_count"] > 0
+            or state["incomplete_tail"]
+            or file_replaced_after_write
+            or file_truncated_after_write
+        ):
+            status = "degraded"
+        elif state["last_write_succeeded"] is True or (
+            state["last_read_succeeded"] is True and state["file_observed"]
+        ):
+            status = "ok"
+        else:
+            status = "not_observed"
+
+        return {
+            "schema_version": "1.0",
+            "status": status,
+            "sink": "jsonl",
+            **state,
+            "file_replaced_after_successful_write": file_replaced_after_write,
+            "file_truncated_after_successful_write": file_truncated_after_write,
+        }
 
     def record_tool_call(
         self,
@@ -96,8 +185,8 @@ class MCPAuditLog:
                 event_id=event_id,
                 request_id=event_id,
                 timestamp=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-                transport=transport,
-                tool_name=tool_name,
+                transport=_normalized_transport(transport),
+                tool_name=_mcp_tool_name(tool_name),
                 status=_classify_status(result_payload, exception),
                 duration_ms=duration_ms,
                 actor="stdio" if is_local_stdio_context(transport, auth_context) else None,
@@ -107,7 +196,7 @@ class MCPAuditLog:
                     else _hash_text(client_id)
                 ),
                 authenticated=bool(getattr(auth_context, "is_authenticated", False)),
-                auth_scopes=sorted(str(s) for s in getattr(auth_context, "scopes", []) or []),
+                auth_scopes=_normalized_scopes(getattr(auth_context, "scopes", []) or []),
                 args_hash=_hash_json(arguments),
                 result_hash=_hash_result(result),
                 approval_token_id=_approval_token_id(arguments, result_payload),
@@ -121,7 +210,7 @@ class MCPAuditLog:
             )
             self._append(event)
         except Exception:
-            logger.exception("Failed to write MCP audit event for tool %s", tool_name)
+            logger.exception("Failed to write MCP audit tool event")
 
     def record_resource_read(
         self,
@@ -144,7 +233,7 @@ class MCPAuditLog:
                 event_id=event_id,
                 request_id=event_id,
                 timestamp=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-                transport=transport,
+                transport=_normalized_transport(transport),
                 tool_name="resources/read",
                 status=_classify_resource_status(result_payload, exception),
                 duration_ms=duration_ms,
@@ -155,7 +244,7 @@ class MCPAuditLog:
                     else _hash_text(client_id)
                 ),
                 authenticated=bool(getattr(auth_context, "is_authenticated", False)),
-                auth_scopes=sorted(str(s) for s in getattr(auth_context, "scopes", []) or []),
+                auth_scopes=_normalized_scopes(getattr(auth_context, "scopes", []) or []),
                 args_hash=_hash_json({"uri": uri}),
                 event_type="resource_read",
                 result_hash=_hash_resource_result(result),
@@ -199,7 +288,7 @@ class MCPAuditLog:
                 actor=local_actor,
                 client_id_hash=None if local_actor is not None else _hash_text(client_id),
                 authenticated=authenticated,
-                auth_scopes=sorted(str(s) for s in getattr(auth_context, "scopes", []) or []),
+                auth_scopes=_normalized_scopes(getattr(auth_context, "scopes", []) or []),
                 args_hash=_hash_json(arguments),
                 result_hash=_hash_json(payload) if result_payload is not None else None,
                 approval_token_id=_approval_token_id(arguments, payload),
@@ -215,35 +304,87 @@ class MCPAuditLog:
             )
             self._append(event)
         except Exception:
-            logger.exception("Failed to write MCP audit event for A2A skill %s", skill_id)
+            logger.exception("Failed to write MCP audit A2A event")
 
     def recent(self, limit: int = 50) -> list[dict[str, Any]]:
         """Return the most recent audit events in file order."""
         bounded_limit = max(1, min(int(limit), 200))
-        if not self.path.exists():
+        try:
+            path_exists = self.path.exists()
+        except OSError as exc:
+            self._record_read_result(succeeded=False, error=exc)
+            logger.exception("Failed to inspect MCP audit log")
+            return []
+        if not path_exists:
+            self._record_read_result(succeeded=True, file_observed=False)
             return []
 
         try:
-            lines = self.path.read_text(encoding="utf-8").splitlines()[-bounded_limit:]
-        except OSError:
+            with self._lock:
+                lines, truncated = _read_bounded_tail(self.path)
+        except (OSError, UnicodeError) as exc:
+            self._record_read_result(succeeded=False, error=exc)
             logger.exception("Failed to read MCP audit log")
             return []
 
         events: list[dict[str, Any]] = []
+        malformed_event_count = 0
         for line in lines:
-            with _IgnoreJsonErrors():
+            if not line.strip():
+                continue
+            if len(line.encode("utf-8")) > _MAX_AUDIT_EVENT_BYTES:
+                malformed_event_count += 1
+                continue
+            try:
                 parsed = json.loads(line)
-                if isinstance(parsed, dict):
-                    events.append(parsed)
-        return events
+            except (json.JSONDecodeError, RecursionError):
+                malformed_event_count += 1
+                continue
+            safe_event = _project_safe_audit_event(parsed) if isinstance(parsed, dict) else None
+            if safe_event is not None:
+                events.append(safe_event)
+            else:
+                malformed_event_count += 1
+        incomplete_tail = truncated and not any(line.strip() for line in lines)
+        self._record_read_result(
+            succeeded=True,
+            file_observed=True,
+            malformed_event_count=malformed_event_count,
+            read_truncated=truncated,
+            incomplete_tail=incomplete_tail,
+        )
+        return events[-bounded_limit:]
 
     def _append(self, event: MCPAuditEvent) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        payload = asdict(event)
-        payload["otel_span"] = _otel_span_projection(event)
-        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n"
-        with self._lock, self.path.open("a", encoding="utf-8") as handle:
-            handle.write(encoded)
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            payload = asdict(event)
+            payload["otel_span"] = _otel_span_projection(event)
+            encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n"
+            if len(encoded.encode("utf-8")) > _MAX_AUDIT_EVENT_BYTES:
+                raise ValueError("Audit event exceeds the encoded size limit")
+            with (
+                self._lock,
+                os.fdopen(
+                    _open_regular_audit_fd(
+                        self.path,
+                        os.O_WRONLY | os.O_APPEND | os.O_CREAT,
+                    ),
+                    "a",
+                    encoding="utf-8",
+                ) as handle,
+            ):
+                handle.write(encoded)
+                handle.flush()
+                metadata = os.fstat(handle.fileno())
+        except Exception as exc:
+            self._record_write_result(succeeded=False, error=exc)
+            raise
+        self._record_write_result(
+            succeeded=True,
+            file_identity=_file_identity(metadata),
+            file_size=metadata.st_size,
+        )
         logger.info(
             "MCP governance event",
             extra={
@@ -253,6 +394,64 @@ class MCPAuditLog:
                 "duration_ms": event.duration_ms,
             },
         )
+
+    def _record_write_result(
+        self,
+        *,
+        succeeded: bool,
+        error: BaseException | None = None,
+        file_identity: tuple[int, int] | None = None,
+        file_size: int | None = None,
+    ) -> None:
+        with self._health_lock:
+            observed_at = _utc_timestamp()
+            self._health.write_attempted = True
+            self._health.last_write_succeeded = succeeded
+            self._health.last_write_attempt_at = observed_at
+            if succeeded:
+                if file_identity is None or file_size is None:
+                    try:
+                        metadata = self.path.lstat()
+                    except OSError:
+                        metadata = None
+                    if metadata is not None and stat.S_ISREG(metadata.st_mode):
+                        file_identity = _file_identity(metadata)
+                        file_size = metadata.st_size
+                self._health.file_observed = True
+                self._health.last_write_success_at = observed_at
+                self._health.consecutive_write_failures = 0
+                self._last_write_identity = file_identity
+                self._last_write_size = file_size
+            else:
+                self._health.last_write_failure_at = observed_at
+                self._health.consecutive_write_failures += 1
+                self._health.last_write_error_type = type(error).__name__ if error else "Error"
+
+    def _record_read_result(
+        self,
+        *,
+        succeeded: bool,
+        file_observed: bool | None = None,
+        error: BaseException | None = None,
+        malformed_event_count: int = 0,
+        read_truncated: bool = False,
+        incomplete_tail: bool = False,
+    ) -> None:
+        with self._health_lock:
+            observed_at = _utc_timestamp()
+            self._health.read_attempted = True
+            self._health.last_read_succeeded = succeeded
+            self._health.last_read_attempt_at = observed_at
+            if file_observed is not None:
+                self._health.file_observed = file_observed
+            if succeeded:
+                self._health.last_read_success_at = observed_at
+            else:
+                self._health.last_read_failure_at = observed_at
+                self._health.last_read_error_type = type(error).__name__ if error else "Error"
+            self._health.malformed_event_count = malformed_event_count
+            self._health.read_truncated = read_truncated
+            self._health.incomplete_tail = incomplete_tail
 
 
 class AuditServerContext(Protocol):
@@ -380,12 +579,14 @@ def read_agent_audit_recent_resource(
     except ValueError:
         limit = 50
     events = mcp_server.audit_log.recent(limit=limit)
+    audit_sink = mcp_server.audit_log.health_snapshot()
     return [
         _json_resource(
             {
                 "schema_version": "1.0",
                 "event_count": len(events),
                 "events": events,
+                "audit_sink": audit_sink,
             }
         )
     ]
@@ -396,14 +597,6 @@ def _json_resource(data: dict[str, Any]) -> ReadResourceContents:
         content=json.dumps(data, indent=2),
         mime_type="application/json",
     )
-
-
-class _IgnoreJsonErrors:
-    def __enter__(self) -> None:
-        return None
-
-    def __exit__(self, exc_type, _exc, _tb) -> bool:
-        return exc_type is not None and issubclass(exc_type, json.JSONDecodeError)
 
 
 def _resolve_audit_path(
@@ -417,6 +610,67 @@ def _resolve_audit_path(
     return MCPAuditLog.DEFAULT_PATH
 
 
+def _read_bounded_tail(path: Path) -> tuple[list[str], bool]:
+    """Read at most the configured suffix of an audit JSONL file."""
+    with os.fdopen(_open_regular_audit_fd(path, os.O_RDONLY), "rb") as handle:
+        handle.seek(0, os.SEEK_END)
+        file_size = handle.tell()
+        start = max(0, file_size - _MAX_RECENT_READ_BYTES)
+        preceding = b"\n"
+        if start > 0:
+            handle.seek(start - 1)
+            preceding = handle.read(1)
+        handle.seek(start)
+        raw = handle.read(_MAX_RECENT_READ_BYTES)
+
+    truncated = start > 0
+    if truncated and preceding != b"\n":
+        first_boundary = raw.find(b"\n")
+        raw = b"" if first_boundary < 0 else raw[first_boundary + 1 :]
+    return raw.decode("utf-8").splitlines(), truncated
+
+
+class _UnsafeAuditSinkError(OSError):
+    """Raised before I/O when the audit sink is not one stable regular file."""
+
+
+def _open_regular_audit_fd(path: Path, flags: int) -> int:
+    """Open one audit file without following or racing symbolic links."""
+    create_requested = bool(flags & os.O_CREAT)
+    try:
+        before = path.lstat()
+    except FileNotFoundError:
+        if not create_requested:
+            raise
+    else:
+        if not stat.S_ISREG(before.st_mode):
+            raise _UnsafeAuditSinkError("Audit sink must be a regular file")
+
+    secure_flags = flags | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, secure_flags, 0o600)
+    try:
+        opened = os.fstat(descriptor)
+        after = path.lstat()
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or not stat.S_ISREG(after.st_mode)
+            or _file_identity(opened) != _file_identity(after)
+        ):
+            raise _UnsafeAuditSinkError("Audit sink changed during secure open")
+    except BaseException:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
+def _file_identity(metadata: os.stat_result) -> tuple[int, int]:
+    return metadata.st_dev, metadata.st_ino
+
+
+def _utc_timestamp() -> str:
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
 def _client_id(auth_context: Any, transport: str) -> str:
     if is_local_stdio_context(transport, auth_context):
         return "stdio"
@@ -425,10 +679,6 @@ def _client_id(auth_context: Any, transport: str) -> str:
         if isinstance(cid, str) and cid:
             return cid
     return "anonymous"
-
-
-def _hash_text(value: str) -> str:
-    return "sha256:" + hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def _hash_json(value: Any) -> str:
@@ -448,42 +698,6 @@ def _hash_resource_result(result: Sequence[ReadResourceContents] | None) -> str 
         return None
     texts = [str(getattr(item, "content", "")) for item in result]
     return _hash_json(texts)
-
-
-def _otel_span_projection(event: MCPAuditEvent) -> dict[str, Any]:
-    """Return a body-free span projection for audit-log consumers."""
-    attributes: dict[str, str | int | float | bool] = {
-        "primr.request_id": event.request_id,
-        "primr.event_id": event.event_id,
-        "primr.event_type": event.event_type,
-        "primr.transport": event.transport,
-        "primr.tool_name": event.tool_name,
-        "primr.status": event.status,
-        "primr.authenticated": event.authenticated,
-        "primr.auth.scope_count": len(event.auth_scopes),
-        "primr.duration_ms": event.duration_ms,
-    }
-    optional_attributes: dict[str, str | int | float | bool | None] = {
-        "primr.job_id": event.job_id,
-        "primr.resource_kind": event.resource_kind,
-        "primr.approval_token_id": event.approval_token_id,
-        "primr.estimated_cost_usd": event.estimated_cost_usd,
-        "primr.max_estimated_cost_usd": event.max_estimated_cost_usd,
-        "primr.error_type": event.error_type,
-        "primr.error_code": event.error_code,
-    }
-    for key, value in optional_attributes.items():
-        if value is not None:
-            attributes[key] = value
-    return {
-        "name": _otel_span_name(event),
-        "attributes": attributes,
-    }
-
-
-def _otel_span_name(event: MCPAuditEvent) -> str:
-    normalized_tool = re.sub(r"[^A-Za-z0-9_.:-]+", ".", event.tool_name).strip(".")
-    return f"primr.{event.transport}.{event.event_type}.{normalized_tool}"
 
 
 def _first_json_text(result: Sequence[TextContent] | None) -> dict[str, Any]:
@@ -543,7 +757,7 @@ def _error_type(payload: dict[str, Any], exception: BaseException | None) -> str
     if exception is not None:
         return exception.__class__.__name__
     value = payload.get("error_type")
-    return str(value) if value is not None else None
+    return _bounded_label(value, fallback="unrecognized_error")
 
 
 def _resource_error_type(
@@ -555,54 +769,11 @@ def _resource_error_type(
     value = payload.get("error_type", payload.get("error"))
     if isinstance(value, bool):
         return None
-    return str(value) if value is not None else None
-
-
-def _resource_kind(uri: str) -> str:
-    parsed = urlparse(uri)
-    base = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
-    base = re.sub(r"/by_job/[^/?]+", "/by_job/{job_id}", base)
-    return base
-
-
-def _a2a_tool_name(skill_id: str | None) -> str:
-    if isinstance(skill_id, str) and re.fullmatch(r"[A-Za-z0-9_.:-]{1,80}", skill_id):
-        return f"a2a/{skill_id}"
-    return "a2a/unknown"
-
-
-def _resource_job_id(uri: str, payload: dict[str, Any]) -> str | None:
-    value = _optional_string(payload.get("job_id"))
-    if value is not None:
-        return value
-    match = re.search(r"/by_job/([^/?]+)", uri)
-    return match.group(1) if match else None
-
-
-def _optional_error_code(value: Any) -> int | str | None:
-    if value is None:
-        return None
-    if isinstance(value, int):
-        return value
-    return str(value)
-
-
-def _optional_string(value: Any) -> str | None:
-    return value if isinstance(value, str) and value else None
-
-
-def _optional_float(value: Any) -> float | None:
-    if value is None:
-        return None
-    try:
-        parsed = float(value)
-    except (TypeError, ValueError):
-        return None
-    return parsed if math.isfinite(parsed) else None
+    return _bounded_label(value, fallback="unrecognized_error")
 
 
 def _approval_token_id(arguments: dict[str, Any], payload: dict[str, Any]) -> str | None:
-    result_token_id = _optional_string(payload.get("approval_token_id"))
+    result_token_id = _approval_identifier(payload.get("approval_token_id"))
     if result_token_id is not None:
         return result_token_id
 
@@ -617,7 +788,7 @@ def _approval_token_id(arguments: dict[str, Any], payload: dict[str, Any]) -> st
         return None
     if not isinstance(decoded, dict):
         return None
-    return _optional_string(decoded.get("jti"))
+    return _approval_identifier(decoded.get("jti"))
 
 
 def _b64decode(value: str) -> bytes:

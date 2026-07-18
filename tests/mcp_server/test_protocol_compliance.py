@@ -558,6 +558,9 @@ class TestToolResultStructure:
         assert "config_valid" in data
         assert "api_keys_configured" in data
         assert "warnings" in data
+        assert data["status"] in {"healthy", "degraded", "unhealthy"}
+        assert isinstance(data["checks"], list)
+        assert any(check["component"] == "audit_log" for check in data["checks"])
 
         # Types
         assert isinstance(data["orphaned_stores_count"], int)

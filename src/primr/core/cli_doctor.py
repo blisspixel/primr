@@ -3,7 +3,7 @@
 Extracted from `primr.core.cli` for isolated unit testing.
 
 `run_doctor` orchestrates six smaller checks (API keys, providers,
-dependencies, filesystem, API connectivity, Gemini resource cleanup) and
+dependencies, filesystem, zero-spend API policy, Gemini resource cleanup) and
 emits a final pass/warn/fail summary. The smaller `_check_*` helpers each
 return a (passed, warning_count) tuple so they compose cleanly.
 """
@@ -32,7 +32,6 @@ from primr.ai.provider_availability_collectors import (
     collect_provider_availability_snapshots,
 )
 from primr.config.config import LOGS_DIR, OUTPUT_DIR, WORKING_DIR
-from primr.config.models import PrimrModels
 from primr.utils.atomic_io import atomic_replace
 from primr.utils.console import console
 
@@ -89,9 +88,11 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
         all_passed = False
 
     if configured_model_keys == 0:
-        console.error("No cloud LLM provider key configured")
+        console.warn("No cloud LLM provider key configured")
+        console.info("  Provider-backed research is unavailable.")
+        console.info("  Keyless commands remain ready: primr prep | primr recon")
         console.info("  Run one of: primr keys set gemini | xai | openai | anthropic")
-        all_passed = False
+        warnings_count += 1
 
     search_provider = os.environ.get("SEARCH_PROVIDER", "auto").lower().strip()
     search_key = os.environ.get("SEARCH_API_KEY", "")
@@ -196,7 +197,8 @@ def _check_providers(warnings_count: int) -> int:
             warnings_count += 1
 
     if usable_count == 0:
-        console.error("No usable LLM providers")
+        console.warn("No usable LLM providers (provider-backed research unavailable)")
+        console.info("  Keyless commands remain ready: primr prep | primr recon")
         console.info(
             "  Set a provider key (primr keys set gemini|xai|openai|anthropic) + install its SDK"
         )
@@ -327,35 +329,12 @@ def _check_filesystem(all_passed: bool, warnings_count: int) -> tuple[bool, int]
 
 
 def _check_api_connectivity(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
-    """Check API connectivity."""
+    """Report live-probe policy without making a billable generation request."""
     gemini_key = os.environ.get("GEMINI_API_KEY", "")
     if gemini_key:
-        try:
-            from google import genai
-
-            client = genai.Client(api_key=gemini_key, http_options=default_genai_http_options())
-            response = client.models.generate_content(
-                model=PrimrModels.FAST_MODEL,
-                contents="Reply with exactly: hello",
-            )
-            if response and (response.text or response.candidates):
-                console.ok("Gemini API responding")
-            else:
-                console.ok("Gemini API connected")
-        except Exception as e:
-            error_str = str(e).lower()
-            if "quota" in error_str or "rate" in error_str:
-                console.error("Gemini API quota exceeded - wait and retry")
-                all_passed = False
-            elif "invalid" in error_str and "key" in error_str:
-                console.error("Gemini API key is invalid")
-                all_passed = False
-            else:
-                console.warn(f"Gemini API test failed: {e}")
-                warnings_count += 1
+        console.ok("Gemini key present; live model probe skipped to avoid model spend")
     else:
-        console.warn("Skipping API test (no key configured)")
-        warnings_count += 1
+        console.info("No Gemini key; no live model probe requested")
 
     return all_passed, warnings_count
 
@@ -384,8 +363,10 @@ def _check_gemini_resources(all_passed: bool, warnings_count: int) -> tuple[bool
                 warnings_count += 1
             else:
                 console.ok("No orphaned caches")
-        except Exception as e:
-            logger.debug(f"Could not list caches: {e}")
+        except Exception:
+            logger.debug("Could not list Gemini caches", exc_info=True)
+            console.warn("Gemini cache inventory could not be verified")
+            warnings_count += 1
 
         try:
             stores = list(client.file_search_stores.list())
@@ -398,14 +379,17 @@ def _check_gemini_resources(all_passed: bool, warnings_count: int) -> tuple[bool
                 warnings_count += 1
             else:
                 console.ok("No orphaned file search stores")
-        except Exception as e:
-            logger.debug(f"Could not list file search stores: {e}")
+        except Exception:
+            logger.debug("Could not list Gemini file search stores", exc_info=True)
+            console.warn("Gemini file search store inventory could not be verified")
+            warnings_count += 1
 
     except ImportError:
         console.warn("google-genai not installed, skipping resource check")
         warnings_count += 1
-    except Exception as e:
-        console.warn(f"Gemini resource check failed: {e}")
+    except Exception:
+        logger.debug("Gemini resource check failed", exc_info=True)
+        console.warn("Gemini resource inventory could not be verified")
         warnings_count += 1
 
     return all_passed, warnings_count
@@ -485,7 +469,7 @@ def run_scraper_stats() -> int:
     summary = aggregate_scraper_stats()
     if summary is None:
         console.info(f"No scrape traces found under {DEFAULT_TRACE_DIR.resolve()}")
-        console.info("Run a research job first — traces are written per run.")
+        console.info("Run a research job first; traces are written per run.")
         return 0
 
     for line in format_scraper_stats(summary).splitlines():
@@ -529,7 +513,7 @@ def run_doctor(*, fix: bool = False) -> int:
     console.step("File Locations")
     _show_file_locations()
 
-    console.step("API Connectivity")
+    console.step("Model Probe Policy")
     all_passed, warnings_count = _check_api_connectivity(all_passed, warnings_count)
 
     console.step("Gemini Resources")

@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -361,6 +362,45 @@ class TestPrimrAgentExecutor:
         event_queue.enqueue_event.assert_called()
 
     @pytest.mark.asyncio
+    async def test_execute_log_omits_raw_message_text(self, executor, event_queue, context, caplog):
+        marker = "private-message-log-marker"
+        context.message = {
+            "parts": [{"kind": "text", "text": marker}],
+            "metadata": {"skillId": "system_health"},
+        }
+
+        with (
+            patch("primr.a2a.executor.get_doctor_status", return_value={"status": "healthy"}),
+            caplog.at_level(logging.INFO, logger="primr.a2a.executor"),
+        ):
+            await executor.execute(context, event_queue)
+
+        assert marker not in caplog.text
+        assert "text_length=" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_exception_log_normalizes_unknown_skill(
+        self, executor, event_queue, context, caplog
+    ):
+        marker = "private-unknown-skill-marker"
+        context.message = {
+            "parts": [{"kind": "text", "text": "request"}],
+            "metadata": {"skillId": marker},
+        }
+
+        with (
+            patch(
+                "primr.a2a.executor.authorize_a2a_skill",
+                side_effect=RuntimeError("authorization failed"),
+            ),
+            caplog.at_level(logging.ERROR, logger="primr.a2a.executor"),
+        ):
+            await executor.execute(context, event_queue)
+
+        assert marker not in caplog.text
+        assert "skill=unknown" in caplog.text
+
+    @pytest.mark.asyncio
     async def test_handle_estimate_no_url(self, executor, event_queue, context):
         """estimate_research without URL asks for one."""
         context.message = {
@@ -552,6 +592,34 @@ class TestPrimrAgentExecutor:
         text = _get_event_text(event)
         data = json.loads(text)
         assert data["status"] == "healthy"
+
+    @pytest.mark.asyncio
+    async def test_doctor_cloud_failure_matches_mcp_health_contract(
+        self, executor, event_queue, context
+    ):
+        context.message["metadata"] = {"skillId": "system_health"}
+        base = {"status": "healthy", "checks": [], "warnings": []}
+        with (
+            patch("primr.a2a.executor.get_doctor_status", return_value=base),
+            patch("primr.mcp_server.cloud_detect.is_cloud_mode", return_value=True),
+            patch(
+                "primr.mcp_server.tools._get_cloud_diagnostics",
+                new=AsyncMock(
+                    return_value={
+                        "container_app_health": {
+                            "status": "error",
+                            "probe_performed": True,
+                        }
+                    }
+                ),
+            ),
+        ):
+            await executor.execute(context, event_queue)
+
+        event = event_queue.enqueue_event.call_args[0][0]
+        data = json.loads(_get_event_text(event))
+        assert data["status"] == "degraded"
+        assert data["cloud_mode"] is True
 
     @pytest.mark.asyncio
     async def test_estimate_invalid_url(self, executor, event_queue, context):
@@ -2555,7 +2623,7 @@ def _get_event_text(event) -> str:
             if isinstance(root, dict) and root.get("kind") == "text":
                 return root["text"]
 
-    # TaskStatusUpdateEvent — message in status.message
+    # TaskStatusUpdateEvent stores the message in status.message.
     status = getattr(event, "status", None)
     if status:
         msg = getattr(status, "message", None)
