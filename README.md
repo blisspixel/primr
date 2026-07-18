@@ -192,7 +192,8 @@ PDF text extraction uses local PyMuPDF by default; Gemini PDF extraction is opt-
 
 `primr --help`, `primr init --help`, and `primr doctor --help` show focused
 one-screen guidance. Use `primr --help-all` for every command and advanced
-option.
+option. Version and focused help use a lightweight entry path, so they do not
+load the research pipeline or initialize logs, output, and working directories.
 
 See [Run Modes and Costs](docs/RUN_MODES.md) for the full mode matrix, platform selection, strategy types, premium modes, and output examples.
 

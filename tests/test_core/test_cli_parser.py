@@ -9,9 +9,10 @@ from __future__ import annotations
 import argparse
 from unittest.mock import patch
 
+from primr.cli_help import _create_scoped_help_parser
 from primr.core import cli_parser
 from primr.core.cli import _FLAG_COMMANDS, _POSITIONAL_COMMANDS, Command, _create_parser
-from primr.core.cli_help import _create_scoped_help_parser
+from primr.core.cli_help import ROOT_HELP as COMPAT_ROOT_HELP
 from primr.core.cli_parser import (
     _determine_command as _determine_command_impl,
 )
@@ -30,6 +31,12 @@ def _reset_cache():
     """Drop the module-level cache so each test starts clean."""
     if hasattr(_discover_strategies, "_cache"):
         del _discover_strategies._cache
+
+
+def test_core_help_compatibility_import_matches_canonical_surface() -> None:
+    from primr.cli_help import ROOT_HELP
+
+    assert COMPAT_ROOT_HELP == ROOT_HELP
 
 
 def test_scoped_init_doctor_options_match_the_main_parser() -> None:

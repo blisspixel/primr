@@ -336,7 +336,11 @@ into generic agent middleware.
 
 - Cost estimation, usage tracking, job recovery, crash/reboot recovery
 - System diagnostics (`primr doctor`)
-- Focused one-screen `primr init --help` and `primr doctor --help` surfaces for onboarding and diagnostics; global help remains the complete command reference.
+- Lightweight one-screen `primr --help`, `primr init --help`, and
+  `primr doctor --help` surfaces for onboarding and diagnostics, with
+  `primr --help-all` retaining the complete command reference. Console and
+  `python -m primr` execution share one dispatcher; version and focused help
+  avoid operational CLI imports and workspace initialization.
 - One-command install/update: idempotent `scripts/install.{ps1,sh}` one-liners (pipx-based, upgrade on re-run), a `primr update` self-upgrade command (detects pipx vs pip), and a passive once-a-day "update available" notice (cached in the per-user dir, opt-out via `PRIMR_NO_UPDATE_CHECK`)
 - 10,000+ tests, full ruff compliance, mypy clean on an incremental strict ratchet (see [Engineering Standards & Toolchain](#engineering-standards--toolchain))
 - Serverless cloud deployment templates (AWS, Azure, GCP); Azure validated end-to-end (remaining hardening below)

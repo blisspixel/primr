@@ -413,9 +413,19 @@ def test_built_sdist_matches_release_inventory(tmp_path: Path) -> None:
     assert required_paths <= paths
 
     forbidden_paths = {"requirements.txt", "pytest.ini", "setup_env.py"}
-    forbidden_prefixes = (".agent/", "build/", "dist/", "output/", "tests/")
+    forbidden_prefixes = (
+        ".agent/",
+        "archive/",
+        "build/",
+        "dist/",
+        "logs/",
+        "output/",
+        "tests/",
+        "working/",
+    )
     assert forbidden_paths.isdisjoint(paths)
     assert not any(path.startswith(forbidden_prefixes) for path in paths)
+    assert not any(path.endswith((".pyc", ".pyo")) or "__pycache__/" in path for path in paths)
 
     wheels = list(tmp_path.glob("*.whl"))
     assert len(wheels) == 1

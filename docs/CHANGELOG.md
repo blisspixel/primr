@@ -31,8 +31,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of emitting non-standard JSON values.
 - Root `primr --help` is now a concise, workflow-first surface covering Primr
   Zero, provider-backed estimation, recovery, and keyless commands; the full
-  argparse reference remains available through `primr --help-all`. Public
-  examples use placeholder organizations only.
+  argparse reference remains available through `primr --help-all`. Console and
+  `python -m primr` execution now share a lightweight entry path, so version,
+  root help, and focused init/doctor help do not load the operational CLI or
+  initialize workspace directories. Public examples use placeholder
+  organizations only.
+- `primr prep --help` now describes the host capability and existing-plan
+  boundary without coupling the command to a vendor roster.
 - `primr prep` now reports `partial` collection honestly, carries bounded
   coverage warnings from the evidence manifest, lists the source index and host
   workflow alongside the evidence packet, and prints one explicit host handoff
@@ -102,6 +107,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   both production image surfaces from their documented build contexts.
 
 ### Fixed
+
+- Clean wheel and source-distribution builds no longer emit false missing-file
+  warnings for local caches, outputs, logs, working data, or platform metadata.
+  Release inventory checks continue to reject development state and generated
+  artifacts.
 
 - Recovered MD/TXT/DOCX deliverables now render and verify in a same-filesystem
   staging directory before any canonical path is promoted. In-process

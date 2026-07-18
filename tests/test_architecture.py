@@ -86,10 +86,12 @@ MIN_MODULE_REVIEW_LINES = 40
 # reason is reviewed here. When an entry grows past the threshold, remove it.
 INTENTIONAL_TINY_MODULES: dict[str, str] = {
     "__main__.py": "python -m primr composition shim",
+    "cli_entry.py": "lightweight public CLI import boundary",
     "a2a/skill_ids.py": "wire-protocol skill identifiers",
     "a2a/status_events.py": "A2A status-event translation boundary",
     "ai/deep_research_polling.py": "pure polling schedule policy",
     "config/sections_config.py": "section configuration compatibility surface",
+    "core/cli_help.py": "backward-compatible CLI help import surface",
     "core/cli_vendor.py": "vendor command composition boundary",
     "data/first_party_url.py": "first-party URL policy seam",
     "mcp_server/cloud_detect.py": "cloud-runtime adapter",

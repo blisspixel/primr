@@ -1,9 +1,6 @@
-"""
-Entry point for running primr as a module.
-Usage: python -m primr "Company Name" https://example.com
-"""
+"""Run the public Primr CLI through its lightweight composition boundary."""
 
-from primr.core.research_agent import main
+from primr.cli_entry import main
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

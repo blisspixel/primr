@@ -28,6 +28,11 @@ from enum import Enum
 from typing import Any, Protocol
 
 from primr.ai.genai_factory import default_genai_http_options
+from primr.cli_help import (
+    add_init_doctor_arguments,
+    maybe_print_root_help,
+    maybe_print_scoped_help,
+)
 from primr.config.config import LOGS_DIR, OUTPUT_DIR, WORKING_DIR
 from primr.config.models import PrimrModels
 from primr.core.cli_batch import (
@@ -84,11 +89,6 @@ from primr.core.cli_doctor import (
 from primr.core.cli_dryrun import run_dry_run
 from primr.core.cli_errors import guard_dispatch
 from primr.core.cli_eval_args import add_eval_arguments
-from primr.core.cli_help import (
-    add_init_doctor_arguments,
-    maybe_print_root_help,
-    maybe_print_scoped_help,
-)
 from primr.core.cli_inference import prepare_batch_inference_runtime, prepare_inference_runtime
 from primr.core.cli_init import (
     _ensure_project_env_file as _ensure_project_env_file,
