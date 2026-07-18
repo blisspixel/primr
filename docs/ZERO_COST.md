@@ -65,6 +65,10 @@ primr prep "ExampleCo" https://example.co
 Plain `pip install primr` also works. The dry run performs no network requests
 or writes and reports the collection plan. The real command uses public network
 access and normally completes in several minutes, depending on the target.
+Primr assembles each real bundle in a private same-root staging directory and
+publishes it only after the manifest is complete. An in-process error or
+interruption removes the staging directory, so artifact discovery sees either
+a validated bundle or nothing from that attempt.
 
 The command writes a dated directory under `output/` containing:
 
@@ -111,8 +115,13 @@ The wheel includes the skill, so pip and pipx users can install it without a
 source checkout:
 
 ```bash
+primr prep --install-skill ~/.agents/skills/primr-zero --dry-run
 primr prep --install-skill ~/.agents/skills/primr-zero
 ```
+
+The first command previews the requested destination and reports zero model
+calls, network requests, and file writes. The second command performs the
+installation.
 
 Use `~/.claude/skills/primr-zero` as the destination for Claude Code.
 

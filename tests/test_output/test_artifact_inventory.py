@@ -120,6 +120,23 @@ def test_scan_does_not_follow_nested_directory_symlink(tmp_path):
     assert "secret.md" not in {record.path.name for record in result["artifacts"]}
 
 
+def test_scan_ignores_in_progress_prep_staging_directories(tmp_path):
+    staging = tmp_path / ".primr-prep-active"
+    staging.mkdir()
+    (staging / "Incomplete_Strategic_Overview.md").write_text("partial", encoding="utf-8")
+    published = tmp_path / "Example_Primr_Prep_published"
+    published.mkdir()
+    report = published / "Published_Strategic_Overview.md"
+    report.write_text("complete", encoding="utf-8")
+
+    result = scan_artifact_roots([tmp_path])
+    names = {record.path.name for record in result["artifacts"]}
+
+    assert report.name in names
+    assert "Incomplete_Strategic_Overview.md" not in names
+    assert result["matched_count"] == 1
+
+
 def test_explicit_inventory_reports_total_path_cap(tmp_path):
     paths = [tmp_path / f"missing_{index}.md" for index in range(5)]
     result = inventory_explicit_result(paths, expand_adjacent=True, max_paths=2)

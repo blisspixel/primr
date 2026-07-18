@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -70,6 +71,15 @@ def run_prep_cli(args: list[str] | None) -> int:
         if parsed.company_name or parsed.company_url:
             print("Error: --install-skill cannot be combined with a company.", file=sys.stderr)
             return 2
+        if parsed.dry_run:
+            requested_destination = Path(os.path.abspath(Path(parsed.install_skill).expanduser()))
+            print("Primr Zero skill installation plan:")
+            print(f"  Requested destination: {requested_destination}")
+            print("  Incremental API spend: $0.00")
+            print("  Model calls: 0")
+            print("  Network requests: 0")
+            print("  Files written: 0 (dry run)")
+            return 0
         try:
             installed = install_bundled_skill(Path(parsed.install_skill))
         except (OSError, ValueError) as exc:

@@ -16,6 +16,7 @@ from primr.core.evidence_bundle import (
     BUNDLE_SCHEMA,
     MAX_HOST_PACKET_CHARS,
     _build_source_rows,
+    _publish_staged_bundle,
     _render_host_packet,
     _render_host_workflow,
     collect_evidence_bundle,
@@ -35,6 +36,7 @@ def test_collect_evidence_bundle_emits_bounded_host_handoff(tmp_path, monkeypatc
         assert kwargs["use_vision"] is False
         assert kwargs["allow_model_fallbacks"] is False
         assert kwargs["max_pages"] == 12
+        assert Path(kwargs["working_folder"]).name.startswith(".primr-prep-")
         return corpus
 
     def collect_evidence(**kwargs):
@@ -93,6 +95,9 @@ def test_collect_evidence_bundle_emits_bounded_host_handoff(tmp_path, monkeypatc
     assert result.hiring_postings == 1
     assert result.recon_collected is True
     assert result.status == "completed"
+    assert not result.bundle_dir.name.startswith(".primr-prep-")
+    assert list(tmp_path.iterdir()) == [result.bundle_dir]
+    assert [path for path in tmp_path.iterdir() if path.name.startswith(".primr-prep-")] == []
     assert result.workflow_path == result.bundle_dir / "HOST_WORKFLOW.md"
     assert result.coverage_warnings == ()
 
@@ -113,6 +118,44 @@ def test_collect_evidence_bundle_emits_bounded_host_handoff(tmp_path, monkeypatc
     inventory = json.loads(capsys.readouterr().out)
     report_record = next(row for row in inventory["artifacts"] if row["file_path"] == str(report))
     assert report_record["artifact_role"] == "primary_report"
+
+
+@pytest.mark.parametrize("failure_type", [RuntimeError, KeyboardInterrupt])
+def test_collection_failure_removes_unpublished_bundle(
+    tmp_path,
+    monkeypatch,
+    failure_type,
+) -> None:
+    monkeypatch.setattr(
+        "primr.utils.validators.validate_url_for_request",
+        lambda url: (True, "https://acme.example", None),
+    )
+
+    def fail_collection(**_kwargs):
+        raise failure_type("synthetic collection failure")
+
+    monkeypatch.setattr("primr.data.scrape.fetch_web_content", fail_collection)
+
+    with pytest.raises(failure_type, match="synthetic collection failure"):
+        collect_evidence_bundle("Acme", "https://acme.example", output_root=tmp_path)
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_publish_staged_bundle_refuses_to_replace_existing_directory(tmp_path) -> None:
+    staging = tmp_path / ".primr-prep-staged"
+    staging.mkdir()
+    (staging / "prep_manifest.json").write_text("{}", encoding="utf-8")
+    published = tmp_path / "Example_Primr_Prep_existing"
+    published.mkdir()
+    marker = published / "keep.txt"
+    marker.write_text("existing", encoding="utf-8")
+
+    with pytest.raises(FileExistsError, match="Refusing to replace existing prep bundle"):
+        _publish_staged_bundle(staging, published)
+
+    assert marker.read_text(encoding="utf-8") == "existing"
+    assert (staging / "prep_manifest.json").is_file()
 
 
 def test_host_workflow_fences_target_metadata_from_instructions() -> None:
