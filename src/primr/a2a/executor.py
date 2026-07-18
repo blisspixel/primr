@@ -724,10 +724,10 @@ class PrimrAgentExecutor(AgentExecutor):
             from primr.mcp_server.cloud_detect import is_cloud_mode
 
             if is_cloud_mode():
+                from primr.mcp_server.cloud_diagnostics import get_cloud_diagnostics
                 from primr.mcp_server.doctor_status import attach_cloud_diagnostics
-                from primr.mcp_server.tools import _get_cloud_diagnostics
 
-                attach_cloud_diagnostics(status, await _get_cloud_diagnostics())
+                attach_cloud_diagnostics(status, await get_cloud_diagnostics())
             else:
                 status["cloud_mode"] = False
             await event_queue.enqueue_event(

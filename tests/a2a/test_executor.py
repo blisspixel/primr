@@ -603,7 +603,7 @@ class TestPrimrAgentExecutor:
             patch("primr.a2a.executor.get_doctor_status", return_value=base),
             patch("primr.mcp_server.cloud_detect.is_cloud_mode", return_value=True),
             patch(
-                "primr.mcp_server.tools._get_cloud_diagnostics",
+                "primr.mcp_server.cloud_diagnostics.get_cloud_diagnostics",
                 new=AsyncMock(
                     return_value={
                         "container_app_health": {
