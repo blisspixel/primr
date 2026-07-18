@@ -37,7 +37,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
-from typing import ParamSpec, TypeVar
+from typing import Any, ParamSpec, TypeVar
 
 from primr.config.config import WORKING_DIR
 from primr.utils.logging_config import get_logger
@@ -220,18 +220,22 @@ def _windows_process_is_running(
     from ctypes import wintypes
 
     if open_process is None or get_exit_code is None or close_handle is None:
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        open_process = kernel32.OpenProcess
-        open_process.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
-        open_process.restype = wintypes.HANDLE
-        get_exit_code = kernel32.GetExitCodeProcess
-        get_exit_code.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
-        get_exit_code.restype = wintypes.BOOL
-        close_handle = kernel32.CloseHandle
-        close_handle.argtypes = [wintypes.HANDLE]
-        close_handle.restype = wintypes.BOOL
+        win_dll: Any = vars(ctypes)["WinDLL"]
+        kernel32: Any = win_dll("kernel32", use_last_error=True)
+        native_open_process: Any = kernel32.OpenProcess
+        native_open_process.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        native_open_process.restype = wintypes.HANDLE
+        native_get_exit_code: Any = kernel32.GetExitCodeProcess
+        native_get_exit_code.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        native_get_exit_code.restype = wintypes.BOOL
+        native_close_handle: Any = kernel32.CloseHandle
+        native_close_handle.argtypes = [wintypes.HANDLE]
+        native_close_handle.restype = wintypes.BOOL
+        open_process = native_open_process
+        get_exit_code = native_get_exit_code
+        close_handle = native_close_handle
     if get_last_error is None:
-        get_last_error = ctypes.get_last_error
+        get_last_error = vars(ctypes)["get_last_error"]
 
     process_query_limited_information = 0x1000
     error_invalid_parameter = 87
