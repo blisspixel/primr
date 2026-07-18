@@ -410,7 +410,7 @@ class DeepResearchClient:
         # FAIL FAST if any validation errors
         if preflight_errors:
             error_msg = "Pre-flight validation failed:\n  - " + "\n  - ".join(preflight_errors)
-            logger.error(error_msg)
+            logger.error("Pre-flight validation failed with %d error(s)", len(preflight_errors))
             raise AIError(error_msg, model=self.AGENT_ID)
 
         # 5. Test API connectivity with a lightweight call before expensive operations
@@ -862,12 +862,12 @@ Frame everything as hypotheses to explore, not conclusions."""
             store_name = store.name or ""
             if not store_name:
                 raise AIError("Failed to create file store - no name returned", model=self.AGENT_ID)
-            logger.info(f"Created file store: {store_name}")
+            logger.info("Created context file store")
 
             # Upload each file with explicit MIME type via config
             # FAIL on first error - don't waste money on partial uploads
-            for file_path in valid_files:
-                logger.info(f"Uploading: {file_path}")
+            for file_number, file_path in enumerate(valid_files, start=1):
+                logger.info("Uploading context file %d of %d", file_number, len(valid_files))
                 try:
                     # Get MIME type from extension
                     ext = os.path.splitext(file_path)[1].lower()
@@ -881,12 +881,12 @@ Frame everything as hypotheses to explore, not conclusions."""
                         file_search_store_name=store_name or "",
                         config=config,  # type: ignore[arg-type]
                     )
-                    logger.info(f"Uploaded: {file_path}")
+                    logger.info("Uploaded context file %d of %d", file_number, len(valid_files))
                 except Exception as upload_err:
                     # FAIL HARD - don't continue with broken uploads
                     # But first, clean up the store we created!
                     if store_name:
-                        logger.warning(f"Upload failed, cleaning up store {store_name}")
+                        logger.warning("Context upload failed; cleaning up file store")
                         self._cleanup_file_store(store_name)
                     raise AIError(
                         f"Failed to upload {file_path}: {upload_err}",

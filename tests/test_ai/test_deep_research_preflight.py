@@ -87,6 +87,21 @@ async def test_invalid_priority_url_raises(client):
 
 
 @pytest.mark.asyncio
+async def test_preflight_log_does_not_expose_rejected_url(client, caplog):
+    rejected_url = "private-tenant-name.invalid/sensitive-path"
+
+    with pytest.raises(AIError):
+        await client.research(
+            "bounded query",
+            priority_urls=[rejected_url],
+            use_streaming=False,
+        )
+
+    assert rejected_url not in caplog.text
+    assert "Pre-flight validation failed with 1 error(s)" in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_post_submission_failure_never_starts_second_interaction(client):
     first_interaction = MagicMock(id="interaction-1")
     client._start_research = MagicMock(return_value=first_interaction)
