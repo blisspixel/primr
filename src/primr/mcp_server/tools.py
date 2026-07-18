@@ -37,6 +37,7 @@ from primr.mcp_server.approval_tokens import (
     strategy_approval_args,
 )
 from primr.mcp_server.audit_log import audit_tool_calls
+from primr.mcp_server.cloud_diagnostics import get_cloud_diagnostics as _get_cloud_diagnostics
 from primr.mcp_server.job_responses import build_job_response, include_artifacts_requested
 from primr.mcp_server.job_store import JobInProgressError, ResearchJobState
 from primr.mcp_server.job_tools import handle_cancel_job as _handle_cancel_job
@@ -61,7 +62,11 @@ from primr.mcp_server.resource_auth import (
 from primr.mcp_server.server_context import MCPServerContext
 from primr.mcp_server.skill_pack_tools import handle_skill_pack_tool, register_skill_pack_tools
 from primr.mcp_server.strategy_operations import run_strategy_generation
-from primr.mcp_server.tool_authz import authorize_tool_call, scope_denied_response
+from primr.mcp_server.tool_authz import (
+    TOOL_REQUIRED_SCOPES,
+    authorize_tool_call,
+    scope_denied_response,
+)
 from primr.mcp_server.types import MCPErrorCode
 
 logger = logging.getLogger(__name__)
@@ -247,7 +252,7 @@ def register_tools(server: Server, mcp_server: MCPServerContext) -> None:
             ),
             Tool(
                 name="generate_strategy",
-                description="Generate strategy document from an existing report AFTER the fact. Only needed when adding a strategy to a previously completed research run. For new research, use research_company with platform instead — strategy is included automatically.",
+                description="Generate strategy document from an existing report AFTER the fact. Only needed when adding a strategy to a previously completed research run. For new research, use research_company with platform instead; strategy is included automatically.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -450,7 +455,8 @@ def register_tools(server: Server, mcp_server: MCPServerContext) -> None:
         if not (authz := authorize_tool_call(name, ctx)).allowed:
             return scope_denied_response(name, authz)
 
-        rate_result = mcp_server.rate_limiter.check_and_record(client_id, name)
+        rate_limit_bucket = name if name in TOOL_REQUIRED_SCOPES else "unknown_tool"
+        rate_result = mcp_server.rate_limiter.check_and_record(client_id, rate_limit_bucket)
         if not rate_result.allowed:
             return [
                 TextContent(
@@ -984,7 +990,7 @@ async def _handle_check_jobs(
             ]
         jobs.append(response_for(job))
     else:
-        # Return active + latest terminal — but only if owned by this client.
+        # Return active plus latest terminal, but only if owned by this client.
         active = mcp_server.job_store.get_active()
         if active and caller_owns_job_resource(mcp_server, active, client_id):
             jobs.append(response_for(active))
@@ -1065,7 +1071,7 @@ async def _handle_run_qa(
         ]
 
     except Exception:
-        # Same rationale as the strategy-generation handler — keep the
+        # Same rationale as the strategy-generation handler: keep the
         # full traceback in the server log, return a generic message.
         logger.exception("QA analysis failed")
         return [
@@ -1083,7 +1089,7 @@ async def _handle_run_qa(
 
 
 async def _handle_doctor(
-    _mcp_server: MCPServerContext,
+    mcp_server: MCPServerContext,
     _arguments: dict[str, Any],
 ) -> list[TextContent]:
     """
@@ -1098,107 +1104,21 @@ async def _handle_doctor(
     import json
 
     from primr.mcp_server.cloud_detect import is_cloud_mode
-    from primr.mcp_server.doctor_status import get_doctor_status
+    from primr.mcp_server.doctor_status import attach_cloud_diagnostics, get_doctor_status
 
-    result = get_doctor_status()
+    result = get_doctor_status(audit_log=mcp_server.audit_log)
 
     if is_cloud_mode():
-        result["cloud_mode"] = True
-        result["cloud_diagnostics"] = await _get_cloud_diagnostics()
+        attach_cloud_diagnostics(result, await _get_cloud_diagnostics())
     else:
         result["cloud_mode"] = False
 
     return [
         TextContent(
             type="text",
-            text=json.dumps(result),
+            text=json.dumps(result, allow_nan=False),
         )
     ]
-
-
-async def _get_cloud_diagnostics() -> dict[str, Any]:
-    """
-    Gather cloud-specific diagnostics for the doctor tool.
-
-    The control-plane endpoint receives a live health probe. Other services
-    report configuration presence only; configuration must not be presented as
-    verified connectivity.
-
-    Requirements: 10.7
-    """
-    import os
-
-    diagnostics: dict[str, Any] = {}
-
-    def configuration_status(value: str | None) -> dict[str, Any]:
-        configured = bool(value and value.strip())
-        result: dict[str, Any] = {
-            "status": "configured" if configured else "not_configured",
-            "configured": configured,
-            "probe_performed": False,
-        }
-        if configured:
-            result["detail"] = "Configuration present; connectivity was not tested."
-        return result
-
-    # 1. Container App health (call /healthz)
-    control_plane_url = os.environ.get("PRIMR_CONTROL_PLANE_URL", "http://localhost:8000")
-    try:
-        import httpx
-
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(f"{control_plane_url}/healthz")
-            diagnostics["container_app_health"] = {
-                "status": "ok" if resp.status_code == 200 else "error",
-                "configured": True,
-                "probe_performed": True,
-                "http_status": resp.status_code,
-                "detail": resp.json(),
-            }
-    except Exception:
-        logger.exception("Cloud diagnostics: Container App health check failed")
-        diagnostics["container_app_health"] = {
-            "status": "error",
-            "configured": True,
-            "probe_performed": True,
-            "detail": "connectivity check failed",
-        }
-
-    # 2-5. Configuration presence. These checks make no network request.
-    diagnostics["cosmos_db"] = configuration_status(os.environ.get("COSMOS_ENDPOINT"))
-    diagnostics["blob_storage"] = configuration_status(os.environ.get("STORAGE_ACCOUNT_NAME"))
-    diagnostics["service_bus"] = configuration_status(
-        os.environ.get("SERVICEBUS_CONNECTION_STRING")
-    )
-    diagnostics["application_insights"] = configuration_status(
-        os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING")
-    )
-
-    # 6. Cost Governor limits with current usage
-    try:
-        max_job_cost = float(os.environ.get("PRIMR_MAX_JOB_COST_USD", "1.0"))
-        max_daily_cost = float(os.environ.get("PRIMR_MAX_DAILY_COST_USD", "10.0"))
-        max_monthly_cost = float(os.environ.get("PRIMR_MAX_MONTHLY_COST_USD", "100.0"))
-        diagnostics["cost_governor"] = {
-            "status": "configured",
-            "configured": True,
-            "probe_performed": False,
-            "limits": {
-                "max_job_cost_usd": max_job_cost,
-                "max_daily_cost_usd": max_daily_cost,
-                "max_monthly_cost_usd": max_monthly_cost,
-            },
-        }
-    except Exception:
-        logger.exception("Cloud diagnostics: Cost Governor check failed")
-        diagnostics["cost_governor"] = {
-            "status": "error",
-            "configured": True,
-            "probe_performed": False,
-            "detail": "configuration check failed",
-        }
-
-    return diagnostics
 
 
 async def _handle_clear_jobs(
@@ -1419,7 +1339,7 @@ async def _handle_delegate_to_agent(
     arguments: dict[str, Any],
 ) -> list[TextContent]:
     """
-    Handle delegate_to_agent tool — call an external A2A agent.
+    Handle delegate_to_agent tool by calling an external A2A agent.
 
     Guarded by ImportError: only available when primr[a2a] is installed.
     """

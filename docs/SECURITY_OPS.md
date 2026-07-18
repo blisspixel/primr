@@ -94,6 +94,23 @@ sessions require the `admin` scope; a token with only `read` is denied and the
 denial is itself audited. The resource returns structured metadata and hashes,
 not raw request bodies, report content, URLs, or caller identifiers.
 
+The reader tails at most 1 MiB of the active JSONL and returns at most 200
+events, so a small `limit` never loads the entire retained file. Its
+`audit_sink` object distinguishes `not_observed`, `ok`, and `degraded`, includes
+recent write/read outcomes, last success/failure timestamps, consecutive write
+failures, malformed complete-event count, and whether the byte tail was
+truncated or contains no complete record. Each encoded event is limited to 16
+KiB. Registered tool names and scopes are allowlisted, resource kinds are
+normalized, unknown identifiers are replaced or hashed, and schema-invalid JSON
+objects and additive fields are never returned. Reads and writes open one
+stable regular file without following symbolic links. Health reports external
+replacement or truncation after a successful write. The same body-free state
+appears in authenticated/local MCP and A2A doctor output. It does not include
+the configured path, event data, URLs, caller ids, or exception messages. The
+sink uses `not_observed` before its first read or write; overall doctor status
+remains degraded until audit persistence is observed. A degraded sink requires
+operator review of the server log and retained file.
+
 For longer retention, ship snapshots of `output/.mcp_audit_log.jsonl` or the
 audit file beside the configured job journal. Preserve the active local file
 until the application owns an explicit, tested rotation policy.
