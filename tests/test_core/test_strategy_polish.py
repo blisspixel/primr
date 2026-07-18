@@ -1,30 +1,43 @@
-"""Tests for _strategy_polish — coherence + evidence discipline pass."""
+"""Tests for the _strategy_polish coherence and evidence-discipline pass."""
 
 from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from primr.core.research_agent import _a_or_an, _strategy_polish
-
-
-class TestAOrAn:
-    def test_vowel_returns_an(self):
-        assert _a_or_an("Apple") == "an"
-        assert _a_or_an("Orange") == "an"
-
-    def test_consonant_returns_a(self):
-        assert _a_or_an("Banana") == "a"
-        assert _a_or_an("Strawberry") == "a"
-
-    def test_empty_returns_a(self):
-        assert _a_or_an("") == "a"
-
-    def test_case_insensitive(self):
-        assert _a_or_an("apple") == "an"
-        assert _a_or_an("AZURE") == "an"
+from primr.core.research_agent import _strategy_polish
 
 
 class TestStrategyPolish:
+    def test_prompt_preserves_business_first_vendor_neutral_contract(self, monkeypatch):
+        original = "## Section\n\n" + ("word " * 100)
+        mock = MagicMock(return_value=original)
+        monkeypatch.setattr("primr.ai.grok_client.grok_llm", mock)
+
+        _strategy_polish("Acme", "agnostic", original)
+
+        prompt = mock.call_args.args[0]
+        assert "business-first AI strategy" in prompt
+        assert "not a predetermined vendor answer" in prompt
+        assert "Specific AGNOSTIC services/products" not in prompt
+        assert "Lacks specific implementation details, timelines, or cost estimates" not in prompt
+
+    def test_generic_strategy_keeps_its_own_document_contract(self, monkeypatch):
+        original = "## Section\n\n" + ("word " * 100)
+        mock = MagicMock(return_value=original)
+        monkeypatch.setattr("primr.ai.grok_client.grok_llm", mock)
+
+        _strategy_polish(
+            "Acme",
+            "Customer Experience",
+            original,
+            label="Customer Experience",
+        )
+
+        prompt = mock.call_args.args[0]
+        assert "Customer Experience document" in prompt
+        assert "business-first AI strategy" not in prompt
+        assert "PLATFORM EVALUATION EMPHASIS" not in prompt
+
     def test_empty_content_returns_unchanged(self):
         assert _strategy_polish("Acme", "azure", "") == ""
 
@@ -39,7 +52,7 @@ class TestStrategyPolish:
         assert result == original
 
     def test_destructive_compression_returns_original(self, monkeypatch):
-        # 100 words original; polished only 50 words (50% — below 90% threshold)
+        # The polished result keeps only 50% of the original, below the 90% threshold.
         original = "## Section\n\n" + ("word " * 100)
         polished = "## Section\n\n" + ("word " * 50)
         monkeypatch.setattr("primr.ai.grok_client.grok_llm", MagicMock(return_value=polished))
@@ -64,7 +77,7 @@ class TestStrategyPolish:
 
     def test_acceptable_polish_returned(self, monkeypatch):
         original = "## Section\n\n" + ("word " * 100)
-        polished = "## Section\n\n" + ("word " * 95)  # 95% — within tolerance
+        polished = "## Section\n\n" + ("word " * 95)  # 95% is within tolerance.
         monkeypatch.setattr("primr.ai.grok_client.grok_llm", MagicMock(return_value=polished))
         result = _strategy_polish("Acme", "azure", original)
         assert result == polished

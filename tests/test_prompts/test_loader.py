@@ -148,9 +148,12 @@ class TestAIStrategySections:
         assert "quick_wins" in section_ids
 
     def test_has_bigger_bets(self, ai_strategy_config):
-        """Should have bigger bets section."""
-        section_ids = [s.get("id") for s in ai_strategy_config.get("sections", [])]
-        assert "bigger_bets" in section_ids
+        """Should include bigger bets in the initiative decision-card section."""
+        quick_wins = next(
+            s for s in ai_strategy_config.get("sections", []) if s.get("id") == "quick_wins"
+        )
+        subsection_ids = [s.get("id") for s in quick_wins.get("subsections", [])]
+        assert "bigger_bets" in subsection_ids
 
     def test_has_board_summary(self, ai_strategy_config):
         """Should have board summary section."""
@@ -164,18 +167,13 @@ class TestAIStrategySections:
         assert "aws" in ai_strategy_config["vendor_guidance"]
         assert "gcp" in ai_strategy_config["vendor_guidance"]
 
-    def test_has_data_sources(self, ai_strategy_config):
-        """Should have data sources for vendor research files."""
+    def test_vendor_research_is_resolved_dynamically(self, ai_strategy_config):
+        """Should not pin dated vendor research files in the shipped prompt."""
         assert "data_sources" in ai_strategy_config
-        data_sources = ai_strategy_config["data_sources"]
-        assert len(data_sources) >= 4  # azure, aws, gcp, agnostic
-
-        # Check vendor-specific sources exist
-        vendors = [ds.get("vendor") for ds in data_sources]
-        assert "azure" in vendors
-        assert "aws" in vendors
-        assert "gcp" in vendors
-        assert "agnostic" in vendors
+        assert ai_strategy_config["data_sources"] == []
+        for guidance in ai_strategy_config["vendor_guidance"].values():
+            text = " ".join(str(value) for value in guidance.values()).lower()
+            assert "current official" in text or "verify" in text
 
 
 class TestBuildCompanyOverviewPrompt:
@@ -223,30 +221,33 @@ class TestBuildAIStrategyPrompt:
         prompt = build_ai_strategy_prompt("Acme Corp")
         assert "Acme Corp" in prompt
 
-    def test_includes_azure_services(self):
-        """Azure prompt should include Azure services."""
+    def test_includes_microsoft_ecosystem_emphasis(self):
+        """Microsoft prompt should emphasize its ecosystem without a stale catalog."""
         prompt = build_ai_strategy_prompt("Acme Corp", platform="azure")
-        assert "Azure" in prompt
-        assert "Microsoft 365 Copilot" in prompt
+        assert "Microsoft ecosystem emphasis" in prompt
+        assert "Verify current" in prompt
+        assert "credible alternative" in prompt
 
-    def test_includes_aws_services(self):
-        """AWS prompt should include AWS services."""
+    def test_includes_aws_ecosystem_emphasis(self):
+        """AWS prompt should emphasize its ecosystem without a stale catalog."""
         prompt = build_ai_strategy_prompt("Acme Corp", platform="aws")
-        assert "AWS" in prompt
-        assert "Amazon Bedrock" in prompt
+        assert "AWS ecosystem emphasis" in prompt
+        assert "Verify current official" in prompt
+        assert "credible alternative" in prompt
 
-    def test_includes_gcp_services(self):
-        """GCP prompt should include GCP services."""
+    def test_includes_google_ecosystem_emphasis(self):
+        """Google prompt should emphasize its ecosystem without a stale catalog."""
         prompt = build_ai_strategy_prompt("Acme Corp", platform="gcp")
-        assert "GCP" in prompt or "Google Cloud" in prompt
-        assert "Vertex AI" in prompt
+        assert "Google ecosystem emphasis" in prompt
+        assert "Verify current" in prompt
+        assert "credible alternative" in prompt
 
     def test_includes_strategic_sections(self):
         """Prompt should include strategic sections."""
         prompt = build_ai_strategy_prompt("Acme Corp")
-        assert "## AI Strategic Thesis" in prompt
-        assert "## Five Quick Wins" in prompt
-        assert "## Five Bigger Bets" in prompt
+        assert "## Business Strategy and AI Strategic Thesis" in prompt
+        assert "## Industry Direction and Art of the Possible" in prompt
+        assert "## Initiative Decision Cards: Quick Wins and Bigger Bets" in prompt
 
     def test_includes_confidence_labeling(self):
         """Prompt should include confidence labeling rule."""
@@ -729,9 +730,15 @@ class TestYAMLLoadingRoundTrip:
             assert len(prompt) > 10000, f"Prompt too short for vendor {vendor}"
 
             # Each should have strategic sections
-            assert "## AI Strategic Thesis" in prompt, f"Missing thesis for {vendor}"
-            assert "## Five Quick Wins" in prompt, f"Missing quick wins for {vendor}"
-            assert "## Five Bigger Bets" in prompt, f"Missing bigger bets for {vendor}"
+            assert "## Business Strategy and AI Strategic Thesis" in prompt, (
+                f"Missing business-first thesis for {vendor}"
+            )
+            assert "## Industry Direction and Art of the Possible" in prompt, (
+                f"Missing industry analysis for {vendor}"
+            )
+            assert "## Initiative Decision Cards: Quick Wins and Bigger Bets" in prompt, (
+                f"Missing initiative decisions for {vendor}"
+            )
 
     def test_vendor_specific_content_differs(self):
         """

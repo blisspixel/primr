@@ -250,107 +250,19 @@ def generate_ai_strategy_section(
 def build_ai_strategy_prompt(
     company_name: str, platform: str, discovery_notes_content: str | None = None
 ) -> str:
-    """Build the legacy Deep Research prompt for board-level AI strategy."""
-    current_date = datetime.now().strftime("%B %Y")
+    """Build the canonical YAML-defined board-level AI strategy prompt.
 
-    vendor_names = {
-        "azure": "Microsoft Azure",
-        "aws": "Amazon Web Services (AWS)",
-        "gcp": "Google Cloud Platform (GCP)",
-        "agnostic": "all major cloud vendors (Azure, AWS, GCP)",
-        "private": "Private Cloud / NVIDIA",
-    }
-    vendor_name = vendor_names.get(platform.lower(), vendor_names["agnostic"])
+    This compatibility seam is used by the standard and fast CLI paths. Keeping
+    it delegated to the same composer as the async/MCP path prevents policy,
+    evidence, and section-order drift between transports.
+    """
+    from primr.prompts.loader import build_ai_strategy_prompt as build_from_yaml
 
-    vendor_specific_guidance = {
-        "azure": """
-KEY AZURE AI SERVICES TO RESEARCH AND RECOMMEND (search for latest as of {current_date}):
-- Microsoft 365 Copilot
-- Copilot Studio
-- Azure OpenAI Service
-- Azure AI Foundry
-- Microsoft Fabric
-- Azure AI Search
-Search for the latest announcements from Microsoft Ignite 2025 and recent Azure updates.
-""",
-        "aws": """
-KEY AWS AI SERVICES TO RESEARCH AND RECOMMEND (search for latest as of {current_date}):
-- Amazon Q
-- Amazon Bedrock
-- Amazon Bedrock Agents
-- Amazon SageMaker
-- Amazon QuickSight Q
-Search for the latest announcements from AWS re:Invent 2024 and recent AWS updates.
-""",
-        "gcp": """
-KEY GOOGLE CLOUD AI SERVICES TO RESEARCH AND RECOMMEND (search for latest as of {current_date}):
-- Gemini for Google Workspace
-- Vertex AI
-- Vertex AI Agent Builder
-- BigQuery with Gemini
-- Vertex AI Search
-Search for the latest announcements from Google Cloud Next 2024 and recent GCP updates.
-""",
-        "agnostic": """
-MULTI-CLOUD AI STRATEGY (search for latest as of {current_date}):
-Compare Azure, AWS, and GCP by model platforms, copilots, agents, data platforms, and governance.
-Search for the latest announcements from all three vendors' recent conferences.
-""",
-        "private": """
-KEY PRIVATE CLOUD / NVIDIA AI SERVICES TO RESEARCH AND RECOMMEND (search for latest as of {current_date}):
-- NVIDIA DGX Cloud
-- NVIDIA AI Enterprise
-- NVIDIA NIM
-- NVIDIA NeMo
-- NVIDIA Omniverse
-Search for the latest from NVIDIA GTC 2025 and partner announcements.
-""",
-    }
-
-    vendor_guidance = vendor_specific_guidance.get(
-        platform.lower(), vendor_specific_guidance["agnostic"]
-    ).format(current_date=current_date)
-
-    discovery_notes_block = ""
-    if discovery_notes_content:
-        discovery_notes_block = f"""
-DISCOVERY NOTES (INTERNAL INSIGHTS)
-Use these notes from company conversations to ground the recommendations:
-
-{discovery_notes_content}
-"""
-
-    return f"""You are a senior AI strategy consultant. Generate a comprehensive AI roadmap for board-level decision making.
-
-# AI Strategy: {company_name}
-
-**Prepared by:** Primr Research System
-**Date:** {current_date}
-
-CRITICAL: This strategy must reflect the AI landscape as of {current_date}. You MUST actively search for current announcements and cite them.
-
-You have access to research about {company_name} in the context files. Use that foundation to develop a practical AI strategy for leadership.
-
-{discovery_notes_block}
-
-CLOUD VENDOR FOCUS: {vendor_name}
-{vendor_guidance}
-
-Use compact [cite: N] references for major factual claims and recommendations, and end with a single ## Sources section listing URLs.
-
-Cover:
-- AI strategic thesis
-- executive summary
-- likely current state hypotheses
-- competitive AI landscape
-- recommended AI architecture posture
-- productivity AI by persona
-- process automation
-- conversational AI
-- agentic AI
-- generative BI and analytics
-- traditional AI/ML
-- quick wins, bigger bets, and deprioritizations
-
-Be specific, honest, and actionable. Begin the document now.
-"""
+    normalized_platform = platform.lower()
+    if normalized_platform not in {"azure", "aws", "gcp", "agnostic", "private"}:
+        normalized_platform = "agnostic"
+    return build_from_yaml(
+        company_name=company_name,
+        platform=normalized_platform,
+        discovery_notes_content=discovery_notes_content,
+    )

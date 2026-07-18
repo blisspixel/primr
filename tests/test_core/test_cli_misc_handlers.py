@@ -109,6 +109,16 @@ class TestHandleBatch:
         result = _handle_batch(_config(batch_file="/path.csv", csv_file="/legacy.csv"))
         assert result == 0
         batch_mock.assert_called_once()
+        assert batch_mock.call_args.kwargs["platforms"] is None
+
+    def test_batch_preserves_explicit_platforms(self, monkeypatch):
+        batch_mock = MagicMock(return_value=0)
+        monkeypatch.setattr("primr.core.cli.process_batch", batch_mock)
+
+        result = _handle_batch(_config(batch_file="/path.csv", platforms=("aws",)))
+
+        assert result == 0
+        assert batch_mock.call_args.kwargs["platforms"] == ("aws",)
 
     def test_falls_back_to_csv_when_no_batch_file(self, monkeypatch):
         csv_mock = MagicMock()
@@ -116,6 +126,7 @@ class TestHandleBatch:
         result = _handle_batch(_config(batch_file=None, csv_file="/legacy.csv"))
         assert result == 0
         csv_mock.assert_called_once()
+        assert csv_mock.call_args.kwargs["platforms"] is None
 
     def test_no_file_returns_1(self):
         result = _handle_batch(_config(batch_file=None, csv_file=None))

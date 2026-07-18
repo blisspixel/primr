@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from primr.core.cli import open_file, process_csv
+from primr.core.research_agent import process_csv as legacy_process_csv
 
 
 @pytest.fixture
@@ -27,9 +28,19 @@ class TestProcessCsv:
         monkeypatch.setattr("primr.core.research_agent.perform_research", perform_mock)
         process_csv(str(sample_csv))
         assert perform_mock.call_count == 2
+        assert perform_mock.call_args.kwargs["platforms"] is None
+
+    def test_public_legacy_helper_keeps_platform_auto_detection(self, sample_csv, monkeypatch):
+        perform_mock = MagicMock(return_value="/output/report.docx")
+        monkeypatch.setattr("primr.core.research_agent.perform_research", perform_mock)
+
+        legacy_process_csv(str(sample_csv))
+
+        assert perform_mock.call_count == 2
+        assert perform_mock.call_args.kwargs["platforms"] is None
 
     def test_swallows_per_row_exceptions(self, sample_csv, monkeypatch):
-        # First raises, second succeeds — loop must continue
+        # The first raises and the second succeeds, so the loop must continue.
         perform_mock = MagicMock(side_effect=[RuntimeError("boom"), "/output/report.docx"])
         monkeypatch.setattr("primr.core.research_agent.perform_research", perform_mock)
         process_csv(str(sample_csv))

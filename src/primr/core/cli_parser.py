@@ -8,7 +8,7 @@ discovery and the `_determine_command` dispatcher that maps a parsed
 argparse Namespace to the right `Command` enum value.
 
 The bulk parser (`_create_parser`, `parse_args`) is intentionally left
-in cli.py for now — it threads through 60+ argparse options and would
+in cli.py for now because it threads through 60+ argparse options and would
 not gain meaningful test coverage from extraction.
 """
 
@@ -30,7 +30,7 @@ _CommandT = TypeVar("_CommandT")
 # inline in cli._create_parser so cli.py stays under its file-size ceiling.
 CLI_EPILOG = """
 Research Modes:
-  full     Scrape + standard research + AI strategy (~34-59 min, ~$0.89-$1.01 with XAI+Gemini) [DEFAULT]
+  full     Scrape + standard research + one AI strategy (~34-53 min, ~$0.89 with XAI+Gemini) [DEFAULT]
   scrape   Scrape website + extract insights only (~5-10 min, ~$0.10)
   deep     Autonomous AI web research + hiring signals (~11-17 min, ~$2.50)
   parallel Both engines in parallel (legacy, ~25 min)
@@ -65,11 +65,10 @@ Examples:
   primr calibrate --calibrate-recent 10 --dry-run    # Preview judge-call count/cost, no spend
   primr --banner                                     # Show startup banner only
 
-AI Strategy Retry (when main report succeeded but AI strategy failed):
-  primr --ai-strategy-only "output/Company_Strategic_Overview_01-09-2026.md"
-  primr --ai-strategy-only "output/report.md" --platform aws
+AI Strategy recovery:
   primr "Acme Corp" https://acme.example --resume-local
   primr --resume-latest                               # Recover + finalize completed cloud jobs
+  Do not use --ai-strategy-only until its in-command estimate and approval gate is available.
 
 Versioned Eval (offline-first, no API spend by default):
   primr --eval --eval-id eval-2026-02-r1
@@ -155,7 +154,7 @@ def _discover_strategies() -> list[dict[str, str]]:
         {
             "name": "ai",
             "display_name": "AI Strategy",
-            "description": "AI transformation roadmap with vendor-specific recommendations",
+            "description": "Business-first AI portfolio, economics, operating model, architecture, and governance",
             "status": "active",
         },
     ]

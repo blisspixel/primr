@@ -286,13 +286,20 @@ class PromptComposer:
         for ds_data in data.get("data_sources", []):
             data_sources.append(DataSource.from_dict(ds_data))
 
+        is_strategy_config = config_path.parent.name == "strategies"
+        epistemic_rules = data.get("epistemic_rules_override", {})
+        formatting_rules = data.get("formatting_override", {})
+        if is_strategy_config:
+            epistemic_rules = data.get("epistemic_rules", epistemic_rules)
+            formatting_rules = data.get("formatting", formatting_rules)
+
         return PromptConfig(
             meta=data.get("meta", {}),
             document_purpose=data.get("document_purpose", ""),
             sections=sections,
             raw_config=data,
-            epistemic_rules_override=data.get("epistemic_rules_override", {}),
-            formatting_override=data.get("formatting_override", {}),
+            epistemic_rules_override=epistemic_rules,
+            formatting_override=formatting_rules,
             persona_override=data.get("persona"),
             vendor_guidance=data.get("vendor_guidance", {}),
             data_sources=data_sources,
@@ -360,13 +367,15 @@ class PromptComposer:
                     ]
                 )
 
-            # Add hierarchy of truth instructions
+            # Add shared evidence-handling instructions. Presence in the
+            # context store does not make a source verified or authoritative.
             lines.extend(
                 [
-                    "HIERARCHY OF TRUTH:",
-                    "- Use the File Search Store context as authoritative for company facts",
-                    "- Use web search for external market context and validation",
-                    "- When internal data conflicts with web data, prefer internal data for company-specific facts",
+                    "HIERARCHY OF EVIDENCE:",
+                    "- Use File Search Store material as supplied context, preserving each source's type, recency, scope, and confidence",
+                    "- Do not treat a synthesis, scrape, recon interpretation, or meeting perspective as verified solely because it is in the store",
+                    "- Use current primary web sources to validate time-sensitive and external claims when browsing is available",
+                    "- Surface material conflicts; prefer scoped first-hand internal evidence only for facts it can directly establish",
                     "",
                 ]
             )
@@ -380,14 +389,14 @@ class PromptComposer:
                     "=" * 77,
                     "",
                     "The following insights were captured from discovery meetings with this company.",
-                    "Use these as PRIMARY SOURCE for internal state, tech stack, and priorities.",
+                    "Treat them as operator-supplied evidence of internal priorities and constraints.",
+                    "Preserve the perspective and uncertainty of the people who supplied them.",
                     "",
                     "NOTES ARE FREEFORM - extract what's relevant for this strategy.",
                     "",
-                    # Operator notes are trusted as primary source but still
-                    # sanitized (strip control chars / injection patterns) in
-                    # case pasted text carries scraped content with stray
-                    # directives. Not hard-fenced — the framing above is intentional.
+                    # Operator notes are important evidence but are still sanitized
+                    # in case pasted text carries scraped content with stray directives.
+                    # They are not hard-fenced because the framing above is intentional.
                     sanitize_for_llm(context.discovery_notes_content.strip())[0],
                     "",
                 ]
@@ -417,7 +426,6 @@ class PromptComposer:
                 "",
                 f"# {config.name}: {context.company_name}",
                 "",
-                "**Prepared by:** Primr Research System  ",
                 f"**Date:** {current_date}",
                 "",
             ]
@@ -580,7 +588,7 @@ class PromptComposer:
 
         lines.extend(
             [
-                f"CLOUD VENDOR FOCUS: {display_name}",
+                f"TECHNOLOGY ECOSYSTEM EMPHASIS: {display_name}",
                 "",
             ]
         )

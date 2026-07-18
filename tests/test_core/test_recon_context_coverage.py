@@ -66,21 +66,21 @@ def test_ai_posture_m365():
     info = _tenant(slugs=("microsoft365",))
     result = format_recon_context(info)
     assert "AI & Productivity Posture" in result
-    assert "Microsoft 365 detected" in result
+    assert "Microsoft 365 domain configuration detected" in result
     assert "Copilot" in result
 
 
 def test_ai_posture_google_workspace():
     info = _tenant(slugs=("google-workspace",))
     result = format_recon_context(info)
-    assert "Google Workspace detected" in result
+    assert "Google Workspace domain configuration detected" in result
     assert "Gemini for Workspace" in result
 
 
 def test_ai_posture_detected_ai_tools():
     info = _tenant(slugs=("openai", "anthropic", "glean"))
     result = format_recon_context(info)
-    assert "AI tools already adopted" in result
+    assert "AI provider or product indicators detected" in result
     assert "OpenAI (ChatGPT Enterprise)" in result
     assert "Anthropic (Claude)" in result
     assert "Glean (Enterprise AI Search)" in result
@@ -90,7 +90,7 @@ def test_signal_intelligence_section():
     info = _tenant(insights=("Sales-Led Growth: salesforce, hubspot",))
     result = format_recon_context(info)
     assert "--- Signal Intelligence ---" in result
-    assert "Sales-Led Growth" in result
+    assert "Recon-derived interpretation to validate: Sales-Led Growth" in result
 
 
 def test_email_security_with_dmarc_policy():
@@ -134,7 +134,7 @@ def test_infrastructure_multicloud_azure_and_aws():
     result = format_recon_context(info)
     assert "Azure infrastructure detected" in result
     assert "AWS infrastructure detected" in result
-    assert "Multi-cloud posture" in result
+    assert "Multiple public-cloud infrastructure signals observed" in result
 
 
 def test_infrastructure_gcp():

@@ -12,13 +12,27 @@ def _config(**overrides):
 
 
 class TestListStrategies:
+    def test_default_ai_copy_is_business_first(self, monkeypatch):
+        lines: list[str] = []
+        monkeypatch.setattr("primr.core.cli.console.info", lambda message: lines.append(message))
+
+        result = _handle_list_strategies(_config())
+
+        output = "\n".join(lines)
+        assert result == 0
+        assert "Business-first AI portfolio" in output
+        assert "vendor-specific recommendations" not in output
+        assert 'primr skills "Company" https://example.com' in output
+        assert "Standalone:       Not available; use primr skills" in output
+        assert "--ai-strategy-only" not in output
+
     def test_runs_and_returns_zero(self):
-        # Smoke test — list-strategies should always succeed when YAML configs exist.
+        # Smoke test: list-strategies should always succeed when YAML configs exist.
         result = _handle_list_strategies(_config())
         assert result == 0
 
     def test_smoke_strategies_dir_handling(self):
-        # The function tolerates missing dirs and corrupt YAML — covered by smoke run above.
+        # The smoke run above covers tolerance for missing directories and corrupt YAML.
         # This extra test just exercises the happy path one more time.
         assert _handle_list_strategies(_config()) == 0
 

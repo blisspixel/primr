@@ -199,7 +199,7 @@ def strip_markdown_header_block(markdown_text: str) -> str:
     The header block typically looks like:
         # Title
 
-        **Prepared by:** Primr Research System
+        **Status:** Draft
         **Date:** December 18, 2024
 
         ---
@@ -292,7 +292,7 @@ def markdown_to_docx(
 
     Design: Converter owns the header.
     - If title/subtitle provided, they are rendered by the converter
-    - Any markdown header block (# Title, **Prepared by:**, etc.) is stripped
+    - Any markdown header block (# Title, metadata fields, etc.) is stripped
     - This prevents duplicate headers in the output
 
     Args:

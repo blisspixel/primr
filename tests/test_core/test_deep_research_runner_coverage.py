@@ -308,6 +308,7 @@ async def test_generate_ai_strategy_success():
         website=None,
         mode=DeepResearchMode.DEEP_RESEARCH,
         platform="azure",
+        context_files=("/context/operator-notes.md", "/context/recon.txt"),
     )
 
     strategy_result = MagicMock()
@@ -317,9 +318,11 @@ async def test_generate_ai_strategy_success():
     with patch(
         "primr.core.ai_strategy.generate_ai_strategy",
         new=AsyncMock(return_value=strategy_result),
-    ):
+    ) as generate:
         out = await mod._generate_ai_strategy(config, "/research.md")
     assert out == "/out/strategy.docx"
+    assert generate.await_args.kwargs["company_research_path"] == "/research.md"
+    assert generate.await_args.kwargs["additional_context_paths"] == config.context_files
 
 
 @pytest.mark.asyncio

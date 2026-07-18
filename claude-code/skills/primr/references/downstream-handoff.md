@@ -36,11 +36,11 @@ When the user says "yes" to any of these, do the work in-conversation. Don't re-
 
 ## AI Strategy module (when `--strategy-type ai` was used)
 
-What just landed: a separate markdown / DOCX at `output/<company>/<Company>_AI_Strategy_<PLATFORM>_<date>.md`, structured as adoption maturity → vendor recommendations → prioritized initiatives.
+What just landed: a separate markdown / DOCX at `output/<company>/<Company>_AI_Strategy_<PLATFORM>_<date>.md`, structured from business strategy and value pools through industry possibilities, prioritized initiatives, economics, operating model, architecture, governance, and board decisions.
 
 Proactive offers:
 
-- **Vendor positioning brief**: "Want me to extract the vendor-specific recommendations into a one-page positioning brief for your account team?"
+- **Executive decision brief**: "Want me to condense the business thesis, top initiatives, economics, and board decisions into one page?"
 - **Initiative ROI write-up**: "The top three initiatives in this strategy - want me to draft the ROI / business case for each?"
 - **Discovery questions specifically about AI**: "Want me to pull out the AI-specific discovery questions for your next conversation?"
 - **Cross-platform comparison**: if multiple `--platform` runs exist for this company, offer to diff them ("Want me to compare the Azure AI Strategy and the AWS AI Strategy side-by-side?").

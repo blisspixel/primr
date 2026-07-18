@@ -26,7 +26,7 @@ def get_strategy_catalog() -> list[dict[str, object]]:
         {
             "id": StrategyType.AI_STRATEGY.value,
             "name": "AI Strategy",
-            "description": "AI/ML transformation roadmap with quick wins and bigger bets",
+            "description": "Business-first AI portfolio, economics, operating model, architecture, and governance",
             "requires_platform": True,
             "estimated_time_minutes": 15,
             "estimated_cost_usd": task_cost,

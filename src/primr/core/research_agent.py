@@ -73,6 +73,7 @@ from primr.core.fast_run_trust import polish_and_gate_fast_report
 from primr.core.fast_run_validation import cross_validate_and_enrich
 from primr.core.fast_run_workbook import build_day1_hypothesis_tree, generate_analysis_workbook
 from primr.core.insights_assembly import build_combined_insights, build_external_sources_raw
+from primr.core.platform_mapper import restore_strategy_platforms
 from primr.core.report_cleanup import (
     _INTERNAL_REFERENCE_TERMS as _INTERNAL_REFERENCE_TERMS,
 )
@@ -1763,30 +1764,24 @@ If the report is solid, return empty arrays."""
 # ── Strategy enrichment helpers (Phase 6 quality pass) ──────────────────
 
 
-def _a_or_an(word: str) -> str:
-    """Return 'a' or 'an' depending on whether word starts with a vowel sound."""
-    return "an" if word and word[0].upper() in "AEIOU" else "a"
-
-
 def _strategy_cross_validate(
     company_name: str,
     strategy_content: str,
     vendor: str,
     source_urls: list[str],
     model: str | None = None,
+    label: str = "AI Strategy",
 ) -> dict:
-    """
-    Phase 6 helper: Grok reviews the strategy document for quality issues.
-
-    Returns:
-        {"weak_sections": [{"title": str, "reason": str, "queries": [str, str]}],
-         "issues": [str]}
-    """
+    """Review strategy quality and return weak sections plus issues."""
+    from primr.core.strategy_enrichment_contract import strategy_document_context
     from primr.pipeline.llm_failover import LLMRole, call_with_failover
 
     source_list = "\n".join(f"- {url}" for url in source_urls[:50])
+    document_label, emphasis = strategy_document_context(label, vendor)
 
-    prompt = f"""Review this {vendor.upper()} strategy document for {company_name}. Identify quality issues.
+    prompt = f"""Review this {document_label} for {company_name}. Identify quality issues.
+
+{emphasis}
 
 STRATEGY DOCUMENT:
 {strategy_content[:120_000]}
@@ -1803,17 +1798,18 @@ Return JSON (no markdown fencing, just raw JSON):
 }}
 
 A section is WEAK if it:
-- Makes claims without citing evidence (e.g., "{vendor.upper()} offers best-in-class X" with no source)
+- Makes current company, market, product, price, or availability claims without cited evidence
 - Uses generic recommendations that could apply to ANY company
-- Lacks specific implementation details, timelines, or cost estimates
+- Lacks decision criteria, measurable outcomes, validation actions, or accountable ownership
 - Doesn't connect capabilities to THIS company's specific needs or challenges
+- Presents the platform emphasis as a predetermined answer or forces product names without current official support
 
 Limit: max 2 weak sections, max 2 issues. Only flag genuinely weak sections.
 If the strategy is solid, return empty arrays."""
 
     system_prompt = (
-        f"You are a quality reviewer for {vendor.upper()} strategy documents. "
-        "Identify sections that need more evidence or are too generic. "
+        f"You are a quality reviewer for a {document_label}. {emphasis} Identify sections "
+        "that need more evidence or are too generic. "
         "Return structured JSON only."
     )
 
@@ -1876,22 +1872,20 @@ def _strategy_polish(
     vendor: str,
     strategy_content: str,
     model: str | None = None,
+    label: str = "AI Strategy",
 ) -> str:
-    """
-    Phase 6 helper: Combined coherence + evidence discipline pass for strategy documents.
-
-    Deduplicates, standardizes vendor references, adds confidence labels,
-    and ensures specificity. Guards against destructive compression (90% word count,
-    section count preservation).
-    """
+    """Polish strategy coherence and evidence without destructive compression."""
+    from primr.core.strategy_enrichment_contract import strategy_document_context
     from primr.pipeline.llm_failover import LLMRole, call_with_failover
 
     if not strategy_content.strip():
         return strategy_content
 
-    article = _a_or_an(vendor.upper())
-    prompt = f"""You are editing {article} {vendor.upper()} strategy document for {company_name} for coherence,
+    document_label, emphasis = strategy_document_context(label, vendor)
+    prompt = f"""You are editing a {document_label} for {company_name} for coherence,
 evidence discipline, and specificity.
+
+{emphasis}
 
 TASKS (in priority order):
 1. DEDUPLICATION: When the same point appears in multiple sections, keep the first
@@ -1899,12 +1893,13 @@ TASKS (in priority order):
 2. EVIDENCE DISCIPLINE: For each major recommendation, ensure it has:
    - A confidence label: Confirmed, Reported, Estimated, or Hypothesis
    - A compact [cite: N] reference where available, with dense references consolidated in the final Sources appendix
-   - Specific {vendor.upper()} services/products named (not generic "cloud services")
+   - Current product, pricing, availability, and lifecycle claims retained only when supported by a cited official source
+   - Capability requirements and validation actions used when current official evidence is unavailable
 3. SPECIFICITY CHECK: Replace generic recommendations with company-specific ones.
    BAD: "Leverage AI/ML capabilities to improve operations"
-   GOOD: "Deploy {vendor.upper()} vision APIs for [specific company process] to reduce [specific metric]"
-4. TERMINOLOGY: Standardize how {company_name}, {vendor.upper()} services, and
-   competitors are named throughout.
+   GOOD: "Test assisted review in [specific company process] against [specific outcome and guardrail]"
+4. TERMINOLOGY: Standardize how {company_name}, observed ecosystems, and
+   competitors are named without implying unverified adoption.
 
 STRICT RULES:
 - Do NOT remove or rename ## section headings
@@ -1929,9 +1924,10 @@ Return the fully edited markdown strategy document only. No preamble or commenta
             max_tokens=32_000,
             temperature=0.3,
             system_prompt=(
-                f"You are a meticulous editorial analyst polishing {article} {vendor.upper()} strategy "
-                f"document for {company_name}. Improve evidence discipline and specificity "
-                "while preserving ALL depth and analysis. Make only surgical edits."
+                f"You are a meticulous editorial analyst polishing a {document_label} "
+                f"for {company_name}. {emphasis} "
+                "Improve evidence discipline and specificity while preserving ALL depth and analysis. "
+                "Make only surgical edits."
             ),
         )
         if not polished or not polished.strip():
@@ -1976,14 +1972,7 @@ def _enrich_strategy_content(
     grok_reasoning: str | None = None,
     grok_writing: str | None = None,
 ) -> str:
-    """
-    Phase 6 orchestrator: Full quality pass for strategy documents.
-
-    1. Cross-validate to find up to 2 weak sections
-    2. For each: DDG search → scrape evidence → regenerate section
-    3. Polish pass for coherence + evidence discipline
-    4. Falls back to original on any failure
-    """
+    """Cross-validate, enrich weak sections, then polish with safe fallbacks."""
     if not strategy_content or not strategy_content.strip():
         return strategy_content
 
@@ -2001,6 +1990,7 @@ def _enrich_strategy_content(
                 vendor,
                 source_urls,
                 model=grok_reasoning,
+                label=label,
             )
     except Exception as e:
         log_structured("warning", "Strategy CV failed, skipping enrichment", error=str(e))
@@ -2090,6 +2080,7 @@ def _enrich_strategy_content(
                     new_evidence,
                     analysis_workbook,
                     model=grok_writing,
+                    label=label,
                 )
 
             if regenerated and regenerated != original_section:
@@ -2112,7 +2103,7 @@ def _enrich_strategy_content(
     try:
         with console.timed_operation(f"Polishing {label}{vendor_label}"):
             strategy_content = _strategy_polish(
-                company_name, vendor, strategy_content, model=grok_writing
+                company_name, vendor, strategy_content, model=grok_writing, label=label
             )
     except Exception as e:
         log_structured("warning", "Strategy polish failed, keeping unpolished", error=str(e))
@@ -2652,6 +2643,7 @@ def perform_research(
         from primr.core.platform_mapper import DEFAULT_PLATFORM_FALLBACK
 
         platforms = DEFAULT_PLATFORM_FALLBACK
+    platform_selection_source = "explicit" if explicit_platforms else "default_agnostic"
     run_output_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
     run_output_dir.mkdir(parents=True, exist_ok=True)
     diagnostics_dir: Path | None = None
@@ -2661,6 +2653,10 @@ def perform_research(
         diagnostics_dir.mkdir(parents=True, exist_ok=True)
         write_public_txt = False
     existing_state = _load_run_state(folder_path)
+    resume_state = existing_state if resume_local else None
+    platforms, platform_selection_source = restore_strategy_platforms(
+        tuple(platforms), platform_selection_source, explicit_platforms, resume_state
+    )
     if resume_local and existing_state:
         # Ensure resilience keys exist even on resumed runs (NFR 3 backwards compat)
         _ensure_resilience_keys(existing_state)
@@ -2674,6 +2670,7 @@ def perform_research(
             current_phase="initializing",
             ai_strategy=ai_strategy,
             cloud_vendors=list(platforms),
+            strategy_platform_source=platform_selection_source,
             working_folder=folder_path,
         )
         _append_run_event(
@@ -2690,6 +2687,7 @@ def perform_research(
                 "current_phase": "initializing",
                 "ai_strategy": ai_strategy,
                 "cloud_vendors": list(platforms),
+                "strategy_platform_source": platform_selection_source,
                 "working_folder": folder_path,
                 "started_at": datetime.now().isoformat(),
                 "events": [],
@@ -2734,23 +2732,16 @@ def perform_research(
                 )
                 recon_info = info  # noqa: F841 - kept for future downstream use
 
-                # Auto-detect platforms if user didn't specify
-                from primr.core.platform_mapper import DEFAULT_PLATFORM_FALLBACK, map_platforms
+                from primr.core.platform_mapper import map_platforms, select_strategy_platforms
 
-                detected_platforms = map_platforms(info.slugs)
-                if not explicit_platforms:
-                    platforms = detected_platforms
-                    console.info(f"Recon: auto-detected platform(s): {', '.join(platforms)}")
-                elif detected_platforms != DEFAULT_PLATFORM_FALLBACK and set(
-                    detected_platforms
-                ) != set(platforms):
-                    console.info(
-                        f"Recon detected {', '.join(detected_platforms)}, "
-                        f"but --platform {', '.join(platforms)} was specified. "
-                        f"Using user override."
+                detected_platforms = tuple(map_platforms(info.slugs))
+                platforms, recon_detected_platforms, platform_selection_source, message = (
+                    select_strategy_platforms(
+                        detected_platforms, tuple(platforms) if explicit_platforms else None
                     )
+                )
+                console.info(message)
 
-                # Format and write recon context to file
                 from primr.core.recon_context import format_recon_context
 
                 recon_text = format_recon_context(info)
@@ -2758,17 +2749,17 @@ def perform_research(
                 with open(recon_context_path, "w", encoding="utf-8") as f:
                     f.write(recon_text)
 
-                # Log summary
                 console.ok(
                     f"Recon: {len(info.services)} services, "
                     f"{len(info.insights)} insights, "
-                    f"platform: {', '.join(detected_platforms)}"
+                    f"strategy platform: {', '.join(platforms)}"
                 )
 
                 _update_run_state(
                     folder_path,
                     cloud_vendors=list(platforms),
-                    recon_detected_platforms=list(detected_platforms),
+                    strategy_platform_source=platform_selection_source,
+                    recon_detected_platforms=list(recon_detected_platforms),
                     recon_service_count=len(info.services),
                     recon_signal_count=len(info.insights),
                 )
@@ -3577,6 +3568,7 @@ def perform_deep_research(
                     strategy_display_labels,
                     strategy_vendors,
                 )
+                from primr.core.strategy_prompt_parts import write_strategy_context_bundle
 
                 _update_run_state(
                     folder_path, current_phase="strategy_generation", status="running"
@@ -3590,6 +3582,7 @@ def perform_deep_research(
                 )
                 base_phase = 3
                 total_phase_count = count_strategy_phases(strategies_to_run, platforms)
+                strategy_context_path = write_strategy_context_bundle(folder_path, raw_md_path)
 
                 phase_offset = 0
                 skip_remaining_strategies = False
@@ -3626,8 +3619,9 @@ def perform_deep_research(
                             strategy_name=strategy_name,
                             company_name=company_name or display_name,
                             platform=vendor,
-                            company_research_path=raw_md_path,
+                            company_research_path=strategy_context_path or raw_md_path,
                             force_refresh_vendor=refresh_vendor_research,
+                            discovery_notes_content=discovery_notes_content,
                             lite_strategy=lite_strategy,
                             output_dir=run_output_dir,
                             diagnostics_dir=diagnostics_dir,
@@ -3990,7 +3984,6 @@ def _generate_strategy_section(
     """
     # Map strategy names to their YAML files and generation functions
     strategy_map = {
-        "ai": "ai_first_transformation",
         "customer_experience": "customer_experience",
         "modern_security_compliance": "modern_security_compliance",
         "data_fabric_strategy": "data_fabric_strategy",
@@ -4292,7 +4285,7 @@ def process_csv(
     mode: str = "complete",
     citation_style: str = "numbered",
     ai_strategy: bool = True,
-    platforms: tuple[str, ...] = ("azure",),
+    platforms: tuple[str, ...] | None = None,
     no_qa: bool = False,
 ) -> None:
     import csv

@@ -259,15 +259,9 @@ async def test_gather_context_get_or_generate_vendor(tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_gather_context_agnostic_appends_agnostic_file(tmp_path: Path, monkeypatch):
-    """AGNOSTIC platform appends the dated agnostic research file (lines 449-455)."""
-    from datetime import datetime
-
-    monkeypatch.setattr("primr.core.ai_strategy.PROJECT_ROOT", str(tmp_path))
-    agnostic_dir = tmp_path / "vendor-research"
-    agnostic_dir.mkdir()
-    month = datetime.now().strftime("%Y-%m")
-    agnostic_file = agnostic_dir / f"vendor-research-agnostic-{month}.txt"
+async def test_gather_context_agnostic_appends_agnostic_file(tmp_path: Path):
+    """AGNOSTIC platform appends the canonical cached research file."""
+    agnostic_file = tmp_path / "vendor-research-agnostic.txt"
     agnostic_file.write_text("agnostic body", encoding="utf-8")
 
     registry = MagicMock()
@@ -277,6 +271,7 @@ async def test_gather_context_agnostic_appends_agnostic_file(tmp_path: Path, mon
 
     # AGNOSTIC skips vendor generation entirely.
     fake_vendor_mod = MagicMock()
+    fake_vendor_mod.get_vendor_research_path.return_value = agnostic_file
 
     config = AIStrategyConfig(company_name="Acme", platform=Platform.AGNOSTIC)
 
@@ -290,6 +285,7 @@ async def test_gather_context_agnostic_appends_agnostic_file(tmp_path: Path, mon
         context_files, vendor_paths = await _gather_context(config)
 
     assert str(agnostic_file) in context_files
+    fake_vendor_mod.get_vendor_research_path.assert_called_once_with("agnostic")
 
 
 # ---------------------------------------------------------------------------

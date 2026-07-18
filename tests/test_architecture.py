@@ -54,8 +54,8 @@ NEW_FILE_MAX_LINES = 1000
 # When a file is split and shrinks, lower its ceiling (or drop it once under
 # NEW_FILE_MAX_LINES). Never raise a ceiling to make a growing file pass.
 FILE_LINE_CEILINGS: dict[str, int] = {
-    "core/research_agent.py": 4347,
-    "core/cli.py": 3360,
+    "core/research_agent.py": 4340,
+    "core/cli.py": 3353,
     "ai/deep_research.py": 3885,
     "data/scraping/browsers.py": 1835,
     "data/hiring_signals.py": 1577,
@@ -94,6 +94,7 @@ INTENTIONAL_TINY_MODULES: dict[str, str] = {
     "core/cli_prep.py": "legacy prep-command import compatibility surface",
     "core/cli_help.py": "backward-compatible CLI help import surface",
     "core/cli_vendor.py": "vendor command composition boundary",
+    "core/strategy_enrichment_contract.py": "strategy review and repair framing policy",
     "data/first_party_url.py": "first-party URL policy seam",
     "mcp_server/cloud_detect.py": "cloud-runtime adapter",
     "mcp_server/qa_operations.py": "shared QA operation boundary",

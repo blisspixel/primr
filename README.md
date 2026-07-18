@@ -20,8 +20,11 @@ provider-backed CLI behavior described below.
 
 Typical provider-backed output is a 23-section Strategic Overview as Markdown,
 TXT, DOCX, and best-effort PDF when a local converter is available. The default
-provider-backed run also creates an AI Strategy module unless you pass
-`--no-ai-strategy`.
+provider-backed run also creates a business-first AI Strategy unless you pass
+`--no-ai-strategy`. It begins with the company's economics, strategic tensions,
+industry direction, and value pools, then connects prioritized initiatives to
+the complete observed stack, operating model, unit economics, governance, and
+public, private, edge, or hybrid workload placement where justified.
 
 ## What Primr Is For
 
@@ -192,7 +195,7 @@ Current dry-run shape for the common setup:
 |-----|--------------|--------------|--------------|
 | `primr recon` | DNS intelligence only | 2-3 sec | $0.00 |
 | `primr prep` + `primr-zero` | Keyless Primr collection plus synthesis in an existing agent plan | 5-15 min collection, then host-dependent | $0.00 incremental model API spend |
-| Default with xAI plus Gemini | Strategic Overview plus AI Strategy | 34-59 min | ~$0.89-$1.01 |
+| Default with xAI plus Gemini | Strategic Overview plus one integrated AI Strategy | 34-53 min | ~$0.89 |
 | Base report only | Strategic Overview, no AI Strategy | 31-47 min | ~$0.76-$0.79 |
 | `primr skills` | Agent Skills pack from company evidence | ~3 min | ~$0.30 |
 | `--mode scrape` | Site corpus and extracted insights only | 5-10 min | ~$0.10 |
@@ -201,7 +204,14 @@ Current dry-run shape for the common setup:
 Costs change with provider configuration, strategy count, cache hits, model pricing, and run mode. Treat `--dry-run` as the source of truth for the next run.
 Human dry-runs end with concise launch, monitoring, recovery, and artifact-retrieval steps. Add `--verbose` to inspect the serialized recovery policy, or `--json` to receive one machine-readable estimate object.
 `primr skills` generates Cowork icons locally by default; remote image APIs are used only with `--remote-icons`.
-Cached vendor research is reused when present. Fresh vendor-research generation or refresh requires `--refresh-vendor-research`, `primr --generate-vendor-research`, or `PRIMR_ALLOW_VENDOR_REFRESH=1`.
+Explicit multi-platform strategy fan-out adds time and cost; for example, two
+strategy artifacts are typically about $1.01 and 37-59 minutes with xAI plus
+Gemini. Cached vendor research is reused when present. Current product claims
+and names must be supported by official evidence; when that evidence is not
+available to a run, the strategy must leave the claim unasserted and name the
+evidence gap and validation action. Fresh vendor-research generation or refresh requires
+`--refresh-vendor-research`, `primr --generate-vendor-research`, or
+`PRIMR_ALLOW_VENDOR_REFRESH=1`.
 PDF text extraction uses local PyMuPDF by default; Gemini PDF extraction is opt-in with `PRIMR_PDF_LLM_MAX_CALLS=N`.
 
 `primr --help`, `primr init --help`, and `primr doctor --help` show focused
@@ -220,7 +230,7 @@ See [Run Modes and Costs](docs/RUN_MODES.md) for the full mode matrix, platform 
 | Estimate the next run | `primr "Company" https://company.com --dry-run` |
 | Standard Strategic Overview plus AI Strategy | `primr "Company" https://company.com` |
 | Strategic Overview only | `primr "Company" https://company.com --no-ai-strategy` |
-| Strategy aimed at Microsoft Azure plus private cloud | `primr "Company" https://company.com --platform ms` |
+| Separate Microsoft and private-infrastructure strategy artifacts | `primr "Company" https://company.com --platform ms` |
 | Enable routed utility-stage pilot | `primr "Company" https://company.com --inference hybrid` |
 | Site corpus and extracted insights only | `primr "Company" https://company.com --mode scrape` |
 | DNS intelligence only, no model keys required | `primr recon company.com` |

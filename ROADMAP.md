@@ -258,7 +258,7 @@ into generic agent middleware.
 
 **Deep Mode**: Gemini Deep Research Agent with autonomous multi-step search and synthesis
 
-**Standard Mode** (default when `XAI_API_KEY` is set): Grok 4.3 reasoning, with Gemini 3.1 Flash-Lite writing when `GEMINI_API_KEY` is also configured. Base Strategic Overview: ~$0.76-$0.79, ~31-47 min. Default command with AI strategy: about ~$0.89 with one strategy platform or ~$1.01 with the two-platform Azure+private fallback, ~34-59 min. XAI-only setups fall back to the legacy Grok 4.20-NR writing/utility path (~$4.36 base, ~$5.76 with the default two-platform strategy estimate). Research deepening, parallel section writing, cross-validation, coherence pass, and strategy enrichment.
+**Standard Mode** (default when `XAI_API_KEY` is set): Grok 4.3 reasoning, with Gemini 3.1 Flash-Lite writing when `GEMINI_API_KEY` is also configured. Base Strategic Overview: ~$0.76-$0.79, ~31-47 min. The default command produces one integrated AI strategy for about ~$0.89 and ~34-53 min. Explicit two-platform fan-out is about ~$1.01 and ~37-59 min. XAI-only setups use the legacy Grok 4.20-NR writing/utility path (~$4.36 base, ~$5.06 with one AI strategy, or ~$5.76 with explicit two-platform fan-out). Research deepening, parallel section writing, cross-validation, coherence pass, and strategy enrichment.
 
 **Premium Mode** (`--premium`): Gemini + Deep Research pipeline for maximum depth. ~50-75 min, ~$5.
 
@@ -266,9 +266,11 @@ into generic agent middleware.
 
 - AI strategy and roadmap generation with multi-platform support (`--platform aws azure`)
 - Platform options: Azure, AWS, GCP, agnostic, private (NVIDIA/on-prem)
-- DNS intelligence pre-flight (recon): auto-detects AI strategy platform from strong infrastructure fingerprints, injects tech stack context into all strategy types, and falls back to Azure + private cloud/NVIDIA when no primary cloud is clear
+- DNS intelligence pre-flight (recon): uses one strong infrastructure fingerprint as an ecosystem emphasis, combines multiple strong ecosystems into one integrated vendor-neutral strategy, defaults to one agnostic strategy when evidence is unclear, and injects bounded recon context into all strategy types
 - `primr recon` subcommand for standalone DNS intelligence lookups
 - `--platform ms` shorthand for Microsoft Azure + NVIDIA private cloud
+- Canonical business-first AI Strategy contract: begins with company economics, strategic tensions, value pools, industry direction, and art of the possible before technology; bundles the Strategic Overview with available insights, gap analysis, workbook, bounded recon, hiring, discovery, and operator-supplied context on paths where those artifacts exist; then evaluates a ranked initiative portfolio, fully loaded unit economics, operating ownership, governance, complete observed stack, and public, multicloud, private, edge, or hybrid workload placement
+- Platform selection is an evaluation emphasis rather than an exclusive architecture. Current product details must be supported by current official evidence or left unasserted with an explicit evidence gap and validation action. Credible alternatives remain visible, and no dated vendor catalog is authoritative in the shipped YAML
 - Multiple strategy types: AI, Customer Experience, Security, Data Fabric, Skills Ideation
 - Skills Ideation strategy emits per-role `SKILL.md` files deterministically alongside the strategy doc
 - **Skill pack subsystem** (`primr skills`, MCP `generate_skill_pack`): a first-class workflow that takes recon + hiring + research evidence and produces a QA-refined Agent Skills pack. Up to 15 roles × M skills, two-call planning step (observed roles from postings or operator role briefs + plausible roles inferred from research and industry classification, with provenance preserved end-to-end), archetype-grounded provenance-aware authoring, deterministic ASKILL-* validation, capped per-skill refinement loop, pack-level coherence pass. Inspectable `role_plan.md` / `role_plan.json` artifacts; `--plan-only` writes the plan and exits, `--from-plan` authors against a saved plan, `--from-jd` adds a local JD / role brief as sanitized hiring evidence, repeatable `--career-url` points discovery at exact segmented career / ATS boards, and `--roles-override` bypasses discovery entirely while still grounding authoring in supplied evidence. Emits both an unpacked Claude/Cursor/VS Code tree AND a Microsoft 365 Copilot Cowork sideload `.zip` from one byte-identical set of SKILL.md files. Cowork icons are generated locally by default; remote image APIs are explicit opt-in via `--remote-icons` or MCP `remote_icons`.
@@ -1872,20 +1874,17 @@ primr "ExampleCo" https://example.co --mode scrape
 primr "ExampleCo" https://example.co --mode deep
 primr "ExampleCo" https://example.co --premium  # Gemini + Deep Research
 
-# AI Strategy (most common: Microsoft + NVIDIA)
-primr "ExampleCo" https://example.co --platform ms              # Microsoft + NVIDIA shorthand
+# AI Strategy (default is one recon-informed integrated strategy)
+primr "ExampleCo" https://example.co
 primr "ExampleCo" https://example.co --platform azure
 primr "ExampleCo" https://example.co --platform aws azure       # Multi-platform
-primr "ExampleCo" https://example.co --platform microsoft nvidia  # Same as --platform ms
+primr "ExampleCo" https://example.co --platform ms              # Explicit Azure + private fan-out
 primr "ExampleCo" https://example.co --no-ai-strategy
 
 # DNS Intelligence (standalone, no API keys)
 primr recon example.co                                          # Quick domain intel
 primr recon example.co --json                                   # Structured output
 primr recon example.co --full                                   # Everything
-
-# Retry AI Strategy
-primr --ai-strategy-only "output/ExampleCo_Strategic_Overview.md"
 
 # Job management
 primr --check-jobs      # Read-only cloud and latest-local status

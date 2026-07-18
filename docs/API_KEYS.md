@@ -313,8 +313,8 @@ primr --dry-run "Company Name" https://company.com
 |------|--------|---------------|--------|-------|
 | scrape | ~$0.05 | -- | ~$0.04 | ~$0.10 |
 | deep | -- | ~$2.50 | -- | ~$2.50 |
-| full, xAI plus Gemini | provider-token based | -- | DuckDuckGo default | ~$0.89-$1.01 |
-| full, xAI only | provider-token based | -- | DuckDuckGo default | ~$5.76 |
+| full, xAI plus Gemini | provider-token based | -- | DuckDuckGo default | ~$0.89 with one integrated AI Strategy |
+| full, xAI only | provider-token based | -- | DuckDuckGo default | ~$5.06 with one integrated AI Strategy |
 
 Gemini Deep Research is billed from the underlying model tokens and tools, so
 the final charge varies by task. Google currently describes a typical standard

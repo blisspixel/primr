@@ -196,19 +196,13 @@ class TestDataSourceVendorFilteringProperties:
         assert ds.matches_vendor("AZURE")
         assert ds.matches_vendor("Azure")
 
-    def test_ai_strategy_has_vendor_data_sources(self):
-        """AI strategy should have vendor-specific data sources."""
+    def test_ai_strategy_avoids_pinned_vendor_data_sources(self):
+        """AI strategy should resolve current vendor research at run time."""
         registry = StrategyModuleRegistry()
         strategy = registry.get("ai")
 
         assert strategy is not None
-        assert len(strategy.data_sources) > 0
-
-        # Should have sources for multiple vendors
-        vendors = [ds.vendor for ds in strategy.data_sources if ds.vendor]
-        assert "azure" in vendors
-        assert "aws" in vendors
-        assert "gcp" in vendors
+        assert strategy.data_sources == []
 
 
 class TestDataSourcePathResolution:

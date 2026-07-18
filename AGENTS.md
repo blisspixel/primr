@@ -204,8 +204,8 @@ primr exposes four orthogonal levers. Default is `full` mode, recon-driven platf
 For the full decision matrix - when to pick each, cost and time per combination, multi-platform behavior - see [modes and strategies](claude-code/skills/primr/references/modes-and-strategies.md). One-liner heuristics:
 
 - **Mode**: `full` for almost everything. `scrape` if external research isn't needed. `deep` if the site is blocked. `premium` only when the user asks for board-grade depth.
-- **Platform**: omit unless the user is positioning a specific cloud. Then pass exactly what they're selling against (`--platform aws`, `--platform ms`, etc.). It biases the AI strategy module, not the core report.
-- **Strategy type**: omit for the default Strategic Overview plus AI Strategy. Pass `--no-ai-strategy` for the base report only. Use `--strategy-type customer_experience`, `modern_security_compliance`, `data_fabric_strategy`, `cloud_migration`, `data_strategy`, or `ai_first_transformation` when the user asks for a different strategy deliverable. Use `primr --list-strategies` or `primr://strategies/available` to enumerate.
+- **Platform**: omit unless the user requests an ecosystem emphasis. Use `--platform azure`, `--platform aws`, `--platform gcp`, or `--platform private` for one strategy. `--platform ms` is the explicit `azure private` shorthand and produces two artifacts, so re-estimate it accordingly. The flag affects the AI strategy module, not the core report.
+- **Strategy type**: omit for the default Strategic Overview plus AI Strategy. Pass `--no-ai-strategy` for the base report only. Use an active type reported by `primr --list-strategies` or `primr://strategies/available`, such as `customer_experience`, `modern_security_compliance`, or `data_fabric_strategy`. Use `primr skills`, not `--ai-strategy-only`, for the Skills pack workflow.
 
 ## Custom strategies
 

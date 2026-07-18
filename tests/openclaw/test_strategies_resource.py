@@ -134,12 +134,13 @@ class TestSpecificStrategies:
         return json.loads(result[0].content)
 
     def test_ai_strategy_requires_platform(self, strategies_response: dict) -> None:
-        """AI Strategy requires platform."""
+        """Standalone AI Strategy requires an explicit evaluation emphasis."""
         ai_strategy = next(
             (s for s in strategies_response["strategies"] if s["id"] == "ai_strategy"), None
         )
         assert ai_strategy is not None
         assert ai_strategy["requires_platform"] is True
+        assert "Business-first AI portfolio" in ai_strategy["description"]
 
     def test_other_strategies_dont_require_platform(self, strategies_response: dict) -> None:
         """Non-AI strategies don't require platform."""

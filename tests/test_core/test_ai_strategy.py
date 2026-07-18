@@ -88,6 +88,7 @@ class TestAIStrategyConfig:
         assert config.force_refresh_vendor is False
         assert config.timeout_seconds == 1800
         assert config.allow_vendor_refresh is None
+        assert config.additional_context_paths == ()
 
     def test_timeout_positional_compatibility(self):
         """The new refresh override does not shift the legacy timeout position."""
@@ -148,6 +149,20 @@ class TestAIStrategyConfig:
             errors = config.validate()
             assert len(errors) == 1
             assert "empty" in errors[0]
+
+    def test_validate_additional_context_paths(self, tmp_path):
+        context_file = tmp_path / "operator-notes.md"
+        context_file.write_text("Known constraint", encoding="utf-8")
+        missing_file = tmp_path / "missing.md"
+        config = AIStrategyConfig(
+            company_name="Test Co",
+            platform=CloudVendor.AGNOSTIC,
+            additional_context_paths=(str(context_file), str(missing_file)),
+        )
+
+        errors = config.validate()
+
+        assert errors == [f"Additional context file not found: {missing_file}"]
 
     def test_config_is_frozen(self):
         """Test config is immutable (frozen)."""
@@ -257,32 +272,35 @@ class TestBuildAIStrategyPrompt:
         assert "Acme Corp" in prompt
 
     def test_prompt_contains_vendor_context(self):
-        """Test prompt includes vendor-specific context."""
+        """Test prompt includes platform emphasis without a pinned product catalog."""
         azure_prompt = build_ai_strategy_prompt("Test", CloudVendor.AZURE)
-        assert "Microsoft Azure" in azure_prompt
-        assert "Azure OpenAI" in azure_prompt or "Copilot" in azure_prompt
+        assert "Microsoft ecosystem emphasis" in azure_prompt
 
         aws_prompt = build_ai_strategy_prompt("Test", CloudVendor.AWS)
-        assert "Amazon" in aws_prompt or "AWS" in aws_prompt
-        assert "Bedrock" in aws_prompt
+        assert "AWS ecosystem emphasis" in aws_prompt
 
         gcp_prompt = build_ai_strategy_prompt("Test", CloudVendor.GCP)
-        assert "Google Cloud" in gcp_prompt
-        assert "Vertex AI" in gcp_prompt
+        assert "Google ecosystem emphasis" in gcp_prompt
+
+        combined = azure_prompt + aws_prompt + gcp_prompt
+        assert "Azure OpenAI" not in combined
+        assert "Bedrock" not in combined
+        assert "Vertex AI" not in combined
 
     def test_prompt_contains_required_sections(self):
         """Test prompt includes all required sections."""
         prompt = build_ai_strategy_prompt("Test Co", CloudVendor.AGNOSTIC)
 
         required_sections = [
-            "AI Strategic Thesis",
-            "Executive Summary",
-            "Likely Current State",  # Changed from "Current State Assessment"
-            "Quick Wins",
-            "Bigger Bets",
-            "NOT to Pursue",
-            "Board Summary",
-            "ROI",
+            "Executive Decision Brief",
+            "Business Strategy and AI Strategic Thesis",
+            "Industry Direction and Art of the Possible",
+            "Evidence Basis and Likely Current State",
+            "Business Value Portfolio",
+            "Quick Wins and Bigger Bets",
+            "Explicit Choices",
+            "Board Decision Summary",
+            "Unit Economics, and ROI",
         ]
 
         for section in required_sections:

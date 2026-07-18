@@ -1,9 +1,9 @@
 """Unit tests for small pure helpers in primr.core.research_agent.
 
 These cover format_tier_stats, _validate_scrape_quality, ensure_valid_url,
-save_section_output, validate_context_files, _extract_domain, _a_or_an,
-generate_prompt, create_working_folder, and consolidate_working_folder —
-all of which are testable without spinning up the full pipeline.
+save_section_output, validate_context_files, _extract_domain, generate_prompt,
+create_working_folder, and consolidate_working_folder. They are all testable
+without spinning up the full pipeline.
 """
 
 from __future__ import annotations
@@ -14,7 +14,6 @@ from unittest.mock import patch
 import pytest
 
 from primr.core.research_agent import (
-    _a_or_an,
     _extract_domain,
     _get_or_generate_vendor_research,
     _validate_scrape_quality,
@@ -132,7 +131,7 @@ class TestSaveSectionOutput:
         assert out.read_text(encoding="utf-8") == "the body"
 
     def test_swallows_oserror(self, tmp_path, caplog):
-        # Write to a non-existent folder — should log but not raise.
+        # Writing to a nonexistent folder should log but not raise.
         bogus = tmp_path / "does" / "not" / "exist"
         # No raise expected; the function logs and returns.
         save_section_output(str(bogus), "x", "body")
@@ -195,30 +194,12 @@ class TestExtractDomain:
         assert _extract_domain("https://acme.example/path") == "acme.example"
 
     def test_bare_domain(self):
-        # No scheme — urlparse puts everything in path; the helper splits on /.
+        # Without a scheme, urlparse puts everything in path; the helper splits on /.
         assert _extract_domain("acme.example/path") == "acme.example"
 
     def test_invalid_returns_none(self):
         # Empty string should return None.
         assert _extract_domain("") is None
-
-
-# ---------------------------------------------------------------------------
-# _a_or_an
-# ---------------------------------------------------------------------------
-
-
-class TestAOrAn:
-    @pytest.mark.parametrize("word", ["apple", "Orange", "Idea", "umbrella", "Elephant"])
-    def test_vowel_words_get_an(self, word):
-        assert _a_or_an(word) == "an"
-
-    @pytest.mark.parametrize("word", ["dog", "Cat", "wolf"])
-    def test_consonant_words_get_a(self, word):
-        assert _a_or_an(word) == "a"
-
-    def test_empty_string_gets_a(self):
-        assert _a_or_an("") == "a"
 
 
 # ---------------------------------------------------------------------------
@@ -320,7 +301,7 @@ class TestCreateWorkingFolder:
             json.dumps({"status": "completed"}), encoding="utf-8"
         )
         folder = create_working_folder("Acme Corp", None, reuse_incomplete=True)
-        # Should NOT reuse — creates a fresh timestamped folder.
+        # It should not reuse and must create a fresh timestamped folder.
         assert folder != str(prior)
 
 

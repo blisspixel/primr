@@ -116,6 +116,27 @@ class TestRunStateLifecycle:
         assert "background_aborts" in state  # backfilled on resume
         assert any(e.get("status") == "resumed" for e in state["events"])
 
+    def test_fresh_run_does_not_restore_platforms_from_existing_state(self, seams):
+        (seams["folder"] / "_run_state.json").write_text(
+            json.dumps(
+                {
+                    "status": "completed",
+                    "cloud_vendors": ["aws"],
+                    "strategy_platform_source": "recon_single",
+                    "events": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        _run(resume_local=False)
+
+        kwargs = seams["fast"].call_args.kwargs
+        assert kwargs["platforms"] == ("agnostic",)
+        state = _read_state(seams["folder"])
+        assert state["cloud_vendors"] == ["agnostic"]
+        assert state["strategy_platform_source"] == "default_agnostic"
+
 
 class TestDiscoveryNotes:
     def test_missing_notes_file_fails_run(self, seams, tmp_path):
@@ -187,15 +208,36 @@ class TestReconPreflight:
     def test_autodetect_sets_platforms_when_unspecified(self, seams, monkeypatch):
         self._recon(monkeypatch, detected=("azure",))
         _run(skip_recon=False, platforms=None)
-        assert seams["fast"].call_args.kwargs["platforms"] == ["azure"]
+        assert seams["fast"].call_args.kwargs["platforms"] == ("azure",)
         state = _read_state(seams["folder"])
         assert state["recon_detected_platforms"] == ["azure"]
+        assert state["strategy_platform_source"] == "recon_single"
         assert state["recon_service_count"] == 2
+
+    def test_no_strong_signal_keeps_one_agnostic_strategy(self, seams, monkeypatch):
+        self._recon(monkeypatch, slugs=("microsoft365",), detected=("agnostic",))
+        _run(skip_recon=False, platforms=None)
+        assert seams["fast"].call_args.kwargs["platforms"] == ("agnostic",)
+        state = _read_state(seams["folder"])
+        assert state["cloud_vendors"] == ["agnostic"]
+        assert state["recon_detected_platforms"] == []
+        assert state["strategy_platform_source"] == "default_agnostic"
+
+    def test_multiple_signals_produce_one_integrated_strategy(self, seams, monkeypatch):
+        self._recon(monkeypatch, detected=("azure", "aws"))
+        _run(skip_recon=False, platforms=None)
+        assert seams["fast"].call_args.kwargs["platforms"] == ("agnostic",)
+        state = _read_state(seams["folder"])
+        assert state["cloud_vendors"] == ["agnostic"]
+        assert state["recon_detected_platforms"] == ["azure", "aws"]
+        assert state["strategy_platform_source"] == "recon_multiple_integrated"
 
     def test_explicit_platforms_win_over_detection(self, seams, monkeypatch):
         self._recon(monkeypatch, detected=("azure",))
         _run(skip_recon=False, platforms=("aws",))
         assert seams["fast"].call_args.kwargs["platforms"] == ("aws",)
+        state = _read_state(seams["folder"])
+        assert state["strategy_platform_source"] == "explicit"
 
     def test_recon_context_written_to_working_folder(self, seams, monkeypatch):
         self._recon(monkeypatch)
@@ -214,6 +256,30 @@ class TestReconPreflight:
         assert any(
             e.get("status") == "failed" and e.get("phase") == "recon" for e in state["events"]
         )
+
+    def test_resume_keeps_stored_platform_when_recon_fails(self, seams, monkeypatch):
+        (seams["folder"] / "_run_state.json").write_text(
+            json.dumps(
+                {
+                    "status": "interrupted",
+                    "cloud_vendors": ["aws"],
+                    "strategy_platform_source": "recon_single",
+                    "events": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        async def boom(domain):
+            raise RuntimeError("DNS unavailable")
+
+        monkeypatch.setattr("recon_tool.resolver.resolve_tenant", boom)
+        _run(resume_local=True, skip_recon=False)
+
+        assert seams["fast"].call_args.kwargs["platforms"] == ("aws",)
+        state = _read_state(seams["folder"])
+        assert state["cloud_vendors"] == ["aws"]
+        assert state["strategy_platform_source"] == "recon_single"
 
 
 class TestModeDispatch:

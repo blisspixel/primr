@@ -10,6 +10,7 @@ Feature: recon-platform-integration
 
 import copy
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
@@ -17,6 +18,8 @@ from primr.core.platform_mapper import (
     _PLATFORM_SLUG_MAP,
     DEFAULT_PLATFORM_FALLBACK,
     map_platforms,
+    restore_strategy_platforms,
+    select_strategy_platforms,
 )
 
 # ---------------------------------------------------------------------------
@@ -183,3 +186,83 @@ class TestPlatformMapperPurity:
         assert from_list == from_tuple, (
             f"Different results for list vs tuple: {from_list} vs {from_tuple}"
         )
+
+
+class TestStrategyPlatformSelection:
+    def test_empty_detection_is_normalized_to_agnostic(self):
+        selected, observed, source, message = select_strategy_platforms(())
+        assert selected == ("agnostic",)
+        assert observed == ()
+        assert source == "default_agnostic"
+        assert "vendor-neutral" in message
+
+    def test_no_strong_signal_selects_one_agnostic_strategy(self):
+        selected, observed, source, message = select_strategy_platforms(("agnostic",))
+        assert selected == ("agnostic",)
+        assert observed == ()
+        assert source == "default_agnostic"
+        assert "no strong infrastructure" in message
+
+    def test_one_strong_signal_selects_that_ecosystem(self):
+        selected, observed, source, message = select_strategy_platforms(("azure",))
+        assert selected == observed == ("azure",)
+        assert source == "recon_single"
+        assert "strong signal" in message
+
+    def test_multiple_signals_select_one_integrated_strategy(self):
+        selected, observed, source, message = select_strategy_platforms(("azure", "aws"))
+        assert selected == ("agnostic",)
+        assert observed == ("azure", "aws")
+        assert source == "recon_multiple_integrated"
+        assert "integrated vendor-neutral" in message
+
+    def test_explicit_platforms_preserve_requested_fan_out(self):
+        selected, observed, source, message = select_strategy_platforms(
+            ("azure",), ("aws", "private")
+        )
+        assert selected == ("aws", "private")
+        assert observed == ("azure",)
+        assert source == "explicit"
+        assert "explicit platform selection" in message
+
+    def test_empty_explicit_selection_uses_safe_default(self):
+        selected, observed, source, _ = select_strategy_platforms(("agnostic",), ())
+        assert selected == ("agnostic",)
+        assert observed == ()
+        assert source == "default_agnostic"
+
+
+class TestResumeStrategyPlatformSelection:
+    def test_automatic_selection_is_restored_from_run_state(self):
+        platforms, source = restore_strategy_platforms(
+            ("agnostic",),
+            "default_agnostic",
+            False,
+            {"cloud_vendors": ["aws"], "strategy_platform_source": "recon_single"},
+        )
+
+        assert platforms == ("aws",)
+        assert source == "recon_single"
+
+    def test_explicit_selection_wins_over_run_state(self):
+        platforms, source = restore_strategy_platforms(
+            ("private",),
+            "explicit",
+            True,
+            {"cloud_vendors": ["aws"], "strategy_platform_source": "recon_single"},
+        )
+
+        assert platforms == ("private",)
+        assert source == "explicit"
+
+    @pytest.mark.parametrize(
+        "state",
+        [None, {}, {"cloud_vendors": []}, {"cloud_vendors": ["invalid"]}, {"cloud_vendors": [{}]}],
+    )
+    def test_invalid_run_state_uses_safe_current_selection(self, state):
+        platforms, source = restore_strategy_platforms(
+            ("agnostic",), "default_agnostic", False, state
+        )
+
+        assert platforms == ("agnostic",)
+        assert source == "default_agnostic"

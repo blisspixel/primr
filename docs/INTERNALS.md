@@ -76,7 +76,7 @@ Report sections are defined in YAML configuration files, not hardcoded in Python
 | 4 - Patterns | Narrative Gap Analysis, Fragilities, Patterns Worth Exploring, Discovery Questions, Engagement Opportunities |
 | 5 - Frameworks | Porter's Five Forces, Value Chain Analysis, Strategic Positioning Hypothesis |
 
-**AI Strategy Report** uses 17 sections defined in `src/primr/prompts/strategies/ai_strategy.yaml`, including vendor-specific guidance for Azure, AWS, and GCP.
+**AI Strategy Report** uses 15 sections defined in `src/primr/prompts/strategies/ai_strategy.yaml`. It starts with business strategy and value, then treats Azure, AWS, GCP, private infrastructure, or agnostic selection as an evaluation emphasis rather than a predetermined answer.
 
 The architecture is designed for extensibility - new strategy modules can be added by creating YAML files in `src/primr/prompts/strategies/`.
 
@@ -649,22 +649,14 @@ sections:
 Strategy modules extend the base schema with:
 
 ```yaml
-# Data sources for File Search Store
-data_sources:
-  - name: "vendor_research_azure"
-    path: "vendor-research/vendor-research-azure-2025-12.txt"
-    description: "Latest Azure AI services"
-    vendor: "azure"
-    required: false
+# Current vendor evidence is resolved at run time rather than pinned here.
+data_sources: []
 
-# Vendor-specific guidance
+# Platform evaluation guidance
 vendor_guidance:
   azure:
-    display_name: "Microsoft Azure"
-    key_services:
-      productivity_copilots:
-        - "Microsoft 365 Copilot"
-        - "Copilot Studio"
+    display_name: "Microsoft ecosystem emphasis"
+    guidance: "Start with business fit, preserve other observed ecosystems, and verify current product claims against official evidence."
 ```
 
 ### Creating a New Strategy Module
@@ -696,15 +688,18 @@ sections:
 
 2. The strategy is automatically discovered by the registry.
 
-3. Use it via CLI:
+3. Use it through the normal estimated research pipeline:
 
 ```bash
 # List registered strategies
 primr --list-strategies
 
-# Generate a specific strategy from an existing strategic overview
-primr --ai-strategy-only "output/Company_Strategic_Overview.md" --strategy-type customer_experience
+# Generate a specific strategy with the Strategic Overview
+primr "Company" https://company.example --strategy-type customer_experience
 ```
+
+Standalone `--ai-strategy-only` generation is billable and currently lacks an
+in-command estimate and approval gate, so agent workflows must not invoke it.
 
 ### Error Handling
 
