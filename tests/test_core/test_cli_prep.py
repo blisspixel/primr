@@ -127,7 +127,9 @@ def test_prep_skill_install_dry_run_is_non_mutating(
     monkeypatch,
     capsys,
 ) -> None:
-    destination = tmp_path / "skills" / "primr-zero"
+    monkeypatch.chdir(tmp_path)
+    destination = Path("skills") / "primr-zero"
+    expected_destination = tmp_path / destination
     install = MagicMock()
     monkeypatch.setattr("primr.core.cli_prep.install_bundled_skill", install)
 
@@ -138,7 +140,7 @@ def test_prep_skill_install_dry_run_is_non_mutating(
     assert not destination.exists()
     output = capsys.readouterr().out
     assert "Primr Zero skill installation plan" in output
-    assert f"Requested destination: {destination}" in output
+    assert f"Requested destination: {expected_destination}" in output
     assert "Incremental API spend: $0.00" in output
     assert "Model calls: 0" in output
     assert "Network requests: 0" in output
