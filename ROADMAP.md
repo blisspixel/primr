@@ -300,7 +300,12 @@ into generic agent middleware.
   public request and defaults it to Primr Zero when no explicit paid intent is
   present. The host handles `primr prep` internally, configured keys never
   imply spend consent, and explicit provider-backed requests retain the fresh
-  estimate and approval gate. Direct terminal CLI behavior is unchanged.
+  estimate and approval gate. Checked `.claude/skills/primr` and
+  `.claude/skills/primr-zero` project mirrors make the behavior discoverable in
+  a fresh Claude Code checkout. When Primr cannot be launched and installation
+  is unavailable or declined, the Zero skill uses host-native research and
+  reports the missing collectors instead of stalling. Direct terminal CLI
+  behavior is unchanged.
 - Agent governance surfaces for generic MCP clients: estimate-first prompts/resources, next-action hints, and server-enforced cost caps (`max_estimated_cost_usd`) - enforcement defaults ON for the HTTP transport (the networked, agent-facing surface), off for host-mediated stdio; `PRIMR_ENFORCE_MCP_COST_CAPS` overrides either way (`mcp_server/cost_caps.py`)
 - Long-running job guidance for agent clients: monitor/resume flows for standard runs and premium multi-vendor runs
 
@@ -659,6 +664,47 @@ The active queue is ordered top-down by priority. Each item is concrete enough t
 
 > **No brittle junk (applies to every item below).** primr's recurring self-inflicted wound is building a quality moat out of regex: deterministic gates that judge *content* (scaffolding-leak scanners, the QA penalty score, skill-pack heuristics) - they false-block good output, rot as prompts evolve, and become a maintenance treadmill. **The rule, per [`docs/design/agentic-balance.md`](docs/design/agentic-balance.md):** quality is enforced *upstream* (the writer/author prompt) and *measured* by eval/calibration - never by a new ship-time content gate. Deterministic checks are allowed ONLY for irreversible acts (spend, egress, disk) and prose-invariant structural validity (the DOCX renders, `[cite: N]` resolves, no duplicate `##`). Existing content scanners are shrinking backstops that trend toward signals, not blocks, and do not grow. If any item below tempts you to "add a check," that is the trap - fix the prompt and add the eval metric instead. Litmus: *would the check need a new case when the model rephrases?* If yes, don't build it. The same skepticism applies to the *fix*: do not replace a brittle rule with a single LLM-judge and call it measured. Judges are themselves brittle (sensitive to seed, option order, and paraphrase), so quality eval must be layered and agreement-validated, and a hard gate (including `FAIL_CALIBRATION`) is armed only from a robust, multi-judge or agreement-confirmed sample, never a single noisy run.
 
+### Cross-Cutting Product Surface Debt
+
+This ledger separates current product-surface debt from the numbered feature
+queue. It does not reorder the feature priorities above.
+
+- **Feature work:** unchanged. Evidence-grounded validation, backend freedom,
+  control-plane parity, and memory remain the ordered product priorities.
+- **UX flow debt:** the root help surface is now one-screen and workflow-first,
+  with the exhaustive reference at `primr --help-all`. `primr prep` now labels
+  partial collection, surfaces every handoff artifact, and gives the host a
+  concrete next action. Agent-host Zero requests continue through native
+  research when the Primr launcher is unavailable or installation is declined.
+- **Visual polish debt:** no separate graphical surface is in scope. Terminal,
+  Markdown, DOCX, and PDF presentation remain governed by their existing
+  renderer and artifact-regression workstreams.
+- **Observability debt:** cloud doctor now reserves `ok` for its live control
+  plane probe and labels unprobed dependencies `configured` without exposing
+  endpoint or account values. Remaining operator work is audit-writer health
+  visibility and production-shaped service probes where credentials permit.
+- **Reliability debt:** destructive pending-job cleanup now requires
+  confirmation, holds an operating-system lock across each atomic
+  read-modify-write transaction, fails visibly on malformed state, and
+  preserves records added after preview even when another Primr process writes
+  concurrently. Transactional recovery-artifact finalization remains a
+  separate bounded follow-up.
+- **Security debt:** versioned package installation is the trusted default;
+  convenience scripts are download-inspect-run only. Security operations now
+  distinguish provider credentials, MCP/A2A JWTs, admin tokens, and the
+  process-local REST scaffold; staging guidance targets the supported MCP/A2A
+  protocol boundary and avoids billable research calls. Durable REST identity
+  and pipeline wiring remain prerequisites before that scaffold can be
+  presented as production-ready.
+- **Accessibility debt:** concise help is plain text, ordered by task, and does
+  not require color to convey meaning. No high-severity accessibility gap is
+  currently evidenced; future terminal presentation changes must preserve
+  non-color semantics and focused help.
+- **Documentation debt:** README, agent integration, zero-cost, API, security,
+  client, and operator guidance now match these behaviors. The remaining
+  documentation priority is keeping the short `docs/NEXT_STEPS.md` execution
+  brief synchronized as the numbered feature queue advances.
+
 ### 1. Artifact Drift - Remaining Work
 
 The cleanup cuts shipped in v1.24.2 fixed the dominant leak vectors at the canonicalization seam: bold-wrapped `**What to validate:**` lines now dedup into the single canonical trailing line via `_normalize_generated_section_payload`, and `[cross-ref ...]` plus bare/space-separated `[workbook]` markers are stripped in `_clean_fast_report_output`. An offline scan over 16 recent reports confirmed the leak was widespread (240 workbook + 87 cross-ref + 65 bold-validate instances), and the `ReportAnalyzer.analyze_scaffolding_leakage()` check makes regressions visible. **The three remaining items are now SHIPPED:**
@@ -724,6 +770,12 @@ Cache hit rate is load-bearing on the sub-$1 default - Grok 4.3 cached input at 
 - **`--budget $N` flag - DONE for pre-flight, fast optional stages, and non-fast optional strategies.** Per-run cost ceiling for standard research, activating the existing `CostGuardHook` accounting via `primr.utils.run_budget`. Pre-flight: refuses to start when the dry-run estimate exceeds the ceiling. Mid-run fast-path checkpoints at the optional spend stages (Phase 2 research deepening, Phase 5 cross-validation enrichment and contradiction resolution, and Phase 6 strategy generation, including per-vendor AI-strategy dispatch in multi-platform runs) sync actual session spend and skip that stage (and, in a multi-strategy run, any remaining strategy documents) once the ceiling is reached. Premium, deep, complete, and hybrid Deep Research paths now checkpoint before and between optional strategy documents after the required Deep Research task completes; the required Deep Research task cannot be stopped mid-flight because the provider exposes only task-complete cost state. Scrape remains estimate-gated only. CLI dry-run JSON and MCP `estimate_run` payloads state the selected runtime behavior explicitly. CLI estimates also clamp enabled AI-strategy runs to at least one vendor, matching MCP estimate behavior for empty internal platform tuples, and price `--strategy-type` documents with the runtime's exact semantics (fast mode additive writing bundle; non-fast replace-AI-strategy plus one planned Deep Research task for Deep Research-backed types; placeholder types noted, not priced). Budget is cleared in a `finally` so it can't leak across runs. All three surfaces that quote a run - `--dry-run`, the `--budget` pre-flight gate, and the interactive confirm prompt (`display_cost_estimate`) - now price `--verify` (post-QA claim verification), which none of them did before; the two config-driven surfaces share one `build_run_estimate` shaping helper so they cannot drift apart again. The interactive prompt additionally now prices `--grok-tier` (it already priced `--fast`/`--strategy-type`), so a `--grok-tier max` or `--verify` run confirms against a number that matches actual spend (unblocked once the dead vendor-research code freed research_agent line-cap headroom).
 - **`primr show-usage` enhancements - DONE.** Lifetime totals (already present) plus per-company history (top 10 by spend with run counts and last-run date), per-mode totals alongside averages, and the By Mode breakdown now lists *observed* modes (fast-mode runs previously never appeared in the fixed mode list).
 - **`primr doctor --scraper-stats` - DONE.** `data/scraping/trace_stats.py` aggregates the per-run JSONL scrape traces (`logs/scrape_traces/`, already persisted by `TraceLogger`) across the most recent 20 runs into per-tier attempts / success rate / latency p95+avg, overall page success rate, and content-quality signals (avg chars/page, thin-page count, validation pass rate). Pure read-side analytics; unreadable trace files are skipped so analytics can never break doctor.
+- **Cloud diagnostic truthfulness - DONE.** The MCP cloud doctor performs a
+  live `/healthz` probe only for the control plane. Cosmos DB, Blob Storage,
+  Service Bus, Application Insights, and cost-governor configuration now report
+  `configured` with `probe_performed: false` instead of claiming healthy
+  connectivity from environment-variable presence. Endpoint, account, and
+  connection values are omitted from the diagnostic payload.
 - **Cost variability + regression signal - DONE.** `UsageTracker.get_cost_variability()` compares the recent-5 runs of each observed mode against the PRIOR history (timestamp-sorted; a lifetime baseline would drag the mean toward the regression being measured), and `primr show-usage` renders a "Cost Variability" section with a report-only SIGNAL line when recent cost rises >25% over the prior average or the cache hit rate drops >10 points - the continuous-reasoning / prompt-cache regression surface. Fast runs also persist a clamped `cache_hit_rate` into `_run_state.json` alongside `actual_cost_usd` for post-hoc analysis. Signals only; nothing gates. Sticky tier policy and circuit-breaker threshold tuning from this data remain open.
 
 ### 6. Wire Circuit Breaker Into Production LLM Call Sites - DONE
@@ -1811,7 +1863,7 @@ primr --ai-strategy-only "output/ExampleCo_Strategic_Overview.md"
 # Job management
 primr --check-jobs      # Read-only cloud and latest-local status
 primr --resume-latest   # Finalize completed or acknowledge terminal cloud jobs
-primr --clear-jobs      # Discard stale pending records
+primr --clear-jobs      # Confirm removal of all pending recovery records
 
 # Operations
 primr doctor

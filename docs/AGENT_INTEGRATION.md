@@ -65,10 +65,12 @@ For hard-zero collection:
 5. Use `primr-zero` in the current host to close external gaps and write the
    dossier without silently switching to API billing.
 
-If the host lacks a shell, use the skill's host-native research fallback and
-disclose that Primr DNS, adaptive scraping, ATS adapters, trace artifacts, and
-local QA were unavailable. If it cannot search the web, request a prep bundle
-or source files rather than writing from model memory.
+If the host lacks a shell, cannot launch Primr, or cannot install it with user
+approval, use the skill's host-native research fallback. Installation is not a
+prerequisite for useful Zero-path research. Disclose that Primr DNS, adaptive
+scraping, ATS adapters, trace artifacts, and local QA were unavailable. If the
+host cannot search the web, request a prep bundle or source files rather than
+writing from model memory.
 
 See [Zero-Cost and Host-Assisted Research](ZERO_COST.md) for the complete
 contract and failure behavior.
@@ -194,16 +196,19 @@ For hard-zero research, use the canonical package:
 Source: .agents/skills/primr-zero/
 Codex personal install: ~/.agents/skills/primr-zero/
 Claude Code personal install: ~/.claude/skills/primr-zero/
+Claude Code in this checkout: .claude/skills/primr-zero/
 Repository skill install: <workspace>/.agents/skills/primr-zero/
 ```
 
 From an installed wheel, use `primr prep --install-skill <directory>` to copy
 the complete skill and references into any of those explicit destinations.
 
-Claude Code users may copy the checked mirror from
-`claude-code/skills/primr-zero/` or install the Primr plugin. Hosts without
-shell access can consume a prep bundle through their official file-import or
-research UI and use `HOST_WORKFLOW.md` as the task contract.
+Claude Code discovers the checked `.claude/skills/primr/` and
+`.claude/skills/primr-zero/` project skills in this source checkout. Users may
+also copy the plugin mirror from `claude-code/skills/primr-zero/` or install the
+Primr plugin. Hosts without shell access can consume a prep bundle through
+their official file-import or research UI and use `HOST_WORKFLOW.md` as the
+task contract.
 
 For provider-backed Primr guidance, install the existing full-pipeline skill:
 

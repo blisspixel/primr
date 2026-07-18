@@ -89,6 +89,9 @@ def test_collect_evidence_bundle_emits_bounded_host_handoff(tmp_path, monkeypatc
     assert result.pages_collected == 2
     assert result.hiring_postings == 1
     assert result.recon_collected is True
+    assert result.status == "completed"
+    assert result.workflow_path == result.bundle_dir / "HOST_WORKFLOW.md"
+    assert result.coverage_warnings == ()
 
     workflow = (result.bundle_dir / "HOST_WORKFLOW.md").read_text(encoding="utf-8")
     normalized_workflow = " ".join(workflow.split())
@@ -220,7 +223,12 @@ def test_blocked_origin_never_enables_model_fallbacks(tmp_path, monkeypatch) -> 
 
     manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
     assert result.pages_collected == 0
+    assert result.status == "partial"
+    assert result.coverage_warnings == (
+        "No first-party page content was collected; add public sources before synthesis.",
+    )
     assert manifest["status"] == "partial"
+    assert result.coverage_warnings[0] in manifest["quality"]["limitations"]
     assert manifest["execution"]["model_calls_made"] == 0
     assert manifest["execution"]["incremental_api_cost_usd"] == 0.0
     assert observed["grok_surrogate_urls"] is None

@@ -1,6 +1,5 @@
-# Easy one-line installer / updater for primr (Windows PowerShell)
-# Usage (recommended):
-#   powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/blisspixel/primr/main/scripts/install.ps1 | iex"
+# Installer / updater for primr (Windows PowerShell)
+# Recommended: download this file, inspect it, then run it with PowerShell.
 #
 # Idempotent: run it again any time to upgrade to the latest release.
 
@@ -42,8 +41,8 @@ if (-not (Get-Command pipx -ErrorAction SilentlyContinue)) {
 # --- Dev mode: if run from inside a primr checkout, install EDITABLE from source
 # so `primr` tracks the working tree instead of a frozen PyPI release. That trap
 # (a released install shadowing local edits) is exactly what makes new commands
-# like `keys set openai` look "missing". The remote one-liner has no $PSScriptRoot,
-# so this branch only fires for a local `.\scripts\install.ps1` run.
+# like `keys set openai` look "missing". A downloaded copy outside a checkout
+# installs the published package instead.
 $repoRoot = $null
 if ($PSScriptRoot) {
     $candidate = (Resolve-Path (Join-Path $PSScriptRoot "..") -ErrorAction SilentlyContinue)
@@ -94,13 +93,16 @@ if ($resolved) {
 Write-Host ""
 Write-Host "==> Done." -ForegroundColor Green
 Write-Host ""
-Write-Host "Next steps:" -ForegroundColor Cyan
+Write-Host "Keyless agent-host path:" -ForegroundColor Cyan
 Write-Host "  1. Open a NEW terminal (so PATH is fresh)"
-Write-Host "  2. Run: $Cli init          # Guided setup for API keys + browser"
-Write-Host "  3. Run: $Cli doctor        # Verify everything"
+Write-Host "  2. Run: $Cli prep `"ExampleCo`" https://example.co --dry-run"
+Write-Host "  3. Run: $Cli prep `"ExampleCo`" https://example.co"
 Write-Host ""
-Write-Host "Quick start:"
-Write-Host "  $Cli `"Company Name`" https://company.com"
+Write-Host "Provider-backed path:" -ForegroundColor Cyan
+Write-Host "  1. Run: $Cli init          # Guided provider setup"
+Write-Host "  2. Run: $Cli doctor        # Verify configuration"
+Write-Host "  3. Run: $Cli `"ExampleCo`" https://example.co --dry-run"
+Write-Host "     Review the estimate and approve spend before launching the paid run."
 Write-Host ""
 Write-Host "To update later:"
 Write-Host "  $Cli update                # Self-update to the latest release"

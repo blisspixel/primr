@@ -9,6 +9,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SOURCE = REPO_ROOT / ".agents" / "skills" / "primr-zero"
 TARGETS = (
+    REPO_ROOT / ".claude" / "skills" / "primr-zero",
     REPO_ROOT / "claude-code" / "skills" / "primr-zero",
     REPO_ROOT / "src" / "primr" / "resources" / "skills" / "primr-zero",
 )

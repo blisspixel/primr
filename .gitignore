@@ -301,8 +301,10 @@ dist/
 build/
 _site/
 
-# Claude Code local config (CLAUDE.md is committed - it's the dev contract)
-/.claude
+# Claude Code local config (project skills are committed; settings stay local)
+/.claude/*
+!/.claude/skills/
+!/.claude/skills/**
 
 # Windows reserved name artifacts
 nul

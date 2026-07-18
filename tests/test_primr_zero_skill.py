@@ -35,6 +35,15 @@ def test_primr_zero_is_the_agent_host_default_without_changing_cli_semantics() -
     assert "does not change the provider-backed behavior" in normalized
 
 
+def test_primr_zero_falls_back_when_the_launcher_cannot_be_used() -> None:
+    content = (SOURCE / "SKILL.md").read_text(encoding="utf-8")
+    normalized = " ".join(content.split())
+
+    assert "the Primr launcher is unavailable, or installation is declined" in normalized
+    assert "Do not block a useful zero-cost result on installation" in normalized
+    assert "instead of stopping or switching to a paid run" in normalized
+
+
 def test_primr_zero_references_are_present() -> None:
     expected = {
         "host-capabilities.md",
@@ -44,6 +53,16 @@ def test_primr_zero_references_are_present() -> None:
     }
     actual = {path.name for path in (SOURCE / "references").glob("*.md")}
     assert actual == expected
+
+
+def test_host_capabilities_cover_launcher_failure_and_project_discovery() -> None:
+    content = (SOURCE / "references" / "host-capabilities.md").read_text(encoding="utf-8")
+    normalized = " ".join(content.split())
+
+    assert "no working Primr launcher" in content
+    assert "installation is required" in normalized
+    assert "Do not stop, switch to a paid run" in normalized
+    assert ".claude/skills/primr-zero" in content
 
 
 def test_primr_zero_defines_a_tool_neutral_downstream_handoff() -> None:

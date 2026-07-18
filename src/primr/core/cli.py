@@ -84,7 +84,11 @@ from primr.core.cli_doctor import (
 from primr.core.cli_dryrun import run_dry_run
 from primr.core.cli_errors import guard_dispatch
 from primr.core.cli_eval_args import add_eval_arguments
-from primr.core.cli_help import add_init_doctor_arguments, maybe_print_scoped_help
+from primr.core.cli_help import (
+    add_init_doctor_arguments,
+    maybe_print_root_help,
+    maybe_print_scoped_help,
+)
 from primr.core.cli_inference import prepare_batch_inference_runtime, prepare_inference_runtime
 from primr.core.cli_init import (
     _ensure_project_env_file as _ensure_project_env_file,
@@ -106,6 +110,7 @@ from primr.core.cli_init import (
 from primr.core.cli_init import (
     _validate_key_live as _validate_key_live,
 )
+from primr.core.cli_job_cleanup import run_clear_pending_jobs
 from primr.core.cli_keys import run_keys
 from primr.core.cli_memory import (
     handle_company as _handle_company,
@@ -418,6 +423,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
     Returns:
         CLIConfig with parsed values
     """
+    maybe_print_root_help(args)
     maybe_print_scoped_help(args)
     parser = _create_parser()
     parsed = parser.parse_args(_rewrite_company_command_args(args, parser))
@@ -848,6 +854,11 @@ def _create_parser() -> argparse.ArgumentParser:
         action="version",
         version=f"primr {_primr_version}",
     )
+    parser.add_argument(
+        "--help-all",
+        action="help",
+        help="Show every command and advanced option",
+    )
 
     # Positional arguments
     parser.add_argument("company", nargs="?", type=str, help="Company name")
@@ -1049,7 +1060,11 @@ def _create_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Finalize completed jobs and acknowledge provider-terminal jobs",
     )
-    parser.add_argument("--clear-jobs", action="store_true", help="Clear stale pending jobs")
+    parser.add_argument(
+        "--clear-jobs",
+        action="store_true",
+        help="Confirm and remove all pending recovery records",
+    )
     parser.add_argument(
         "--list-strategies", action="store_true", help="List available strategy documents"
     )
@@ -1291,25 +1306,8 @@ def _handle_resume_latest(config: CLIConfig) -> int:
 
 
 def _handle_clear_jobs(config: CLIConfig) -> int:
-    """Handle clear-jobs command - removes stale pending jobs."""
-    import json
-
-    from primr.ai.deep_research import get_pending_jobs
-    from primr.config.config import LOGS_DIR
-
-    jobs = get_pending_jobs()
-    if not jobs:
-        console.info("No pending jobs to clear.")
-        return 0
-
-    console.info(f"Clearing {len(jobs)} stale job(s)...")
-
-    jobs_file = os.path.join(LOGS_DIR, "pending_research_jobs.json")
-    with open(jobs_file, "w", encoding="utf-8") as f:
-        json.dump({}, f)
-
-    console.ok(f"Cleared {len(jobs)} pending jobs")
-    return 0
+    """Remove the pending recovery records confirmed by the operator."""
+    return run_clear_pending_jobs(assume_yes=config.init_yes, confirm=_prompt_yes_no)
 
 
 def _handle_show_usage(config: CLIConfig) -> int:

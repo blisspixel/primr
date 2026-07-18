@@ -6,9 +6,10 @@ and three skills into one install:
 
 - **primr** - routes a clean company-and-URL request to Primr Zero by default,
   or drives the metered pipeline after explicit paid intent, an estimate, and
-  approval. Needs `pip install primr`; API keys are only for provider-backed
-  runs.
-- **primr-zero** - runs keyless `primr prep`, then uses Claude's existing plan allowance to research external gaps and write a substantial host-assisted dossier after the host is verified not to bill API usage or overages. Needs Primr, but no model API key or GPU.
+  approval. It uses `pip install primr` for deterministic collection and the
+  MCP server, but falls back to host-native Zero research when installation is
+  unavailable or declined. API keys are only for provider-backed runs.
+- **primr-zero** - runs keyless `primr prep` when Primr is available, then uses Claude's existing plan allowance to research external gaps and write a substantial host-assisted dossier after the host is verified not to bill API usage or overages. Without a working launcher it uses the same report contract through native research and discloses the missing collectors. No model API key or GPU is required.
 - **company-brief** - the primr research method as a standalone skill. Uses only the host's own tools (web search, page fetch, shell DNS lookups) at subscription cost: no primr install, no API keys, no GPU. A lighter brief (15-25 sources vs 40-55, no cross-validation or QA gates), but a real one, for people who have a Claude/Copilot plan and nothing else.
 
 ## Install
@@ -42,6 +43,10 @@ Primr" to select the metered pipeline; Claude must still show the estimate and
 wait for approval. Configured API keys alone never select it.
 
 ## Skill-only install (no plugin)
+
+A source checkout already includes `.claude/skills/primr/` and
+`.claude/skills/primr-zero/`, so Claude Code can discover the operating
+guidance without a personal install. Local `.claude` settings remain ignored.
 
 If you only want the skill - not the MCP server - paste this to Claude Code:
 

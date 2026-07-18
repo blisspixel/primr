@@ -74,12 +74,12 @@ AI Strategy Retry (when main report succeeded but AI strategy failed):
 Versioned Eval (offline-first, no API spend by default):
   primr --eval --eval-id eval-2026-02-r1
   primr --eval --eval-id eval-2026-02-r1 --eval-profiles full lite fast
-  primr --eval --eval-id eval-2026-02-r1 --eval-company "Harver"
+  primr --eval --eval-id eval-2026-02-r1 --eval-company "ExampleCo"
   primr --eval --eval-id eval-2026-02-r1 --eval-llm-judge --eval-judge-max-cost 0.25
   primr --eval --eval-id eval-2026-02-r1 --eval-run-missing --eval-manifest eval_companies.csv --eval-max-new-runs 2 --eval-max-estimated-cost 12
   primr --eval --eval-id eval-2026-02-r1 --eval-stage-scorecard --eval-stage-quality quality.json
 
-Agentic Architecture (v1.7.0):
+Company profiles and research memory:
   primr company track "Acme Corp" https://acme.com  # Track a company profile locally
   primr company list                                # List tracked company profiles
   primr company show "Acme Corp"                    # Show one tracked company profile
@@ -101,9 +101,6 @@ Domain Intelligence (Recon):
   primr recon batch domains.txt -c 10                # Batch with concurrency
   primr recon doctor                                 # Connectivity check
 
-Accordion Method Test (for development):
-  primr --test-accordion "Oceanography 2026-2030"
-  primr --test-accordion "Topic" --accordion-pages 30
 """
 
 

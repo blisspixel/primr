@@ -42,9 +42,15 @@ def test_scoped_init_doctor_options_match_the_main_parser() -> None:
                 continue
             main_action = main_actions[scoped_action.dest]
             assert main_action.option_strings == scoped_action.option_strings
-            assert main_action.help == (
-                f"With '{command}', {scoped_action.help[0].lower()}{scoped_action.help[1:]}"
-            )
+            if scoped_action.dest == "yes":
+                assert main_action.help == (
+                    "With 'init', accept safe defaults; with destructive commands, "
+                    "confirm the requested action"
+                )
+            else:
+                assert main_action.help == (
+                    f"With '{command}', {scoped_action.help[0].lower()}{scoped_action.help[1:]}"
+                )
 
 
 class TestDiscoverStrategies:

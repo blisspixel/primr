@@ -1120,15 +1120,26 @@ async def _get_cloud_diagnostics() -> dict[str, Any]:
     """
     Gather cloud-specific diagnostics for the doctor tool.
 
-    Checks: Container App health, Cosmos DB, Blob Storage,
-    Service Bus (if configured), Application Insights (if configured),
-    and Cost Governor limits.
+    The control-plane endpoint receives a live health probe. Other services
+    report configuration presence only; configuration must not be presented as
+    verified connectivity.
 
     Requirements: 10.7
     """
     import os
 
     diagnostics: dict[str, Any] = {}
+
+    def configuration_status(value: str | None) -> dict[str, Any]:
+        configured = bool(value and value.strip())
+        result: dict[str, Any] = {
+            "status": "configured" if configured else "not_configured",
+            "configured": configured,
+            "probe_performed": False,
+        }
+        if configured:
+            result["detail"] = "Configuration present; connectivity was not tested."
+        return result
 
     # 1. Container App health (call /healthz)
     control_plane_url = os.environ.get("PRIMR_CONTROL_PLANE_URL", "http://localhost:8000")
@@ -1139,6 +1150,8 @@ async def _get_cloud_diagnostics() -> dict[str, Any]:
             resp = await client.get(f"{control_plane_url}/healthz")
             diagnostics["container_app_health"] = {
                 "status": "ok" if resp.status_code == 200 else "error",
+                "configured": True,
+                "probe_performed": True,
                 "http_status": resp.status_code,
                 "detail": resp.json(),
             }
@@ -1146,69 +1159,20 @@ async def _get_cloud_diagnostics() -> dict[str, Any]:
         logger.exception("Cloud diagnostics: Container App health check failed")
         diagnostics["container_app_health"] = {
             "status": "error",
+            "configured": True,
+            "probe_performed": True,
             "detail": "connectivity check failed",
         }
 
-    # 2. Cosmos DB connectivity and RU consumption
-    cosmos_endpoint = os.environ.get("COSMOS_ENDPOINT")
-    if cosmos_endpoint:
-        try:
-            diagnostics["cosmos_db"] = {
-                "status": "ok",
-                "endpoint": cosmos_endpoint,
-            }
-        except Exception:
-            logger.exception("Cloud diagnostics: Cosmos DB check failed")
-            diagnostics["cosmos_db"] = {
-                "status": "error",
-                "detail": "connectivity check failed",
-            }
-    else:
-        diagnostics["cosmos_db"] = {"status": "not_configured"}
-
-    # 3. Blob Storage connectivity
-    storage_account = os.environ.get("STORAGE_ACCOUNT_NAME")
-    if storage_account:
-        try:
-            diagnostics["blob_storage"] = {
-                "status": "ok",
-                "account": storage_account,
-            }
-        except Exception:
-            logger.exception("Cloud diagnostics: Blob Storage check failed")
-            diagnostics["blob_storage"] = {
-                "status": "error",
-                "detail": "connectivity check failed",
-            }
-    else:
-        diagnostics["blob_storage"] = {"status": "not_configured"}
-
-    # 4. Service Bus queue depth (if configured)
-    servicebus_conn = os.environ.get("SERVICEBUS_CONNECTION_STRING")
-    if servicebus_conn:
-        try:
-            diagnostics["service_bus"] = {
-                "status": "ok",
-                "configured": True,
-            }
-        except Exception:
-            logger.exception("Cloud diagnostics: Service Bus check failed")
-            diagnostics["service_bus"] = {
-                "status": "error",
-                "detail": "connectivity check failed",
-            }
-    else:
-        diagnostics["service_bus"] = {"status": "not_configured"}
-
-    # 5. Application Insights availability (if configured)
-    appinsights_conn = os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING")
-    if appinsights_conn:
-        diagnostics["application_insights"] = {
-            "status": "ok",
-            "configured": True,
-        }
-    else:
-        diagnostics["application_insights"] = {"status": "not_configured"}
+    # 2-5. Configuration presence. These checks make no network request.
+    diagnostics["cosmos_db"] = configuration_status(os.environ.get("COSMOS_ENDPOINT"))
+    diagnostics["blob_storage"] = configuration_status(os.environ.get("STORAGE_ACCOUNT_NAME"))
+    diagnostics["service_bus"] = configuration_status(
+        os.environ.get("SERVICEBUS_CONNECTION_STRING")
+    )
+    diagnostics["application_insights"] = configuration_status(
+        os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING")
+    )
 
     # 6. Cost Governor limits with current usage
     try:
@@ -1216,7 +1180,9 @@ async def _get_cloud_diagnostics() -> dict[str, Any]:
         max_daily_cost = float(os.environ.get("PRIMR_MAX_DAILY_COST_USD", "10.0"))
         max_monthly_cost = float(os.environ.get("PRIMR_MAX_MONTHLY_COST_USD", "100.0"))
         diagnostics["cost_governor"] = {
-            "status": "ok",
+            "status": "configured",
+            "configured": True,
+            "probe_performed": False,
             "limits": {
                 "max_job_cost_usd": max_job_cost,
                 "max_daily_cost_usd": max_daily_cost,
@@ -1227,6 +1193,8 @@ async def _get_cloud_diagnostics() -> dict[str, Any]:
         logger.exception("Cloud diagnostics: Cost Governor check failed")
         diagnostics["cost_governor"] = {
             "status": "error",
+            "configured": True,
+            "probe_performed": False,
             "detail": "configuration check failed",
         }
 
