@@ -164,7 +164,7 @@ release = [
 ]
 
 [project.scripts]
-primr = "primr.core.cli:main"
+primr = "primr.cli_entry:main"
 primr-mcp = "primr.mcp_server.cli:main"
 primr-a2a = "primr.a2a.cli:main"
 

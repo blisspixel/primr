@@ -17,8 +17,8 @@ def _create_prep_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="primr prep",
         description=(
-            "Collect a keyless Primr evidence bundle for Codex, Claude, Copilot, "
-            "Gemini, Cowork, or another host agent to analyze using existing plan capacity."
+            "Collect a keyless Primr evidence bundle for a capable agent host "
+            "to analyze using existing plan capacity."
         ),
     )
     parser.add_argument("company_name", nargs="?", help="Display name for the company.")
