@@ -10,7 +10,9 @@ from primr.utils.console import console
 class ConfirmationPrompt(Protocol):
     """Callable shape for an operator confirmation prompt."""
 
-    def __call__(self, prompt: str, *, default: bool) -> bool: ...
+    def __call__(self, prompt: str, *, default: bool) -> bool:
+        """Return whether the operator confirmed the requested action."""
+        raise NotImplementedError
 
 
 def run_clear_pending_jobs(*, assume_yes: bool, confirm: ConfirmationPrompt) -> int:
