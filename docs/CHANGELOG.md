@@ -47,6 +47,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no discoverable partial directory, artifact scans ignore active prep staging,
   and `--install-skill ... --dry-run` previews the destination without network
   access or file writes.
+- `primr prep` now enters through the lightweight console and module path,
+  avoiding the provider-backed CLI import graph for keyless preview and
+  collection. Collection and skill-install interruption return exit code 130
+  with recovery guidance, and dry-run help now covers both collection and skill
+  installation.
 - Primr Zero host workflows now fence target metadata as untrusted data, use
   the canonical Confirmed, Reported, Estimated, and Hypothesis vocabulary,
   checkpoint the Markdown report inside the prep bundle, and confirm its
