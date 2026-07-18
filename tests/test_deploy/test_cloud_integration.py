@@ -168,11 +168,13 @@ class TestDoctorCloudDiagnostics:
     """Tests for doctor cloud diagnostics with mocked HTTP responses."""
 
     @pytest.mark.asyncio
-    async def test_cloud_diagnostics_all_ok(self, monkeypatch):
-        """Cloud diagnostics returns ok status when services are reachable."""
+    async def test_cloud_diagnostics_distinguishes_probe_from_configuration(self, monkeypatch):
+        """Only the live control-plane probe is reported as healthy."""
         monkeypatch.setenv("AZURE_CLIENT_ID", "test-client-id")
         monkeypatch.setenv("COSMOS_ENDPOINT", "https://test.documents.azure.com:443/")
         monkeypatch.setenv("STORAGE_ACCOUNT_NAME", "teststorage")
+        monkeypatch.setenv("SERVICEBUS_CONNECTION_STRING", "secret-connection-string")
+        monkeypatch.setenv("APPLICATIONINSIGHTS_CONNECTION_STRING", "InstrumentationKey=secret")
         monkeypatch.setenv("PRIMR_CONTROL_PLANE_URL", "http://localhost:8000")
 
         mock_response = MagicMock()
@@ -190,8 +192,23 @@ class TestDoctorCloudDiagnostics:
             result = await _get_cloud_diagnostics()
 
         assert result["container_app_health"]["status"] == "ok"
-        assert result["cosmos_db"]["status"] == "ok"
-        assert result["blob_storage"]["status"] == "ok"
+        assert result["container_app_health"]["probe_performed"] is True
+        for service_name in (
+            "cosmos_db",
+            "blob_storage",
+            "service_bus",
+            "application_insights",
+        ):
+            diagnostic = result[service_name]
+            assert diagnostic["status"] == "configured"
+            assert diagnostic["configured"] is True
+            assert diagnostic["probe_performed"] is False
+
+        serialized = str(result)
+        assert "test.documents.azure.com" not in serialized
+        assert "teststorage" not in serialized
+        assert "secret-connection-string" not in serialized
+        assert "InstrumentationKey=secret" not in serialized
 
     @pytest.mark.asyncio
     async def test_cloud_diagnostics_healthz_failure(self, monkeypatch):
@@ -212,6 +229,7 @@ class TestDoctorCloudDiagnostics:
             result = await _get_cloud_diagnostics()
 
         assert result["container_app_health"]["status"] == "error"
+        assert result["container_app_health"]["probe_performed"] is True
 
     @pytest.mark.asyncio
     async def test_cloud_diagnostics_not_configured(self, monkeypatch):
@@ -237,7 +255,33 @@ class TestDoctorCloudDiagnostics:
 
             result = await _get_cloud_diagnostics()
 
+        for service_name in (
+            "cosmos_db",
+            "blob_storage",
+            "service_bus",
+            "application_insights",
+        ):
+            diagnostic = result[service_name]
+            assert diagnostic["status"] == "not_configured"
+            assert diagnostic["configured"] is False
+            assert diagnostic["probe_performed"] is False
+
+    @pytest.mark.asyncio
+    async def test_cloud_diagnostics_treats_blank_configuration_as_missing(self, monkeypatch):
+        monkeypatch.setenv("COSMOS_ENDPOINT", "   ")
+        monkeypatch.setenv("PRIMR_CONTROL_PLANE_URL", "http://localhost:8000")
+
+        mock_response = MagicMock(status_code=200)
+        mock_response.json.return_value = {"status": "healthy"}
+        mock_client_instance = AsyncMock()
+        mock_client_instance.get = AsyncMock(return_value=mock_response)
+        mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
+        mock_client_instance.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient", return_value=mock_client_instance):
+            from primr.mcp_server.tools import _get_cloud_diagnostics
+
+            result = await _get_cloud_diagnostics()
+
         assert result["cosmos_db"]["status"] == "not_configured"
-        assert result["blob_storage"]["status"] == "not_configured"
-        assert result["service_bus"]["status"] == "not_configured"
-        assert result["application_insights"]["status"] == "not_configured"
+        assert result["cosmos_db"]["configured"] is False

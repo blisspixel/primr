@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from importlib.resources import files
 from importlib.resources.abc import Traversable
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from primr.config.config import OUTPUT_DIR
 from primr.utils.atomic_io import atomic_write_bytes, atomic_write_text
@@ -37,13 +37,16 @@ PACKAGED_SKILL_PATH = ("resources", "skills", "primr-zero")
 class EvidenceBundleResult:
     """Paths and collection counts returned by the prep workflow."""
 
+    status: Literal["completed", "partial"]
     bundle_dir: Path
     manifest_path: Path
     host_packet_path: Path
     source_index_path: Path
+    workflow_path: Path
     pages_collected: int
     hiring_postings: int
     recon_collected: bool
+    coverage_warnings: tuple[str, ...]
 
 
 def collect_evidence_bundle(
@@ -136,6 +139,16 @@ def collect_evidence_bundle(
 
     completed_at = datetime.now(timezone.utc)
     hiring_postings = sum(1 for row in source_rows if row["source_type"] == "hiring")
+    status: Literal["completed", "partial"] = "completed" if corpus else "partial"
+    coverage_warnings: list[str] = []
+    if not corpus:
+        coverage_warnings.append(
+            "No first-party page content was collected; add public sources before synthesis."
+        )
+    if include_recon and not evidence_paths.get("recon"):
+        coverage_warnings.append("Requested DNS reconnaissance produced no artifact.")
+    if include_hiring and not evidence_paths.get("hiring"):
+        coverage_warnings.append("Requested hiring-signal collection produced no artifact.")
     manifest_path = bundle_dir / "prep_manifest.json"
     artifact_paths = sorted(
         path for path in bundle_dir.rglob("*") if path.is_file() and path != manifest_path
@@ -143,7 +156,7 @@ def collect_evidence_bundle(
     manifest: dict[str, Any] = {
         "schema": BUNDLE_SCHEMA,
         "version": BUNDLE_VERSION,
-        "status": "completed" if corpus else "partial",
+        "status": status,
         "company_name": company_name,
         "company_url": normalized_url,
         "started_at": started_at.isoformat(),
@@ -172,6 +185,7 @@ def collect_evidence_bundle(
                 "No provider-backed external research was run.",
                 "No Primr analysis workbook, cross-validation, or claim verification was run.",
                 "The host must verify important claims against cited source URLs.",
+                *coverage_warnings,
             ],
         },
         "artifacts": [_artifact_record(path, bundle_dir) for path in artifact_paths],
@@ -180,13 +194,16 @@ def collect_evidence_bundle(
     atomic_write_text(manifest_path, json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
 
     return EvidenceBundleResult(
+        status=status,
         bundle_dir=bundle_dir,
         manifest_path=manifest_path,
         host_packet_path=host_packet_path,
         source_index_path=source_index_path,
+        workflow_path=workflow_path,
         pages_collected=len(corpus),
         hiring_postings=hiring_postings,
         recon_collected=bool(evidence_paths.get("recon")),
+        coverage_warnings=tuple(coverage_warnings),
     )
 
 

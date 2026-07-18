@@ -1,4 +1,4 @@
-"""Synchronize the canonical Primr Zero skill into host-specific packaging."""
+"""Synchronize the Claude operator skill into project-level discovery."""
 
 from __future__ import annotations
 
@@ -7,12 +7,8 @@ import shutil
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SOURCE = REPO_ROOT / ".agents" / "skills" / "primr-zero"
-TARGETS = (
-    REPO_ROOT / ".claude" / "skills" / "primr-zero",
-    REPO_ROOT / "claude-code" / "skills" / "primr-zero",
-    REPO_ROOT / "src" / "primr" / "resources" / "skills" / "primr-zero",
-)
+SOURCE = REPO_ROOT / "claude-code" / "skills" / "primr"
+TARGETS = (REPO_ROOT / ".claude" / "skills" / "primr",)
 
 
 def _file_map(root: Path) -> dict[str, bytes]:
@@ -26,12 +22,11 @@ def _file_map(root: Path) -> dict[str, bytes]:
 
 
 def mirrors_match() -> tuple[bool, list[str]]:
-    """Return whether every packaged mirror is byte-identical to the source."""
-
+    """Return whether every project mirror is byte-identical to the source."""
     expected = _file_map(SOURCE)
     failures: list[str] = []
     if not expected:
-        failures.append(f"Canonical skill is missing or empty: {SOURCE}")
+        failures.append(f"Operator skill is missing or empty: {SOURCE}")
         return False, failures
     for target in TARGETS:
         actual = _file_map(target)
@@ -49,11 +44,10 @@ def mirrors_match() -> tuple[bool, list[str]]:
 
 
 def sync_mirrors() -> None:
-    """Copy the canonical skill and remove stale mirror-only files."""
-
+    """Copy the operator skill and remove stale project-only files."""
     expected = _file_map(SOURCE)
     if not expected:
-        raise FileNotFoundError(f"Canonical skill is missing or empty: {SOURCE}")
+        raise FileNotFoundError(f"Operator skill is missing or empty: {SOURCE}")
     for target in TARGETS:
         target.mkdir(parents=True, exist_ok=True)
         for relative, content in expected.items():
@@ -77,7 +71,7 @@ def main() -> int:
         sync_mirrors()
     matches, failures = mirrors_match()
     if matches:
-        print("Primr Zero skill mirrors are current.")
+        print("Primr operator skill mirrors are current.")
         return 0
     for failure in failures:
         print(failure)

@@ -13,57 +13,38 @@ This guide covers operational security for Primr deployments, including API key 
 
 ## API Key Management
 
-### Key Rotation
+### Supported Production Boundary
 
-Primr supports zero-downtime key rotation with configurable grace periods.
+Use the credential system that matches the deployed surface:
 
-```python
-from primr.api.auth import create_api_key, rotate_api_key, get_auth
+1. Store model-provider keys in the deployment secret manager and expose them
+   to Primr through the documented environment variables. Rotate and revoke
+   them through the provider and deployment platform.
+2. Protect networked MCP and A2A deployments with signed JWTs, scoped bearer
+   tokens, cost controls, and transport security. Static `MCP_ADMIN_TOKENS`
+   are an operator bootstrap surface; rotate them by updating the secret and
+   restarting the service.
+3. Never pass agent-host OAuth credentials, browser cookies, or subscription
+   tokens into Primr.
 
-# Create a key with 90-day expiration
-key = create_api_key("production-app", expires_in_days=90)
+### Process-Local REST Scaffold
 
-# Later: rotate the key with 24-hour grace period
-new_key = rotate_api_key(key, grace_hours=24)
-# Both keys work for 24 hours, then only new_key works
-```
+`primr.api.auth` is a process-local development scaffold. Its keys, rotation
+state, usage counters, and callbacks exist only in memory and are lost on
+restart. The REST research submission endpoint is not wired to the production
+pipeline. Do not use this module as a durable production identity store or
+claim zero-downtime production rotation from it.
 
-### Rotation Best Practices
-
-1. **Schedule regular rotations** - Rotate keys every 90 days
-2. **Use grace periods** - Allow 24-48 hours for applications to update
-3. **Monitor old key usage** - Alert if old keys are still being used after grace period
-4. **Automate rotation** - Use the callback system for notifications
-
-```python
-# Set up rotation notifications
-auth = get_auth()
-
-def notify_rotation(name, old_prefix, new_prefix):
-    # Send to Slack, email, etc.
-    print(f"Key rotated: {name}")
-    # Update secrets manager, notify team, etc.
-
-auth.on_rotation(notify_rotation)
-```
-
-### Expiration Monitoring
+For local tests only, the scaffold supports create, rotate, inspect, revoke,
+and cleanup operations:
 
 ```python
-# Check for keys expiring in the next 7 days
-expiring = get_auth().get_expiring_keys(within_days=7)
-for key_info in expiring:
-    print(f"Key '{key_info['name']}' expires in {key_info['days_remaining']} days")
-```
+from primr.api.auth import create_api_key, get_auth, rotate_api_key
 
-### Key Cleanup
-
-Run periodically to remove expired keys from memory:
-
-```python
-# Clean up expired and rotated-out keys
-cleaned = get_auth().cleanup_expired()
-print(f"Removed {cleaned} expired keys")
+key = create_api_key("local-test", expires_in_days=1)
+rotated = rotate_api_key(key, grace_hours=1)
+assert rotated is not None
+assert get_auth().verify(rotated)
 ```
 
 ---
@@ -104,6 +85,18 @@ hashed message/result payloads, hashed caller ids, granted scopes, duration,
 outcome, and job id when present. Raw tool arguments, raw tool results, raw A2A
 message text, task ids, raw resource URI query values, raw resource bodies,
 raw client ids, report paths, URLs, and full approval tokens are not persisted.
+
+### Review Recent Events
+
+Read `primr://agent/audit/recent?limit=50` through an MCP resource client for a
+bounded recent-event view. Local stdio sessions can read it directly. HTTP
+sessions require the `admin` scope; a token with only `read` is denied and the
+denial is itself audited. The resource returns structured metadata and hashes,
+not raw request bodies, report content, URLs, or caller identifiers.
+
+For longer retention, ship snapshots of `output/.mcp_audit_log.jsonl` or the
+audit file beside the configured job journal. Preserve the active local file
+until the application owns an explicit, tested rotation policy.
 
 ### AWS S3 Storage
 
@@ -183,45 +176,39 @@ resource "aws_kms_key" "audit_logs" {
 }
 ```
 
-#### Python Upload Script
+#### Safe Snapshot Upload Example
 
 ```python
-# scripts/upload_audit_logs.py
 import boto3
 import gzip
+import shutil
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
-def upload_audit_logs(log_dir: str, bucket: str, prefix: str = "audit"):
-    """Upload and compress audit logs to S3."""
-    s3 = boto3.client('s3')
-    
-    for log_file in Path(log_dir).glob("*.log"):
-        # Compress the log file
-        compressed = log_file.with_suffix('.log.gz')
-        with open(log_file, 'rb') as f_in:
-            with gzip.open(compressed, 'wb') as f_out:
-                f_out.writelines(f_in)
-        
-        # Upload to S3 with date-based prefix
-        date_prefix = datetime.now().strftime("%Y/%m/%d")
+def upload_audit_snapshot(audit_path: str, bucket: str, prefix: str = "audit") -> str:
+    """Upload a temporary snapshot without deleting or renaming the active log."""
+    source = Path(audit_path)
+    if source.name != ".mcp_audit_log.jsonl" or source.is_symlink() or not source.is_file():
+        raise ValueError("audit_path must be the regular Primr MCP audit JSONL file")
+
+    date_prefix = datetime.now().strftime("%Y/%m/%d")
+    timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+    with tempfile.TemporaryDirectory(prefix="primr-audit-") as temp_dir:
+        snapshot = Path(temp_dir) / f"mcp-audit-{timestamp}.jsonl"
+        compressed = snapshot.with_suffix(".jsonl.gz")
+        shutil.copyfile(source, snapshot)
+        with snapshot.open("rb") as source_stream, gzip.open(compressed, "wb") as target_stream:
+            shutil.copyfileobj(source_stream, target_stream)
+
         s3_key = f"{prefix}/{date_prefix}/{compressed.name}"
-        
-        s3.upload_file(
+        boto3.client("s3").upload_file(
             str(compressed),
             bucket,
             s3_key,
-            ExtraArgs={
-                'ServerSideEncryption': 'aws:kms',
-                'ContentType': 'application/gzip',
-            }
+            ExtraArgs={"ServerSideEncryption": "aws:kms", "ContentType": "application/gzip"},
         )
-        
-        # Clean up local files
-        compressed.unlink()
-        log_file.unlink()
-        
-        print(f"Uploaded {log_file.name} to s3://{bucket}/{s3_key}")
+    return s3_key
 ```
 
 ### Google Cloud Storage
@@ -370,12 +357,11 @@ resource "azurerm_storage_management_policy" "audit_logs" {
 # fluentd/fluent.conf
 <source>
   @type tail
-  path /var/log/primr/security.log
-  pos_file /var/log/fluentd/primr-security.pos
+  path /srv/primr/output/.mcp_audit_log.jsonl
+  pos_file /var/lib/fluentd/primr-mcp-audit.pos
   tag primr.security
   <parse>
-    @type regexp
-    expression /^(?<time>\S+) (?<event>\S+): (?<message>.*)$/
+    @type json
   </parse>
 </source>
 
@@ -403,7 +389,10 @@ resource "azurerm_storage_management_policy" "audit_logs" {
 
 ### Recommended Testing Approach
 
-Since Primr is open source, security testing should be part of your deployment process rather than CI/CD.
+Repository CI hard-gates Bandit, `pip-audit`, the deploy secret scan, and
+Trivy container and configuration scanning. Deployment owners must also run
+the environment-specific preflight and staging checks below; CI cannot verify
+runtime identity, network, secret-store, or ingress configuration.
 
 ### 1. Pre-Deployment Security Scan
 
@@ -441,113 +430,67 @@ pytest -k "security or auth" --tb=short
 
 ### 3. Integration Security Tests
 
-Test security in a staging environment:
+Test the deployed MCP or A2A protocol boundary with its official client. Do
+not point deployment tests at the process-local REST scaffold or its
+unimplemented `/research` submission route.
 
-```python
-# tests/integration/test_security_integration.py
-import requests
+Use non-billable operations such as MCP initialization, `doctor`,
+`check_jobs`, and `estimate_run` for staging verification. Confirm all of the
+following before enabling research traffic:
 
-def test_rate_limiting(api_url, api_key):
-    """Verify rate limiting is enforced."""
-    responses = []
-    for _ in range(150):  # Exceed default 100/hour limit
-        r = requests.post(
-            f"{api_url}/research",
-            json={"company_name": "Test"},
-            headers={"X-API-Key": api_key}
-        )
-        responses.append(r.status_code)
-    
-    # Should see 429 responses after limit exceeded
-    assert 429 in responses, "Rate limiting not enforced"
+Run negative approval and budget tests only with provider credentials absent
+or stubbed and provider egress blocked at the network boundary. A broken guard
+must fail without any route to provider spend. Any positive provider-backed
+staging launch remains a separately estimated action that requires explicit
+approval.
 
-def test_invalid_auth_rejected(api_url):
-    """Verify invalid authentication is rejected."""
-    r = requests.post(
-        f"{api_url}/research",
-        json={"company_name": "Test"},
-        headers={"X-API-Key": "invalid-key"}
-    )
-    assert r.status_code == 401
+- missing, expired, incorrectly signed, wrong-issuer, and wrong-audience
+  bearer tokens are rejected;
+- a `read` token can call read tools but cannot call `research_company`;
+- a `research` token cannot read report bodies without `report` scope and
+  cannot call admin-only cleanup;
+- job ownership prevents one authenticated client from reading or cancelling
+  another client's job;
+- tool limits produce the documented structured rate-limit error;
+- estimate and approval controls reject an unapproved or over-budget launch;
+- MCP tool calls, resource reads, denials, and A2A calls create redacted audit
+  events; and
+- the ingress supplies TLS and the deployment's required security headers.
 
-def test_security_headers_present(api_url):
-    """Verify security headers are set."""
-    r = requests.get(f"{api_url}/health")
-    
-    assert r.headers.get("X-Content-Type-Options") == "nosniff"
-    assert r.headers.get("X-Frame-Options") == "DENY"
-    assert "max-age=" in r.headers.get("Strict-Transport-Security", "")
-```
+The repository auth, authorization, ownership, cost-control, SSRF, and audit
+tests are the executable baseline. Environment checks must exercise the same
+deployed transport and identity configuration that clients will use.
 
 ### 4. Penetration Testing Checklist
 
-For production deployments, consider testing:
+For production deployments, test the threats Primr actually exposes:
 
 | Category | Test | Tool/Method |
 |----------|------|-------------|
-| Authentication | JWT token forgery | Manual + Burp Suite |
-| Authentication | Brute force protection | Custom script |
-| Authorization | Privilege escalation | Manual testing |
-| Input Validation | SQL injection | sqlmap |
-| Input Validation | XSS | Manual + OWASP ZAP |
-| SSRF | Internal network access | Manual testing |
-| Rate Limiting | Bypass attempts | Custom script |
-| API Security | Parameter tampering | Burp Suite |
+| Authentication | JWT forgery, expiry, issuer, and audience | Protocol client plus identity test tokens |
+| Authorization | Tool scopes, report scope, admin scope, and job ownership | MCP and A2A protocol tests |
+| Cost controls | Missing approval, altered estimate, and budget overrun | Offline or stubbed governed-tool tests with provider egress blocked |
+| SSRF | Loopback, private, metadata, redirect, and DNS-rebinding targets | Repository SSRF suite plus isolated staging canaries |
+| Rate limiting | Per-client and per-tool bypass attempts | Protocol-aware load harness |
+| Audit privacy | Secrets, URLs, report paths, and caller ids absent from events | Audit JSONL and admin-resource inspection |
+| Transport | TLS, CORS, proxy headers, body limits, and timeouts | Ingress scanner and deployment checks |
 
-### 5. OWASP ZAP Automated Scan
+### 5. Transport Scanning
 
-```bash
-# Run OWASP ZAP against staging
-docker run -t owasp/zap2docker-stable zap-baseline.py \
-    -t https://staging-api.example.com \
-    -r zap-report.html
-```
+An ingress scanner can assess TLS and generic HTTP behavior, but it cannot
+prove MCP or A2A authorization semantics. Scan only a deployment you control,
+use a non-production identity, and pair the result with protocol-aware tests.
+Do not interpret a generic scan of `/mcp` as proof that tool scopes, job
+ownership, approval tokens, or audit redaction work.
 
 ### 6. Load Testing with Security Focus
 
-```python
-# locustfile.py - Security-focused load test
-from locust import HttpUser, task, between
-
-class SecurityLoadTest(HttpUser):
-    wait_time = between(1, 3)
-    
-    def on_start(self):
-        # Get valid API key
-        self.api_key = "your-test-api-key"
-    
-    @task(10)
-    def valid_request(self):
-        """Normal authenticated request."""
-        self.client.post(
-            "/research",
-            json={"company_name": "Test Corp"},
-            headers={"X-API-Key": self.api_key}
-        )
-    
-    @task(1)
-    def invalid_auth(self):
-        """Test invalid auth handling under load."""
-        self.client.post(
-            "/research",
-            json={"company_name": "Test"},
-            headers={"X-API-Key": "invalid"}
-        )
-    
-    @task(1)
-    def malformed_request(self):
-        """Test malformed request handling."""
-        self.client.post(
-            "/research",
-            data="not-json",
-            headers={"X-API-Key": self.api_key}
-        )
-```
-
-Run with:
-```bash
-locust -f locustfile.py --host=https://staging-api.example.com
-```
+Drive the actual MCP or A2A protocol with isolated staging tokens. Use read
+tools for steady-state traffic and a dedicated client identity when testing
+rate-limit exhaustion. Do not include `research_company`, strategy generation,
+or other billable operations in a load test. Verify bounded latency, correct
+per-client isolation, structured throttling, audit volume, log rotation, and
+recovery after the load stops.
 
 ---
 
@@ -559,63 +502,55 @@ Set up alerts for these security events:
 
 | Event | Threshold | Action |
 |-------|-----------|--------|
-| AUTH_FAILURE | >10/minute from same IP | Block IP, investigate |
-| RATE_LIMIT | >5 clients/hour | Review rate limits |
-| SECURITY_VIOLATION | Any | Immediate investigation |
-| Expired key usage | Any | Contact key owner |
+| `scope_denied` | Repeated for one client hash | Review granted scopes and investigate misuse |
+| `rate_limited` | Repeated after the published retry window | Review client behavior and ingress controls |
+| `exception` | Any sustained cluster | Triage the operation, deployment logs, and dependencies |
+| Failed or expired bearer verification | Any sustained cluster in service logs | Correlate at the identity provider and ingress |
 
 ### Response Procedures
 
 #### 1. Suspected Key Compromise
 
-```python
-from primr.api.auth import revoke_api_key, get_auth
+1. Revoke the model-provider key, JWT signing key, or admin token at its owning
+   secret or identity system.
+2. Replace the deployment secret and restart affected Primr services so the
+   old value is no longer resident in any process.
+3. Review `primr://agent/audit/recent` and the retained JSONL snapshots for the
+   affected client hash, scope, job, and outcome patterns.
+4. Review provider billing and access logs, then invalidate any dependent
+   approval tokens or integration credentials.
 
-# Immediately revoke the compromised key
-revoke_api_key(compromised_key)
-
-# Check for suspicious activity
-auth = get_auth()
-key_info = auth.get_key_info(compromised_key)
-print(f"Last used: {key_info.last_used}")
-print(f"Request count: {key_info.request_count}")
-
-# Issue new key to legitimate user
-new_key = create_api_key("replacement-key")
-```
+The process-local `primr.api.auth` scaffold is not a source of production
+credential history after a restart.
 
 #### 2. Rate Limit Abuse
 
-```python
-# Identify abusive clients from logs
-# grep "RATE_LIMIT" /var/log/primr/security.log | sort | uniq -c | sort -rn
-
-# Temporarily reduce rate limit for abusive client
-auth = get_auth()
-# Or revoke entirely if malicious
-```
+Use the MCP audit stream to identify repeated `rate_limited` outcomes by
+`client_id_hash`. Revoke or narrow the owning JWT or admin token, then apply
+network controls at the ingress when the source is malicious. Do not attempt
+to modify the unrelated process-local REST scaffold.
 
 #### 3. SSRF Attempt Detected
 
-1. Review logs for `SECURITY_VIOLATION: type=ssrf`
-2. Identify source IP and API key
-3. Revoke API key if compromised
-4. Block IP at firewall level
-5. Review URL validation rules
+1. Review the service log and matching MCP audit event for the rejected call.
+2. Correlate the client hash with the identity and ingress logs that own the
+   raw client and network metadata.
+3. Revoke the compromised bearer token or provider credential.
+4. Block the source at the ingress when appropriate.
+5. Preserve the rejected input through the deployment's restricted incident
+   evidence process, then review URL validation and redirect rules.
 
 ### Log Analysis Queries
 
 ```bash
-# Find all auth failures in last hour
-grep "AUTH_FAILURE" /var/log/primr/security.log | \
-    awk -v d="$(date -d '1 hour ago' +%Y-%m-%dT%H)" '$1 > d'
+# Scope denials
+jq -c 'select(.status == "scope_denied")' output/.mcp_audit_log.jsonl
 
-# Find rate-limited clients
-grep "RATE_LIMIT" /var/log/primr/security.log | \
-    grep -oP 'user=\K[^,]+' | sort | uniq -c | sort -rn
+# Rate-limited calls
+jq -c 'select(.status == "rate_limited")' output/.mcp_audit_log.jsonl
 
-# Find security violations
-grep "SECURITY_VIOLATION" /var/log/primr/security.log
+# Exceptions and visible operation failures
+jq -c 'select(.status == "exception" or .status == "error")' output/.mcp_audit_log.jsonl
 ```
 
 ---
@@ -630,6 +565,7 @@ grep "SECURITY_VIOLATION" /var/log/primr/security.log
 | `MCP_JWT_ISSUER` | JWT issuer validation | `primr-api` |
 | `MCP_JWT_AUDIENCE` | JWT audience validation | `primr-clients` |
 | `MCP_ADMIN_TOKENS` | Static admin tokens | `token1,token2` |
+| `MCP_ADMIN_TOKEN_MAX_AGE_HOURS` | Reject static admin tokens after first-use age | `720` |
 | `PRIMR_CORS_ORIGINS` | Allowed CORS origins | `https://app.example.com` |
 
 ### Security Test Commands
@@ -649,7 +585,7 @@ pip-audit
 
 | Key Type | Rotation Frequency | Grace Period |
 |----------|-------------------|--------------|
-| Production API keys | 90 days | 48 hours |
-| Development keys | 30 days | 24 hours |
-| Admin tokens | 30 days | 4 hours |
-| JWT secrets | 180 days | 7 days |
+| Model-provider keys | Provider and deployment policy | Provider-managed overlap when supported |
+| MCP admin tokens | 30 days or stricter local policy | Deployment-controlled restart window |
+| JWT signing secrets | Identity and deployment policy | Issuer-controlled overlap |
+| Process-local REST scaffold keys | Not applicable to production | Lost on process restart |

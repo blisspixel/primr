@@ -29,6 +29,30 @@ class TestPositionalArgs:
 
 
 class TestScopedHelp:
+    def test_root_help_is_concise_and_workflow_first(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            parse_args(["--help"])
+
+        assert exc_info.value.code == 0
+        output = capsys.readouterr().out
+        assert len(output.splitlines()) < 100
+        assert "Agent host, $0 Primr model API spend" in output
+        assert "Provider-backed dossier" in output
+        assert "--dry-run" in output
+        assert "--check-jobs" in output
+        assert "--help-all" in output
+        assert "--eval-stage-scorecard" not in output
+
+    def test_help_all_preserves_complete_reference(self, capsys):
+        with pytest.raises(SystemExit) as exc_info:
+            parse_args(["--help-all"])
+
+        assert exc_info.value.code == 0
+        output = capsys.readouterr().out
+        assert "--eval-stage-scorecard" in output
+        assert "--accordion-pages" in output
+        assert "ExampleCo" in output
+
     def test_init_help_is_short_and_command_specific(self, capsys):
         with pytest.raises(SystemExit) as exc_info:
             parse_args(["init", "--help"])
@@ -63,6 +87,12 @@ class TestScopedHelp:
         assert init.init_skip_browsers is True
         assert doctor.command == Command.DOCTOR
         assert doctor.doctor_scraper_stats is True
+
+    def test_yes_can_confirm_pending_job_cleanup(self):
+        cleanup = parse_args(["--clear-jobs", "--yes"])
+
+        assert cleanup.command == Command.CLEAR_JOBS
+        assert cleanup.init_yes is True
 
 
 class TestCompanyCommand:

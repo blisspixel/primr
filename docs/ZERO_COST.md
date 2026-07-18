@@ -22,7 +22,7 @@ electricity, network access, and plan capacity are not free or unlimited.
 | DNS and infrastructure signals only | `primr recon company.com` | `$0.00` | A fast passive DNS snapshot |
 | Strong local evidence for an existing agent plan | `primr prep` | `$0.00` during collection | Fenced evidence packet, source index, manifest, hashes, traces, DNS, pages, and hiring signals when available |
 | A sourced dossier with no key or GPU | `primr prep` plus `primr-zero` | `$0.00` for collection; `$0.00` total incremental only with verified plan-backed host execution and no overages | Host-assisted Strategic Overview, depth dependent on evidence and host allowance |
-| No shell, but the host can search and reason | `primr-zero` host-native fallback | Uses the existing host plan only after billing verification; otherwise cost is unknown or potentially metered | A lighter dossier without Primr DNS, adaptive collection, ATS adapters, or local QA |
+| No working Primr launcher, but the host can search and reason | `primr-zero` host-native fallback | Uses the existing host plan only after billing verification; otherwise cost is unknown or potentially metered | A lighter dossier without Primr DNS, adaptive collection, ATS adapters, traces, or local QA |
 | Reproducible full Primr pipeline | Estimated provider-backed run | Billable | Primr workbook, external research, writing, cross-validation, trust stages, strategy modules, and rendered artifacts |
 
 The host-assisted result is deliberately labeled as such. A subscription can
@@ -103,8 +103,9 @@ claim verification. Those happen later in the chosen host.
 ## Install the Primr Zero skill
 
 Install the entire `primr-zero` directory so its reference files remain
-available. The canonical copy is `.agents/skills/primr-zero/`; the Claude plugin
-and installed Python package ship byte-identical mirrors.
+available. The canonical copy is `.agents/skills/primr-zero/`; the repository
+Claude project skill, Claude plugin, and installed Python package ship
+byte-identical mirrors.
 
 The wheel includes the skill, so pip and pipx users can install it without a
 source checkout:
@@ -118,6 +119,7 @@ Use `~/.claude/skills/primr-zero` as the destination for Claude Code.
 | Host shape | Install or use |
 |------------|----------------|
 | Repository Agent Skills | Keep `.agents/skills/primr-zero/` at the workspace root when the host supports repository skill discovery |
+| Claude Code in this repository | Use the checked `.claude/skills/primr-zero/` and `.claude/skills/primr/` project skills |
 | Codex personal skills | Install to `~/.agents/skills/primr-zero/` |
 | Claude Code personal skills | Copy the Claude mirror to `~/.claude/skills/primr-zero/`, or install the Primr Claude plugin |
 | GitHub Copilot personal skills | Install to `~/.agents/skills/primr-zero/` or `~/.copilot/skills/primr-zero/` |
@@ -125,11 +127,13 @@ Use `~/.claude/skills/primr-zero` as the destination for Claude Code.
 | Kiro, Cursor, or another skill-aware host | Use the host's documented Agent Skills directory; prefer the canonical repository folder when supported |
 | Cowork or another research UI without a local shell | Run `primr prep` elsewhere, attach or import the bundle, and use `HOST_WORKFLOW.md` plus the skill instructions through the host's official skill or instruction surface |
 
-If the host has no shell, it cannot run `primr prep`. It can still analyze an
-attached bundle. If it has web research but no bundle, the skill falls back to
-host-native research and explicitly records which Primr collection advantages
-were unavailable. If it has neither web research nor supplied sources, it must
-stop rather than produce a current dossier from model memory.
+If the host has no shell, cannot launch Primr, or cannot install it with user
+approval, it cannot run `primr prep`. It can still analyze an attached bundle.
+If it has web research but no bundle, the skill falls back to host-native
+research and explicitly records which Primr collection advantages were
+unavailable. Installation is optional for this fallback, not a blocker. If the
+host has neither web research nor supplied sources, it must stop rather than
+produce a current dossier from model memory.
 
 ## Hand the dossier to another workflow
 

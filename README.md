@@ -55,12 +55,13 @@ the dossier, runs artifact QA when possible, and hands exact output paths to
 any downstream workflow you request. You do not need to know or select the
 internal `prep` command.
 
-If the host has no shell, Primr Zero falls back to host-native web research and
-discloses which Primr collection signals were unavailable. A configured API
-key is never treated as permission to spend. To choose the paid pipeline, say
-so explicitly, for example: "Run paid provider-backed Primr, show me the
-estimate first." The agent must still wait for approval after showing that
-estimate.
+If the host has no shell, cannot launch Primr, or cannot install it with your
+approval, Primr Zero falls back to host-native web research and discloses which
+Primr collection signals were unavailable. It does not block the useful free
+path on installation. A configured API key is never treated as permission to
+spend. To choose the paid pipeline, say so explicitly, for example: "Run paid
+provider-backed Primr, show me the estimate first." The agent must still wait
+for approval after showing that estimate.
 
 ## Quick Start
 
@@ -71,17 +72,7 @@ Requirements:
 - API keys are required only for provider-backed research. The measured low-cost default uses xAI plus Gemini.
 - Browser dependencies installed by `primr init` for browser-backed scraping tiers.
 
-Install with the script:
-
-```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/blisspixel/primr/main/scripts/install.ps1 | iex"
-```
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/blisspixel/primr/main/scripts/install.sh | bash
-```
-
-Or install with pipx:
+Install the versioned package with pipx:
 
 ```bash
 pipx install primr
@@ -93,6 +84,24 @@ Plain pip also works:
 ```bash
 pip install primr
 primr --version
+```
+
+The convenience installers set up pipx and account for common PATH issues.
+Download and inspect the script before executing it.
+
+```powershell
+$primrInstaller = Join-Path $env:TEMP "primr-install.ps1"
+Invoke-WebRequest https://raw.githubusercontent.com/blisspixel/primr/main/scripts/install.ps1 -OutFile $primrInstaller
+Get-Content $primrInstaller
+powershell -ExecutionPolicy Bypass -File $primrInstaller
+```
+
+```bash
+primr_installer="$(mktemp)"
+trap 'rm -f "$primr_installer"' EXIT
+curl -fsSL https://raw.githubusercontent.com/blisspixel/primr/main/scripts/install.sh -o "$primr_installer"
+cat "$primr_installer"
+bash "$primr_installer"
 ```
 
 Initialize provider keys and browser dependencies only when you want the
@@ -134,6 +143,11 @@ primr prep --install-skill ~/.agents/skills/primr-zero
 
 Claude Code uses `~/.claude/skills/primr-zero` instead.
 
+A source checkout already includes synchronized project skills at
+`.agents/skills/primr-zero/`, `.claude/skills/primr-zero/`, and
+`.claude/skills/primr/`. Supported agent hosts can discover the applicable
+guidance directly from the repository.
+
 Prep collection is `$0.00` in model API spend. Host synthesis is also zero
 incremental only when the host is verified to use included plan allowance with
 no API billing or overages. Subscription terms, plan limits, electricity, and
@@ -169,7 +183,9 @@ Human dry-runs end with concise launch, monitoring, recovery, and artifact-retri
 Cached vendor research is reused when present. Fresh vendor-research generation or refresh requires `--refresh-vendor-research`, `primr --generate-vendor-research`, or `PRIMR_ALLOW_VENDOR_REFRESH=1`.
 PDF text extraction uses local PyMuPDF by default; Gemini PDF extraction is opt-in with `PRIMR_PDF_LLM_MAX_CALLS=N`.
 
-`primr init --help` and `primr doctor --help` show focused one-screen guidance for onboarding and diagnostics. Use `primr --help` for the complete command reference.
+`primr --help`, `primr init --help`, and `primr doctor --help` show focused
+one-screen guidance. Use `primr --help-all` for every command and advanced
+option.
 
 See [Run Modes and Costs](docs/RUN_MODES.md) for the full mode matrix, platform selection, strategy types, premium modes, and output examples.
 

@@ -220,6 +220,56 @@ def test_ci_builds_documentation_strictly() -> None:
     assert "mkdocs build --strict" in ci_workflow
 
 
+def test_public_install_guidance_avoids_remote_code_piping() -> None:
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    powershell_installer = (REPO_ROOT / "scripts" / "install.ps1").read_text(encoding="utf-8")
+    shell_installer = (REPO_ROOT / "scripts" / "install.sh").read_text(encoding="utf-8")
+    combined = "\n".join((readme, powershell_installer, shell_installer)).lower()
+
+    assert readme.index("pipx install primr") < readme.index("convenience installers")
+    assert "download and inspect" in readme.lower()
+    assert re.search(r"\|\s*(?:iex|bash|sh)\b", combined) is None
+
+
+def test_installers_separate_keyless_and_provider_backed_next_steps() -> None:
+    installers = (
+        (REPO_ROOT / "scripts" / "install.ps1").read_text(encoding="utf-8"),
+        (REPO_ROOT / "scripts" / "install.sh").read_text(encoding="utf-8"),
+    )
+
+    for installer in installers:
+        assert "Keyless agent-host path:" in installer
+        assert "Provider-backed path:" in installer
+        assert "prep" in installer
+        assert "ExampleCo" in installer
+        assert "https://example.co --dry-run" in installer
+        assert "Review the estimate and approve spend" in installer
+        assert "Quick start:" not in installer
+
+
+def test_security_operations_match_supported_runtime_boundaries() -> None:
+    guide = (REPO_ROOT / "docs" / "SECURITY_OPS.md").read_text(encoding="utf-8")
+    normalized = " ".join(guide.split())
+
+    assert "process-local development scaffold" in guide
+    assert "not wired to the production pipeline" in normalized
+    assert "primr://agent/audit/recent?limit=50" in guide
+    assert "output/.mcp_audit_log.jsonl" in guide
+    assert 'glob("*.log")' not in guide
+    assert "log_file.unlink()" not in guide
+    assert "rather than CI/CD" not in guide
+    assert "Repository CI hard-gates Bandit" in guide
+    testing_section = guide.split("## Security Testing", 1)[1].split("## Incident Response", 1)[0]
+    assert "official client" in testing_section
+    assert "process-local REST scaffold" in testing_section
+    assert '"/research"' not in testing_section
+    assert "X-API-Key" not in testing_section
+    assert "staging-api.example.com" not in testing_section
+    assert "provider credentials absent" in testing_section
+    assert "provider egress blocked" in testing_section
+    assert "separately estimated" in testing_section
+
+
 def test_all_runtime_surfaces_use_supported_python_floor() -> None:
     floor = _read_pyproject_python_floor()
     compact_floor = floor.replace(".", "")

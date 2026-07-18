@@ -112,15 +112,37 @@ def run_prep_cli(args: list[str] | None) -> int:
         print(f"Primr prep failed: {exc}", file=sys.stderr)
         return 1
 
-    print(f"Primr prep complete for {parsed.company_name}")
+    if result.status == "completed":
+        print(f"Primr prep complete for {parsed.company_name}")
+    else:
+        print(f"Primr prep partial for {parsed.company_name}")
+        print("  The bundle is usable, but coverage is incomplete.")
     print("  Incremental API spend: $0.00")
     print(f"  Pages: {result.pages_collected}")
-    print(f"  Hiring postings indexed: {result.hiring_postings}")
-    print(f"  DNS recon: {'collected' if result.recon_collected else 'unavailable or skipped'}")
+    hiring_status = (
+        "skipped" if parsed.skip_hiring else f"{result.hiring_postings} postings indexed"
+    )
+    recon_status = (
+        "skipped"
+        if parsed.skip_recon
+        else ("collected" if result.recon_collected else "not collected")
+    )
+    print(f"  Hiring signals: {hiring_status}")
+    print(f"  DNS recon: {recon_status}")
+    if result.coverage_warnings:
+        print("  Coverage notes:")
+        for warning in result.coverage_warnings:
+            print(f"    - {warning}")
+    print(f"  Source index: {result.source_index_path}")
     print(f"  Evidence packet: {result.host_packet_path}")
+    print(f"  Host workflow: {result.workflow_path}")
     print(f"  Portable skill: {result.bundle_dir / 'primr-zero'}")
     print(f"  Manifest: {result.manifest_path}")
     print(f"  Bundle: {result.bundle_dir}")
+    print(
+        "  Next: give the bundle to a research-capable host and have it read the "
+        "manifest, source index, evidence packet, host workflow, and primr-zero skill."
+    )
     return 0
 
 

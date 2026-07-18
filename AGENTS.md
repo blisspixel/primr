@@ -85,8 +85,10 @@ primr --version
 If the current workspace is a Primr source checkout and `primr` is not on
 `PATH`, try `uv run --no-sync primr --version`. When that succeeds, use
 `uv run --no-sync primr` anywhere these instructions show `primr`. If neither
-launcher works, follow the install guidance below. Do not install or sync an
-environment without approval.
+launcher works during Primr Zero, continue with the host-native research
+fallback when the host can search the web. You may offer installation, but do
+not block useful work on it and do not install or sync an environment without
+approval. A provider-backed request does require a working Primr installation.
 
 Before a provider-backed run, also check its configuration:
 
@@ -94,11 +96,13 @@ Before a provider-backed run, also check its configuration:
 primr doctor
 ```
 
-If `primr` is not on `PATH`:
+For an explicitly provider-backed request where Primr is not installed:
 
-> "primr isn't installed. It's a Python CLI from github.com/blisspixel/primr. Use `pip install primr` on Python 3.12+. For the hard-zero path, install only and then run `primr prep`; no provider setup is needed. For a provider-backed run, use `primr init` after installation. Want me to walk through it?"
+> "Primr isn't installed. It's a Python CLI from github.com/blisspixel/primr. For this provider-backed run, use `pipx install primr` on Python 3.12+, then run `primr init`. Want me to walk through it?"
 
-Wait for explicit approval before running `pip install`. If `primr doctor`
+Wait for explicit approval before running `pip install`. For Primr Zero, if
+installation is declined or unavailable, proceed with the host-native fallback
+and disclose the unavailable Primr collectors. If `primr doctor`
 reports missing keys, do not attempt to set them yourself. Missing keys block
 provider-backed research, but they do not block `primr prep` or `primr recon`.
 
@@ -151,11 +155,13 @@ emitted `primr-zero/SKILL.md` for host research, writing, and QA. Never pass
 host OAuth tokens or cookies into Primr, and never switch to a paid run
 silently.
 
-Without shell access, use the host's supported web research and file tools to
-follow the same Primr Zero report contract. Disclose that Primr DNS,
-browser-backed collection, ATS adapters, scrape traces, and local artifact QA
-were unavailable. If the host cannot research the web, ask for a prep bundle
-or source files instead of writing from model memory.
+Without shell access, or when the Primr launcher is unavailable and installation
+is declined or cannot proceed, use the host's supported web research and file
+tools to follow the same Primr Zero report contract. Do not stall on the missing
+launcher. Disclose that Primr DNS, browser-backed collection, ATS adapters,
+scrape traces, and local artifact QA were unavailable. If the host cannot
+research the web, ask for a prep bundle or source files instead of writing from
+model memory.
 
 `--mode scrape` is still a billable provider-backed mode, typically around
 `$0.10`. It is not Primr Zero and must not be presented as the free or cheapest
