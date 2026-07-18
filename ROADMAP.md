@@ -332,6 +332,11 @@ into generic agent middleware.
 - Foreground/background stage classification - foreground stages retry aggressively, background stages bail on API overload or budget stress
 - Recovery executor that orchestrates retry/fallback/skip logic and logs events to `_run_state.json`
 - `--dry-run` shows concise stage classifications and recovery hierarchies, followed by launch, monitoring, interruption-recovery, and artifact-retrieval steps. `--verbose` includes the serialized recovery policy; `--json` remains a single machine-readable estimate object.
+- Primr Zero prep bundles now assemble in private same-root staging directories
+  and become discoverable only after a complete manifest is ready. Collection
+  failures and interrupts remove unpublished work, artifact scans ignore active
+  staging directories, and skill-install dry runs report their requested
+  destination without network access or file writes.
 - Public-data fallback fan-out (`src/primr/data/fallback_sources.py`): when origin is blocked, fetches in parallel from Wayback CDX, sister subdomains, RSS/Atom feeds, SEC EDGAR 10-Ks, Wikipedia REST, and Grok web_search synthesis
 - Hiring-signal gathering (`src/primr/data/hiring_signals.py`): ten ATS/provider adapters (Greenhouse / Lever / Ashby / SmartRecruiters / Workday / Workable / Recruitee / Jobvite / iCIMS / BambooHR), repeatable explicit career / ATS URL inputs for segmented boards, corpus-driven Workday URL discovery for known boards, HTML careers-page fallback, DuckDuckGo web-search fallback across major job-board hosts when every other path comes up empty, LLM-triaged extraction threaded into all downstream phases. Skill packs are job-posting-first: when both posting and research evidence are empty the pipeline fails closed unless `--allow-recon-only` is passed.
 

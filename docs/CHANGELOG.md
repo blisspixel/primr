@@ -42,6 +42,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   coverage warnings from the evidence manifest, lists the source index and host
   workflow alongside the evidence packet, and prints one explicit host handoff
   action.
+- `primr prep` now publishes a bundle only after assembling its complete
+  manifest in private same-root staging. Collection errors and interrupts leave
+  no discoverable partial directory, artifact scans ignore active prep staging,
+  and `--install-skill ... --dry-run` previews the destination without network
+  access or file writes.
 - Primr Zero host workflows now fence target metadata as untrusted data, use
   the canonical Confirmed, Reported, Estimated, and Hypothesis vocabulary,
   checkpoint the Markdown report inside the prep bundle, and confirm its
