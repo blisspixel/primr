@@ -5,9 +5,23 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pytest
+
 from primr.core import cli, cli_recovery
+
+
+@pytest.fixture(autouse=True)
+def _bridge_pending_job_test_seam(monkeypatch):
+    import primr.ai.deep_research as deep_research
+
+    monkeypatch.setattr(
+        cli_recovery,
+        "_read_pending_jobs",
+        lambda: (True, deep_research.get_pending_jobs()),
+    )
 
 
 def test_build_recovered_basename_ai_strategy_includes_company_vendor_and_date():
@@ -47,7 +61,12 @@ def test_save_recovered_outputs_writes_md_txt_and_docx(tmp_path, monkeypatch):
     }
     content = "# Title\n\nRecovered content."
 
-    with patch("primr.output.markdown_converter.markdown_to_docx") as mock_to_docx:
+    def render_docx(**kwargs):
+        Path(kwargs["output_path"]).write_bytes(b"docx")
+
+    with patch(
+        "primr.output.markdown_converter.markdown_to_docx", side_effect=render_docx
+    ) as mock_to_docx:
         outputs = cli_recovery._save_recovered_outputs("interaction-123", job_info, content)
 
     assert outputs["md"].endswith(".md")
@@ -144,10 +163,39 @@ def test_resume_pending_jobs_falls_back_to_txt_when_finalize_fails(tmp_path, mon
 
     exit_code = cli.resume_pending_jobs()
 
-    fallback = tmp_path / "recovered_deep_research_job-1.txt"
+    token = cli_recovery._safe_interaction_fragment("job-1")
+    fallback = tmp_path / f"recovered_deep_research_{token}.txt"
     assert fallback.exists()
     assert fallback.read_text(encoding="utf-8") == "Recovered body"
     assert exit_code == 1
+
+
+def test_resume_fallback_sanitizes_and_contains_interaction_id(tmp_path, monkeypatch):
+    import importlib
+
+    deep_research_module = importlib.import_module("primr.ai.deep_research")
+    interaction_id = "a\\..\\..\\private"
+    jobs = {interaction_id: {"description": "Recovery", "type": "deep_research"}}
+    client = Mock()
+    client.check_job.return_value = {"status": "completed", "content": "Recovered body"}
+    output_dir = tmp_path / "output"
+
+    monkeypatch.setattr(cli, "OUTPUT_DIR", str(output_dir))
+    monkeypatch.setattr(cli_recovery, "OUTPUT_DIR", str(output_dir))
+    monkeypatch.setattr(deep_research_module, "get_pending_jobs", lambda: jobs)
+    monkeypatch.setattr(deep_research_module, "get_deep_research_client", lambda: client)
+    monkeypatch.setattr(
+        cli_recovery,
+        "_save_recovered_outputs",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("render failed")),
+    )
+
+    assert cli.resume_pending_jobs() == 1
+
+    token = cli_recovery._safe_interaction_fragment(interaction_id)
+    fallback = output_dir / f"recovered_deep_research_{token}.txt"
+    assert fallback.read_text(encoding="utf-8") == "Recovered body"
+    assert not (tmp_path / "private.txt").exists()
 
 
 def test_resume_pending_jobs_returns_error_for_mixed_batch(monkeypatch):

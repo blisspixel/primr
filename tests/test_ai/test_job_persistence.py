@@ -393,6 +393,12 @@ class TestGetPendingJobs:
 
         assert get_pending_jobs_with_status() == (False, {})
 
+    def test_status_rejects_non_object_job_entry(self, job_path):
+        job_path.write_text('{"j1": null}', encoding="utf-8")
+
+        assert get_pending_jobs_with_status() == (False, {})
+        assert get_pending_jobs() == {}
+
 
 class TestConcurrency:
     """Confirm the file lock prevents concurrent-write corruption."""

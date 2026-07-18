@@ -679,16 +679,26 @@ queue. It does not reorder the feature priorities above.
 - **Visual polish debt:** no separate graphical surface is in scope. Terminal,
   Markdown, DOCX, and PDF presentation remain governed by their existing
   renderer and artifact-regression workstreams.
-- **Observability debt:** cloud doctor now reserves `ok` for its live control
-  plane probe and labels unprobed dependencies `configured` without exposing
-  endpoint or account values. Remaining operator work is audit-writer health
-  visibility and production-shaped service probes where credentials permit.
+- **Observability debt:** cloud doctor reserves `ok` for its live control-plane
+  probe and labels unprobed dependencies `configured` without exposing endpoint
+  or account values. MCP/A2A doctor and the admin audit resource now expose a
+  body-free audit-sink snapshot, including not-observed/ok/degraded state,
+  recent write/read outcomes, malformed-event count, and bounded-tail status.
+  Cloud probe failures now affect overall health in both transports, and audit
+  metadata is normalized, size-capped, and schema-checked before admin reads.
+  The audit sink also rejects symbolic-link targets and reports external
+  replacement or truncation after a successful write. Production-shaped
+  service probes remain where credentials permit.
 - **Reliability debt:** destructive pending-job cleanup now requires
   confirmation, holds an operating-system lock across each atomic
   read-modify-write transaction, fails visibly on malformed state, and
   preserves records added after preview even when another Primr process writes
-  concurrently. Transactional recovery-artifact finalization remains a
-  separate bounded follow-up.
+  concurrently. Recovered MD/TXT/DOCX files now render and verify in a
+  same-filesystem staging directory before promotion, with restoration of
+  pre-existing outputs on an in-process failure or user interruption. Recovery
+  registry read failures are visible and artifact paths reject traversal and
+  symbolic links. Abrupt process termination during multi-file promotion and
+  same-day name-collision policy remain explicit bounded follow-ups.
 - **Security debt:** versioned package installation is the trusted default;
   convenience scripts are download-inspect-run only. Security operations now
   distinguish provider credentials, MCP/A2A JWTs, admin tokens, and the

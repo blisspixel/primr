@@ -272,6 +272,9 @@ def get_pending_jobs_with_status() -> tuple[bool, dict[str, dict[str, Any]]]:
                 if not isinstance(result, dict):
                     logger.warning("Jobs file corrupted (not a dict)")
                     return False, {}
+                if not all(isinstance(job, dict) for job in result.values()):
+                    logger.warning("Jobs file corrupted (job entry is not an object)")
+                    return False, {}
                 return True, result
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
             logger.warning(f"Failed to read jobs file: {e}")

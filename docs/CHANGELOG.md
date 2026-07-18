@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `primr doctor` now treats a valid no-key installation as ready with warnings:
+  keyless prep and recon remain available while provider-backed research is
+  marked unavailable. Its default connectivity check no longer sends a model
+  generation request. Root help and local-state output now distinguish
+  completed provider-job finalization (`--resume-latest`) from local run
+  continuation (`--resume-local`).
+- MCP and A2A doctor output now preserves its legacy fields while adding the
+  advertised overall `status`, component `checks`, and a body-free audit-sink
+  projection. Recent audit reads use a capped tail rather than loading the
+  entire retained JSONL, report malformed complete events, and distinguish an
+  unobserved sink from read/write degradation without exposing paths, event
+  bodies, URLs, caller ids, or exception messages.
+- Cloud health failures now affect the overall MCP and A2A doctor status, live
+  health response bodies are not echoed, and A2A operational logs record only
+  known skill labels and message lengths. Audit labels are allowlisted or
+  normalized, encoded events are size-capped, and recent reads reject invalid
+  event envelopes and additive fields. Audit file access rejects symbolic-link
+  targets, and health reports replacement or truncation after a successful
+  write. Invalid, non-finite, or negative cloud cost limits now degrade health
+  instead of emitting non-standard JSON values.
 - Root `primr --help` is now a concise, workflow-first surface covering Primr
   Zero, provider-backed estimation, recovery, and keyless commands; the full
   argparse reference remains available through `primr --help-all`. Public
@@ -83,6 +103,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Recovered MD/TXT/DOCX deliverables now render and verify in a same-filesystem
+  staging directory before any canonical path is promoted. In-process
+  promotion failures remove new files and restore pre-existing outputs; an
+  incomplete rollback preserves staged backups visibly for diagnosis. Fallback
+  TXT writes are atomic and a fallback failure no longer aborts later pending
+  jobs.
+- Provider recovery now fails visibly when the pending-job registry cannot be
+  read or contains a non-object job entry, restores prior artifacts after an
+  in-process interruption, rejects symbolic-link artifacts, and derives
+  contained collision-resistant filenames from provider interaction ids.
 - `primr --clear-jobs` no longer calls every pending recovery record stale or
   overwrites the registry directly. It requires confirmation unless `--yes` is
   supplied, removes only the previewed records under the canonical lock and

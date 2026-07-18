@@ -16,6 +16,18 @@ from primr.core.cli import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _bridge_pending_job_test_seam(monkeypatch):
+    import primr.ai.deep_research as deep_research
+    from primr.core import cli_recovery
+
+    monkeypatch.setattr(
+        cli_recovery,
+        "_read_pending_jobs",
+        lambda: (True, deep_research.get_pending_jobs()),
+    )
+
+
 @pytest.fixture
 def output_dir(tmp_path, monkeypatch):
     """Redirect OUTPUT_DIR to tmp_path."""
@@ -215,6 +227,27 @@ class TestCheckApiQuota:
 
 
 class TestCheckPendingJobs:
+    def test_unreadable_registry_is_visible_and_nonzero(self, monkeypatch, capsys):
+        from primr.core import cli_recovery
+
+        monkeypatch.setattr(cli_recovery, "_read_pending_jobs", lambda: (False, {}))
+
+        assert check_pending_jobs() == 1
+        assert "could not read the recovery registry" in capsys.readouterr().out
+
+    def test_unreadable_registry_json_is_visible_and_nonzero(self, monkeypatch, capsys):
+        import json
+
+        from primr.core import cli_recovery
+
+        monkeypatch.setattr(cli_recovery, "_read_pending_jobs", lambda: (False, {}))
+
+        assert check_pending_jobs(json_output=True) == 1
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["status"] == "error"
+        assert payload["error"]["kind"] == "recovery_registry_unreadable"
+        assert payload["jobs"] == []
+
     def test_json_status_is_one_versioned_object(self, monkeypatch, capsys):
         import json
 

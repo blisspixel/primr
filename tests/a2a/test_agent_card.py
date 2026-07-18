@@ -41,6 +41,17 @@ class TestBuildAgentCard:
         assert "read_stage_scorecard" in skill_ids
         assert "system_health" in skill_ids
 
+    def test_system_health_description_matches_runtime_checks(self):
+        card = build_agent_card(version="1.0.0")
+        health = next(skill for skill in card.skills if skill.id == "system_health")
+
+        assert "audit persistence" in health.description
+        assert "keyless" in health.description
+        assert "provider-key configuration" in health.description
+        assert "cloud health" in health.description
+        assert "provider-backed readiness" not in health.description
+        assert "dependencies" not in health.description
+
     def test_capabilities(self):
         card = build_agent_card(version="1.0.0")
         assert card.capabilities.streaming is True

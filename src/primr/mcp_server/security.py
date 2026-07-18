@@ -542,6 +542,7 @@ class RateLimiter:
         "run_qa": 10,
         "clear_jobs": 10,
         "cancel_job": 10,
+        "unknown_tool": 10,
     }
 
     def __init__(self, window_minutes: int = 1):

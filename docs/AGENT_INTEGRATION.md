@@ -121,6 +121,12 @@ Important MCP concepts:
 - HTTP mode can enforce server-side cost caps and approval tokens.
 - Audit resources record MCP tool calls, MCP resource reads, and A2A skill
   calls with hashed payloads and normalized resource kinds for admin review.
+- MCP/A2A doctor and the recent-audit resource expose only body-free audit-sink
+  state (`not_observed`, `ok`, or `degraded`) and bounded-reader metadata; no
+  path, event body, URL, caller id, or exception message is returned.
+- A first health read reports overall `degraded` while audit persistence is
+  `not_observed`. Subsequent health reads can report `healthy` only after the
+  shared MCP/A2A audit sink has been observed successfully.
 
 Full tool and resource details are in [MCP and A2A API](API.md).
 

@@ -38,7 +38,7 @@ from primr.a2a.input_parsing import (
 from primr.a2a.lifecycle_events import A2ALifecycleEvents
 from primr.a2a.prelaunch import publish_working_status, start_worker_or_terminalize
 from primr.a2a.resource_reads import handle_a2a_resource_read, resource_read_skill_list
-from primr.a2a.skill_ids import A2A_RESOURCE_READ_SKILLS
+from primr.a2a.skill_ids import A2A_READ_SKILLS, A2A_RESEARCH_SKILLS, A2A_RESOURCE_READ_SKILLS
 from primr.a2a.status_events import status_update_event as _status_update_event
 from primr.a2a.types import A2ATaskMapping
 from primr.mcp_server import research_validation
@@ -108,7 +108,9 @@ class PrimrAgentExecutor(AgentExecutor):
         audit_payload: dict[str, Any] | None = None
         caught_exception: BaseException | None = None
 
-        logger.info("A2A execute: skill=%s, text=%s", skill_id, text[:100] if text else "")
+        known_skills = A2A_READ_SKILLS | A2A_RESEARCH_SKILLS | A2A_RESOURCE_READ_SKILLS
+        logged_skill = skill_id if skill_id in known_skills else "unknown"
+        logger.info("A2A execute: skill=%s, text_length=%d", logged_skill, len(text))
 
         try:
             decision = authorize_a2a_skill(skill_id, getattr(self._mcp, "_auth_context", None))
@@ -144,7 +146,7 @@ class PrimrAgentExecutor(AgentExecutor):
         except Exception as exc:
             caught_exception = exc
             audit_payload = {"error": True, "error_type": exc.__class__.__name__}
-            logger.exception("A2A executor error for skill=%s", skill_id)
+            logger.exception("A2A executor error for skill=%s", logged_skill)
             task_id = context.task_id
             context_id = context.context_id or task_id
             if task_id and context_id:
@@ -308,7 +310,7 @@ class PrimrAgentExecutor(AgentExecutor):
             )
             return payload
         except Exception:
-            # Don't echo the raw exception — provider errors can contain
+            # Do not echo the raw exception; provider errors can contain
             # internal hostnames, file paths, or API-key fragments. The
             # operator-side log has the full traceback.
             logger.exception("A2A estimate failed")
@@ -687,7 +689,7 @@ class PrimrAgentExecutor(AgentExecutor):
 
         if not report_path:
             # Try to find the caller's latest report from the most recent job. Don't
-            # auto-target jobs created by stdio/MCP — leaking another tenant's
+            # auto-target jobs created by stdio/MCP, which could leak another tenant's
             # report path via A2A would defeat the by_job ownership gate.
             terminal = self._mcp.job_store.get_latest_terminal()
             if (
@@ -718,9 +720,18 @@ class PrimrAgentExecutor(AgentExecutor):
     async def _handle_doctor(self, event_queue: EventQueue) -> dict[str, Any]:
         """Handle system_health skill - synchronous."""
         try:
-            status = get_doctor_status()
+            status = get_doctor_status(audit_log=self._mcp.audit_log)
+            from primr.mcp_server.cloud_detect import is_cloud_mode
+
+            if is_cloud_mode():
+                from primr.mcp_server.cloud_diagnostics import get_cloud_diagnostics
+                from primr.mcp_server.doctor_status import attach_cloud_diagnostics
+
+                attach_cloud_diagnostics(status, await get_cloud_diagnostics())
+            else:
+                status["cloud_mode"] = False
             await event_queue.enqueue_event(
-                new_agent_text_message(json.dumps(status, indent=2, default=str))
+                new_agent_text_message(json.dumps(status, indent=2, default=str, allow_nan=False))
             )
             return status if isinstance(status, dict) else {"status": "healthy"}
         except Exception:

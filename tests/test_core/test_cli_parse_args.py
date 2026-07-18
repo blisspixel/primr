@@ -40,6 +40,8 @@ class TestScopedHelp:
         assert "Provider-backed dossier" in output
         assert "--dry-run" in output
         assert "--check-jobs" in output
+        assert "Finalize completed provider jobs" in output
+        assert "--resume-local" in output
         assert "--help-all" in output
         assert "--eval-stage-scorecard" not in output
 

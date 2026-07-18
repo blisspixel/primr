@@ -1401,7 +1401,40 @@ successful probe. Cosmos DB, Blob Storage, Service Bus, Application Insights,
 and cost-governor entries report `status: configured` with
 `probe_performed: false` when their configuration is present. They do not
 claim connectivity, and the diagnostic omits endpoint, account, and connection
-values. Missing optional configuration reports `status: not_configured`.
+values. It also discards the `/healthz` response body. Missing optional
+configuration reports `status: not_configured`. A failed live probe or invalid
+cloud health configuration adds a failed cloud component and prevents the
+overall MCP or A2A status from reporting `healthy`.
+
+The response retains `orphaned_stores_count`, `config_valid`,
+`api_keys_configured`, and `warnings` for compatibility and adds:
+
+```json
+{
+  "status": "degraded",
+  "checks": [
+    {"component": "configuration", "status": "ok"},
+    {"component": "provider_keys", "status": "not_configured"},
+    {"component": "output_directory", "status": "ok"},
+    {"component": "audit_log", "status": "not_observed"}
+  ],
+  "audit_log": {
+    "schema_version": "1.0",
+    "status": "not_observed",
+    "sink": "jsonl",
+    "write_attempted": false,
+    "read_attempted": false
+  }
+}
+```
+
+`healthy` means all represented checks are ready, `degraded` means the process
+is usable with a limitation or warning, and `unhealthy` means configuration
+validation failed. Missing provider keys are degraded rather than unhealthy
+because keyless prep and recon remain available. The audit component exposes
+no path, event body, URL, caller id, or exception message. Configuration
+validation details and output paths remain in server logs rather than this
+read-scoped response.
 
 #### clear_jobs
 
@@ -1723,12 +1756,20 @@ callers need `admin` scope. Events include request ids, body-free
 OpenTelemetry span projections, hashes, and metadata, not raw tool arguments,
 raw tool results, raw A2A message text, task ids, raw resource URI query
 values, raw resource bodies, raw caller ids, report paths, URLs, or approval
-tokens.
+tokens. The implementation reads at most the latest 1 MiB and returns at most
+200 events. Registered tool names and scopes are allowlisted, resource kinds
+are normalized, unknown identifiers are fixed labels or hashes, and encoded
+events are limited to 16 KiB. Schema-invalid objects and incomplete oversized
+tails are never returned and mark the sink degraded. Additive persisted fields
+are discarded rather than reflected to the caller. Reads and writes reject
+symbolic-link targets. `audit_sink` describes the most recent bounded read and
+write state, including external replacement or truncation after a successful
+write, without exposing the configured path or failure message.
 
 ```json
 {
   "schema_version": "1.0",
-  "event_count": 2,
+  "event_count": 3,
   "events": [
     {
       "schema_version": "1.0",
@@ -1743,7 +1784,7 @@ tokens.
       "auth_scopes": [],
       "args_hash": "sha256:...",
       "result_hash": "sha256:...",
-      "approval_token_id": "tok_...",
+      "approval_token_id": "12MvGGCWxWgTl-ii-z6wrw",
       "estimated_cost_usd": 0.89,
       "duration_ms": 8,
       "otel_span": {
@@ -1797,18 +1838,33 @@ tokens.
       "result_hash": "sha256:...",
       "resource_kind": "primr://output/calibration_summary/by_job/{job_id}",
       "resource_uri_hash": "sha256:...",
-      "job_id": "job_abc123",
+      "job_id": "42dc1447-bc80-4c36-9f7c-668b40ffdbd8",
       "duration_ms": 4,
       "otel_span": {
         "name": "primr.http.resource_read.resources.read",
         "attributes": {
           "primr.request_id": "2b5c...",
-          "primr.job_id": "job_abc123",
+          "primr.job_id": "42dc1447-bc80-4c36-9f7c-668b40ffdbd8",
           "primr.resource_kind": "primr://output/calibration_summary/by_job/{job_id}"
         }
       }
     }
-  ]
+  ],
+  "audit_sink": {
+    "schema_version": "1.0",
+    "status": "ok",
+    "sink": "jsonl",
+    "file_observed": true,
+    "write_attempted": true,
+    "last_write_succeeded": true,
+    "read_attempted": true,
+    "last_read_succeeded": true,
+    "malformed_event_count": 0,
+    "read_truncated": false,
+    "incomplete_tail": false,
+    "file_replaced_after_successful_write": false,
+    "file_truncated_after_successful_write": false
+  }
 }
 ```
 

@@ -8,6 +8,7 @@ including job state, tool results, and resource responses.
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, IntEnum
+from typing import Any
 
 
 class ResearchMode(str, Enum):
@@ -136,6 +137,9 @@ class DoctorResult:
     config_valid: bool
     api_keys_configured: bool
     warnings: list[str] = field(default_factory=list)
+    status: str = "healthy"
+    checks: list[dict[str, Any]] = field(default_factory=list)
+    audit_log: dict[str, Any] | None = None
 
 
 @dataclass

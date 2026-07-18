@@ -25,7 +25,9 @@ Provider-backed dossier
 
 Recovery and outputs
   primr --check-jobs          Read pending cloud and latest local state
-  primr --resume-latest       Finalize completed interrupted work
+  primr --resume-latest       Finalize completed provider jobs
+  primr "ExampleCo" https://example.co --resume-local
+                              Continue the latest local interrupted run
   primr --list-recent         List recent deliverables and diagnostics
   primr --clear-jobs          Confirm removal of pending recovery records
   primr --clear-jobs --yes    Non-interactive destructive confirmation

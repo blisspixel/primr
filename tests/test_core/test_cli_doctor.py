@@ -59,7 +59,7 @@ class TestCheckApiKeys:
         assert all_passed is True
         assert warnings >= 1
 
-    def test_fails_without_any_cloud_provider_key(self, monkeypatch):
+    def test_keyless_install_is_ready_with_warning(self, monkeypatch, capsys):
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.delenv("XAI_API_KEY", raising=False)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
@@ -68,8 +68,13 @@ class TestCheckApiKeys:
 
         with patch("ddgs.DDGS") as ddgs_mock:
             ddgs_mock.return_value.text.return_value = [{"title": "x"}]
-            all_passed, _ = _check_api_keys(True, 0)
-        assert all_passed is False
+            all_passed, warnings = _check_api_keys(True, 0)
+        output = capsys.readouterr().out
+        assert all_passed is True
+        assert warnings == 1
+        assert "Provider-backed research is unavailable" in output
+        assert "primr prep" in output
+        assert "primr recon" in output
 
     @pytest.mark.parametrize(
         "env_name",
@@ -431,48 +436,23 @@ class TestFileLocations:
 
 
 class TestCheckApiConnectivity:
-    def test_no_key_warns(self, monkeypatch):
+    def test_no_key_is_zero_spend_and_does_not_add_warning(self, monkeypatch):
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         all_passed, warnings = _check_api_connectivity(True, 0)
         assert all_passed is True
-        assert warnings == 1
+        assert warnings == 0
 
-    def test_gemini_responding(self, monkeypatch):
+    def test_configured_key_never_creates_client_or_generates(self, monkeypatch):
         monkeypatch.setenv("GEMINI_API_KEY", "x" * 30)
         fake_module = MagicMock()
-        client = MagicMock()
-        client.models.generate_content.return_value = MagicMock(
-            text="hello", candidates=[MagicMock()]
-        )
-        fake_module.Client.return_value = client
         with (
             patch.dict("sys.modules", {"google": MagicMock(genai=fake_module)}),
             patch("google.genai", fake_module, create=True),
         ):
-            all_passed, _ = _check_api_connectivity(True, 0)
+            all_passed, warnings = _check_api_connectivity(True, 0)
         assert all_passed is True
-
-    def test_gemini_quota_fails(self, monkeypatch):
-        monkeypatch.setenv("GEMINI_API_KEY", "x" * 30)
-        fake_module = MagicMock()
-        fake_module.Client.side_effect = RuntimeError("quota exceeded")
-        with (
-            patch.dict("sys.modules", {"google": MagicMock(genai=fake_module)}),
-            patch("google.genai", fake_module, create=True),
-        ):
-            all_passed, _ = _check_api_connectivity(True, 0)
-        assert all_passed is False
-
-    def test_gemini_invalid_key_fails(self, monkeypatch):
-        monkeypatch.setenv("GEMINI_API_KEY", "x" * 30)
-        fake_module = MagicMock()
-        fake_module.Client.side_effect = RuntimeError("invalid key")
-        with (
-            patch.dict("sys.modules", {"google": MagicMock(genai=fake_module)}),
-            patch("google.genai", fake_module, create=True),
-        ):
-            all_passed, _ = _check_api_connectivity(True, 0)
-        assert all_passed is False
+        assert warnings == 0
+        fake_module.Client.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -527,6 +507,40 @@ class TestCheckGeminiResources:
         ):
             all_passed, warnings = _check_gemini_resources(True, 0)
         assert warnings == 1
+
+    def test_cache_inventory_failure_is_visible(self, monkeypatch, capsys):
+        monkeypatch.setenv("GEMINI_API_KEY", "x" * 30)
+        fake_module = MagicMock()
+        client = MagicMock()
+        client.caches.list.side_effect = RuntimeError("inventory unavailable")
+        client.file_search_stores.list.return_value = []
+        fake_module.Client.return_value = client
+        with (
+            patch.dict("sys.modules", {"google": MagicMock(genai=fake_module)}),
+            patch("google.genai", fake_module, create=True),
+        ):
+            all_passed, warnings = _check_gemini_resources(True, 0)
+
+        assert all_passed is True
+        assert warnings == 1
+        assert "cache inventory could not be verified" in capsys.readouterr().out
+
+    def test_store_inventory_failure_is_visible(self, monkeypatch, capsys):
+        monkeypatch.setenv("GEMINI_API_KEY", "x" * 30)
+        fake_module = MagicMock()
+        client = MagicMock()
+        client.caches.list.return_value = []
+        client.file_search_stores.list.side_effect = RuntimeError("inventory unavailable")
+        fake_module.Client.return_value = client
+        with (
+            patch.dict("sys.modules", {"google": MagicMock(genai=fake_module)}),
+            patch("google.genai", fake_module, create=True),
+        ):
+            all_passed, warnings = _check_gemini_resources(True, 0)
+
+        assert all_passed is True
+        assert warnings == 1
+        assert "store inventory could not be verified" in capsys.readouterr().out
 
 
 # ---------------------------------------------------------------------------

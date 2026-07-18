@@ -12,15 +12,20 @@ the most recently updated run-state JSON. The user-facing
 from __future__ import annotations
 
 import glob
+import hashlib
 import json
 import logging
 import os
 import re
+import shutil
+import stat
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from primr.config.config import OUTPUT_DIR, WORKING_DIR
+from primr.utils.atomic_io import atomic_replace, atomic_write_text
 from primr.utils.console import console
 
 logger = logging.getLogger(__name__)
@@ -29,12 +34,35 @@ _ACTIVE_JOB_STATUSES = frozenset({"in_progress", "pending", "queued", "running"}
 _TERMINAL_FAILURE_STATUSES = frozenset({"failed", "error", "cancelled", "canceled", "expired"})
 
 
+class _RollbackIncompleteError(RuntimeError):
+    """Raised when an artifact promotion failure cannot be fully rolled back."""
+
+
 def _sanitize_output_stem(value: str) -> str:
     """Convert user/model-provided names into safe filename stems."""
     cleaned = re.sub(r"[^A-Za-z0-9 _-]", "", (value or "").strip())
     cleaned = re.sub(r"\s+", "_", cleaned)
     cleaned = re.sub(r"_+", "_", cleaned).strip("_")
     return cleaned or "Recovered"
+
+
+def _safe_interaction_fragment(interaction_id: str) -> str:
+    """Return a bounded filename-safe, collision-resistant identifier fragment."""
+    normalized = str(interaction_id)
+    readable = _sanitize_output_stem(normalized)[:8]
+    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:8]
+    return f"{readable}-{digest}"
+
+
+def _recovery_output_path(output_root: Path, filename: str) -> Path:
+    """Build an output path and fail closed if it escapes the configured root."""
+    resolved_root = output_root.resolve()
+    target = output_root / filename
+    if target.is_symlink():
+        raise RuntimeError("Refusing to replace a symbolic-link recovery output")
+    if target.resolve(strict=False).parent != resolved_root:
+        raise RuntimeError("Refusing recovery output outside the configured output directory")
+    return target
 
 
 def _build_recovered_basename(interaction_id: str, job_info: dict[str, Any]) -> str:
@@ -49,9 +77,9 @@ def _build_recovered_basename(interaction_id: str, job_info: dict[str, Any]) -> 
     date_str = datetime.now().strftime("%m-%d-%Y")
 
     if report_kind == "ai_strategy" or strategy_type == "ai":
-        vendor_tag = (
-            f"_{cloud_vendor.upper()}" if cloud_vendor and cloud_vendor != "agnostic" else ""
-        )
+        vendor_tag = ""
+        if cloud_vendor and cloud_vendor != "agnostic":
+            vendor_tag = f"_{_sanitize_output_stem(cloud_vendor).upper()}"
         return f"{company_name}_AI_Strategy{vendor_tag}_{date_str}"
 
     if report_kind in {
@@ -70,8 +98,83 @@ def _build_recovered_basename(interaction_id: str, job_info: dict[str, Any]) -> 
     if report_kind == "strategic_overview":
         return f"{company_name}_Strategic_Overview_{date_str}"
 
-    job_type = _sanitize_output_stem(job_info.get("type", "deep_research"))
-    return f"recovered_{job_type}_{interaction_id[:8]}_{date_str}"
+    job_type = _sanitize_output_stem(str(job_info.get("type", "deep_research")))
+    return f"recovered_{job_type}_{_safe_interaction_fragment(interaction_id)}_{date_str}"
+
+
+def _require_nonempty_artifact(path: Path) -> None:
+    """Reject an absent, empty, non-regular, or symbolic-link artifact."""
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        raise RuntimeError(f"Recovered artifact could not be inspected: {path.name}") from exc
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_size <= 0:
+        raise RuntimeError(f"Recovered artifact is missing or empty: {path.name}")
+
+
+def _publish_recovered_bundle(
+    staged: dict[str, Path],
+    final: dict[str, Path],
+    *,
+    stage_root: Path,
+) -> None:
+    """Promote a complete recovery bundle and roll back in-process failures."""
+    backup_root = stage_root / ".backups"
+    backup_root.mkdir()
+    backups: dict[str, Path] = {}
+    published: list[str] = []
+
+    try:
+        for artifact_type, final_path in final.items():
+            if final_path.exists() or final_path.is_symlink():
+                try:
+                    metadata = final_path.lstat()
+                except OSError as inspection_error:
+                    raise RuntimeError(
+                        f"Recovery output could not be inspected: {final_path.name}"
+                    ) from inspection_error
+                if not stat.S_ISREG(metadata.st_mode):
+                    raise RuntimeError(
+                        f"Refusing to replace non-file recovery output: {final_path.name}"
+                    )
+                backup_path = backup_root / f"{artifact_type}.previous"
+                atomic_replace(final_path, backup_path)
+                backups[artifact_type] = backup_path
+
+        for artifact_type, staged_path in staged.items():
+            atomic_replace(staged_path, final[artifact_type])
+            published.append(artifact_type)
+
+        for final_path in final.values():
+            _require_nonempty_artifact(final_path)
+    except BaseException as exc:
+        rollback_errors: list[BaseException] = []
+        for artifact_type in reversed(published):
+            try:
+                final[artifact_type].unlink(missing_ok=True)
+            except BaseException as rollback_error:
+                rollback_errors.append(rollback_error)
+        for artifact_type, backup_path in backups.items():
+            try:
+                if backup_path.exists() or backup_path.is_symlink():
+                    atomic_replace(backup_path, final[artifact_type])
+            except BaseException as rollback_error:
+                rollback_errors.append(rollback_error)
+        if rollback_errors:
+            raise _RollbackIncompleteError(
+                "Recovered artifact publication failed and rollback was incomplete; "
+                f"staged and backup files remain at {stage_root}"
+            ) from exc
+        raise
+
+
+def _cleanup_recovery_stage(stage_root: Path) -> None:
+    """Remove a recovery staging directory or surface the retained path."""
+    try:
+        shutil.rmtree(stage_root)
+    except OSError:
+        logger.exception("Failed to remove recovery staging directory %s", stage_root)
+        console.warn(f"Recovery staging cleanup failed; inspect: {stage_root}")
 
 
 def _save_recovered_outputs(
@@ -79,19 +182,21 @@ def _save_recovered_outputs(
     job_info: dict[str, Any],
     content: str,
 ) -> dict[str, str]:
-    """Save recovered content to canonical MD/TXT/DOCX paths."""
+    """Stage, verify, and publish canonical MD/TXT/DOCX recovery outputs."""
     from primr.output.markdown_converter import markdown_to_docx
 
+    output_root = Path(OUTPUT_DIR)
+    output_root.mkdir(parents=True, exist_ok=True)
     base_name = _build_recovered_basename(interaction_id, job_info)
-    base_path = Path(OUTPUT_DIR) / base_name
-    md_path = str(base_path.with_suffix(".md"))
-    txt_path = str(base_path.with_suffix(".txt"))
-    docx_path = str(base_path.with_suffix(".docx"))
-
-    with open(md_path, "w", encoding="utf-8") as f:
-        f.write(content)
-    with open(txt_path, "w", encoding="utf-8") as f:
-        f.write(content)
+    final = {
+        artifact_type: _recovery_output_path(output_root, f"{base_name}.{artifact_type}")
+        for artifact_type in ("md", "txt", "docx")
+    }
+    stage_root = Path(tempfile.mkdtemp(prefix=".primr-recovery-", dir=output_root))
+    staged = {
+        artifact_type: stage_root / final_path.name for artifact_type, final_path in final.items()
+    }
+    preserve_stage = False
 
     metadata: dict[str, Any] = (
         job_info.get("metadata", {}) if isinstance(job_info.get("metadata"), dict) else {}
@@ -111,14 +216,26 @@ def _save_recovered_outputs(
         subtitle_parts.append(cloud_vendor.upper())
     subtitle = " | ".join(subtitle_parts)
 
-    markdown_to_docx(
-        markdown_text=content,
-        output_path=Path(docx_path),
-        title=title,
-        subtitle=subtitle,
-    )
+    try:
+        staged["md"].write_text(content, encoding="utf-8")
+        staged["txt"].write_text(content, encoding="utf-8")
+        markdown_to_docx(
+            markdown_text=content,
+            output_path=staged["docx"],
+            title=title,
+            subtitle=subtitle,
+        )
+        for staged_path in staged.values():
+            _require_nonempty_artifact(staged_path)
+        _publish_recovered_bundle(staged, final, stage_root=stage_root)
+    except _RollbackIncompleteError:
+        preserve_stage = True
+        raise
+    finally:
+        if not preserve_stage:
+            _cleanup_recovery_stage(stage_root)
 
-    return {"md": md_path, "txt": txt_path, "docx": docx_path}
+    return {artifact_type: str(path) for artifact_type, path in final.items()}
 
 
 def _find_latest_run_state() -> tuple[str, dict[str, Any]] | None:
@@ -163,6 +280,7 @@ def _show_latest_run_state_hint() -> None:
         if rendered and rendered.lower() != "unknown":
             console.info(f"  {label}: {rendered}")
     console.info(f"  File: {path}")
+    console.info("  Next: rerun the original company and URL with `--resume-local`.")
 
 
 def _local_run_status_snapshot() -> dict[str, Any] | None:
@@ -191,6 +309,13 @@ def _local_run_status_snapshot() -> dict[str, Any] | None:
         error_message=state.get("error"),
         error_source="local_run" if state.get("error") else None,
     )
+
+
+def _read_pending_jobs() -> tuple[bool, dict[str, dict[str, Any]]]:
+    """Read provider recovery records without collapsing corruption into emptiness."""
+    from primr.ai.job_persistence import get_pending_jobs_with_status
+
+    return get_pending_jobs_with_status()
 
 
 def _check_pending_jobs_json(jobs: dict[str, dict[str, Any]]) -> int:
@@ -236,9 +361,25 @@ def _check_pending_jobs_json(jobs: dict[str, dict[str, Any]]) -> int:
 
 def check_pending_jobs(json_output: bool = False) -> int:
     """Inspect cloud and local recovery state without writing artifacts."""
-    from primr.ai.deep_research import get_deep_research_client, get_pending_jobs
+    from primr.ai.deep_research import get_deep_research_client
+    from primr.core.cli_output import emit_json
+    from primr.job_status import build_job_status_list
 
-    jobs = get_pending_jobs()
+    read_success, jobs = _read_pending_jobs()
+    if not read_success:
+        message = (
+            "Pending-job status could not read the recovery registry. "
+            "No job state was reported or changed."
+        )
+        if json_output:
+            payload = build_job_status_list([])
+            payload["status"] = "error"
+            payload["error"] = {"kind": "recovery_registry_unreadable", "message": message}
+            emit_json(payload)
+        else:
+            console.banner("Research Job Status")
+            console.error(message)
+        return 1
     if json_output:
         return _check_pending_jobs_json(jobs)
     console.banner("Research Job Status")
@@ -313,11 +454,17 @@ def check_pending_jobs(json_output: bool = False) -> int:
 
 def resume_pending_jobs() -> int:
     """Recover and finalize pending jobs into canonical outputs."""
-    from primr.ai.deep_research import get_deep_research_client, get_pending_jobs
+    from primr.ai.deep_research import get_deep_research_client
     from primr.ai.job_persistence import remove_pending_job
 
     console.banner("Resume Pending Jobs")
-    jobs = get_pending_jobs()
+    read_success, jobs = _read_pending_jobs()
+    if not read_success:
+        console.error(
+            "Pending-job recovery could not read the recovery registry. "
+            "No jobs were finalized or changed."
+        )
+        return 1
     if not jobs:
         console.info("No pending jobs found.")
         _show_latest_run_state_hint()
@@ -359,13 +506,17 @@ def resume_pending_jobs() -> int:
                     check_errors += 1
                 finalized += 1
             except Exception as e:
-                fallback_path = os.path.join(
-                    OUTPUT_DIR, f"recovered_deep_research_{interaction_id[:8]}.txt"
-                )
-                with open(fallback_path, "w", encoding="utf-8") as f:
-                    f.write(content)
                 console.error(f"  Finalization failed: {e}")
-                console.ok(f"  Saved fallback TXT: {fallback_path}")
+                try:
+                    fallback_path = _recovery_output_path(
+                        Path(OUTPUT_DIR),
+                        f"recovered_deep_research_{_safe_interaction_fragment(interaction_id)}.txt",
+                    )
+                    atomic_write_text(fallback_path, content)
+                except Exception as fallback_error:
+                    console.error(f"  Fallback TXT could not be saved: {fallback_error}")
+                else:
+                    console.ok(f"  Saved fallback TXT: {fallback_path}")
                 failed += 1
             continue
 
@@ -398,8 +549,8 @@ def resume_pending_jobs() -> int:
 
     if check_errors > 0:
         console.info(
-            "Network/API issue detected during resume. Re-run `primr --resume-latest` "
-            "when connectivity is stable."
+            "A provider status check or local recovery-state update failed. "
+            "Review the error above, then re-run `primr --resume-latest`."
         )
     if failed > 0 or check_errors > 0:
         return 1

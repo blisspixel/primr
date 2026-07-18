@@ -273,7 +273,8 @@ _SKILLS: list[dict] = [
         "id": "system_health",
         "name": "System Health Check",
         "description": (
-            "Check Primr system health: API keys, dependencies, and configuration.\n\n"
+            "Check Primr configuration, keyless availability, provider-key configuration, "
+            "output storage, audit persistence, and cloud health when applicable.\n\n"
             "Input: none required\n\n"
             "Output: JSON with status (healthy/degraded/unhealthy), checks array "
             "with individual component statuses"
@@ -308,7 +309,7 @@ def build_agent_card(
 
     The previous signature accepted only host+port, which caused co-hosted
     deployments to advertise ``http://host:a2a_port/`` even though no
-    listener was bound on ``a2a_port`` — clients following AgentCard.url
+    listener was bound on ``a2a_port``; clients following AgentCard.url
     would talk to whatever service did happen to be listening there and
     could leak bearer tokens to it.
     """
