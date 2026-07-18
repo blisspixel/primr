@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Easy one-line installer / updater for primr (macOS / Linux)
-# Usage (recommended):
-#   curl -fsSL https://raw.githubusercontent.com/blisspixel/primr/main/scripts/install.sh | bash
+# Installer / updater for primr (macOS / Linux)
+# Recommended: download this file, inspect it, then run it with bash.
 #
 # Idempotent: run it again any time to upgrade to the latest release.
 
@@ -38,8 +37,8 @@ fi
 # --- Dev mode: if run from inside a primr checkout, install EDITABLE from source
 # so `primr` tracks the working tree instead of a frozen PyPI release. That trap
 # (a released install shadowing local edits) is what makes new commands like
-# `keys set openai` look "missing". Piping the remote one-liner to bash has no
-# stable BASH_SOURCE path, so this only fires for a local ./scripts/install.sh run.
+# `keys set openai` look "missing". A downloaded copy outside a checkout
+# installs the published package instead.
 REPO_ROOT=""
 SCRIPT_SRC="${BASH_SOURCE[0]:-}"
 if [ -n "$SCRIPT_SRC" ] && [ -f "$SCRIPT_SRC" ]; then
@@ -76,13 +75,16 @@ fi
 echo ""
 echo "==> Done."
 echo ""
-echo "Next steps:"
+echo "Keyless agent-host path:"
 echo "  1. Open a new terminal (so PATH is fresh)"
-echo "  2. Run: $CLI init          # Guided setup for API keys + browser"
-echo "  3. Run: $CLI doctor        # Verify everything"
+echo "  2. Run: $CLI prep \"ExampleCo\" https://example.co --dry-run"
+echo "  3. Run: $CLI prep \"ExampleCo\" https://example.co"
 echo ""
-echo "Quick start:"
-echo "  $CLI \"Company Name\" https://company.com"
+echo "Provider-backed path:"
+echo "  1. Run: $CLI init          # Guided provider setup"
+echo "  2. Run: $CLI doctor        # Verify configuration"
+echo "  3. Run: $CLI \"ExampleCo\" https://example.co --dry-run"
+echo "     Review the estimate and approve spend before launching the paid run."
 echo ""
 echo "To update later:"
 echo "  $CLI update                # Self-update to the latest release"

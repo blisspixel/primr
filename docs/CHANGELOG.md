@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Root `primr --help` is now a concise, workflow-first surface covering Primr
+  Zero, provider-backed estimation, recovery, and keyless commands; the full
+  argparse reference remains available through `primr --help-all`. Public
+  examples use placeholder organizations only.
+- `primr prep` now reports `partial` collection honestly, carries bounded
+  coverage warnings from the evidence manifest, lists the source index and host
+  workflow alongside the evidence packet, and prints one explicit host handoff
+  action.
+- Cloud doctor output now distinguishes a live health probe from configuration
+  presence. Unprobed cloud dependencies report `configured`, include an
+  explicit `probe_performed: false`, and omit endpoint, account, and connection
+  values.
+- pipx is now the default installation path in the README. Convenience
+  installers use a download, inspect, then execute flow rather than piping a
+  mutable remote branch directly into a shell, and their completion guidance
+  separates the keyless agent-host path from provider setup and spend approval.
 - Agent hosts now treat a bare `primr "Company" URL` request as Primr Zero by
   default and keep `primr prep` as internal plumbing. Only explicit paid,
   metered, provider-backed, premium, budget, provider-key, or provider-only
@@ -29,6 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Fresh source checkouts now include synchronized `.claude/skills/primr` and
+  `.claude/skills/primr-zero` project skills while local Claude settings remain
+  ignored. Mirror checks cover the project, plugin, and packaged copies.
 - Artifact inventory schema 1.1 adds a content-free `artifact_role` to the
   existing local and MCP metadata seam. Agents can select the primary overview,
   relevant strategy modules, other reports, diagnostics, and run metadata for
@@ -64,6 +83,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `primr --clear-jobs` no longer calls every pending recovery record stale or
+  overwrites the registry directly. It requires confirmation unless `--yes` is
+  supplied, removes only the previewed records under the canonical lock and
+  atomic write seam, preserves concurrently added records, and returns a
+  visible failure when persistence cannot be updated. Registry mutations now
+  hold an operating-system lock across the full read-modify-write transaction,
+  so separate Primr processes cannot overwrite one another, and malformed
+  UTF-8 fails visibly during cleanup.
+- Primr Zero no longer stalls when the CLI launcher is unavailable or the user
+  declines installation. Research-capable hosts continue through the native
+  report contract, disclose unavailable Primr collectors, and never switch to
+  billable execution silently.
+- Security operations guidance now identifies the REST key manager as a
+  process-local development scaffold, documents bounded admin-only audit
+  inspection, uses the actual MCP audit JSONL path, preserves active logs while
+  shipping temporary snapshots, and matches the repository's hard CI security
+  gates. Staging and load guidance now exercises the production MCP or A2A
+  protocol with bearer scopes and non-billable tools instead of the
+  unimplemented REST submission route.
 - Primr operator guidance now intercepts requests for a free version, no API
   spend, or use of an existing agent plan before billable mode selection. It
   routes to `primr-zero`, falls back inline to keyless `primr prep` when the

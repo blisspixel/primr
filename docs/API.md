@@ -518,18 +518,23 @@ for job_id, info in jobs.items():
 save_pending_job(
     interaction_id="v1_abc123...",
     job_type="ai_strategy",
-    description="AI Strategy for Acme Corp"
+    description="AI Strategy for ExampleCo"
 )
 
 # Remove a completed job only after its output is durably saved
 remove_pending_job("v1_abc123...")
 ```
 
+Pending-job mutations hold a local operating-system lock for the complete
+read-modify-write transaction and publish with atomic replacement. Cleanup
+fails closed when the registry is malformed and never removes records added
+after the operator's preview.
+
 **CLI commands for job management:**
 ```bash
 primr --check-jobs     # Read-only cloud and latest-local status
 primr --resume-latest  # Finalize completed cloud jobs, then acknowledge them
-primr --clear-jobs     # Clear stale/old pending records without recovery
+primr --clear-jobs     # Confirm removal of all pending recovery records
 ```
 
 ## Scraping
@@ -1388,6 +1393,15 @@ Check system health and configuration.
   "arguments": {}
 }
 ```
+
+In cloud mode, `cloud_diagnostics` distinguishes verified health from
+configuration presence. `container_app_health` performs a live `/healthz`
+request and sets `probe_performed: true`; `status: ok` is used only for a
+successful probe. Cosmos DB, Blob Storage, Service Bus, Application Insights,
+and cost-governor entries report `status: configured` with
+`probe_performed: false` when their configuration is present. They do not
+claim connectivity, and the diagnostic omits endpoint, account, and connection
+values. Missing optional configuration reports `status: not_configured`.
 
 #### clear_jobs
 

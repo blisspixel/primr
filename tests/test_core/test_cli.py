@@ -261,14 +261,14 @@ class TestParseArgs:
                 "--eval-id",
                 "eval-2026-02-r1",
                 "--eval-company",
-                "Harver",
+                "ExampleCo",
                 "--eval-no-auto-stage",
                 "--eval-source-dir",
                 "output",
             ]
         )
         assert config.command == Command.EVAL
-        assert config.eval_company == "Harver"
+        assert config.eval_company == "ExampleCo"
         assert config.eval_auto_stage is False
         assert config.eval_source_dir == "output"
 

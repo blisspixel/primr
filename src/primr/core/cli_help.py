@@ -5,6 +5,55 @@ from __future__ import annotations
 import argparse
 import sys
 
+ROOT_HELP = """usage: primr [COMPANY] [WEBSITE] [OPTIONS]
+
+Build evidence-grounded company research, from a zero-API-spend host handoff
+to a provider-backed strategic dossier.
+
+Agent host, $0 Primr model API spend
+  In an agent chat, say: primr ExampleCo https://example.co
+  Primr-aware agents default to Primr Zero when no paid run is requested.
+  Terminal collection: primr prep "ExampleCo" https://example.co --dry-run
+  Then collect:        primr prep "ExampleCo" https://example.co
+
+Provider-backed dossier
+  primr init
+  primr doctor
+  primr "ExampleCo" https://example.co --dry-run
+  primr "ExampleCo" https://example.co
+  Always review the fresh estimate before launching a billable run.
+
+Recovery and outputs
+  primr --check-jobs          Read pending cloud and latest local state
+  primr --resume-latest       Finalize completed interrupted work
+  primr --list-recent         List recent deliverables and diagnostics
+  primr --clear-jobs          Confirm removal of pending recovery records
+  primr --clear-jobs --yes    Non-interactive destructive confirmation
+
+Other keyless and agent workflows
+  primr recon example.co      Run standalone DNS intelligence
+  primr skills "ExampleCo" https://example.co --dry-run
+  primr mcp                   Start the MCP server
+
+Common research options
+  --mode {scrape,deep,full,premium,parallel}
+  --platform {azure,aws,gcp,private,agnostic,ms}
+  --no-ai-strategy
+  --output-dir DIRECTORY
+  --json
+  --verbose
+
+Focused help
+  primr init --help
+  primr doctor --help
+  primr prep --help
+  primr recon --help
+
+Reference
+  primr --help-all            Show every command and advanced option
+  primr --version
+"""
+
 _INIT_DOCTOR_OPTION_SPECS: dict[str, tuple[tuple[tuple[str, ...], str], ...]] = {
     "doctor": (
         (
@@ -45,7 +94,13 @@ def add_init_doctor_arguments(
             raise ValueError(f"Unsupported scoped command: {command_name}") from exc
         for flags, description in specifications:
             if command is None:
-                help_text = f"With '{command_name}', {description}"
+                if "--yes" in flags:
+                    help_text = (
+                        "With 'init', accept safe defaults; with destructive commands, "
+                        "confirm the requested action"
+                    )
+                else:
+                    help_text = f"With '{command_name}', {description}"
             else:
                 help_text = description[0].upper() + description[1:]
             parser.add_argument(*flags, action="store_true", help=help_text)
@@ -92,3 +147,12 @@ def maybe_print_scoped_help(args: list[str] | None) -> None:
     if not any(argument in {"-h", "--help"} for argument in argv[1:]):
         return
     _create_scoped_help_parser(argv[0]).parse_args(["--help"])
+
+
+def maybe_print_root_help(args: list[str] | None) -> None:
+    """Exit with a concise root workflow when root help is requested."""
+    argv = list(args) if args is not None else sys.argv[1:]
+    if argv not in (["-h"], ["--help"]):
+        return
+    print(ROOT_HELP)
+    raise SystemExit(0)

@@ -8,11 +8,14 @@ from pathlib import Path
 
 import yaml
 
+from scripts.sync_primr_operator_skill import mirrors_match as operator_mirrors_match
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CLAUDE_SKILL = REPO_ROOT / "claude-code" / "skills" / "primr" / "SKILL.md"
 AGENT_GUIDE = REPO_ROOT / "AGENTS.md"
 README = REPO_ROOT / "README.md"
 AGENT_INTEGRATION = REPO_ROOT / "docs" / "AGENT_INTEGRATION.md"
+PROJECT_SKILL_ROOT = REPO_ROOT / ".claude" / "skills"
 
 
 def test_claude_operator_skill_frontmatter_is_valid() -> None:
@@ -25,6 +28,9 @@ def test_claude_operator_skill_frontmatter_is_valid() -> None:
     assert "Default to Primr Zero" in metadata["description"]
     assert "explicitly requests paid" in metadata["description"]
     assert metadata["argument-hint"].startswith('"Company Name" https://')
+    allowed_tools = metadata["allowed-tools"]
+    for tool in ("Read", "Write", "WebSearch", "WebFetch"):
+        assert tool in allowed_tools
 
 
 def test_bare_primr_agent_requests_default_to_zero_without_new_syntax() -> None:
@@ -92,6 +98,29 @@ def test_inline_zero_cost_fallback_is_complete() -> None:
     normalized = " ".join(content.split())
     assert "Without shell access" in content
     assert "instead of writing from model memory" in normalized
+    assert "when the Primr launcher is unavailable and installation is declined" in normalized
+    assert "Do not stall on the missing launcher" in normalized
+
+
+def test_project_claude_skills_are_discoverable_and_synchronized() -> None:
+    matches, failures = operator_mirrors_match()
+
+    assert matches, "\n".join(failures)
+    assert (PROJECT_SKILL_ROOT / "primr" / "SKILL.md").is_file()
+    assert (PROJECT_SKILL_ROOT / "primr-zero" / "SKILL.md").is_file()
+    gitignore = (REPO_ROOT / ".gitignore").read_text(encoding="utf-8")
+    assert "/.claude/*" in gitignore
+    assert "!/.claude/skills/**" in gitignore
+
+
+def test_client_guidance_keeps_zero_useful_without_a_launcher() -> None:
+    content = (REPO_ROOT / "clients" / "README.md").read_text(encoding="utf-8")
+    normalized = " ".join(content.split())
+
+    assert "host-native research when it does not" in normalized
+    assert "Without one, the skill uses the host's official web research" in normalized
+    assert ".claude/skills/primr-zero/" in content
+    assert "needs the `primr-zero` skill and shell access" not in normalized
 
 
 def test_claude_plugin_version_matches_package_and_bundles_zero_skill() -> None:

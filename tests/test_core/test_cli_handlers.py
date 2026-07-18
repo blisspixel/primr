@@ -126,27 +126,55 @@ class TestHandleResumeLatest:
 
 class TestHandleClearJobs:
     def test_no_pending_jobs_returns_zero(self, monkeypatch):
-        import primr.ai.deep_research as dr
-
-        monkeypatch.setattr(dr, "get_pending_jobs", dict)
-        # The function uses `from primr.ai.deep_research import get_pending_jobs`
-        # which means we need to patch where it's looked up (the import site).
+        monkeypatch.setattr(
+            "primr.ai.job_persistence.get_pending_jobs_with_status", lambda: (True, {})
+        )
         assert _handle_clear_jobs(_config()) == 0
 
-    def test_writes_empty_dict_when_pending_jobs(self, tmp_path, monkeypatch):
-        import primr.ai.deep_research as dr
+    def test_cancels_without_confirmation(self, monkeypatch, capsys):
+        remove = MagicMock()
+        monkeypatch.setattr(
+            "primr.ai.job_persistence.get_pending_jobs_with_status",
+            lambda: (True, {"j1": {"description": "x"}}),
+        )
+        monkeypatch.setattr("primr.ai.job_persistence.remove_pending_jobs", remove)
+        monkeypatch.setattr("builtins.input", lambda _prompt: "no")
 
-        monkeypatch.setattr(dr, "get_pending_jobs", lambda: {"j1": {"description": "x"}})
-        # Redirect LOGS_DIR to tmp_path so the file write lands in our sandbox.
-        monkeypatch.setattr("primr.core.cli.LOGS_DIR", str(tmp_path))
-        monkeypatch.setattr("primr.config.config.LOGS_DIR", str(tmp_path))
         assert _handle_clear_jobs(_config()) == 0
+        remove.assert_not_called()
+        assert "cancelled" in capsys.readouterr().out
 
-        import json
+    def test_yes_removes_only_previewed_ids(self, monkeypatch):
+        remove = MagicMock(return_value=(True, 2))
+        monkeypatch.setattr(
+            "primr.ai.job_persistence.get_pending_jobs_with_status",
+            lambda: (True, {"j1": {}, "j2": {}}),
+        )
+        monkeypatch.setattr("primr.ai.job_persistence.remove_pending_jobs", remove)
 
-        jobs_file = tmp_path / "pending_research_jobs.json"
-        assert jobs_file.exists()
-        assert json.loads(jobs_file.read_text()) == {}
+        assert _handle_clear_jobs(_config(init_yes=True)) == 0
+        assert set(remove.call_args.args[0]) == {"j1", "j2"}
+
+    def test_persistence_failure_is_visible(self, monkeypatch, capsys):
+        monkeypatch.setattr(
+            "primr.ai.job_persistence.get_pending_jobs_with_status",
+            lambda: (True, {"j1": {}}),
+        )
+        monkeypatch.setattr("primr.ai.job_persistence.remove_pending_jobs", lambda _ids: (False, 0))
+
+        assert _handle_clear_jobs(_config(init_yes=True)) == 1
+        assert "left unchanged" in capsys.readouterr().out
+
+    def test_corrupt_registry_is_visible_and_unchanged(self, monkeypatch, capsys):
+        remove = MagicMock()
+        monkeypatch.setattr(
+            "primr.ai.job_persistence.get_pending_jobs_with_status", lambda: (False, {})
+        )
+        monkeypatch.setattr("primr.ai.job_persistence.remove_pending_jobs", remove)
+
+        assert _handle_clear_jobs(_config(init_yes=True)) == 1
+        remove.assert_not_called()
+        assert "could not read the recovery registry" in capsys.readouterr().out
 
 
 class TestHandleShowUsage:

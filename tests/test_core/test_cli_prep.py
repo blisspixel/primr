@@ -35,13 +35,16 @@ def test_prep_runs_collector_and_reports_paths(tmp_path, monkeypatch, capsys) ->
     bundle = tmp_path / "bundle"
     bundle.mkdir()
     expected = EvidenceBundleResult(
+        status="completed",
         bundle_dir=bundle,
         manifest_path=bundle / "prep_manifest.json",
         host_packet_path=bundle / "research_packet.md",
         source_index_path=bundle / "source_index.json",
+        workflow_path=bundle / "HOST_WORKFLOW.md",
         pages_collected=4,
         hiring_postings=7,
         recon_collected=True,
+        coverage_warnings=(),
     )
     collect = MagicMock(return_value=expected)
     monkeypatch.setattr("primr.core.cli_prep.collect_evidence_bundle", collect)
@@ -59,7 +62,40 @@ def test_prep_runs_collector_and_reports_paths(tmp_path, monkeypatch, capsys) ->
         include_recon=True,
         include_hiring=False,
     )
-    assert "Evidence packet:" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "Primr prep complete" in output
+    assert "Source index:" in output
+    assert "Evidence packet:" in output
+    assert "Host workflow:" in output
+    assert "Hiring signals: skipped" in output
+    assert "Next: give the bundle" in output
+
+
+def test_prep_reports_partial_bundle_and_limitations(tmp_path, monkeypatch, capsys) -> None:
+    bundle = tmp_path / "bundle"
+    bundle.mkdir()
+    expected = EvidenceBundleResult(
+        status="partial",
+        bundle_dir=bundle,
+        manifest_path=bundle / "prep_manifest.json",
+        host_packet_path=bundle / "research_packet.md",
+        source_index_path=bundle / "source_index.json",
+        workflow_path=bundle / "HOST_WORKFLOW.md",
+        pages_collected=0,
+        hiring_postings=0,
+        recon_collected=False,
+        coverage_warnings=("No first-party page content was collected.",),
+    )
+    monkeypatch.setattr("primr.core.cli_prep.collect_evidence_bundle", lambda *_a, **_k: expected)
+
+    assert run_prep_cli(["prep", "ExampleCo", "https://example.co"]) == 0
+
+    output = capsys.readouterr().out
+    assert "Primr prep partial for ExampleCo" in output
+    assert "bundle is usable" in output
+    assert "Coverage notes:" in output
+    assert "No first-party page content was collected." in output
+    assert "Manifest:" in output
 
 
 def test_prep_rejects_out_of_range_page_cap(capsys) -> None:

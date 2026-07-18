@@ -15,8 +15,8 @@ the billable full pipeline, but not for `primr prep` or `primr recon`.
 | Goal | Install |
 |------|---------|
 | Full provider-backed Primr | MCP snippet plus the full `primr` operating guidance |
-| Hard-zero host-assisted dossier | Primr CLI plus the portable `primr-zero` skill; MCP is not required |
-| Host has no local shell | Run `primr prep` elsewhere, import the bundle, and use `HOST_WORKFLOW.md` through the host's official file or skill surface |
+| Hard-zero host-assisted dossier | Portable `primr-zero` skill; use `primr prep` when the launcher works and host-native research when it does not |
+| Host has no local shell | Use host-native cited research, or import an existing prep bundle when one is available |
 
 ## Two pieces, every client
 
@@ -26,8 +26,12 @@ There are two things to wire up per client:
 2. **The agent guidance** - so the AI knows *when* to reach for primr, *how* to enforce the cost gate, and *how* to handle the long-running async lifecycle. Different clients support this differently; see the table below.
 
 The hard-zero workflow is intentionally simpler: the host needs the
-`primr-zero` skill and shell access to run `primr prep`, or a prep bundle
-created on another machine. It does not launch a Primr MCP research job.
+`primr-zero` skill. A working local launcher adds Primr's bounded prep bundle,
+DNS evidence, scrape traces, and deterministic QA. Without one, the skill uses
+the host's official web research and file surfaces, records the missing
+deterministic coverage, and still produces the strongest honest dossier it
+can. It never launches a Primr MCP research job or silently switches to API
+billing.
 
 ## MCP config
 
@@ -62,7 +66,7 @@ subscription-boundary, and local-capacity references remain available.
 |------------|-----------|
 | Repository Agent Skills | `<workspace>/.agents/skills/primr-zero/` when the host supports repository skill discovery |
 | Codex personal skills | `~/.agents/skills/primr-zero/` |
-| Claude Code personal skills | `~/.claude/skills/primr-zero/`; use the checked mirror under `../claude-code/skills/primr-zero/` |
+| Claude Code project or personal skills | `.claude/skills/primr-zero/` in this repository or `~/.claude/skills/primr-zero/`; the plugin mirror remains under `../claude-code/skills/primr-zero/` |
 | GitHub Copilot personal skills | `~/.agents/skills/primr-zero/` or `~/.copilot/skills/primr-zero/` |
 | Gemini CLI personal skills | `~/.agents/skills/primr-zero/` or `~/.gemini/skills/primr-zero/` |
 | Kiro or another Agent Skills host | The host's documented global or workspace skill directory |
@@ -81,9 +85,11 @@ forms:
 If you contribute changes to one, mirror them into the other.
 
 The zero-cost skill uses a stronger contract: `.agents/skills/primr-zero/` is
-canonical; the Claude and Python-package copies are byte-identical; and
-`python scripts/sync_primr_zero_skill.py --check` verifies both mirrors. A
-wheel installation can place the skill directly:
+canonical; the repository Claude, Claude plugin, and Python-package copies are
+byte-identical; and `python scripts/sync_primr_zero_skill.py --check` verifies
+all mirrors. The full Claude operator skill is also mirrored into
+`.claude/skills/primr/`; `python scripts/sync_primr_operator_skill.py --check`
+verifies it. A wheel installation can place the Zero skill directly:
 
 ```bash
 primr prep --install-skill ~/.agents/skills/primr-zero

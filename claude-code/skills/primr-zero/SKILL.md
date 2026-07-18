@@ -36,11 +36,14 @@ estimated and approved paid route.
 
 ## Choose the path
 
-1. If a shell and Primr are available, run the keyless evidence handoff below.
+1. If a shell and a working Primr launcher are available, run the keyless
+   evidence handoff below.
 2. If the user supplied a prep bundle, start from its `prep_manifest.json` and
    `research_packet.md`.
-3. If the host has no shell, use native web research and follow the same report
-   contract. State that Primr recon, adaptive scraping, and ATS collection were
+3. If the host has no shell, the Primr launcher is unavailable, or installation
+   is declined, use native web research and follow the same report contract.
+   Do not block a useful zero-cost result on installation. State that Primr
+   recon, adaptive scraping, ATS collection, traces, and local artifact QA were
    unavailable.
 4. If the host cannot search the web, ask for a prep bundle or source files.
    Do not produce a supposedly current dossier from model memory.
@@ -61,7 +64,9 @@ primr prep "Company Name" https://company.example
 In a Primr source checkout where `primr` is not on `PATH`, first try
 `uv run --no-sync primr --version`. If it succeeds, use
 `uv run --no-sync primr` as the launcher for the prep commands. Do not install
-or synchronize dependencies without user approval.
+or synchronize dependencies without user approval. If neither launcher works
+and installation is unavailable or declined, return to the host-native path
+above instead of stopping or switching to a paid run.
 
 The dry run must report `$0.00`, zero model calls, and no host-plan use during
 collection. `primr prep` collects first-party pages, DNS signals, public hiring

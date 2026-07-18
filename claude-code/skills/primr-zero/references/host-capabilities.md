@@ -11,17 +11,27 @@ Use capabilities, not brand assumptions. Check whether the current host can:
 
 ## Capability profiles
 
-### Shell, files, and web research
+### Shell, working Primr launcher, files, and web research
 
 Run `primr prep`, read the bundle, research external gaps, write the report,
 and run deterministic QA. This is the preferred path for coding agents and
 CLI-based hosts.
 
+### Shell and web research, but no working Primr launcher
+
+If Primr is unavailable or the user declines installation, continue with the
+host's official web-search, URL-fetch, reasoning, and file-writing surfaces.
+Resolve identity, gather first-party and independent evidence, keep a source
+ledger, write the dossier, and disclose that Primr's prep bundle, DNS evidence,
+ATS adapters, scrape traces, and deterministic report QA were unavailable. Do
+not stop, switch to a paid run, or imply that installation is required for a
+useful zero-cost result.
+
 ### Files and web research, no shell
 
-Ask the user for a previously generated prep bundle. If none exists, use the
-host-native research method and disclose that DNS, adaptive scraping, ATS
-adapters, trace artifacts, and local QA were unavailable.
+Use a previously generated prep bundle when one is already available. If none
+exists, use the host-native research method and disclose that DNS, adaptive
+scraping, ATS adapters, trace artifacts, and local QA were unavailable.
 
 ### Files only
 
@@ -36,9 +46,10 @@ not automate the consumer web application or extract session credentials.
 ## Skill locations
 
 The canonical repository skill is `.agents/skills/primr-zero`. Codex, GitHub
-Copilot, and Gemini CLI can discover that shared location. The Claude plugin
-ships a checked mirror under `claude-code/skills/primr-zero` because Claude's
-native skill directory differs.
+Copilot, and Gemini CLI can discover that shared location. This repository
+also checks a byte-identical Claude project mirror into
+`.claude/skills/primr-zero`; the Claude plugin package keeps its mirror under
+`claude-code/skills/primr-zero`.
 
 For personal installation, Codex uses `~/.agents/skills`, Copilot supports
 `~/.agents/skills` or `~/.copilot/skills`, Gemini CLI supports
