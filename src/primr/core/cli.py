@@ -57,11 +57,9 @@ from primr.core.cli_batch import (
 from primr.core.cli_calibration_args import add_calibration_arguments
 from primr.core.cli_dispatch import (
     is_mcp_command,
-    is_prep_command,
     is_skills_command,
     is_update_command,
     run_mcp,
-    run_prep,
     run_skills,
     run_update_cli,
 )
@@ -703,8 +701,6 @@ def main(args: list[str] | None = None) -> int:
         return run_keys(args)
     if is_mcp_command(args):
         return run_mcp(args)
-    if is_prep_command(args):
-        return run_prep(args)
     if is_skills_command(args):
         return run_skills(args)
     if is_update_command(args):

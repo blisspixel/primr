@@ -47,13 +47,6 @@ class TestMainDispatch:
         assert result == 0
         mcp_mock.assert_called_once()
 
-    def test_prep_subcommand_dispatches(self, monkeypatch):
-        prep_mock = MagicMock(return_value=0)
-        monkeypatch.setattr("primr.core.cli.run_prep", prep_mock)
-        result = main(["prep", "Acme", "https://acme.example"])
-        assert result == 0
-        prep_mock.assert_called_once()
-
 
 class TestMainHandlerRouting:
     def test_doctor_routes_to_handler(self, passing_validation, stub_logging, monkeypatch):

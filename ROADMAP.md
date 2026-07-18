@@ -337,6 +337,11 @@ into generic agent middleware.
   failures and interrupts remove unpublished work, artifact scans ignore active
   staging directories, and skill-install dry runs report their requested
   destination without network access or file writes.
+- Public prep commands now dispatch through the lightweight console/module
+  composition boundary instead of loading the provider-backed CLI graph.
+  Collection and skill-install interruption return conventional exit code 130
+  with operation-specific recovery guidance, and command help exposes both
+  zero-activity dry-run modes.
 - Public-data fallback fan-out (`src/primr/data/fallback_sources.py`): when origin is blocked, fetches in parallel from Wayback CDX, sister subdomains, RSS/Atom feeds, SEC EDGAR 10-Ks, Wikipedia REST, and Grok web_search synthesis
 - Hiring-signal gathering (`src/primr/data/hiring_signals.py`): ten ATS/provider adapters (Greenhouse / Lever / Ashby / SmartRecruiters / Workday / Workable / Recruitee / Jobvite / iCIMS / BambooHR), repeatable explicit career / ATS URL inputs for segmented boards, corpus-driven Workday URL discovery for known boards, HTML careers-page fallback, DuckDuckGo web-search fallback across major job-board hosts when every other path comes up empty, LLM-triaged extraction threaded into all downstream phases. Skill packs are job-posting-first: when both posting and research evidence are empty the pipeline fails closed unless `--allow-recon-only` is passed.
 

@@ -5,7 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from primr.core.cli_prep import _create_prep_parser, is_prep_command, run_prep_cli
+from primr.cli_prep import _create_prep_parser, is_prep_command, run_prep_cli
+from primr.core.cli_errors import EXIT_INTERRUPTED
+from primr.core.evidence_bundle import DEFAULT_MAX_PAGES as COLLECTOR_DEFAULT_MAX_PAGES
 from primr.core.evidence_bundle import EvidenceBundleResult
 
 
@@ -15,16 +17,23 @@ def test_prep_command_predicate() -> None:
 
 
 def test_prep_help_describes_host_capability_without_vendor_roster() -> None:
-    help_text = _create_prep_parser().format_help()
+    parser = _create_prep_parser()
+    help_text = parser.format_help()
+    normalized_help = " ".join(help_text.split())
 
+    assert parser.get_default("max_pages") == COLLECTOR_DEFAULT_MAX_PAGES
     assert "capable agent host" in help_text
     assert "existing plan capacity" in help_text
     assert "or another host agent" not in help_text
+    assert (
+        "Preview collection or skill installation with zero network requests, "
+        "model calls, or file writes."
+    ) in normalized_help
 
 
 def test_prep_dry_run_has_no_collection(tmp_path, monkeypatch, capsys) -> None:
     collect = MagicMock()
-    monkeypatch.setattr("primr.core.cli_prep.collect_evidence_bundle", collect)
+    monkeypatch.setattr("primr.cli_prep.collect_evidence_bundle", collect)
 
     result = run_prep_cli(
         ["prep", "Acme", "https://acme.example", "--dry-run", "--output-dir", str(tmp_path)]
@@ -55,7 +64,7 @@ def test_prep_runs_collector_and_reports_paths(tmp_path, monkeypatch, capsys) ->
         coverage_warnings=(),
     )
     collect = MagicMock(return_value=expected)
-    monkeypatch.setattr("primr.core.cli_prep.collect_evidence_bundle", collect)
+    monkeypatch.setattr("primr.cli_prep.collect_evidence_bundle", collect)
 
     result = run_prep_cli(
         ["prep", "Acme", "https://acme.example", "--max-pages", "8", "--skip-hiring"]
@@ -94,7 +103,7 @@ def test_prep_reports_partial_bundle_and_limitations(tmp_path, monkeypatch, caps
         recon_collected=False,
         coverage_warnings=("No first-party page content was collected.",),
     )
-    monkeypatch.setattr("primr.core.cli_prep.collect_evidence_bundle", lambda *_a, **_k: expected)
+    monkeypatch.setattr("primr.cli_prep.collect_evidence_bundle", lambda *_a, **_k: expected)
 
     assert run_prep_cli(["prep", "ExampleCo", "https://example.co"]) == 0
 
@@ -131,7 +140,7 @@ def test_prep_skill_install_dry_run_is_non_mutating(
     destination = Path("skills") / "primr-zero"
     expected_destination = tmp_path / destination
     install = MagicMock()
-    monkeypatch.setattr("primr.core.cli_prep.install_bundled_skill", install)
+    monkeypatch.setattr("primr.cli_prep.install_bundled_skill", install)
 
     code = run_prep_cli(["prep", "--install-skill", str(destination), "--dry-run"])
 
@@ -146,3 +155,56 @@ def test_prep_skill_install_dry_run_is_non_mutating(
     assert "Network requests: 0" in output
     assert "Files written: 0 (dry run)" in output
     assert "installed" not in output.lower()
+
+
+def test_prep_collection_interruption_returns_recoverable_state(
+    monkeypatch,
+    capsys,
+) -> None:
+    collect = MagicMock(side_effect=KeyboardInterrupt)
+    monkeypatch.setattr("primr.cli_prep.collect_evidence_bundle", collect)
+
+    code = run_prep_cli(["prep", "ExampleCo", "https://example.co"])
+
+    assert code == EXIT_INTERRUPTED
+    error = capsys.readouterr().err
+    assert "Primr prep interrupted." in error
+    assert "Any incomplete staging was removed." in error
+    assert "Check the output directory before retrying." in error
+    assert "Traceback" not in error
+
+
+def test_prep_skill_install_interruption_requires_destination_inspection(
+    monkeypatch,
+    capsys,
+) -> None:
+    install = MagicMock(side_effect=KeyboardInterrupt)
+    monkeypatch.setattr("primr.cli_prep.install_bundled_skill", install)
+
+    code = run_prep_cli(["prep", "--install-skill", "relative-skill"])
+
+    assert code == EXIT_INTERRUPTED
+    error = capsys.readouterr().err
+    assert "Primr Zero skill installation interrupted." in error
+    assert "Inspect the destination before using or retrying it." in error
+    assert "Traceback" not in error
+
+
+def test_prep_collection_failure_remains_visible(monkeypatch, capsys) -> None:
+    collect = MagicMock(side_effect=RuntimeError("collector unavailable"))
+    monkeypatch.setattr("primr.cli_prep.collect_evidence_bundle", collect)
+
+    code = run_prep_cli(["prep", "ExampleCo", "https://example.co"])
+
+    assert code == 1
+    assert capsys.readouterr().err == "Primr prep failed: collector unavailable\n"
+
+
+def test_prep_skill_install_failure_remains_visible(monkeypatch, capsys) -> None:
+    install = MagicMock(side_effect=ValueError("unsafe destination"))
+    monkeypatch.setattr("primr.cli_prep.install_bundled_skill", install)
+
+    code = run_prep_cli(["prep", "--install-skill", "relative-skill"])
+
+    assert code == 1
+    assert capsys.readouterr().err == "Primr Zero skill installation failed: unsafe destination\n"
