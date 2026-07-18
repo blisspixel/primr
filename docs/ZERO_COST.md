@@ -140,14 +140,14 @@ produce a current dossier from model memory.
 The host writes and checkpoints the Markdown dossier inside its prep bundle.
 After review, run
 `primr --list-recent --json --output-dir "<bundle-parent>"`, replacing the
-placeholder with the directory containing that bundle. Confirm the Markdown is
-the `primary_report`, then pass its exact `file_path` to any requested document
-skill or agent workflow. Add only relevant `strategy_module` paths plus
-explicit user-provided notes. Preserve citations and uncertainty, and let the
-downstream consumer own its schema, audience, output destination, rendering
-formats, approval gates, and final QA. When the current host cannot run the
-inventory, pass the exact written path and disclose that the check was
-unavailable.
+placeholder with the directory containing that bundle. Select the Markdown
+record whose `file_path` is inside that prep bundle and whose role is
+`primary_report`, then pass that exact path to any requested document skill or
+agent workflow. Add only relevant `strategy_module` paths plus explicit
+user-provided notes. Preserve citations and uncertainty, and let the downstream
+consumer own its schema, audience, output destination, rendering formats,
+approval gates, and final QA. When the current host cannot run the inventory,
+pass the exact written path and disclose that the check was unavailable.
 
 This handoff is deliberately neutral. Primr does not assume a sales process,
 brand, cloud vendor, or HTML, PDF, slide, or spreadsheet renderer.

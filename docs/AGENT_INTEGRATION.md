@@ -65,8 +65,9 @@ For hard-zero collection:
 5. Use `primr-zero` in the current host to close external gaps and write the
    dossier inside the prep bundle without silently switching to API billing.
 6. Run deterministic report QA when available, then confirm the Markdown as
-   `artifact_role: primary_report` through the local JSON inventory before
-   passing its exact path to a requested downstream workflow.
+   `artifact_role: primary_report` inside that prep bundle through the local
+   JSON inventory before passing its exact path to a requested downstream
+   workflow.
 
 If the host lacks a shell, cannot launch Primr, or cannot install it with user
 approval, use the skill's host-native research fallback. Installation is not a

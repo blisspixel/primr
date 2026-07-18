@@ -574,9 +574,10 @@ deterministic QA as factual verification.
 When the Primr launcher and filesystem are available, run
 `primr --list-recent --json --output-dir "<bundle-parent>"`, replacing
 `<bundle-parent>` with the directory containing this prep bundle. Confirm the
-Markdown record has `artifact_role` equal to `primary_report`, then retain its
-exact `file_path`. If inventory cannot run in the current host, retain the exact
-written report path and disclose that the inventory check was unavailable.
+Markdown record's `file_path` is inside this prep bundle and its `artifact_role`
+is `primary_report`, then retain that exact path. If inventory cannot run in the
+current host, retain the exact written report path and disclose that the
+inventory check was unavailable.
 
 ## Optional downstream handoff
 

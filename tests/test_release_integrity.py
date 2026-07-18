@@ -432,8 +432,8 @@ def test_built_sdist_matches_release_inventory(tmp_path: Path) -> None:
     skill_root = "primr/resources/skills/primr-zero/"
     with zipfile.ZipFile(wheels[0]) as wheel:
         wheel_paths = set(wheel.namelist())
+        assert skill_root + "SKILL.md" in wheel_paths
         packaged_skill = wheel.read(skill_root + "SKILL.md").decode("utf-8")
-    assert skill_root + "SKILL.md" in wheel_paths
     assert {
         skill_root + "references/host-capabilities.md",
         skill_root + "references/local-capacity.md",

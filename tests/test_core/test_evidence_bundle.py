@@ -103,6 +103,7 @@ def test_collect_evidence_bundle_emits_bounded_host_handoff(tmp_path, monkeypatc
     assert "`strategy_module`" in workflow
     assert "downstream consumer own its output format" in normalized_workflow
     assert "inside this prep bundle directory" in normalized_workflow
+    assert "`file_path` is inside this prep bundle" in normalized_workflow
     assert "`(Inferred)`" not in workflow
     assert "evidence-based inference" in normalized_workflow
 
