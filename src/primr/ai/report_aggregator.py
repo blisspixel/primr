@@ -220,10 +220,10 @@ class ReportAggregator:
 
 This strategic overview synthesizes the company's own public materials and external market evidence. Each chapter is researched independently and reconciled into the full document.
 
-**Hierarchy of Truth:**
-1. Company Facts: Sourced from official company materials (highest authority)
-2. External Context: Market conditions, competitive intelligence, industry trends
-3. Synthesis: Integrated analysis combining internal baseline with external perspective
+**Hierarchy of Evidence:**
+1. First-Party Evidence: Official public company materials, cited within their stated scope
+2. External Evidence: Market conditions, competitive intelligence, and industry trends
+3. Labeled Synthesis: Analysis that combines the first-party baseline with external perspective
 
 **Epistemic Standards:**
 - Facts are cited; inferences are labeled as such

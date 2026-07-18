@@ -177,6 +177,12 @@ class TestWriteStrategyContextBundle:
     def test_returns_none_when_no_evidence_exists(self, tmp_path):
         assert write_strategy_context_bundle(str(tmp_path), None) is None
 
+    def test_returns_none_for_empty_report_without_artifacts(self, tmp_path):
+        report = tmp_path / "report.md"
+        report.write_text("  \n", encoding="utf-8")
+
+        assert write_strategy_context_bundle(str(tmp_path), str(report)) is None
+
     def test_write_failure_falls_back_to_report(self, tmp_path):
         report = tmp_path / "report.md"
         report.write_text("business strategy", encoding="utf-8")
@@ -184,3 +190,13 @@ class TestWriteStrategyContextBundle:
             output = write_strategy_context_bundle(str(tmp_path), str(report))
 
         assert output == str(report)
+
+    def test_write_failure_does_not_fall_back_to_empty_report(self, tmp_path):
+        report = tmp_path / "report.md"
+        report.write_text("", encoding="utf-8")
+        (tmp_path / "_recon_context.txt").write_text("bounded signal", encoding="utf-8")
+
+        with patch("pathlib.Path.write_text", side_effect=PermissionError("locked")):
+            output = write_strategy_context_bundle(str(tmp_path), str(report))
+
+        assert output is None

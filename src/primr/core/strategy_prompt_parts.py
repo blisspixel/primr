@@ -151,11 +151,7 @@ def write_strategy_context_bundle(
         artifacts_expected=len(artifact_specs),
     )
     if not report_content.strip() and not artifact_blocks:
-        return (
-            company_report_path
-            if company_report_path and os.path.exists(company_report_path)
-            else None
-        )
+        return None
 
     bundle_path = Path(folder_path) / "_strategy_context.md"
     try:
@@ -165,9 +161,5 @@ def write_strategy_context_bundle(
         )
     except OSError as exc:
         logger.warning("Failed to write strategy context bundle %s: %s", bundle_path, exc)
-        return (
-            company_report_path
-            if company_report_path and os.path.exists(company_report_path)
-            else None
-        )
+        return company_report_path if report_content.strip() else None
     return str(bundle_path)
