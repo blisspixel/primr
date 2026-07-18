@@ -5,13 +5,21 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from primr.core.cli_prep import is_prep_command, run_prep_cli
+from primr.core.cli_prep import _create_prep_parser, is_prep_command, run_prep_cli
 from primr.core.evidence_bundle import EvidenceBundleResult
 
 
 def test_prep_command_predicate() -> None:
     assert is_prep_command(["prep", "Acme", "https://acme.example"])
     assert not is_prep_command(["skills", "Acme"])
+
+
+def test_prep_help_describes_host_capability_without_vendor_roster() -> None:
+    help_text = _create_prep_parser().format_help()
+
+    assert "capable agent host" in help_text
+    assert "existing plan capacity" in help_text
+    assert "or another host agent" not in help_text
 
 
 def test_prep_dry_run_has_no_collection(tmp_path, monkeypatch, capsys) -> None:
