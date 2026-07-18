@@ -285,9 +285,9 @@ def grok_llm(
 
     _model_config = _PrimrModels.get_model_config(model)
     if _model_config is not None and _model_config.provider != "xai":
-        from primr.ai.routing import get_provider_for_model as _get_provider_for_model
+        from primr.ai.providers.registry import get_registered_provider_for_model
 
-        cross_provider = _get_provider_for_model(model)
+        cross_provider = get_registered_provider_for_model(model)
         cross_kwargs: dict[str, Any] = {}
         if reasoning_effort is not None:
             cross_kwargs["reasoning_effort"] = reasoning_effort

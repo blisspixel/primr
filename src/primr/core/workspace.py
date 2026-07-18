@@ -217,7 +217,7 @@ def _windows_process_is_running(
 ) -> bool:
     """Windows liveness check that treats access denial as unverifiably live."""
     import ctypes
-    from ctypes import wintypes
+    import ctypes.wintypes as wintypes
 
     if open_process is None or get_exit_code is None or close_handle is None:
         win_dll: Any = vars(ctypes)["WinDLL"]
@@ -339,6 +339,7 @@ def _clear_or_refuse_existing_lease(
     try:
         lease_path.unlink()
     except FileNotFoundError:
+        # Another contender already removed the stale record; acquisition can retry.
         pass
     except OSError as exc:
         raise ResumeLeaseError(
@@ -397,6 +398,7 @@ def acquire_resume_lease(folder_path: str | Path) -> None:
             try:
                 temporary_path.unlink()
             except FileNotFoundError:
+                # The hard-link path or another cleanup path already removed it.
                 pass
             except OSError as exc:
                 logger.warning(
@@ -442,6 +444,7 @@ def release_resume_lease(folder_path: str | Path) -> None:
     try:
         lease_path.unlink()
     except FileNotFoundError:
+        # Ownership is already released; finish clearing local bookkeeping.
         pass
     except OSError as exc:
         with _RESUME_LEASE_TOKENS_GUARD:

@@ -168,14 +168,10 @@ EXPECTED_IMPORT_CYCLES = {
     ),
     frozenset(
         {
-            "primr.ai.client",
-            "primr.ai.grok_client",
             "primr.ai.llm",
             "primr.ai.routing",
             "primr.config.eval_profiles",
-            "primr.core.deep_budget",
             "primr.core.model_eval",
-            "primr.pipeline.llm_failover",
             "primr.utils.cost_estimator",
         }
     ),

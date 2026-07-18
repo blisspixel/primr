@@ -8,6 +8,7 @@ All external I/O (llm, deep research client, vendor research, DOCX) mocked.
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -191,6 +192,43 @@ def test_lite_strategy_bounds_large_context_and_uses_estimated_model(tmp_path: P
     assert prompt.index("company-context") < prompt.index("AI Strategy")
     assert len(prompt.encode()) <= LITE_AI_STRATEGY_MAX_INPUT_BYTES
     assert mock_llm.call_args.kwargs["model"] == pick_model_for_role(Role.REASONING)
+
+
+def test_lite_context_logs_do_not_expose_input_paths(tmp_path: Path, caplog) -> None:
+    from primr.core.strategy_context import build_bounded_lite_strategy_prompt
+
+    sensitive_name = "private-customer-record.md"
+    missing = tmp_path / sensitive_name
+    with caplog.at_level(logging.WARNING):
+        prompt = build_bounded_lite_strategy_prompt("Write the strategy", [str(missing)])
+
+    assert prompt.endswith("Write the strategy")
+    assert sensitive_name not in caplog.text
+    assert str(tmp_path) not in caplog.text
+    assert "FileNotFoundError" in caplog.text
+
+
+def test_lite_context_limit_logs_do_not_expose_input_paths(
+    tmp_path: Path, caplog, monkeypatch
+) -> None:
+    from primr.core import strategy_context
+
+    first = tmp_path / "private-first-record.md"
+    second = tmp_path / "private-second-record.md"
+    first.write_text("brief context", encoding="utf-8")
+    second.write_text("more context", encoding="utf-8")
+    monkeypatch.setattr(strategy_context, "LITE_AI_STRATEGY_MAX_INPUT_BYTES", 150)
+
+    with caplog.at_level(logging.INFO):
+        prompt = strategy_context.build_bounded_lite_strategy_prompt(
+            "Write the strategy", [str(first), str(second)]
+        )
+
+    assert prompt.endswith("Write the strategy")
+    assert "private-first-record.md" not in caplog.text
+    assert "private-second-record.md" not in caplog.text
+    assert str(tmp_path) not in caplog.text
+    assert "governed limit" in caplog.text or "remaining inputs" in caplog.text
 
 
 def test_lite_strategy_empty_llm_returns_none(tmp_path: Path):

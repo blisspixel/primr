@@ -26,40 +26,52 @@ logger = get_logger(__name__)
 
 class _StrategyConfig(Protocol):
     @property
-    def ai_strategy_only_path(self) -> str | None: ...
+    def ai_strategy_only_path(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def company_name(self) -> str | None: ...
+    def company_name(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def strategy_type(self) -> str: ...
+    def strategy_type(self) -> str:
+        raise NotImplementedError
 
     @property
-    def refresh_vendor_research(self) -> bool: ...
+    def refresh_vendor_research(self) -> bool:
+        raise NotImplementedError
 
     @property
-    def lite_strategy(self) -> bool: ...
+    def lite_strategy(self) -> bool:
+        raise NotImplementedError
 
     @property
-    def budget_usd(self) -> float | None: ...
+    def budget_usd(self) -> float | None:
+        raise NotImplementedError
 
     @property
-    def dry_run_requested(self) -> bool: ...
+    def dry_run_requested(self) -> bool:
+        raise NotImplementedError
 
     @property
-    def json_output(self) -> bool: ...
+    def json_output(self) -> bool:
+        raise NotImplementedError
 
     @property
-    def skip_confirm(self) -> bool: ...
+    def skip_confirm(self) -> bool:
+        raise NotImplementedError
 
     @property
-    def output_dir(self) -> str | None: ...
+    def output_dir(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def open_after(self) -> bool: ...
+    def open_after(self) -> bool:
+        raise NotImplementedError
 
     @property
-    def cloud_vendors(self) -> tuple[str, ...]: ...
+    def cloud_vendors(self) -> tuple[str, ...]:
+        raise NotImplementedError
 
 
 @dataclass(frozen=True)

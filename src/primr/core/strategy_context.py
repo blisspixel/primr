@@ -28,14 +28,17 @@ def build_bounded_lite_strategy_prompt(
         block_header = f"--- Context: {os.path.basename(context_file)} ---\n".encode()
         fixed_bytes = len(separator) + len(block_header)
         if fixed_bytes >= remaining:
-            logger.info("Lite strategy context limit reached before %s", context_file)
+            logger.info("Lite strategy context limit reached before remaining inputs")
             break
         content_limit = remaining - fixed_bytes
         try:
             with open(context_file, "rb") as handle:
                 raw_content = handle.read(content_limit + 1)
         except OSError as exc:
-            logger.warning("Failed to read context file %s: %s", context_file, exc)
+            logger.warning(
+                "Failed to read one lite strategy context file (%s)",
+                type(exc).__name__,
+            )
             continue
         truncated = len(raw_content) > content_limit
         content = raw_content[:content_limit].decode("utf-8", errors="ignore").strip()
@@ -47,7 +50,7 @@ def build_bounded_lite_strategy_prompt(
         payload.extend(encoded_content)
         remaining -= fixed_bytes + len(encoded_content)
         if truncated:
-            logger.info("Lite strategy context truncated at governed limit: %s", context_file)
+            logger.info("Lite strategy context truncated at governed limit")
             break
 
     payload.extend(suffix)

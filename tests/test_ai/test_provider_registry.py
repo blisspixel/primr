@@ -17,7 +17,9 @@ from primr.ai.providers import (
     build_provider,
     get_available_providers,
     list_known_providers,
+    registry,
 )
+from primr.config.models import PrimrModels
 
 
 class TestRegistry:
@@ -130,3 +132,11 @@ class TestBuildProvider:
         provider = build_provider(gemini_entry)
         assert isinstance(provider, GeminiProvider)
         assert provider.name == "gemini"
+
+    def test_model_provider_resolution_is_cached_without_routing_import(self, monkeypatch) -> None:
+        monkeypatch.setattr(registry, "_PROVIDER_INSTANCES", {})
+        first = registry.get_registered_provider_for_model(PrimrModels.PRO_MODEL)
+        second = registry.get_registered_provider_for_model(PrimrModels.PRO_MODEL)
+
+        assert isinstance(first, GeminiProvider)
+        assert second is first
