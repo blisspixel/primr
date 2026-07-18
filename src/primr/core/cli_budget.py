@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 from typing import TYPE_CHECKING
 
 from primr.core.budget_policy import describe_budget_enforcement
@@ -78,8 +79,8 @@ def activate_run_budget(
     """Validate ``--budget``, activate it when present, and explain runtime scope."""
     if config.budget_usd is None:
         return BudgetActivation(ok=True, active=False)
-    if config.budget_usd <= 0:
-        console.error(f"--budget must be positive, got {config.budget_usd}")
+    if not isfinite(config.budget_usd) or config.budget_usd <= 0:
+        console.error(f"--budget must be a finite positive number, got {config.budget_usd}")
         return BudgetActivation(ok=False, active=False)
 
     from primr.utils.run_budget import set_run_budget

@@ -158,7 +158,11 @@ def _check_google_search(errors: list[str]) -> None:
 
 
 def _run_preflight_checks(
-    mode: str, *, premium_mode: bool = False, fast_mode: bool = False
+    mode: str,
+    *,
+    premium_mode: bool = False,
+    fast_mode: bool = False,
+    allow_network: bool = True,
 ) -> tuple[bool, list[str]]:
     """
     Run preflight checks before starting research pipeline.
@@ -173,12 +177,13 @@ def _run_preflight_checks(
         mode, premium_mode=premium_mode, fast_mode=fast_mode
     )
     _check_playwright(mode, errors)
-    _check_gemini_connectivity(
-        gemini_key,
-        requires_gemini=requires_gemini,
-        is_full_execution=is_full_execution,
-        errors=errors,
-    )
-    _check_google_search(errors)
+    if allow_network:
+        _check_gemini_connectivity(
+            gemini_key,
+            requires_gemini=requires_gemini,
+            is_full_execution=is_full_execution,
+            errors=errors,
+        )
+        _check_google_search(errors)
 
     return (len(errors) == 0, errors)

@@ -55,7 +55,10 @@ genai = _google_genai
 # Suppress the experimental API warning from the Genai SDK
 warnings.filterwarnings("ignore", message=".*experimental.*", module="google.genai")
 
-from primr.ai.deep_research_execution import poll_interaction_until_terminal
+from primr.ai.deep_research_execution import (
+    poll_interaction_until_terminal,
+    run_resilient_without_duplicate,
+)
 from primr.ai.deep_research_parsing import (
     extract_citations_from_content,
     extract_interaction_citations,
@@ -322,8 +325,10 @@ class DeepResearchClient:
         """
         Execute a deep research task.
 
-        This method uses streaming with reconnection by default (more resilient),
-        with fallback to polling if streaming fails.
+        This method uses the resilient background-job path by default. It never
+        starts a second provider interaction after that path fails. Callers may
+        select the legacy polling implementation explicitly with
+        ``use_streaming=False``.
 
         Research tasks typically take 5-20 minutes.
 
@@ -343,29 +348,24 @@ class DeepResearchClient:
         Raises:
             AIError: If research fails or times out
         """
-        # Try streaming approach first (more resilient)
+        # A failure can follow provider acceptance, so falling through to
+        # polling could start and bill a duplicate provider job.
         if use_streaming:
-            try:
-                logger.info("Using resilient streaming mode for Deep Research")
-                return await self.research_resilient(
-                    query=query,
-                    output_format=output_format,
-                    timeout=timeout,
-                    on_progress=on_progress,
-                    priority_urls=priority_urls,
-                    context_files=context_files,
-                    job_metadata=job_metadata,
-                )
-            except Exception as e:
-                logger.warning(f"Streaming mode failed, falling back to polling: {e}")
-                if on_progress:
-                    on_progress(
-                        ResearchProgress(
-                            status=ResearchStatus.IN_PROGRESS,
-                            message="Streaming failed, switching to polling mode...",
-                        )
-                    )
-                # Fall through to polling mode
+            return await run_resilient_without_duplicate(
+                self.research_resilient,
+                logger=logger,
+                notify_progress=on_progress,
+                build_progress=lambda message: ResearchProgress(
+                    status=ResearchStatus.FAILED, message=message
+                ),
+                query=query,
+                output_format=output_format,
+                timeout=timeout,
+                on_progress=on_progress,
+                priority_urls=priority_urls,
+                context_files=context_files,
+                job_metadata=job_metadata,
+            )
 
         # =================================================================
         # POLLING MODE (fallback)
@@ -410,7 +410,7 @@ class DeepResearchClient:
         # FAIL FAST if any validation errors
         if preflight_errors:
             error_msg = "Pre-flight validation failed:\n  - " + "\n  - ".join(preflight_errors)
-            logger.error(error_msg)
+            logger.error("Pre-flight validation failed with %d error(s)", len(preflight_errors))
             raise AIError(error_msg, model=self.AGENT_ID)
 
         # 5. Test API connectivity with a lightweight call before expensive operations
@@ -862,12 +862,12 @@ Frame everything as hypotheses to explore, not conclusions."""
             store_name = store.name or ""
             if not store_name:
                 raise AIError("Failed to create file store - no name returned", model=self.AGENT_ID)
-            logger.info(f"Created file store: {store_name}")
+            logger.info("Created context file store")
 
             # Upload each file with explicit MIME type via config
             # FAIL on first error - don't waste money on partial uploads
-            for file_path in valid_files:
-                logger.info(f"Uploading: {file_path}")
+            for file_number, file_path in enumerate(valid_files, start=1):
+                logger.info("Uploading context file %d of %d", file_number, len(valid_files))
                 try:
                     # Get MIME type from extension
                     ext = os.path.splitext(file_path)[1].lower()
@@ -881,12 +881,12 @@ Frame everything as hypotheses to explore, not conclusions."""
                         file_search_store_name=store_name or "",
                         config=config,  # type: ignore[arg-type]
                     )
-                    logger.info(f"Uploaded: {file_path}")
+                    logger.info("Uploaded context file %d of %d", file_number, len(valid_files))
                 except Exception as upload_err:
                     # FAIL HARD - don't continue with broken uploads
                     # But first, clean up the store we created!
                     if store_name:
-                        logger.warning(f"Upload failed, cleaning up store {store_name}")
+                        logger.warning("Context upload failed; cleaning up file store")
                         self._cleanup_file_store(store_name)
                     raise AIError(
                         f"Failed to upload {file_path}: {upload_err}",

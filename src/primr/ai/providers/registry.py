@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 from primr.ai.providers.gemini import GeminiProvider
 from primr.ai.providers.openai_compatible import OpenAICompatibleProvider
 from primr.ai.providers.xai import XAIProvider
+from primr.config.models import PrimrModels
 
 if TYPE_CHECKING:
     from primr.ai.providers.base import Provider
@@ -70,6 +71,7 @@ KNOWN_PROVIDERS: tuple[ProviderEntry, ...] = (
         roles=("utility",),
     ),
 )
+_PROVIDER_INSTANCES: dict[str, Provider] = {}
 
 
 def list_known_providers() -> tuple[ProviderEntry, ...]:
@@ -113,3 +115,25 @@ def build_provider(entry: ProviderEntry) -> Provider:
             api_key_default="ollama",
         )
     raise ValueError(f"No provider factory for entry {entry.name!r}")
+
+
+def get_registered_provider_for_model(model_name: str) -> Provider:
+    """Return one cached registry provider without importing the routing layer."""
+    config = PrimrModels.get_model_config(model_name)
+    if config is None:
+        raise KeyError(f"Unknown model: {model_name}")
+
+    provider_name = "gemini" if config.provider == "google" else config.provider
+    provider = _PROVIDER_INSTANCES.get(provider_name)
+    if provider is not None:
+        return provider
+
+    entry = next((item for item in KNOWN_PROVIDERS if item.name == provider_name), None)
+    if entry is None:
+        raise ValueError(
+            f"Model {model_name!r} has provider {config.provider!r} which has no "
+            "registered provider implementation."
+        )
+    provider = build_provider(entry)
+    _PROVIDER_INSTANCES[provider_name] = provider
+    return provider

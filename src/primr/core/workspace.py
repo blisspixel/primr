@@ -25,12 +25,19 @@ Usage:
     context_file = consolidate_working_folder(folder)
 """
 
+import json
 import os
+import socket
 import tempfile
-from collections.abc import Iterator
+import threading
+import uuid
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from datetime import datetime
+from functools import wraps
 from pathlib import Path
+from typing import Any, ParamSpec, TypeVar
 
 from primr.config.config import WORKING_DIR
 from primr.utils.logging_config import get_logger
@@ -38,6 +45,15 @@ from primr.utils.url_helpers import normalized_hostname
 from primr.utils.validators import company_path_component, sanitize_for_filename
 
 logger = get_logger("workspace")
+
+_RESUME_LEASE_NAME = ".primr-resume-lease"
+_RESUME_LEASE_TOKENS: dict[str, str] = {}
+_RESUME_LEASE_RELEASE_PENDING: set[str] = set()
+_RESUME_LEASE_TOKENS_GUARD = threading.Lock()
+_THREAD_RESUME_LEASES = threading.local()
+_MAX_PROCESS_ID = 2_147_483_647
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
 
 
 def derive_working_folder_name(company_name: str | None, website: str | None = None) -> str:
@@ -112,7 +128,11 @@ class FileValidationResult:
 
 
 def create_working_folder(
-    company_name: str | None, website: str | None, use_run_id: bool = True
+    company_name: str | None,
+    website: str | None,
+    use_run_id: bool = True,
+    *,
+    base_dir: str | Path | None = None,
 ) -> str:
     """
     Create working folder for research artifacts.
@@ -124,35 +144,399 @@ def create_working_folder(
         company_name: Name of the company
         website: Company website URL
         use_run_id: If True, create timestamped subfolder (default: True)
+        base_dir: Optional working root override for embedded callers and tests
 
     Returns:
         Path to the created folder as string (for backward compatibility)
     """
-    from datetime import datetime
-
     folder_name = derive_working_folder_name(company_name, website)
-
-    if use_run_id:
-        # Create timestamped run folder: Company_Name/2026-01-09_0845
-        run_id = datetime.now().strftime("%Y-%m-%d_%H%M")
-        folder_path = os.path.join(WORKING_DIR, folder_name, run_id)
-    else:
-        folder_path = os.path.join(WORKING_DIR, folder_name)
+    working_root = Path(base_dir) if base_dir is not None else Path(WORKING_DIR)
+    company_root = working_root / folder_name
 
     # Defense-in-depth: company_name is sanitized at the input boundary
     # (validate_company_name rejects path separators and traversal), but this
     # is the sink that creates directories. Refuse anything that resolves
     # outside WORKING_DIR so a name that bypassed validation can't escape.
-    base = Path(WORKING_DIR).resolve()
-    resolved = Path(folder_path).resolve()
-    if base not in resolved.parents:
+    base = working_root.resolve()
+    resolved_company_root = company_root.resolve()
+    if base not in resolved_company_root.parents:
         raise ValueError(
             f"Refusing to create a working folder outside WORKING_DIR for "
             f"company name {company_name!r}"
         )
 
-    os.makedirs(folder_path, exist_ok=True)
-    return folder_path
+    if not use_run_id:
+        company_root.mkdir(parents=True, exist_ok=True)
+        return str(company_root)
+
+    company_root.mkdir(parents=True, exist_ok=True)
+    run_id = datetime.now().strftime("%Y-%m-%d_%H%M")
+    for collision_index in range(1_000):
+        suffix = "" if collision_index == 0 else f"_{collision_index:03d}"
+        folder_path = company_root / f"{run_id}{suffix}"
+        try:
+            folder_path.mkdir(exist_ok=False)
+            return str(folder_path)
+        except FileExistsError:
+            continue
+
+    raise RuntimeError(f"Could not allocate a unique working folder beneath {company_root}")
+
+
+class ResumeLeaseError(RuntimeError):
+    """Raised when an incomplete run is already owned by another process."""
+
+
+class ActiveRunLeaseError(ResumeLeaseError):
+    """Raised when a verified live process owns a run or company workspace."""
+
+
+def _process_is_running(pid: int) -> bool:
+    """Return whether a local process still owns *pid* without signaling it."""
+    if pid <= 0 or pid > _MAX_PROCESS_ID:
+        return False
+    if os.name == "nt":
+        return _windows_process_is_running(pid)
+
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _windows_process_is_running(
+    pid: int,
+    *,
+    open_process: Callable[[int, bool, int], object] | None = None,
+    get_exit_code: Callable[[object, object], bool] | None = None,
+    close_handle: Callable[[object], object] | None = None,
+    get_last_error: Callable[[], int] | None = None,
+) -> bool:
+    """Windows liveness check that treats access denial as unverifiably live."""
+    import ctypes
+    import ctypes.wintypes as wintypes
+
+    if open_process is None or get_exit_code is None or close_handle is None:
+        win_dll: Any = vars(ctypes)["WinDLL"]
+        kernel32: Any = win_dll("kernel32", use_last_error=True)
+        native_open_process: Any = kernel32.OpenProcess
+        native_open_process.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        native_open_process.restype = wintypes.HANDLE
+        native_get_exit_code: Any = kernel32.GetExitCodeProcess
+        native_get_exit_code.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        native_get_exit_code.restype = wintypes.BOOL
+        native_close_handle: Any = kernel32.CloseHandle
+        native_close_handle.argtypes = [wintypes.HANDLE]
+        native_close_handle.restype = wintypes.BOOL
+        open_process = native_open_process
+        get_exit_code = native_get_exit_code
+        close_handle = native_close_handle
+    if get_last_error is None:
+        get_last_error = vars(ctypes)["get_last_error"]
+
+    process_query_limited_information = 0x1000
+    error_invalid_parameter = 87
+    still_active = 259
+    handle = open_process(process_query_limited_information, False, pid)
+    if not handle:
+        return get_last_error() != error_invalid_parameter
+    try:
+        exit_code = wintypes.DWORD()
+        if not get_exit_code(handle, ctypes.byref(exit_code)):
+            return True
+        return exit_code.value == still_active
+    finally:
+        close_handle(handle)
+
+
+def _resume_lease_path(folder_path: str | Path) -> Path:
+    return Path(folder_path) / _RESUME_LEASE_NAME
+
+
+def _thread_resume_leases() -> dict[str, str]:
+    owned = getattr(_THREAD_RESUME_LEASES, "owned", None)
+    if not isinstance(owned, dict):
+        owned = {}
+        _THREAD_RESUME_LEASES.owned = owned
+    return owned
+
+
+def _read_resume_lease(lease_path: Path) -> dict[str, object]:
+    try:
+        payload = json.loads(lease_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ResumeLeaseError(
+            f"Cannot verify resume ownership for {lease_path.parent}: {exc}"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise ResumeLeaseError(f"Invalid resume ownership record for {lease_path.parent}")
+    return payload
+
+
+def _validated_lease_owner(owner: dict[str, object], run_folder: Path) -> tuple[str, int, str]:
+    """Return normalized owner metadata, refusing malformed records."""
+    hostname = owner.get("hostname")
+    token = owner.get("token")
+    pid_value = owner.get("pid")
+    if not isinstance(hostname, str) or not hostname.strip():
+        raise ResumeLeaseError(f"Invalid resume ownership record for {run_folder}")
+    if not isinstance(token, str) or not token.strip():
+        raise ResumeLeaseError(f"Invalid resume ownership record for {run_folder}")
+    if isinstance(pid_value, bool):
+        raise ResumeLeaseError(f"Invalid resume ownership record for {run_folder}")
+    if isinstance(pid_value, int):
+        pid = pid_value
+    elif isinstance(pid_value, str) and pid_value.isdecimal():
+        pid = int(pid_value)
+    else:
+        raise ResumeLeaseError(f"Invalid resume ownership record for {run_folder}")
+    if pid <= 0 or pid > _MAX_PROCESS_ID:
+        raise ResumeLeaseError(f"Invalid resume ownership record for {run_folder}")
+    return (hostname.strip(), pid, token.strip())
+
+
+def _clear_or_refuse_existing_lease(
+    run_folder: Path,
+    lease_path: Path,
+    *,
+    current_host: str,
+    current_pid: int,
+) -> None:
+    """Clear a reclaimable lease or raise with its verified ownership state."""
+    existing_host, existing_pid, existing_token = _validated_lease_owner(
+        _read_resume_lease(lease_path),
+        run_folder,
+    )
+    key = os.path.normcase(os.path.abspath(lease_path))
+    with _RESUME_LEASE_TOKENS_GUARD:
+        owned_token = _RESUME_LEASE_TOKENS.get(key)
+        cleanup_pending = key in _RESUME_LEASE_RELEASE_PENDING
+    if (
+        existing_host == current_host
+        and existing_pid == current_pid
+        and existing_token == owned_token
+        and cleanup_pending
+    ):
+        release_resume_lease(run_folder)
+        if lease_path.exists():
+            raise ResumeLeaseError(
+                f"Could not clear prior run ownership for {run_folder}"
+            ) from None
+        return
+
+    if existing_host != current_host:
+        raise ResumeLeaseError(
+            f"Run {run_folder} is owned by process {existing_pid} "
+            f"on unverified host {existing_host or 'unknown'}"
+        ) from None
+    if _process_is_running(existing_pid):
+        raise ActiveRunLeaseError(
+            f"Run {run_folder} is already being resumed by process {existing_pid}"
+        ) from None
+    try:
+        lease_path.unlink()
+    except FileNotFoundError:
+        # Another contender already removed the stale record; acquisition can retry.
+        pass
+    except OSError as exc:
+        raise ResumeLeaseError(
+            f"Could not reclaim stale run ownership for {run_folder}: {exc}"
+        ) from exc
+
+
+def acquire_resume_lease(folder_path: str | Path) -> None:
+    """Atomically claim one incomplete run for this process.
+
+    The claim is published with an atomic hard link so another process never
+    observes a partially written ownership record. A dead local owner is
+    reclaimed. An active or unverifiable owner causes a visible refusal.
+    """
+    run_folder = Path(folder_path)
+    lease_path = _resume_lease_path(run_folder)
+    current_host = socket.gethostname()
+    current_pid = os.getpid()
+
+    for _ in range(3):
+        token = uuid.uuid4().hex
+        owner = {
+            "hostname": current_host,
+            "pid": current_pid,
+            "token": token,
+            "claimed_at": datetime.now().isoformat(),
+        }
+        temporary_path = run_folder / f".{_RESUME_LEASE_NAME}.{token}.tmp"
+        try:
+            with temporary_path.open("x", encoding="utf-8") as handle:
+                json.dump(owner, handle, sort_keys=True)
+                handle.flush()
+                os.fsync(handle.fileno())
+            try:
+                os.link(temporary_path, lease_path)
+            except FileExistsError:
+                _clear_or_refuse_existing_lease(
+                    run_folder,
+                    lease_path,
+                    current_host=current_host,
+                    current_pid=current_pid,
+                )
+                continue
+            except OSError as exc:
+                raise ResumeLeaseError(
+                    f"Could not claim resume ownership for {run_folder}: {exc}"
+                ) from exc
+
+            key = os.path.normcase(os.path.abspath(lease_path))
+            with _RESUME_LEASE_TOKENS_GUARD:
+                _RESUME_LEASE_TOKENS[key] = token
+                _RESUME_LEASE_RELEASE_PENDING.discard(key)
+            _thread_resume_leases()[key] = str(run_folder)
+            return
+        finally:
+            try:
+                temporary_path.unlink()
+            except FileNotFoundError:
+                # The hard-link path or another cleanup path already removed it.
+                pass
+            except OSError as exc:
+                logger.warning(
+                    "Could not remove temporary ownership file %s: %s", temporary_path, exc
+                )
+
+    raise ResumeLeaseError(f"Could not claim resume ownership for {run_folder}")
+
+
+def release_resume_lease(folder_path: str | Path) -> None:
+    """Release a resume lease only when it belongs to this process.
+
+    Cleanup is best-effort and nonfatal. Ownership bookkeeping is retained
+    when Windows or another filesystem temporarily refuses the unlink, so the
+    outer lifecycle guard can retry without turning a successful run into a
+    reported failure.
+    """
+    lease_path = _resume_lease_path(folder_path)
+    key = os.path.normcase(os.path.abspath(lease_path))
+    with _RESUME_LEASE_TOKENS_GUARD:
+        expected_token = _RESUME_LEASE_TOKENS.get(key)
+    if expected_token is None:
+        return
+
+    try:
+        owner = _read_resume_lease(lease_path)
+    except ResumeLeaseError as exc:
+        if not lease_path.exists():
+            with _RESUME_LEASE_TOKENS_GUARD:
+                _RESUME_LEASE_TOKENS.pop(key, None)
+                _RESUME_LEASE_RELEASE_PENDING.discard(key)
+            _thread_resume_leases().pop(key, None)
+        else:
+            logger.warning("Could not verify lease cleanup for %s: %s", lease_path, exc)
+        return
+    if owner.get("token") != expected_token:
+        with _RESUME_LEASE_TOKENS_GUARD:
+            _RESUME_LEASE_TOKENS.pop(key, None)
+            _RESUME_LEASE_RELEASE_PENDING.discard(key)
+        _thread_resume_leases().pop(key, None)
+        logger.warning("Lease ownership changed before cleanup for %s", lease_path)
+        return
+    try:
+        lease_path.unlink()
+    except FileNotFoundError:
+        # Ownership is already released; finish clearing local bookkeeping.
+        pass
+    except OSError as exc:
+        with _RESUME_LEASE_TOKENS_GUARD:
+            _RESUME_LEASE_RELEASE_PENDING.add(key)
+        logger.warning("Could not release run ownership for %s: %s", lease_path.parent, exc)
+        return
+
+    with _RESUME_LEASE_TOKENS_GUARD:
+        _RESUME_LEASE_TOKENS.pop(key, None)
+        _RESUME_LEASE_RELEASE_PENDING.discard(key)
+    _thread_resume_leases().pop(key, None)
+
+
+def acquire_company_run_lease(run_folder: str | Path) -> None:
+    """Refuse concurrent runs that would publish the same company artifacts."""
+    company_root = Path(run_folder).parent
+    try:
+        acquire_resume_lease(company_root)
+    except ActiveRunLeaseError as exc:
+        raise ActiveRunLeaseError(
+            f"Another active research process owns company workspace {company_root}"
+        ) from exc
+
+
+def acquire_company_run_lease_for_target(
+    company_name: str | None,
+    website: str | None,
+    *,
+    base_dir: str | Path | None = None,
+) -> Path:
+    """Claim a company before allocating a run folder or publishing artifacts."""
+    working_root = Path(base_dir) if base_dir is not None else Path(WORKING_DIR)
+    company_root = working_root / derive_working_folder_name(company_name, website)
+    base = working_root.resolve()
+    resolved_company_root = company_root.resolve()
+    if base not in resolved_company_root.parents:
+        raise ValueError("Refusing to claim a company workspace outside WORKING_DIR")
+    company_root.mkdir(parents=True, exist_ok=True)
+    try:
+        acquire_resume_lease(company_root)
+    except ActiveRunLeaseError as exc:
+        raise ActiveRunLeaseError(
+            f"Another active research process owns company workspace {company_root}"
+        ) from exc
+    return company_root
+
+
+@contextmanager
+def company_run_lease_for_target(
+    company_name: str | None,
+    website: str | None,
+    *,
+    base_dir: str | Path | None = None,
+) -> Iterator[Path]:
+    """Hold exclusive publication ownership for one company target."""
+    company_root = acquire_company_run_lease_for_target(
+        company_name,
+        website,
+        base_dir=base_dir,
+    )
+    try:
+        yield company_root
+    finally:
+        release_resume_lease(company_root)
+
+
+def release_company_run_lease(run_folder: str | Path) -> None:
+    """Release this process's company-level publication lease."""
+    release_resume_lease(Path(run_folder).parent)
+
+
+def release_resume_leases_on_exit(func: Callable[_P, _R]) -> Callable[_P, _R]:
+    """Release resume leases acquired by one synchronous operation."""
+
+    @wraps(func)
+    def wrapped(*args: _P.args, **kwargs: _P.kwargs) -> _R:
+        with _RESUME_LEASE_TOKENS_GUARD:
+            owned_before = {key: _RESUME_LEASE_TOKENS.get(key) for key in _thread_resume_leases()}
+        try:
+            return func(*args, **kwargs)
+        finally:
+            owned = _thread_resume_leases()
+            with _RESUME_LEASE_TOKENS_GUARD:
+                acquired_here = [
+                    owned[key]
+                    for key in owned
+                    if owned_before.get(key) != _RESUME_LEASE_TOKENS.get(key)
+                ]
+            for folder_path in acquired_here:
+                release_resume_lease(folder_path)
+
+    return wrapped
 
 
 def create_working_folder_from_config(config: WorkspaceConfig) -> Path:

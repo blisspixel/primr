@@ -5,11 +5,54 @@ Shared polling execution helpers for Deep Research interactions.
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 import typing
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 TERMINAL_STATUSES = {"completed", "failed", "error", "cancelled", "canceled", "expired"}
+NO_AUTOMATIC_RETRY_MESSAGE = (
+    "Research stopped without an automatic retry. Check pending jobs before starting another run."
+)
+
+
+def report_no_retry_failure(
+    error: Exception,
+    *,
+    logger: logging.Logger,
+    on_progress: Callable[[Any], None] | None,
+    build_progress: Callable[[str], Any],
+) -> None:
+    """Expose a terminal failure without creating a duplicate provider job."""
+    logger.error(
+        "Resilient Deep Research failed; refusing to start a second interaction: %s",
+        error,
+    )
+    if on_progress:
+        on_progress(build_progress(NO_AUTOMATIC_RETRY_MESSAGE))
+
+
+async def run_resilient_without_duplicate(
+    research: Callable[..., Awaitable[Any]],
+    *,
+    logger: logging.Logger,
+    notify_progress: Callable[[Any], None] | None,
+    build_progress: Callable[[str], Any],
+    **research_arguments: Any,
+) -> Any:
+    """Run one provider interaction and fail closed if its state is uncertain."""
+    try:
+        logger.info("Using resilient streaming mode for Deep Research")
+        return await research(**research_arguments)
+    except Exception as error:
+        report_no_retry_failure(
+            error,
+            logger=logger,
+            on_progress=notify_progress,
+            build_progress=build_progress,
+        )
+        raise
 
 
 def is_transient_poll_error(error: Exception | str) -> bool:

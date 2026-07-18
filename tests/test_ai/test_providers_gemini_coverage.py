@@ -84,10 +84,16 @@ def test_chat_success():
     fake = MagicMock()
     fake.models.generate_content.return_value = _resp()
     p._client = fake
-    result = p.chat([{"role": "user", "content": "hi"}], model="gemini-3-flash")
+    result = p.chat(
+        [{"role": "user", "content": "hi"}],
+        model="gemini-3-flash",
+        max_tokens=1_234,
+    )
     assert result.text == "reply"
     assert result.input_tokens == 10
     assert result.output_tokens == 5
+    config = fake.models.generate_content.call_args.kwargs["config"]
+    assert config.max_output_tokens == 1_234
 
 
 def test_chat_streaming():

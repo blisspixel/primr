@@ -285,6 +285,7 @@ class PipelineRunner:
                     "ai_strategy",
                     platform=platform,
                     on_progress=on_progress,
+                    output_dir=job_output_dir,
                 )
                 strategy_path = strategy_result.get("output_path")
                 if not isinstance(strategy_path, str) or not strategy_path:

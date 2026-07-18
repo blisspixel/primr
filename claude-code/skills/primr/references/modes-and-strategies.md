@@ -82,7 +82,12 @@ Heuristics:
 - User wants only the Strategic Overview -> `--no-ai-strategy`.
 - User is positioning a specific deliverable type (CX, security, data) → match it.
 - User just wants "the report" -> omit the flag and keep the default AI Strategy unless cost is a concern.
-- Multiple modules at once: not supported in one command. Use the normal estimated pipeline for each requested strategy. Do not use `--ai-strategy-only` until it has an in-command cost gate.
+- Multiple modules at once: not supported in one command. Use the normal
+  estimated pipeline for each requested strategy. For post-report recovery,
+  quote the exact standalone path with `--ai-strategy-only REPORT --dry-run`,
+  report the estimate, and get explicit approval before execution. The command
+  repeats the estimate and fails closed if the validated report changes before
+  its private snapshot is created.
 
 ## Combining the levers
 

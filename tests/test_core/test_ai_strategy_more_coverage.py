@@ -157,7 +157,7 @@ def test_preflight_output_dir_not_writable(monkeypatch):
 
     with (
         patch.dict("sys.modules", {"primr.config.settings": fake_settings_mod}),
-        patch("primr.core.ai_strategy.os.makedirs", side_effect=OSError("read-only fs")),
+        patch("pathlib.Path.mkdir", side_effect=OSError("read-only fs")),
     ):
         errors = _validate_preflight(config)
 
@@ -510,7 +510,7 @@ def test_save_strategy_outputs_write_failure(tmp_path, monkeypatch):
 
     with (
         patch("primr.core.ai_strategy._process_citations", side_effect=lambda c: c),
-        patch("primr.core.ai_strategy.open", side_effect=OSError("disk full")),
+        patch("pathlib.Path.open", side_effect=OSError("disk full")),
     ):
         outputs = _save_strategy_outputs("# Body", "Acme", Platform.AZURE)
 

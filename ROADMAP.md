@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.35.2
+Current State: v1.36.0
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -269,8 +269,10 @@ into generic agent middleware.
 - DNS intelligence pre-flight (recon): uses one strong infrastructure fingerprint as an ecosystem emphasis, combines multiple strong ecosystems into one integrated vendor-neutral strategy, defaults to one agnostic strategy when evidence is unclear, and injects bounded recon context into all strategy types
 - `primr recon` subcommand for standalone DNS intelligence lookups
 - `--platform ms` shorthand for Microsoft Azure + NVIDIA private cloud
-- Canonical business-first AI Strategy contract: begins with company economics, strategic tensions, value pools, industry direction, and art of the possible before technology; bundles the Strategic Overview with available insights, gap analysis, workbook, bounded recon, hiring, discovery, and operator-supplied context on paths where those artifacts exist; then evaluates a ranked initiative portfolio, fully loaded unit economics, operating ownership, governance, complete observed stack, and public, multicloud, private, edge, or hybrid workload placement
+- Canonical business-first AI Strategy contract: begins with company economics, an enterprise performance agenda, strategic tensions, value pools, industry direction, and art of the possible before technology; tests defend, improve, extend, and create choices against measurable revenue, efficiency, product, service, and risk outcomes; bundles the Strategic Overview with available insights, gap analysis, workbook, bounded recon, hiring, discovery, and operator-supplied context on paths where those artifacts exist; then evaluates a ranked initiative portfolio, non-AI alternatives, opportunity cost, fully loaded unit economics, operating ownership, governance, a disposition for every material observed ecosystem, and public, multicloud, private, edge, or hybrid workload placement
 - Platform selection is an evaluation emphasis rather than an exclusive architecture. Current product details must be supported by current official evidence or left unasserted with an explicit evidence gap and validation action. Credible alternatives remain visible, and no dated vendor catalog is authoritative in the shipped YAML
+- Standalone strategy recovery is estimate-first: `--ai-strategy-only --dry-run` is zero-call, execution repeats the estimate and requires approval, report input is contained to fixed roots, and a stable-descriptor content digest binds validation to the private snapshot consumed by generation. Standard strategy context retains a normal full Strategic Overview up to a 200,000-character deterministic bound
+- Governed batch research quotes and budgets the whole pending batch, requires websites before paid research, runs local-only preflight after approval, disables automatic paid retries, and emits one-object JSON dry-runs. Separate governed enrichment quotes only missing-site lookups, pins the quoted utility model, disables retry and provider failover, and preserves website-only legacy rows through validated hostname derivation
 - Multiple strategy types: AI, Customer Experience, Security, Data Fabric, Skills Ideation
 - Skills Ideation strategy emits per-role `SKILL.md` files deterministically alongside the strategy doc
 - **Skill pack subsystem** (`primr skills`, MCP `generate_skill_pack`): a first-class workflow that takes recon + hiring + research evidence and produces a QA-refined Agent Skills pack. Up to 15 roles × M skills, two-call planning step (observed roles from postings or operator role briefs + plausible roles inferred from research and industry classification, with provenance preserved end-to-end), archetype-grounded provenance-aware authoring, deterministic ASKILL-* validation, capped per-skill refinement loop, pack-level coherence pass. Inspectable `role_plan.md` / `role_plan.json` artifacts; `--plan-only` writes the plan and exits, `--from-plan` authors against a saved plan, `--from-jd` adds a local JD / role brief as sanitized hiring evidence, repeatable `--career-url` points discovery at exact segmented career / ATS boards, and `--roles-override` bypasses discovery entirely while still grounding authoring in supplied evidence. Emits both an unpacked Claude/Cursor/VS Code tree AND a Microsoft 365 Copilot Cowork sideload `.zip` from one byte-identical set of SKILL.md files. Cowork icons are generated locally by default; remote image APIs are explicit opt-in via `--remote-icons` or MCP `remote_icons`.
@@ -431,7 +433,7 @@ a schedule. Detailed breakdowns live in [`docs/design/`](docs/design/README.md)
 
 The job is "URL in, consultant-grade artifact out," done well.
 
-**Status (as of v1.35.2):** most of the 1.x engineering backlog is closed -
+**Status (as of v1.36.0):** most of the 1.x engineering backlog is closed -
 artifact pipeline contract (#1-2), cost/observability surface (#5, #7, #8,
 #12, #13), production failover (#6), QA iteration loop (#10), agentic write
 constraints (#11), runtime robustness (#24), and the `perform_fast_research`
@@ -462,7 +464,10 @@ per-module coverage ratchet unlocked by the refactor:
   `research_agent` per-module coverage toward 80% as the split exposes more
   testable seams, per
   [`docs/design/23-orchestrator-refactor-map.md`](docs/design/23-orchestrator-refactor-map.md)
-- **#9 batch API** - cost lever, needs one live batch validation
+- **#9 batch API** - the governed CLI execution core is shipped with
+  deterministic column classification, whole-batch cost gating, separate
+  enrichment, exact flag forwarding, and zero-call dry-run JSON. A public API
+  surface and one explicitly approved cheap live batch validation remain.
 - Label-calibration measurement + evidence-fetching `--verify` (from the
   v1.30 panel review) - converts the epistemic apparatus from style guide to
   measured quantity. Tooling COMPLETE: `primr calibrate` audits shipped
@@ -695,6 +700,8 @@ queue. It does not reorder the feature priorities above.
   partial collection, surfaces every handoff artifact, and gives the host a
   concrete next action. Agent-host Zero requests continue through native
   research when the Primr launcher is unavailable or installation is declined.
+  Batch research and enrichment now expose separate reviewable plans, website
+  recovery, whole-batch budget meaning, and visible unsupported-option errors.
 - **Visual polish debt:** no separate graphical surface is in scope. Terminal,
   Markdown, DOCX, and PDF presentation remain governed by their existing
   renderer and artifact-regression workstreams.
@@ -716,23 +723,29 @@ queue. It does not reorder the feature priorities above.
   same-filesystem staging directory before promotion, with restoration of
   pre-existing outputs on an in-process failure or user interruption. Recovery
   registry read failures are visible and artifact paths reject traversal and
-  symbolic links. Abrupt process termination during multi-file promotion and
-  same-day name-collision policy remain explicit bounded follow-ups.
+  symbolic links. Atomic run allocation, cross-process ownership leases,
+  dead-owner recovery, company publication locks, and job-local MCP strategy
+  output now prevent concurrent runs from sharing mutable workspace or artifact
+  targets. Abrupt process termination during multi-file promotion and same-day
+  name-collision policy remain explicit bounded follow-ups.
 - **Security debt:** versioned package installation is the trusted default;
   convenience scripts are download-inspect-run only. Security operations now
   distinguish provider credentials, MCP/A2A JWTs, admin tokens, and the
   process-local REST scaffold; staging guidance targets the supported MCP/A2A
   protocol boundary and avoids billable research calls. Durable REST identity
   and pipeline wiring remain prerequisites before that scaffold can be
-  presented as production-ready.
+  presented as production-ready. Standalone strategy input is now fixed-root,
+  link-rejecting, content-digest-bound, and copied to a private snapshot before
+  model use, including fail-closed detection of metadata-preserving swaps.
 - **Accessibility debt:** concise help is plain text, ordered by task, and does
   not require color to convey meaning. No high-severity accessibility gap is
   currently evidenced; future terminal presentation changes must preserve
   non-color semantics and focused help.
-- **Documentation debt:** README, agent integration, zero-cost, API, security,
-  client, and operator guidance now match these behaviors. The remaining
-  documentation priority is keeping the short `docs/NEXT_STEPS.md` execution
-  brief synchronized as the numbered feature queue advances.
+- **Documentation debt:** README, strategy portfolio, run modes, agent
+  integration, zero-cost, API, security, client, and operator guidance now
+  match these behaviors. The remaining documentation priority is keeping the
+  short `docs/NEXT_STEPS.md` execution brief synchronized as the numbered
+  feature queue advances.
 
 ### 1. Artifact Drift - Remaining Work
 
@@ -1917,6 +1930,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.36.0 | Jul 2026 | **Business-first strategy and governed recovery.** AI Strategy 2.1 leads with enterprise performance, value choices, measurable outcomes, non-AI alternatives, complete stack disposition, and workload-specific hybrid economics. Standalone strategy recovery is estimate-first and digest-bound. Batch research and enrichment use separate whole-operation quotes, exact approval, budgets, and retry policy. Atomic workspaces, cross-process leases, publication locks, job-local MCP strategy artifacts, duplicate-interaction prevention, and exact lite output caps harden concurrent execution. |
 | 1.35.2 | Jul 2026 | **Acyclic controller boundaries and immutable supply chain.** Shared MCP and A2A consumers now type against a shared cross-transport controller contract, direct strategy requests honor the requested module and canonical Deep Research estimate, and architecture tests prevent concrete server imports outside composition roots. GitHub Actions and Python container bases are immutable pins. Managed-identity Azure stores, quote extraction, finite audit values, retry validation, and standalone exit handling are corrected. |
 | 1.35.1 | Jul 2026 | **Truthful worker ownership and estimate-delivery parity.** Local MCP/A2A research now runs in supervised Python child processes with strict lifecycle events, cleanup-confirmed process-tree cancellation, immutable terminal state, lease-time journal reload, exact A2A task ownership, and worker-exit cancellation manifests. Full and premium MCP runs now deliver the single strategy target their estimates price, while unsupported integrated shapes fail before approval. |
 | 1.35.0 | Jul 2026 | **Hard-zero host-assisted research and defensive local capacity.** Added `primr prep` for deterministic no-model evidence collection, a wheel-packaged `primr-zero` skill for plan-native synthesis, explicit billing verification, and bounded local-capacity busy guidance. Model-call guards, source provenance, evidence fencing, retry propagation, roadmap parsing, architecture maps, and code-graph freshness were hardened together. |

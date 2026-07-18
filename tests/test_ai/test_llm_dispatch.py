@@ -216,6 +216,78 @@ class TestLLMDispatch:
         assert mock_grok.call_args.kwargs["model"] == PrimrModels.GROK_MODEL_WRITING
         mock_gemini_client.assert_not_called()
 
+    def test_zero_retry_xai_route_bypasses_failover(self) -> None:
+        with (
+            patch.dict("os.environ", {"XAI_API_KEY": "test-key"}, clear=False),
+            patch("primr.ai.grok_client.grok_llm", return_value="one response") as mock_grok,
+            patch("primr.pipeline.llm_failover.call_with_failover") as failover,
+        ):
+            result = llm_module.llm(
+                "test prompt",
+                model=PrimrModels.GROK_MODEL_WRITING,
+                retries=0,
+                allow_failover=False,
+                max_tokens=256,
+            )
+
+        assert result == "one response"
+        failover.assert_not_called()
+        mock_grok.assert_called_once_with(
+            "test prompt",
+            model=PrimrModels.GROK_MODEL_WRITING,
+            temperature=1.0,
+            max_tokens=256,
+            retries=0,
+        )
+
+    def test_zero_retry_gemini_route_reaches_provider(self) -> None:
+        from primr.ai.providers import ChatResponse
+
+        provider = MagicMock()
+        provider.chat.return_value = ChatResponse(
+            text="one response",
+            input_tokens=1,
+            output_tokens=1,
+        )
+        with patch.object(llm_module, "_get_gemini_provider", return_value=provider):
+            result = llm_module.llm(
+                "test prompt",
+                model=PrimrModels.FLASH_MODEL,
+                retries=0,
+                allow_failover=False,
+                max_tokens=256,
+            )
+
+        assert result == "one response"
+        assert provider.chat.call_args.kwargs["retries"] == 0
+        assert provider.chat.call_args.kwargs["max_tokens"] == 256
+
+    @pytest.mark.parametrize("model_name", ["gpt-5.4-mini", "claude-haiku-4-5"])
+    def test_zero_retry_cross_provider_route_reaches_provider(self, model_name) -> None:
+        from primr.ai.providers import ChatResponse
+
+        provider = MagicMock()
+        provider.chat.return_value = ChatResponse(
+            text="one response",
+            input_tokens=1,
+            output_tokens=1,
+        )
+        with (
+            patch("primr.ai.routing.get_provider_for_model", return_value=provider),
+            patch("primr.ai.grok_client._mirror_session_usage"),
+        ):
+            result = llm_module.llm(
+                "test prompt",
+                model=model_name,
+                retries=0,
+                allow_failover=False,
+                max_tokens=256,
+            )
+
+        assert result == "one response"
+        assert provider.chat.call_args.kwargs["retries"] == 0
+        assert provider.chat.call_args.kwargs["max_tokens"] == 256
+
     def test_llm_renders_provider_owned_gemini_quota_guidance(self, capsys) -> None:
         """Gemini quota copy comes from the provider, while llm() only renders it."""
         from primr.ai.providers.gemini import GeminiProvider

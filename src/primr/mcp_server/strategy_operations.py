@@ -8,6 +8,7 @@ import os
 import re
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from primr.mcp_server.strategy_catalog import AI_STRATEGY_TYPES, GENERIC_STRATEGY_YAMLS
@@ -20,8 +21,10 @@ async def run_strategy_generation(
     strategy_type: str,
     platform: str | None = None,
     on_progress: Callable[[str], None] | None = None,
+    output_dir: str | Path | None = None,
+    lease_base_dir: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Generate one strategy artifact from an existing report."""
+    """Generate one strategy artifact under exclusive company ownership."""
     started_at = time.monotonic()
     filename = os.path.splitext(os.path.basename(report_path))[0]
     match = re.match(
@@ -33,35 +36,42 @@ async def run_strategy_generation(
     else:
         company_name = filename.replace("_", " ")
 
-    if strategy_type in AI_STRATEGY_TYPES:
-        from primr.core.ai_strategy import Platform, generate_ai_strategy
+    destination_dir = Path(output_dir) if output_dir is not None else Path(report_path).parent
+    from primr.core.workspace import company_run_lease_for_target
 
-        vendor = Platform.from_string(platform) if platform else Platform.AGNOSTIC
-        result = await generate_ai_strategy(
-            company_name=company_name,
-            platform=vendor,
-            company_research_path=report_path,
-            allow_vendor_refresh=False,
-            on_progress=on_progress,
-        )
-        if result.error:
-            raise RuntimeError(result.error)
-        output_path = result.md_path or result.docx_path or result.txt_path
-    elif strategy_type in GENERIC_STRATEGY_YAMLS:
-        from primr.core.strategy_generation import generate_generic_strategy
+    with company_run_lease_for_target(company_name, None, base_dir=lease_base_dir):
+        if strategy_type in AI_STRATEGY_TYPES:
+            from primr.core.ai_strategy import Platform, generate_ai_strategy
 
-        output_path = await asyncio.to_thread(
-            generate_generic_strategy,
-            strategy_name=strategy_type,
-            strategy_yaml=GENERIC_STRATEGY_YAMLS[strategy_type],
-            company_name=company_name,
-            company_research_path=report_path,
-        )
-    else:
-        supported = sorted({"ai_strategy", *GENERIC_STRATEGY_YAMLS})
-        raise ValueError(
-            f"Unsupported strategy type: {strategy_type}. Expected one of: {', '.join(supported)}"
-        )
+            vendor = Platform.from_string(platform) if platform else Platform.AGNOSTIC
+            result = await generate_ai_strategy(
+                company_name=company_name,
+                platform=vendor,
+                company_research_path=report_path,
+                allow_vendor_refresh=False,
+                on_progress=on_progress,
+                output_dir=destination_dir,
+            )
+            if result.error:
+                raise RuntimeError(result.error)
+            output_path = result.md_path or result.docx_path or result.txt_path
+        elif strategy_type in GENERIC_STRATEGY_YAMLS:
+            from primr.core.strategy_generation import generate_generic_strategy
+
+            output_path = await asyncio.to_thread(
+                generate_generic_strategy,
+                strategy_name=strategy_type,
+                strategy_yaml=GENERIC_STRATEGY_YAMLS[strategy_type],
+                company_name=company_name,
+                company_research_path=report_path,
+                output_dir=destination_dir,
+            )
+        else:
+            supported = sorted({"ai_strategy", *GENERIC_STRATEGY_YAMLS})
+            raise ValueError(
+                f"Unsupported strategy type: {strategy_type}. "
+                f"Expected one of: {', '.join(supported)}"
+            )
 
     if not output_path:
         raise RuntimeError(f"{strategy_type} strategy generation produced no output artifact")
