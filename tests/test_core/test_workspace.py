@@ -4,9 +4,13 @@ Unit tests for the workspace module.
 Tests working folder creation, consolidation, and file validation.
 """
 
+import json
 import os
+import socket
 import sys
 import tempfile
+from datetime import datetime as real_datetime
+from multiprocessing import get_context
 from pathlib import Path
 
 import pytest
@@ -14,6 +18,21 @@ import pytest
 # Add src to path for imports
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
+
+def _allocate_workspace_process(base_dir: str, result_queue) -> None:
+    from primr.core.workspace import create_working_folder
+
+    result_queue.put(create_working_folder("Sample Company", None, base_dir=base_dir))
+
+
+def _hold_resume_lease_process(folder: str, ready, release) -> None:
+    from primr.core.workspace import acquire_resume_lease, release_resume_lease
+
+    acquire_resume_lease(folder)
+    ready.set()
+    release.wait(timeout=15)
+    release_resume_lease(folder)
 
 
 class TestWorkspaceConfig:
@@ -129,6 +148,304 @@ class TestCreateWorkingFolder:
                 assert Path(folder).parent.name == "example_com"
             finally:
                 ws.WORKING_DIR = original_dir
+
+    def test_same_timestamp_allocations_are_distinct(self, tmp_path, monkeypatch):
+        from primr.core import workspace
+
+        class FixedDateTime:
+            @classmethod
+            def now(cls):
+                return real_datetime(2026, 7, 18, 12, 34)
+
+        monkeypatch.setattr(workspace, "datetime", FixedDateTime)
+
+        first = workspace.create_working_folder("Sample Company", None, base_dir=tmp_path)
+        second = workspace.create_working_folder("Sample Company", None, base_dir=tmp_path)
+
+        assert first != second
+        assert Path(first).name == "2026-07-18_1234"
+        assert Path(second).name == "2026-07-18_1234_001"
+
+    def test_independent_processes_allocate_distinct_folders(self, tmp_path):
+        context = get_context("spawn")
+        result_queue = context.Queue()
+        processes = [
+            context.Process(
+                target=_allocate_workspace_process,
+                args=(str(tmp_path), result_queue),
+            )
+            for _ in range(2)
+        ]
+
+        for process in processes:
+            process.start()
+        results = [result_queue.get(timeout=15) for _ in processes]
+        for process in processes:
+            process.join(timeout=15)
+
+        assert all(process.exitcode == 0 for process in processes)
+        assert len(set(results)) == 2
+
+    def test_without_run_id_preserves_company_folder_behavior(self, tmp_path):
+        from primr.core.workspace import create_working_folder
+
+        first = create_working_folder("Sample Company", None, use_run_id=False, base_dir=tmp_path)
+        second = create_working_folder("Sample Company", None, use_run_id=False, base_dir=tmp_path)
+
+        assert first == second == str(tmp_path / "Sample_Company")
+
+
+class TestResumeLease:
+    def test_windows_access_denied_is_treated_as_unverifiably_live(self):
+        from primr.core.workspace import _windows_process_is_running
+
+        assert _windows_process_is_running(
+            42,
+            open_process=lambda *_args: 0,
+            get_exit_code=lambda *_args: False,
+            close_handle=lambda _handle: None,
+            get_last_error=lambda: 5,
+        )
+
+    def test_windows_invalid_pid_is_not_running(self):
+        from primr.core.workspace import _windows_process_is_running
+
+        assert not _windows_process_is_running(
+            42,
+            open_process=lambda *_args: 0,
+            get_exit_code=lambda *_args: False,
+            close_handle=lambda _handle: None,
+            get_last_error=lambda: 87,
+        )
+
+    def test_active_owner_is_refused_and_release_allows_reclaim(self, tmp_path):
+        from primr.core.workspace import (
+            ResumeLeaseError,
+            acquire_resume_lease,
+            release_resume_lease,
+        )
+
+        run_folder = tmp_path / "run"
+        run_folder.mkdir()
+        acquire_resume_lease(run_folder)
+
+        with pytest.raises(ResumeLeaseError, match="already being resumed"):
+            acquire_resume_lease(run_folder)
+
+        release_resume_lease(run_folder)
+        acquire_resume_lease(run_folder)
+        release_resume_lease(run_folder)
+
+    def test_terminal_event_releases_current_process_lease(self, tmp_path):
+        from primr.core.run_state_io import _append_run_event, _update_run_state
+        from primr.core.workspace import acquire_resume_lease, release_resume_lease
+
+        run_folder = tmp_path / "run"
+        run_folder.mkdir()
+        acquire_resume_lease(run_folder)
+
+        _update_run_state(str(run_folder), status="failed")
+        _append_run_event(str(run_folder), "error", "failed", "bounded failure")
+        acquire_resume_lease(run_folder)
+        release_resume_lease(run_folder)
+
+    def test_phase_completion_does_not_release_active_run(self, tmp_path):
+        from primr.core.run_state_io import _append_run_event, _update_run_state
+        from primr.core.workspace import (
+            ResumeLeaseError,
+            acquire_resume_lease,
+            release_resume_lease,
+        )
+
+        run_folder = tmp_path / "run"
+        run_folder.mkdir()
+        acquire_resume_lease(run_folder)
+        _update_run_state(str(run_folder), status="running")
+
+        _append_run_event(str(run_folder), "recon", "completed", "Recon completed")
+
+        with pytest.raises(ResumeLeaseError, match="already being resumed"):
+            acquire_resume_lease(run_folder)
+        release_resume_lease(run_folder)
+
+    def test_independent_process_owner_is_refused(self, tmp_path):
+        from primr.core.workspace import ResumeLeaseError, acquire_resume_lease
+
+        run_folder = tmp_path / "run"
+        run_folder.mkdir()
+        context = get_context("spawn")
+        ready = context.Event()
+        release = context.Event()
+        process = context.Process(
+            target=_hold_resume_lease_process,
+            args=(str(run_folder), ready, release),
+        )
+        process.start()
+        assert ready.wait(timeout=15)
+        try:
+            with pytest.raises(ResumeLeaseError, match="already being resumed"):
+                acquire_resume_lease(run_folder)
+        finally:
+            release.set()
+            process.join(timeout=15)
+        assert process.exitcode == 0
+
+    def test_dead_local_owner_is_reclaimed(self, tmp_path):
+        from primr.core.workspace import acquire_resume_lease, release_resume_lease
+
+        run_folder = tmp_path / "run"
+        run_folder.mkdir()
+        lease_path = run_folder / ".primr-resume-lease"
+        lease_path.write_text(
+            json.dumps(
+                {
+                    "hostname": socket.gethostname(),
+                    "pid": 2_147_483_647,
+                    "token": "dead-owner",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        acquire_resume_lease(run_folder)
+        release_resume_lease(run_folder)
+
+    @pytest.mark.parametrize("pid", [None, True, 0, -1, "", "abc", "1.5", "999999999999999999999"])
+    def test_malformed_same_host_owner_is_not_reclaimed(self, tmp_path, pid):
+        from primr.core.workspace import ResumeLeaseError, acquire_resume_lease
+
+        run_folder = tmp_path / "run"
+        run_folder.mkdir()
+        lease_path = run_folder / ".primr-resume-lease"
+        lease_path.write_text(
+            json.dumps(
+                {
+                    "hostname": socket.gethostname(),
+                    "pid": pid,
+                    "token": "unverified-owner",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ResumeLeaseError, match="Invalid resume ownership"):
+            acquire_resume_lease(run_folder)
+        assert lease_path.exists()
+
+    def test_stale_owner_unlink_failure_is_normalized(self, tmp_path, monkeypatch):
+        from primr.core.workspace import ResumeLeaseError, acquire_resume_lease
+
+        run_folder = tmp_path / "run"
+        run_folder.mkdir()
+        lease_path = run_folder / ".primr-resume-lease"
+        lease_path.write_text(
+            json.dumps(
+                {
+                    "hostname": socket.gethostname(),
+                    "pid": 2_147_483_647,
+                    "token": "dead-owner",
+                }
+            ),
+            encoding="utf-8",
+        )
+        original_unlink = Path.unlink
+
+        def deny_stale_unlink(path, *args, **kwargs):
+            if path == lease_path:
+                raise PermissionError("sharing violation")
+            return original_unlink(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "unlink", deny_stale_unlink)
+        with pytest.raises(ResumeLeaseError, match="Could not reclaim stale"):
+            acquire_resume_lease(run_folder)
+
+    def test_temporary_lease_cleanup_failure_does_not_mask_acquire(self, tmp_path, monkeypatch):
+        from primr.core.workspace import acquire_resume_lease, release_resume_lease
+
+        run_folder = tmp_path / "run"
+        run_folder.mkdir()
+        original_unlink = Path.unlink
+
+        def deny_temporary_unlink(path, *args, **kwargs):
+            if path.name.startswith("..primr-resume-lease") and path.name.endswith(".tmp"):
+                raise PermissionError("sharing violation")
+            return original_unlink(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "unlink", deny_temporary_unlink)
+        acquire_resume_lease(run_folder)
+        release_resume_lease(run_folder)
+
+    def test_cleanup_failure_is_nonfatal_and_retryable(self, tmp_path, monkeypatch):
+        from primr.core.workspace import acquire_resume_lease, release_resume_lease
+
+        run_folder = tmp_path / "run"
+        run_folder.mkdir()
+        lease_path = run_folder / ".primr-resume-lease"
+        acquire_resume_lease(run_folder)
+        original_unlink = Path.unlink
+
+        def deny_lease_unlink(path, *args, **kwargs):
+            if path == lease_path:
+                raise PermissionError("sharing violation")
+            return original_unlink(path, *args, **kwargs)
+
+        with monkeypatch.context() as patch_context:
+            patch_context.setattr(Path, "unlink", deny_lease_unlink)
+            release_resume_lease(run_folder)
+
+        assert lease_path.exists()
+        acquire_resume_lease(run_folder)
+        release_resume_lease(run_folder)
+        assert not lease_path.exists()
+
+    def test_company_lease_serializes_final_artifact_publication(self, tmp_path):
+        from primr.core.workspace import (
+            ResumeLeaseError,
+            acquire_company_run_lease,
+            release_company_run_lease,
+        )
+
+        first_run = tmp_path / "Sample_Company" / "2026-07-18_1200"
+        second_run = tmp_path / "Sample_Company" / "2026-07-18_1200_001"
+        first_run.mkdir(parents=True)
+        second_run.mkdir()
+        acquire_company_run_lease(first_run)
+
+        with pytest.raises(ResumeLeaseError, match="active research process"):
+            acquire_company_run_lease(second_run)
+        release_company_run_lease(first_run)
+
+    def test_corrupt_company_lease_preserves_verification_error(self, tmp_path):
+        from primr.core.workspace import (
+            ResumeLeaseError,
+            acquire_company_run_lease_for_target,
+        )
+
+        company_root = tmp_path / "Sample_Company"
+        company_root.mkdir()
+        (company_root / ".primr-resume-lease").write_text("not-json", encoding="utf-8")
+
+        with pytest.raises(ResumeLeaseError, match="Cannot verify resume ownership"):
+            acquire_company_run_lease_for_target("Sample Company", None, base_dir=tmp_path)
+
+    def test_foreign_host_owner_is_not_reported_as_verified_active(self, tmp_path):
+        from primr.core.workspace import (
+            ActiveRunLeaseError,
+            ResumeLeaseError,
+            acquire_company_run_lease_for_target,
+        )
+
+        company_root = tmp_path / "Sample_Company"
+        company_root.mkdir()
+        (company_root / ".primr-resume-lease").write_text(
+            json.dumps({"hostname": "different-host", "pid": 123, "token": "foreign"}),
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ResumeLeaseError) as exc_info:
+            acquire_company_run_lease_for_target("Sample Company", None, base_dir=tmp_path)
+        assert not isinstance(exc_info.value, ActiveRunLeaseError)
+        assert "unverified host" in str(exc_info.value)
 
 
 class TestWorkingFolderContextManager:

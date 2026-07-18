@@ -199,10 +199,10 @@ class GeminiProvider(Provider):
     ) -> ChatResponse:
         """Run a Gemini generate_content call.
 
-        ``max_tokens`` is accepted for interface symmetry but Gemini sets
-        the response cap server-side based on the model; passing it is
-        usually a no-op. Use ``thinking_level`` (low/high) and ``streaming``
-        (bool) via ``provider_kwargs`` to control Gemini-specific behaviour.
+        ``max_tokens`` is forwarded as Gemini's explicit output ceiling so
+        runtime spend cannot exceed a caller's approved output-token shape.
+        Use ``thinking_level`` (low/high) and ``streaming`` (bool) via
+        ``provider_kwargs`` to control Gemini-specific behaviour.
         """
         client = self._get_client()
         system_instruction, contents = self._split_messages(messages)
@@ -215,6 +215,7 @@ class GeminiProvider(Provider):
         config_kwargs: dict[str, Any] = {
             "temperature": temperature,
             "thinking_config": _google_types.ThinkingConfig(thinking_level=thinking_level),
+            "max_output_tokens": max_tokens,
         }
         if system_instruction:
             config_kwargs["system_instruction"] = system_instruction

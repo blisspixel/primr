@@ -26,6 +26,7 @@ logger = get_logger(__name__)
 
 __all__ = [
     "AI_STRATEGY_ARTIFACTS",
+    "STRATEGY_REPORT_CHAR_LIMIT",
     "UNTRUSTED_ARTIFACTS",
     "YAML_STRATEGY_ARTIFACTS",
     "build_strategy_context_prefix",
@@ -58,7 +59,11 @@ YAML_STRATEGY_ARTIFACTS = AI_STRATEGY_ARTIFACTS
 UNTRUSTED_ARTIFACTS: frozenset[str] = frozenset({"_hiring/hiring_signals.md", "_recon_context.txt"})
 
 _CONTEXT_HEADER = "Use the following context documents to inform your analysis:\n\n"
-_REPORT_CHAR_LIMIT = 50_000
+# A typical Strategic Overview is roughly 20,000 words. The former 50,000
+# character head slice silently removed later strategy, risk, and operating
+# sections before AI Strategy synthesis. This bound retains a full normal
+# report while keeping pathological inputs finite.
+STRATEGY_REPORT_CHAR_LIMIT = 200_000
 
 
 def read_artifact_blocks(folder_path: str, artifact_specs: Sequence[tuple[str, int]]) -> list[str]:
@@ -105,7 +110,10 @@ def build_strategy_context_prefix(report_content: str, shared_blocks: Sequence[s
     Byte-identical across every strategy call of a run by construction -
     callers must build it once and reuse it, never rebuild it per call.
     """
-    parts = [f"--- Company Report ---\n{report_content[:_REPORT_CHAR_LIMIT]}", *shared_blocks]
+    parts = [
+        f"--- Company Report ---\n{report_content[:STRATEGY_REPORT_CHAR_LIMIT]}",
+        *shared_blocks,
+    ]
     return _CONTEXT_HEADER + "\n\n".join(parts)
 
 

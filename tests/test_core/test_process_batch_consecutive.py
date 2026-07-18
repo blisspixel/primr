@@ -31,7 +31,7 @@ def _three_company_df(websites: tuple[str | None, str | None, str | None] = (Non
 
 
 class TestConsecutiveFailures:
-    def test_three_consecutive_research_failures_auto_wait(self, isolated, monkeypatch):
+    def test_three_consecutive_research_failures_stop_without_wait(self, isolated, monkeypatch):
         df, col_map = _three_company_df(
             (
                 "https://a1.example",
@@ -40,7 +40,7 @@ class TestConsecutiveFailures:
             )
         )
         monkeypatch.setattr(
-            "primr.core.cli._prepare_batch_df",
+            "primr.core.cli_batch_runtime._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),
         )
         monkeypatch.setattr(
@@ -50,31 +50,29 @@ class TestConsecutiveFailures:
         sleep_mock = MagicMock()
         monkeypatch.setattr("time.sleep", sleep_mock)
         result = process_batch("/p.csv", skip_confirm=True)
-        # Will have triggered consecutive-failure auto-wait path
-        assert sleep_mock.called
+        sleep_mock.assert_not_called()
         # All companies failed -> exit code 1
         assert result == 1
 
-    def test_missing_website_lookup_fails_marks_skipped(self, isolated, monkeypatch):
+    def test_missing_websites_fail_before_any_lookup_or_wait(self, isolated, monkeypatch):
         df, col_map = _three_company_df()  # no websites
         monkeypatch.setattr(
-            "primr.core.cli._prepare_batch_df",
+            "primr.core.cli_batch_runtime._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),
         )
-        # lookup returns None for all three
+        lookup_mock = MagicMock(return_value=None)
         monkeypatch.setattr(
             "primr.data.search_utils.lookup_company_website",
-            MagicMock(return_value=None),
+            lookup_mock,
         )
-        # Consecutive-failure branch in the website-missing path uses input()
-        monkeypatch.setattr("builtins.input", lambda *_a, **_k: "n")
         sleep_mock = MagicMock()
         monkeypatch.setattr("time.sleep", sleep_mock)
         result = process_batch("/p.csv", skip_confirm=True)
-        # All skipped (counted as failed) -> exit code 1
         assert result == 1
+        lookup_mock.assert_not_called()
+        sleep_mock.assert_not_called()
 
-    def test_missing_website_then_lookup_succeeds(self, isolated, monkeypatch):
+    def test_missing_website_never_triggers_hidden_lookup_or_research(self, isolated, monkeypatch):
         df = pd.DataFrame(
             {
                 "Account Name": ["A1"],
@@ -84,22 +82,26 @@ class TestConsecutiveFailures:
         )
         col_map = _ColumnMap(company="Account Name", website="URL", industry="Sector", context=[])
         monkeypatch.setattr(
-            "primr.core.cli._prepare_batch_df",
+            "primr.core.cli_batch_runtime._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),
         )
+        lookup_mock = MagicMock(return_value="https://discovered.example")
         monkeypatch.setattr(
             "primr.data.search_utils.lookup_company_website",
-            MagicMock(return_value="https://discovered.example"),
+            lookup_mock,
         )
         # Successful research
         out = isolated / "output"
         out.mkdir()
         report = out / "report.docx"
         report.write_text("x" * 20_000, encoding="utf-8")
+        perform_mock = MagicMock(return_value=str(report))
         monkeypatch.setattr(
             "primr.core.research_agent.perform_research",
-            MagicMock(return_value=str(report)),
+            perform_mock,
         )
         monkeypatch.setattr("time.sleep", lambda *_a, **_k: None)
         result = process_batch("/p.csv", skip_confirm=True)
-        assert result == 0
+        assert result == 1
+        lookup_mock.assert_not_called()
+        perform_mock.assert_not_called()

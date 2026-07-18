@@ -578,3 +578,9 @@ REASONING_MODEL = PrimrModels.REASONING_MODEL
 FILTERING_MODEL = PrimrModels.FILTERING_MODEL  # DEPRECATED - use LINK_SELECTION_MODEL
 RESEARCH_MODEL = PrimrModels.RESEARCH_MODEL  # DEPRECATED
 REPORT_MODEL = PrimrModels.REPORT_MODEL
+# Lite strategy prompts are bounded by UTF-8 bytes. Pricing the same number of
+# input tokens is conservative because a tokenizer token cannot encode less
+# than one input byte. The output ceiling matches the generation allowance.
+LITE_AI_STRATEGY_MAX_INPUT_BYTES = 150_000
+LITE_AI_STRATEGY_MAX_INPUT_TOKENS = 150_000
+LITE_AI_STRATEGY_MAX_OUTPUT_TOKENS = 10_000

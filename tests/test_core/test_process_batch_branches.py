@@ -37,7 +37,7 @@ class TestProcessBatchErrorPaths:
     ):
         df, col_map = one_company_df
         monkeypatch.setattr(
-            "primr.core.cli._prepare_batch_df",
+            "primr.core.cli_batch_runtime._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),
         )
         monkeypatch.setattr(
@@ -49,15 +49,15 @@ class TestProcessBatchErrorPaths:
         # Failed companies -> exit code 1
         assert result == 1
 
-    def test_billing_exhausted_with_skip_confirm_pauses_and_retries(
+    def test_billing_exhaustion_is_not_retried_or_slept(
         self, isolated, monkeypatch, one_company_df
     ):
         df, col_map = one_company_df
         monkeypatch.setattr(
-            "primr.core.cli._prepare_batch_df",
+            "primr.core.cli_batch_runtime._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),
         )
-        # First call: billing error; second call: success
+        # A second response would succeed, but batch governance permits one attempt only.
         responses = [
             RuntimeError("credits exhausted"),
             "/output/report.docx",
@@ -72,29 +72,33 @@ class TestProcessBatchErrorPaths:
         (out / "report.docx").write_text("x" * 20_000, encoding="utf-8")
         responses[1] = str(out / "report.docx")
         result = process_batch("/path.csv", skip_confirm=True)
-        # Should have slept for billing pause
-        assert sleep_mock.called
-        assert result in (0, 1)
+        assert result == 1
+        assert perform_mock.call_count == 1
+        sleep_mock.assert_not_called()
 
-    def test_quota_error_retries_then_fails(self, isolated, monkeypatch, one_company_df):
+    def test_quota_error_is_not_automatically_retried(self, isolated, monkeypatch, one_company_df):
         df, col_map = one_company_df
         monkeypatch.setattr(
-            "primr.core.cli._prepare_batch_df",
+            "primr.core.cli_batch_runtime._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),
         )
         # All attempts fail with quota error
+        perform_mock = MagicMock(side_effect=RuntimeError("429 quota exceeded"))
         monkeypatch.setattr(
             "primr.core.research_agent.perform_research",
-            MagicMock(side_effect=RuntimeError("429 quota exceeded")),
+            perform_mock,
         )
-        monkeypatch.setattr("time.sleep", lambda *_a, **_k: None)
+        sleep_mock = MagicMock()
+        monkeypatch.setattr("time.sleep", sleep_mock)
         result = process_batch("/path.csv", skip_confirm=True)
         assert result == 1
+        assert perform_mock.call_count == 1
+        sleep_mock.assert_not_called()
 
     def test_small_report_marked_warning(self, isolated, monkeypatch, one_company_df):
         df, col_map = one_company_df
         monkeypatch.setattr(
-            "primr.core.cli._prepare_batch_df",
+            "primr.core.cli_batch_runtime._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),
         )
         # Generate a tiny report — should be marked as warning, not error
@@ -116,7 +120,7 @@ class TestProcessBatchErrorPaths:
 
         df, col_map = one_company_df
         monkeypatch.setattr(
-            "primr.core.cli._prepare_batch_df",
+            "primr.core.cli_batch_runtime._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),
         )
         # Pre-create today's report so the resume logic finds it

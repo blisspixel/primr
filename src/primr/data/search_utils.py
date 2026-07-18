@@ -30,6 +30,9 @@ load_primr_env()
 
 logger = get_logger("search")
 
+WEBSITE_LOOKUP_MAX_INPUT_BYTES = 20_000
+WEBSITE_LOOKUP_MAX_OUTPUT_TOKENS = 256
+
 # Circuit breaker for web search
 _search_circuit = CircuitBreaker(name="web_search", failure_threshold=3, reset_timeout=60)
 
@@ -414,7 +417,50 @@ def active_search_cost_per_query() -> float:
     return SEARCH_COST_PER_QUERY if _get_active_provider() == "google" else 0.0
 
 
-def lookup_company_website(company_name: str, context: dict | None = None) -> str | None:
+def _truncate_utf8(value: str, byte_limit: int) -> str:
+    """Return text truncated to a valid UTF-8 byte boundary."""
+    return value.encode()[: max(0, byte_limit)].decode("utf-8", errors="ignore")
+
+
+def build_website_lookup_prompt(
+    company_name: str,
+    context_hint: str,
+    results_text: str,
+) -> str:
+    """Build the bounded prompt priced by batch enrichment planning."""
+    header = f'What is the official corporate website for "{company_name}"?\n'.encode()
+    suffix = b"""
+
+Instructions:
+- Return ONLY the root domain URL (e.g. https://example.com/).
+- If the company has rebranded, return the CURRENT website.
+- Do not return news sites, directories, government pages, or social media.
+- If you truly cannot determine the website, return NONE.
+- Return only the URL, nothing else."""
+    if len(header) + len(suffix) >= WEBSITE_LOOKUP_MAX_INPUT_BYTES:
+        safe_name = _truncate_utf8(company_name, 1_000)
+        header = f'What is the official corporate website for "{safe_name}"?\n'.encode()
+
+    remaining = WEBSITE_LOOKUP_MAX_INPUT_BYTES - len(header) - len(suffix)
+    context_bytes = _truncate_utf8(context_hint, min(remaining // 3, 5_000)).encode()
+    remaining -= len(context_bytes)
+    results_prefix = b"\nHere are web search results that may help:\n"
+    result_budget = max(0, remaining - len(results_prefix))
+    result_bytes = _truncate_utf8(results_text, result_budget).encode()
+    prompt = header + context_bytes + results_prefix + result_bytes + suffix
+    if len(prompt) > WEBSITE_LOOKUP_MAX_INPUT_BYTES:
+        raise AssertionError("Website lookup prompt exceeded its governed byte limit")
+    return prompt.decode()
+
+
+def lookup_company_website(
+    company_name: str,
+    context: dict | None = None,
+    *,
+    model: str | None = None,
+    retries: int | None = None,
+    allow_failover: bool = True,
+) -> str | None:
     """
     Search DDG for a company, then use an LLM to pick the correct homepage URL.
 
@@ -427,6 +473,9 @@ def lookup_company_website(company_name: str, context: dict | None = None) -> st
         context: Optional dict of extra info about the company from the
                  source spreadsheet (e.g. {"industry": "Utilities",
                  "Annual Revenue": "$2B"})
+        model: Optional exact model override for a governed caller.
+        retries: Optional provider retry count.
+        allow_failover: Whether a routed xAI call may use another provider.
 
     Returns:
         Root domain URL (e.g. https://enbridge.com/) or None
@@ -462,7 +511,9 @@ def lookup_company_website(company_name: str, context: dict | None = None) -> st
 
     try:
         time.sleep(0.5)
-        query = f"{company_name}{context_for_query} official website"
+        query_company = company_name[:200]
+        query_context = context_for_query[:300]
+        query = f"{query_company}{query_context} official website"
         results = list(DDGS().text(query, max_results=10))
 
         # Build a numbered list of search results for the LLM
@@ -475,21 +526,17 @@ def lookup_company_website(company_name: str, context: dict | None = None) -> st
 
         results_text = "\n".join(result_lines) if result_lines else "(no search results)"
 
-        prompt = f"""What is the official corporate website for "{company_name}"?
-{context_hint}
+        prompt = build_website_lookup_prompt(company_name, context_hint, results_text)
 
-Here are web search results that may help:
-{results_text}
-
-Instructions:
-- Return ONLY the root domain URL (e.g. https://example.com/).
-- If the company has rebranded (e.g. TransCanada → TC Energy), return the CURRENT website.
-- You may use your own knowledge if the search results don't contain the right website.
-- Do not return news sites, directories, government pages, or social media.
-- If you truly cannot determine the website, return NONE.
-- Return only the URL, nothing else."""
-
-        response = llm(prompt, model_type="fast", streaming=False).strip()
+        response = llm(
+            prompt,
+            model_type="fast",
+            streaming=False,
+            model=model,
+            max_tokens=WEBSITE_LOOKUP_MAX_OUTPUT_TOKENS,
+            retries=retries,
+            allow_failover=allow_failover,
+        ).strip()
 
         # Validate the response looks like a URL
         if response.upper() == "NONE" or not response.startswith("http"):

@@ -249,6 +249,40 @@ class TestGenerateStrategy:
         assert data["error"] is True
         assert data["error_type"] == "strategy_generation_failed"
 
+    @pytest.mark.asyncio
+    async def test_busy_workspace_returns_actionable_error(self, server, output_report):
+        from primr.core.workspace import ActiveRunLeaseError
+
+        with patch(
+            "primr.mcp_server.tools.run_strategy_generation",
+            new=AsyncMock(side_effect=ActiveRunLeaseError("busy")),
+        ):
+            data = await _call(
+                server,
+                "generate_strategy",
+                {"report_path": str(output_report), "strategy_type": "customer_experience"},
+            )
+        assert data["error"] is True
+        assert data["error_type"] == "strategy_workspace_busy"
+        assert data["error_code"] == -32003
+
+    @pytest.mark.asyncio
+    async def test_unverifiable_workspace_is_not_reported_busy(self, server, output_report):
+        from primr.core.workspace import ResumeLeaseError
+
+        with patch(
+            "primr.mcp_server.tools.run_strategy_generation",
+            new=AsyncMock(side_effect=ResumeLeaseError("unverifiable")),
+        ):
+            data = await _call(
+                server,
+                "generate_strategy",
+                {"report_path": str(output_report), "strategy_type": "customer_experience"},
+            )
+        assert data["error"] is True
+        assert data["error_type"] == "strategy_workspace_unavailable"
+        assert data["error_code"] == -32603
+
 
 # ---------------------------------------------------------------------------
 # run_qa

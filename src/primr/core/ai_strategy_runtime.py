@@ -10,6 +10,7 @@ from pathlib import Path
 
 from primr.ai.llm import llm
 from primr.config.config import OUTPUT_DIR
+from primr.config.models import LITE_AI_STRATEGY_MAX_OUTPUT_TOKENS
 from primr.config.settings import get_settings
 from primr.core.vendor_research import (
     generate_vendor_research_sync,
@@ -107,34 +108,19 @@ def generate_ai_strategy_section(
         pending_interaction_id = ""
         if lite_strategy:
             console.info("AI Strategy: Starting research (Pro mode)...")
-            context_parts: list[str] = []
-            for context_file in context_files:
-                try:
-                    with open(context_file, encoding="utf-8") as handle:
-                        content = handle.read()
-                    if content.strip():
-                        context_parts.append(
-                            f"--- Context: {os.path.basename(context_file)} ---\n{content}"
-                        )
-                except Exception as exc:
-                    logger.warning("Failed to read context file %s: %s", context_file, exc)
+            from primr.ai.routing import Role, pick_model_for_role
+            from primr.core.strategy_context import build_bounded_lite_strategy_prompt
 
-            if context_parts:
-                combined_context = "\n\n".join(context_parts)
-                combined_prompt = (
-                    "Use the following context documents to inform your analysis:\n\n"
-                    f"{combined_context}\n\n"
-                    "---\n\n"
-                    f"{prompt}"
-                )
-            else:
-                combined_prompt = prompt
+            combined_prompt = build_bounded_lite_strategy_prompt(prompt, context_files)
+            lite_model = pick_model_for_role(Role.REASONING)
 
             strategy_content = llm(
                 combined_prompt,
-                model_type="section_writing",
+                model_type="reasoning",
                 temperature=1.0,
                 thinking_level="high",
+                model=lite_model,
+                max_tokens=LITE_AI_STRATEGY_MAX_OUTPUT_TOKENS,
             )
 
             if not strategy_content or not strategy_content.strip():

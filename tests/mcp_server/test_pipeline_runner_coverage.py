@@ -134,6 +134,7 @@ class TestRunStrategyGeneration:
                 report_path=str(report),
                 strategy_type="ai_strategy",
                 platform="azure",
+                lease_base_dir=tmp_path / "working",
             )
         assert result["output_path"] == str(tmp_path / "out.md")
         assert result["strategy_type"] == "ai_strategy"
@@ -141,6 +142,7 @@ class TestRunStrategyGeneration:
         _, kwargs = mock_gen.call_args
         assert kwargs["company_name"] == "Acme Corp"
         assert kwargs["allow_vendor_refresh"] is False
+        assert kwargs["output_dir"] == tmp_path
 
     @pytest.mark.asyncio
     async def test_error_raises_runtime(self, tmp_path):
@@ -159,6 +161,7 @@ class TestRunStrategyGeneration:
             await run_strategy_generation(
                 report_path=str(report),
                 strategy_type="ai_strategy",
+                lease_base_dir=tmp_path / "working",
             )
 
     @pytest.mark.asyncio
@@ -179,6 +182,7 @@ class TestRunStrategyGeneration:
                 report_path=str(report),
                 strategy_type="customer_experience",
                 platform="azure",
+                lease_base_dir=tmp_path / "working",
             )
 
         assert result["output_path"] == str(output)
@@ -188,6 +192,7 @@ class TestRunStrategyGeneration:
             strategy_yaml="customer_experience",
             company_name="Acme Corp",
             company_research_path=str(report),
+            output_dir=tmp_path,
         )
         usage = tracker.record_usage.call_args.kwargs
         assert usage["mode"] == "standalone_strategy_customer_experience"
@@ -212,6 +217,7 @@ class TestRunStrategyGeneration:
             await run_strategy_generation(
                 report_path=str(report),
                 strategy_type="skills",
+                lease_base_dir=tmp_path / "working",
             )
 
     @pytest.mark.asyncio
@@ -223,6 +229,7 @@ class TestRunStrategyGeneration:
             await run_strategy_generation(
                 report_path=str(report),
                 strategy_type="unknown",
+                lease_base_dir=tmp_path / "working",
             )
 
 
@@ -593,6 +600,7 @@ class TestRunResearchOrchestrator:
         assert strategy_path in updated.output_paths
         strategy_mock.assert_awaited_once()
         assert strategy_mock.await_args.kwargs["platform"] == "agnostic"
+        assert strategy_mock.await_args.kwargs["output_dir"].name == job.job_id
 
     @pytest.mark.asyncio
     async def test_standard_path_report_only_shape_emits_no_strategy(

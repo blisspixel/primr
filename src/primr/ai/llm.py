@@ -135,6 +135,9 @@ def llm(
     thinking_level="high",
     streaming=False,
     model=None,
+    max_tokens=16_000,
+    retries=None,
+    allow_failover=True,
 ):
     """
     Sends a prompt to the Gemini AI model and returns the response.
@@ -150,11 +153,18 @@ def llm(
                              "low" = faster, less reasoning
         streaming (bool): If True, uses real-time response streaming.
         model (str | None): Explicit routed model override for one stage.
+        max_tokens (int): Maximum generated output tokens.
+        retries (int | None): Provider retry count. None preserves the
+            provider route's normal default.
+        allow_failover (bool): Whether an xAI route may advance to another
+            provider after a quota failure.
 
     Returns:
         str: AI-generated response (cleaned text).
     """
     require_model_calls_allowed("LLM generation")
+    if retries is not None and retries < 0:
+        raise ValueError("retries must be zero or greater")
     model_name = model or _get_model_for_type(model_type)
     config = PrimrModels.get_model_config(model_name)
     if config is not None and config.provider == "xai":
@@ -164,14 +174,23 @@ def llm(
         # routed model advances to the next provider in the utility chain
         # instead of failing the run; thinking_level / streaming have no
         # analogue on Grok 4.20-NR (it doesn't reason).
+        from primr.ai.grok_client import grok_llm
         from primr.pipeline.llm_failover import LLMRole, call_with_failover
 
         log_chat_interaction(prompt, f"Model: {model_name} (xai dispatch)")
+        call_kwargs: dict[str, Any] = {
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        if retries is not None:
+            call_kwargs["retries"] = retries
+        if not allow_failover:
+            return grok_llm(prompt, model=model_name, **call_kwargs)
         return call_with_failover(
             LLMRole.WRITING,
             prompt,
             preferred_model=model_name,
-            temperature=temperature,
+            **call_kwargs,
         )
 
     # v1.24.0 cross-provider dispatch: when an eval recipe override picks an
@@ -185,10 +204,16 @@ def llm(
 
         log_chat_interaction(prompt, f"Model: {model_name} ({config.provider} dispatch)")
         cross_provider = get_provider_for_model(model_name)
+        cross_kwargs: dict[str, Any] = {
+            "model": model_name,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        if retries is not None:
+            cross_kwargs["retries"] = retries
         cross_response = cross_provider.chat(
             [{"role": "user", "content": prompt}],
-            model=model_name,
-            temperature=temperature,
+            **cross_kwargs,
         )
         log_chat_interaction(prompt, cross_response.text)
         # Mirror usage into the session counters so cross-provider utility
@@ -222,9 +247,10 @@ def llm(
             [{"role": "user", "content": prompt}],
             model=model_name,
             temperature=temperature,
-            retries=MAX_RETRIES - 1,
+            retries=MAX_RETRIES - 1 if retries is None else retries,
             thinking_level=thinking_level,
             streaming=streaming,
+            max_tokens=max_tokens,
         )
     except QuotaExhaustedError as e:
         guidance = provider.quota_guidance()

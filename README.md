@@ -22,9 +22,11 @@ Typical provider-backed output is a 23-section Strategic Overview as Markdown,
 TXT, DOCX, and best-effort PDF when a local converter is available. The default
 provider-backed run also creates a business-first AI Strategy unless you pass
 `--no-ai-strategy`. It begins with the company's economics, strategic tensions,
-industry direction, and value pools, then connects prioritized initiatives to
-the complete observed stack, operating model, unit economics, governance, and
-public, private, edge, or hybrid workload placement where justified.
+industry direction, enterprise performance agenda, and value pools. It then
+connects prioritized initiatives to measurable revenue, efficiency, product,
+service, and risk outcomes before evaluating the complete observed stack,
+operating model, unit economics, governance, and public, private, edge, or
+hybrid workload placement where justified.
 
 ## What Primr Is For
 
@@ -235,6 +237,9 @@ See [Run Modes and Costs](docs/RUN_MODES.md) for the full mode matrix, platform 
 | Site corpus and extracted insights only | `primr "Company" https://company.com --mode scrape` |
 | DNS intelligence only, no model keys required | `primr recon company.com` |
 | Agent Skills pack for downstream hosts | `primr skills "Company" https://company.com` |
+| Quote website enrichment without starting it | `primr --batch "companies.csv" --enrich --dry-run` |
+| Quote a whole research batch without starting it | `primr --batch "companies_enriched.csv" --dry-run` |
+| Quote a strategy from an existing report | `primr --ai-strategy-only "output/report.md" --dry-run` |
 | Client-facing deliverables in a chosen folder | `primr "Company" https://company.com --output-dir "C:\Clients\Company"` |
 
 For agent-host operation, a bare Primr request defaults to Primr Zero and does
@@ -249,6 +254,13 @@ Primr treats spend and egress as explicit control surfaces:
 
 - `--dry-run` is the source of truth for the next run estimate.
 - `--budget N` refuses to start when the estimate exceeds the cap.
+- Batch research quotes and gates the whole pending batch, never performs a
+  hidden website lookup, and does not automatically retry paid company runs.
+  `--enrich` is a separate quoted operation that pins its model, disables
+  provider failover and retries, and requires approval before lookups.
+- Standalone strategy generation emits its own estimate, requires approval,
+  and uses a private content-digest-verified snapshot of a report contained in
+  `output/` or `working/`. `--dry-run` starts no model calls.
 - Fast full-report runs checkpoint optional spend during the run.
 - Premium, deep, complete, and hybrid Deep Research paths checkpoint before
   optional strategy documents after the required Deep Research task completes.

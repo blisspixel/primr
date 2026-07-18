@@ -68,7 +68,7 @@ Examples:
 AI Strategy recovery:
   primr "Acme Corp" https://acme.example --resume-local
   primr --resume-latest                               # Recover + finalize completed cloud jobs
-  Do not use --ai-strategy-only until its in-command estimate and approval gate is available.
+  primr --ai-strategy-only output/report.md --dry-run
 
 Versioned Eval (offline-first, no API spend by default):
   primr --eval --eval-id eval-2026-02-r1
@@ -284,5 +284,8 @@ def _determine_command(
 
     if args.csv:
         return command_factory("batch")
+
+    if getattr(args, "dry_run", False):
+        return command_factory("dry-run")
 
     return command_factory("research")

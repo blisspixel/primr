@@ -111,7 +111,7 @@ def test_preflight_empty_research_file(tmp_path: Path):
 
 
 # ---------------------------------------------------------------------------
-# lite_strategy (Pro / llm) path
+# lite_strategy (bounded reasoning-model path)
 # ---------------------------------------------------------------------------
 
 
@@ -146,8 +146,51 @@ def test_lite_strategy_success(tmp_path: Path):
     assert result is not None
     assert result.endswith(".docx")
     assert mock_llm.called
+    from primr.ai.routing import Role, pick_model_for_role
+    from primr.config.models import LITE_AI_STRATEGY_MAX_OUTPUT_TOKENS
+
+    assert mock_llm.call_args.kwargs["model"] == pick_model_for_role(Role.REASONING)
+    assert mock_llm.call_args.kwargs["max_tokens"] == LITE_AI_STRATEGY_MAX_OUTPUT_TOKENS
     assert mock_docx.called
     assert list(out_dir.glob("*.md"))
+
+
+def test_lite_strategy_bounds_large_context_and_uses_estimated_model(tmp_path: Path):
+    from primr.ai.routing import Role, pick_model_for_role
+    from primr.config.models import LITE_AI_STRATEGY_MAX_INPUT_BYTES
+
+    research = tmp_path / "large-research.md"
+    research.write_text("company-context\n" + "x" * 1_000_000, encoding="utf-8")
+    out_dir = tmp_path / "out"
+
+    with (
+        patch("primr.core.ai_strategy_runtime.get_settings") as mock_settings,
+        patch("primr.core.ai_strategy_runtime.get_vendor_research_path") as mock_vpath,
+        patch(
+            "primr.core.ai_strategy_runtime.get_or_generate_vendor_research_sync",
+            return_value=[],
+        ),
+        patch(
+            "primr.core.ai_strategy_runtime.llm",
+            return_value="# AI Strategy\n\nContent.",
+        ) as mock_llm,
+        patch("primr.core.ai_strategy_runtime.markdown_to_docx"),
+    ):
+        mock_settings.return_value.api.gemini_key = "fake"
+        mock_vpath.return_value = tmp_path / "no-agnostic.txt"
+        result = generate_ai_strategy_section(
+            company_name="Acme",
+            platform="agnostic",
+            company_research_path=str(research),
+            lite_strategy=True,
+            output_dir=out_dir,
+        )
+
+    prompt = mock_llm.call_args.args[0]
+    assert result is not None
+    assert prompt.index("company-context") < prompt.index("AI Strategy")
+    assert len(prompt.encode()) <= LITE_AI_STRATEGY_MAX_INPUT_BYTES
+    assert mock_llm.call_args.kwargs["model"] == pick_model_for_role(Role.REASONING)
 
 
 def test_lite_strategy_empty_llm_returns_none(tmp_path: Path):

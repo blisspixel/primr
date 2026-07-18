@@ -6,8 +6,6 @@ CSV-injection sanitizer, and URL normalizer extracted from cli.py.
 
 from __future__ import annotations
 
-from unittest.mock import patch
-
 import pandas as pd
 import pytest
 
@@ -57,10 +55,8 @@ class TestEnsureValidUrl:
     def test_empty_returns_none(self):
         assert _ensure_valid_url("") is None
 
-    def test_whitespace_only_returns_https_placeholder(self):
-        # Current behavior: whitespace strips to "" then gets the https:// prefix.
-        # Not ideal, but preserved for backwards compatibility.
-        assert _ensure_valid_url("   ") == "https://"
+    def test_whitespace_only_returns_none(self):
+        assert _ensure_valid_url("   ") is None
 
     def test_https_preserved(self):
         assert _ensure_valid_url("https://acme.example") == "https://acme.example"
@@ -115,7 +111,7 @@ class TestClassifyColumns:
         with pytest.raises(ValueError, match="empty file"):
             _classify_columns(df)
 
-    def test_happy_path_with_llm_json(self):
+    def test_common_headers_are_classified_locally(self):
         df = pd.DataFrame(
             {
                 "Account Name": ["ExampleCo", "OtherCo"],
@@ -124,54 +120,34 @@ class TestClassifyColumns:
                 "Region": ["US", "EU"],
             }
         )
-        llm_response = (
-            '{"company_name": "Account Name", "website": "URL", '
-            '"industry": "Sector", "context": ["Region"], "skip": []}'
-        )
-        with patch("primr.ai.llm.llm", return_value=llm_response):
-            result = _classify_columns(df)
+        result = _classify_columns(df)
         assert result.company == "Account Name"
         assert result.website == "URL"
         assert result.industry == "Sector"
         assert result.context == ["Region"]
 
-    def test_fenced_response_parsed(self):
-        df = pd.DataFrame({"Name": ["A"]})
-        response = '```json\n{"company_name": "Name", "website": null, "industry": null, "context": []}\n```'
-        with patch("primr.ai.llm.llm", return_value=response):
-            result = _classify_columns(df)
+    def test_name_alias_is_classified(self):
+        df = pd.DataFrame({"Name": ["A"], "Owner": ["internal"]})
+        result = _classify_columns(df)
         assert result.company == "Name"
+        assert result.context == []
 
-    def test_invalid_json_falls_back_to_first_column(self):
+    def test_unknown_headers_fall_back_to_first_column(self):
         df = pd.DataFrame({"First": ["A"], "Second": ["B"]})
-        with patch("primr.ai.llm.llm", return_value="not json at all"):
-            result = _classify_columns(df)
+        result = _classify_columns(df)
         assert result.company == "First"
         assert result.website is None
+        assert result.context == ["Second"]
 
-    def test_unknown_company_column_falls_back(self):
-        df = pd.DataFrame({"Company": ["A"], "Other": ["B"]})
-        response = (
-            '{"company_name": "DoesNotExist", "website": null, "industry": null, "context": []}'
+    def test_website_values_are_detected_when_header_is_unknown(self):
+        df = pd.DataFrame(
+            {
+                "Organization": ["A", "B"],
+                "Homepage": ["a.example", "https://b.example"],
+            }
         )
-        with patch("primr.ai.llm.llm", return_value=response):
-            result = _classify_columns(df)
-        # Should pick the "Company" candidate from the fallback list
-        assert result.company == "Company"
-
-    def test_unknown_website_dropped(self):
-        df = pd.DataFrame({"Name": ["A"]})
-        response = '{"company_name": "Name", "website": "Bogus", "industry": null, "context": []}'
-        with patch("primr.ai.llm.llm", return_value=response):
-            result = _classify_columns(df)
-        assert result.website is None
-
-    def test_context_columns_filtered_to_known(self):
-        df = pd.DataFrame({"Name": ["A"], "Region": ["X"]})
-        response = '{"company_name": "Name", "website": null, "industry": null, "context": ["Region", "DoesNotExist"]}'
-        with patch("primr.ai.llm.llm", return_value=response):
-            result = _classify_columns(df)
-        assert result.context == ["Region"]
+        result = _classify_columns(df)
+        assert result.website == "Homepage"
 
 
 # ---------------------------------------------------------------------------
@@ -216,44 +192,30 @@ class TestPrepareBatchDf:
         )
         return str(path)
 
-    def _llm_response(self):
-        return (
-            '{"company_name": "Account Name", "website": "URL", '
-            '"industry": "Sector", "context": [], "skip": []}'
-        )
-
     def test_returns_df_and_column_map(self, tmp_path):
         path = self._write_csv(tmp_path)
-        with patch("primr.ai.llm.llm", return_value=self._llm_response()):
-            df, col_map = _prepare_batch_df(path)
+        df, col_map = _prepare_batch_df(path)
         assert len(df) == 3
         assert col_map.company == "Account Name"
 
     def test_industry_filter(self, tmp_path):
         path = self._write_csv(tmp_path)
-        with patch("primr.ai.llm.llm", return_value=self._llm_response()):
-            df, _ = _prepare_batch_df(path, industry="tech")
+        df, _ = _prepare_batch_df(path, industry="tech")
         # case-insensitive match -> 2 rows
         assert len(df) == 2
 
     def test_industry_filter_no_match_raises_systemexit(self, tmp_path):
         path = self._write_csv(tmp_path)
-        with patch("primr.ai.llm.llm", return_value=self._llm_response()):  # noqa: SIM117
-            with pytest.raises(SystemExit):
-                _prepare_batch_df(path, industry="nonexistent_industry")
+        with pytest.raises(SystemExit):
+            _prepare_batch_df(path, industry="nonexistent_industry")
 
     def test_limit_applied(self, tmp_path):
         path = self._write_csv(tmp_path)
-        with patch("primr.ai.llm.llm", return_value=self._llm_response()):
-            df, _ = _prepare_batch_df(path, limit=2)
+        df, _ = _prepare_batch_df(path, limit=2)
         assert len(df) == 2
 
     def test_industry_filter_without_industry_column_raises(self, tmp_path):
         path = tmp_path / "data.csv"
         path.write_text("Account Name\nExampleCo\n", encoding="utf-8")
-        response = (
-            '{"company_name": "Account Name", "website": null, "industry": null, "context": []}'
-        )
-        with patch("primr.ai.llm.llm", return_value=response):  # noqa: SIM117
-            with pytest.raises(SystemExit):
-                _prepare_batch_df(str(path), industry="tech")
+        with pytest.raises(SystemExit):
+            _prepare_batch_df(str(path), industry="tech")
