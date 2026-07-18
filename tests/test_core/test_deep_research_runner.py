@@ -421,9 +421,15 @@ class TestPerformDeepResearch:
     """Tests for perform_deep_research function."""
 
     @pytest.mark.asyncio
-    async def test_preflight_failure_returns_error(self):
+    async def test_preflight_failure_returns_error(self, tmp_path):
         """Test preflight failure returns error result."""
-        with patch("primr.config.settings.get_settings") as mock_settings:
+        with (
+            patch("primr.config.settings.get_settings") as mock_settings,
+            patch(
+                "primr.core.deep_research_runner.WORKING_DIR",
+                str(tmp_path / "working"),
+            ),
+        ):
             mock_api = MagicMock()
             mock_api.gemini_key = None
             mock_settings.return_value.api = mock_api
@@ -435,9 +441,15 @@ class TestPerformDeepResearch:
             assert result.success is False
             assert "GEMINI_API_KEY" in result.error
 
-    def test_sync_wrapper_calls_async(self):
+    def test_sync_wrapper_calls_async(self, tmp_path):
         """Test sync wrapper properly calls async function."""
-        with patch("primr.config.settings.get_settings") as mock_settings:
+        with (
+            patch("primr.config.settings.get_settings") as mock_settings,
+            patch(
+                "primr.core.deep_research_runner.WORKING_DIR",
+                str(tmp_path / "working"),
+            ),
+        ):
             mock_api = MagicMock()
             mock_api.gemini_key = None
             mock_settings.return_value.api = mock_api

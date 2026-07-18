@@ -364,6 +364,7 @@ async def test_perform_deep_research_success(tmp_path):
     research_obj.citations = ["c1"]
 
     with (
+        patch("primr.core.deep_research_runner.WORKING_DIR", str(tmp_path / "working")),
         patch("primr.core.deep_research_runner.validate_preflight", return_value=preflight),
         patch(
             "primr.core.deep_research_runner._execute_research",
@@ -394,6 +395,7 @@ async def test_perform_deep_research_execution_failure(tmp_path):
     preflight.is_valid = True
 
     with (
+        patch("primr.core.deep_research_runner.WORKING_DIR", str(tmp_path / "working")),
         patch("primr.core.deep_research_runner.validate_preflight", return_value=preflight),
         patch(
             "primr.core.deep_research_runner._execute_research",
@@ -425,6 +427,7 @@ async def test_perform_deep_research_with_ai_strategy(tmp_path):
     research_obj.citations = []
 
     with (
+        patch("primr.core.deep_research_runner.WORKING_DIR", str(tmp_path / "working")),
         patch("primr.core.deep_research_runner.validate_preflight", return_value=preflight),
         patch(
             "primr.core.deep_research_runner._execute_research",

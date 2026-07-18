@@ -125,14 +125,27 @@ def _append_run_event(
     if extra:
         event["extra"] = extra
 
+    run_finished = False
+
     def append_event(state: dict[str, Any]) -> None:
+        nonlocal run_finished
         events = state.get("events", [])
         if not isinstance(events, list):
             events = []
         events.append(event)
         state["events"] = events[-200:]
+        run_finished = str(state.get("status", "")).lower() in {
+            "completed",
+            "failed",
+            "cancelled",
+            "canceled",
+        }
 
     _mutate_run_state(folder_path, append_event)
+    if run_finished:
+        from primr.core.workspace import release_resume_lease
+
+        release_resume_lease(folder_path)
 
 
 def _ensure_resilience_keys(state: dict[str, Any]) -> dict[str, Any]:

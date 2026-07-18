@@ -32,7 +32,8 @@ The default document is designed for the CEO, CIO, board, executive team, and
 accountable business owners. Its narrative order is deliberate:
 
 1. Executive decisions and company business context.
-2. Economic engine, strategic tensions, and ranked value pools.
+2. Economic engine, enterprise performance agenda, strategic tensions, and
+   ranked value pools across defend, improve, extend, and create choices.
 3. Industry direction and art of the possible, separated into proven,
    emerging, frontier, and unsupported patterns.
 4. Evidence basis, business readiness, and the complete observed technology
@@ -49,8 +50,19 @@ Every prioritized initiative receives a decision card with an accountable
 owner, evidence, baseline and target, stack fit, dependencies, architecture
 options, build or buy rationale, fully loaded economics, a 30-day action, a
 90-day test, success measures, risk controls, a kill criterion, and a revisit
-trigger. Missing internal inputs produce formulas and validation requests, not
+trigger. Each initiative must also name the non-AI alternative and opportunity
+cost. Missing internal inputs produce formulas and validation requests, not
 fabricated precision.
+
+The technology section uses a disposition ledger. Every material observed
+ecosystem must be marked for use, integration, containment, replacement,
+deferral, validation, or as immaterial. This keeps email, collaboration, SaaS,
+cloud, data, security, model, and infrastructure signals connected to the
+business portfolio without treating a DNS signal as proof of production use.
+Infrastructure placement is workload-specific and must consider demand shape,
+utilization, latency, sovereignty, integration, power, cooling, networking,
+storage, hardware life, and refresh risk. Neither public cloud nor owned
+accelerated infrastructure is the default answer.
 
 ### Platform Selection
 
@@ -118,10 +130,24 @@ Generate a different strategy type:
 primr "ExampleCo" https://example.co --strategy-type customer_experience
 ```
 
-Standalone strategy generation is billable and currently has no combined
-`--dry-run` gate. Agent workflows should use the normal estimated pipeline.
-Do not invoke `--ai-strategy-only` until its in-command estimate and approval
-gate is available.
+Quote a standalone strategy from an existing report without starting model
+work:
+
+```bash
+primr --ai-strategy-only "output/ExampleCo_Strategic_Overview.md" --dry-run
+```
+
+Run the same command without `--dry-run` only after reviewing the emitted cost,
+time, model-call, and platform estimate. Interactive runs require approval;
+`--skip-confirm` is the explicit automation override. The report must be a
+regular, non-linked file under the fixed `output/` or `working/` root. Primr
+validates its content digest and generates from a private stable snapshot, so a
+report changed during the approval window fails closed before any model call.
+
+Standard strategy context retains up to 200,000 report characters. This covers
+a normal full Strategic Overview instead of silently taking only its opening
+50,000 characters, while preserving a deterministic bound for pathological
+inputs.
 
 ## Implementation Contract
 

@@ -54,14 +54,14 @@ NEW_FILE_MAX_LINES = 1000
 # When a file is split and shrinks, lower its ceiling (or drop it once under
 # NEW_FILE_MAX_LINES). Never raise a ceiling to make a growing file pass.
 FILE_LINE_CEILINGS: dict[str, int] = {
-    "core/research_agent.py": 4340,
-    "core/cli.py": 3353,
+    "core/research_agent.py": 4338,
+    "core/cli.py": 2977,
     "ai/deep_research.py": 3885,
     "data/scraping/browsers.py": 1835,
     "data/hiring_signals.py": 1577,
     "core/model_eval.py": 1832,
     "data/scrape.py": 1832,
-    "mcp_server/tools.py": 1407,
+    "mcp_server/tools.py": 1375,
     "data/fallback_sources.py": 1084,
     "agentic/hooks.py": 1022,
     "core/research_orchestrator.py": 1007,
@@ -168,14 +168,10 @@ EXPECTED_IMPORT_CYCLES = {
     ),
     frozenset(
         {
-            "primr.ai.client",
-            "primr.ai.grok_client",
             "primr.ai.llm",
             "primr.ai.routing",
             "primr.config.eval_profiles",
-            "primr.core.deep_budget",
             "primr.core.model_eval",
-            "primr.pipeline.llm_failover",
             "primr.utils.cost_estimator",
         }
     ),

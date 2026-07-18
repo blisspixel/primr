@@ -187,6 +187,12 @@ The `primr.core` package contains specialized modules for different aspects of r
 
 Working folder creation and file operations.
 
+Fresh run folders are allocated atomically. Concurrent same-company runs keep
+the sortable minute label but receive distinct numeric suffixes instead of
+sharing mutable state. Higher-level research and strategy flows also hold
+cross-process ownership leases while resuming or publishing company artifacts;
+malformed, foreign-host, or unverifiable ownership fails closed.
+
 ```python
 from primr.core.workspace import (
     create_working_folder,

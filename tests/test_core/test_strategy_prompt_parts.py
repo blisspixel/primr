@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 from primr.core.strategy_prompt_parts import (
     AI_STRATEGY_ARTIFACTS,
+    STRATEGY_REPORT_CHAR_LIMIT,
     YAML_STRATEGY_ARTIFACTS,
     build_strategy_context_prefix,
     build_strategy_prompt_parts,
@@ -24,7 +25,7 @@ HEADER = "Use the following context documents to inform your analysis:\n\n"
 
 def _legacy_combined_prompt(report, artifact_blocks, vendor_blocks, strategy_prompt):
     """The exact assembly the strategy loops used before the parts split."""
-    context_parts = [f"--- Company Report ---\n{report[:50_000]}"]
+    context_parts = [f"--- Company Report ---\n{report[:STRATEGY_REPORT_CHAR_LIMIT]}"]
     context_parts.extend(artifact_blocks)
     context_parts.extend(vendor_blocks)
     return HEADER + "\n\n".join(context_parts) + "\n\n---\n\n" + strategy_prompt
@@ -115,9 +116,14 @@ class TestReadArtifactBlocks:
 
 
 class TestBuildStrategyContextPrefix:
-    def test_report_truncated_to_50k(self):
-        prefix = build_strategy_context_prefix("r" * 60_000, [])
-        assert prefix == HEADER + "--- Company Report ---\n" + "r" * 50_000
+    def test_normal_full_report_is_not_truncated(self):
+        report = "r" * 150_000
+        prefix = build_strategy_context_prefix(report, [])
+        assert prefix == HEADER + "--- Company Report ---\n" + report
+
+    def test_pathological_report_is_bounded(self):
+        prefix = build_strategy_context_prefix("r" * 250_000, [])
+        assert prefix == (HEADER + "--- Company Report ---\n" + "r" * STRATEGY_REPORT_CHAR_LIMIT)
 
     def test_shared_blocks_appended_in_order(self):
         prefix = build_strategy_context_prefix("report", ["--- a ---\n1", "--- b ---\n2"])

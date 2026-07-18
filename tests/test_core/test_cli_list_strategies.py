@@ -24,7 +24,9 @@ class TestListStrategies:
         assert "vendor-specific recommendations" not in output
         assert 'primr skills "Company" https://example.com' in output
         assert "Standalone:       Not available; use primr skills" in output
-        assert "--ai-strategy-only" not in output
+        assert 'primr --ai-strategy-only "output/report.md" --dry-run' in output
+        assert "Review the standalone estimate" in output
+        assert "Do not use standalone generation" not in output
 
     def test_runs_and_returns_zero(self):
         # Smoke test: list-strategies should always succeed when YAML configs exist.

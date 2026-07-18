@@ -8,7 +8,12 @@ from unittest.mock import MagicMock
 import pytest
 
 from primr.core.cli import open_file, process_csv
-from primr.core.research_agent import process_csv as legacy_process_csv
+from primr.core.research_agent import (
+    perform_research as legacy_perform_research,
+)
+from primr.core.research_agent import (
+    process_csv as legacy_process_csv,
+)
 
 
 @pytest.fixture
@@ -22,44 +27,25 @@ def sample_csv(tmp_path):
     return path
 
 
+@pytest.fixture
+def website_only_csv(tmp_path):
+    path = tmp_path / "website_only.csv"
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["company_name", "website"])
+        writer.writeheader()
+        writer.writerow(
+            {
+                "company_name": "",
+                "website": "https://website-only.invalid",
+            }
+        )
+    return path
+
+
 class TestProcessCsv:
-    def test_processes_every_row(self, sample_csv, monkeypatch):
-        perform_mock = MagicMock(return_value="/output/report.docx")
-        monkeypatch.setattr("primr.core.research_agent.perform_research", perform_mock)
-        process_csv(str(sample_csv))
-        assert perform_mock.call_count == 2
-        assert perform_mock.call_args.kwargs["platforms"] is None
-
-    def test_public_legacy_helper_keeps_platform_auto_detection(self, sample_csv, monkeypatch):
-        perform_mock = MagicMock(return_value="/output/report.docx")
-        monkeypatch.setattr("primr.core.research_agent.perform_research", perform_mock)
-
-        legacy_process_csv(str(sample_csv))
-
-        assert perform_mock.call_count == 2
-        assert perform_mock.call_args.kwargs["platforms"] is None
-
-    def test_swallows_per_row_exceptions(self, sample_csv, monkeypatch):
-        # The first raises and the second succeeds, so the loop must continue.
-        perform_mock = MagicMock(side_effect=[RuntimeError("boom"), "/output/report.docx"])
-        monkeypatch.setattr("primr.core.research_agent.perform_research", perform_mock)
-        process_csv(str(sample_csv))
-        assert perform_mock.call_count == 2
-
-    def test_skips_blank_rows(self, tmp_path, monkeypatch):
-        path = tmp_path / "blank.csv"
-        with open(path, "w", encoding="utf-8", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=["company_name", "website"])
-            writer.writeheader()
-            writer.writerow({"company_name": "", "website": ""})
-        perform_mock = MagicMock()
-        monkeypatch.setattr("primr.core.research_agent.perform_research", perform_mock)
-        process_csv(str(path))
-        perform_mock.assert_not_called()
-
-    def test_passes_mode_and_platforms(self, sample_csv, monkeypatch):
-        perform_mock = MagicMock(return_value="/output/report.docx")
-        monkeypatch.setattr("primr.core.research_agent.perform_research", perform_mock)
+    def test_public_helper_delegates_to_governed_batch(self, sample_csv, monkeypatch):
+        governed = MagicMock(return_value=0)
+        monkeypatch.setattr("primr.core.cli_batch_runtime.process_batch", governed)
         process_csv(
             str(sample_csv),
             mode="scrape",
@@ -67,22 +53,73 @@ class TestProcessCsv:
             ai_strategy=False,
             platforms=("aws", "gcp"),
         )
-        kwargs = perform_mock.call_args.kwargs
-        assert kwargs["mode"] == "scrape"
-        assert kwargs["citation_style"] == "footnoted"
-        assert kwargs["ai_strategy"] is False
-        assert kwargs["platforms"] == ("aws", "gcp")
 
-    def test_website_only_row_processed(self, tmp_path, monkeypatch):
-        path = tmp_path / "website_only.csv"
-        with open(path, "w", encoding="utf-8", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=["company_name", "website"])
-            writer.writeheader()
-            writer.writerow({"company_name": "", "website": "https://x.example"})
-        perform_mock = MagicMock(return_value="/output/report.docx")
-        monkeypatch.setattr("primr.core.research_agent.perform_research", perform_mock)
-        process_csv(str(path))
-        perform_mock.assert_called_once()
+        governed.assert_called_once_with(
+            str(sample_csv),
+            mode="scrape",
+            citation_style="footnoted",
+            ai_strategy=False,
+            platforms=("aws", "gcp"),
+            skip_confirm=False,
+            research_runner=legacy_perform_research,
+        )
+
+    def test_research_agent_export_delegates_to_governed_batch(self, sample_csv, monkeypatch):
+        governed = MagicMock(return_value=0)
+        monkeypatch.setattr("primr.core.cli_batch_runtime.process_batch", governed)
+
+        legacy_process_csv(
+            str(sample_csv),
+            mode="deep",
+            citation_style="footnoted",
+            ai_strategy=False,
+            platforms=("gcp",),
+            no_qa=True,
+        )
+
+        governed.assert_called_once_with(
+            str(sample_csv),
+            mode="deep",
+            citation_style="footnoted",
+            ai_strategy=False,
+            platforms=("gcp",),
+            skip_confirm=False,
+            no_qa=True,
+            research_runner=legacy_perform_research,
+        )
+
+    @pytest.mark.parametrize("helper", [process_csv, legacy_process_csv])
+    def test_decline_starts_no_research(self, helper, sample_csv, monkeypatch):
+        research = MagicMock()
+        monkeypatch.setattr("primr.core.research_agent.perform_research", research)
+        monkeypatch.setattr("builtins.input", MagicMock(return_value="n"))
+
+        helper(str(sample_csv), ai_strategy=False)
+
+        research.assert_not_called()
+
+    @pytest.mark.parametrize("helper", [process_csv, legacy_process_csv])
+    def test_website_only_row_uses_validated_hostname(
+        self,
+        helper,
+        website_only_csv,
+        tmp_path,
+        monkeypatch,
+    ):
+        report = tmp_path / "report.md"
+        report.write_text("report " * 1_000, encoding="utf-8")
+        research = MagicMock(return_value=str(report))
+        monkeypatch.setattr("primr.core.research_agent.perform_research", research)
+        monkeypatch.setattr("builtins.input", MagicMock(return_value="y"))
+        monkeypatch.delenv("PRIMR_ALLOW_VENDOR_REFRESH", raising=False)
+
+        helper(str(website_only_csv), ai_strategy=False)
+
+        research.assert_called_once()
+        assert research.call_args.args[:2] == (
+            "website-only.invalid",
+            "https://website-only.invalid",
+        )
 
 
 class TestOpenFile:

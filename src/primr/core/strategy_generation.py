@@ -180,6 +180,7 @@ def generate_generic_strategy(
 
     meta = strategy_config.get("meta", {})
     strategy_display_name = meta.get("name", strategy_name)
+    destination_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
 
     preflight_errors: list[str] = []
 
@@ -197,13 +198,13 @@ def generate_generic_strategy(
             preflight_errors.append(f"Company research file is empty: {company_research_path}")
 
     try:
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-        test_file = os.path.join(OUTPUT_DIR, ".write_test")
-        with open(test_file, "w", encoding="utf-8") as handle:
+        destination_dir.mkdir(parents=True, exist_ok=True)
+        test_file = destination_dir / ".write_test"
+        with test_file.open("w", encoding="utf-8") as handle:
             handle.write("test")
-        os.remove(test_file)
+        test_file.unlink()
     except Exception as exc:
-        preflight_errors.append(f"Output directory not writable: {OUTPUT_DIR} ({exc})")
+        preflight_errors.append(f"Output directory not writable: {destination_dir} ({exc})")
 
     if preflight_errors:
         console.error("Pre-flight validation failed:")
@@ -261,7 +262,6 @@ def generate_generic_strategy(
         date_str = datetime.now().strftime("%m-%d-%Y")
         output_filename = meta.get("output_filename", f"{{company_name}}_{strategy_name}")
         base_name = output_filename.format(company_name=company_name) + f"_{date_str}"
-        destination_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
         destination_dir.mkdir(parents=True, exist_ok=True)
         internal_dir = Path(diagnostics_dir) if diagnostics_dir is not None else destination_dir
         internal_dir.mkdir(parents=True, exist_ok=True)

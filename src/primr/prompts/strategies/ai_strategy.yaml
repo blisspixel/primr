@@ -7,8 +7,8 @@
 
 meta:
   name: "Business-First AI Strategy"
-  version: "2.0.0"
-  description: "Evidence-grounded AI strategy starting with business value, industry possibilities, and executive decisions"
+  version: "2.1.0"
+  description: "Evidence-grounded enterprise AI strategy starting with business performance, industry possibilities, capital choices, and executive decisions"
   output_format: "markdown"
   output_filename: "{company_name}_AI_Strategy"
   expected_pages: "18-30"
@@ -17,9 +17,10 @@ persona: "ai_strategist"
 
 document_purpose: |
   Produce transparent decision support for the CEO, CIO, board, and accountable
-  business leaders. Start with the company's strategy and economics, not with an
-  AI product catalog. The governing question is where better decisions, automation,
-  prediction, generation, or machine perception could materially improve:
+  business leaders. Start with the company's strategy, economic engine, and capital
+  choices, not with an AI product catalog. The governing question is where better
+  decisions, automation, prediction, generation, or machine perception could
+  materially improve:
 
   - Revenue growth, retention, pricing, and market expansion
   - Margin, cost to serve, throughput, cycle time, quality, and working capital
@@ -37,10 +38,14 @@ document_purpose: |
   risk tolerance that have not been supplied. Recommendations are hypotheses and
   choices to validate, with assumptions and disconfirming conditions made visible.
 
-  The document must help leaders decide what to fund, what to test, what not to do,
-  who owns each outcome, and what evidence would change the decision. It must never
-  use covert persuasion, misattribute authorship, manufacture urgency, or present a
-  favored vendor as the inevitable answer.
+  The document must expand the Strategic Overview into an enterprise performance
+  agenda. Trace company strategy and industry change into choices about profitable
+  growth, margin and productivity, stronger products and services, new business
+  models, customer and workforce outcomes, resilience, and risk. It must help leaders
+  decide what to fund, what to test, what not to do, who owns each outcome, and what
+  evidence would change the decision. It must never use covert persuasion,
+  misattribute authorship, manufacture urgency, or present a favored vendor as the
+  inevitable answer.
 
 context_instructions: |
   Use the available context extensively, but preserve its evidence strength.
@@ -70,6 +75,13 @@ context_instructions: |
   integration and developer tooling, file/content systems, and private data-center,
   edge, or accelerated-compute signals. "No signal" means unknown, not absent.
 
+  Create a technology-signal disposition ledger before recommending architecture.
+  Every relevant observed service, provider, platform, or infrastructure signal must
+  be included, marked immaterial to the current decisions, or marked unknown pending
+  validation. Do not silently drop an ecosystem because it differs from the selected
+  platform emphasis. For every material ecosystem, research the current capability
+  and integration path from official sources when browsing is available.
+
   The selected platform is an evaluation emphasis, not an exclusive architecture.
   Preserve every relevant detected ecosystem. A productivity-suite signal does not
   prove a primary cloud. A DNS verification record does not prove broad AI adoption.
@@ -93,6 +105,14 @@ hard_requirements: |
     risk value. Do not collapse all value into labor savings.
   - Explain what must remain human-led or relationship-led because it is central to
     trust, accountability, safety, or differentiation.
+  - Trace each recommended investment through this chain: strategic objective,
+    value mechanism, affected business unit, capability change, measurable outcome,
+    investment choice, and evidence gate.
+  - Distinguish defending the core business, improving the current operating model,
+    extending products or services, and creating a credible new business model.
+  - Frame the portfolio as capital allocation with opportunity cost. State why this
+    use of management attention, operating expense, or capital is preferable to the
+    strongest non-AI alternative.
 
   REQUIRED INDUSTRY ART OF THE POSSIBLE
   - Research what leading organizations, adjacent industries, customers, suppliers,
@@ -100,9 +120,13 @@ hard_requirements: |
   - Separate proven patterns, emerging patterns, frontier possibilities, and hype.
   - Explain which capabilities are becoming table stakes and which could create
     company-specific advantage. Cite current primary or official sources.
+  - Distinguish reported tool adoption, production deployment, realized operating
+    value, and durable advantage. Do not treat a broad adoption survey or vendor case
+    study as proof of company-specific economics.
 
   REQUIRED INITIATIVE DECISION CARD
   Every prioritized initiative must state:
+  - Strategic objective, value mechanism, and why the initiative matters now
   - Business outcome and accountable executive owner
   - Affected customer, employee, partner, product, or operational journey
   - Evidence and assumptions, including what is still unknown
@@ -110,6 +134,7 @@ hard_requirements: |
   - Current-stack fit and required data, process, integration, and change dependencies
   - Primary architecture option and at least one credible alternative
   - Build, buy, partner, or combine rationale
+  - Opportunity cost and strongest conventional or non-AI alternative
   - Fully loaded cost and business unit economics, not only model or token cost
   - 30-day discovery action, 90-day test, decision gate, and sequencing dependency
   - Success KPI, leading indicator, risk control, kill criterion, and revisit trigger
@@ -124,12 +149,16 @@ hard_requirements: |
   - Integration with the observed identity, data, security, application, and operations stack
   - Model choice, portability, observability, evaluation, and exit options
   - Skills, operating burden, support, time to value, commercial terms, and fully loaded TCO
+  - Demand shape, burstiness, queue tolerance, expected useful life, break-even
+    utilization, power, cooling, facilities, networking, storage, and refresh risk
 
   Do not prescribe a data center or accelerator purchase merely because it is possible.
   Private, on-premises, or edge processing earns a recommendation only when workload
   scale, utilization, latency, sovereignty, safety, resilience, or control justifies
   the capital and operating burden. Likewise, do not assume public cloud is always
-  cheaper or strategically superior. State what measurements are needed to decide.
+  cheaper or strategically superior. Evaluate a portfolio of workload placements
+  rather than forcing one answer across every use case. State the workload measurements,
+  capacity assumptions, and break-even evidence needed to decide.
 
   REQUIRED GOVERNANCE AND ECONOMICS
   - Tie governance depth to use-case consequences, autonomy, affected people, and the
@@ -247,6 +276,12 @@ sections:
     part: 2
     purpose: "Derive the role of AI from the company's economic engine and strategy"
     subsections:
+      - id: enterprise_performance_agenda
+        name: "Enterprise Performance Agenda"
+        covers:
+          - "Profitable growth, margin and productivity, product and service strength, experience, resilience, and risk priorities"
+          - "Strategic tensions that require a choice rather than a generic technology program"
+          - "CEO, CIO, finance, business-owner, and board decision lenses"
       - id: economic_engine
         name: "Economic Engine and Strategic Tensions"
         covers:
@@ -264,7 +299,7 @@ sections:
         covers:
           - "Pragmatic adopter, capability builder, and business-model innovator options"
           - "Risk, capital, time-to-value, and option-value tradeoffs"
-          - "Recommended posture and conditions under which another option wins"
+          - "Recommended posture, opportunity cost, and conditions under which another option wins"
     depth: "Business language only until the strategic posture is clear. Do not name vendors here."
 
   - id: competitive_landscape
@@ -312,6 +347,7 @@ sections:
           - "Productivity, identity, security, cloud, hosting, data, AI providers, enterprise apps, integration, developer tooling, content, data center, and edge"
           - "Observed signal versus inferred use, with confidence and validation need"
           - "Platform coexistence, portability, gaps, and likely integration boundaries"
+          - "Technology-signal disposition ledger proving that every relevant observed ecosystem was considered"
       - id: readiness_constraints
         name: "Constraints and Prerequisites"
         covers:
@@ -334,7 +370,8 @@ sections:
       - id: product_value
         name: "Products, Services, and Business Models"
         covers:
-          - "Existing-offering improvement, AI-enabled services, credible new products, and monetization"
+          - "Defend and improve existing offerings, AI-enabled services, credible new products, and monetization"
+          - "Changes to the customer promise, delivery model, pricing, or basis of competition"
       - id: experience_value
         name: "Customer, Partner, and Employee Experience"
         covers:
@@ -357,6 +394,7 @@ sections:
       - "Adoption load and accountable ownership"
       - "Risk, autonomy, affected people, and regulatory exposure"
       - "Fully loaded unit economics and commercial flexibility"
+      - "Opportunity cost, capital intensity, management attention, and portfolio balance"
     depth: |
       Show the scored or reasoned ranking, sensitivity to uncertain assumptions, and
       why the selected portfolio wins. Include an explicit What NOT to Pursue table
@@ -398,7 +436,7 @@ sections:
         name: "Fully Loaded Cost and Capacity"
         covers:
           - "People, process, data, integration, security, evaluation, change, vendor, cloud, SaaS, data-center, edge, and support cost"
-          - "Capacity, utilization, commitment, and scaling assumptions"
+          - "Capacity, utilization, commitment, demand shape, power, facilities, networking, refresh, and scaling assumptions"
       - id: unit_economics
         name: "Business Unit Economics"
         covers:
@@ -408,7 +446,7 @@ sections:
         name: "Investment Scenarios"
         covers:
           - "Minimum viable learning, balanced portfolio, and accelerated option"
-          - "Capital, operating cost, risk, and option-value tradeoffs"
+          - "Capital, operating cost, management capacity, opportunity cost, risk, and option-value tradeoffs"
     depth: "Use formulas instead of fabricated company numbers when internal inputs are missing."
 
   - id: organizational_model
@@ -439,11 +477,14 @@ sections:
         covers:
           - "How every relevant observed ecosystem affects the target posture"
           - "Contradictions, missing capabilities, integration boundaries, and migration avoidance"
+          - "Identity, data, security, model, application, observability, and commercial control points across ecosystems"
+          - "Disposition for every observed technology signal: use, integrate, contain, replace, defer, immaterial, or validate"
       - id: placement_matrix
         name: "Workload Placement Decision Matrix"
         covers:
           - "Embedded SaaS, managed public cloud, multicloud, private/on-premises accelerated, edge/disconnected, and hybrid options"
-          - "Data, latency, safety, sovereignty, utilization, capacity, skills, operating burden, TCO, and time-to-value criteria"
+          - "Data, latency, safety, sovereignty, demand shape, utilization, capacity, skills, operating burden, TCO, and time-to-value criteria"
+          - "Break-even utilization, power, cooling, networking, storage, support, useful life, and refresh assumptions for dedicated accelerated capacity"
           - "Primary recommendation, credible alternative, measurements required, and exit path"
       - id: autonomy_boundaries
         name: "Automation and Autonomy Boundaries"
@@ -451,7 +492,7 @@ sections:
           - "Read, recommend, draft, transact, and autonomous action levels"
           - "Human approval, confidence, value, safety, and legal thresholds"
           - "Identity, least privilege, audit, rollback, rate limits, and kill controls"
-    depth: "Technical detail follows the business portfolio. Evaluate hybrid and accelerated processing when justified, not by default."
+    depth: "Technical detail follows the business portfolio. Prefer workload-by-workload placement. Evaluate hybrid and accelerated processing whenever material, but recommend dedicated capacity only when its evidence and economics win."
 
   - id: risk_analysis
     name: "Governance, Risk, and Trust"
@@ -486,6 +527,7 @@ sections:
     covers:
       - "Five or fewer decisions with recommended option and credible alternative"
       - "Value at stake, investment range or required inputs, and confidence"
+      - "Capital allocation, opportunity cost, and management-capacity implications"
       - "Owner, decision date, dependency, risk acceptance, and next evidence gate"
       - "What leadership is choosing not to fund now"
       - "Questions the board should ask management"
@@ -586,8 +628,9 @@ vendor_guidance:
       software, open-model, orchestration, and operations ecosystems. Require evidence for
       sustained utilization, latency, disconnected operation, sovereignty, safety,
       resilience, model control, or TCO before recommending capital investment. Include a
-      managed-cloud alternative, hybrid operating model, capacity plan, support model, and
-      exit path.
+      managed-cloud alternative, hybrid operating model, demand profile, break-even
+      utilization, capacity plan, facilities and power assumptions, support model, useful
+      life, refresh risk, and exit path.
     comparison_areas:
       - "Accelerator demand, throughput, utilization, capacity, power, facilities, networking, and storage"
       - "Open and proprietary models, inference and training stacks, portability, and support"
@@ -603,13 +646,17 @@ vendor_guidance:
       edge, open-source components, and hybrid combinations only where they are material.
       Do not force a single strategic vendor. Recommend the simplest credible primary
       posture, at least one alternative, interoperability boundaries, commercial leverage,
-      and an exit path. Verify all named services against current official sources.
+      and an exit path. Account explicitly for every relevant detected ecosystem, including
+      productivity, identity, cloud, data, model-provider, enterprise-application, and
+      private-infrastructure signals. Verify all named services against current official
+      sources.
     comparison_areas:
       - "Productivity and collaboration AI across the detected work environment"
       - "Model, agent, data, integration, identity, security, governance, and observability layers"
       - "Embedded SaaS, managed public cloud, multicloud, private/on-premises accelerated, edge, and hybrid placement"
       - "Open-source and commercial options, portability, lock-in, resilience, and exit costs"
       - "Business unit economics, fully loaded TCO, time to value, skills, and operating burden"
+      - "Workload-by-workload placement, demand shape, break-even utilization, and capital flexibility"
 
 footer: |
   End with one ## Sources section. List only URLs cited in the document, using

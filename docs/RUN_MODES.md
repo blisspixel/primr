@@ -88,11 +88,16 @@ ecosystem signals produce one integrated vendor-neutral strategy so the user
 does not receive an accidental artifact fan-out. Explicit multi-platform input
 still creates separate strategy artifacts and must be included in the estimate.
 
-The default AI Strategy starts with business economics, strategic tensions,
-industry direction, and value pools. It then builds a prioritized portfolio and
-connects each initiative to the complete observed technology and service stack,
-fully loaded unit economics, operating ownership, governance, and workload
-placement. Public cloud, multicloud, private or on-premises accelerated
+The default AI Strategy starts with business economics, an enterprise
+performance agenda, strategic tensions, industry direction, and value pools. It
+tests how AI could defend the core, improve operations, extend products and
+services, or create new business models before selecting technology. It then
+builds a prioritized portfolio and connects each initiative to measurable
+business outcomes, the complete observed technology and service stack, fully
+loaded unit economics, operating ownership, governance, and workload placement.
+Every initiative includes a non-AI alternative and opportunity cost. Every
+material observed ecosystem receives an explicit disposition rather than being
+silently omitted. Public cloud, multicloud, private or on-premises accelerated
 infrastructure, edge, and hybrid options are evaluated when the workload makes
 them material. A platform flag is an evaluation emphasis, not permission to
 ignore other detected ecosystems or skip credible alternatives.
@@ -149,6 +154,34 @@ Cost behavior:
   recent runs cost more or cache less than history. It never blocks a run;
   it surfaces continuous-reasoning or prompt-cache regressions that would
   otherwise erode the sub-$1 default silently.
+
+### Batch and Standalone Cost Gates
+
+Batch research and website enrichment are separate governed operations:
+
+```bash
+primr --batch "companies.csv" --enrich --dry-run
+primr --batch "companies_enriched.csv" --dry-run
+```
+
+Enrichment quotes only rows missing a website. It performs no search or model
+call before approval, pins the quoted utility model, disables retries and
+provider failover, and writes a reviewable CSV. Batch research requires a
+website for every pending company, quotes the entire pending batch, applies
+`--budget` to that total, runs local-only preflight after approval, and never
+silently retries a paid company run. Machine-readable `--json` is supported for
+these dry-run plans and emits exactly one JSON object.
+
+Standalone strategy recovery has its own gate:
+
+```bash
+primr --ai-strategy-only "output/report.md" --dry-run
+```
+
+Without `--dry-run`, Primr emits the same estimate and asks for approval before
+it creates a private content-digest-verified report snapshot. A report changed
+during approval is rejected before strategy generation. Normal full Strategic
+Overviews are retained in strategy context up to a 200,000-character bound.
 
 ## Output Locations
 

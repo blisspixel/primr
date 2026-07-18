@@ -25,6 +25,11 @@ class TestRunBudget:
         with pytest.raises(ValueError):
             RunBudget(-1.0)
 
+    @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+    def test_rejects_nonfinite_budget(self, value):
+        with pytest.raises(ValueError):
+            RunBudget(value)
+
     def test_initial_state(self):
         budget = RunBudget(2.0)
         assert budget.max_cost == 2.0

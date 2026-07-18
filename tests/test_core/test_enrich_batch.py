@@ -34,7 +34,7 @@ class TestEnrichBatch:
     def test_happy_path_returns_zero(self, fake_batch_df, tmp_path, monkeypatch):
         df, col_map = fake_batch_df
         monkeypatch.setattr(
-            "primr.core.cli._prepare_batch_df",
+            "primr.core.cli_batch_runtime._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),
         )
         monkeypatch.setattr(
@@ -42,7 +42,7 @@ class TestEnrichBatch:
             MagicMock(return_value="https://b.example"),
         )
         monkeypatch.chdir(tmp_path)
-        result = enrich_batch(str(tmp_path / "batch.csv"))
+        result = enrich_batch(str(tmp_path / "batch.csv"), skip_confirm=True)
         assert result == 0
         # Should have written an enriched CSV
         outputs = list(tmp_path.glob("*_enriched.csv"))
@@ -58,11 +58,11 @@ class TestEnrichBatch:
         )
         col_map = _ColumnMap(company="Account Name", website="URL", industry="Sector", context=[])
         monkeypatch.setattr(
-            "primr.core.cli._prepare_batch_df",
+            "primr.core.cli_batch_runtime._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),
         )
         monkeypatch.chdir(tmp_path)
-        enrich_batch(str(tmp_path / "batch.csv"))
+        enrich_batch(str(tmp_path / "batch.csv"), skip_confirm=True)
         # Check the output CSV has only 2 unique entries (ExampleCo + examplecoo are different,
         # ExampleCo == EXAMPLECO same)
         out = next(tmp_path.glob("*_enriched.csv"))
@@ -80,7 +80,7 @@ class TestEnrichBatch:
         )
         col_map = _ColumnMap(company="Account Name", website="URL", industry="Sector", context=[])
         monkeypatch.setattr(
-            "primr.core.cli._prepare_batch_df",
+            "primr.core.cli_batch_runtime._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),
         )
         monkeypatch.setattr(
@@ -88,7 +88,7 @@ class TestEnrichBatch:
             MagicMock(return_value=None),
         )
         monkeypatch.chdir(tmp_path)
-        enrich_batch(str(tmp_path / "batch.csv"))
+        enrich_batch(str(tmp_path / "batch.csv"), skip_confirm=True)
         out = next(tmp_path.glob("*_enriched.csv"))
         out_df = pd.read_csv(out)
         # ExampleCo and ThirdCo only
@@ -97,7 +97,7 @@ class TestEnrichBatch:
     def test_writes_industry_filename_suffix(self, tmp_path, monkeypatch, fake_batch_df):
         df, col_map = fake_batch_df
         monkeypatch.setattr(
-            "primr.core.cli._prepare_batch_df",
+            "primr.core.cli_batch_runtime._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),
         )
         monkeypatch.setattr(
@@ -105,7 +105,7 @@ class TestEnrichBatch:
             MagicMock(return_value="https://b.example"),
         )
         monkeypatch.chdir(tmp_path)
-        enrich_batch(str(tmp_path / "batch.csv"), industry="Tech")
+        enrich_batch(str(tmp_path / "batch.csv"), industry="Tech", skip_confirm=True)
         # Output filename should include "tech" suffix
         out = next(tmp_path.glob("*_enriched.csv"))
         assert "tech" in out.name.lower()
@@ -114,18 +114,18 @@ class TestEnrichBatch:
         """Lines starting with =, +, -, @, \\t, \\r get single-quote prefix."""
         df = pd.DataFrame(
             {
-                "Account Name": ['=WEBSERVICE("https://attacker")'],
-                "URL": ["+1234567890"],
-                "Sector": ["Tech"],
+                "Account Name": ["ExampleCo"],
+                "URL": ["https://example.test"],
+                "Sector": ['=WEBSERVICE("https://attacker")'],
             }
         )
         col_map = _ColumnMap(company="Account Name", website="URL", industry="Sector", context=[])
         monkeypatch.setattr(
-            "primr.core.cli._prepare_batch_df",
+            "primr.core.cli_batch_runtime._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),
         )
         monkeypatch.chdir(tmp_path)
-        enrich_batch(str(tmp_path / "batch.csv"))
+        enrich_batch(str(tmp_path / "batch.csv"), skip_confirm=True)
         out = next(tmp_path.glob("*_enriched.csv"))
         content = out.read_text(encoding="utf-8")
         # Dangerous leads should have been prefixed with a single quote

@@ -3,6 +3,7 @@ store-creation errors, missing-store-name response, MIME type detection."""
 
 from __future__ import annotations
 
+import logging
 from unittest.mock import MagicMock
 
 import pytest
@@ -99,3 +100,19 @@ def test_unknown_extension_passes_none_config(client, tmp_path):
     client._upload_context_files([str(p)])
     call_kwargs = client._client.file_search_stores.upload_to_file_search_store.call_args.kwargs
     assert call_kwargs["config"] is None
+
+
+def test_upload_logs_do_not_expose_context_path(client, tmp_path, caplog):
+    caplog.set_level(logging.INFO)
+    context_file = tmp_path / "private-tenant-context.md"
+    context_file.write_text("bounded context", encoding="utf-8")
+    store = MagicMock()
+    store.name = "stores/private-identifier"
+    client._client.file_search_stores.create.return_value = store
+
+    client._upload_context_files([str(context_file)])
+
+    assert str(context_file) not in caplog.text
+    assert store.name not in caplog.text
+    assert "Uploading context file 1 of 1" in caplog.text
+    assert "Uploaded context file 1 of 1" in caplog.text

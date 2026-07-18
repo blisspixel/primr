@@ -233,6 +233,11 @@ class TestParseArgs:
         config = parse_args(["Acme Corp", "acme.example", "--dry-run"])
         assert config.command == Command.DRY_RUN
 
+    def test_parse_batch_dry_run_stays_on_batch_handler(self):
+        config = parse_args(["--batch", "companies.csv", "--dry-run"])
+        assert config.command == Command.BATCH
+        assert config.dry_run_requested is True
+
     def test_parse_eval_command(self):
         """Test parsing eval command and options."""
         config = parse_args(

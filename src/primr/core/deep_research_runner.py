@@ -28,7 +28,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Protocol
 
-from primr.config.config import OUTPUT_DIR
+from primr.config.config import OUTPUT_DIR, WORKING_DIR
 from primr.core.workspace import create_working_folder, save_section_output
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
@@ -369,6 +369,40 @@ def perform_deep_research_sync(
 async def perform_deep_research(
     config: DeepResearchConfig, on_progress: Callable[[str], None] | None = None
 ) -> DeepResearchResult:
+    """Run the async pipeline under one company-level publication lease."""
+    from primr.core.workspace import (
+        ResumeLeaseError,
+        acquire_company_run_lease_for_target,
+        release_resume_lease,
+    )
+
+    start_time = time.time()
+    try:
+        company_root = acquire_company_run_lease_for_target(
+            config.company_name,
+            config.website,
+            base_dir=WORKING_DIR,
+        )
+    except ResumeLeaseError as exc:
+        console.error(str(exc))
+        return DeepResearchResult(
+            docx_path=None,
+            md_path=None,
+            raw_content="",
+            section_results={},
+            citations=[],
+            duration_seconds=time.time() - start_time,
+            error=str(exc),
+        )
+    try:
+        return await _perform_deep_research_unlocked(config, on_progress)
+    finally:
+        release_resume_lease(company_root)
+
+
+async def _perform_deep_research_unlocked(
+    config: DeepResearchConfig, on_progress: Callable[[str], None] | None = None
+) -> DeepResearchResult:
     """
     Perform Deep Research using the orchestrator (async).
 
@@ -503,7 +537,11 @@ def _process_results(config: DeepResearchConfig, result: Any) -> dict[str, str |
     outputs: dict[str, str | None] = {}
 
     # Save section results to working folder
-    folder_path = create_working_folder(config.company_name, config.website)
+    folder_path = create_working_folder(
+        config.company_name,
+        config.website,
+        base_dir=WORKING_DIR,
+    )
 
     for section_key, content in result.section_results.items():
         save_section_output(folder_path, section_key, content)

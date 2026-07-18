@@ -128,6 +128,24 @@ class TestSuccessPath:
         monkeypatch.setattr("primr.core.research_agent.perform_research", mock)
         assert _handle_research(_config(premium_mode=True)) == 1
 
+    def test_busy_company_is_actionable_without_traceback(
+        self, passing_preflight, monkeypatch, capsys
+    ):
+        from primr.core.workspace import ActiveRunLeaseError
+
+        monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda x: x)
+        monkeypatch.setattr("primr.utils.validators.validate_url", lambda x: x)
+        monkeypatch.setattr(
+            "primr.core.research_agent.perform_research",
+            MagicMock(side_effect=ActiveRunLeaseError("active company run")),
+        )
+
+        assert _handle_research(_config(premium_mode=True)) == 1
+        output = capsys.readouterr().out
+        assert "active company run" in output
+        assert "Wait for the active run to finish" in output
+        assert "Traceback" not in output
+
     def test_opens_file_when_open_after_set(
         self, passing_preflight, perform_research_ok, monkeypatch
     ):
@@ -307,6 +325,24 @@ class TestBudgetGate:
 
         with pytest.raises(RuntimeError):
             _handle_research(_config(premium_mode=True, budget_usd=2.00))
+        assert get_run_budget() is None
+
+    def test_budget_cleared_when_company_is_busy(self, passing_preflight, monkeypatch):
+        from types import SimpleNamespace
+
+        from primr.core.workspace import ActiveRunLeaseError
+        from primr.utils.run_budget import get_run_budget
+
+        monkeypatch.setattr(
+            "primr.utils.cost_estimator.estimate_cost",
+            MagicMock(return_value=SimpleNamespace(total_cost=0.50)),
+        )
+        monkeypatch.setattr(
+            "primr.core.research_agent.perform_research",
+            MagicMock(side_effect=ActiveRunLeaseError("active company run")),
+        )
+
+        assert _handle_research(_config(premium_mode=True, budget_usd=2.00)) == 1
         assert get_run_budget() is None
 
     def test_no_budget_flag_means_no_active_budget(self, passing_preflight, perform_research_ok):

@@ -100,7 +100,10 @@ def test_grok_llm_cross_provider_dispatch(monkeypatch):
     cross_provider.chat.return_value = SimpleNamespace(
         text="gemini reply", input_tokens=5, output_tokens=3, cached_input_tokens=0
     )
-    monkeypatch.setattr("primr.ai.routing.get_provider_for_model", lambda model: cross_provider)
+    monkeypatch.setattr(
+        "primr.ai.providers.registry.get_registered_provider_for_model",
+        lambda model: cross_provider,
+    )
 
     out = grok_client.grok_llm("hello", model="gemini-3.1-flash-lite", reasoning_effort="low")
 

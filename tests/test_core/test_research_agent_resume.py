@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime as real_datetime
+
+import pytest
 
 from primr.core import research_agent
 
@@ -42,14 +45,15 @@ def test_create_working_folder_skips_completed_run(tmp_path, monkeypatch):
     assert result.startswith(str(company_root))
 
 
-def test_create_working_folder_reuses_canceled_run(tmp_path, monkeypatch):
+@pytest.mark.parametrize("status", ["canceled", "cancelled"])
+def test_create_working_folder_reuses_canceled_run(tmp_path, monkeypatch, status):
     monkeypatch.setattr(research_agent, "WORKING_DIR", str(tmp_path))
 
     company_root = tmp_path / "ExampleCo"
     canceled = company_root / "2026-02-25_1200"
     canceled.mkdir(parents=True)
     (canceled / "_run_state.json").write_text(
-        json.dumps({"status": "canceled"}),
+        json.dumps({"status": status}),
         encoding="utf-8",
     )
 
@@ -57,6 +61,135 @@ def test_create_working_folder_reuses_canceled_run(tmp_path, monkeypatch):
         "ExampleCo", "https://example.co", reuse_incomplete=True
     )
     assert result == str(canceled)
+
+
+def test_completed_current_timestamp_allocates_collision_suffix(tmp_path, monkeypatch):
+    from primr.core import workspace
+
+    class FixedDateTime:
+        @classmethod
+        def now(cls):
+            return real_datetime(2026, 7, 18, 12, 0)
+
+    monkeypatch.setattr(research_agent, "WORKING_DIR", str(tmp_path))
+    monkeypatch.setattr(workspace, "datetime", FixedDateTime)
+    company_root = tmp_path / "ExampleCo"
+    completed = company_root / "2026-07-18_1200"
+    completed.mkdir(parents=True)
+    (completed / "_run_state.json").write_text(
+        json.dumps({"status": "completed"}),
+        encoding="utf-8",
+    )
+
+    result = research_agent.create_working_folder(
+        "ExampleCo", "https://example.co", reuse_incomplete=True
+    )
+
+    assert result == str(company_root / "2026-07-18_1200_001")
+
+
+def test_resume_selects_suffixed_incomplete_run(tmp_path, monkeypatch):
+    monkeypatch.setattr(research_agent, "WORKING_DIR", str(tmp_path))
+    company_root = tmp_path / "ExampleCo"
+    completed = company_root / "2026-07-18_1234"
+    incomplete = company_root / "2026-07-18_1234_001"
+    completed.mkdir(parents=True)
+    incomplete.mkdir()
+    (completed / "_run_state.json").write_text(
+        json.dumps({"status": "completed"}),
+        encoding="utf-8",
+    )
+    (incomplete / "_run_state.json").write_text(
+        json.dumps({"status": "failed"}),
+        encoding="utf-8",
+    )
+
+    result = research_agent.create_working_folder(
+        "ExampleCo",
+        "https://example.co",
+        reuse_incomplete=True,
+    )
+
+    assert result == str(incomplete)
+
+
+def test_second_resume_process_is_refused(tmp_path, monkeypatch):
+    from primr.core.workspace import ResumeLeaseError, release_resume_lease
+
+    monkeypatch.setattr(research_agent, "WORKING_DIR", str(tmp_path))
+    reusable = tmp_path / "ExampleCo" / "2026-02-25_1200"
+    reusable.mkdir(parents=True)
+    (reusable / "_run_state.json").write_text(
+        json.dumps({"status": "running"}),
+        encoding="utf-8",
+    )
+
+    first = research_agent.create_working_folder(
+        "ExampleCo", "https://example.co", reuse_incomplete=True
+    )
+    with pytest.raises(ResumeLeaseError, match="already being resumed"):
+        research_agent.create_working_folder(
+            "ExampleCo", "https://example.co", reuse_incomplete=True
+        )
+    release_resume_lease(first)
+
+
+def test_perform_research_releases_lease_after_unexpected_setup_error(tmp_path, monkeypatch):
+    from primr.core.workspace import release_resume_lease
+
+    monkeypatch.setattr(research_agent, "WORKING_DIR", str(tmp_path / "working"))
+    monkeypatch.setattr(research_agent, "OUTPUT_DIR", str(tmp_path / "output"))
+    reusable = tmp_path / "working" / "ExampleCo" / "2026-02-25_1200"
+    reusable.mkdir(parents=True)
+    (reusable / "_run_state.json").write_text(
+        json.dumps({"status": "failed"}),
+        encoding="utf-8",
+    )
+
+    def fail_framing(**_kwargs):
+        raise RuntimeError("injected setup failure")
+
+    monkeypatch.setattr("primr.core.research_framing.resolve_run_framing", fail_framing)
+
+    with pytest.raises(RuntimeError, match="injected setup failure"):
+        research_agent.perform_research(
+            "ExampleCo",
+            "https://example.co",
+            resume_local=True,
+            platforms=("agnostic",),
+            skip_confirm=True,
+        )
+
+    reclaimed = research_agent.create_working_folder(
+        "ExampleCo", "https://example.co", reuse_incomplete=True
+    )
+    assert reclaimed == str(reusable)
+    release_resume_lease(reclaimed)
+
+
+def test_refused_fresh_run_does_not_leave_timestamped_orphan(tmp_path, monkeypatch):
+    from primr.core.workspace import (
+        ResumeLeaseError,
+        acquire_company_run_lease_for_target,
+        release_resume_lease,
+    )
+
+    working_root = tmp_path / "working"
+    monkeypatch.setattr(research_agent, "WORKING_DIR", str(working_root))
+    company_root = acquire_company_run_lease_for_target(
+        "ExampleCo", "https://example.co", base_dir=working_root
+    )
+
+    with pytest.raises(ResumeLeaseError, match="active research process"):
+        research_agent.perform_research(
+            "ExampleCo",
+            "https://example.co",
+            skip_confirm=True,
+            platforms=("agnostic",),
+        )
+
+    assert not [path for path in company_root.iterdir() if path.is_dir()]
+    release_resume_lease(company_root)
 
 
 def test_update_run_state_sets_updated_timestamp(tmp_path):

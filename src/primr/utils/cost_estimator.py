@@ -27,9 +27,12 @@ from math import ceil
 
 from primr.config.models import (
     DEEP_RESEARCH_COST,
+    LITE_AI_STRATEGY_MAX_INPUT_TOKENS,
+    LITE_AI_STRATEGY_MAX_OUTPUT_TOKENS,
     SEARCH_COST_PER_QUERY,
     GrokTier,
     PrimrModels,
+    TokenCostBreakdown,
 )
 
 
@@ -279,6 +282,16 @@ AI_STRATEGY_OVERHEAD = {
     "duration_max": 15,
 }
 
+# Lite standalone and in-pipeline AI strategies use the same bounded reasoning-model
+# call shape. Keep the token and duration assumptions named so every estimate
+# surface prices the live runtime consistently.
+LITE_AI_STRATEGY_OVERHEAD = {
+    "input_tokens": LITE_AI_STRATEGY_MAX_INPUT_TOKENS,
+    "output_tokens": LITE_AI_STRATEGY_MAX_OUTPUT_TOKENS,
+    "duration_min": 2,
+    "duration_max": 3,
+}
+
 # One strategy document in fast mode = one Grok WRITING bundle (shared
 # context prefix + strategy prompt + enrichment + cross-validation + polish).
 # Shared by the AI-vendor and YAML-strategy estimate branches so the two
@@ -350,6 +363,34 @@ def _strategy_type_notes(priced: Sequence[str], unavailable: Sequence[str]) -> l
     return notes
 
 
+def _lite_strategy_cost_breakdown(
+    input_tokens: int,
+    output_tokens: int,
+) -> tuple[str | None, TokenCostBreakdown | None, int, int, bool]:
+    """Price the exact reasoning model and bounded token shape used at runtime."""
+    if not input_tokens and not output_tokens:
+        return (None, None, input_tokens, output_tokens, False)
+
+    from primr.ai.routing import Role, pick_model_for_role
+
+    model_name = pick_model_for_role(Role.REASONING)
+    input_tokens, output_tokens, tokenizer_adjusted = _apply_tokenizer_safety_factor(
+        model_name,
+        input_tokens,
+        output_tokens,
+    )
+    config = PrimrModels.get_model_config(model_name)
+    if config is None:
+        raise KeyError(f"Unknown lite strategy model: {model_name}")
+    breakdown = PrimrModels.calculate_cost_breakdown(
+        model_name,
+        input_tokens,
+        output_tokens,
+        force_high_tier=config.has_tiered_pricing,
+    )
+    return (model_name, breakdown, input_tokens, output_tokens, tokenizer_adjusted)
+
+
 def estimate_cost(
     mode: str,
     include_ai_strategy: bool = False,
@@ -418,6 +459,8 @@ def estimate_cost(
     flash_out = estimates["flash_output_tokens"]
     pro_in = estimates["pro_input_tokens"]
     pro_out = estimates["pro_output_tokens"]
+    lite_strategy_in = 0
+    lite_strategy_out = 0
     cached_in = 0
     dr_tasks = estimates["deep_research_tasks"]
     search_queries = estimates["search_queries"]
@@ -465,12 +508,12 @@ def estimate_cost(
     ai_strategy_hist = None
     if include_ai_strategy:
         if lite_strategy:
-            # Lite strategy: Pro model instead of Deep Research per vendor
-            # ~50k input + ~10k output tokens per vendor
-            pro_in += 50_000 * num_vendors
-            pro_out += 10_000 * num_vendors
-            duration_min += 2 * num_vendors
-            duration_max += 3 * num_vendors
+            # Keep this bucket separate so pricing uses the exact reasoning
+            # model selected by the live lite-strategy runtime.
+            lite_strategy_in = LITE_AI_STRATEGY_OVERHEAD["input_tokens"] * num_vendors
+            lite_strategy_out = LITE_AI_STRATEGY_OVERHEAD["output_tokens"] * num_vendors
+            duration_min += LITE_AI_STRATEGY_OVERHEAD["duration_min"] * num_vendors
+            duration_max += LITE_AI_STRATEGY_OVERHEAD["duration_max"] * num_vendors
         else:
             if use_historical:
                 from primr.utils.usage_tracker import get_usage_tracker
@@ -549,14 +592,37 @@ def estimate_cost(
         force_high_tier=active_pro.has_tiered_pricing,
     )
 
+    (
+        lite_strategy_model,
+        lite_strategy_breakdown,
+        lite_strategy_in,
+        lite_strategy_out,
+        lite_strategy_tokenizer_adjusted,
+    ) = _lite_strategy_cost_breakdown(lite_strategy_in, lite_strategy_out)
+
     flash_cost = flash_breakdown.total_cost
     pro_cost = pro_breakdown.total_cost
-    input_cost = flash_breakdown.input_cost + pro_breakdown.input_cost
-    output_cost = flash_breakdown.output_cost + pro_breakdown.output_cost
-    live_input_cost = flash_breakdown.live_input_cost + pro_breakdown.live_input_cost
+    lite_cost = lite_strategy_breakdown.total_cost if lite_strategy_breakdown else 0.0
+    input_cost = (
+        flash_breakdown.input_cost
+        + pro_breakdown.input_cost
+        + (lite_strategy_breakdown.input_cost if lite_strategy_breakdown else 0.0)
+    )
+    output_cost = (
+        flash_breakdown.output_cost
+        + pro_breakdown.output_cost
+        + (lite_strategy_breakdown.output_cost if lite_strategy_breakdown else 0.0)
+    )
+    live_input_cost = (
+        flash_breakdown.live_input_cost
+        + pro_breakdown.live_input_cost
+        + (lite_strategy_breakdown.live_input_cost if lite_strategy_breakdown else 0.0)
+    )
     cached_input_cost = flash_breakdown.cached_input_cost + pro_breakdown.cached_input_cost
     long_context_surcharge_cost = (
-        flash_breakdown.long_context_surcharge_cost + pro_breakdown.long_context_surcharge_cost
+        flash_breakdown.long_context_surcharge_cost
+        + pro_breakdown.long_context_surcharge_cost
+        + (lite_strategy_breakdown.long_context_surcharge_cost if lite_strategy_breakdown else 0.0)
     )
 
     # Deep Research planning cost per task; actual token and tool billing varies.
@@ -568,7 +634,7 @@ def estimate_cost(
     else:
         search_cost = PrimrModels.calculate_search_cost(search_queries)
 
-    total_cost = flash_cost + pro_cost + deep_research_cost + search_cost
+    total_cost = flash_cost + pro_cost + lite_cost + deep_research_cost + search_cost
 
     # Build notes
     notes: list[str] = []
@@ -577,7 +643,12 @@ def estimate_cost(
         if cached_in > 0:
             notes.append(f"Historical cache hits included: ~{cached_in:,} cached input tokens")
     if include_ai_strategy and lite_strategy:
-        notes.append("AI Strategy using Pro model (lite mode)")
+        lite_label = (
+            PrimrModels.get_model_config(lite_strategy_model).display_name
+            if lite_strategy_model and PrimrModels.get_model_config(lite_strategy_model)
+            else lite_strategy_model
+        )
+        notes.append(f"AI Strategy using {lite_label} reasoning model (lite mode)")
     elif include_ai_strategy and ai_strategy_hist and ai_strategy_hist["sample_size"] >= 3:
         notes.append(f"AI Strategy based on {ai_strategy_hist['sample_size']} runs")
     notes.extend(_strategy_type_notes(priced_strategy_types, unavailable_strategy_types))
@@ -596,6 +667,8 @@ def estimate_cost(
         )
     if sonnet_5_tokenizer_adjusted:
         notes.append("Claude Sonnet 5 token estimates include a 30% tokenizer safety factor.")
+    if lite_strategy_tokenizer_adjusted:
+        notes.append("Lite strategy estimate includes a 30% tokenizer safety factor.")
 
     if cached_in == 0 and _supports_cached_input_pricing(PrimrModels.FLASH_MODEL, active_pro.name):
         notes.append(
@@ -603,8 +676,8 @@ def estimate_cost(
         )
 
     # Total tokens for backward compat display
-    total_input_tokens = flash_in + pro_in
-    total_output_tokens = flash_out + pro_out
+    total_input_tokens = flash_in + pro_in + lite_strategy_in
+    total_output_tokens = flash_out + pro_out + lite_strategy_out
 
     return CostEstimate(
         mode=mode,
@@ -619,7 +692,8 @@ def estimate_cost(
         notes=notes,
         deep_research_cost=deep_research_cost,
         estimated_live_input_tokens=flash_breakdown.live_input_tokens
-        + pro_breakdown.live_input_tokens,
+        + pro_breakdown.live_input_tokens
+        + (lite_strategy_breakdown.live_input_tokens if lite_strategy_breakdown else 0),
         estimated_cached_input_tokens=flash_breakdown.cached_input_tokens
         + pro_breakdown.cached_input_tokens,
         live_input_cost=live_input_cost,

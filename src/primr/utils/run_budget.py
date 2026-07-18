@@ -14,6 +14,7 @@ a time (single-job model).
 from __future__ import annotations
 
 import threading
+from math import isfinite
 
 from primr.agentic.cost_guard import CostGuardHook
 from primr.utils.logging_config import get_logger
@@ -30,8 +31,8 @@ class RunBudget:
     """
 
     def __init__(self, max_cost_usd: float) -> None:
-        if max_cost_usd <= 0:
-            raise ValueError(f"Run budget must be positive, got {max_cost_usd}")
+        if not isfinite(max_cost_usd) or max_cost_usd <= 0:
+            raise ValueError(f"Run budget must be a finite positive number, got {max_cost_usd}")
         self._hook = CostGuardHook(max_cost_usd=max_cost_usd)
 
     @property

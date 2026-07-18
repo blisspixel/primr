@@ -129,6 +129,16 @@ class TestActivateRunBudget:
         assert not result.ok
         assert get_run_budget() is None
 
+    @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+    def test_nonfinite_budget_rejected(self, value):
+        result = activate_run_budget(
+            _config(budget_usd=value),
+            fast_mode=True,
+            premium_mode=False,
+        )
+        assert not result.ok
+        assert get_run_budget() is None
+
     def test_strategy_type_cost_counts_against_the_gate(self, monkeypatch):
         """A ceiling that fits the base run but not the strategy doc refuses.
 

@@ -23,7 +23,7 @@ def strategy_config():
 
 
 def test_contract_version_and_business_first_order(strategy_config):
-    assert strategy_config["meta"]["version"] == "2.0.0"
+    assert strategy_config["meta"]["version"] == "2.1.0"
     section_ids = [section["id"] for section in strategy_config["sections"]]
     assert section_ids.index("strategic_thesis") < section_ids.index("competitive_landscape")
     assert section_ids.index("competitive_landscape") < section_ids.index("current_state")
@@ -53,8 +53,38 @@ def test_contract_requires_complete_stack_economics_and_placement(strategy_confi
         "edge or disconnected deployment",
         "hybrid combinations",
         "credible alternative",
+        "technology-signal disposition ledger",
+        "opportunity cost",
+        "break-even",
     ):
         assert requirement in contract
+
+
+def test_contract_expands_company_strategy_before_selecting_technology(strategy_config):
+    prompt = " ".join(
+        build_loader_prompt("Example Organization", platform="agnostic").lower().split()
+    )
+
+    assert "enterprise performance agenda" in prompt
+    assert "profitable growth" in prompt
+    assert "margin and productivity" in prompt
+    assert "products and services" in prompt
+    assert "capital allocation" in prompt
+    assert "business language only until the strategic posture is clear" in prompt
+    assert prompt.index("## business strategy and ai strategic thesis") < prompt.index(
+        "## architecture and workload placement"
+    )
+
+
+def test_contract_disposes_every_observed_ecosystem(strategy_config):
+    prompt = " ".join(
+        build_loader_prompt("Example Organization", platform="agnostic").lower().split()
+    )
+
+    assert "every relevant observed service, provider, platform" in prompt
+    assert "do not silently drop an ecosystem" in prompt
+    assert "use, integrate, contain, replace, defer, immaterial, or validate" in prompt
+    assert "workload-by-workload placement" in prompt
 
 
 def test_contract_uses_dynamic_current_vendor_research(strategy_config):

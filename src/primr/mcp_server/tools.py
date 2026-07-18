@@ -62,6 +62,7 @@ from primr.mcp_server.resource_auth import (
 from primr.mcp_server.server_context import MCPServerContext
 from primr.mcp_server.skill_pack_tools import handle_skill_pack_tool, register_skill_pack_tools
 from primr.mcp_server.strategy_operations import run_strategy_generation
+from primr.mcp_server.strategy_responses import run_strategy_tool
 from primr.mcp_server.tool_authz import (
     TOOL_REQUIRED_SCOPES,
     authorize_tool_call,
@@ -895,45 +896,12 @@ async def _handle_generate_strategy(
     if approval_error is not None:
         return [TextContent(type="text", text=json.dumps(approval_error))]
 
-    try:
-        result = await run_strategy_generation(
-            report_path=str(path_result.resolved_path),
-            strategy_type=strategy_type,
-            platform=platform,
-        )
-
-        return [
-            TextContent(
-                type="text",
-                text=json.dumps(
-                    {
-                        "success": True,
-                        "output_path": result["output_path"],
-                        "strategy_type": result["strategy_type"],
-                        "qa_score": result.get("qa_score"),
-                    }
-                ),
-            )
-        ]
-
-    except Exception:
-        # Full traceback is in the server log. The user-facing message
-        # intentionally omits exception text because provider errors can
-        # contain internal hostnames, file paths under OUTPUT_DIR, and
-        # occasionally API-key fragments.
-        logger.exception("Strategy generation failed")
-        return [
-            TextContent(
-                type="text",
-                text=json.dumps(
-                    {
-                        "error": True,
-                        "error_type": "strategy_generation_failed",
-                        "message": "Strategy generation failed (see server logs)",
-                    }
-                ),
-            )
-        ]
+    return await run_strategy_tool(
+        run_strategy_generation,
+        report_path=str(path_result.resolved_path),
+        strategy_type=strategy_type,
+        platform=platform,
+    )
 
 
 async def _handle_check_jobs(

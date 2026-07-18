@@ -6,7 +6,10 @@ _handle_test_accordion, _handle_analyze_report.
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock
+
+import pytest
 
 from primr.core.cli import (
     CLIConfig,
@@ -15,6 +18,7 @@ from primr.core.cli import (
     _handle_batch,
     _handle_enrich,
     _handle_test_accordion,
+    parse_args,
 )
 from primr.core.cli_vendor import run_generate_vendor
 
@@ -81,6 +85,20 @@ class TestHandleEnrich:
         assert kwargs["industry"] == "tech"
         assert kwargs["limit"] == 10
 
+    def test_rejects_host_billing_acknowledgment(self, monkeypatch):
+        enrich_mock = MagicMock(return_value=0)
+        monkeypatch.setattr("primr.core.cli.enrich_batch", enrich_mock)
+
+        result = _handle_enrich(
+            _config(
+                batch_file="/path.csv",
+                acknowledge_host_agent_may_bill=True,
+            )
+        )
+
+        assert result == 1
+        enrich_mock.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # _handle_batch
@@ -121,16 +139,80 @@ class TestHandleBatch:
         assert batch_mock.call_args.kwargs["platforms"] == ("aws",)
 
     def test_falls_back_to_csv_when_no_batch_file(self, monkeypatch):
-        csv_mock = MagicMock()
-        monkeypatch.setattr("primr.core.cli.process_csv", csv_mock)
-        result = _handle_batch(_config(batch_file=None, csv_file="/legacy.csv"))
+        batch_mock = MagicMock(return_value=0)
+        monkeypatch.setattr("primr.core.cli.process_batch", batch_mock)
+        result = _handle_batch(
+            _config(
+                batch_file=None,
+                csv_file="/legacy.csv",
+                dry_run_requested=True,
+            )
+        )
         assert result == 0
-        csv_mock.assert_called_once()
-        assert csv_mock.call_args.kwargs["platforms"] is None
+        batch_mock.assert_called_once()
+        assert batch_mock.call_args.args[0] == "/legacy.csv"
+        assert batch_mock.call_args.kwargs["platforms"] is None
 
     def test_no_file_returns_1(self):
         result = _handle_batch(_config(batch_file=None, csv_file=None))
         assert result == 1
+
+    def test_legacy_csv_json_stdout_is_one_object(self, monkeypatch, capsys):
+        def emit_plan(_path, **kwargs):
+            from primr.core.cli_output import emit_json
+
+            emit_json({"deprecated_alias": kwargs["deprecated_alias"]})
+            return 0
+
+        monkeypatch.setattr("primr.core.cli.process_batch", emit_plan)
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+
+        result = _handle_batch(parse_args(["--csv", "/legacy.csv", "--dry-run", "--json"]))
+
+        assert result == 0
+        assert json.loads(capsys.readouterr().out) == {"deprecated_alias": "--csv"}
+
+    @pytest.mark.parametrize(
+        ("extra_args", "expected_option"),
+        [
+            (["--context", "notes.md"], "--context"),
+            (["--question", "What changes?"], "--question"),
+            (["--open"], "--open"),
+        ],
+    )
+    def test_unsupported_batch_option_is_one_json_error(
+        self,
+        extra_args,
+        expected_option,
+        capsys,
+    ):
+        config = parse_args(["--batch", "/path.csv", "--dry-run", "--json", *extra_args])
+
+        result = _handle_batch(config)
+
+        payload = json.loads(capsys.readouterr().out)
+        assert result == 1
+        assert payload["error"] is True
+        assert expected_option in payload["message"]
+
+    def test_conflicting_modes_are_one_json_error(self, capsys):
+        config = parse_args(
+            [
+                "--batch",
+                "/path.csv",
+                "--dry-run",
+                "--json",
+                "--fast",
+                "--premium",
+            ]
+        )
+
+        result = _handle_batch(config)
+
+        payload = json.loads(capsys.readouterr().out)
+        assert result == 1
+        assert payload["error"] is True
+        assert "both --fast and --premium" in payload["message"]
 
 
 # ---------------------------------------------------------------------------

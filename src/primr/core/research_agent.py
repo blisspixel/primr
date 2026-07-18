@@ -186,6 +186,10 @@ from primr.core.strategy_generation import (
 from primr.core.strategy_generation import (
     generate_generic_strategy as _generate_generic_strategy_impl,
 )
+from primr.core.workspace import (
+    acquire_company_run_lease_for_target,
+    release_resume_leases_on_exit,
+)
 from primr.data.link_selection import select_links_with_llm as _select_discovered_links
 from primr.output.artifact_validation import (
     _FORBIDDEN_INTERNAL_TERMS as _FORBIDDEN_INTERNAL_TERMS,
@@ -399,9 +403,12 @@ def create_working_folder(company_name, website, reuse_incomplete: bool = False)
     Each run gets its own subfolder like: working/Company_Name/2026-01-09_0915/
     This prevents mixing old and new data from different runs.
     """
-    from datetime import datetime
-
-    from primr.core.workspace import derive_working_folder_name
+    from primr.core.workspace import (
+        ResumeLeaseError,
+        acquire_resume_lease,
+        derive_working_folder_name,
+    )
+    from primr.core.workspace import create_working_folder as allocate_working_folder
 
     folder_name = derive_working_folder_name(company_name, website)
 
@@ -425,17 +432,16 @@ def create_working_folder(company_name, website, reuse_incomplete: bool = False)
                     continue
                 status = str(state.get("status", "")).lower()
                 if status in {"running", "failed", "cancelled", "canceled"}:
+                    acquire_resume_lease(candidate)
                     logger.info(f"Reusing incomplete working folder: {candidate}")
                     return candidate
+            except ResumeLeaseError:
+                raise
             except Exception as e:
                 logger.debug("Failed to read run state for resume candidate %s: %s", candidate, e)
                 continue
 
-    # Create timestamped run folder: Company_Name/2026-01-09_0915
-    run_id = datetime.now().strftime("%Y-%m-%d_%H%M")
-    folder_path = os.path.join(company_root, run_id)
-
-    os.makedirs(folder_path, exist_ok=True)
+    folder_path = allocate_working_folder(company_name, website, base_dir=WORKING_DIR)
     logger.info(f"Created working folder: {folder_path}")
     return folder_path
 
@@ -2602,6 +2608,7 @@ def _extract_domain(url: str) -> str | None:
         return None
 
 
+@release_resume_leases_on_exit
 def perform_research(
     company_name: str | None = None,
     website: str | None = None,
@@ -2637,6 +2644,7 @@ def perform_research(
         return None
 
     display_name: str = company_name or normalized_hostname(website or "", strip_www=True)
+    acquire_company_run_lease_for_target(company_name, website, base_dir=WORKING_DIR)
     folder_path = create_working_folder(company_name, website, reuse_incomplete=resume_local)
     explicit_platforms = platforms is not None
     if platforms is None:
@@ -4288,29 +4296,19 @@ def process_csv(
     platforms: tuple[str, ...] | None = None,
     no_qa: bool = False,
 ) -> None:
-    import csv
+    """Retain the legacy export while enforcing the governed batch approval."""
+    from primr.core.cli_batch_runtime import process_batch as run_governed_batch
 
-    console.header("Batch Processing", file_path)
-    console.info(f"Mode: {mode}")
-
-    with open(file_path, encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            company = row.get("company_name", "").strip()
-            website = row.get("website", "").strip()
-            if company or website:
-                try:
-                    perform_research(
-                        company,
-                        ensure_valid_url(website) if website else None,
-                        mode=mode,
-                        citation_style=citation_style,
-                        ai_strategy=ai_strategy,
-                        platforms=platforms,
-                        no_qa=no_qa,
-                    )
-                except Exception as e:
-                    console.error(f"Failed: {company or website} - {e}")
+    run_governed_batch(
+        file_path,
+        mode=mode,
+        citation_style=citation_style,
+        ai_strategy=ai_strategy,
+        platforms=platforms,
+        skip_confirm=False,
+        no_qa=no_qa,
+        research_runner=perform_research,
+    )
 
 
 def cleanup():

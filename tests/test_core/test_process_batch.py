@@ -44,7 +44,7 @@ class TestProcessBatch:
         )
         col_map = _ColumnMap(company="Account Name", website="URL", industry="Sector", context=[])
         monkeypatch.setattr(
-            "primr.core.cli._prepare_batch_df",
+            "primr.core.cli_batch_runtime._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),
         )
         result = process_batch("/path.csv", skip_confirm=True)
@@ -61,7 +61,7 @@ class TestProcessBatch:
         )
         col_map = _ColumnMap(company="Account Name", website="URL", industry="Sector", context=[])
         monkeypatch.setattr(
-            "primr.core.cli._prepare_batch_df",
+            "primr.core.cli_batch_runtime._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),
         )
         # Make perform_research return immediately
@@ -77,7 +77,7 @@ class TestProcessBatch:
     def test_cancelled_by_user_returns_0(self, isolated, monkeypatch, small_df):
         df, col_map = small_df
         monkeypatch.setattr(
-            "primr.core.cli._prepare_batch_df",
+            "primr.core.cli_batch_runtime._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),
         )
         # User says no at the prompt
@@ -88,7 +88,7 @@ class TestProcessBatch:
     def test_skip_confirm_proceeds(self, isolated, monkeypatch, small_df):
         df, col_map = small_df
         monkeypatch.setattr(
-            "primr.core.cli._prepare_batch_df",
+            "primr.core.cli_batch_runtime._prepare_batch_df",
             MagicMock(return_value=(df, col_map)),
         )
         perform_mock = MagicMock(return_value="/output/report.docx")

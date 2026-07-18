@@ -7,17 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.36.0] - 2026-07-18
+
 ### Changed
 
 - The default AI Strategy now uses one canonical business-first contract across
   the fast, standard, async, and MCP-compatible prompt paths. It begins with
-  company economics, strategic tensions, industry direction, art of the
-  possible, and ranked value pools before technology. Initiative decision
-  cards now require accountable owners, evidence, alternatives, fully loaded
-  unit economics, tests, controls, kill criteria, and revisit triggers. The
-  architecture section evaluates the complete observed stack plus public,
-  multicloud, private, on-premises accelerated, edge, and hybrid placement only
-  when workload requirements justify them.
+  company economics, an enterprise performance agenda, strategic tensions,
+  industry direction, art of the possible, and ranked value pools before
+  technology. Defend, improve, extend, and create choices tie initiatives to
+  measurable revenue, efficiency, product, service, and risk outcomes.
+  Initiative decision cards now require accountable owners, evidence,
+  non-AI alternatives, opportunity cost, fully loaded unit economics, tests,
+  controls, kill criteria, and revisit triggers. A disposition ledger accounts
+  for every material observed ecosystem. The architecture section evaluates
+  the complete observed stack plus public, multicloud, private, on-premises
+  accelerated, edge, and hybrid placement only when workload requirements and
+  lifecycle economics justify them.
+- Batch research and enrichment now have separate estimate-first execution
+  contracts. Research gates `--budget` against the whole pending batch, requires
+  websites up front, defers local-only preflight until after approval, and never
+  automatically retries paid rows. Enrichment quotes only missing-site lookups,
+  pins the quoted model, disables retries and provider failover, and clears its
+  runtime budget. JSON dry-runs emit one object on success and handler errors.
+- Standalone `--ai-strategy-only` now supports a zero-call `--dry-run`, emits the
+  same cost and time plan before execution, and requires approval unless
+  `--skip-confirm` is explicit. Strategy context now retains a normal full
+  Strategic Overview up to a 200,000-character deterministic bound.
 - Default platform selection now produces one integrated strategy: agnostic
   when recon has no strong infrastructure signal, the detected ecosystem when
   there is one strong signal, and vendor-neutral integration when several
@@ -148,6 +164,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   both production image surfaces from their documented build contexts.
 
 ### Fixed
+
+- Standalone strategy recovery now hashes a stable report descriptor during
+  validation and verifies the private snapshot digest before any model call.
+  Same-inode, same-size replacements with a restored timestamp fail closed, as
+  do linked files, paths outside the fixed report roots, and reports changed
+  during copying.
+- Run workspaces now use atomic sortable allocation and cross-process ownership
+  leases. Completed and canceled resume behavior is explicit, dead-owner
+  recovery is bounded and fail-closed, and publication locking covers CLI,
+  async API, and MCP strategy paths so concurrent runs cannot overwrite shared
+  artifacts. MCP strategy outputs remain job-local.
+- Deep Research now prevents duplicate live interactions, and lite strategy
+  generation uses the exact selected model with a 10,000-token output ceiling
+  across supported direct and failover routes.
+- Website-only legacy CSV rows are preserved by deriving a validated display
+  name from the normalized hostname. Unsupported batch and enrichment options
+  now fail visibly instead of being ignored, including the correct `--question`
+  option label and host-billing acknowledgment.
 
 - Clean wheel and source-distribution builds no longer emit false missing-file
   warnings for local caches, outputs, logs, working data, or platform metadata.

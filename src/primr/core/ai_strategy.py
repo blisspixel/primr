@@ -102,6 +102,7 @@ class AIStrategyConfig:
     timeout_seconds: int = 1800  # 30 minutes
     allow_vendor_refresh: bool | None = None
     additional_context_paths: tuple[str, ...] = ()
+    output_dir: str | Path | None = None
 
     def validate(self) -> list[str]:
         """Validate configuration, return list of errors."""
@@ -189,6 +190,7 @@ def generate_ai_strategy_sync(
     allow_vendor_refresh: bool | None = None,
     additional_context_paths: tuple[str, ...] = (),
     discovery_notes_content: str | None = None,
+    output_dir: str | Path | None = None,
 ) -> str | None:
     """
     Generate AI strategy using Deep Research (synchronous).
@@ -202,6 +204,7 @@ def generate_ai_strategy_sync(
         allow_vendor_refresh: Override environment-driven vendor refresh behavior
         additional_context_paths: Other supplied evidence files to upload as context
         discovery_notes_content: Optional operator-supplied meeting insights
+        output_dir: Optional artifact destination; defaults to the configured output root
 
     Returns:
         Path to generated DOCX file, or None if failed
@@ -217,6 +220,7 @@ def generate_ai_strategy_sync(
             allow_vendor_refresh=allow_vendor_refresh,
             additional_context_paths=additional_context_paths,
             discovery_notes_content=discovery_notes_content,
+            output_dir=output_dir,
             on_progress=on_progress,
         )
     )
@@ -234,6 +238,7 @@ async def generate_ai_strategy(
     allow_vendor_refresh: bool | None = None,
     additional_context_paths: tuple[str, ...] = (),
     discovery_notes_content: str | None = None,
+    output_dir: str | Path | None = None,
 ) -> AIStrategyResult:
     """
     Generate AI strategy using Deep Research (async).
@@ -252,6 +257,7 @@ async def generate_ai_strategy(
         allow_vendor_refresh: Override environment-driven vendor refresh behavior
         additional_context_paths: Other supplied evidence files to upload as context
         discovery_notes_content: Optional operator-supplied meeting insights
+        output_dir: Optional artifact destination; defaults to the configured output root
 
     Returns:
         AIStrategyResult with output paths and metadata
@@ -274,6 +280,7 @@ async def generate_ai_strategy(
         force_refresh_vendor=force_refresh_vendor,
         allow_vendor_refresh=allow_vendor_refresh,
         additional_context_paths=additional_context_paths,
+        output_dir=output_dir,
     )
 
     # Pre-flight validation
@@ -327,7 +334,10 @@ async def generate_ai_strategy(
 
     # Save outputs
     output_paths = _save_strategy_outputs(
-        content=content, company_name=company_name, platform=vendor
+        content=content,
+        company_name=company_name,
+        platform=vendor,
+        output_dir=config.output_dir,
     )
     if recovered_interaction_id and all(output_paths.values()):
         from primr.ai.job_persistence import acknowledge_pending_job_after_outputs
@@ -421,15 +431,16 @@ def _validate_preflight(config: AIStrategyConfig) -> list[str]:
     if not settings.api.gemini_key:
         errors.append("GEMINI_API_KEY not configured")
 
-    # Check output directory is writable
+    # Check the actual output destination before any paid provider call.
+    destination_dir = Path(config.output_dir) if config.output_dir is not None else Path(OUTPUT_DIR)
     try:
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-        test_file = os.path.join(OUTPUT_DIR, ".write_test")
-        with open(test_file, "w", encoding="utf-8") as f:
+        destination_dir.mkdir(parents=True, exist_ok=True)
+        test_file = destination_dir / ".write_test"
+        with test_file.open("w", encoding="utf-8") as f:
             f.write("test")
-        os.remove(test_file)
+        test_file.unlink()
     except Exception as e:
-        errors.append(f"Output directory not writable: {OUTPUT_DIR} ({e})")
+        errors.append(f"Output directory not writable: {destination_dir} ({e})")
 
     return errors
 
@@ -691,7 +702,10 @@ def _process_citations(content: str) -> str:
 
 
 def _save_strategy_outputs(
-    content: str, company_name: str, platform: Platform
+    content: str,
+    company_name: str,
+    platform: Platform,
+    output_dir: str | Path | None = None,
 ) -> dict[str, str | None]:
     """Save AI strategy outputs in multiple formats."""
     from primr.output.markdown_converter import markdown_to_docx
@@ -704,24 +718,26 @@ def _save_strategy_outputs(
     artifact_name = sanitize_for_filename(company_name, max_length=200)
     base_name = f"{artifact_name}_AI_Strategy{vendor_tag}_{date_str}"
     outputs: dict[str, str | None] = {"md": None, "txt": None, "docx": None}
+    destination_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
 
     try:
+        destination_dir.mkdir(parents=True, exist_ok=True)
         # Save markdown
-        md_path = os.path.join(OUTPUT_DIR, f"{base_name}.md")
-        with open(md_path, "w", encoding="utf-8") as f:
+        md_path = destination_dir / f"{base_name}.md"
+        with md_path.open("w", encoding="utf-8") as f:
             f.write(content)
-        outputs["md"] = md_path
+        outputs["md"] = str(md_path)
         console.ok(f"AI Strategy MD: {base_name}.md", show_time=False)
 
         # Save plain text
-        txt_path = os.path.join(OUTPUT_DIR, f"{base_name}.txt")
-        with open(txt_path, "w", encoding="utf-8") as f:
+        txt_path = destination_dir / f"{base_name}.txt"
+        with txt_path.open("w", encoding="utf-8") as f:
             f.write(content)
-        outputs["txt"] = txt_path
+        outputs["txt"] = str(txt_path)
         console.ok(f"AI Strategy TXT: {base_name}.txt", show_time=False)
 
         # Convert to DOCX
-        docx_path = os.path.join(OUTPUT_DIR, f"{base_name}.docx")
+        docx_path = destination_dir / f"{base_name}.docx"
         subtitle_parts = [datetime.now().strftime("%B %d, %Y")]
         subtitle_parts.append(f"Cloud Vendor: {platform.value.upper()}")
         subtitle = " | ".join(subtitle_parts)
@@ -729,24 +745,24 @@ def _save_strategy_outputs(
         try:
             markdown_to_docx(
                 markdown_text=content,
-                output_path=Path(docx_path),
+                output_path=docx_path,
                 title=f"AI Strategy: {company_name}",
                 subtitle=subtitle,
             )
-            outputs["docx"] = docx_path
+            outputs["docx"] = str(docx_path)
             console.ok(f"AI Strategy DOCX: {base_name}.docx", show_time=False)
         except PermissionError:
             # File locked - try with timestamp
             timestamp = datetime.now().strftime("%H%M%S")
-            docx_path = os.path.join(OUTPUT_DIR, f"{base_name}_{timestamp}.docx")
+            docx_path = destination_dir / f"{base_name}_{timestamp}.docx"
             console.warn(f"Original file locked, saving as: {base_name}_{timestamp}.docx")
             markdown_to_docx(
                 markdown_text=content,
-                output_path=Path(docx_path),
+                output_path=docx_path,
                 title=f"AI Strategy: {company_name}",
                 subtitle=subtitle,
             )
-            outputs["docx"] = docx_path
+            outputs["docx"] = str(docx_path)
 
     except Exception as e:
         console.warn(f"Output generation failed: {e}")

@@ -290,6 +290,11 @@ def _allow_vendor_auto_refresh() -> bool:
     }
 
 
+def vendor_auto_refresh_enabled() -> bool:
+    """Return whether the explicit environment refresh opt-in is active."""
+    return _allow_vendor_auto_refresh()
+
+
 def _resolve_vendor_refresh_policy(allow_auto_refresh: bool | None) -> tuple[bool, str]:
     """Resolve the effective refresh gate and the user-facing opt-in hint."""
     enabled = _allow_vendor_auto_refresh() if allow_auto_refresh is None else allow_auto_refresh

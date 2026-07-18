@@ -85,6 +85,21 @@ class TestPreflightPlaywrightFailure:
 
 
 class TestPreflightApiConnectivity:
+    def test_local_only_preflight_skips_provider_and_search_calls(self, monkeypatch):
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.setenv("XAI_API_KEY", "not-a-real-xai-test-key")
+        with (
+            patch("playwright.sync_api.sync_playwright", return_value=_mock_playwright_ready()),
+            patch("primr.core.cli_preflight._check_gemini_connectivity") as gemini,
+            patch("primr.core.cli_preflight._check_google_search") as search,
+        ):
+            ok, errors = _run_preflight_checks("complete", allow_network=False)
+
+        assert ok is True
+        assert errors == []
+        gemini.assert_not_called()
+        search.assert_not_called()
+
     def test_quota_error_returns_specific_message(self, monkeypatch):
         monkeypatch.setenv("GEMINI_API_KEY", "AI" + "x" * 30)
         fake = MagicMock()
