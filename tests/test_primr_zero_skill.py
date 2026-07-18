@@ -75,6 +75,17 @@ def test_primr_zero_defines_a_tool_neutral_downstream_handoff() -> None:
     assert "Do not assume a specific skill" in normalized_content
 
 
+def test_primr_zero_uses_the_canonical_confidence_vocabulary() -> None:
+    content = (SOURCE / "SKILL.md").read_text(encoding="utf-8")
+    normalized_content = " ".join(content.split())
+
+    for label in ("Confirmed", "Reported", "Estimated", "Hypothesis"):
+        assert f"`({label})`" in content
+    assert "`(Inferred)`" not in content
+    assert "evidence-based inference under `(Estimated)`" in normalized_content
+    assert "untested speculation under `(Hypothesis)`" in normalized_content
+
+
 def test_packaged_skill_mirrors_are_current() -> None:
     matches, failures = mirrors_match()
     assert matches, "\n".join(failures)

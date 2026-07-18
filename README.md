@@ -51,9 +51,10 @@ primr "ExampleCo" https://example.co
 The agent should use Primr Zero unless you explicitly request paid, metered,
 provider-backed, or premium execution. It runs `primr prep` internally when a
 shell is available, uses its existing research and reasoning surface to build
-the dossier, runs artifact QA when possible, and hands exact output paths to
-any downstream workflow you request. You do not need to know or select the
-internal `prep` command.
+the dossier, checkpoints the Markdown inside the prep bundle, runs artifact QA
+when possible, confirms the report's `primary_report` inventory role, and hands
+its exact path to any downstream workflow you request. You do not need to know
+or select the internal `prep` command.
 
 If the host has no shell, cannot launch Primr, or cannot install it with your
 approval, Primr Zero falls back to host-native web research and discloses which
