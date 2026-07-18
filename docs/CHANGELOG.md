@@ -42,6 +42,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   coverage warnings from the evidence manifest, lists the source index and host
   workflow alongside the evidence packet, and prints one explicit host handoff
   action.
+- Primr Zero host workflows now fence target metadata as untrusted data, use
+  the canonical Confirmed, Reported, Estimated, and Hypothesis vocabulary,
+  checkpoint the Markdown report inside the prep bundle, and confirm its
+  `primary_report` inventory role before passing an exact path to a requested
+  downstream workflow when local execution is available.
 - Cloud doctor output now distinguishes a live health probe from configuration
   presence. Unprobed cloud dependencies report `configured`, include an
   explicit `probe_performed: false`, and omit endpoint, account, and connection

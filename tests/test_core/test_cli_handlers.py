@@ -82,9 +82,9 @@ class TestHandleListRecent:
     def test_calls_list_recent_and_returns_zero(self, monkeypatch):
         mock = MagicMock(return_value=0)
         monkeypatch.setattr("primr.core.cli.list_recent_outputs", mock)
-        config = _config()
+        config = _config(output_dir="custom-output", json_output=True)
         assert _handle_list_recent(config) == 0
-        mock.assert_called_once()
+        mock.assert_called_once_with(output_dir="custom-output", json_output=True)
 
 
 class TestHandleCleanTemp:
@@ -205,7 +205,7 @@ def test_simple_handlers_call_their_service(handler, patch_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# _handle_qa_recent / _handle_qa / _handle_improve — additional handlers
+# _handle_qa_recent / _handle_qa / _handle_improve - additional handlers
 # ---------------------------------------------------------------------------
 
 

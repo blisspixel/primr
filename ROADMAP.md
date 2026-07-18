@@ -305,7 +305,10 @@ into generic agent middleware.
   a fresh Claude Code checkout. When Primr cannot be launched and installation
   is unavailable or declined, the Zero skill uses host-native research and
   reports the missing collectors instead of stalling. Direct terminal CLI
-  behavior is unchanged.
+  behavior is unchanged. The emitted workflow fences target metadata as data,
+  uses the canonical four-label confidence vocabulary, checkpoints the report
+  inside the prep bundle, and confirms its body-free `primary_report` inventory
+  role before a requested downstream handoff when local execution is available.
 - Agent governance surfaces for generic MCP clients: estimate-first prompts/resources, next-action hints, and server-enforced cost caps (`max_estimated_cost_usd`) - enforcement defaults ON for the HTTP transport (the networked, agent-facing surface), off for host-mediated stdio; `PRIMR_ENFORCE_MCP_COST_CAPS` overrides either way (`mcp_server/cost_caps.py`)
 - Long-running job guidance for agent clients: monitor/resume flows for standard runs and premium multi-vendor runs
 
