@@ -123,8 +123,9 @@ Read [report-contract.md](references/report-contract.md) before drafting. Use
 the 23-section structure when evidence and host allowance support it. A thin
 evidence base should produce a shorter honest report, not padded prose.
 
-Use `(Confirmed)`, `(Reported)`, `(Estimated)`, `(Inferred)`, and
-`(Hypothesis)` consistently. Every material factual claim needs a nearby
+Use `(Confirmed)`, `(Reported)`, `(Estimated)`, and `(Hypothesis)`
+consistently. Put evidence-based inference under `(Estimated)` and untested
+speculation under `(Hypothesis)`. Every material factual claim needs a nearby
 citation. Never upgrade confidence because multiple pages repeat the same
 underlying source.
 

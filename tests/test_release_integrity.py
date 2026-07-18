@@ -429,9 +429,10 @@ def test_built_sdist_matches_release_inventory(tmp_path: Path) -> None:
 
     wheels = list(tmp_path.glob("*.whl"))
     assert len(wheels) == 1
+    skill_root = "primr/resources/skills/primr-zero/"
     with zipfile.ZipFile(wheels[0]) as wheel:
         wheel_paths = set(wheel.namelist())
-    skill_root = "primr/resources/skills/primr-zero/"
+        packaged_skill = wheel.read(skill_root + "SKILL.md").decode("utf-8")
     assert skill_root + "SKILL.md" in wheel_paths
     assert {
         skill_root + "references/host-capabilities.md",
@@ -439,6 +440,8 @@ def test_built_sdist_matches_release_inventory(tmp_path: Path) -> None:
         skill_root + "references/report-contract.md",
         skill_root + "references/subscription-boundaries.md",
     } <= wheel_paths
+    assert "`(Inferred)`" not in packaged_skill
+    assert "evidence-based inference under `(Estimated)`" in " ".join(packaged_skill.split())
 
 
 def test_cli_epilog_uses_current_default_cost_band() -> None:

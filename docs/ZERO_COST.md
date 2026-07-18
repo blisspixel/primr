@@ -137,13 +137,17 @@ produce a current dossier from model memory.
 
 ## Hand the dossier to another workflow
 
-After the host writes and reviews the Markdown dossier, it can pass the result
-to any requested document skill or agent workflow. Use
-`primr --list-recent --json` when several outputs exist, select the Markdown
-`primary_report`, and add only relevant `strategy_module` paths plus explicit
-user-provided notes. Pass exact paths, preserve citations and uncertainty, and
-let the downstream consumer own its schema, audience, output destination,
-rendering formats, approval gates, and final QA.
+The host writes and checkpoints the Markdown dossier inside its prep bundle.
+After review, run
+`primr --list-recent --json --output-dir "<bundle-parent>"`, replacing the
+placeholder with the directory containing that bundle. Confirm the Markdown is
+the `primary_report`, then pass its exact `file_path` to any requested document
+skill or agent workflow. Add only relevant `strategy_module` paths plus
+explicit user-provided notes. Preserve citations and uncertainty, and let the
+downstream consumer own its schema, audience, output destination, rendering
+formats, approval gates, and final QA. When the current host cannot run the
+inventory, pass the exact written path and disclose that the check was
+unavailable.
 
 This handoff is deliberately neutral. Primr does not assume a sales process,
 brand, cloud vendor, or HTML, PDF, slide, or spreadsheet renderer.
