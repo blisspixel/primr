@@ -14,6 +14,9 @@ if TYPE_CHECKING:
 # Kept import-light for dry runs; a focused contract test pins this mirror to
 # the collector default without importing the operational core on startup.
 DEFAULT_MAX_PAGES = 20
+# Conventional 128 + SIGINT(2), kept local so interruption reporting remains
+# independent of the operational console module.
+_EXIT_INTERRUPTED = 130
 
 
 def collect_evidence_bundle(
@@ -99,11 +102,9 @@ def is_prep_command(args: list[str] | None) -> bool:
 
 def _report_interruption(summary: str, recovery: str) -> int:
     """Report one prep interruption without loading console machinery normally."""
-    from primr.core.cli_errors import EXIT_INTERRUPTED
-
     print(summary, file=sys.stderr)
     print(f"  {recovery}", file=sys.stderr)
-    return EXIT_INTERRUPTED
+    return _EXIT_INTERRUPTED
 
 
 def run_prep_cli(args: list[str] | None) -> int:

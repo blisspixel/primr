@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
 from primr.cli_prep import _create_prep_parser, is_prep_command, run_prep_cli
-from primr.core.cli_errors import EXIT_INTERRUPTED
 from primr.core.evidence_bundle import DEFAULT_MAX_PAGES as COLLECTOR_DEFAULT_MAX_PAGES
 from primr.core.evidence_bundle import EvidenceBundleResult
 
@@ -163,10 +163,11 @@ def test_prep_collection_interruption_returns_recoverable_state(
 ) -> None:
     collect = MagicMock(side_effect=KeyboardInterrupt)
     monkeypatch.setattr("primr.cli_prep.collect_evidence_bundle", collect)
+    monkeypatch.setitem(sys.modules, "primr.core.cli_errors", None)
 
     code = run_prep_cli(["prep", "ExampleCo", "https://example.co"])
 
-    assert code == EXIT_INTERRUPTED
+    assert code == 130
     error = capsys.readouterr().err
     assert "Primr prep interrupted." in error
     assert "Any incomplete staging was removed." in error
@@ -183,7 +184,7 @@ def test_prep_skill_install_interruption_requires_destination_inspection(
 
     code = run_prep_cli(["prep", "--install-skill", "relative-skill"])
 
-    assert code == EXIT_INTERRUPTED
+    assert code == 130
     error = capsys.readouterr().err
     assert "Primr Zero skill installation interrupted." in error
     assert "Inspect the destination before using or retrying it." in error
