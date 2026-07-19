@@ -47,6 +47,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   randomized atomic temporary files, strict reloads happen only after lease
   acquisition and persistence preflight, and failed writes restore the last
   durable in-memory snapshot.
+- macOS controller state validation now accepts the operating system's
+  root-owned `/var` and `/tmp` aliases while continuing to reject redirected
+  paths that are not the standard protected aliases.
 - Audit append continuity now pins the preflight identity and size, so file
   replacement or truncation cannot be laundered by a later successful append.
   Required worker directory, log, and terminal-manifest failures also close
