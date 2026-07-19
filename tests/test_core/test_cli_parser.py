@@ -7,7 +7,6 @@ Focused tests for the strategy-discovery cache helpers and the
 from __future__ import annotations
 
 import argparse
-from unittest.mock import patch
 
 from primr.cli_help import _create_scoped_help_parser
 from primr.core import cli_parser
@@ -85,30 +84,13 @@ class TestDiscoverStrategies:
             "meta:\n  name: Placeholder One\n  description: stub\n  status: placeholder",
             encoding="utf-8",
         )
-        # Override the cli_parser module's `Path(__file__)` lookup target
-        # by monkeypatching the Path class behavior. Simplest: patch the
-        # strategies_dir computation via attribute on the function.
-        import primr.core.cli_parser as mod
-
-        original = mod.Path
-
-        def _path(*args, **kwargs):
-            p = original(*args, **kwargs)
-            if "cli_parser" in str(p) and args:
-                return tmp_path / "prompts" / "strategies" / ".."
-            return p
-
-        # Easier: just patch `Path(__file__).parent.parent / "prompts" / "strategies"`.
-        # We replace strategies_dir via direct path manipulation.
-        with patch.object(mod, "Path", side_effect=lambda x: original(x)):
-            # The simplest reliable patch: replace the function's discovery dir at runtime
-            pass
-
-        # Fall back to a direct call: skip placeholder behavior is well-exercised by
-        # the integration-level test below.
+        synthetic_module = tmp_path / "core" / "cli_parser.py"
+        monkeypatch.setattr(cli_parser, "__file__", str(synthetic_module))
         results = _discover_strategies()
-        for s in results:
-            assert s.get("status", "active") != "placeholder"
+        names = [strategy["name"] for strategy in results]
+
+        assert "active_one" in names
+        assert "placeholder_one" not in names
 
     def test_skips_built_in_ai_strategy_yamls(self):
         _reset_cache()

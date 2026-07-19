@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 
 import pytest
 
@@ -47,6 +48,48 @@ def test_run_update_delegates_yes_flag(monkeypatch):
     assert seen == {"check_only": False, "yes": True}
 
 
+@pytest.mark.parametrize("token", ["update", "upgrade", "self-update"])
+def test_update_help_exits_zero_without_delegating(token, monkeypatch, capsys):
+    monkeypatch.setattr(cli_update, "run_update", lambda **_kwargs: pytest.fail("delegated"))
+
+    with pytest.raises(SystemExit) as exc_info:
+        cli_dispatch.run_update_cli([token, "--help"])
+
+    assert exc_info.value.code == 0
+    assert f"usage: primr {token}" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("extra", [["--definitely-invalid"], ["unexpected"]])
+def test_update_rejects_invalid_arguments_without_delegating(extra, monkeypatch):
+    monkeypatch.setattr(cli_update, "run_update", lambda **_kwargs: pytest.fail("delegated"))
+
+    with pytest.raises(SystemExit) as exc_info:
+        cli_dispatch.run_update_cli(["update", *extra])
+
+    assert exc_info.value.code == 2
+
+
+@pytest.mark.parametrize(
+    ("flag", "expected"),
+    [
+        ("--check", {"check_only": True, "yes": False}),
+        ("--check-only", {"check_only": True, "yes": False}),
+        ("-y", {"check_only": False, "yes": True}),
+        ("--yes", {"check_only": False, "yes": True}),
+    ],
+)
+def test_update_flag_aliases(flag, expected, monkeypatch):
+    seen = {}
+    monkeypatch.setattr(
+        cli_update,
+        "run_update",
+        lambda *, check_only, yes: seen.update(check_only=check_only, yes=yes) or 0,
+    )
+
+    assert cli_dispatch.run_update_cli(["update", flag]) == 0
+    assert seen == expected
+
+
 # --- run_update behavior ---
 
 
@@ -68,6 +111,19 @@ def test_run_update_check_only_does_not_install(monkeypatch):
     monkeypatch.setattr(cli_update, "get_latest_version", lambda **k: "999.0.0")
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: pytest.fail("no install in check mode!"))
     assert cli_update.run_update(check_only=True) == 0
+
+
+def test_noninteractive_update_requires_explicit_yes(monkeypatch):
+    monkeypatch.setattr(cli_update, "get_latest_version", lambda **_kwargs: "999.0.0")
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+    monkeypatch.setattr(
+        cli_update,
+        "detect_install_method",
+        lambda: pytest.fail("installation method should not be inspected"),
+    )
+    monkeypatch.setattr(subprocess, "run", lambda *_args, **_kwargs: pytest.fail("no upgrade"))
+
+    assert cli_update.run_update() == 1
 
 
 def test_run_update_runs_upgrade(monkeypatch):

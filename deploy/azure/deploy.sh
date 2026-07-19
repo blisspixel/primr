@@ -43,8 +43,8 @@ KEY_VAULT_NAME="$(short_resource_name "kv" 24)"
 DEPLOY_TIER="${DEPLOY_TIER:-team}"
 USE_BICEP=false
 BUDGET_AMOUNT=""
-MIN_REPLICAS=0
-MAX_REPLICAS=10
+MIN_REPLICAS=1
+MAX_REPLICAS=1
 SKIP_SMOKE_TEST=false
 LLM_ROUTING="${LLM_ROUTING:-direct}"
 AZURE_OPENAI_ENDPOINT=""
@@ -481,12 +481,8 @@ print_post_deploy_summary() {
     # LLM routing mode
     log_info "LLM Routing:       ${LLM_ROUTING}"
 
-    # Estimated idle cost
-    local idle_cost="< \$5/month"
-    if is_org_tier; then
-        idle_cost="< \$15/month"
-    fi
-    log_info "Est. Idle Cost:    ${idle_cost}"
+    log_info "MCP Replicas:      1 persistent controller"
+    log_info "Pricing:           Verify for the selected region and configuration"
 
     echo ""
     log_success "Deployment ready!"
@@ -626,7 +622,8 @@ cmd_validate() {
             --query "properties.configuration.ingress.fqdn" -o tsv 2>/dev/null || echo "")
 
         if [[ -z "$fqdn" ]]; then
-            log_error "Cannot determine Container App FQDN — skipping smoke test"
+            log_error "Cannot determine Container App FQDN"
+            return 1
         else
             local smoke_errors=0
 
@@ -641,7 +638,18 @@ cmd_validate() {
                 ((smoke_errors++))
             fi
 
-            # 2. MCP tools/list JSON-RPC request
+            # 2. Controller readiness
+            log_substep "Checking /readyz ..."
+            local readiness_status
+            readiness_status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "https://${fqdn}/readyz" 2>/dev/null || echo "000")
+            if [[ "$readiness_status" == "200" ]]; then
+                log_substep "/readyz: PASS (HTTP $readiness_status)"
+            else
+                log_error "/readyz: FAIL (HTTP $readiness_status)"
+                ((smoke_errors++))
+            fi
+
+            # 3. MCP tools/list JSON-RPC request
             log_substep "Checking /mcp tools/list ..."
             local mcp_body='{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
             local mcp_status
@@ -692,8 +700,8 @@ usage() {
     print_usage_option "--tier" "Deployment tier: team (default) or organization"
     print_usage_option "--bicep" "Use Bicep templates instead of imperative CLI"
     print_usage_option "--budget N" "Monthly Azure budget alert threshold in USD"
-    print_usage_option "--min-replicas N" "Minimum Container App replicas (default: 0)"
-    print_usage_option "--max-replicas N" "Maximum Container App replicas (default: 10)"
+    print_usage_option "--min-replicas N" "MCP controller minimum; only 1 is supported"
+    print_usage_option "--max-replicas N" "MCP controller maximum; only 1 is supported"
     print_usage_option "--skip-smoke-test" "Skip smoke test during validate"
     print_usage_option "--llm-routing" "LLM routing mode: direct (default) or azure"
     print_usage_option "--azure-openai-endpoint" "Azure OpenAI endpoint URL (when --llm-routing azure)"
@@ -726,14 +734,14 @@ main() {
                 fi
                 BUDGET_AMOUNT="$2"; shift 2 ;;
             --min-replicas)
-                if ! [[ "$2" =~ ^[0-9]+$ ]]; then
-                    log_error "Invalid min-replicas: $2 (must be a non-negative integer)"
+                if [[ "$2" != "1" ]]; then
+                    log_error "Invalid min-replicas: $2 (the MCP controller requires exactly 1)"
                     exit 1
                 fi
                 MIN_REPLICAS="$2"; shift 2 ;;
             --max-replicas)
-                if ! [[ "$2" =~ ^[0-9]+$ ]]; then
-                    log_error "Invalid max-replicas: $2 (must be a positive integer)"
+                if [[ "$2" != "1" ]]; then
+                    log_error "Invalid max-replicas: $2 (the MCP controller requires exactly 1)"
                     exit 1
                 fi
                 MAX_REPLICAS="$2"; shift 2 ;;

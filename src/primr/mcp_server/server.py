@@ -24,6 +24,12 @@ from primr.mcp_server.job_process import LocalJobSupervisor
 from primr.mcp_server.job_process_types import await_task_uninterruptibly
 from primr.mcp_server.job_store import ControllerLease, SingleJobStore
 from primr.mcp_server.logging_config import configure_http_logging, configure_stdio_logging
+from primr.mcp_server.readiness import (
+    PersistencePreflightError,
+    build_readiness_payload,
+    probe_local_persistence,
+    validate_local_persistence_paths,
+)
 from primr.mcp_server.security import PathValidator, RateLimiter, URLValidator
 
 logger = logging.getLogger(__name__)
@@ -87,7 +93,9 @@ class PrimrMCPServer:
         self.require_auth = require_auth
 
         # Initialize components
-        self.job_store = SingleJobStore(journal_path=journal_path)
+        # Construction must not read controller state before this process owns
+        # the journal lease and the persistence boundary passes preflight.
+        self.job_store = SingleJobStore(journal_path=journal_path, defer_initial_load=True)
         self._controller_lease = ControllerLease(self.job_store.journal_path)
         self.audit_log = MCPAuditLog(audit_log_path=audit_log_path, journal_path=journal_path)
         # "working" is primr's own run/scratch root: report_path reuse
@@ -121,6 +129,12 @@ class PrimrMCPServer:
         # A2A concurrently. The final entrant owns shutdown and lease release.
         self._controller_lifecycle_lock = asyncio.Lock()
         self._controller_lifecycle_users = 0
+        self._controller_phase = "inactive"
+        self._persistence_ready = {
+            "journal": False,
+            "audit": False,
+            "output": False,
+        }
 
         # Own long research work outside the controller process. The
         # supervisor is shared by MCP and A2A so both surfaces have identical
@@ -132,22 +146,55 @@ class PrimrMCPServer:
         """Own the journal lease and workers across one or more co-hosted servers."""
         async with self._controller_lifecycle_lock:
             if self._controller_lifecycle_users == 0:
+                self._controller_phase = "starting"
+                if self.job_supervisor.shutdown_started:
+                    self._controller_phase = "failed"
+                    raise RuntimeError(
+                        "This controller has already shut down; create a new server instance"
+                    )
                 if getattr(self._controller_lease, "acquired", False) is True:
+                    self._controller_phase = "failed"
                     raise RuntimeError(
                         "Prior controller shutdown is incomplete; refusing journal reconciliation"
                     )
-                self._controller_lease.acquire()
+                acquired_here = False
                 try:
+                    validate_local_persistence_paths(
+                        journal_path=self.job_store.journal_path,
+                        audit_path=self.audit_log.path,
+                        output_root=self.job_supervisor.output_root,
+                        controller_lock_path=self._controller_lease.lock_path,
+                    )
+                    self._controller_lease.acquire()
+                    acquired_here = True
+                    self._persistence_ready = probe_local_persistence(
+                        journal_path=self.job_store.journal_path,
+                        audit_path=self.audit_log.path,
+                        output_root=self.job_supervisor.output_root,
+                        controller_lock_path=self._controller_lease.lock_path,
+                    )
+                    if not self.audit_log.preflight():
+                        raise PersistencePreflightError("audit")
+                    self.job_supervisor.mark_output_preflight_succeeded()
                     self.job_store.reload_from_journal()
                     reconciled_job_id = self.job_store.reconcile_interrupted_job()
                 except BaseException:
-                    self._controller_lease.close()
+                    self._controller_phase = "failed"
+                    self._persistence_ready = {
+                        "journal": False,
+                        "audit": False,
+                        "output": False,
+                    }
+                    if acquired_here:
+                        self._controller_lease.close()
                     raise
                 if reconciled_job_id is not None:
                     logger.warning(
                         "Reconciled interrupted job %s after server restart",
                         reconciled_job_id,
                     )
+                self._shutdown_event.clear()
+                self._controller_phase = "ready"
             self._controller_lifecycle_users += 1
 
         try:
@@ -165,13 +212,44 @@ class PrimrMCPServer:
             self._controller_lifecycle_users -= 1
             if self._controller_lifecycle_users > 0:
                 return
-            workers_reaped = await self._graceful_shutdown()
+            self._controller_phase = "stopping"
+            try:
+                workers_reaped = await self._graceful_shutdown()
+            except BaseException:
+                self._controller_phase = "failed"
+                raise
             remaining = self.job_supervisor.running_job_ids
             if not workers_reaped or remaining:
+                self._controller_phase = "failed"
                 raise RuntimeError(
                     "Controller shutdown could not reap all workers; retaining the journal lease"
                 )
             self._controller_lease.close()
+            self._persistence_ready = {
+                "journal": False,
+                "audit": False,
+                "output": False,
+            }
+            self._controller_phase = "inactive"
+
+    def readiness_snapshot(self) -> tuple[bool, dict[str, object]]:
+        """Return body-safe local controller readiness without remote checks."""
+        audit_status = str(self.audit_log.health_snapshot().get("status", "degraded"))
+        persistence = {
+            **self._persistence_ready,
+            "journal": self._persistence_ready["journal"] and self.job_store.persistence_healthy,
+            "output": self._persistence_ready["output"]
+            and self.job_supervisor.output_persistence_healthy,
+        }
+        return build_readiness_payload(
+            phase=self._controller_phase,
+            lease_acquired=bool(getattr(self._controller_lease, "acquired", False)),
+            lifecycle_users=self._controller_lifecycle_users,
+            shutdown_requested=self._shutdown_event.is_set(),
+            admission_open=not self.job_supervisor.shutdown_started,
+            persistence=persistence,
+            audit_status=audit_status,
+        )
 
     @property
     def _auth_context(self):
@@ -329,8 +407,10 @@ class PrimrMCPServer:
                 with contextlib.suppress(asyncio.CancelledError):
                     await task
 
-            # Perform graceful shutdown
-            await self._graceful_shutdown()
+            if server_task in done:
+                await server_task
+            else:
+                shutdown_task.result()
 
     async def run_http(self) -> None:
         """
@@ -395,7 +475,6 @@ class PrimrMCPServer:
                     if message["type"] == "lifespan.startup":
                         await send({"type": "lifespan.startup.complete"})
                     elif message["type"] == "lifespan.shutdown":
-                        await self._graceful_shutdown()
                         await send({"type": "lifespan.shutdown.complete"})
                         return
             else:
@@ -432,11 +511,23 @@ class PrimrMCPServer:
             mcp_app = create_auth_middleware(verifier)(mcp_app)
 
         async def _healthz(_request: object) -> JSONResponse:
-            return JSONResponse({"status": "ok"})
+            return JSONResponse(
+                {"status": "ok"},
+                headers={"Cache-Control": "no-store"},
+            )
 
-        # Build routes — /healthz is intentionally unauthenticated.
+        async def _readyz(_request: object) -> JSONResponse:
+            ready, payload = self.readiness_snapshot()
+            return JSONResponse(
+                payload,
+                status_code=200 if ready else 503,
+                headers={"Cache-Control": "no-store"},
+            )
+
+        # Probe routes are intentionally unauthenticated and body-safe.
         routes = [
             Route("/healthz", _healthz, methods=["GET"]),
+            Route("/readyz", _readyz, methods=["GET"]),
             Mount("/mcp", app=mcp_app),
         ]
 
@@ -466,11 +557,11 @@ class PrimrMCPServer:
                 logger.exception("Failed to initialize A2A co-hosting")
 
         # Build app. Auth is already applied per-mount above (and the co-hosted
-        # A2A app applies its own in build_app); /healthz remains public.
+        # A2A app applies its own in build_app); probe routes remain public.
         app = Starlette(
             routes=routes,
             on_startup=[lambda: logger.info("MCP HTTP server started")],
-            on_shutdown=[self._graceful_shutdown],
+            on_shutdown=[],
         )
 
         # Run with uvicorn

@@ -11,8 +11,6 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
-from primr.utils.console import console
-
 if TYPE_CHECKING:
     from primr.core.cli import CLIConfig
 
@@ -45,6 +43,7 @@ def _full_mode_label(grok_tier: str) -> str:
 
 def run_dry_run(config: CLIConfig) -> int:
     """Show the cost estimate for a run without executing it."""
+    from primr.core.cli_errors import report_command_error
     from primr.core.cli_inference import (
         inference_estimate_metadata,
         validate_inference_options,
@@ -55,13 +54,21 @@ def run_dry_run(config: CLIConfig) -> int:
         config.acknowledge_host_agent_may_bill,
     )
     if inference_error:
-        console.error(inference_error)
-        return 1
+        return report_command_error(
+            json_output=config.json_output,
+            operation="research_estimate",
+            error_type="invalid_inference_options",
+            message=inference_error,
+        )
 
     # Resolve mode: same logic as _handle_research.
     if config.premium_mode and config.fast_mode:
-        console.error("Cannot use both --fast and --premium. Choose one.")
-        return 1
+        return report_command_error(
+            json_output=config.json_output,
+            operation="research_estimate",
+            error_type="incompatible_mode_options",
+            message="Cannot use both --fast and --premium. Choose one.",
+        )
 
     use_fast_mode = config.fast_mode
     use_premium_mode = config.premium_mode
@@ -76,12 +83,20 @@ def run_dry_run(config: CLIConfig) -> int:
 
     # Validate compatibility.
     if use_fast_mode and config.mode not in ("complete", "structured", "hybrid"):
-        console.error(f"--fast only works with full mode, not --mode {config.mode}")
-        console.info('Usage: primr "Company" https://url --fast [--platform aws azure] --dry-run')
-        return 1
+        return report_command_error(
+            json_output=config.json_output,
+            operation="research_estimate",
+            error_type="incompatible_mode_options",
+            message=f"--fast only works with full mode, not --mode {config.mode}",
+            hints=('Usage: primr "Company" https://url --fast [--platform aws azure] --dry-run',),
+        )
     if use_premium_mode and config.mode not in ("complete", "structured", "hybrid"):
-        console.error(f"--premium only works with full mode, not --mode {config.mode}")
-        return 1
+        return report_command_error(
+            json_output=config.json_output,
+            operation="research_estimate",
+            error_type="incompatible_mode_options",
+            message=f"--premium only works with full mode, not --mode {config.mode}",
+        )
 
     if use_premium_mode:
         mode_label = "premium (Gemini + Deep Research)"

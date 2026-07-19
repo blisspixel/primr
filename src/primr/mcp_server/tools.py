@@ -62,7 +62,6 @@ from primr.mcp_server.resource_auth import (
 from primr.mcp_server.server_context import MCPServerContext
 from primr.mcp_server.skill_pack_tools import handle_skill_pack_tool, register_skill_pack_tools
 from primr.mcp_server.strategy_operations import run_strategy_generation
-from primr.mcp_server.strategy_responses import run_strategy_tool
 from primr.mcp_server.tool_authz import (
     TOOL_REQUIRED_SCOPES,
     authorize_tool_call,
@@ -830,77 +829,14 @@ async def _handle_generate_strategy(
     mcp_server: MCPServerContext,
     arguments: dict[str, Any],
 ) -> list[TextContent]:
-    """
-    Handle generate_strategy tool.
+    """Handle generate_strategy with the shared validated execution boundary."""
+    from primr.mcp_server.strategy_tool_handler import handle_generate_strategy
 
-    Requirements: 6.1-6.7
-    """
-    import json
-
-    report_path = arguments.get("report_path")
-    strategy_type = arguments.get("strategy_type")
-    platform = arguments.get("platform")
-    max_estimated_cost_usd = arguments.get("max_estimated_cost_usd")
-
-    estimate_result = await _handle_estimate_strategy(arguments)
-    estimate_payload = json.loads(estimate_result[0].text)
-    if estimate_payload.get("error"):
-        return estimate_result
-    cost_cap_error = _enforce_cost_cap(
-        estimated_cost=float(estimate_payload["estimated_cost_usd"]),
-        max_estimated_cost_usd=max_estimated_cost_usd,
-        operation_name="generate_strategy",
-    )
-    if cost_cap_error is not None:
-        return [TextContent(type="text", text=json.dumps(cost_cap_error))]
-
-    # Validate path
-    path_result = mcp_server.path_validator.validate(report_path)
-    if not path_result.valid:
-        return [
-            TextContent(
-                type="text",
-                text=json.dumps(
-                    {
-                        "error": True,
-                        "error_type": path_result.error_type,
-                        "error_code": MCPErrorCode.PATH_TRAVERSAL_BLOCKED,
-                        "message": path_result.error_message,
-                    }
-                ),
-            )
-        ]
-
-    # Check if file exists (only after path validation passes)
-    if not path_result.resolved_path.exists():
-        return [
-            TextContent(
-                type="text",
-                text=json.dumps(
-                    {
-                        "error": True,
-                        "error_type": "report_not_found",
-                        "error_code": MCPErrorCode.REPORT_NOT_FOUND,
-                        "message": f"Report not found: {report_path}",
-                    }
-                ),
-            )
-        ]
-
-    approval_error = enforce_approval_token(
-        tool_name="generate_strategy",
-        approval_args=strategy_approval_args(arguments),
-        estimated_cost_usd=float(estimate_payload["estimated_cost_usd"]),
-        approval_token=arguments.get("approval_token"),
-    )
-    if approval_error is not None:
-        return [TextContent(type="text", text=json.dumps(approval_error))]
-
-    return await run_strategy_tool(
-        run_strategy_generation,
-        report_path=str(path_result.resolved_path),
-        strategy_type=strategy_type,
-        platform=platform,
+    return await handle_generate_strategy(
+        mcp_server,
+        arguments,
+        estimate_handler=_handle_estimate_strategy,
+        strategy_runner=run_strategy_generation,
     )
 
 

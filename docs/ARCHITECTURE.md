@@ -874,8 +874,17 @@ repeated cancellation is idempotent.
 
 Exactly one controller may own a journal. MCP, co-hosted A2A, and standalone
 A2A enter the same reference-counted controller lifecycle, which acquires an
-OS-backed exclusive lease, reloads the journal under that lease, and only then
-performs restart reconciliation. On final shutdown,
+OS-backed exclusive lease and runs one bounded atomic-write preflight across
+the journal, audit, and output persistence boundaries. It securely opens and
+reads the actual audit sink before strictly reloading the journal and performing
+restart reconciliation. Corrupt journals and unavailable persistence fail
+activation without deleting the diagnostic file. Runtime journal or required
+worker-artifact write failures close readiness and journal writes roll memory
+back to the last durable state. HTTP `/healthz` remains
+a shallow liveness probe; `/readyz` returns ready only while the lifecycle,
+lease, persistence, and audit checks are ready, and otherwise returns body-safe
+component states. The process-local control plane must run as exactly one
+persistent replica. On final shutdown,
 the shielded lifecycle refuses new starts and runs bounded cooperative,
 terminate, and kill phases. It releases the lease only after every retained
 worker is reaped and descendant-tree cleanup is confirmed. If OS termination

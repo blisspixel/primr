@@ -6,6 +6,7 @@ Schema is stable and versioned for analytics.
 
 import json
 import uuid
+from contextvars import ContextVar, Token
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -14,6 +15,17 @@ from .models import ErrorType, ScrapeResult
 
 # Trace schema version - increment when format changes
 TRACE_SCHEMA_VERSION = "1.1"
+_TRACE_RUN_ID: ContextVar[str | None] = ContextVar("primr_trace_run_id", default=None)
+
+
+def set_trace_run_id(run_id: str) -> Token[str | None]:
+    """Bind scrape traces created in the current execution context to one run."""
+    return _TRACE_RUN_ID.set(run_id)
+
+
+def reset_trace_run_id(token: Token[str | None]) -> None:
+    """Restore the prior trace ownership context."""
+    _TRACE_RUN_ID.reset(token)
 
 
 @dataclass
@@ -78,6 +90,7 @@ class TraceLogger:
         self,
         company_name: str,
         output_dir: Path | None = None,
+        run_id: str | None = None,
     ):
         """
         Initialize trace logger.
@@ -87,7 +100,7 @@ class TraceLogger:
             output_dir: Directory for trace files (default: logs/scrape_traces)
         """
         self.company = self._sanitize_filename(company_name)
-        self.run_id = str(uuid.uuid4())
+        self.run_id = run_id or _TRACE_RUN_ID.get() or str(uuid.uuid4())
         self.started_at = datetime.now().isoformat()
 
         # Set up output directory
@@ -98,7 +111,7 @@ class TraceLogger:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         # Create trace file path
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         self.path = self.output_dir / f"{self.company}_{timestamp}.jsonl"
 
         # Write header

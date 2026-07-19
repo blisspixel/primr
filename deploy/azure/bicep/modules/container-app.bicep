@@ -15,11 +15,15 @@ param location string
 @description('Resource name prefix')
 param resourcePrefix string
 
-@description('Minimum number of replicas (0 for scale-to-zero)')
-param minReplicas int = 0
+@description('Minimum MCP controller replicas. Exactly one persistent controller is supported.')
+@minValue(1)
+@maxValue(1)
+param minReplicas int = 1
 
-@description('Maximum number of replicas (default 5 for team tier, 10 for organization - higher values increase cost)')
-param maxReplicas int = 5
+@description('Maximum MCP controller replicas. Exactly one controller is supported until state is shared.')
+@minValue(1)
+@maxValue(1)
+param maxReplicas int = 1
 
 @description('ACR login server (e.g., myacr.azurecr.io)')
 param acrLoginServer string
@@ -74,6 +78,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
   properties: {
     managedEnvironmentId: containerAppEnv.id
     configuration: {
+      activeRevisionsMode: 'Single'
       ingress: {
         external: true
         targetPort: 8000
@@ -149,7 +154,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             {
               type: 'Readiness'
               httpGet: {
-                path: '/healthz'
+                path: '/readyz'
                 port: 8000
               }
               initialDelaySeconds: 5
@@ -161,16 +166,6 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
       scale: {
         minReplicas: minReplicas
         maxReplicas: maxReplicas
-        rules: [
-          {
-            name: 'http-scaling'
-            http: {
-              metadata: {
-                concurrentRequests: '100'
-              }
-            }
-          }
-        ]
       }
     }
   }

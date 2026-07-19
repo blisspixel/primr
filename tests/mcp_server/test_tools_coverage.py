@@ -216,6 +216,24 @@ class TestGenerateStrategy:
         assert data["error_type"] == "report_not_found"
 
     @pytest.mark.asyncio
+    async def test_report_validation_filesystem_error_is_body_safe(self, server, output_report):
+        sentinel = "private-local-path-sentinel"
+        with patch(
+            "primr.mcp_server.strategy_responses.validate_trusted_report",
+            side_effect=PermissionError(sentinel),
+        ):
+            data = await _call(
+                server,
+                "generate_strategy",
+                {"report_path": str(output_report), "strategy_type": "customer_experience"},
+            )
+
+        assert data["error"] is True
+        assert data["error_type"] == "report_not_stable"
+        assert sentinel not in json.dumps(data)
+        assert sentinel not in json.dumps(server.audit_log.recent())
+
+    @pytest.mark.asyncio
     async def test_success(self, server, output_report):
         with patch(
             "primr.mcp_server.tools.run_strategy_generation",

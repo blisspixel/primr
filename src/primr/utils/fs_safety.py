@@ -17,9 +17,47 @@ import errno
 import logging
 import os
 import secrets
+import stat
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+def path_contains_link_or_reparse_point(path: Path) -> bool:
+    """Return true when any existing path component redirects traversal."""
+    current = path.absolute()
+    while True:
+        try:
+            metadata = current.lstat()
+        except FileNotFoundError:
+            pass
+        except OSError:
+            return True
+        else:
+            reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+            attributes = getattr(metadata, "st_file_attributes", 0)
+            if stat.S_ISLNK(metadata.st_mode) or bool(reparse_flag and attributes & reparse_flag):
+                return True
+        if current == current.parent:
+            return False
+        current = current.parent
+
+
+def path_is_linked_or_nonregular_file(path: Path) -> bool:
+    """Reject linked, multiply named, reparse, and nonregular state files."""
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    attributes = getattr(metadata, "st_file_attributes", 0)
+    return (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_nlink > 1
+        or bool(reparse_flag and attributes & reparse_flag)
+    )
 
 
 def check_dir_writable(path: Path) -> tuple[bool, str | None]:
@@ -60,6 +98,27 @@ def check_dir_writable(path: Path) -> tuple[bool, str | None]:
     except OSError:
         # Leave probe file behind rather than failing — operator can clean it.
         pass
+    return True, None
+
+
+def check_dir_atomic_writable(path: Path) -> tuple[bool, str | None]:
+    """Probe the same-directory atomic write path used by durable state."""
+    writable, error = check_dir_writable(path)
+    if not writable:
+        return False, error
+
+    from primr.utils.atomic_io import atomic_write_bytes
+
+    candidate = path / f".primr_atomic_test_{secrets.token_hex(8)}"
+    try:
+        atomic_write_bytes(candidate, b"ok")
+    except OSError as exc:
+        return False, f"Atomic write failed: {exc}"
+    finally:
+        try:
+            candidate.unlink(missing_ok=True)
+        except OSError:
+            pass
     return True, None
 
 

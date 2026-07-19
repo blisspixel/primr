@@ -35,7 +35,7 @@ def test_root_help_fast_path_does_not_load_operational_cli(monkeypatch, capsys) 
     assert capsys.readouterr().out == ROOT_HELP + "\n"
 
 
-@pytest.mark.parametrize("command", ["init", "doctor"])
+@pytest.mark.parametrize("command", ["init", "doctor", "update", "upgrade", "self-update"])
 def test_scoped_help_fast_path_does_not_load_operational_cli(
     command: str,
     monkeypatch,

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Deploy Primr to Azure (team tier, scale-to-zero, BYOK)
+    Deploy Primr to Azure (single persistent MCP controller, BYOK)
 .DESCRIPTION
     Creates all Azure resources for a team-tier Primr deployment using Bicep templates.
     Primr is CLI-first, local-first. This is the optional cloud scaling path.
@@ -57,16 +57,17 @@ if ($Validate) {
     $errors = 0
 
     $resources = @(
-        @{ Name = "Resource Group"; Cmd = "az group show --name $ResourceGroup -o none" },
-        @{ Name = "ACR"; Cmd = "az acr show --name $AcrName --resource-group $ResourceGroup -o none" },
-        @{ Name = "Container App"; Cmd = "az containerapp show --name $ContainerAppName --resource-group $ResourceGroup -o none" }
+        @{ Name = "Resource Group"; Args = @("group", "show", "--name", $ResourceGroup, "-o", "none") },
+        @{ Name = "ACR"; Args = @("acr", "show", "--name", $AcrName, "--resource-group", $ResourceGroup, "-o", "none") },
+        @{ Name = "Container App"; Args = @("containerapp", "show", "--name", $ContainerAppName, "--resource-group", $ResourceGroup, "-o", "none") }
     )
 
     foreach ($r in $resources) {
-        try {
-            Invoke-Expression $r.Cmd 2>$null
+        $resourceArgs = [string[]]$r.Args
+        & az @resourceArgs 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) {
             Write-Host "  $($r.Name): OK" -ForegroundColor Green
-        } catch {
+        } else {
             Write-Host "  $($r.Name): MISSING" -ForegroundColor Red
             $errors++
         }
@@ -76,7 +77,8 @@ if ($Validate) {
         Write-Host "[*] Running smoke test..." -ForegroundColor Cyan
         try {
             $fqdn = az containerapp show --name $ContainerAppName --resource-group $ResourceGroup --query "properties.configuration.ingress.fqdn" -o tsv 2>$null
-            if ($fqdn) {
+            $fqdnLookupSucceeded = $LASTEXITCODE -eq 0
+            if ($fqdnLookupSucceeded -and -not [string]::IsNullOrWhiteSpace($fqdn)) {
                 # Health check
                 try {
                     $health = Invoke-RestMethod -Uri "https://$fqdn/healthz" -TimeoutSec 30
@@ -85,11 +87,21 @@ if ($Validate) {
                     Write-Host "  /healthz: FAIL ($($_.Exception.Message))" -ForegroundColor Red
                     $errors++
                 }
+                # Readiness check
+                try {
+                    $readiness = Invoke-RestMethod -Uri "https://$fqdn/readyz" -TimeoutSec 30
+                    Write-Host "  /readyz: PASS ($($readiness.status))" -ForegroundColor Green
+                } catch {
+                    Write-Host "  /readyz: FAIL ($($_.Exception.Message))" -ForegroundColor Red
+                    $errors++
+                }
             } else {
-                Write-Host "  Smoke test: SKIP (no FQDN)" -ForegroundColor Yellow
+                Write-Host "  Smoke test: FAIL (Container App FQDN unavailable)" -ForegroundColor Red
+                $errors++
             }
         } catch {
-            Write-Host "  Smoke test: SKIP ($($_.Exception.Message))" -ForegroundColor Yellow
+            Write-Host "  Smoke test: FAIL ($($_.Exception.Message))" -ForegroundColor Red
+            $errors++
         }
     }
 
@@ -181,7 +193,6 @@ if (-not (Test-Path $BicepFile)) {
 }
 
 $BudgetAmount = if ($Tier -eq "organization") { 200 } else { 50 }
-$MaxReplicas = if ($Tier -eq "organization") { 10 } else { 5 }
 
 # Get deployer's principal ID for Key Vault access
 Write-Host "  Getting deployer identity..." -ForegroundColor Gray
@@ -193,8 +204,8 @@ $bicepParams = @(
     "location=$Region",
     "resourcePrefix=primr-$DeploymentName",
     "tier=$Tier",
-    "minReplicas=0",
-    "maxReplicas=$MaxReplicas",
+    "minReplicas=1",
+    "maxReplicas=1",
     "budgetAmount=$BudgetAmount",
     "acrLoginServer=$AcrName.azurecr.io",
     "imageName=$ImageName",
@@ -227,11 +238,12 @@ if (-not $fqdn) { $fqdn = "pending (Container App may still be starting)" }
 Write-Host ""
 Write-Host "  MCP Server:    https://$fqdn" -ForegroundColor White
 Write-Host "  MCP Endpoint:  https://$fqdn/mcp" -ForegroundColor White
-Write-Host "  Health Check:  https://$fqdn/healthz" -ForegroundColor White
+Write-Host "  Liveness:      https://$fqdn/healthz" -ForegroundColor White
+Write-Host "  Readiness:     https://$fqdn/readyz" -ForegroundColor White
 Write-Host "  Auth Method:   API Key (Bearer token)" -ForegroundColor White
 Write-Host "  LLM Routing:   direct (BYOK)" -ForegroundColor White
 Write-Host "  Tier:          $Tier" -ForegroundColor White
-Write-Host "  Idle Cost:     < `$5/month" -ForegroundColor White
+Write-Host "  Replicas:      1 persistent MCP controller" -ForegroundColor White
 Write-Host ""
 
 # 6. Next steps

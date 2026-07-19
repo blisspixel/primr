@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+from primr.core.cli_command_output import report_command_error
 from primr.utils.console import console
 
 if TYPE_CHECKING:
@@ -49,10 +50,29 @@ def guard_dispatch(handler: Callable[[CLIConfig], int], config: CLIConfig) -> in
     try:
         rc = handler(config)
     except KeyboardInterrupt:
+        if getattr(config, "json_output", False):
+            return report_command_error(
+                json_output=True,
+                operation=config.command.name.lower(),
+                error_type="interrupted",
+                message="The command was cancelled.",
+                exit_code=EXIT_INTERRUPTED,
+            )
         console.blank()
         console.info("Cancelled.")
         return EXIT_INTERRUPTED
     except Exception as exc:
+        if getattr(config, "json_output", False):
+            return report_command_error(
+                json_output=True,
+                operation=config.command.name.lower(),
+                error_type="unexpected_error",
+                message="The command failed unexpectedly.",
+                hints=(
+                    "Run 'primr doctor' to check the local setup.",
+                    f"Report reproducible failures at {ISSUES_URL}.",
+                ),
+            )
         if getattr(config, "verbose", False):
             raise
         return report_unexpected_error(exc)

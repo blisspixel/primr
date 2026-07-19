@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.36.1] - 2026-07-18
+
+### Changed
+
+- `primr update`, `primr upgrade`, and `primr self-update` now share one strict
+  argument contract. Unknown or positional arguments fail before update logic,
+  scoped help remains side-effect free, and non-interactive installs require
+  explicit `--yes` approval.
+- Early research and dry-run validation failures now emit one
+  `primr.command-error.v1` object in JSON mode, including actionable hints when
+  available, instead of mixing human console lines with machine output.
+  Workspace lease, interrupt, and unexpected top-level failures use the same
+  contract, including in verbose mode.
+- Standalone and MCP strategy generation now validate report identity and
+  content together, copy only a stable private snapshot into provider context,
+  reject linked or multiply named files, and fail closed if the source changes.
+- MCP approval tokens are now single-use and bound to the issuing process
+  instance. A restart requires a new estimate and fresh approval even when the
+  signing secret is shared.
+- HTTP mode now separates shallow `/healthz` liveness from body-safe `/readyz`
+  readiness. Controller activation requires the journal lease, strict journal
+  reload, a secure audit-sink check, and atomic persistence preflight. Runtime
+  journal and required worker-artifact failures close readiness, and failed
+  journal writes roll memory back to durable state.
+- Azure templates run one persistent controller replica, use a single active
+  revision, route readiness probes to `/readyz`, and avoid fixed regional price
+  claims in deployment guidance.
+- README and roadmap claims now match the selectable strategy catalog,
+  confidence-label vocabulary, community files, and shipped public docs.
+
+### Fixed
+
+- The placeholder-strategy regression test now exercises a synthetic strategy
+  directory and proves that active definitions are discovered while
+  placeholders are excluded.
+- Controller startup now rejects linked journal parents and linked or
+  multiply named journal and lease files before mutation. Journal writes use
+  randomized atomic temporary files, strict reloads happen only after lease
+  acquisition and persistence preflight, and failed writes restore the last
+  durable in-memory snapshot.
+- Audit append continuity now pins the preflight identity and size, so file
+  replacement or truncation cannot be laundered by a later successful append.
+  Required worker directory, log, and terminal-manifest failures also close
+  readiness, including cleanup failures.
+- Scrape traces are now bound to the owning job identifier and use
+  collision-resistant filenames. Overlapping same-company runs can no longer
+  attach another job's trace to their artifact inventory.
+- Stdio transport task failures now propagate to the shared controller
+  lifecycle instead of becoming unobserved task exceptions.
+- Azure validation now checks native CLI exit codes directly, avoids dynamic
+  command evaluation, and treats a missing Container App FQDN as a failed
+  smoke test unless the operator explicitly skips smoke validation.
+- Batch error-path tests now isolate the runtime output root, preventing local
+  same-day reports from changing regression-test behavior.
+
 ## [1.36.0] - 2026-07-18
 
 ### Changed

@@ -55,13 +55,13 @@ NEW_FILE_MAX_LINES = 1000
 # NEW_FILE_MAX_LINES). Never raise a ceiling to make a growing file pass.
 FILE_LINE_CEILINGS: dict[str, int] = {
     "core/research_agent.py": 4338,
-    "core/cli.py": 2977,
+    "core/cli.py": 2942,
     "ai/deep_research.py": 3885,
     "data/scraping/browsers.py": 1835,
     "data/hiring_signals.py": 1577,
     "core/model_eval.py": 1832,
     "data/scrape.py": 1832,
-    "mcp_server/tools.py": 1375,
+    "mcp_server/tools.py": 1311,
     "data/fallback_sources.py": 1084,
     "agentic/hooks.py": 1022,
     "core/research_orchestrator.py": 1007,

@@ -36,7 +36,7 @@ Primr is built for:
 
 - A structured strategic brief instead of scattered notes.
 - Research grounded in public evidence, not only web-search summaries.
-- Clear uncertainty: confirmed, reported, estimated, inferred, and hypothesis labels.
+- Clear uncertainty: Confirmed, Reported, Estimated, and Hypothesis labels.
 - Cost-aware local execution with dry-run estimates before billable work.
 - Reusable artifacts for humans, agent hosts, and downstream workflows.
 
@@ -283,7 +283,7 @@ Primr combines several evidence streams:
 - Browser-first adaptive scraping across protected and ordinary websites.
 - Hiring-signal discovery across major ATS providers plus careers-page fallback.
 - External research and source cross-validation.
-- Optional strategy modules for AI, customer experience, security, data, migration, and skills.
+- Optional strategy modules for AI, customer experience, security, data fabric, and skills.
 
 The pipeline is defensive: every outbound URL is validated, redirects are guarded, and protected or low-signal sites are surfaced as constraints instead of silently padded.
 

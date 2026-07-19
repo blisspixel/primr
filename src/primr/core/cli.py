@@ -84,9 +84,9 @@ from primr.core.cli_doctor import (
     run_doctor,
 )
 from primr.core.cli_dryrun import run_dry_run
-from primr.core.cli_errors import guard_dispatch
+from primr.core.cli_errors import guard_dispatch, report_command_error
 from primr.core.cli_eval_args import add_eval_arguments
-from primr.core.cli_inference import prepare_batch_inference_runtime, prepare_inference_runtime
+from primr.core.cli_inference import prepare_batch_inference_runtime
 from primr.core.cli_init import (
     _ensure_project_env_file as _ensure_project_env_file,
 )
@@ -133,6 +133,11 @@ from primr.core.cli_preflight import _run_preflight_checks
 from primr.core.cli_recovery import (
     check_pending_jobs,
     resume_pending_jobs,
+)
+from primr.core.cli_research_request import (
+    report_research_workspace_error,
+    resolve_research_context_files,
+    validate_research_request,
 )
 from primr.core.cli_validation_policy import should_include_api_keys
 from primr.core.cli_vendor import run_generate_vendor
@@ -2443,58 +2448,35 @@ def _handle_eval(config: CLIConfig) -> int:
 def _handle_research(config: CLIConfig) -> int:
     """Handle research command."""
     from primr.core.research_agent import perform_research
-    from primr.core.workspace import (
-        ActiveRunLeaseError,
-        ResumeLeaseError,
-        consolidate_working_folder,
-        validate_context_files,
-    )
-    from primr.utils.validators import InputValidationError, validate_company_name, validate_url
+    from primr.core.workspace import ResumeLeaseError
 
-    # Validate inputs
-    if not config.company_name or not config.website:
-        console.error("Both company name and website are required")
-        console.info("")
-        console.info('Usage: primr "Company Name" https://company.com')
-        console.info("")
-        console.info("Run 'primr doctor' to check system configuration")
+    request = validate_research_request(config)
+    if request is None:
         return 1
-
-    # Validate company name
-    try:
-        company_name = validate_company_name(config.company_name)
-    except InputValidationError as e:
-        console.error(f"Invalid company name: {e.reason}")
-        return 1
-
-    # Normalize and validate website
-    website = _ensure_valid_url(config.website)
-    try:
-        website = validate_url(website)
-    except InputValidationError as e:
-        console.error(f"Invalid website URL: {e.reason}")
-        return 1
-
-    if not prepare_inference_runtime(config, console):
-        return 1
+    company_name = request.company_name
+    website = request.website
 
     # Run preflight checks before starting the pipeline
-    console.step("Preflight checks")
+    if not config.json_output:
+        console.step("Preflight checks")
     preflight_ok, preflight_errors = _run_preflight_checks(
         config.mode,
         premium_mode=config.premium_mode,
         fast_mode=config.fast_mode,
     )
     if not preflight_ok:
+        if config.json_output:
+            return report_command_error(
+                json_output=True,
+                operation="research",
+                error_type="preflight_failed",
+                message="Preflight checks failed",
+                hints=(*preflight_errors, "Run 'primr doctor' for detailed diagnostics"),
+            )
         for error in preflight_errors:
             console.error(error)
         console.blank()
         console.info("Run 'primr doctor' for detailed diagnostics")
-        return 1
-
-    # Resolve mode: --premium vs --fast vs auto-detect via XAI_API_KEY
-    if config.premium_mode and config.fast_mode:
-        console.error("Cannot use both --fast and --premium. Choose one.")
         return 1
 
     # Determine effective fast_mode for this run
@@ -2514,62 +2496,43 @@ def _handle_research(config: CLIConfig) -> int:
                 "hybrid": "Grok 4.3 hybrid",
                 "max": "Grok 4.3 max",
             }
-            console.info(
-                f"Using {tier_label.get(config.grok_tier, 'Grok')} · for deeper research add --premium"
-            )
-        else:
+            if not config.json_output:
+                console.info(
+                    f"Using {tier_label.get(config.grok_tier, 'Grok')} · "
+                    "for deeper research add --premium"
+                )
+        elif not config.json_output:
             console.info("Using standard mode (Gemini). Set XAI_API_KEY for faster, cheaper runs.")
-
-    if use_premium_mode:
-        if config.mode not in ("complete", "structured", "hybrid"):
-            console.error(f"--premium only works with full mode, not --mode {config.mode}")
-            return 1
 
     # Fast mode preflight: verify XAI_API_KEY and openai package
     if use_fast_mode:
-        if config.mode not in ("complete", "structured", "hybrid"):
-            console.error(f"--fast only works with full mode, not --mode {config.mode}")
-            console.info('Usage: primr "Company" https://url --fast [--platform aws azure]')
-            return 1
         if not os.environ.get("XAI_API_KEY"):
-            console.error("Fast mode requires XAI_API_KEY in your .env or environment")
-            console.info("Set it with: primr keys set xai")
-            console.info("Get a key at https://console.x.ai/")
-            return 1
+            return report_command_error(
+                json_output=config.json_output,
+                operation="research",
+                error_type="missing_provider_key",
+                message="Fast mode requires XAI_API_KEY in your .env or environment",
+                hints=("Set it with: primr keys set xai", "Get a key at https://console.x.ai/"),
+            )
         try:
             import openai  # noqa: F401
         except ImportError:
-            console.error("Fast mode requires the 'openai' package")
-            console.info("Install with: pip install 'primr[fast]' or pip install openai")
-            return 1
-        if config.lite_strategy:
+            return report_command_error(
+                json_output=config.json_output,
+                operation="research",
+                error_type="missing_dependency",
+                message="Fast mode requires the 'openai' package",
+                hints=("Install with: pip install 'primr[fast]' or pip install openai",),
+            )
+        if config.lite_strategy and not config.json_output:
             console.warn("--lite is ignored with --fast (fast mode uses Grok for all calls)")
 
-    console.ok("All systems ready")
+    if not config.json_output:
+        console.ok("All systems ready")
 
-    # Build context files list
-    context_files = list(config.context_files)
-
-    # Handle context folder
-    if config.context_folder:
-        try:
-            consolidated_file = consolidate_working_folder(config.context_folder)
-            context_files = [consolidated_file, *context_files]
-        except Exception as e:
-            console.error(f"Failed to consolidate context folder: {e}")
-            return 1
-
-    # Validate context files
-    if context_files:
-        # Cast to satisfy mypy - list[str] is compatible with list[str | Path]
-        validation_result = validate_context_files(list(context_files))  # type: ignore[arg-type]
-        for warning in validation_result.warnings:
-            console.warn(warning)
-        if validation_result.invalid_files:
-            for file_path, reason in validation_result.invalid_files:
-                console.error(f"Invalid context file: {file_path} - {reason}")
-            return 1
-        context_files = [str(p) for p in validation_result.valid_files]
+    context_files = resolve_research_context_files(config)
+    if context_files is None:
+        return 1
 
     # Same helper the --budget gate and dry-run price with (estimate = run).
     from primr.core.cli_budget import estimate_strategy_types
@@ -2588,9 +2551,16 @@ def _handle_research(config: CLIConfig) -> int:
         config,
         fast_mode=use_fast_mode,
         premium_mode=use_premium_mode,
+        emit_output=not config.json_output,
     )
     if not budget_activation.ok:
-        return 1
+        return report_command_error(
+            json_output=config.json_output,
+            operation="research",
+            error_type="budget_refused",
+            message=budget_activation.error_message or "Run budget was refused",
+            hints=budget_activation.hints,
+        )
 
     # Run research
     try:
@@ -2623,15 +2593,10 @@ def _handle_research(config: CLIConfig) -> int:
             skip_recon=config.skip_recon,
             continuous_reasoning=config.continuous_reasoning,
         )
-    except ActiveRunLeaseError as exc:
-        console.error(str(exc))
-        console.info("Wait for the active run to finish, then retry.")
-        result_path = None
     except ResumeLeaseError as exc:
-        console.error(str(exc))
-        console.info(
-            "Primr could not safely claim the workspace. Inspect the run log and lease file."
-        )
+        if config.json_output:
+            return report_research_workspace_error(exc, json_output=True)
+        report_research_workspace_error(exc, json_output=False)
         result_path = None
     finally:
         if budget_activation.active:
