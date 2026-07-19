@@ -408,7 +408,7 @@ class PrimrMCPServer:
                     await task
 
             if server_task in done:
-                await server_task
+                server_task.result()
             else:
                 shutdown_task.result()
 

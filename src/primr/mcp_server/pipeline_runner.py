@@ -514,7 +514,6 @@ class PipelineRunner:
 
         Requirements: FR-7.1, FR-7.2
         """
-        import json
         import os
         from pathlib import Path
 

@@ -67,7 +67,7 @@ def probe_local_persistence(
     for component, directory in component_dirs.items():
         identity = directory.resolve(strict=False)
         if identity not in probed:
-            probed[identity], _error = check_dir_atomic_writable(directory)
+            probed[identity], _ = check_dir_atomic_writable(directory)
         readiness[component] = probed[identity]
         if not readiness[component]:
             raise PersistencePreflightError(component)

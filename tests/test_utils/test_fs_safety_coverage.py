@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 from primr.utils import fs_safety
 from primr.utils.fs_safety import (
+    check_dir_atomic_writable,
     check_dir_writable,
     write_bytes_secure,
     write_text_secure,
@@ -87,3 +88,17 @@ class TestCheckDirWritableErrors:
             ok, err = check_dir_writable(tmp_path)
         assert ok is True
         assert err is None
+
+    def test_atomic_probe_cleanup_failure_is_not_hidden(self, tmp_path):
+        real_unlink = Path.unlink
+
+        def fail_atomic_probe(candidate, *args, **kwargs):
+            if candidate.name.startswith(".primr_atomic_test_"):
+                raise OSError("busy")
+            return real_unlink(candidate, *args, **kwargs)
+
+        with patch.object(Path, "unlink", fail_atomic_probe):
+            ok, err = check_dir_atomic_writable(tmp_path)
+
+        assert ok is False
+        assert err == "Atomic cleanup failed: OSError"

@@ -114,11 +114,10 @@ def check_dir_atomic_writable(path: Path) -> tuple[bool, str | None]:
         atomic_write_bytes(candidate, b"ok")
     except OSError as exc:
         return False, f"Atomic write failed: {exc}"
-    finally:
-        try:
-            candidate.unlink(missing_ok=True)
-        except OSError:
-            pass
+    try:
+        candidate.unlink(missing_ok=True)
+    except OSError as exc:
+        return False, f"Atomic cleanup failed: {exc.__class__.__name__}"
     return True, None
 
 

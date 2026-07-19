@@ -43,7 +43,7 @@ def _full_mode_label(grok_tier: str) -> str:
 
 def run_dry_run(config: CLIConfig) -> int:
     """Show the cost estimate for a run without executing it."""
-    from primr.core.cli_errors import report_command_error
+    from primr.core.cli_command_output import report_command_error
     from primr.core.cli_inference import (
         inference_estimate_metadata,
         validate_inference_options,

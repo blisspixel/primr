@@ -6,7 +6,6 @@ This module provides the CLI entry point and argument parsing:
 - Argument parsing and validation
 - Command dispatch to appropriate runners
 - Utility commands (doctor, list-recent, etc.)
-
 Usage:
     from primr.core.cli import main, parse_args, run_doctor
 
@@ -54,6 +53,7 @@ from primr.core.cli_batch import (
     _read_batch_file as _read_batch_file,
 )
 from primr.core.cli_calibration_args import add_calibration_arguments
+from primr.core.cli_command_output import report_command_error
 from primr.core.cli_dispatch import (
     is_mcp_command,
     is_skills_command,
@@ -84,7 +84,7 @@ from primr.core.cli_doctor import (
     run_doctor,
 )
 from primr.core.cli_dryrun import run_dry_run
-from primr.core.cli_errors import guard_dispatch, report_command_error
+from primr.core.cli_errors import guard_dispatch
 from primr.core.cli_eval_args import add_eval_arguments
 from primr.core.cli_inference import prepare_batch_inference_runtime
 from primr.core.cli_init import (

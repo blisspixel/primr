@@ -21,34 +21,44 @@ _FULL_RESEARCH_MODES = ("complete", "structured", "hybrid")
 
 class _ResearchConfig(Protocol):
     @property
-    def company_name(self) -> str | None: ...
+    def company_name(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def website(self) -> str | None: ...
+    def website(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def premium_mode(self) -> bool: ...
+    def premium_mode(self) -> bool:
+        raise NotImplementedError
 
     @property
-    def fast_mode(self) -> bool: ...
+    def fast_mode(self) -> bool:
+        raise NotImplementedError
 
     @property
-    def mode(self) -> str: ...
+    def mode(self) -> str:
+        raise NotImplementedError
 
     @property
-    def json_output(self) -> bool: ...
+    def json_output(self) -> bool:
+        raise NotImplementedError
 
     @property
-    def inference_profile(self) -> str: ...
+    def inference_profile(self) -> str:
+        raise NotImplementedError
 
     @property
-    def acknowledge_host_agent_may_bill(self) -> bool: ...
+    def acknowledge_host_agent_may_bill(self) -> bool:
+        raise NotImplementedError
 
     @property
-    def context_files(self) -> tuple[str, ...]: ...
+    def context_files(self) -> tuple[str, ...]:
+        raise NotImplementedError
 
     @property
-    def context_folder(self) -> str | None: ...
+    def context_folder(self) -> str | None:
+        raise NotImplementedError
 
 
 @dataclass(frozen=True)
