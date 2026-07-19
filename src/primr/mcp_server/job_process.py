@@ -14,7 +14,9 @@ import os
 import subprocess
 import sys
 import uuid
+from collections.abc import Iterator
 from pathlib import Path
+from typing import BinaryIO
 
 from primr.mcp_server.job_process_types import (
     CancellationOutcome,
@@ -88,6 +90,30 @@ class LocalJobSupervisor:
         self._handles: dict[str, _WorkerHandle] = {}
         self._start_lock = asyncio.Lock()
         self._shutdown_started = False
+        self._output_persistence_healthy = False
+
+    @property
+    def output_root(self) -> Path:
+        """Return the root used for worker logs and terminal artifacts."""
+        if self._output_root is not None:
+            return self._output_root
+        from primr.config.config import OUTPUT_DIR
+
+        return Path(OUTPUT_DIR)
+
+    @property
+    def shutdown_started(self) -> bool:
+        """Return whether worker admission has permanently closed."""
+        return self._shutdown_started
+
+    @property
+    def output_persistence_healthy(self) -> bool:
+        """Return false after a required worker artifact write fails."""
+        return self._output_persistence_healthy
+
+    def mark_output_preflight_succeeded(self) -> None:
+        """Open the output health latch after controller preflight succeeds."""
+        self._output_persistence_healthy = True
 
     @property
     def running_job_ids(self) -> tuple[str, ...]:
@@ -136,7 +162,11 @@ class LocalJobSupervisor:
                 )
 
                 log_path = self._worker_log_path(job.job_id)
-                log_path.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    log_path.parent.mkdir(parents=True, exist_ok=True)
+                except OSError:
+                    self._output_persistence_healthy = False
+                    raise
 
                 environment = worker_environment()
                 environment["PRIMR_SUPERVISED_WORKER"] = "1"
@@ -223,13 +253,13 @@ class LocalJobSupervisor:
         environment: dict[str, str],
     ) -> asyncio.subprocess.Process:
         """Spawn a child while lexically owning its parent-side stderr stream."""
-        with open(log_path, "ab", buffering=0) as stderr_file:
+        with self._worker_log_stream(log_path) as stderr_stream:
             if os.name == "nt":
                 return await asyncio.create_subprocess_exec(
                     *self._worker_command,
                     stdin=asyncio.subprocess.PIPE,
                     stdout=asyncio.subprocess.PIPE,
-                    stderr=stderr_file,
+                    stderr=stderr_stream,
                     env=environment,
                     limit=MAX_WORKER_LINE_BYTES,
                     creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
@@ -238,11 +268,23 @@ class LocalJobSupervisor:
                 *self._worker_command,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=stderr_file,
+                stderr=stderr_stream,
                 env=environment,
                 limit=MAX_WORKER_LINE_BYTES,
                 start_new_session=True,
             )
+
+    @contextlib.contextmanager
+    def _worker_log_stream(self, log_path: Path) -> Iterator[BinaryIO]:
+        """Open the worker log and close output readiness on open failure."""
+        try:
+            # Entry failures are tracked separately from child spawn failures.
+            stderr_context = open(log_path, "ab", buffering=0)  # noqa: SIM115
+        except OSError:
+            self._output_persistence_healthy = False
+            raise
+        with stderr_context as stderr_stream:
+            yield stderr_stream
 
     def _register_worker(
         self,
@@ -784,28 +826,30 @@ class LocalJobSupervisor:
         job = self._job_store.get(handle.job_id)
         if job is None or not job.is_terminal() or job.current_stage == ResearchStage.COMPLETED:
             return
-        manifest_value = write_terminal_manifest(
-            job=job,
-            output_dir=self._worker_log_path(handle.job_id).parent,
-            company_url=handle.company_url,
-            mode=handle.mode,
-            budget_usd=handle.budget_usd,
-            return_code=return_code,
-            cancel_reason=handle.cancel_reason,
-            termination_method=handle.termination_method,
-        )
+        try:
+            manifest_value = write_terminal_manifest(
+                job=job,
+                output_dir=self._worker_log_path(handle.job_id).parent,
+                company_url=handle.company_url,
+                mode=handle.mode,
+                budget_usd=handle.budget_usd,
+                return_code=return_code,
+                cancel_reason=handle.cancel_reason,
+                termination_method=handle.termination_method,
+            )
+        except Exception:
+            self._output_persistence_healthy = False
+            logger.exception("Terminal manifest persistence failed for job %s", handle.job_id)
+            return
         if manifest_value is None:
+            self._output_persistence_healthy = False
             return
         if manifest_value not in job.output_paths:
             job.output_paths.append(manifest_value)
             self._job_store.update(job)
 
     def _worker_log_path(self, job_id: str) -> Path:
-        if self._output_root is not None:
-            return self._output_root / job_id / "_worker.log"
-        from primr.config.config import OUTPUT_DIR
-
-        return Path(OUTPUT_DIR) / job_id / "_worker.log"
+        return self.output_root / job_id / "_worker.log"
 
 
 __all__ = [

@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "6761947290005315128"
+      "templateHash": "13142184112219072207"
     }
   },
   "parameters": {
@@ -42,16 +42,20 @@
     },
     "minReplicas": {
       "type": "int",
-      "defaultValue": 0,
+      "defaultValue": 1,
+      "minValue": 1,
+      "maxValue": 1,
       "metadata": {
-        "description": "Minimum Container App replicas (0 for scale-to-zero)"
+        "description": "MCP controller replicas. Primr currently supports exactly one persistent controller because governed job, approval, rate-limit, and audit state are process-local."
       }
     },
     "maxReplicas": {
       "type": "int",
-      "defaultValue": "[if(equals(parameters('tier'), 'organization'), 10, 5)]",
+      "defaultValue": 1,
+      "minValue": 1,
+      "maxValue": 1,
       "metadata": {
-        "description": "Maximum Container App replicas. Team tier defaults to 5 to control costs; organization tier defaults to 10 for higher throughput."
+        "description": "MCP controller replicas. Must remain one until the control plane uses shared transactional state."
       }
     },
     "budgetAmount": {
@@ -879,7 +883,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "12664887038645606014"
+              "templateHash": "3498016012094233083"
             }
           },
           "parameters": {
@@ -897,16 +901,20 @@
             },
             "minReplicas": {
               "type": "int",
-              "defaultValue": 0,
+              "defaultValue": 1,
+              "minValue": 1,
+              "maxValue": 1,
               "metadata": {
-                "description": "Minimum number of replicas (0 for scale-to-zero)"
+                "description": "Minimum MCP controller replicas. Exactly one persistent controller is supported."
               }
             },
             "maxReplicas": {
               "type": "int",
-              "defaultValue": 5,
+              "defaultValue": 1,
+              "minValue": 1,
+              "maxValue": 1,
               "metadata": {
-                "description": "Maximum number of replicas (default 5 for team tier, 10 for organization - higher values increase cost)"
+                "description": "Maximum MCP controller replicas. Exactly one controller is supported until state is shared."
               }
             },
             "acrLoginServer": {
@@ -999,6 +1007,7 @@
               "properties": {
                 "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]",
                 "configuration": {
+                  "activeRevisionsMode": "Single",
                   "ingress": {
                     "external": true,
                     "targetPort": 8000,
@@ -1091,7 +1100,7 @@
                         {
                           "type": "Readiness",
                           "httpGet": {
-                            "path": "/healthz",
+                            "path": "/readyz",
                             "port": 8000
                           },
                           "initialDelaySeconds": 5,
@@ -1102,17 +1111,7 @@
                   ],
                   "scale": {
                     "minReplicas": "[parameters('minReplicas')]",
-                    "maxReplicas": "[parameters('maxReplicas')]",
-                    "rules": [
-                      {
-                        "name": "http-scaling",
-                        "http": {
-                          "metadata": {
-                            "concurrentRequests": "100"
-                          }
-                        }
-                      }
-                    ]
+                    "maxReplicas": "[parameters('maxReplicas')]"
                   }
                 }
               },

@@ -104,7 +104,11 @@ MCP/A2A tool surfaces, and (4) provider secrets + the dependency supply chain.
   active before job creation, then propagates the accepted cap into
   `PipelineRunner` as the runtime budget. Residual risk remains around required
   provider tasks that cannot be interrupted mid-flight after the user accepts
-  the estimate. Issue
+  the estimate. Approval tokens are single-use and process-instance-bound, so
+  a restart requires a new estimate and fresh approval even when instances
+  share a signing secret. Strategy generation validates the report as one
+  stable, regular, non-linked file and gives providers only a verified private
+  snapshot; a changed report fails before a provider call. Issue
   low-trust tokens with explicit `read` scopes rather than relying on legacy
   no-scope JWT defaults, and issue `report` only to clients that should consume
   report text.
@@ -115,8 +119,8 @@ MCP/A2A tool surfaces, and (4) provider secrets + the dependency supply chain.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.35.x  | Yes                |
-| < 1.35  | No                 |
+| 1.36.x  | Yes                |
+| < 1.36  | No                 |
 
 Requires Python 3.12+ (3.10/3.11 are past or nearing end-of-life).
 

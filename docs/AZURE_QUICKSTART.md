@@ -20,7 +20,7 @@ jq --version
 
 ## Part A: Team-Tier Deployment (< 10 minutes)
 
-The team tier gives you a shared MCP server on Azure Container Apps with API key auth, scale-to-zero, and minimal Azure footprint. Estimated idle cost: < $5/month.
+The team tier gives you a shared MCP server on Azure Container Apps with API key auth and one persistent controller replica. The controller does not scale to zero because its governed job, approval, rate-limit, and audit state is process-local. Check the Azure pricing calculator for the selected region before deployment.
 
 ### 1. Clone and configure
 
@@ -120,7 +120,7 @@ When your team grows or you need Entra ID auth, per-user budget tracking, and fu
 | Job queue | Direct trigger | Service Bus + dead-letter |
 | Reconciler | - | Azure Function (timer) |
 | Copilot Cowork | - | M365 Agent Store publishing |
-| Estimated idle cost | < $5/month | < $15/month |
+| Pricing | Check selected region and configuration | Check selected region and configuration |
 
 ### Deploy organization tier
 

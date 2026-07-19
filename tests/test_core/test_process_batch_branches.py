@@ -15,6 +15,7 @@ from primr.core.cli_batch import _ColumnMap
 def isolated(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("primr.core.cli.OUTPUT_DIR", str(tmp_path / "output"))
+    monkeypatch.setattr("primr.config.config.OUTPUT_DIR", str(tmp_path / "output"))
     return tmp_path
 
 

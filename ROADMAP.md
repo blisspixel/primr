@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.36.0
+Current State: v1.36.1
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -433,7 +433,7 @@ a schedule. Detailed breakdowns live in [`docs/design/`](docs/design/README.md)
 
 The job is "URL in, consultant-grade artifact out," done well.
 
-**Status (as of v1.36.0):** most of the 1.x engineering backlog is closed -
+**Status (as of v1.36.1):** most of the 1.x engineering backlog is closed -
 artifact pipeline contract (#1-2), cost/observability surface (#5, #7, #8,
 #12, #13), production failover (#6), QA iteration loop (#10), agentic write
 constraints (#11), runtime robustness (#24), and the `perform_fast_research`
@@ -1519,7 +1519,7 @@ A deliberate finish pass to close the gap between *already rigorous* and *refere
 - **OpenSSF Scorecard + badge - DONE** (distinct from the tracked OpenSSF *Secure Coding Guide* audit, a manual code pass): Scorecard is the automated repo-health scorer. `.github/workflows/scorecard.yml` runs `ossf/scorecard-action` on the default branch (push + weekly + on ruleset changes), uploads SARIF to the Security tab, and publishes to the public OpenSSF dataset; the README carries the badge (resolves after the first `main` run). primr should already score well (pinned actions, OIDC trusted publishing, SLSA provenance, the `main-safety` ruleset, hard-gated secret scanning) - Scorecard makes that *externally legible* and ratchets it. Remaining: review the first score and close any cheap findings (e.g. SHA-pin actions if the Pinned-Dependencies check dings tag pins).
 - **CodeQL SAST - DONE** as a second, *semantic* security gate beside bandit/Trivy/pip-audit. `.github/workflows/codeql.yml` analyzes Python (`build-mode: none`) on push/PR to `main` + weekly; dataflow/taint findings land as code-scanning alerts in the same Security tab. Signal-only for now (the analyze job succeeds even with alerts); promote to a hard gate once the baseline is triaged clean (the same warn-then-hard path Trivy took).
 - **`CITATION.cff`** - machine-readable citation metadata; GitHub renders a "Cite this repository" button and Zenodo/reference managers consume it. Fits primr's research framing and costs almost nothing.
-- **`CODE_OF_CONDUCT.md` + `.editorconfig`** - the two standard files still missing from the community-health / onboarding set. A Contributor-Covenant CoC completes GitHub's community profile for a serious public project; `.editorconfig` pins indentation/charset/newline across editors so contributors match `ruff format` without thinking.
+- **`CODE_OF_CONDUCT.md` + `.editorconfig` - SHIPPED.** The Contributor Covenant completes the community-health set, and `.editorconfig` pins indentation, charset, and newline behavior across editors so contributors match the formatter without extra setup.
 - **Published documentation site** (mkdocs-material on GitHub Pages) - **SHIPPED (strict)**. `mkdocs.yml` renders the `docs/*.md` corpus as a Material-themed, searchable site with a curated Diataxis nav (Getting started / How-to / Reference / Explanation / Design notes); `.github/workflows/docs.yml` builds it package-free (the `docs` extra only - no native runtime stack) and deploys to GitHub Pages via OIDC on every `docs/**` change. Home and all primary nav pages render clean. README has been tightened into a short project front door, with the detailed mode/cost matrix moved to `docs/RUN_MODES.md`, agent-host guidance moved to `docs/AGENT_INTEGRATION.md`, and detailed local contributor gates moved to `docs/CONTRIBUTING.md`. The root README now leads with use-fit, command selection, cost and budget semantics, and output shape. The deep interior cross-links to root files (`ROADMAP.md`, `CLAUDE.md`) and `deploy/` paths now use stable GitHub URLs; the orphaned eval and design docs are in the nav; and `mkdocs build --strict` is enforced locally and in the Pages workflow so broken links fail the build. Remaining follow-ups: (1) add the `mkdocstrings` API reference off the `py.typed` signatures (deferred to keep the docs build from importing the heavy runtime stack); (2) optional versioned docs (`mike`).
 
 **Deliberate non-additions** (recorded so they aren't re-litigated):
@@ -1795,10 +1795,8 @@ The framing shift: from tool to role. Primr already does deep company research. 
 
 ### Public Release Polish
 
-PyPI publication has shipped (`pip install primr` works). Remaining items for a broader public release push:
+PyPI publication, the external contribution workflow, and the strict documentation site have shipped. Remaining items for a broader public release push:
 
-- Contribution workflow for external contributors
-- Documentation site
 - Reduce `setup_env.py` to a thin wrapper around `primr init` once the PyPI install path is the default documented path
 - README screen capture / GIF assets (asciinema or vhs recording of a real research run; refreshed DOCX screenshot; updated `docs/images/primr-demo.png`)
 
@@ -1930,6 +1928,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.36.1 | Jul 2026 | **Fail-closed controller and operator contracts.** Strict self-update parsing and confirmation, versioned CLI machine errors, stable strategy snapshots, restart-bound approvals, truthful readiness, secure journal and audit continuity, exact trace ownership, single-replica Azure topology, and fail-closed deployment validation make existing workflows safer and easier to operate. |
 | 1.36.0 | Jul 2026 | **Business-first strategy and governed recovery.** AI Strategy 2.1 leads with enterprise performance, value choices, measurable outcomes, non-AI alternatives, complete stack disposition, and workload-specific hybrid economics. Standalone strategy recovery is estimate-first and digest-bound. Batch research and enrichment use separate whole-operation quotes, exact approval, budgets, and retry policy. Atomic workspaces, cross-process leases, publication locks, job-local MCP strategy artifacts, duplicate-interaction prevention, and exact lite output caps harden concurrent execution. |
 | 1.35.2 | Jul 2026 | **Acyclic controller boundaries and immutable supply chain.** Shared MCP and A2A consumers now type against a shared cross-transport controller contract, direct strategy requests honor the requested module and canonical Deep Research estimate, and architecture tests prevent concrete server imports outside composition roots. GitHub Actions and Python container bases are immutable pins. Managed-identity Azure stores, quote extraction, finite audit values, retry validation, and standalone exit handling are corrected. |
 | 1.35.1 | Jul 2026 | **Truthful worker ownership and estimate-delivery parity.** Local MCP/A2A research now runs in supervised Python child processes with strict lifecycle events, cleanup-confirmed process-tree cancellation, immutable terminal state, lease-time journal reload, exact A2A task ownership, and worker-exit cancellation manifests. Full and premium MCP runs now deliver the single strategy target their estimates price, while unsupported integrated shapes fail before approval. |

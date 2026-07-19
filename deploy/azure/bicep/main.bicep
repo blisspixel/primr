@@ -17,11 +17,15 @@ param resourcePrefix string = 'primr'
 @allowed(['team', 'organization'])
 param tier string = 'team'
 
-@description('Minimum Container App replicas (0 for scale-to-zero)')
-param minReplicas int = 0
+@description('MCP controller replicas. Primr currently supports exactly one persistent controller because governed job, approval, rate-limit, and audit state are process-local.')
+@minValue(1)
+@maxValue(1)
+param minReplicas int = 1
 
-@description('Maximum Container App replicas. Team tier defaults to 5 to control costs; organization tier defaults to 10 for higher throughput.')
-param maxReplicas int = tier == 'organization' ? 10 : 5
+@description('MCP controller replicas. Must remain one until the control plane uses shared transactional state.')
+@minValue(1)
+@maxValue(1)
+param maxReplicas int = 1
 
 @description('Monthly Azure budget amount in USD (default: 50 for team, 200 for org)')
 param budgetAmount int = tier == 'organization' ? 200 : 50

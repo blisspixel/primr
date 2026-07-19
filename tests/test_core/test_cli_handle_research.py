@@ -6,6 +6,7 @@ to exercise each early-return branch and the mode-resolution logic.
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock
 
 import pytest
@@ -52,6 +53,32 @@ class TestEarlyValidation:
         result = _handle_research(_config(website=None))
         assert result == 1
 
+    @pytest.mark.parametrize("missing", ["company_name", "website"])
+    def test_missing_inputs_json_is_one_error_object(self, missing, capsys):
+        result = _handle_research(_config(json_output=True, **{missing: None}))
+
+        assert result == 1
+        payload = json.loads(capsys.readouterr().out)
+        assert payload == {
+            "schema_version": "primr.command-error.v1",
+            "operation": "research",
+            "error": True,
+            "error_type": "missing_research_input",
+            "message": "Both company name and website are required",
+            "hints": [
+                'Usage: primr "Company Name" https://company.com',
+                "Run 'primr doctor' to check system configuration",
+            ],
+        }
+
+    def test_human_missing_inputs_preserves_guidance(self, capsys):
+        assert _handle_research(_config(company_name=None)) == 1
+
+        output = capsys.readouterr().out
+        assert "Both company name and website are required" in output
+        assert 'Usage: primr "Company Name" https://company.com' in output
+        assert "primr doctor" in output
+
     def test_invalid_company_name_returns_1(self, passing_preflight, monkeypatch):
         from primr.utils.validators import InputValidationError
 
@@ -75,6 +102,30 @@ class TestEarlyValidation:
         monkeypatch.setattr("primr.utils.validators.validate_url", reject_url)
         assert _handle_research(_config(website="ftp://bad")) == 1
 
+    @pytest.mark.parametrize("field", ["company", "website"])
+    def test_invalid_inputs_json_is_one_error_object(self, field, monkeypatch, capsys):
+        from primr.utils.validators import InputValidationError
+
+        if field == "company":
+            monkeypatch.setattr(
+                "primr.utils.validators.validate_company_name",
+                MagicMock(side_effect=InputValidationError(field="company_name", reason="bad")),
+            )
+        else:
+            monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda value: value)
+            monkeypatch.setattr(
+                "primr.utils.validators.validate_url",
+                MagicMock(side_effect=InputValidationError(field="website", reason="bad")),
+            )
+
+        assert _handle_research(_config(json_output=True)) == 1
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["error"] is True
+        assert (
+            payload["error_type"]
+            == f"invalid_{'company_name' if field == 'company' else 'website_url'}"
+        )
+
 
 class TestPreflightFailures:
     def test_failed_preflight_returns_1(self, monkeypatch):
@@ -85,6 +136,19 @@ class TestPreflightFailures:
             MagicMock(return_value=(False, ["missing API key"])),
         )
         assert _handle_research(_config()) == 1
+
+    def test_preflight_failure_json_is_one_error_object(self, monkeypatch, capsys):
+        monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda value: value)
+        monkeypatch.setattr("primr.utils.validators.validate_url", lambda value: value)
+        monkeypatch.setattr(
+            "primr.core.cli._run_preflight_checks",
+            MagicMock(return_value=(False, ["missing provider"])),
+        )
+
+        assert _handle_research(_config(json_output=True)) == 1
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["error_type"] == "preflight_failed"
+        assert payload["hints"][0] == "missing provider"
 
 
 class TestModeIncompatibilities:
@@ -108,6 +172,27 @@ class TestModeIncompatibilities:
         monkeypatch.setattr("primr.utils.validators.validate_url", lambda x: x)
         monkeypatch.delenv("XAI_API_KEY", raising=False)
         assert _handle_research(_config(fast_mode=True, mode="complete")) == 1
+
+    def test_mode_conflict_json_skips_preflight(self, monkeypatch, capsys):
+        monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda value: value)
+        monkeypatch.setattr("primr.utils.validators.validate_url", lambda value: value)
+        preflight = MagicMock()
+        monkeypatch.setattr("primr.core.cli._run_preflight_checks", preflight)
+
+        assert _handle_research(_config(json_output=True, fast_mode=True, premium_mode=True)) == 1
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["error_type"] == "incompatible_mode_options"
+        preflight.assert_not_called()
+
+    def test_inference_pair_json_is_one_error_object(self, monkeypatch, capsys):
+        monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda value: value)
+        monkeypatch.setattr("primr.utils.validators.validate_url", lambda value: value)
+
+        assert (
+            _handle_research(_config(json_output=True, acknowledge_host_agent_may_bill=True)) == 1
+        )
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["error_type"] == "invalid_inference_options"
 
 
 class TestSuccessPath:
@@ -145,6 +230,40 @@ class TestSuccessPath:
         assert "active company run" in output
         assert "Wait for the active run to finish" in output
         assert "Traceback" not in output
+
+    @pytest.mark.parametrize(
+        "exception_name,expected_type",
+        [
+            ("active", "active_run"),
+            ("workspace", "workspace_lease"),
+        ],
+    )
+    def test_workspace_lease_failures_are_one_json_object(
+        self,
+        passing_preflight,
+        monkeypatch,
+        capsys,
+        exception_name,
+        expected_type,
+    ):
+        from primr.core.workspace import ActiveRunLeaseError, ResumeLeaseError
+
+        monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda value: value)
+        monkeypatch.setattr("primr.utils.validators.validate_url", lambda value: value)
+        failure = (
+            ActiveRunLeaseError("active run")
+            if exception_name == "active"
+            else ResumeLeaseError("workspace unavailable")
+        )
+        monkeypatch.setattr(
+            "primr.core.research_agent.perform_research",
+            MagicMock(side_effect=failure),
+        )
+
+        assert _handle_research(_config(premium_mode=True, json_output=True)) == 1
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["schema_version"] == "primr.command-error.v1"
+        assert payload["error_type"] == expected_type
 
     def test_opens_file_when_open_after_set(
         self, passing_preflight, perform_research_ok, monkeypatch
@@ -218,6 +337,38 @@ class TestContextFiles:
         )
         result = _handle_research(_config(premium_mode=True, context_files=("bad.txt",)))
         assert result == 1
+        perform_research_ok.assert_not_called()
+
+    def test_invalid_context_json_includes_warning_without_console_noise(
+        self, passing_preflight, perform_research_ok, monkeypatch, capsys
+    ):
+        monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda x: x)
+        monkeypatch.setattr("primr.utils.validators.validate_url", lambda x: x)
+
+        result_obj = MagicMock(
+            invalid_files=[("bad.txt", "not found")],
+            valid_files=[],
+            warnings=["context warning"],
+        )
+        monkeypatch.setattr(
+            "primr.core.workspace.validate_context_files",
+            MagicMock(return_value=result_obj),
+        )
+
+        result = _handle_research(
+            _config(
+                premium_mode=True,
+                context_files=("bad.txt",),
+                json_output=True,
+            )
+        )
+
+        assert result == 1
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["hints"] == [
+            "context warning",
+            "Invalid context file: bad.txt - not found",
+        ]
         perform_research_ok.assert_not_called()
 
     def test_context_folder_consolidation_failure_returns_1(

@@ -17,6 +17,7 @@ No real sockets are bound and no transport actually serves traffic.
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 import tempfile
 from contextlib import asynccontextmanager
@@ -66,8 +67,8 @@ class TestSignalHandlerCallback:
 
 class TestRunStdio:
     @pytest.mark.asyncio
-    async def test_run_stdio_graceful_shutdown(self, server):
-        """run_stdio wires the stdio transport and finishes via graceful shutdown."""
+    async def test_run_stdio_leaves_shutdown_to_controller_lifecycle(self, server):
+        """run_stdio must not close worker admission owned by the shared lifecycle."""
 
         @asynccontextmanager
         async def fake_stdio():
@@ -86,7 +87,7 @@ class TestRunStdio:
             await server.run_stdio()
 
         assert server.server.run.await_count == 1
-        mock_shutdown.assert_awaited_once()
+        mock_shutdown.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_run_stdio_shutdown_event_cancels_server(self, server):
@@ -113,7 +114,24 @@ class TestRunStdio:
         ):
             await server.run_stdio()
 
-        mock_shutdown.assert_awaited_once()
+        mock_shutdown.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_run_stdio_propagates_server_task_failure(self, server):
+        @asynccontextmanager
+        async def fake_stdio():
+            yield (MagicMock(), MagicMock())
+
+        server.server.run = AsyncMock(side_effect=RuntimeError("transport failed"))
+        server.server.create_initialization_options = MagicMock(return_value={})
+
+        with (
+            patch("primr.mcp_server.server.stdio_server", fake_stdio),
+            patch("primr.mcp_server.server.configure_stdio_logging"),
+            patch.object(server, "_setup_signal_handlers"),
+            pytest.raises(RuntimeError, match="transport failed"),
+        ):
+            await server.run_stdio()
 
 
 # ---------------------------------------------------------------------------
@@ -190,6 +208,7 @@ class TestRunHttp:
 
         def fake_starlette(routes, on_startup, on_shutdown):
             captured["routes"] = routes
+            captured["on_shutdown"] = on_shutdown
             return MagicMock()
 
         fake_auth_mod = MagicMock()
@@ -215,8 +234,12 @@ class TestRunHttp:
 
         assert served.serve.await_count == 1
         assert fake_auth_mod.create_auth_middleware.called
-        # Two routes: /healthz + /mcp mount (no A2A by default).
-        assert len(captured["routes"]) == 2
+        # Three routes: shallow liveness, local readiness, and MCP.
+        assert [route.path for route in captured["routes"]] == [
+            "/healthz",
+            "/readyz",
+            "/mcp",
+        ]
 
     @pytest.mark.asyncio
     async def test_run_http_cohosts_a2a(self):
@@ -234,6 +257,7 @@ class TestRunHttp:
 
         def fake_starlette(routes, on_startup, on_shutdown):
             captured["routes"] = routes
+            captured["on_shutdown"] = on_shutdown
             return MagicMock()
 
         a2a_server = MagicMock()
@@ -260,12 +284,14 @@ class TestRunHttp:
 
         assert served.serve.await_count == 1
         assert fake_a2a_mod.PrimrA2AServer.called
-        # /healthz + /mcp + /a2a == 3 routes.
-        assert len(captured["routes"]) == 3
+        # /healthz + /readyz + /mcp + /a2a == 4 routes.
+        assert len(captured["routes"]) == 4
 
     @pytest.mark.asyncio
     async def test_run_http_handle_mcp_lifespan_and_request(self):
         """Exercise the inner handle_mcp ASGI app: lifespan + request scopes."""
+        from starlette.responses import JSONResponse
+
         s = _http_server(host="127.0.0.1", require_auth=False)
 
         fake_uvicorn = MagicMock()
@@ -283,6 +309,7 @@ class TestRunHttp:
 
         def fake_starlette(routes, on_startup, on_shutdown):
             captured["routes"] = routes
+            captured["on_shutdown"] = on_shutdown
             return MagicMock()
 
         with (
@@ -296,7 +323,7 @@ class TestRunHttp:
                     "mcp.server.streamable_http": fake_streamable,
                     "starlette.applications": MagicMock(Starlette=fake_starlette),
                     "starlette.routing": _make_routing_module(),
-                    "starlette.responses": MagicMock(JSONResponse=MagicMock()),
+                    "starlette.responses": MagicMock(JSONResponse=JSONResponse),
                 },
             ),
         ):
@@ -319,15 +346,34 @@ class TestRunHttp:
             await handle_mcp({"type": "lifespan"}, receive, send)
             assert "lifespan.startup.complete" in sent
             assert "lifespan.shutdown.complete" in sent
-            assert mock_shutdown.await_count >= 1
+            mock_shutdown.assert_not_awaited()
+            assert captured["on_shutdown"] == []
 
             # 2) Plain HTTP request scope routes to transport.handle_request.
             await handle_mcp({"type": "http"}, AsyncMock(), AsyncMock())
             assert transport.handle_request.await_count == 1
 
-            # 3) The /healthz endpoint returns a JSONResponse (line 297).
+            # 3) Public probes have distinct liveness and readiness contracts.
             healthz = next(r for r in captured["routes"] if r.path == "/healthz")
-            await healthz.endpoint(object())
+            health_response = await healthz.endpoint(object())
+            assert health_response.status_code == 200
+            assert health_response.headers["cache-control"] == "no-store"
+            assert json.loads(health_response.body) == {"status": "ok"}
+
+            readyz = next(r for r in captured["routes"] if r.path == "/readyz")
+            ready_response = await readyz.endpoint(object())
+            assert ready_response.status_code == 503
+            assert ready_response.headers["cache-control"] == "no-store"
+            assert json.loads(ready_response.body)["status"] == "not_ready"
+
+            with patch.object(
+                s,
+                "readiness_snapshot",
+                return_value=(True, {"status": "ready", "checks": {}}),
+            ):
+                ready_response = await readyz.endpoint(object())
+            assert ready_response.status_code == 200
+            assert json.loads(ready_response.body)["status"] == "ready"
 
     @pytest.mark.asyncio
     async def test_run_http_bridges_authenticated_user_to_request_context(self):
@@ -440,8 +486,8 @@ class TestRunHttp:
             await s.run_http()
 
         assert served.serve.await_count == 1
-        # A2A failed -> only /healthz + /mcp.
-        assert len(captured["routes"]) == 2
+        # A2A failed, so only both probes and /mcp remain.
+        assert len(captured["routes"]) == 3
 
     @pytest.mark.asyncio
     async def test_run_http_a2a_import_error_is_tolerated(self):
@@ -487,8 +533,8 @@ class TestRunHttp:
             await s.run_http()
 
         assert served.serve.await_count == 1
-        # A2A failed to mount, so only /healthz + /mcp remain.
-        assert len(captured["routes"]) == 2
+        # A2A failed to mount, so both probes and /mcp remain.
+        assert len(captured["routes"]) == 3
 
 
 def _make_routing_module():

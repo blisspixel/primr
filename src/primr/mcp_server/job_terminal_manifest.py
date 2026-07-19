@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 from pathlib import Path
 
@@ -24,7 +25,6 @@ def write_terminal_manifest(
     termination_method: str | None,
 ) -> str | None:
     """Persist a compact audit manifest and return its path on success."""
-    output_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = output_dir / "run_manifest.json"
     temp_path = manifest_path.with_suffix(".tmp")
     actual_time_minutes = None
@@ -72,11 +72,13 @@ def write_terminal_manifest(
         "artifacts": list(job.output_paths),
     }
     try:
+        output_dir.mkdir(parents=True, exist_ok=True)
         with open(temp_path, "w", encoding="utf-8") as stream:
             json.dump(manifest, stream, indent=2)
         atomic_replace(temp_path, manifest_path)
     except (OSError, TypeError, ValueError):
-        temp_path.unlink(missing_ok=True)
+        with contextlib.suppress(OSError):
+            temp_path.unlink(missing_ok=True)
         logger.exception("Failed to write terminal manifest for job %s", job.job_id)
         return None
     return str(manifest_path)

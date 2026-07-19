@@ -342,7 +342,12 @@ Configure S3 lifecycle policy for artifact cleanup:
 | Job State | DynamoDB | Cosmos DB | Firestore |
 | Secrets | Secrets Manager | Key Vault | Secret Manager |
 | Max Timeout | 120 min | 120 min | 120 min |
-| Scale to Zero | Yes | Yes | Yes |
+| Scale to Zero | Yes | Control-plane API only; MCP: No | Yes |
+
+Azure has two explicit container surfaces. `deploy/azure/container-app.yaml`
+describes the Cosmos-backed `primr-api` control plane and may scale to zero.
+The Bicep quickstart runs `primr-mcp`, whose governed controller state is
+process-local and therefore requires exactly one persistent replica.
 
 ## Production Hardening
 
@@ -372,7 +377,8 @@ Each provider deployment includes production-grade features beyond the basic arc
 
 **Resource Scaling:**
 - Cosmos DB autoscale: 400-4000 RU/s (adjusts to load automatically)
-- Container Apps scale-to-zero with min/max replica configuration
+- The MCP Container App runs exactly one persistent controller replica. Do not scale it horizontally or to zero until controller state has a shared transactional backend.
+- Research execution remains isolated in separately created Container Apps Jobs.
 
 **Security:**
 - Managed identity for all service-to-service authentication

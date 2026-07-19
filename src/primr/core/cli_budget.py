@@ -20,6 +20,8 @@ class BudgetActivation:
 
     ok: bool
     active: bool
+    error_message: str | None = None
+    hints: tuple[str, ...] = ()
 
 
 def estimate_vendor_count(config: CLIConfig) -> int:
@@ -74,37 +76,52 @@ def build_run_estimate(config: CLIConfig, *, fast_mode: bool, premium_mode: bool
 
 
 def activate_run_budget(
-    config: CLIConfig, *, fast_mode: bool, premium_mode: bool
+    config: CLIConfig,
+    *,
+    fast_mode: bool,
+    premium_mode: bool,
+    emit_output: bool = True,
 ) -> BudgetActivation:
     """Validate ``--budget``, activate it when present, and explain runtime scope."""
     if config.budget_usd is None:
         return BudgetActivation(ok=True, active=False)
     if not isfinite(config.budget_usd) or config.budget_usd <= 0:
-        console.error(f"--budget must be a finite positive number, got {config.budget_usd}")
-        return BudgetActivation(ok=False, active=False)
+        message = f"--budget must be a finite positive number, got {config.budget_usd}"
+        if emit_output:
+            console.error(message)
+        return BudgetActivation(ok=False, active=False, error_message=message)
 
     from primr.utils.run_budget import set_run_budget
 
     estimate = build_run_estimate(config, fast_mode=fast_mode, premium_mode=premium_mode)
     if estimate.total_cost > config.budget_usd:
-        console.error(
+        message = (
             f"Estimated cost ${estimate.total_cost:.2f} exceeds "
             f"--budget ${config.budget_usd:.2f}. Not starting."
         )
-        console.info(
+        hint = (
             "Raise --budget, or use a cheaper mode (--mode scrape ~$0.10, "
             "--dry-run for the full breakdown)."
         )
-        return BudgetActivation(ok=False, active=False)
+        if emit_output:
+            console.error(message)
+            console.info(hint)
+        return BudgetActivation(
+            ok=False,
+            active=False,
+            error_message=message,
+            hints=(hint,),
+        )
 
     set_run_budget(config.budget_usd)
-    console.info(f"Run budget: ${config.budget_usd:.2f} (estimated ${estimate.total_cost:.2f})")
     policy = describe_budget_enforcement(
         mode=config.mode,
         fast_mode=fast_mode,
         premium_mode=premium_mode,
     )
-    (console.info if policy.runtime_checkpoints else console.warn)(
-        f"Budget runtime: {policy.runtime}."
-    )
+    if emit_output:
+        console.info(f"Run budget: ${config.budget_usd:.2f} (estimated ${estimate.total_cost:.2f})")
+        (console.info if policy.runtime_checkpoints else console.warn)(
+            f"Budget runtime: {policy.runtime}."
+        )
     return BudgetActivation(ok=True, active=True)

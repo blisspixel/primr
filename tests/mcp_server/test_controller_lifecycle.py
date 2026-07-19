@@ -20,6 +20,7 @@ def server(tmp_path):
 @pytest.mark.asyncio
 async def test_nested_controller_lifecycle_acquires_and_releases_once(server, monkeypatch):
     lease = MagicMock()
+    lease.lock_path = server._controller_lease.lock_path
     monkeypatch.setattr(server, "_controller_lease", lease)
     reload_journal = MagicMock()
     monkeypatch.setattr(server.job_store, "reload_from_journal", reload_journal)
@@ -43,6 +44,7 @@ async def test_nested_controller_lifecycle_acquires_and_releases_once(server, mo
 async def test_transport_failure_shuts_workers_before_lease_release(server, monkeypatch):
     order = []
     lease = MagicMock()
+    lease.lock_path = server._controller_lease.lock_path
     lease.acquire.side_effect = lambda: order.append("acquire")
     lease.close.side_effect = lambda: order.append("close")
     monkeypatch.setattr(server, "_controller_lease", lease)
@@ -67,6 +69,7 @@ async def test_transport_failure_shuts_workers_before_lease_release(server, monk
 @pytest.mark.asyncio
 async def test_unreaped_worker_retains_controller_lease(server, monkeypatch):
     lease = MagicMock()
+    lease.lock_path = server._controller_lease.lock_path
     lease.acquired = False
     lease.acquire.side_effect = lambda: setattr(lease, "acquired", True)
     monkeypatch.setattr(server, "_controller_lease", lease)
@@ -106,9 +109,7 @@ async def test_controller_reloads_journal_after_acquiring_lease(tmp_path):
             audit_log_path=str(tmp_path / "second-audit.jsonl"),
             skip_background_tasks=True,
         )
-        stale = second.job_store.get(job.job_id)
-        assert stale is not None
-        assert not stale.is_terminal()
+        assert second.job_store.get(job.job_id) is None
 
         job.advance_stage(ResearchStage.COMPLETED)
         first.job_store.update(job)

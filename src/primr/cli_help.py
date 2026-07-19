@@ -50,6 +50,7 @@ Focused help
   primr doctor --help
   primr prep --help
   primr recon --help
+  primr update --help
 
 Reference
   primr --help-all            Show every command and advanced option
@@ -81,6 +82,36 @@ _INIT_DOCTOR_OPTION_SPECS: dict[str, tuple[tuple[tuple[str, ...], str], ...]] = 
     ),
 }
 
+UPDATE_COMMAND_ALIASES = frozenset({"update", "upgrade", "self-update"})
+
+
+def create_update_parser(command: str = "update") -> argparse.ArgumentParser:
+    """Create the strict, side-effect-free parser shared by update aliases."""
+    if command not in UPDATE_COMMAND_ALIASES:
+        raise ValueError(f"Unsupported update command: {command}")
+    parser = argparse.ArgumentParser(
+        prog=f"primr {command}",
+        description="Check for or install the latest published Primr release.",
+        epilog=(
+            f"Examples:\n  primr {command} --check\n  primr {command}\n  primr {command} --yes"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--check",
+        "--check-only",
+        dest="check_only",
+        action="store_true",
+        help="Report whether an update is available without installing it",
+    )
+    parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Confirm installation without an interactive prompt",
+    )
+    return parser
+
 
 def add_init_doctor_arguments(
     parser: argparse.ArgumentParser,
@@ -110,6 +141,8 @@ def add_init_doctor_arguments(
 
 def _create_scoped_help_parser(command: str) -> argparse.ArgumentParser:
     """Create the concise help surface for an existing positional command."""
+    if command in UPDATE_COMMAND_ALIASES:
+        return create_update_parser(command)
     if command == "init":
         parser = argparse.ArgumentParser(
             prog="primr init",
@@ -142,9 +175,9 @@ def _create_scoped_help_parser(command: str) -> argparse.ArgumentParser:
 
 
 def maybe_print_scoped_help(args: list[str] | None) -> None:
-    """Exit through argparse with concise help for init and doctor."""
+    """Exit through argparse with concise help for focused commands."""
     argv = list(args) if args is not None else sys.argv[1:]
-    if not argv or argv[0] not in {"init", "doctor"}:
+    if not argv or argv[0] not in {"init", "doctor", *UPDATE_COMMAND_ALIASES}:
         return
     if not any(argument in {"-h", "--help"} for argument in argv[1:]):
         return

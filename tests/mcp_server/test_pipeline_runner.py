@@ -76,8 +76,18 @@ class TestTraceArtifactCollection:
         recent = trace_dir / "Test_Corp_20260628_120000.jsonl"
         stale = trace_dir / "Test_Corp_20260627_120000.jsonl"
         other = trace_dir / "Other_Corp_20260628_120000.jsonl"
-        for path in (recent, stale, other):
-            path.write_text('{"schema_version": "1.1"}\n', encoding="utf-8")
+        recent.write_text(
+            f'{{"schema_version": "1.1", "run_id": "{job.job_id}"}}\n',
+            encoding="utf-8",
+        )
+        stale.write_text(
+            f'{{"schema_version": "1.1", "run_id": "{job.job_id}"}}\n',
+            encoding="utf-8",
+        )
+        other.write_text(
+            f'{{"schema_version": "1.1", "run_id": "{job.job_id}"}}\n',
+            encoding="utf-8",
+        )
 
         start_ts = job.start_time.timestamp()
         os.utime(recent, (start_ts + 10, start_ts + 10))
@@ -97,12 +107,40 @@ class TestTraceArtifactCollection:
         trace_dir = tmp_path / "logs" / "scrape_traces"
         trace_dir.mkdir(parents=True)
         trace = trace_dir / "Test_Company_Name_20260628_120000.jsonl"
-        trace.write_text('{"schema_version": "1.1"}\n', encoding="utf-8")
+        trace.write_text(
+            f'{{"schema_version": "1.1", "run_id": "{job.job_id}"}}\n',
+            encoding="utf-8",
+        )
 
         start_ts = job.start_time.timestamp()
         os.utime(trace, (start_ts + 10, start_ts + 10))
 
         expected = str(Path("logs") / "scrape_traces" / trace.name)
+        assert _collect_trace_artifacts(job) == [expected]
+
+    def test_overlapping_trace_window_attaches_only_matching_run_id(
+        self, server, tmp_path, monkeypatch
+    ):
+        monkeypatch.chdir(tmp_path)
+        job = server.job_store.create("Test Corp", "full")
+        job.advance_stage(ResearchStage.COMPLETED)
+        trace_dir = tmp_path / "logs" / "scrape_traces"
+        trace_dir.mkdir(parents=True)
+        owned = trace_dir / "Test_Corp_20260628_120000_000001.jsonl"
+        foreign = trace_dir / "Test_Corp_20260628_120000_000002.jsonl"
+        owned.write_text(
+            f'{{"schema_version": "1.1", "run_id": "{job.job_id}"}}\n',
+            encoding="utf-8",
+        )
+        foreign.write_text(
+            '{"schema_version": "1.1", "run_id": "another-job"}\n',
+            encoding="utf-8",
+        )
+        within_window = job.start_time.timestamp() + 10
+        os.utime(owned, (within_window, within_window))
+        os.utime(foreign, (within_window, within_window))
+
+        expected = str(Path("logs") / "scrape_traces" / owned.name)
         assert _collect_trace_artifacts(job) == [expected]
 
 

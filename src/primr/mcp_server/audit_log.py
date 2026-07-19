@@ -163,6 +163,26 @@ class MCPAuditLog:
             "file_truncated_after_successful_write": file_truncated_after_write,
         }
 
+    def preflight(self) -> bool:
+        """Verify that the real audit sink can be opened and read securely."""
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self._lock:
+                descriptor = _open_regular_audit_fd(
+                    self.path,
+                    os.O_WRONLY | os.O_APPEND | os.O_CREAT,
+                )
+                metadata = os.fstat(descriptor)
+                os.close(descriptor)
+                with self._health_lock:
+                    self._last_write_identity = _file_identity(metadata)
+                    self._last_write_size = metadata.st_size
+        except OSError as exc:
+            self._record_write_result(succeeded=False, error=exc)
+            return False
+        self.recent(limit=1)
+        return self.health_snapshot()["status"] == "ok"
+
     def record_tool_call(
         self,
         *,
@@ -363,20 +383,31 @@ class MCPAuditLog:
             encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n"
             if len(encoded.encode("utf-8")) > _MAX_AUDIT_EVENT_BYTES:
                 raise ValueError("Audit event exceeds the encoded size limit")
-            with (
-                self._lock,
-                os.fdopen(
-                    _open_regular_audit_fd(
-                        self.path,
-                        os.O_WRONLY | os.O_APPEND | os.O_CREAT,
-                    ),
-                    "a",
-                    encoding="utf-8",
-                ) as handle,
-            ):
-                handle.write(encoded)
-                handle.flush()
-                metadata = os.fstat(handle.fileno())
+            with self._lock:
+                descriptor = _open_regular_audit_fd(
+                    self.path,
+                    os.O_WRONLY | os.O_APPEND | os.O_CREAT,
+                )
+                try:
+                    before_write = os.fstat(descriptor)
+                    with self._health_lock:
+                        expected_identity = self._last_write_identity
+                        minimum_size = self._last_write_size
+                    if (
+                        expected_identity is not None
+                        and _file_identity(before_write) != expected_identity
+                    ) or (minimum_size is not None and before_write.st_size < minimum_size):
+                        raise _UnsafeAuditSinkError(
+                            "Audit sink continuity check failed before append"
+                        )
+                    with os.fdopen(descriptor, "a", encoding="utf-8") as handle:
+                        descriptor = -1
+                        handle.write(encoded)
+                        handle.flush()
+                        metadata = os.fstat(handle.fileno())
+                finally:
+                    if descriptor >= 0:
+                        os.close(descriptor)
         except Exception as exc:
             self._record_write_result(succeeded=False, error=exc)
             raise
@@ -643,7 +674,7 @@ def _open_regular_audit_fd(path: Path, flags: int) -> int:
         if not create_requested:
             raise
     else:
-        if not stat.S_ISREG(before.st_mode):
+        if not stat.S_ISREG(before.st_mode) or before.st_nlink > 1:
             raise _UnsafeAuditSinkError("Audit sink must be a regular file")
 
     secure_flags = flags | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
@@ -654,6 +685,8 @@ def _open_regular_audit_fd(path: Path, flags: int) -> int:
         if (
             not stat.S_ISREG(opened.st_mode)
             or not stat.S_ISREG(after.st_mode)
+            or opened.st_nlink > 1
+            or after.st_nlink > 1
             or _file_identity(opened) != _file_identity(after)
         ):
             raise _UnsafeAuditSinkError("Audit sink changed during secure open")

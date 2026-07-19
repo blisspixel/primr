@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import sys
 
+from primr.cli_help import UPDATE_COMMAND_ALIASES, create_update_parser
+
 
 def is_mcp_command(args: list[str] | None) -> bool:
     """Check if the command line is a ``primr mcp ...`` invocation."""
@@ -67,15 +69,15 @@ def run_skills(args: list[str] | None) -> int:
 def is_update_command(args: list[str] | None) -> bool:
     """Check if the command line is a ``primr update ...`` invocation."""
     argv = args if args is not None else sys.argv[1:]
-    return len(argv) >= 1 and argv[0] in {"update", "upgrade", "self-update"}
+    return len(argv) >= 1 and argv[0] in UPDATE_COMMAND_ALIASES
 
 
 def run_update_cli(args: list[str] | None) -> int:
     """Delegate ``primr update`` to the self-upgrade handler."""
+    argv = args if args is not None else sys.argv[1:]
+    command = argv[0]
+    parsed = create_update_parser(command).parse_args(argv[1:])
+
     from primr.core.cli_update import run_update
 
-    argv = args if args is not None else sys.argv[1:]
-    rest = argv[1:]  # strip the "update" token
-    check_only = "--check" in rest or "--check-only" in rest
-    yes = "-y" in rest or "--yes" in rest
-    return run_update(check_only=check_only, yes=yes)
+    return run_update(check_only=parsed.check_only, yes=parsed.yes)

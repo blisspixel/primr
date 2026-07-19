@@ -77,12 +77,17 @@ def run_update(*, check_only: bool = False, yes: bool = False) -> int:
         console.info("Run 'primr update' to install it.")
         return 0
 
+    if not yes and not sys.stdin.isatty():
+        console.error("Non-interactive updates require explicit confirmation.")
+        console.info("Re-run with 'primr update --yes', or use '--check' to inspect only.")
+        return 1
+
     method = detect_install_method()
     console.detail("Method", method.kind)
     console.detail("Command", " ".join(method.upgrade_command))
     console.blank()
 
-    if not yes and sys.stdin.isatty():
+    if not yes:
         try:
             answer = input(f"Upgrade primr to v{latest} now? [Y/n] ").strip().lower()
         except (EOFError, KeyboardInterrupt):

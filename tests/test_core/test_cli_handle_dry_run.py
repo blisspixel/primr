@@ -98,6 +98,24 @@ class TestDryRunFlags:
         result = run_dry_run(_config(fast_mode=True, premium_mode=True))
         assert result == 1
 
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"acknowledge_host_agent_may_bill": True},
+            {"fast_mode": True, "premium_mode": True},
+            {"fast_mode": True, "mode": "scrape"},
+            {"premium_mode": True, "mode": "scrape"},
+        ],
+    )
+    def test_json_option_errors_emit_one_object(self, overrides, capsys):
+        import json
+
+        assert run_dry_run(_config(json_output=True, **overrides)) == 1
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["schema_version"] == "primr.command-error.v1"
+        assert payload["operation"] == "research_estimate"
+        assert payload["error"] is True
+
     def test_fast_with_invalid_mode_fails(self, mocks):
         result = run_dry_run(_config(fast_mode=True, mode="scrape"))
         assert result == 1

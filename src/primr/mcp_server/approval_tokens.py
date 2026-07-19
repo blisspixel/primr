@@ -25,6 +25,7 @@ APPROVAL_TOKEN_SCHEMA = {
     "description": "Server-issued approval token returned by the matching estimate tool.",
 }
 _PROCESS_SECRET = secrets.token_bytes(32)
+_PROCESS_INSTANCE_ID = secrets.token_urlsafe(24)
 _USED_TOKEN_IDS: dict[str, float] = {}
 _USED_LOCK = Lock()
 
@@ -104,8 +105,9 @@ def issue_approval_token(
     expires_at = now + APPROVAL_TOKEN_TTL_SECONDS
     token_id = secrets.token_urlsafe(16)
     payload = {
-        "v": 1,
+        "v": 2,
         "jti": token_id,
+        "instance": _PROCESS_INSTANCE_ID,
         "tool": tool_name,
         "args_hash": _hash_approval_args(approval_args),
         "max_cost_usd": round(float(max_cost_usd), 4),
@@ -212,8 +214,14 @@ def _validate_payload(
     approval_args: dict[str, Any],
     estimated_cost_usd: float,
 ) -> None:
-    if payload.get("v") != 1:
+    if payload.get("v") != 2:
         raise ValueError("unsupported token version")
+    instance = payload.get("instance")
+    if not isinstance(instance, str) or not hmac.compare_digest(
+        instance,
+        _PROCESS_INSTANCE_ID,
+    ):
+        raise ValueError("token was issued by another server process; request a new estimate")
     if payload.get("tool") != tool_name:
         raise ValueError("tool mismatch")
     if payload.get("args_hash") != _hash_approval_args(approval_args):
