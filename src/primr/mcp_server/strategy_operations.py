@@ -11,13 +11,14 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from primr.core.trusted_report import TrustedReport, stable_report_snapshot
 from primr.mcp_server.strategy_catalog import AI_STRATEGY_TYPES, GENERIC_STRATEGY_YAMLS
 
 logger = logging.getLogger(__name__)
 
 
 async def run_strategy_generation(
-    report_path: str,
+    trusted_report: TrustedReport,
     strategy_type: str,
     platform: str | None = None,
     on_progress: Callable[[str], None] | None = None,
@@ -26,6 +27,7 @@ async def run_strategy_generation(
 ) -> dict[str, Any]:
     """Generate one strategy artifact under exclusive company ownership."""
     started_at = time.monotonic()
+    report_path = str(trusted_report.path)
     filename = os.path.splitext(os.path.basename(report_path))[0]
     match = re.match(
         r"^(.+?)_(?:Strategic_Overview|AI_Strategy|Customer_Experience|Security|Data_Fabric)",
@@ -39,7 +41,15 @@ async def run_strategy_generation(
     destination_dir = Path(output_dir) if output_dir is not None else Path(report_path).parent
     from primr.core.workspace import company_run_lease_for_target
 
-    with company_run_lease_for_target(company_name, None, base_dir=lease_base_dir):
+    with (
+        company_run_lease_for_target(
+            company_name,
+            None,
+            base_dir=lease_base_dir,
+        ) as company_root,
+        stable_report_snapshot(trusted_report, company_root) as snapshot_path,
+    ):
+        snapshot = str(snapshot_path)
         if strategy_type in AI_STRATEGY_TYPES:
             from primr.core.ai_strategy import Platform, generate_ai_strategy
 
@@ -47,7 +57,7 @@ async def run_strategy_generation(
             result = await generate_ai_strategy(
                 company_name=company_name,
                 platform=vendor,
-                company_research_path=report_path,
+                company_research_path=snapshot,
                 allow_vendor_refresh=False,
                 on_progress=on_progress,
                 output_dir=destination_dir,
@@ -63,7 +73,7 @@ async def run_strategy_generation(
                 strategy_name=strategy_type,
                 strategy_yaml=GENERIC_STRATEGY_YAMLS[strategy_type],
                 company_name=company_name,
-                company_research_path=report_path,
+                company_research_path=snapshot,
                 output_dir=destination_dir,
             )
         else:

@@ -11,8 +11,10 @@ import asyncio
 import importlib
 import json
 import os
+import stat
 import uuid
 from abc import ABC, abstractmethod
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,7 +22,11 @@ from threading import Lock
 from typing import BinaryIO
 
 from primr.mcp_server.types import JobStatus, ResearchStage
-from primr.utils.atomic_io import atomic_replace
+from primr.utils.atomic_io import atomic_write_text
+from primr.utils.fs_safety import (
+    path_contains_link_or_reparse_point,
+    path_is_linked_or_nonregular_file,
+)
 
 
 def _utcnow() -> datetime:
@@ -42,6 +48,68 @@ class JobInProgressError(Exception):
 
 class ControllerLeaseError(RuntimeError):
     """Raised when another controller already owns a job journal."""
+
+
+class JobJournalError(RuntimeError):
+    """Raised when persisted controller state cannot be trusted."""
+
+
+def _journal_identity(metadata: os.stat_result) -> tuple[int, int, int, int]:
+    """Return the attributes that must remain stable across one journal read."""
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+    )
+
+
+def _read_regular_journal(path: Path) -> dict[str, object] | None:
+    """Read one stable, single-name regular journal without following links."""
+    try:
+        before = path.lstat()
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISREG(before.st_mode) or before.st_nlink > 1:
+        raise JobJournalError("Job journal must be one regular, non-linked file")
+
+    descriptor = -1
+    try:
+        flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        try:
+            descriptor = os.open(path, flags)
+        except FileNotFoundError as exc:
+            raise JobJournalError("Job journal changed during secure open") from exc
+        with os.fdopen(descriptor, "r", encoding="utf-8") as stream:
+            descriptor = -1
+            opened = os.fstat(stream.fileno())
+            after_open = path.lstat()
+            if (
+                not stat.S_ISREG(opened.st_mode)
+                or not stat.S_ISREG(after_open.st_mode)
+                or opened.st_nlink > 1
+                or after_open.st_nlink > 1
+                or _journal_identity(opened) != _journal_identity(before)
+                or _journal_identity(after_open) != _journal_identity(before)
+            ):
+                raise JobJournalError("Job journal changed during secure open")
+            data = json.load(stream)
+            if not isinstance(data, dict):
+                raise ValueError("Job journal root must be an object")
+            after_read = os.fstat(stream.fileno())
+
+        final_path = path.lstat()
+        if (
+            after_read.st_nlink > 1
+            or final_path.st_nlink > 1
+            or _journal_identity(after_read) != _journal_identity(before)
+            or _journal_identity(final_path) != _journal_identity(before)
+        ):
+            raise JobJournalError("Job journal changed while it was read")
+        return data
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
 
 
 class ControllerLease:
@@ -66,9 +134,36 @@ class ControllerLease:
         """Acquire the lease without waiting for another controller."""
         if self._stream is not None:
             return
+        if path_contains_link_or_reparse_point(self.lock_path.parent):
+            raise ControllerLeaseError("Controller lock path is unsafe")
         self.lock_path.parent.mkdir(parents=True, exist_ok=True)
-        stream = open(self.lock_path, "a+b")  # noqa: SIM115
+        if path_contains_link_or_reparse_point(
+            self.lock_path.parent
+        ) or path_is_linked_or_nonregular_file(self.lock_path):
+            raise ControllerLeaseError("Controller lock path is unsafe")
+        descriptor = -1
         try:
+            flags = (
+                os.O_RDWR
+                | os.O_APPEND
+                | os.O_CREAT
+                | getattr(os, "O_BINARY", 0)
+                | getattr(os, "O_NOFOLLOW", 0)
+            )
+            descriptor = os.open(self.lock_path, flags, 0o600)
+            opened = os.fstat(descriptor)
+            current = self.lock_path.lstat()
+            if (
+                not stat.S_ISREG(opened.st_mode)
+                or not stat.S_ISREG(current.st_mode)
+                or opened.st_nlink > 1
+                or current.st_nlink > 1
+                or (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino)
+                or path_contains_link_or_reparse_point(self.lock_path)
+            ):
+                raise ControllerLeaseError("Controller lock path is unsafe")
+            stream = os.fdopen(descriptor, "a+b")
+            descriptor = -1
             if os.name == "nt":
                 stream.seek(0, os.SEEK_END)
                 if stream.tell() == 0:
@@ -81,10 +176,19 @@ class ControllerLease:
                 fcntl = vars(importlib.import_module("fcntl"))
                 fcntl["flock"](stream.fileno(), fcntl["LOCK_EX"] | fcntl["LOCK_NB"])
         except (OSError, BlockingIOError) as exc:
-            stream.close()
+            if descriptor >= 0:
+                os.close(descriptor)
+            if "stream" in locals():
+                stream.close()
             raise ControllerLeaseError(
-                f"Another Primr MCP controller already owns {self.lock_path}"
+                "Another Primr MCP controller already owns the job journal"
             ) from exc
+        except BaseException:
+            if descriptor >= 0:
+                os.close(descriptor)
+            if "stream" in locals():
+                stream.close()
+            raise
         self._stream = stream
 
     def close(self) -> None:
@@ -427,37 +531,64 @@ class SingleJobStore(JobStore):
 
     DEFAULT_JOURNAL_PATH = "output/.mcp_job_journal.json"
 
-    def __init__(self, journal_path: str | None = None):
+    def __init__(
+        self,
+        journal_path: str | None = None,
+        *,
+        defer_initial_load: bool = False,
+    ):
         self._job: ResearchJobState | None = None
+        self._persisted_job: ResearchJobState | None = None
+        self._persistence_healthy = True
         self._lock = Lock()
         self._journal_path = Path(journal_path or self.DEFAULT_JOURNAL_PATH)
         self._status_change_event: asyncio.Event | None = None
-        self._load_journal()
+        if not defer_initial_load:
+            self._load_journal()
 
     @property
     def journal_path(self) -> Path:
         """Return the canonical journal path for controller coordination."""
         return self._journal_path
 
-    def _load_journal(self) -> None:
+    @property
+    def persistence_healthy(self) -> bool:
+        """Return false after any journal load or persistence failure."""
+        return self._persistence_healthy
+
+    def _load_journal(self, *, strict: bool = False) -> None:
         """
         Load job state from journal on startup.
 
         Requirements: 19.4
         """
-        self._job = None
-        if self._journal_path.exists():
-            try:
-                with open(self._journal_path, encoding="utf-8") as f:
-                    data = json.load(f)
-                self._job = ResearchJobState.from_journal_dict(data)
-            except (json.JSONDecodeError, KeyError, ValueError) as e:
-                import logging
+        loaded_job: ResearchJobState | None = None
+        load_failed = False
+        try:
+            data = _read_regular_journal(self._journal_path)
+            if data is not None:
+                loaded_job = ResearchJobState.from_journal_dict(data)
+        except JobJournalError:
+            self._persistence_healthy = False
+            raise
+        except OSError as e:
+            self._persistence_healthy = False
+            raise JobJournalError("Job journal could not be read safely") from e
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            load_failed = True
+            self._persistence_healthy = False
+            if strict:
+                raise JobJournalError(
+                    "Job journal is corrupt; repair or replace it before starting the controller"
+                ) from e
+            import logging
 
-                logging.getLogger(__name__).warning(
-                    "Corrupted job journal at %s, starting fresh: %s", self._journal_path, e
-                )
-                self._job = None
+            logging.getLogger(__name__).warning(
+                "Corrupted job journal at %s, starting fresh: %s", self._journal_path, e
+            )
+        self._job = loaded_job
+        self._persisted_job = deepcopy(loaded_job)
+        self._persistence_healthy = not load_failed
 
     def reload_from_journal(self) -> None:
         """Refresh in-memory state after acquiring the controller lease.
@@ -467,7 +598,7 @@ class SingleJobStore(JobStore):
         latest bytes only after exclusive ownership has been established.
         """
         with self._lock:
-            self._load_journal()
+            self._load_journal(strict=True)
 
     def _save_journal(self) -> None:
         """
@@ -475,18 +606,21 @@ class SingleJobStore(JobStore):
 
         Requirements: 19.3, 19.6
         """
-        if self._job is None:
-            # missing_ok=True avoids a TOCTOU FileNotFoundError if the
-            # journal disappears between exists() and unlink() — e.g.
-            # operator manually wiping output/ during a shutdown handler.
-            self._journal_path.unlink(missing_ok=True)
-            return
-
-        self._journal_path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = self._journal_path.with_suffix(".tmp")
-        with open(temp_path, "w", encoding="utf-8") as f:
-            json.dump(self._job.to_journal_dict(), f, indent=2)
-        atomic_replace(temp_path, self._journal_path)  # Atomic rename (retries transient locks)
+        try:
+            if path_contains_link_or_reparse_point(
+                self._journal_path
+            ) or path_is_linked_or_nonregular_file(self._journal_path):
+                raise JobJournalError("Job journal path is unsafe")
+            if self._job is None:
+                self._journal_path.unlink(missing_ok=True)
+            else:
+                payload = json.dumps(self._job.to_journal_dict(), indent=2)
+                atomic_write_text(self._journal_path, payload)
+        except BaseException:
+            self._persistence_healthy = False
+            self._job = deepcopy(self._persisted_job)
+            raise
+        self._persisted_job = deepcopy(self._job)
 
     def create(
         self,
@@ -683,9 +817,7 @@ class SingleJobStore(JobStore):
         """Clear job state (for testing)."""
         with self._lock:
             self._job = None
-            # Same TOCTOU fix as _save_journal — use missing_ok rather
-            # than exists()+unlink().
-            self._journal_path.unlink(missing_ok=True)
+            self._save_journal()
 
     def _notify_status_change(self) -> None:
         """Notify waiters that status has changed."""

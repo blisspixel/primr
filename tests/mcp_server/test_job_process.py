@@ -175,6 +175,114 @@ async def test_spawn_failure_closes_worker_log_context(
 
 
 @pytest.mark.asyncio
+async def test_worker_output_directory_failure_closes_output_readiness(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store, job = _store_and_job(tmp_path)
+    supervisor = _supervisor(store, tmp_path, _worker_script(""))
+    supervisor.mark_output_preflight_succeeded()
+    worker_directory = supervisor.output_root / job.job_id
+    original_mkdir = Path.mkdir
+
+    def guarded_mkdir(path: Path, *args, **kwargs) -> None:
+        if path == worker_directory:
+            raise OSError("output unavailable")
+        original_mkdir(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", guarded_mkdir)
+
+    with pytest.raises(OSError, match="output unavailable"):
+        await supervisor.start(job=job, company_url="https://example.com", mode="full")
+
+    assert supervisor.output_persistence_healthy is False
+    failed = store.get(job.job_id)
+    assert failed is not None
+    assert failed.error_type == "worker_spawn_failed"
+
+
+def test_terminal_manifest_failure_closes_output_readiness(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing required terminal artifact makes output readiness fail closed."""
+    store, job = _store_and_job(tmp_path)
+    job.advance_stage(ResearchStage.FAILED)
+    store.update(job)
+    supervisor = _supervisor(store, tmp_path, _worker_script(""))
+    supervisor.mark_output_preflight_succeeded()
+    handle = MagicMock(
+        job_id=job.job_id,
+        company_url="https://example.test",
+        mode="full",
+        budget_usd=None,
+        cancel_reason=None,
+        termination_method=None,
+    )
+    monkeypatch.setattr(job_process_mod, "write_terminal_manifest", lambda **_kwargs: None)
+
+    supervisor._write_terminal_manifest(handle, return_code=1)
+
+    assert supervisor.output_persistence_healthy is False
+
+
+def test_terminal_manifest_directory_failure_closes_output_readiness(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store, job = _store_and_job(tmp_path)
+    job.advance_stage(ResearchStage.FAILED)
+    store.update(job)
+    supervisor = _supervisor(store, tmp_path, _worker_script(""))
+    supervisor.mark_output_preflight_succeeded()
+    handle = MagicMock(
+        job_id=job.job_id,
+        company_url="https://example.test",
+        mode="full",
+        budget_usd=None,
+        cancel_reason=None,
+        termination_method=None,
+    )
+
+    def fail_mkdir(*_args, **_kwargs) -> None:
+        raise OSError("manifest directory unavailable")
+
+    monkeypatch.setattr(Path, "mkdir", fail_mkdir)
+
+    supervisor._write_terminal_manifest(handle, return_code=1)
+
+    assert supervisor.output_persistence_healthy is False
+
+
+def test_terminal_manifest_exception_closes_output_readiness(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store, job = _store_and_job(tmp_path)
+    job.advance_stage(ResearchStage.FAILED)
+    store.update(job)
+    supervisor = _supervisor(store, tmp_path, _worker_script(""))
+    supervisor.mark_output_preflight_succeeded()
+    handle = MagicMock(
+        job_id=job.job_id,
+        company_url="https://example.test",
+        mode="full",
+        budget_usd=None,
+        cancel_reason=None,
+        termination_method=None,
+    )
+    monkeypatch.setattr(
+        job_process_mod,
+        "write_terminal_manifest",
+        MagicMock(side_effect=OSError("cleanup failed")),
+    )
+
+    supervisor._write_terminal_manifest(handle, return_code=1)
+
+    assert supervisor.output_persistence_healthy is False
+
+
+@pytest.mark.asyncio
 async def test_worker_stderr_remains_connected_after_parent_stream_closes(tmp_path: Path) -> None:
     """The child keeps its inherited stderr target after process creation returns."""
     script = _worker_script(

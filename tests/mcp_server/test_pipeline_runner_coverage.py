@@ -6,6 +6,7 @@ run_research orchestration with all external dependencies mocked.
 """
 
 import json
+import os
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from primr.core.trusted_report import ReportSnapshotError, validate_trusted_report
 from primr.mcp_server.pipeline_runner import (
     PUBLIC_RESEARCH_FAILURE_MESSAGE,
     PipelineRunner,
@@ -131,7 +133,7 @@ class TestRunStrategyGeneration:
             new=AsyncMock(return_value=fake_result),
         ) as mock_gen:
             result = await run_strategy_generation(
-                report_path=str(report),
+                trusted_report=validate_trusted_report(report),
                 strategy_type="ai_strategy",
                 platform="azure",
                 lease_base_dir=tmp_path / "working",
@@ -143,6 +145,9 @@ class TestRunStrategyGeneration:
         assert kwargs["company_name"] == "Acme Corp"
         assert kwargs["allow_vendor_refresh"] is False
         assert kwargs["output_dir"] == tmp_path
+        assert kwargs["company_research_path"] != str(report)
+        assert ".primr-strategy-context-" in Path(kwargs["company_research_path"]).name
+        assert not Path(kwargs["company_research_path"]).exists()
 
     @pytest.mark.asyncio
     async def test_error_raises_runtime(self, tmp_path):
@@ -159,10 +164,34 @@ class TestRunStrategyGeneration:
             pytest.raises(RuntimeError, match="strategy failed"),
         ):
             await run_strategy_generation(
-                report_path=str(report),
+                trusted_report=validate_trusted_report(report),
                 strategy_type="ai_strategy",
                 lease_base_dir=tmp_path / "working",
             )
+        assert not list((tmp_path / "working").rglob(".primr-strategy-context-*"))
+
+    @pytest.mark.asyncio
+    async def test_restored_mtime_content_swap_is_refused_before_provider(self, tmp_path):
+        report = tmp_path / "report.md"
+        report.write_text("original", encoding="utf-8")
+        trusted = validate_trusted_report(report)
+        metadata = report.stat()
+        report.write_text("replaced", encoding="utf-8")
+        os.utime(report, ns=(metadata.st_atime_ns, trusted.modified_ns))
+        provider = AsyncMock()
+
+        with (
+            patch("primr.core.ai_strategy.generate_ai_strategy", new=provider),
+            pytest.raises(ReportSnapshotError, match="changed while it was copied"),
+        ):
+            await run_strategy_generation(
+                trusted_report=trusted,
+                strategy_type="ai_strategy",
+                lease_base_dir=tmp_path / "working",
+            )
+
+        provider.assert_not_awaited()
+        assert not list((tmp_path / "working").rglob(".primr-strategy-context-*"))
 
     @pytest.mark.asyncio
     async def test_generic_strategy_dispatches_requested_yaml(self, tmp_path):
@@ -179,7 +208,7 @@ class TestRunStrategyGeneration:
             patch("primr.utils.usage_tracker.get_usage_tracker", return_value=tracker),
         ):
             result = await run_strategy_generation(
-                report_path=str(report),
+                trusted_report=validate_trusted_report(report),
                 strategy_type="customer_experience",
                 platform="azure",
                 lease_base_dir=tmp_path / "working",
@@ -187,13 +216,14 @@ class TestRunStrategyGeneration:
 
         assert result["output_path"] == str(output)
         assert result["strategy_type"] == "customer_experience"
-        mock_gen.assert_called_once_with(
-            strategy_name="customer_experience",
-            strategy_yaml="customer_experience",
-            company_name="Acme Corp",
-            company_research_path=str(report),
-            output_dir=tmp_path,
-        )
+        call = mock_gen.call_args.kwargs
+        assert call["strategy_name"] == "customer_experience"
+        assert call["strategy_yaml"] == "customer_experience"
+        assert call["company_name"] == "Acme Corp"
+        assert call["output_dir"] == tmp_path
+        assert call["company_research_path"] != str(report)
+        assert ".primr-strategy-context-" in Path(call["company_research_path"]).name
+        assert not Path(call["company_research_path"]).exists()
         usage = tracker.record_usage.call_args.kwargs
         assert usage["mode"] == "standalone_strategy_customer_experience"
         assert usage["company"] == "Acme Corp"
@@ -215,7 +245,7 @@ class TestRunStrategyGeneration:
             pytest.raises(RuntimeError, match="produced no output artifact"),
         ):
             await run_strategy_generation(
-                report_path=str(report),
+                trusted_report=validate_trusted_report(report),
                 strategy_type="skills",
                 lease_base_dir=tmp_path / "working",
             )
@@ -227,7 +257,7 @@ class TestRunStrategyGeneration:
 
         with pytest.raises(ValueError, match="Unsupported strategy type"):
             await run_strategy_generation(
-                report_path=str(report),
+                trusted_report=validate_trusted_report(report),
                 strategy_type="unknown",
                 lease_base_dir=tmp_path / "working",
             )
@@ -557,6 +587,7 @@ class TestRunResearchOrchestrator:
     ):
         """A platform-bearing premium run delivers the strategy priced by its estimate."""
         monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.setattr("primr.config.config.OUTPUT_DIR", str(tmp_path))
         job = server.job_store.create("Acme Corp", "premium", owner_client_id="stdio")
         result = SimpleNamespace(
             success=True,
@@ -566,7 +597,10 @@ class TestRunResearchOrchestrator:
             pending_interaction_id="",
         )
         orchestrator = MagicMock(research=AsyncMock(return_value=result))
-        report_path = str(tmp_path / "report.md")
+        report = tmp_path / job.job_id / "report.md"
+        report.parent.mkdir(parents=True)
+        report.write_text("# report", encoding="utf-8")
+        report_path = str(report)
         strategy_path = str(tmp_path / "strategy.md")
         runner._save_report = AsyncMock(return_value=report_path)
         runner._generate_run_manifest = AsyncMock(return_value=str(tmp_path / "run_manifest.json"))

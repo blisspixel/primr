@@ -10,16 +10,15 @@ dispatch and the post-run update notice live here, not inline in ``main``.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TypeVar
 
+from primr.core.cli_command_output import report_command_error
 from primr.utils.console import console
-
-if TYPE_CHECKING:
-    from primr.core.cli import CLIConfig
 
 ISSUES_URL = "https://github.com/blisspixel/primr/issues"
 # 128 + SIGINT(2): the conventional shell exit code for a Ctrl-C interrupt.
 EXIT_INTERRUPTED = 130
+_ConfigT = TypeVar("_ConfigT")
 
 
 def report_unexpected_error(exc: Exception) -> int:
@@ -37,7 +36,7 @@ def report_unexpected_error(exc: Exception) -> int:
     return 1
 
 
-def guard_dispatch(handler: Callable[[CLIConfig], int], config: CLIConfig) -> int:
+def guard_dispatch(handler: Callable[[_ConfigT], int], config: _ConfigT) -> int:
     """Run a command handler with top-level interrupt + error handling.
 
     - ``KeyboardInterrupt`` (Ctrl-C) exits cleanly with code 130, no traceback.
@@ -49,15 +48,41 @@ def guard_dispatch(handler: Callable[[CLIConfig], int], config: CLIConfig) -> in
     try:
         rc = handler(config)
     except KeyboardInterrupt:
+        if getattr(config, "json_output", False):
+            command = getattr(config, "command", None)
+            return report_command_error(
+                json_output=True,
+                operation=str(getattr(command, "name", "command")).lower(),
+                error_type="interrupted",
+                message="The command was cancelled.",
+                exit_code=EXIT_INTERRUPTED,
+            )
         console.blank()
         console.info("Cancelled.")
         return EXIT_INTERRUPTED
     except Exception as exc:
+        if getattr(config, "json_output", False):
+            command = getattr(config, "command", None)
+            return report_command_error(
+                json_output=True,
+                operation=str(getattr(command, "name", "command")).lower(),
+                error_type="unexpected_error",
+                message="The command failed unexpectedly.",
+                hints=(
+                    "Run 'primr doctor' to check the local setup.",
+                    f"Report reproducible failures at {ISSUES_URL}.",
+                ),
+            )
         if getattr(config, "verbose", False):
             raise
         return report_unexpected_error(exc)
 
-    if rc == 0 and getattr(config.command, "name", "") == "RESEARCH" and not config.quiet:
+    command = getattr(config, "command", None)
+    if (
+        rc == 0
+        and getattr(command, "name", "") == "RESEARCH"
+        and not getattr(config, "quiet", False)
+    ):
         from primr.core.cli_update import notify_if_update_available
 
         notify_if_update_available()

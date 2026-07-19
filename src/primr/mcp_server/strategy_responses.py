@@ -5,14 +5,45 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import Any
 
 from mcp.types import TextContent
 
+from primr.core.trusted_report import (
+    ReportSnapshotError,
+    TrustedReport,
+    validate_trusted_report,
+)
 from primr.core.workspace import ActiveRunLeaseError, ResumeLeaseError
 from primr.mcp_server.types import MCPErrorCode
 
 logger = logging.getLogger(__name__)
+
+
+def validate_strategy_report(
+    path: Path,
+    *,
+    allowed_roots: list[Path],
+) -> tuple[TrustedReport | None, dict[str, Any] | None]:
+    """Return a root-bound trusted report or one body-safe MCP error."""
+    try:
+        return validate_trusted_report(path, allowed_roots=allowed_roots), None
+    except FileNotFoundError:
+        return None, {
+            "error": True,
+            "error_type": "report_not_found",
+            "error_code": MCPErrorCode.REPORT_NOT_FOUND,
+            "message": "Report not found",
+        }
+    except (OSError, RuntimeError):
+        logger.warning("Strategy generation refused because report validation was unavailable")
+        return None, {
+            "error": True,
+            "error_type": "report_not_stable",
+            "error_code": MCPErrorCode.INVALID_PARAMS,
+            "message": "Report must be one stable, regular, non-linked file",
+        }
 
 
 def strategy_workspace_error(error: ResumeLeaseError) -> dict[str, Any]:
@@ -44,14 +75,14 @@ def strategy_workspace_error(error: ResumeLeaseError) -> dict[str, Any]:
 async def run_strategy_tool(
     runner: Callable[..., Awaitable[dict[str, Any]]],
     *,
-    report_path: str,
+    trusted_report: TrustedReport,
     strategy_type: str,
     platform: str | None,
 ) -> list[TextContent]:
     """Run one strategy and render its stable MCP response contract."""
     try:
         result = await runner(
-            report_path=report_path,
+            trusted_report=trusted_report,
             strategy_type=strategy_type,
             platform=platform,
         )
@@ -63,6 +94,14 @@ async def run_strategy_tool(
         }
     except ResumeLeaseError as error:
         payload = strategy_workspace_error(error)
+    except ReportSnapshotError:
+        logger.warning("Strategy generation refused because report identity changed")
+        payload = {
+            "error": True,
+            "error_type": "report_changed_after_validation",
+            "error_code": MCPErrorCode.INVALID_PARAMS,
+            "message": "The report changed after validation. Request a new estimate and retry.",
+        }
     except Exception:
         logger.exception("Strategy generation failed")
         payload = {
@@ -73,4 +112,4 @@ async def run_strategy_tool(
     return [TextContent(type="text", text=json.dumps(payload))]
 
 
-__all__ = ["run_strategy_tool", "strategy_workspace_error"]
+__all__ = ["run_strategy_tool", "strategy_workspace_error", "validate_strategy_report"]

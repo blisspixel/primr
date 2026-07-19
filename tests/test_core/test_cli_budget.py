@@ -179,3 +179,19 @@ class TestActivateRunBudget:
         budget = get_run_budget()
         assert budget is not None
         assert budget.max_cost == 100.0
+
+    def test_machine_mode_activates_without_console_output(self, monkeypatch):
+        calls: list[str] = []
+        monkeypatch.setattr("primr.core.cli_budget.console.info", calls.append)
+        monkeypatch.setattr("primr.core.cli_budget.console.warn", calls.append)
+
+        result = activate_run_budget(
+            _config(budget_usd=100.0),
+            fast_mode=True,
+            premium_mode=False,
+            emit_output=False,
+        )
+
+        assert result.ok
+        assert result.active
+        assert calls == []

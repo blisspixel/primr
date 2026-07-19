@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from mcp.types import CallToolRequest, CallToolRequestParams
 
+from primr.mcp_server import approval_tokens
 from primr.mcp_server.server import create_mcp_server
 
 
@@ -241,3 +242,109 @@ async def test_tampered_approval_token_is_rejected(server, monkeypatch):
 
     assert data["error"] is True
     assert data["error_type"] == "invalid_approval_token"
+
+
+def test_approval_token_is_bound_to_issuing_process(monkeypatch):
+    monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
+    monkeypatch.setenv("PRIMR_MCP_APPROVAL_TOKEN_SECRET", "s" * 32)
+    approval = approval_tokens.issue_approval_token(
+        tool_name="generate_strategy",
+        approval_args={"strategy_type": "ai_strategy", "platform": "agnostic"},
+        max_cost_usd=1.0,
+    )
+    monkeypatch.setattr(approval_tokens, "_PROCESS_INSTANCE_ID", "replacement-process")
+
+    error = approval_tokens.enforce_approval_token(
+        tool_name="generate_strategy",
+        approval_args={"strategy_type": "ai_strategy", "platform": "agnostic"},
+        estimated_cost_usd=1.0,
+        approval_token=approval["approval_token"],
+    )
+
+    assert error is not None
+    assert error["error_type"] == "invalid_approval_token"
+    assert "another server process" in error["message"]
+
+
+def test_process_mismatch_does_not_consume_token(monkeypatch):
+    monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
+    approval_args = {"strategy_type": "ai_strategy", "platform": "agnostic"}
+    approval = approval_tokens.issue_approval_token(
+        tool_name="generate_strategy",
+        approval_args=approval_args,
+        max_cost_usd=1.0,
+    )
+    original_instance = approval_tokens._PROCESS_INSTANCE_ID
+    monkeypatch.setattr(approval_tokens, "_PROCESS_INSTANCE_ID", "replacement-process")
+
+    rejected = approval_tokens.enforce_approval_token(
+        tool_name="generate_strategy",
+        approval_args=approval_args,
+        estimated_cost_usd=1.0,
+        approval_token=approval["approval_token"],
+    )
+    monkeypatch.setattr(approval_tokens, "_PROCESS_INSTANCE_ID", original_instance)
+    accepted = approval_tokens.enforce_approval_token(
+        tool_name="generate_strategy",
+        approval_args=approval_args,
+        estimated_cost_usd=1.0,
+        approval_token=approval["approval_token"],
+    )
+
+    assert rejected is not None
+    assert accepted is None
+
+
+@pytest.mark.parametrize("mutation", ["legacy_version", "missing_instance"])
+def test_legacy_or_unbound_approval_tokens_are_rejected(monkeypatch, mutation):
+    monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
+    approval_args = {"strategy_type": "ai_strategy", "platform": "agnostic"}
+    approval = approval_tokens.issue_approval_token(
+        tool_name="generate_strategy",
+        approval_args=approval_args,
+        max_cost_usd=1.0,
+    )
+    payload = approval_tokens._decode_token(approval["approval_token"])
+    if mutation == "legacy_version":
+        payload["v"] = 1
+    else:
+        payload.pop("instance")
+    encoded = approval_tokens._b64encode_json(payload)
+    token = f"{encoded}.{approval_tokens._sign(encoded)}"
+
+    error = approval_tokens.enforce_approval_token(
+        tool_name="generate_strategy",
+        approval_args=approval_args,
+        estimated_cost_usd=1.0,
+        approval_token=token,
+    )
+
+    assert error is not None
+    assert error["error_type"] == "invalid_approval_token"
+
+
+def test_same_process_approval_remains_single_use(monkeypatch):
+    monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
+    approval_args = {"strategy_type": "ai_strategy", "platform": "agnostic"}
+    approval = approval_tokens.issue_approval_token(
+        tool_name="generate_strategy",
+        approval_args=approval_args,
+        max_cost_usd=1.0,
+    )
+
+    first = approval_tokens.enforce_approval_token(
+        tool_name="generate_strategy",
+        approval_args=approval_args,
+        estimated_cost_usd=1.0,
+        approval_token=approval["approval_token"],
+    )
+    second = approval_tokens.enforce_approval_token(
+        tool_name="generate_strategy",
+        approval_args=approval_args,
+        estimated_cost_usd=1.0,
+        approval_token=approval["approval_token"],
+    )
+
+    assert first is None
+    assert second is not None
+    assert "already used" in second["message"]

@@ -361,6 +361,32 @@ def test_unreadable_audit_sink_is_degraded(server, tmp_path):
     assert str(unreadable) not in json.dumps(health)
 
 
+def test_preflight_opens_and_reads_the_actual_empty_sink(server):
+    assert not server.audit_log.path.exists()
+
+    assert server.audit_log.preflight() is True
+
+    assert server.audit_log.path.read_bytes() == b""
+    assert server.audit_log.health_snapshot()["status"] == "ok"
+
+
+def test_preflight_rejects_a_hard_linked_sink(server, tmp_path):
+    target = tmp_path / "shared-audit.jsonl"
+    original = b"do-not-modify\n"
+    target.write_bytes(original)
+    link = tmp_path / "audit-hardlink.jsonl"
+    try:
+        link.hardlink_to(target)
+    except OSError:
+        pytest.skip("hard links are unavailable")
+    server.audit_log.path = link
+
+    assert server.audit_log.preflight() is False
+
+    assert target.read_bytes() == original
+    assert server.audit_log.health_snapshot()["status"] == "degraded"
+
+
 def test_missing_sink_after_success_is_degraded(server):
     server.audit_log.path.parent.mkdir(parents=True, exist_ok=True)
     event = _valid_event()
@@ -455,6 +481,32 @@ def test_health_snapshot_detects_external_replacement(server, tmp_path):
 
     assert health["status"] == "degraded"
     assert health["file_replaced_after_successful_write"] is True
+
+
+def test_replaced_sink_cannot_be_laundered_by_a_later_append(server, tmp_path):
+    _append_valid_event(server)
+    pinned_identity = server.audit_log._last_write_identity
+    replacement = tmp_path / "replacement.jsonl"
+    replacement.write_text(json.dumps(_valid_event()) + "\n", encoding="utf-8")
+    replacement.replace(server.audit_log.path)
+
+    with pytest.raises(audit_log_module._UnsafeAuditSinkError, match="continuity"):
+        _append_valid_event(server)
+
+    assert server.audit_log._last_write_identity == pinned_identity
+    assert server.audit_log.health_snapshot()["status"] == "degraded"
+
+
+def test_truncated_sink_cannot_be_laundered_by_a_later_append(server):
+    _append_valid_event(server)
+    pinned_size = server.audit_log._last_write_size
+    server.audit_log.path.write_text("", encoding="utf-8")
+
+    with pytest.raises(audit_log_module._UnsafeAuditSinkError, match="continuity"):
+        _append_valid_event(server)
+
+    assert server.audit_log._last_write_size == pinned_size
+    assert server.audit_log.health_snapshot()["status"] == "degraded"
 
 
 def test_encoded_event_size_limit_marks_sink_degraded(server, monkeypatch):

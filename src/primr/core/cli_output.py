@@ -11,12 +11,18 @@ truthful nonzero structured results. Progress chrome cannot interleave with it.
 from __future__ import annotations
 
 import dataclasses
-import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from primr.core.cli_command_output import emit_json as _emit_json
+
 if TYPE_CHECKING:
     from primr.utils.cost_estimator import CostEstimate
+
+
+def emit_json(obj: dict[str, object]) -> None:
+    """Keep the established import surface while delegating JSON emission."""
+    _emit_json(obj)
 
 
 def cost_estimate_json(
@@ -71,8 +77,3 @@ def research_result_json(
         if docx.exists():
             out["docx_path"] = str(docx.resolve())
     return out
-
-
-def emit_json(obj: dict[str, object]) -> None:
-    """Write a JSON object to stdout (the single ``--json`` emission point)."""
-    print(json.dumps(obj, indent=2, ensure_ascii=False))

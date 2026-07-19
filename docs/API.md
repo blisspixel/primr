@@ -158,6 +158,24 @@ application job list expose the same `primr.job-status` v1.0 projection without
 report bodies or paths. See [Job Status](JOB_STATUS.md) for field semantics and
 compatibility rules.
 
+## Versioned CLI Command Errors
+
+Commands that accept `--json` emit exactly one JSON object on an expected or
+top-level failure. The stable error envelope is:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `schema_version` | string | Always `primr.command-error.v1` for this contract. |
+| `operation` | string | Lowercase command or operation name. |
+| `error` | boolean | Always `true`. |
+| `error_type` | string | Stable category, including `unexpected_error` for unhandled failures. |
+| `message` | string | Body-safe operator or caller guidance. |
+| `hints` | array of strings | Optional ordered recovery actions. |
+
+Human progress text is suppressed from JSON stdout, including workspace lease,
+interrupt, and unexpected top-level failures. Consumers should branch on
+`schema_version` and `error_type`, not parse `message` text.
+
 **Accessing results:**
 
 ```python
@@ -1077,6 +1095,22 @@ async def main():
 asyncio.run(main())
 ```
 
+### HTTP Probes
+
+HTTP mode exposes two unauthenticated, body-safe probe routes:
+
+- `GET /healthz` is a shallow process-liveness check. It returns HTTP 200 with
+  `{"status":"ok"}` and does not claim that controller state or persistence is
+  ready.
+- `GET /readyz` returns HTTP 200 only while the controller lifecycle is ready,
+  its exclusive journal lease is held, shutdown has not started, and journal,
+  audit, and output persistence passed startup preflight. It returns HTTP 503
+  with allowlisted component states otherwise.
+
+Both responses set `Cache-Control: no-store` and omit paths, exception text,
+and stored content. Deploy the current process-local controller as exactly one
+persistent replica.
+
 ### Tools
 
 Without optional A2A support, the MCP server exposes 16 tools: 11 core
@@ -1154,6 +1188,12 @@ an execution ceiling at least as high as `estimated_cost_usd` to
 `platform` field. Estimates with zero or multiple platforms, the multi-target
 `ms` alias, or a non-AI `strategy_type` are rejected before an approval token
 is issued.
+
+Approval tokens are single-use and bound to the server process that issued
+them, in addition to their tool, arguments, cost ceiling, and expiry. A server
+restart invalidates outstanding tokens even when the signing secret is shared.
+Call the matching estimate tool again after a restart and obtain fresh user
+approval before execution.
 
 #### estimate_strategy
 

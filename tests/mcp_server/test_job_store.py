@@ -722,6 +722,55 @@ def test_controller_lease_excludes_second_owner_and_can_be_reacquired(tmp_path):
     second.close()
 
 
+def test_controller_lease_rejects_hard_link_without_modifying_target(tmp_path):
+    lease = ControllerLease(tmp_path / "journal.json")
+    target = tmp_path / "external-lock-target"
+    target.write_bytes(b"")
+    try:
+        lease.lock_path.hardlink_to(target)
+    except OSError:
+        pytest.skip("hard links are unavailable")
+
+    with pytest.raises(ControllerLeaseError, match="unsafe"):
+        lease.acquire()
+
+    assert target.read_bytes() == b""
+    assert lease.acquired is False
+
+
+def test_controller_lease_rejects_symlink_without_modifying_target(tmp_path):
+    lease = ControllerLease(tmp_path / "journal.json")
+    target = tmp_path / "external-lock-target"
+    target.write_bytes(b"")
+    try:
+        lease.lock_path.symlink_to(target)
+    except OSError:
+        pytest.skip("file symlinks are unavailable")
+
+    with pytest.raises(ControllerLeaseError, match="unsafe"):
+        lease.acquire()
+
+    assert target.read_bytes() == b""
+    assert lease.acquired is False
+
+
+def test_controller_lease_rejects_linked_parent_without_creating_lock(tmp_path):
+    target = tmp_path / "external-state"
+    target.mkdir()
+    linked_parent = tmp_path / "linked-state"
+    try:
+        linked_parent.symlink_to(target, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory links are unavailable")
+    lease = ControllerLease(linked_parent / "journal.json")
+
+    with pytest.raises(ControllerLeaseError, match="unsafe"):
+        lease.acquire()
+
+    assert not (target / lease.lock_path.name).exists()
+    assert lease.acquired is False
+
+
 class TestJournalPersistence:
     """Tests for journal persistence (Requirements 19.3, 19.4, 19.6)."""
 
@@ -738,6 +787,22 @@ class TestJournalPersistence:
         store.create("Acme Corp", "full")
 
         assert temp_journal.exists()
+
+    def test_preplanted_legacy_temp_symlink_is_never_followed(self, temp_journal, tmp_path):
+        external = tmp_path / "external-target.json"
+        external.write_text("sentinel", encoding="utf-8")
+        legacy_temp = temp_journal.with_suffix(".tmp")
+        try:
+            legacy_temp.symlink_to(external)
+        except OSError:
+            pytest.skip("file symlinks are unavailable")
+
+        store = SingleJobStore(journal_path=str(temp_journal))
+        store.create("Sample Corp", "full")
+
+        assert external.read_text(encoding="utf-8") == "sentinel"
+        assert temp_journal.is_file()
+        assert not temp_journal.is_symlink()
 
     def test_journal_contains_job_data(self, temp_journal):
         """Journal file contains serialized job data."""

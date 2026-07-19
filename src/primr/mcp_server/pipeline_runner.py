@@ -9,7 +9,9 @@ Requirements: 15.2, 19.1-19.4
 
 import asyncio
 import contextlib
+import json
 import logging
+import stat
 from pathlib import Path
 from typing import Any, Protocol, cast
 
@@ -87,6 +89,7 @@ class PipelineRunner:
         self._cancel_requested = False
         current_task = asyncio.current_task()
         self._running_task = current_task
+        from primr.data.scraping.trace import reset_trace_run_id, set_trace_run_id
 
         # Bound optional spend to the operator-approved cap, mirroring the CLI
         # --budget path. The budget is process-global and the MCP server runs
@@ -100,6 +103,7 @@ class PipelineRunner:
             set_run_budget(budget_usd)
             budget_active = True
 
+        trace_context_token = set_trace_run_id(job.job_id)
         try:
             # Defensive per-job accounting reset: the fast path resets in its
             # own setup, but the non-fast/orchestrator paths do not - without
@@ -280,8 +284,14 @@ class PipelineRunner:
             # must add the same artifact explicitly.
             if platform is not None:
                 on_progress("Generating AI strategy...")
-                strategy_result = await run_strategy_generation(
+                from primr.core.trusted_report import validate_trusted_report
+
+                trusted_report = validate_trusted_report(
                     output_path,
+                    allowed_roots=(job_output_dir,),
+                )
+                strategy_result = await run_strategy_generation(
+                    trusted_report,
                     "ai_strategy",
                     platform=platform,
                     on_progress=on_progress,
@@ -355,6 +365,7 @@ class PipelineRunner:
             job.error_message = PUBLIC_RESEARCH_FAILURE_MESSAGE
             self.mcp_server.job_store.update(job)
         finally:
+            reset_trace_run_id(trace_context_token)
             if budget_active:
                 clear_run_budget()
             if self._running_task is current_task:
@@ -503,7 +514,6 @@ class PipelineRunner:
 
         Requirements: FR-7.1, FR-7.2
         """
-        import json
         import os
         from pathlib import Path
 
@@ -702,17 +712,41 @@ def _collect_trace_artifacts(job: ResearchJobState) -> list[str]:
     end_ts = end.timestamp() + 60
     safe_name = _trace_company_slug(job.company_name)
 
-    traces: list[Path] = []
+    traces: list[tuple[float, Path]] = []
     for candidate in trace_dir.glob(f"{safe_name}_*.jsonl"):
-        modified = candidate.stat().st_mtime
-        if start_ts <= modified <= end_ts:
-            traces.append(candidate)
-    return [str(path) for path in sorted(traces, key=lambda path: path.stat().st_mtime)]
+        try:
+            metadata = candidate.lstat()
+        except OSError:
+            continue
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink > 1:
+            continue
+        modified = metadata.st_mtime
+        if start_ts <= modified <= end_ts and _trace_run_id(candidate) == job.job_id:
+            traces.append((modified, candidate))
+    ordered = sorted(traces, key=lambda item: (item[0], str(item[1])))
+    return [str(path) for _modified, path in ordered]
 
 
 def _trace_company_slug(company_name: str) -> str:
     sanitized = company_name.replace(" ", "_").replace("/", "_").replace("\\", "_")
     return "".join(char for char in sanitized if char.isalnum() or char in "_-")[:50]
+
+
+def _trace_run_id(path: Path) -> str | None:
+    """Read the bounded trace header only when it is one regular file."""
+    try:
+        metadata = path.lstat()
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink > 1:
+            return None
+        with open(path, encoding="utf-8") as stream:
+            first_line = stream.readline(16_385)
+        if len(first_line) > 16_384:
+            return None
+        header = json.loads(first_line)
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    run_id = header.get("run_id") if isinstance(header, dict) else None
+    return run_id if isinstance(run_id, str) else None
 
 
 def _copy_artifacts_to_destination(artifact_paths: list[str], destination: str) -> list[str]:

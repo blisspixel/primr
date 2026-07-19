@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -14,11 +15,12 @@ from primr.core.cli_errors import (
 )
 
 
-def _config(*, command_name="RESEARCH", quiet=False, verbose=False):
+def _config(*, command_name="RESEARCH", quiet=False, verbose=False, json_output=False):
     return SimpleNamespace(
         command=SimpleNamespace(name=command_name),
         quiet=quiet,
         verbose=verbose,
+        json_output=json_output,
     )
 
 
@@ -100,3 +102,26 @@ class TestGuardDispatchErrors:
 
         with pytest.raises(ValueError, match="kaboom"):
             guard_dispatch(boom, _config(verbose=True))
+
+    @pytest.mark.parametrize("verbose", [False, True])
+    def test_json_unexpected_exception_is_one_machine_object(self, verbose, capsys):
+        def boom(_c):
+            raise ValueError("sensitive internal detail")
+
+        assert guard_dispatch(boom, _config(verbose=verbose, json_output=True)) == 1
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+        assert payload["schema_version"] == "primr.command-error.v1"
+        assert payload["operation"] == "research"
+        assert payload["error_type"] == "unexpected_error"
+        assert "sensitive internal detail" not in captured.out
+        assert captured.err == ""
+
+    def test_json_interrupt_is_one_machine_object(self, capsys):
+        def cancel(_c):
+            raise KeyboardInterrupt
+
+        assert guard_dispatch(cancel, _config(json_output=True)) == EXIT_INTERRUPTED
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["error_type"] == "interrupted"
+        assert payload["message"] == "The command was cancelled."
