@@ -286,15 +286,19 @@ class TestStrategyTypeEstimates:
         )
         assert any("customer_experience" in n for n in with_strategy.notes)
 
-    def test_placeholder_strategy_priced_at_zero_with_note(self):
-        """Non-DR types warn-skip at runtime on non-fast paths; pricing them
-        would tell the user they pay for a document they will not get."""
+    def test_skills_strategy_priced_as_deep_research_task(self):
+        """The generic YAML strategy types (customer_experience, modern_security_
+        compliance, data_fabric_strategy, skills) each run as one Deep Research
+        task on non-fast paths, so each adds the flat DR planning cost."""
         base = estimate_cost("complete", use_historical=False, include_ai_strategy=False)
         with_strategy = estimate_cost(
             "complete", use_historical=False, include_ai_strategy=False, strategy_types=["skills"]
         )
-        assert with_strategy.total_cost == base.total_cost
-        assert any("skip" in n and "skills" in n for n in with_strategy.notes)
+        assert (
+            with_strategy.deep_research_cost
+            == base.deep_research_cost + DEEP_RESEARCH_COST.standard_task_cost
+        )
+        assert any("skills" in n for n in with_strategy.notes)
 
     def test_fast_mode_strategy_adds_writing_bundle(self, monkeypatch):
         # Pin provider keys so routing (and therefore pricing) is deterministic.

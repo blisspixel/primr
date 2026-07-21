@@ -77,20 +77,15 @@ SUPERVISED_BLOCKED_ENV_PREFIXES = (
 )
 SUPERVISED_WORKER_ENV_NAMES = frozenset(
     {
+        # NOTE: cloud-infrastructure credentials (AWS_*, AZURE_* secrets) are
+        # deliberately NOT inherited by supervised workers — worker_environment
+        # strips them as a trust boundary (see tests/mcp_server/test_job_process
+        # ::test_worker_environment_strips_controller_names_case_insensitively).
+        # The Foundry/Bedrock providers run in the main process; worker-side use
+        # would need a credential-passing design that respects this boundary.
         "ALL_PROXY",
         "ANTHROPIC_API_KEY",
         "APPDATA",
-        "AWS_ACCESS_KEY_ID",
-        "AWS_BEARER_TOKEN_BEDROCK",
-        "AWS_DEFAULT_REGION",
-        "AWS_PROFILE",
-        "AWS_REGION",
-        "AWS_ROLE_ARN",
-        "AWS_SECRET_ACCESS_KEY",
-        "AWS_SESSION_TOKEN",
-        "AZURE_OPENAI_API_KEY",
-        "AZURE_OPENAI_BASE_URL",
-        "AZURE_OPENAI_ENDPOINT",
         "CHROME_PATH",
         "CHROMIUM_PATH",
         "COMSPEC",
