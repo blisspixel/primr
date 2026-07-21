@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`primr render <file>.md` — zero-cost Markdown → DOCX/TXT.** Exposes the
+  existing renderer as a standalone subcommand (no model calls, no network) so
+  any Markdown report gets the same `.docx`/`.txt` artifacts as a provider-backed
+  run. This closes the "no DOCX on the Primr Zero path" gap: the host-assisted
+  flow writes Markdown, and `primr render` gives it deliverable parity.
+- **Primr Zero now produces the full artifact set at $0.** The `primr-zero`
+  skill instructs the host to render each report to DOCX and to optionally write
+  the **AI Strategy** itself (host-written from the same evidence, no Primr model
+  spend), so a quota/subscription-host run yields the same Strategic Overview +
+  AI Strategy in `.md` **and** `.docx` as a paid run — the same outputs
+  regardless of how the report was processed.
+
 ## [1.37.0] - 2026-07-21
 
 ### Changed

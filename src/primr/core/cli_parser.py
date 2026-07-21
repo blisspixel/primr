@@ -49,6 +49,7 @@ Common first-run path:
 Examples:
   primr prep "Acme Corp" https://acme.example       # $0 API evidence bundle for a host agent
   primr skills "Acme Corp" https://acme.example     # Agent Skills pack (~$0.30 default)
+  primr render "output/report.md"                    # Markdown -> DOCX/TXT ($0, no model calls)
   primr "Acme Corp" acme.example --mode deep
   primr "Acme Corp" acme.example --mode scrape       # Build Site Corpus + Extract Insights
   primr keys list                                    # Show configured provider keys
