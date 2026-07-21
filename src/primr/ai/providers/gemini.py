@@ -32,6 +32,7 @@ from typing import Any
 from primr.ai.genai_factory import default_genai_http_options
 from primr.ai.providers.base import (
     ChatResponse,
+    CredentialCheck,
     Provider,
     ProviderUnavailableError,
     QuotaExhaustedError,
@@ -50,6 +51,23 @@ class GeminiQuotaGuidance:
     summary: str
     options: tuple[str, ...]
     error_message: str
+
+
+@dataclass(frozen=True)
+class GeminiGroundedResult:
+    """Result of a Google Search-grounded generate_content call.
+
+    ``search_queries`` and ``citations`` are the evidence that the call used
+    live web results rather than training memory; the token counts feed cost
+    accounting exactly like a normal chat call.
+    """
+
+    text: str
+    citations: tuple[str, ...]
+    search_queries: tuple[str, ...]
+    input_tokens: int
+    output_tokens: int
+    cached_input_tokens: int
 
 
 # ---------------------------------------------------------------------------
@@ -137,6 +155,34 @@ class GeminiProvider(Provider):
         """Return provider-specific terminal quota guidance for CLI callers."""
 
         return self.QUOTA_GUIDANCE
+
+    def validate_credentials(self) -> CredentialCheck:
+        """Auth-only check via a free ``models.list`` call (no generation)."""
+        import time
+
+        if not self.is_available():
+            return CredentialCheck(
+                provider=self.name, ok=False, detail=f"{self._api_key_env} not set"
+            )
+        start = time.monotonic()
+        try:
+            client = self._get_client()
+            models = client.models.list()
+            count = sum(1 for _ in models)
+            latency = int((time.monotonic() - start) * 1000)
+            return CredentialCheck(
+                provider=self.name,
+                ok=True,
+                detail=f"authenticated; {count} models visible",
+                latency_ms=latency,
+            )
+        except Exception as exc:
+            return CredentialCheck(
+                provider=self.name,
+                ok=False,
+                detail=f"{type(exc).__name__}: {str(exc)[:120]}",
+                latency_ms=int((time.monotonic() - start) * 1000),
+            )
 
     def _get_client(self) -> Any:
         if self._client is not None:
@@ -304,6 +350,76 @@ class GeminiProvider(Provider):
         raise RuntimeError(
             f"Gemini API call failed after {retries + 1} attempts: {last_error}"
         ) from last_error
+
+    # -----------------------------------------------------------------
+    # Grounded web search (live Google Search + cited synthesis)
+    # -----------------------------------------------------------------
+
+    def search_and_summarize(
+        self,
+        prompt: str,
+        *,
+        model: str,
+        max_tokens: int = 8_000,
+        temperature: float = 1.0,
+    ) -> GeminiGroundedResult | None:
+        """Answer ``prompt`` with the live Google Search grounding tool.
+
+        Unlike :meth:`chat`, this attaches the ``google_search`` tool so the
+        model searches the live web and returns cited, current synthesis (not
+        stale training knowledge). Returns ``None`` on an empty body. Usage is
+        recorded through the same accounting seam as a normal call.
+        """
+        client = self._get_client()
+        config = _google_types.GenerateContentConfig(
+            temperature=temperature,
+            max_output_tokens=max_tokens,
+            tools=[_google_types.Tool(google_search=_google_types.GoogleSearch())],
+        )
+        response = client.models.generate_content(model=model, contents=prompt, config=config)
+        text = (response.text or "").strip()
+        if not text:
+            return None
+        input_tokens, output_tokens, cached_input_tokens = self._extract_usage(response)
+        if input_tokens or output_tokens:
+            self._record_usage(
+                model, input_tokens, output_tokens, cached_input_tokens=cached_input_tokens
+            )
+        citations, queries = self._extract_grounding(response)
+        logger.info(
+            "gemini grounded call complete (model=%s): %d searches, %d citations, %d output tokens",
+            model,
+            len(queries),
+            len(citations),
+            output_tokens,
+        )
+        return GeminiGroundedResult(
+            text=text,
+            citations=citations,
+            search_queries=queries,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cached_input_tokens=cached_input_tokens,
+        )
+
+    @staticmethod
+    def _extract_grounding(response: Any) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """Pull (citation urls, live search queries) from grounding metadata."""
+        citations: list[str] = []
+        queries: list[str] = []
+        try:
+            candidate = response.candidates[0]
+            meta = getattr(candidate, "grounding_metadata", None)
+            if meta is not None:
+                queries = [str(q) for q in (getattr(meta, "web_search_queries", None) or [])]
+                for chunk in getattr(meta, "grounding_chunks", None) or []:
+                    web = getattr(chunk, "web", None)
+                    uri = getattr(web, "uri", None) if web is not None else None
+                    if uri:
+                        citations.append(str(uri))
+        except (AttributeError, IndexError, TypeError):
+            pass
+        return tuple(dict.fromkeys(citations)), tuple(queries)
 
     # -----------------------------------------------------------------
     # Usage extraction

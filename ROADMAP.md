@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.36.1
+Current State: v1.37.0
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -283,9 +283,9 @@ into generic agent middleware.
 
 ### Providers & Routing
 
-- Five providers wired: xAI (Grok), Google (Gemini), OpenAI, Anthropic, Ollama (local)
-- Provider abstraction at `src/primr/ai/providers/` - `Provider` ABC, `OpenAICompatibleProvider` (xAI/OpenAI/Ollama/vLLM), `GeminiProvider`, `AnthropicProvider`
-- `pick_model_for_role` chooses the best model from configured providers; `primr doctor` shows what each key unlocks
+- Seven providers wired: xAI (Grok), Google (Gemini), OpenAI, Anthropic, Ollama (local), Microsoft Foundry (Azure OpenAI-compatible `/openai/v1/`), Amazon Bedrock (boto3 `converse`)
+- Provider abstraction at `src/primr/ai/providers/` - `Provider` ABC, `OpenAICompatibleProvider` (xAI/OpenAI/Ollama/vLLM), `GeminiProvider`, `AnthropicProvider`, `AzureFoundryProvider`, `BedrockProvider`
+- `pick_model_for_role` chooses the best model from configured providers; `primr doctor` shows what each key unlocks; `primr keys test` does live auth-only validation (free `models.list`, no model spend) via `Provider.validate_credentials()`
 - Pure capability router foundation shipped in `src/primr/ai/capability_routing.py`: `StageRequirements`, backend capability rows, cloud/agent/hybrid/local profiles, billing-mode guards, ordered route plans, explicit rejection reasons, and pure availability-to-backend annotation. Runtime consumption is now wired for `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` behind `--inference cloud|hybrid`, with an explicitly acknowledged, single-company Codex experiment for `fast.source_relevance` and capped body-free route usage records persisted to `_run_state.json`. Codex route metadata reports potentially metered billing and pending-eval status; it does not prove whether authentication is plan-backed or API-key billed.
 - Provider availability foundation shipped across `src/primr/ai/provider_availability.py` and `src/primr/ai/provider_availability_collectors.py`: normalized quota windows, binding headroom, elapsed-reset handling, stale last-known-good snapshots, deterministic provider ranking, non-secret cloud provider configuration snapshots, generic local OpenAI-compatible availability probes, sanitized routing metadata, and `primr doctor` visibility. Official live cloud quota/status collectors and production execution wiring remain planned.
 - Provider-aware fallback chain: WRITING/UTILITY prefer GEMINI > OPENAI > ANTHROPIC > XAI; REASONING prefers XAI (cached) > GEMINI > OPENAI > ANTHROPIC
@@ -293,6 +293,18 @@ into generic agent middleware.
 - Quota-aware `ModelCircuitBreaker.execute_with_fallback()` with midnight-UTC reset (callable; production call-site integration still pending - see queue below)
 - Continuous reasoning session is the default: workbook generation and cross-validation share a single Grok 4.3 session so the validator inherits corpus + workbook reasoning. ~81% reduction in leaked-instruction lines, average ~+12% cost. Escape hatch: `--no-continuous-reasoning` or `PRIMR_CONTINUOUS_REASONING=0`.
 - Known runtime gap: provider/routing and dry-run estimates cover OpenAI-only and Anthropic-only configurations, but the main full-report preflight and continuous-reasoning session still assume the xAI/Gemini-era execution path. Full no-xAI report execution remains in Active Queue #26 / Backend Freedom rather than being claimed as shipped.
+- **Planned, not urgent — broad model coverage + estimate-vs-actual evals.** The
+  seven-provider transport can *reach* any of these services; filling in the model
+  catalog and validating each is deliberately deferred. Future work: (1) register
+  the current-generation models across all providers, including deployment-surface
+  models (Foundry Phi-4; Bedrock Nova 2, Gemma 4, DeepSeek R1/V3, Llama 4) and the
+  latest flagships (grok-4.5, gpt-5.6, claude-fable-5) as *available-but-never-default*
+  entries — verify each id/price against official docs before it enters the
+  registry; (2) do **not** eval every model now; when models are evaluated, extend
+  the eval-slot registry so each run records the pre-run **cost estimate and the
+  actual metered cost and compares them**, per provider × model × role, so routing
+  picks are backed by measured quality *and* estimate accuracy. Defaults stay chosen
+  on output $/1M near the ~$1 target; premium models remain explicit opt-in.
 
 ### Agent Integration
 
@@ -433,7 +445,7 @@ a schedule. Detailed breakdowns live in [`docs/design/`](docs/design/README.md)
 
 The job is "URL in, consultant-grade artifact out," done well.
 
-**Status (as of v1.36.1):** most of the 1.x engineering backlog is closed -
+**Status (as of v1.37.0):** most of the 1.x engineering backlog is closed -
 artifact pipeline contract (#1-2), cost/observability surface (#5, #7, #8,
 #12, #13), production failover (#6), QA iteration loop (#10), agentic write
 constraints (#11), runtime robustness (#24), and the `perform_fast_research`
@@ -919,13 +931,58 @@ to 7 days (weekly). All three gaps closed:
   invalid/negative values fall back) drives `is_vendor_research_current` AND
   the reuse/refresh gates in `get_or_generate_vendor_research[_sync]` - the
   previously hardcoded 14-day fresh-gate now follows the same TTL. Refresh
-  still requires explicit opt-in (`--refresh-vendor-research`,
-  `PRIMR_ALLOW_VENDOR_REFRESH=1`, or `force_refresh`), preserving the
-  cost-cap behavior.
+  still requires explicit opt-in (`--refresh-vendor-research`, direct-library
+  `PRIMR_ALLOW_VENDOR_REFRESH=1`, or `force_refresh`), preserving the cost-cap
+  behavior. Estimate-bound CLI and MCP paths ignore the ambient setting.
 - **Freshness visibility - DONE.** `primr show-usage` ends with a "Vendor
   Research Freshness" section listing each cached file's age and
   fresh/stale status against the TTL. (`--refresh-vendor-research` already
   existed as the refresh flag.)
+- **Estimate-bound refresh and context parity - DONE.** Integrated fast and
+  standard strategy paths disable ambient cache refresh, carry the explicit
+  `--refresh-vendor-research` intent into execution, and conservatively add one
+  quoted Deep Research task per selected platform. Fast AI Strategy now reads
+  the same cached cross-industry research as standard and standalone paths
+  through bounded, identity-stable, body-safe file handling; an optional cache
+  failure cannot block strategy generation. Refresh publication is atomic,
+  provider usage is recorded even when local publication fails, existing cache
+  content remains the explicit fallback, and fast multi-platform refresh work
+  is serialized before parallel strategy writing to protect shared client and
+  usage state.
+- **Direct generation cost governance - DONE.** The standalone
+  `--generate-vendor-research` command aggregates every requested Deep Research
+  task, including private accelerated-infrastructure research, into one
+  estimate, supports zero-call `--dry-run` and `--budget`, and
+  requires interactive confirmation unless `--skip-confirm` explicitly
+  approves noninteractive execution. JSON returns one estimate or result
+  object, and partial failures preserve successful paths while returning a
+  nonzero status.
+- **Standalone strategy machine contract - DONE.** Zero-call JSON dry-runs,
+  approval-required refusals, and approved execution results are distinct
+  versioned one-object contracts. Result objects name every expected target,
+  preserve successful artifact paths on partial completion, contain provider
+  exceptions without exposing response bodies, and return nonzero for any
+  unfulfilled target.
+- **Truthful integrated outcomes and task accounting - DONE.** Base-report
+  completion is now independent from requested strategy and vendor-refresh
+  fulfillment. Fast, standard, deep, complete, and hybrid runs persist expected,
+  completed, failed, and budget-skipped targets; JSON preserves the report path
+  while separating base status from aggregate `fulfillment_status`; and the CLI
+  returns nonzero when an explicit target is missing or outcome state cannot be
+  trusted. Human completion and local job-monitoring surfaces expose unresolved
+  targets. Provider callbacks feed run-local refresh and AI Strategy task
+  ledgers, so concurrent jobs cannot contaminate counts and preflight failures
+  are not priced as submissions. Standard-mode summaries include AI Strategy
+  and refresh Deep Research tasks, while refresh usage rows remain
+  single-counted. Optional standard-strategy failures preserve the completed
+  base report. Linked, hard-linked, oversized, or mutation-unstable vendor
+  context is rejected through one shared private-snapshot seam before lite,
+  standard, or asynchronous provider egress.
+  Local job monitoring parses the same canonical outcome contracts and refuses
+  to report completed fulfillment for missing, unknown, or inconsistent
+  lifecycle state. Fast refresh budget gates include every earlier submitted
+  task, and provider or polling exceptions after refresh submission create one
+  conservative usage record without double-counting publication failures.
 
 ### 14. Windows Working-Directory Hardening
 
@@ -1928,6 +1985,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.37.0 | Jul 2026 | **Truthful strategy fulfillment and complete cost governance.** Integrated, standalone, batch, machine-readable, and monitoring surfaces now share canonical strategy and vendor-refresh outcomes. Estimates, budgets, provider submissions, actual-cost summaries, and partial exits stay aligned across fast, standard, and deep routes. Every AI Strategy path receives bounded cross-industry and observed-stack context, explicit refresh stays opt-in, the active Skills strategy reaches delivery, scrape-only success is unambiguous, and preflight performs no model generation. |
 | 1.36.1 | Jul 2026 | **Fail-closed controller and operator contracts.** Strict self-update parsing and confirmation, versioned CLI machine errors, stable strategy snapshots, restart-bound approvals, truthful readiness, secure journal and audit continuity, exact trace ownership, single-replica Azure topology, and fail-closed deployment validation make existing workflows safer and easier to operate. |
 | 1.36.0 | Jul 2026 | **Business-first strategy and governed recovery.** AI Strategy 2.1 leads with enterprise performance, value choices, measurable outcomes, non-AI alternatives, complete stack disposition, and workload-specific hybrid economics. Standalone strategy recovery is estimate-first and digest-bound. Batch research and enrichment use separate whole-operation quotes, exact approval, budgets, and retry policy. Atomic workspaces, cross-process leases, publication locks, job-local MCP strategy artifacts, duplicate-interaction prevention, and exact lite output caps harden concurrent execution. |
 | 1.35.2 | Jul 2026 | **Acyclic controller boundaries and immutable supply chain.** Shared MCP and A2A consumers now type against a shared cross-transport controller contract, direct strategy requests honor the requested module and canonical Deep Research estimate, and architecture tests prevent concrete server imports outside composition roots. GitHub Actions and Python container bases are immutable pins. Managed-identity Azure stores, quote extraction, finite audit values, retry validation, and standalone exit handling are corrected. |

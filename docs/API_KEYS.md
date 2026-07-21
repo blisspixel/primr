@@ -21,10 +21,30 @@ Grok + Gemini is the measured default, but it is not the only supported provider
 | `OPENAI_API_KEY` | Optional OpenAI GPT/o-series fallback for utility, writing, reasoning, and premium research roles | [OpenAI Platform](https://platform.openai.com/api-keys) |
 | `ANTHROPIC_API_KEY` | Optional Claude fallback for writing, reasoning, and pro roles | [Anthropic Console](https://console.anthropic.com/settings/keys) |
 | `OLLAMA_API_KEY` | Optional local/OpenAI-compatible endpoint key; Ollama uses `ollama` by default | Local runtime |
+| `AZURE_OPENAI_API_KEY` + `AZURE_OPENAI_BASE_URL`/`AZURE_OPENAI_ENDPOINT` | Microsoft Foundry / Azure OpenAI via the OpenAI-compatible `/openai/v1/` endpoint (Phi-4, GPT, Llama, DeepSeek) | [Azure AI Foundry](https://ai.azure.com/) |
+| `AWS_BEARER_TOKEN_BEDROCK` *or* AWS credential chain (`AWS_ACCESS_KEY_ID`/`AWS_PROFILE` + `AWS_REGION`) | Amazon Bedrock via `converse` (Claude, Nova, Llama, Gemma, DeepSeek); needs `pip install 'primr[bedrock]'` | [AWS Bedrock](https://console.aws.amazon.com/bedrock/) |
 | `SEARCH_API_KEY` | Google Custom Search API (only if `SEARCH_PROVIDER=google`) | [Google Cloud Console](https://console.cloud.google.com/apis/credentials) |
 | `SEARCH_ENGINE_ID` | Custom Search Engine config (only if `SEARCH_PROVIDER=google`) | [Programmable Search Engine](https://programmablesearchengine.google.com/) |
 
 Primr uses DuckDuckGo for web search by default, so no search API key is needed unless you opt into `SEARCH_PROVIDER=google`.
+
+### Deployment surfaces: Foundry and Bedrock
+
+Microsoft Foundry and Amazon Bedrock let you run primr against models hosted in
+your own Azure/AWS account (good for cost, single-cloud consolidation, and cheap
+tiers like Phi-4, Nova, Gemma, DeepSeek). They lag the model vendors' own APIs
+by weeks, so use them for cost/consolidation and first-party APIs for the newest
+models. End-to-end infrastructure-as-code with deploy/verify/clean-up steps
+lives in the repo under
+[`examples/deploy/`](https://github.com/blisspixel/primr/tree/main/examples/deploy):
+Azure Foundry (Bicep) and AWS Bedrock (CloudFormation).
+
+### Validate that keys actually work
+
+`primr keys test` runs a free, auth-only check (a `models.list`-style call — no
+model generation, no token spend) against every configured provider and reports
+per-provider OK/FAIL with latency. `primr keys test <provider>` checks just one.
+This is separate from `primr doctor`, which never makes a live model call.
 
 ## Subscription-Backed Agent Hosts
 

@@ -29,6 +29,8 @@ def should_include_api_keys(config: Any) -> bool:
         include_api_keys = False
     if command_value == "eval" and getattr(config, "eval_run_missing", False):
         include_api_keys = True
+    if command_value == "generate-vendor":
+        include_api_keys = False
     return include_api_keys
 
 

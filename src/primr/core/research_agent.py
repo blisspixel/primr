@@ -306,12 +306,7 @@ from primr.data.search_utils import (
 from primr.output.output_utils import generate_final_report
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
-from primr.utils.observability import (
-    JobSummary,
-    correlation_scope,
-    log_job_summary,
-    log_structured,
-)
+from primr.utils.observability import correlation_scope, log_structured
 from primr.utils.url_helpers import normalized_hostname
 from primr.utils.validators import sanitize_for_filename
 
@@ -1024,6 +1019,15 @@ def perform_scrape_only(
     console.blank()
     console.done(f"Complete: {pages_scraped} pages, {total_chars:,} chars ({time_str})")
     console.muted(f"Output: {folder_path}")
+
+    from primr.core.strategy_outcome import StrategyOutcomeTracker, persist_strategy_outcome
+    from primr.core.vendor_refresh_outcome import (
+        VendorRefreshTracker,
+        persist_vendor_refresh_outcome,
+    )
+
+    persist_strategy_outcome(folder_path, StrategyOutcomeTracker(()).snapshot())
+    persist_vendor_refresh_outcome(folder_path, VendorRefreshTracker(()).snapshot())
     _update_run_state(
         folder_path,
         status="completed",
@@ -2156,6 +2160,7 @@ def perform_fast_research(
     max_scrape_time: int | None = None,
     discovery_notes_content: str | None = None,
     *,
+    refresh_vendor_research: bool = False,
     framing: "ResearchFraming | None" = None,
     folder_path: str | None = None,
     resume_local: bool = False,
@@ -2416,6 +2421,7 @@ def perform_fast_research(
             analysis_workbook=analysis_workbook,
             validated_source_urls=validated_source_urls,
             discovery_notes_content=discovery_notes_content,
+            refresh_vendor_research=refresh_vendor_research,
             grok_reasoning=grok_reasoning,
             grok_writing=grok_writing,
             folder_path=folder_path,
@@ -2449,6 +2455,9 @@ def perform_fast_research(
             report_trust_stats=report_trust_stats,
             strategy_trust_stats=strategy_trust_stats,
             search_query_count=external_query_count + gap_search_count + cv_search_count,
+            vendor_refresh_tasks_started=_strategy_result.vendor_refresh_tasks_started,
+            strategy_outcome=_strategy_result.strategy_outcome,
+            vendor_refresh_outcome=_strategy_result.vendor_refresh_outcome,
         )
 
     except Exception as e:
@@ -2638,6 +2647,7 @@ def perform_research(
     grok_tier: str = "hybrid",
     skip_recon: bool = False,
     continuous_reasoning: bool = True,
+    run_context: dict[str, str] | None = None,
 ) -> str | None:
     if not company_name and not website:
         console.error("No company name or website provided")
@@ -2646,6 +2656,8 @@ def perform_research(
     display_name: str = company_name or normalized_hostname(website or "", strip_www=True)
     acquire_company_run_lease_for_target(company_name, website, base_dir=WORKING_DIR)
     folder_path = create_working_folder(company_name, website, reuse_incomplete=resume_local)
+    if run_context is not None:
+        run_context["working_folder"] = folder_path
     explicit_platforms = platforms is not None
     if platforms is None:
         from primr.core.platform_mapper import DEFAULT_PLATFORM_FALLBACK
@@ -2788,30 +2800,38 @@ def perform_research(
             context_files = []
         context_files.insert(0, recon_context_path)
 
-    if not skip_confirm:
-        from primr.utils.cost_estimator import display_cost_estimate
+    from primr.core.research_runtime_plan import prepare_research_runtime
 
-        if not display_cost_estimate(
-            mode,
-            display_name,
-            ai_strategy,
-            num_vendors=len(platforms),
-            lite_strategy=lite_strategy,
-            fast_mode=fast_mode,
-            premium_mode=premium_mode,
-            verify=verify,
-            grok_tier=grok_tier,
-            strategy_types=strategies,
-        ):
-            console.info("Research cancelled by user")
-            _update_run_state(folder_path, status="cancelled", current_phase="initializing")
-            _append_run_event(
-                folder_path,
-                "initializing",
-                "cancelled",
-                "Run cancelled by user at cost confirmation",
-            )
-            return None
+    preparation = prepare_research_runtime(
+        mode=mode,
+        display_name=display_name,
+        explicit_fast_mode=fast_mode,
+        premium_mode=premium_mode,
+        xai_available=bool(os.environ.get("XAI_API_KEY")),
+        platform_count=len(platforms),
+        ai_strategy=ai_strategy,
+        strategy_types=strategies,
+        refresh_vendor_research=refresh_vendor_research,
+        skip_confirm=skip_confirm,
+        lite_strategy=lite_strategy,
+        verify=verify,
+        grok_tier=grok_tier,
+    )
+    runtime_plan = preparation.plan
+    if preparation.status == "invalid":
+        console.error(runtime_plan.error_message or "Unsupported research runtime")
+        _update_run_state(folder_path, status="failed", current_phase="initializing")
+        return None
+    if preparation.status == "cancelled":
+        console.info("Research cancelled by user")
+        _update_run_state(folder_path, status="cancelled", current_phase="initializing")
+        _append_run_event(
+            folder_path,
+            "initializing",
+            "cancelled",
+            "Run cancelled by user at cost confirmation",
+        )
+        return None
 
     start_time = time.time()
 
@@ -2827,12 +2847,7 @@ def perform_research(
 
         # Fast mode: Grok 4.1 accordion batch pipeline
         # Activated by: explicit --fast, or auto-detect (complete mode + XAI_API_KEY + not premium)
-        use_fast = fast_mode or (
-            not premium_mode
-            and mode in ("complete", "structured", "hybrid")
-            and os.environ.get("XAI_API_KEY")
-        )
-        if use_fast and not premium_mode:
+        if runtime_plan.use_fast and not premium_mode:
             _update_run_state(folder_path, current_phase="fast_mode", status="running")
             _append_run_event(folder_path, "fast_mode", "started", "Fast mode pipeline started")
             fast_path = perform_fast_research(
@@ -2844,6 +2859,7 @@ def perform_research(
                 strategy_types=strategies,
                 max_scrape_time=max_scrape_time,
                 discovery_notes_content=discovery_notes_content,
+                refresh_vendor_research=refresh_vendor_research,
                 framing=framing,
                 folder_path=folder_path,
                 resume_local=resume_local,
@@ -3095,36 +3111,24 @@ def perform_research(
                     write_txt=write_public_txt,
                 )
 
-            # Generate AI strategy if requested (uses Deep Research with company context)
-            ai_strategy_path = None
-            if ai_strategy:
-                console.phase_banner(
-                    5,
-                    total_phases,
-                    "AI Strategy Analysis",
-                    "Generating AI recommendations",
-                    "5-10 min",
-                )
-                _update_run_state(folder_path, current_phase="ai_strategy", status="running")
-                _append_run_event(
-                    folder_path, "ai_strategy", "started", "AI strategy generation started"
-                )
-                # Consolidate working folder into single context file for AI strategy
-                context_file = consolidate_working_folder(folder_path)
-                # No heartbeat - the progress callback provides phase-aware status updates
-                ai_strategy_path = _generate_ai_strategy_section(
-                    company_name or display_name,
-                    platforms[0],
-                    company_research_path=context_file,
-                    force_refresh_vendor=refresh_vendor_research,
-                    discovery_notes_content=discovery_notes_content,
-                    lite_strategy=lite_strategy,
-                    output_dir=run_output_dir,
-                    diagnostics_dir=diagnostics_dir,
-                    write_txt=write_public_txt,
-                )
-                if ai_strategy_path:
-                    console.phase_complete("AI Strategy Analysis")
+            from primr.core.standard_strategy import run_standard_ai_strategy
+
+            standard_strategy = run_standard_ai_strategy(
+                enabled=ai_strategy,
+                company_name=company_name or display_name,
+                platform=platforms[0],
+                folder_path=folder_path,
+                total_phases=total_phases,
+                refresh_vendor_research=refresh_vendor_research,
+                discovery_notes_content=discovery_notes_content,
+                lite_strategy=lite_strategy,
+                output_dir=run_output_dir,
+                diagnostics_dir=diagnostics_dir,
+                write_txt=write_public_txt,
+                consolidate_context=consolidate_working_folder,
+                generate_strategy=_generate_ai_strategy_section,
+            )
+            ai_strategy_path = standard_strategy.output_path
 
             # Run QA analysis if enabled (default: enabled, --no-qa disables)
             qa_result = None
@@ -3198,54 +3202,18 @@ def perform_research(
             if qa_grades:
                 console.grades(qa_grades)
 
-            # Get actual usage from AI client
-            from primr.ai.client import get_client
+            from primr.core.standard_run_summary import finalize_standard_run
 
-            client = get_client()
-            usage = client.get_usage_summary()
-            actual_cost = usage.get("total_cost", 0)
-
-            # Summary stats
-            summary_items = [
-                ("Duration", time_str),
-                ("Cost", f"${actual_cost:.2f}"),
-            ]
-            console.summary(summary_items)
-
-            # Save usage to history
-            from primr.utils.usage_tracker import get_usage_tracker
-
-            tracker = get_usage_tracker()
-            tracker.record_usage(
+            finalize_standard_run(
                 mode=mode,
-                company=display_name,
-                input_tokens=usage.get("total_input_tokens", 0),
-                output_tokens=usage.get("total_output_tokens", 0),
-                duration_seconds=elapsed,
-                pipeline_cost=actual_cost,
-            )
-            tracker.save()
-
-            # Log job summary for observability
-            job_summary = JobSummary.create(
-                company=display_name,
-                mode=mode,
-                duration_seconds=elapsed,
-                api_calls=usage.get("api_calls", 0),
-                total_tokens=usage.get("total_input_tokens", 0)
-                + usage.get("total_output_tokens", 0),
+                display_name=display_name,
+                folder_path=folder_path,
+                elapsed=elapsed,
+                time_str=time_str,
                 sections_generated=len(sections),
-                output_path=docx_path,
+                docx_path=docx_path,
+                strategy=standard_strategy,
             )
-            log_job_summary(job_summary)
-            _update_run_state(
-                folder_path,
-                status="completed",
-                current_phase="complete",
-                completed_at=datetime.now().isoformat(),
-                duration_seconds=elapsed,
-            )
-            _append_run_event(folder_path, "complete", "completed", f"Run completed in {time_str}")
 
             return docx_path
 
@@ -3554,21 +3522,34 @@ def perform_deep_research(
             if is_simple_deep_research:
                 console.phase_complete("Processing Results")
 
-            # Determine which strategies to run
             strategies_to_run: list[str] = []
             if strategies:
-                # Explicit --strategy flag takes precedence
                 strategies_to_run = strategies
             elif ai_strategy:
-                # Legacy --ai-strategy flag (default behavior)
                 strategies_to_run = ["ai"]
 
             strategy_paths: dict[str, str] = {}
             strategy_deep_research_tasks_started = 0
+            from primr.core.strategy_outcome import (
+                StrategyOutcomeTracker,
+                StrategyTaskTracker,
+                expected_strategy_targets,
+                persist_strategy_outcome,
+                strategy_target,
+            )
+
+            strategy_outcome_tracker = StrategyOutcomeTracker(
+                expected_strategy_targets(strategies_to_run, platforms)
+            )
+            strategy_task_tracker = StrategyTaskTracker()
+            from primr.core.deep_vendor_refresh import prepare_deep_strategy_vendor_refreshes
+
+            vendor_refresh_result = prepare_deep_strategy_vendor_refreshes(
+                refresh_vendor_research, strategies_to_run, platforms, mode, folder_path
+            )
             if strategies_to_run:
                 from primr.core.deep_budget import (
                     skip_optional_strategy_if_over_budget,
-                    strategy_uses_deep_research,
                 )
                 from primr.core.strategy_loop import (
                     count_strategy_phases,
@@ -3596,13 +3577,17 @@ def perform_deep_research(
                 skip_remaining_strategies = False
                 for strategy_name in strategies_to_run:
                     for vendor in strategy_vendors(strategy_name, platforms):
+                        target = strategy_target(strategy_name, vendor)
                         if skip_optional_strategy_if_over_budget(
                             mode=mode,
-                            optional_strategy_tasks_started=strategy_deep_research_tasks_started,
+                            optional_strategy_tasks_started=strategy_task_tracker.started_count,
+                            vendor_refresh_tasks_started=vendor_refresh_result.started_count,
                             folder_path=folder_path,
                             strategy_name=strategy_name,
                             platform=vendor,
                         ):
+                            strategy_outcome_tracker.mark_skipped(target)
+                            strategy_outcome_tracker.mark_remaining_skipped()
                             skip_remaining_strategies = True
                             break
 
@@ -3620,20 +3605,18 @@ def perform_deep_research(
                             "5-10 min",
                         )
 
-                        # Generate the strategy
-                        if strategy_uses_deep_research(strategy_name, lite_strategy=lite_strategy):
-                            strategy_deep_research_tasks_started += 1
                         strategy_path = _generate_strategy_section(
                             strategy_name=strategy_name,
                             company_name=company_name or display_name,
                             platform=vendor,
                             company_research_path=strategy_context_path or raw_md_path,
-                            force_refresh_vendor=refresh_vendor_research,
+                            force_refresh_vendor=False,
                             discovery_notes_content=discovery_notes_content,
                             lite_strategy=lite_strategy,
                             output_dir=run_output_dir,
                             diagnostics_dir=diagnostics_dir,
                             write_txt=write_txt,
+                            strategy_task_observer=strategy_task_tracker.observe,
                         )
 
                         if strategy_path:
@@ -3647,13 +3630,25 @@ def perform_deep_research(
                                 display_strategy_name=display_strategy_name,
                                 vendor_label=vendor_label,
                             )
+                            strategy_outcome_tracker.mark_completed(target)
+                        else:
+                            strategy_outcome_tracker.mark_failed(target)
+                            _append_run_event(
+                                folder_path,
+                                "strategy_generation",
+                                "failed",
+                                f"{display_strategy_name}{vendor_label} failed",
+                                strategy=strategy_name,
+                                platform=vendor,
+                            )
 
                         phase_offset += 1
                     if skip_remaining_strategies:
                         break
 
-            # For backward compatibility
-            strategy_paths.get("ai")
+            strategy_deep_research_tasks_started = strategy_task_tracker.started_count
+            strategy_outcome = strategy_outcome_tracker.snapshot()
+            persist_strategy_outcome(folder_path, strategy_outcome)
 
             elapsed = time.time() - start_time
             mins = int(elapsed // 60)
@@ -3670,16 +3665,13 @@ def perform_deep_research(
             )
             _append_run_event(folder_path, "complete", "completed", f"Run completed in {time_str}")
 
-            # Final output - use plain paths (consistent format)
             if docx_path:
                 console.success_box("Report ready", str(Path(docx_path).resolve()))
 
-            # Show all generated strategy outputs
             for strat_key, strategy_path in strategy_paths.items():
                 from primr.prompts.registry import get_registry
 
                 registry = get_registry()
-                # Parse compound keys like "ai_aws" back to base strategy name
                 if "_" in strat_key and strat_key.split("_", 1)[0] == "ai":
                     base_name = "ai"
                     vendor_suffix = f" ({strat_key.split('_', 1)[1].upper()})"
@@ -3708,6 +3700,10 @@ def perform_deep_research(
                 lite_strategy=lite_strategy,
                 strategies=strategies,
                 strategy_deep_research_tasks_started=strategy_deep_research_tasks_started,
+                refresh_vendor_research=refresh_vendor_research,
+                vendor_refresh_tasks_started=vendor_refresh_result.started_count,
+                strategy_outcome=strategy_outcome,
+                vendor_refresh_outcome=vendor_refresh_result.outcome,
                 time_str=time_str,
                 elapsed=elapsed,
                 display_name=display_name,
@@ -3954,13 +3950,6 @@ def _convert_deep_research_to_docx(
         return None
 
 
-def _get_or_generate_vendor_research(platform: str) -> list[str]:
-    """Backward-compatible wrapper around the canonical vendor-research cache."""
-    from primr.core.vendor_research import get_or_generate_vendor_research_sync
-
-    return get_or_generate_vendor_research_sync(platform)
-
-
 def _generate_strategy_section(
     strategy_name: str,
     company_name: str,
@@ -3972,32 +3961,16 @@ def _generate_strategy_section(
     output_dir: str | Path | None = None,
     diagnostics_dir: str | Path | None = None,
     write_txt: bool = True,
+    strategy_task_observer: Callable[[str], None] | None = None,
 ) -> str | None:
-    """
-    Generate a strategy document using Deep Research.
-
-    This is a generic function that can generate any strategy module
-    defined in the strategies/ directory.
-
-    Args:
-        strategy_name: Name of the strategy module (e.g., 'ai', 'customer_experience', 'modern_security_compliance', 'data_fabric_strategy')
-        company_name: Name of the company
-        platform: Platform preference (azure, aws, gcp, agnostic)
-        company_research_path: Path to company research markdown (used as context)
-        force_refresh_vendor: If True, regenerate vendor research even if current
-        discovery_notes_content: Optional freeform meeting insights from discovery
-
-    Returns:
-        Path to the generated DOCX file, or None if generation failed
-    """
-    # Map strategy names to their YAML files and generation functions
+    """Dispatch one YAML-backed strategy and report its durable artifact."""
     strategy_map = {
         "customer_experience": "customer_experience",
         "modern_security_compliance": "modern_security_compliance",
         "data_fabric_strategy": "data_fabric_strategy",
+        "skills": "skills",
     }
 
-    # Handle AI strategy separately (has vendor research)
     if strategy_name == "ai":
         return _generate_ai_strategy_section(
             company_name=company_name,
@@ -4009,9 +3982,9 @@ def _generate_strategy_section(
             output_dir=output_dir,
             diagnostics_dir=diagnostics_dir,
             write_txt=write_txt,
+            strategy_task_observer=strategy_task_observer,
         )
 
-    # Handle other fully-defined strategies
     if strategy_name in strategy_map:
         return _generate_generic_strategy(
             strategy_name=strategy_name,
@@ -4022,6 +3995,7 @@ def _generate_strategy_section(
             output_dir=output_dir,
             diagnostics_dir=diagnostics_dir,
             write_txt=write_txt,
+            strategy_task_observer=strategy_task_observer,
         )
 
     # For placeholder strategies, show a message
@@ -4060,6 +4034,7 @@ def _generate_generic_strategy(
     output_dir: str | Path | None = None,
     diagnostics_dir: str | Path | None = None,
     write_txt: bool = True,
+    strategy_task_observer: Callable[[str], None] | None = None,
 ) -> str | None:
     return _generate_generic_strategy_impl(
         strategy_name=strategy_name,
@@ -4070,6 +4045,7 @@ def _generate_generic_strategy(
         output_dir=output_dir,
         diagnostics_dir=diagnostics_dir,
         write_txt=write_txt,
+        strategy_task_observer=strategy_task_observer,
     )
 
 
@@ -4093,6 +4069,8 @@ def _generate_ai_strategy_section(
     output_dir: str | Path | None = None,
     diagnostics_dir: str | Path | None = None,
     write_txt: bool = True,
+    vendor_refresh_observer: Callable[[str], None] | None = None,
+    strategy_task_observer: Callable[[str], None] | None = None,
 ) -> str | None:
     """
     Generate AI strategy using Deep Research for board-level analysis.
@@ -4126,6 +4104,8 @@ def _generate_ai_strategy_section(
         output_dir=output_dir,
         diagnostics_dir=diagnostics_dir,
         write_txt=write_txt,
+        vendor_refresh_observer=vendor_refresh_observer,
+        strategy_task_observer=strategy_task_observer,
     )
 
 

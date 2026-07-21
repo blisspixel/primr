@@ -34,6 +34,18 @@ from primr.config.models import (
     PrimrModels,
     TokenCostBreakdown,
 )
+from primr.utils.cost_estimate_policy import (
+    deep_path_hiring_overhead as _deep_path_hiring_overhead,
+)
+from primr.utils.cost_estimate_policy import (
+    strategy_type_notes as _strategy_type_notes,
+)
+from primr.utils.cost_estimate_policy import (
+    vendor_refresh_duration_suffix as _vendor_refresh_duration_suffix,
+)
+from primr.utils.cost_estimate_policy import (
+    vendor_refresh_notes as _vendor_refresh_notes,
+)
 
 
 class ResearchModeType(Enum):
@@ -332,37 +344,6 @@ def _yaml_strategy_overhead(
     return dr_tasks, dmin, dmax, priced, unavailable
 
 
-def _deep_path_hiring_overhead(mode: str) -> tuple[int, int, list[str]]:
-    """Duration deltas + note for the hiring stage on the Deep Research paths.
-
-    Hybrid is excluded: its legacy parallel path neither gathers nor consumes
-    the block, so billing it would claim a stage that never runs.
-    """
-    if mode not in ("deep-research", "complete"):
-        return 0, 0, []
-    return (
-        1,
-        2,
-        [
-            "Hiring signals via ATS / careers page (~$0.01 on the routed utility model, "
-            "+1-2 min; skip with PRIMR_SKIP_HIRING_SIGNALS=1)"
-        ],
-    )
-
-
-def _strategy_type_notes(priced: Sequence[str], unavailable: Sequence[str]) -> list[str]:
-    """Estimate notes for YAML strategy documents (priced vs runtime-skipped)."""
-    notes: list[str] = []
-    if priced:
-        notes.append(f"Strategy documents included: {', '.join(priced)}")
-    if unavailable:
-        notes.append(
-            "Strategy type(s) not generated in this mode (the run will skip them): "
-            + ", ".join(unavailable)
-        )
-    return notes
-
-
 def _lite_strategy_cost_breakdown(
     input_tokens: int,
     output_tokens: int,
@@ -403,6 +384,7 @@ def estimate_cost(
     verify: bool = False,
     grok_tier: str = "hybrid",
     strategy_types: Sequence[str] | None = None,
+    vendor_research_refreshes: int = 0,
 ) -> CostEstimate:
     """
     Estimate the cost of a research task.
@@ -425,6 +407,8 @@ def estimate_cost(
             a full writing+enrichment bundle; on Deep Research paths some types
             consume a planned-cost Deep Research task. Omitting them understates
             the estimate the ``--budget`` pre-flight gate approves against.
+        vendor_research_refreshes: Explicitly requested vendor research refresh
+            tasks. Each is priced as a separate Deep Research task.
 
     Returns:
         CostEstimate with breakdown
@@ -441,6 +425,7 @@ def estimate_cost(
             verify=verify,
             grok_tier=grok_tier,
             yaml_strategy_types=yaml_strategy_types,
+            vendor_research_refreshes=vendor_research_refreshes,
         )
 
     # The non-fast runtime treats explicit strategies as REPLACING the default
@@ -533,6 +518,11 @@ def estimate_cost(
                 duration_min += AI_STRATEGY_OVERHEAD["duration_min"] * num_vendors
                 duration_max += AI_STRATEGY_OVERHEAD["duration_max"] * num_vendors
 
+    refresh_tasks = max(0, vendor_research_refreshes)
+    dr_tasks += refresh_tasks
+    duration_min += AI_STRATEGY_OVERHEAD["duration_min"] * refresh_tasks
+    duration_max += AI_STRATEGY_OVERHEAD["duration_max"] * refresh_tasks
+
     # Add YAML strategy documents (--strategy-type). Deep-Research-backed
     # types consume a flat-cost DR task; the rest are placeholders this
     # runtime warn-skips at $0, surfaced in the notes instead of priced.
@@ -567,6 +557,7 @@ def estimate_cost(
         duration += " + AI strategy (Pro)" if lite_strategy else " + AI strategy"
     if priced_strategy_types:
         duration += f" + {len(priced_strategy_types)} strategy doc(s)"
+    duration += _vendor_refresh_duration_suffix(refresh_tasks)
     if verify:
         duration += " + verification"
 
@@ -652,6 +643,7 @@ def estimate_cost(
     elif include_ai_strategy and ai_strategy_hist and ai_strategy_hist["sample_size"] >= 3:
         notes.append(f"AI Strategy based on {ai_strategy_hist['sample_size']} runs")
     notes.extend(_strategy_type_notes(priced_strategy_types, unavailable_strategy_types))
+    notes.extend(_vendor_refresh_notes(refresh_tasks))
 
     if verify:
         notes.append("Includes claim verification (~$0.01, DDG searches are free)")
@@ -709,6 +701,7 @@ def _estimate_fast_mode_cost(
     verify: bool = False,
     grok_tier: str = "hybrid",
     yaml_strategy_types: Sequence[str] = (),
+    vendor_research_refreshes: int = 0,
 ) -> CostEstimate:
     """Estimate cost for fast mode (Grok pipeline)."""
     fast = MODE_ESTIMATES["fast"]
@@ -721,6 +714,9 @@ def _estimate_fast_mode_cost(
     search_queries = fast["search_queries"]
     duration_min = fast["duration_min"]
     duration_max = fast["duration_max"]
+    refresh_tasks = max(0, vendor_research_refreshes)
+    duration_min += AI_STRATEGY_OVERHEAD["duration_min"] * refresh_tasks
+    duration_max += AI_STRATEGY_OVERHEAD["duration_max"] * refresh_tasks
 
     # AI strategy adds Grok writing tokens per vendor (enriched context + CV + polish)
     if include_ai_strategy:
@@ -804,7 +800,8 @@ def _estimate_fast_mode_cost(
     writing_cost = writing_breakdown.total_cost
     search_cost = 0.0 if search_free else PrimrModels.calculate_search_cost(search_queries)
 
-    total_cost = utility_cost + reasoning_cost + writing_cost + search_cost
+    refresh_cost = refresh_tasks * DEEP_RESEARCH_COST.standard_task_cost
+    total_cost = utility_cost + reasoning_cost + writing_cost + search_cost + refresh_cost
 
     # Split for display.
     total_input_cost = (
@@ -843,6 +840,7 @@ def _estimate_fast_mode_cost(
         duration += f" + AI strategy ({strategy_provider})"
     if yaml_strategy_types:
         duration += f" + {len(yaml_strategy_types)} strategy doc(s)"
+    duration += _vendor_refresh_duration_suffix(refresh_tasks)
 
     tier_labels = {
         "fast": "Grok 4.3 (low-effort)",
@@ -870,6 +868,7 @@ def _estimate_fast_mode_cost(
         notes.append(f"AI Strategy via {strategy_provider} ({num_vendors} vendor(s))")
     if yaml_strategy_types:
         notes.append(f"Strategy documents included: {', '.join(yaml_strategy_types)}")
+    notes.extend(_vendor_refresh_notes(refresh_tasks))
     if verify:
         notes.append("Claim verification via Flash (~$0.01, 3-5 min)")
     notes.append(
@@ -906,7 +905,7 @@ def _estimate_fast_mode_cost(
         total_cost=total_cost,
         duration_minutes=duration,
         notes=notes,
-        deep_research_cost=0.0,
+        deep_research_cost=refresh_cost,
         estimated_live_input_tokens=total_live_input_tokens,
         estimated_cached_input_tokens=total_cached_input_tokens,
         live_input_cost=live_input_cost,
@@ -926,6 +925,7 @@ def display_cost_estimate(
     verify: bool = False,
     grok_tier: str = "hybrid",
     strategy_types: Sequence[str] | None = None,
+    vendor_research_refreshes: int = 0,
 ) -> bool:
     """
     Display cost estimate and ask for confirmation.
@@ -941,6 +941,8 @@ def display_cost_estimate(
         strategy_types: YAML strategy documents to price (must match what
             ``--dry-run`` and the ``--budget`` gate price, or the interactive
             approval number diverges from the run's actual spend)
+        vendor_research_refreshes: Explicit vendor research refresh tasks to
+            include in the displayed approval amount.
 
     Returns:
         True if user confirms, False to cancel
@@ -957,6 +959,7 @@ def display_cost_estimate(
         verify=verify,
         grok_tier=grok_tier,
         strategy_types=strategy_types,
+        vendor_research_refreshes=vendor_research_refreshes,
     )
 
     # Clean single line with visible text

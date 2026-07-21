@@ -1,0 +1,126 @@
+"""Runtime-routing and approval policy for the top-level dispatcher.
+
+The dispatcher owns side effects such as run-state updates and console output.
+This module owns route selection, estimate fan-out, option compatibility, and
+the matching confirmation call so the approved amount cannot drift from the
+eventual pipeline.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class ResearchRuntimePlan:
+    """Resolved route and cost-shaping inputs for one research run."""
+
+    use_fast: bool
+    runtime_platform_count: int
+    vendor_refresh_tasks: int
+    error_message: str | None = None
+
+
+@dataclass(frozen=True)
+class ResearchRuntimePreparation:
+    """Runtime plan plus the outcome of its compatibility and approval gates."""
+
+    plan: ResearchRuntimePlan
+    status: str
+
+
+def resolve_research_runtime_plan(
+    *,
+    mode: str,
+    explicit_fast_mode: bool,
+    premium_mode: bool,
+    xai_available: bool,
+    platform_count: int,
+    ai_strategy: bool,
+    strategy_types: Sequence[str] | None,
+    refresh_vendor_research: bool,
+) -> ResearchRuntimePlan:
+    """Resolve runtime behavior before the confirmation and dispatch gates."""
+
+    use_fast = explicit_fast_mode or (
+        not premium_mode and mode in ("complete", "structured", "hybrid") and xai_available
+    )
+    legacy_structured = not use_fast and mode == "structured"
+    error_message: str | None = None
+    if legacy_structured and strategy_types:
+        error_message = (
+            "Explicit strategy types are not supported by the legacy structured runtime. "
+            "Use complete mode or XAI fast mode."
+        )
+    elif legacy_structured and platform_count > 1:
+        error_message = (
+            "Multiple strategy platforms are not supported by the legacy structured runtime. "
+            "Use complete mode or XAI fast mode."
+        )
+
+    runtime_platform_count = 1 if legacy_structured else platform_count
+    refresh_is_executable = use_fast or not strategy_types or "ai" in strategy_types
+    vendor_refresh_tasks = (
+        runtime_platform_count
+        if refresh_vendor_research and ai_strategy and refresh_is_executable
+        else 0
+    )
+    return ResearchRuntimePlan(
+        use_fast=use_fast,
+        runtime_platform_count=runtime_platform_count,
+        vendor_refresh_tasks=vendor_refresh_tasks,
+        error_message=error_message,
+    )
+
+
+def prepare_research_runtime(
+    *,
+    mode: str,
+    display_name: str,
+    explicit_fast_mode: bool,
+    premium_mode: bool,
+    xai_available: bool,
+    platform_count: int,
+    ai_strategy: bool,
+    strategy_types: Sequence[str] | None,
+    refresh_vendor_research: bool,
+    skip_confirm: bool,
+    lite_strategy: bool,
+    verify: bool,
+    grok_tier: str,
+) -> ResearchRuntimePreparation:
+    """Resolve a route and run the exact matching cost-confirmation gate."""
+
+    plan = resolve_research_runtime_plan(
+        mode=mode,
+        explicit_fast_mode=explicit_fast_mode,
+        premium_mode=premium_mode,
+        xai_available=xai_available,
+        platform_count=platform_count,
+        ai_strategy=ai_strategy,
+        strategy_types=strategy_types,
+        refresh_vendor_research=refresh_vendor_research,
+    )
+    if plan.error_message:
+        return ResearchRuntimePreparation(plan=plan, status="invalid")
+    if skip_confirm:
+        return ResearchRuntimePreparation(plan=plan, status="ready")
+
+    from primr.utils.cost_estimator import display_cost_estimate
+
+    approved = display_cost_estimate(
+        mode,
+        display_name,
+        ai_strategy,
+        num_vendors=plan.runtime_platform_count,
+        lite_strategy=lite_strategy,
+        fast_mode=plan.use_fast,
+        premium_mode=premium_mode,
+        verify=verify,
+        grok_tier=grok_tier,
+        strategy_types=strategy_types,
+        vendor_research_refreshes=plan.vendor_refresh_tasks,
+    )
+    status = "ready" if approved else "cancelled"
+    return ResearchRuntimePreparation(plan=plan, status=status)

@@ -45,7 +45,20 @@ Primr is not a generic crawler, a SaaS collaboration app, a model-serving platfo
 Use normal web search for a quick two-paragraph pre-call brief. Use Primr when
 you want the full evidence pipeline and durable artifacts.
 
-## Agent-Host Quick Start
+## Start Here
+
+The clean request stays the same, but the execution boundary matters:
+
+| Where you make the request | Default path | Spend contract | Primary result |
+|---|---|---|---|
+| Capable agent chat pointed at Primr | Primr Zero | No Primr model API spend; verify the host uses included plan allowance | Evidence bundle plus a host-written sourced dossier |
+| Terminal or script | Provider-backed Primr | Billable; run `--dry-run` and approve the quoted estimate first | Primr-generated Strategic Overview plus strategy artifacts |
+
+Terminal users who want the host-assisted path can run `primr prep` and hand
+the published bundle to their agent. Agent users who want the provider-backed
+path must ask for it explicitly and approve its fresh estimate.
+
+### Agent-host path
 
 Point a capable agent at this repository and ask it:
 
@@ -69,7 +82,7 @@ spend. To choose the paid pipeline, say so explicitly, for example: "Run paid
 provider-backed Primr, show me the estimate first." The agent must still wait
 for approval after showing that estimate.
 
-## Quick Start
+## Install
 
 Requirements:
 
@@ -127,7 +140,7 @@ primr doctor
 
 On Windows, use the installer or pipx if `primr` is not found after `pip install`; a bare pip install can place scripts in a user Scripts directory that is not on `PATH`.
 
-## Keyless Quick Start
+## Manual Primr Zero Handoff
 
 If you are operating Primr manually rather than through an agent, prepare a
 bounded evidence bundle locally and let a research-capable host do the
@@ -212,8 +225,35 @@ Gemini. Cached vendor research is reused when present. Current product claims
 and names must be supported by official evidence; when that evidence is not
 available to a run, the strategy must leave the claim unasserted and name the
 evidence gap and validation action. Fresh vendor-research generation or refresh requires
-`--refresh-vendor-research`, `primr --generate-vendor-research`, or
-`PRIMR_ALLOW_VENDOR_REFRESH=1`.
+the explicit `--refresh-vendor-research` flag on an integrated run; its dry-run,
+budget gate, and approval estimate include one separate Deep Research task per
+selected platform. `primr --generate-vendor-research` is the deliberate direct
+cache-generation command. It quotes the aggregate tasks, cost, and time before
+execution, supports zero-call `--dry-run` and `--budget`, and requires an
+interactive confirmation unless `--skip-confirm` explicitly approves a
+noninteractive run. Targets include Azure, AWS, GCP, private accelerated
+infrastructure, vendor-neutral research, or all five together. Estimate-bound
+CLI and MCP strategy paths never turn the ambient `PRIMR_ALLOW_VENDOR_REFRESH`
+setting into unquoted provider work.
+Integrated runs preserve a completed Strategic Overview when a requested
+strategy artifact or explicit refresh target fails, but they do not report full
+success. The run state and `--json` result separate base-report status from
+`strategy_status` and `vendor_refresh_status`, list completed, failed, and
+budget-skipped targets, and the CLI returns nonzero for partial fulfillment.
+Machine results keep `status` as the base-artifact status and add
+`fulfillment_status` as `completed`, `partial`, `failed`, or `unknown`; callers
+must use the latter for whole-request success. Missing or malformed outcome
+state fails closed as `unknown`. Human handoffs and `primr --check-jobs` name
+unresolved targets and the exact state record. Actual-cost summaries include
+every provider task that reached submission, including standard-route AI
+Strategy and refresh tasks, through run-local accounting that remains correct
+when runs overlap. Separate vendor-refresh usage records are not duplicated.
+Standalone strategy automation uses a separate machine contract:
+`--dry-run --json` emits one `primr.strategy-estimate.v1` object, while approved
+execution with `--json --skip-confirm` emits one `primr.strategy-result.v1`
+object with expected, successful, and failed targets. JSON execution without
+`--skip-confirm` returns one structured approval-required refusal and never
+opens an interactive prompt.
 PDF text extraction uses local PyMuPDF by default; Gemini PDF extraction is opt-in with `PRIMR_PDF_LLM_MAX_CALLS=N`.
 
 `primr --help`, `primr init --help`, and `primr doctor --help` show focused

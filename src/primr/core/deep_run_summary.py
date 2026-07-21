@@ -19,6 +19,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from primr.core.strategy_outcome import StrategyOutcome
+from primr.core.vendor_refresh_outcome import VendorRefreshOutcome
 from primr.utils.console import console
 from primr.utils.observability import JobSummary, log_job_summary
 
@@ -33,6 +35,10 @@ def finalize_deep_run(
     lite_strategy: bool,
     strategies: list[str] | None,
     strategy_deep_research_tasks_started: int,
+    refresh_vendor_research: bool,
+    vendor_refresh_tasks_started: int,
+    strategy_outcome: StrategyOutcome,
+    vendor_refresh_outcome: VendorRefreshOutcome,
     time_str: str,
     elapsed: float,
     display_name: str,
@@ -63,11 +69,16 @@ def finalize_deep_run(
     # exact agentic token and tool usage is not available before completion.
     dr_tasks = count_main_deep_research_tasks(mode) + strategy_deep_research_tasks_started
     dr_cost = deep_research_flat_cost(dr_tasks)
+    vendor_refresh_cost = deep_research_flat_cost(vendor_refresh_tasks_started)
 
-    actual_cost = pipeline_cost + dr_cost
+    actual_cost = pipeline_cost + dr_cost + vendor_refresh_cost
 
     from primr.utils.cost_estimator import estimate_cost
 
+    strategy_names = strategies if strategies else ["ai"] if ai_strategy else []
+    planned_vendor_refreshes = (
+        len(platforms) if refresh_vendor_research and "ai" in strategy_names else 0
+    )
     pre_estimate = estimate_cost(
         mode,
         ai_strategy,
@@ -75,6 +86,7 @@ def finalize_deep_run(
         num_vendors=len(platforms),
         lite_strategy=lite_strategy,
         strategy_types=strategies,  # replace-vs-add mirrored in estimator
+        vendor_research_refreshes=planned_vendor_refreshes,
     )
 
     # Use sections_written for accurate count
@@ -112,8 +124,19 @@ def finalize_deep_run(
         ("Est. Cost", f"${pre_estimate.total_cost:.2f}"),
         ("Actual Cost", f"~${actual_cost:.2f}"),
     ]
-    if ai_strategy:
+    if any(target.startswith("ai:") for target in strategy_outcome.expected_targets):
         summary_items.append(("AI Strategy", "Yes"))
+    if vendor_refresh_tasks_started:
+        summary_items.append(
+            (
+                "Vendor Refresh",
+                f"{vendor_refresh_tasks_started} task(s)  ~${vendor_refresh_cost:.2f}",
+            )
+        )
+    if strategy_outcome.status != "not_requested":
+        summary_items.append(("Strategy Status", strategy_outcome.status.upper()))
+    if vendor_refresh_outcome.status != "not_requested":
+        summary_items.append(("Vendor Refresh Status", vendor_refresh_outcome.status.upper()))
     console.summary(summary_items)
 
     # Save usage to history
@@ -128,6 +151,8 @@ def finalize_deep_run(
         search_queries=result.search_queries_count,  # Actual count from API
         duration_seconds=elapsed,
         pipeline_cost=pipeline_cost,
+        # Vendor refresh submissions persist separate usage rows immediately.
+        # Excluding them here keeps global history free of duplicate spend.
         deep_research_cost=dr_cost,
     )
     tracker.save()

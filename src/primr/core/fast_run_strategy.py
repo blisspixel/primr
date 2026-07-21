@@ -17,11 +17,17 @@ QA console lines, run-budget warning, per-strategy artifact writes via
 
 from __future__ import annotations
 
-import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from primr.core.strategy_context import read_stable_vendor_context_block
+from primr.core.strategy_outcome import (
+    StrategyOutcome,
+    StrategyOutcomeTracker,
+    expected_strategy_targets,
+    strategy_target,
+)
 from primr.core.strategy_prompt_parts import (
     AI_STRATEGY_ARTIFACTS,
     YAML_STRATEGY_ARTIFACTS,
@@ -29,13 +35,61 @@ from primr.core.strategy_prompt_parts import (
     build_strategy_prompt_parts,
     read_artifact_blocks,
 )
+from primr.core.vendor_refresh_outcome import (
+    VendorRefreshOutcome,
+    VendorRefreshTracker,
+    persist_vendor_refresh_outcome,
+)
+from primr.core.vendor_research import (
+    get_or_generate_vendor_research_sync,
+    get_vendor_research_path,
+)
 from primr.pipeline.llm_failover import LLMRole, call_with_failover
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
 from primr.utils.observability import log_structured
-from primr.utils.run_budget import skip_stage_if_over_budget
+from primr.utils.run_budget import skip_stage_if_cost_would_exceed, skip_stage_if_over_budget
 
 logger = get_logger("core.fast_run_strategy")
+
+
+def _read_stable_research_block(
+    path_value: str | Path,
+    *,
+    header: str,
+    context_kind: str,
+) -> str | None:
+    """Read one bounded vendor input through the shared stable snapshot seam."""
+
+    return read_stable_vendor_context_block(
+        path_value,
+        header=header,
+        context_kind=context_kind,
+    )
+
+
+def _read_cached_agnostic_research_block() -> str | None:
+    """Return existing cross-industry context without generating or refreshing it."""
+
+    try:
+        path = get_vendor_research_path("agnostic")
+    except Exception as exc:
+        logger.warning(
+            "Could not locate cached cross-industry AI Strategy context (%s)",
+            type(exc).__name__,
+        )
+        log_structured(
+            "warning",
+            "Fast mode strategy context unavailable",
+            context_kind="cross_industry",
+            failure_type=type(exc).__name__,
+        )
+        return None
+    return _read_stable_research_block(
+        path,
+        header="Cross-industry AI research",
+        context_kind="cross_industry",
+    )
 
 
 @dataclass(frozen=True)
@@ -44,6 +98,13 @@ class StrategyPhaseResult:
 
     strategy_paths: dict[str, str] = field(default_factory=dict)
     strategy_trust_stats: list[tuple[str, list[tuple[str, str]]]] = field(default_factory=list)
+    vendor_refresh_tasks_started: int = 0
+    strategy_outcome: StrategyOutcome = field(
+        default_factory=lambda: StrategyOutcome("not_requested", (), (), (), ())
+    )
+    vendor_refresh_outcome: VendorRefreshOutcome = field(
+        default_factory=lambda: VendorRefreshOutcome("not_requested", (), (), (), (), ())
+    )
 
 
 def run_strategy_phase(
@@ -58,6 +119,7 @@ def run_strategy_phase(
     analysis_workbook: str,
     validated_source_urls: list[str],
     discovery_notes_content: str | None,
+    refresh_vendor_research: bool,
     grok_reasoning: str,
     grok_writing: str,
     folder_path: str,
@@ -76,23 +138,48 @@ def run_strategy_phase(
         _build_strategy_prompt_from_yaml,
         _compute_session_llm_cost,
         _enrich_strategy_content,
-        _get_or_generate_vendor_research,
         _prepare_strategy_for_output,
         _save_strategy_output,
     )
 
     strategy_paths: dict[str, str] = {}
     strategy_trust_stats: list[tuple[str, list[tuple[str, str]]]] = []
+    vendor_refresh_tasks_started = 0
+    requested_strategies = (["ai"] if ai_strategy else []) + [
+        name for name in strategy_types or [] if name != "ai" or not ai_strategy
+    ]
+    outcome_tracker = StrategyOutcomeTracker(
+        expected_strategy_targets(requested_strategies, tuple(platforms or ()))
+    )
+    refresh_tracker = VendorRefreshTracker(
+        tuple(dict.fromkeys(platforms or ())) if refresh_vendor_research and ai_strategy else ()
+    )
+
+    from primr.config.models import DEEP_RESEARCH_COST
+
+    vendor_refresh_cost = DEEP_RESEARCH_COST.standard_task_cost
+
+    def observed_fast_spend() -> float:
+        refresh_tasks_started = refresh_tracker.snapshot().started_count
+        return _compute_session_llm_cost() + refresh_tasks_started * vendor_refresh_cost
 
     # --budget checkpoint: skip strategy generation (the most expensive optional
     # stage) when actual spend has already reached the --budget ceiling.
-    if has_strategies and skip_stage_if_over_budget(
-        _compute_session_llm_cost(), "strategy generation"
-    ):
+    if has_strategies and skip_stage_if_over_budget(observed_fast_spend(), "strategy generation"):
         has_strategies = False
+        outcome_tracker.mark_remaining_skipped()
+        refresh_tracker.mark_remaining_skipped()
 
     if not has_strategies:
-        return StrategyPhaseResult(strategy_paths, strategy_trust_stats)
+        refresh_outcome = refresh_tracker.snapshot()
+        persist_vendor_refresh_outcome(folder_path, refresh_outcome)
+        return StrategyPhaseResult(
+            strategy_paths,
+            strategy_trust_stats,
+            vendor_refresh_tasks_started,
+            outcome_tracker.snapshot(),
+            refresh_outcome,
+        )
 
     console.phase_banner(
         6, total_phases, "Strategy (Grok)", "Generating strategy documents", "3-8 min"
@@ -113,6 +200,58 @@ def run_strategy_phase(
             report_content, read_artifact_blocks(folder_path, AI_STRATEGY_ARTIFACTS)
         )
 
+        # Resolve optional cache inputs before strategy workers start. Explicit
+        # refreshes use a shared provider client and usage tracker, neither of
+        # which is safe to mutate concurrently. Strategy writing can still fan
+        # out after this small serial context phase.
+        vendor_doc_paths_by_vendor: dict[str, list[str]] = {}
+        for vendor in dict.fromkeys(platforms):
+            vendor_doc_paths: list[str] = []
+            if vendor.lower() != "agnostic" or refresh_vendor_research:
+                force_refresh = refresh_vendor_research
+                if force_refresh and skip_stage_if_cost_would_exceed(
+                    observed_fast_spend(),
+                    vendor_refresh_cost,
+                    f"vendor research refresh ({vendor})",
+                ):
+                    force_refresh = False
+                    refresh_tracker.mark_skipped(vendor)
+                try:
+                    if force_refresh:
+                        # Freshness-aware: reuse a cache within the freshness
+                        # window, regenerate only when stale or missing. Fast mode
+                        # uses the grounded lite AI-news engine (cheap by design).
+                        vendor_doc_paths = get_or_generate_vendor_research_sync(
+                            vendor,
+                            force_refresh=False,
+                            allow_auto_refresh=True,
+                            task_observer=refresh_tracker.observer(vendor),
+                            lite=True,
+                        )
+                    else:
+                        vendor_doc_paths = get_or_generate_vendor_research_sync(
+                            vendor,
+                            force_refresh=False,
+                            allow_auto_refresh=False,
+                            lite=True,
+                        )
+                except Exception as exc:
+                    if force_refresh:
+                        refresh_tracker.observe(vendor, "failed")
+                    console.warn(
+                        f"AI Strategy ({vendor.upper()}): vendor research context unavailable; "
+                        "continuing without it"
+                    )
+                    log_structured(
+                        "warning",
+                        "Fast mode vendor strategy context unavailable",
+                        vendor=vendor,
+                        failure_type=type(exc).__name__,
+                    )
+            vendor_doc_paths_by_vendor[vendor] = vendor_doc_paths
+        vendor_refresh_tasks_started = refresh_tracker.snapshot().started_count
+        cached_agnostic_block = _read_cached_agnostic_research_block()
+
         def _run_ai_strategy_for_vendor(vendor: str):
             """Run the full per-platform AI strategy pipeline.
 
@@ -127,26 +266,32 @@ def run_strategy_phase(
             # spend that accrues while other vendors run. Re-check per vendor,
             # mirroring the per-document check in the YAML loop; strategies
             # already produced still ship.
-            if skip_stage_if_over_budget(_compute_session_llm_cost(), f"AI strategy ({vendor})"):
+            target = strategy_target("ai", vendor)
+            if skip_stage_if_over_budget(observed_fast_spend(), f"AI strategy ({vendor})"):
+                outcome_tracker.mark_skipped(target)
                 return None
 
             strategy_prompt = _build_ai_strategy_prompt(
                 company_label, vendor, discovery_notes_content
             )
 
-            vendor_doc_paths = (
-                _get_or_generate_vendor_research(vendor) if vendor.lower() != "agnostic" else []
-            )
+            vendor_doc_paths = vendor_doc_paths_by_vendor[vendor]
             vendor_blocks: list[str] = []
             for vdp in vendor_doc_paths:
-                if vdp and os.path.exists(vdp):
-                    try:
-                        with open(vdp, encoding="utf-8") as fh:
-                            vendor_blocks.append(
-                                f"--- {os.path.basename(vdp)} ---\n{fh.read()[:30_000]}"
-                            )
-                    except Exception as e:
-                        logger.warning("Failed to read vendor doc %s: %s", vdp, e)
+                if not vdp:
+                    continue
+                vendor_block = _read_stable_research_block(
+                    vdp,
+                    header=f"{vendor.upper()} AI research",
+                    context_kind="vendor_specific",
+                )
+                if vendor_block:
+                    vendor_blocks.append(vendor_block)
+            refreshed_agnostic_included = (
+                refresh_vendor_research and vendor.lower() == "agnostic" and bool(vendor_blocks)
+            )
+            if cached_agnostic_block and not refreshed_agnostic_included:
+                vendor_blocks.append(cached_agnostic_block)
 
             cached_prefix, volatile_suffix = build_strategy_prompt_parts(
                 ai_context_prefix, strategy_prompt, vendor_blocks
@@ -183,6 +328,7 @@ def run_strategy_phase(
                     vendor=vendor,
                     error=str(strat_err),
                 )
+                outcome_tracker.mark_failed(target)
                 return  # abandon this vendor; others run independently
 
             if strategy_content and strategy_content.strip():
@@ -278,6 +424,11 @@ def run_strategy_phase(
                 if strategy_path:
                     key = f"ai_{vendor}" if len(platforms) > 1 else "ai"
                     strategy_paths[key] = strategy_path
+                    outcome_tracker.mark_completed(target)
+                else:
+                    outcome_tracker.mark_failed(target)
+            else:
+                outcome_tracker.mark_failed(target)
 
         # Dispatch per-platform strategy workers. One platform = run
         # inline (no pool overhead). Multiple platforms = ThreadPool
@@ -298,6 +449,7 @@ def run_strategy_phase(
                     try:
                         _sf.result()
                     except Exception as e:
+                        outcome_tracker.mark_failed(strategy_target("ai", v))
                         logger.warning(
                             "Parallel AI strategy worker for %s raised: %s",
                             v,
@@ -320,14 +472,15 @@ def run_strategy_phase(
             if stype == "ai":
                 continue  # already handled above
 
+            target = strategy_target(stype)
+
             # --budget checkpoint: each YAML strategy is a full WRITING call plus
             # enrichment/polish (real spend). Stop generating further strategies
             # once an active --budget ceiling is reached; strategies already
             # produced still ship. Mirrors the stage-entry gate above and the
             # Phase-2 deepening / Phase-5 cross-validation checkpoints.
-            if skip_stage_if_over_budget(
-                _compute_session_llm_cost(), "remaining strategy generation"
-            ):
+            if skip_stage_if_over_budget(observed_fast_spend(), "remaining strategy generation"):
+                outcome_tracker.mark_remaining_skipped()
                 break
 
             # Load strategy YAML config (name matches filename)
@@ -335,6 +488,7 @@ def run_strategy_phase(
 
             if not yaml_path.exists():
                 console.warn(f"Strategy YAML not found: {stype}.yaml - skipping")
+                outcome_tracker.mark_failed(target)
                 continue
 
             try:
@@ -342,6 +496,7 @@ def run_strategy_phase(
                     strategy_config = _yaml.safe_load(f)
             except Exception as e:
                 console.warn(f"Failed to load {stype}.yaml: {e} - skipping")
+                outcome_tracker.mark_failed(target)
                 continue
 
             meta = strategy_config.get("meta", {})
@@ -396,6 +551,7 @@ def run_strategy_phase(
                     strategy=stype,
                     error=str(strat_err),
                 )
+                outcome_tracker.mark_failed(target)
                 continue
 
             if strategy_content and strategy_content.strip():
@@ -491,6 +647,9 @@ def run_strategy_phase(
                 )
                 if strategy_path:
                     strategy_paths[stype] = strategy_path
+                    outcome_tracker.mark_completed(target)
+                else:
+                    outcome_tracker.mark_failed(target)
 
                 # Skills Ideation strategy: also emit per-role SKILL.md
                 # files in a sibling directory so the artifacts are
@@ -530,10 +689,20 @@ def run_strategy_phase(
                             )
                     except Exception as skill_err:
                         logger.warning("Skills Ideation per-role emission failed: %s", skill_err)
+            else:
+                outcome_tracker.mark_failed(target)
 
     if strategy_paths:
         console.phase_complete("Strategy (Grok)")
     else:
         console.warn("Strategy generation skipped - no strategies generated")
 
-    return StrategyPhaseResult(strategy_paths, strategy_trust_stats)
+    refresh_outcome = refresh_tracker.snapshot()
+    persist_vendor_refresh_outcome(folder_path, refresh_outcome)
+    return StrategyPhaseResult(
+        strategy_paths,
+        strategy_trust_stats,
+        vendor_refresh_tasks_started,
+        outcome_tracker.snapshot(),
+        refresh_outcome,
+    )

@@ -111,6 +111,8 @@ def test_collect_evidence_bundle_emits_bounded_host_handoff(tmp_path, monkeypatc
     assert "`file_path` is inside this prep bundle" in normalized_workflow
     assert "`(Inferred)`" not in workflow
     assert "evidence-based inference" in normalized_workflow
+    assert "`primr-zero/SKILL.md`" in workflow
+    assert "verify the host's own billing or plan limits" in normalized_workflow
 
     report = result.bundle_dir / "Acme_Host_Assisted_Strategic_Overview_07-18-2026.md"
     report.write_text("# Strategic Overview\n", encoding="utf-8")

@@ -46,7 +46,60 @@ def create_keys_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("list", help="Show configured key status")
     subparsers.add_parser("path", help="Show where Primr stores user keys")
+
+    test_parser = subparsers.add_parser(
+        "test",
+        help="Validate that configured keys actually authenticate (free, no model spend)",
+    )
+    test_parser.add_argument(
+        "provider",
+        nargs="?",
+        choices=key_choices,
+        help="Validate only this provider. Omit to test every configured provider.",
+    )
     return parser
+
+
+def _run_keys_test(provider_filter: str | None) -> int:
+    """Live, auth-only validation of configured provider keys (no model spend)."""
+    from primr.ai.providers import (
+        KNOWN_PROVIDERS,
+        get_available_providers,
+        validate_provider_credentials,
+    )
+    from primr.config.env import load_primr_env, normalize_key_name
+
+    load_primr_env()
+    console.banner("Primr Key Validation")
+    console.info("Auth-only checks (free models.list; no model generation, no token spend)")
+    console.blank()
+
+    if provider_filter:
+        target_env = normalize_key_name(provider_filter)
+        entries = [p for p in KNOWN_PROVIDERS if p.api_key_env == target_env]
+    else:
+        entries = get_available_providers()
+
+    if not entries:
+        console.warn("No configured providers to test. Set a key with: primr keys set <provider>")
+        return 0
+
+    failures = 0
+    for entry in entries:
+        result = validate_provider_credentials(entry)
+        latency = f" ({result.latency_ms} ms)" if result.latency_ms is not None else ""
+        if result.ok:
+            console.ok(f"{entry.name}: {result.detail}{latency}")
+        else:
+            failures += 1
+            console.error(f"{entry.name}: {result.detail}{latency}")
+
+    console.blank()
+    if failures:
+        console.warn(f"{failures} provider(s) failed validation")
+        return 1
+    console.ok("All configured provider keys authenticated")
+    return 0
 
 
 def run_keys(args: list[str] | None) -> int:
@@ -124,6 +177,9 @@ def run_keys(args: list[str] | None) -> int:
         console.info(f"Config file: {path}")
         console.info("Run: primr doctor")
         return 0
+
+    if parsed.action == "test":
+        return _run_keys_test(getattr(parsed, "provider", None))
 
     if parsed.action == "unset":
         env_name, path, removed = unset_user_key(parsed.provider)

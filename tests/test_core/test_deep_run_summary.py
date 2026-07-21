@@ -15,6 +15,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from primr.core.deep_run_summary import finalize_deep_run
+from primr.core.strategy_outcome import StrategyOutcomeTracker
+from primr.core.vendor_refresh_outcome import VendorRefreshTracker
 
 
 @pytest.fixture
@@ -79,6 +81,10 @@ def _call(env, **overrides):
         "lite_strategy": False,
         "strategies": None,
         "strategy_deep_research_tasks_started": 0,
+        "refresh_vendor_research": False,
+        "vendor_refresh_tasks_started": 0,
+        "strategy_outcome": StrategyOutcomeTracker(()).snapshot(),
+        "vendor_refresh_outcome": VendorRefreshTracker(()).snapshot(),
         "time_str": "38m 0s",
         "elapsed": 2280.0,
         "display_name": "AcmeCo",
@@ -120,15 +126,58 @@ class TestFinalizeDeepRun:
         env["console"].trust_summary.assert_not_called()
 
     def test_ai_strategy_row_added_when_enabled(self, env):
-        _call(env, ai_strategy=True)
+        tracker = StrategyOutcomeTracker(("ai:agnostic",))
+        tracker.mark_completed("ai:agnostic")
+        _call(env, ai_strategy=True, strategy_outcome=tracker.snapshot())
         items = dict(env["console"].summary.call_args.args[0])
         assert items["AI Strategy"] == "Yes"
+
+    def test_replacement_strategy_does_not_claim_ai_artifact(self, env):
+        tracker = StrategyOutcomeTracker(("customer_experience",))
+        tracker.mark_completed("customer_experience")
+
+        _call(
+            env,
+            ai_strategy=True,
+            strategies=["customer_experience"],
+            strategy_outcome=tracker.snapshot(),
+        )
+
+        assert "AI Strategy" not in dict(env["console"].summary.call_args.args[0])
 
     def test_dr_cost_includes_strategy_tasks(self, env):
         _call(env, strategy_deep_research_tasks_started=2)
         # 1 main + 2 strategy = 3 tasks * 0.30
         kwargs = env["tracker"].record_usage.call_args.kwargs
         assert kwargs["deep_research_cost"] == pytest.approx(0.90)
+
+    def test_vendor_refresh_cost_is_shown_without_duplicate_usage(self, env):
+        _call(
+            env,
+            ai_strategy=True,
+            platforms=("azure", "aws"),
+            refresh_vendor_research=True,
+            vendor_refresh_tasks_started=2,
+        )
+
+        items = dict(env["console"].summary.call_args.args[0])
+        assert items["Actual Cost"] == "~$1.40"
+        assert items["Vendor Refresh"] == "2 task(s)  ~$0.60"
+        usage = env["tracker"].record_usage.call_args.kwargs
+        assert usage["deep_research_cost"] == pytest.approx(0.30)
+
+    def test_estimate_includes_planned_vendor_refreshes(self, env, monkeypatch):
+        estimate = MagicMock(return_value=SimpleNamespace(total_cost=5.0))
+        monkeypatch.setattr("primr.utils.cost_estimator.estimate_cost", estimate)
+
+        _call(
+            env,
+            ai_strategy=True,
+            platforms=("azure", "aws"),
+            refresh_vendor_research=True,
+        )
+
+        assert estimate.call_args.kwargs["vendor_research_refreshes"] == 2
 
     def test_job_summary_logged(self, env):
         _call(env)

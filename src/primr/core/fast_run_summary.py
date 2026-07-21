@@ -20,6 +20,8 @@ from typing import Any
 from primr.config.config import OUTPUT_DIR
 from primr.config.models import PrimrModels
 from primr.core.run_state_io import _update_run_state
+from primr.core.strategy_outcome import StrategyOutcome
+from primr.core.vendor_refresh_outcome import VendorRefreshOutcome
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
 from primr.utils.observability import JobSummary, log_job_summary
@@ -59,6 +61,9 @@ def finalize_fast_run(
     report_trust_stats: list[tuple[str, str]],
     strategy_trust_stats: list[tuple[str, list[tuple[str, str]]]],
     search_query_count: int,
+    vendor_refresh_tasks_started: int,
+    strategy_outcome: StrategyOutcome,
+    vendor_refresh_outcome: VendorRefreshOutcome,
 ) -> str | None:
     """Finalize a fast-mode run: display, persist metrics, record usage.
 
@@ -92,7 +97,11 @@ def finalize_fast_run(
 
     # Cost summary from Grok session usage (per-model, cache-aware pricing)
     grok_usage = get_grok_session_usage()
-    actual_cost = _compute_session_llm_cost()
+    pipeline_cost = _compute_session_llm_cost()
+    from primr.core.deep_budget import deep_research_flat_cost
+
+    vendor_refresh_cost = deep_research_flat_cost(vendor_refresh_tasks_started)
+    actual_cost = pipeline_cost + vendor_refresh_cost
 
     date_str = datetime.now().strftime("%m-%d-%Y")
     fallback_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
@@ -100,8 +109,10 @@ def finalize_fast_run(
     fallback_md = fallback_dir / f"{artifact_name}_Strategic_Overview_{date_str}.md"
     primary_output_path = str(fallback_md) if fallback_md.exists() else docx_path
 
-    artifacts_passed = bool(docx_path) and all(
-        str(path).lower().endswith(".docx") for path in strategy_paths.values()
+    artifacts_passed = (
+        bool(docx_path)
+        and all(str(path).lower().endswith(".docx") for path in strategy_paths.values())
+        and strategy_outcome.status in {"not_requested", "completed"}
     )
     completion_label = (
         "Fast mode complete" if artifacts_passed else "Fast mode complete with warnings"
@@ -126,6 +137,7 @@ def finalize_fast_run(
         artifact_gate_passed=artifacts_passed,
         actual_cost_usd=round(actual_cost, 4),
         cache_hit_rate=round(_cache_hit_rate, 4),
+        **strategy_outcome.as_run_state(),
     )
 
     if report_trust_stats:
@@ -162,6 +174,15 @@ def finalize_fast_run(
         ("Duration", time_str),
     ]
     summary_items.extend(model_rows or [("LLM tokens", "0 in / 0 out")])
+    if vendor_refresh_tasks_started:
+        summary_items.append(
+            (
+                "Vendor Refresh",
+                f"{vendor_refresh_tasks_started} task(s)  ~${vendor_refresh_cost:.2f}",
+            )
+        )
+    if vendor_refresh_outcome.status != "not_requested":
+        summary_items.append(("Vendor Refresh Status", vendor_refresh_outcome.status.upper()))
     summary_items.extend(
         [
             ("Actual Cost", f"~${actual_cost:.2f}"),
@@ -171,6 +192,8 @@ def finalize_fast_run(
     if strategy_paths:
         strat_labels = [_strategy_display_label(k) for k in strategy_paths]
         summary_items.append(("Strategies", ", ".join(strat_labels)))
+    if strategy_outcome.status != "not_requested":
+        summary_items.append(("Strategy Status", strategy_outcome.status.upper()))
     console.summary(summary_items)
 
     # Save usage to history
@@ -185,7 +208,9 @@ def finalize_fast_run(
         output_tokens=grok_usage["output_tokens"],
         search_queries=search_query_count,
         duration_seconds=elapsed,
-        pipeline_cost=actual_cost,
+        # Refresh tasks persist their own usage rows when submitted. Keeping
+        # this row to token-priced pipeline spend avoids double-counting.
+        pipeline_cost=pipeline_cost,
         cached_input_tokens=grok_usage.get("cached_input_tokens", 0),
         # Fast mode defaults to free DDG search; only a paid provider (Google
         # CSE) bills per query. Without this, ~30 free searches persist ~$1 of

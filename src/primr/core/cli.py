@@ -123,13 +123,14 @@ from primr.core.cli_parser import (
     _determine_command,
     add_inference_arguments,
     add_research_input_arguments,
+    add_vendor_research_arguments,
     enable_shell_completion,
 )
 from primr.core.cli_parser import (
     _discover_strategies as _discover_strategies,
 )
 from primr.core.cli_plan import run_plan
-from primr.core.cli_preflight import _run_preflight_checks
+from primr.core.cli_preflight import _run_network_preflight_checks, _run_preflight_checks
 from primr.core.cli_recovery import (
     check_pending_jobs,
     resume_pending_jobs,
@@ -276,6 +277,9 @@ class CLIConfig:
     resume_latest: bool = False
     resume_local: bool = False
     lite_strategy: bool = False  # Use Pro model instead of Deep Research for strategy
+    # Opt in to the thorough (Deep Research) engine for standalone --ai-strategy-only.
+    # That command defaults to the ~$1 lite engine; this flag restores Deep Research.
+    deep_research_strategy: bool = False
     fast_mode: bool = False  # Use Grok 4.1 for fast research (~12 min, ~$0.25)
     premium_mode: bool = False  # Force Gemini + Deep Research pipeline
     grok_tier: str = "hybrid"  # Grok model tier: fast, hybrid, max
@@ -462,12 +466,13 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
     else:
         banner_mode = banner_arg
 
-    # Batch and standalone-strategy commands require one in-command approval.
-    # --skip-confirm is an explicit non-interactive approval for those paths.
     is_batch = bool(getattr(parsed, "batch", None) or parsed.csv)
-    is_standalone_strategy = bool(getattr(parsed, "ai_strategy_only", None))
+    requires_confirmation = is_batch or bool(
+        getattr(parsed, "ai_strategy_only", None)
+        or getattr(parsed, "generate_vendor_research", None)
+    )
     skip_confirm_flag = getattr(parsed, "skip_confirm", False)
-    skip_confirm = skip_confirm_flag if is_batch or is_standalone_strategy else True
+    skip_confirm = skip_confirm_flag if requires_confirmation else True
 
     # Handle --platform / --cloud-vendor resolution
     raw_platforms = getattr(parsed, "platform", None)
@@ -579,6 +584,7 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         resume_latest=getattr(parsed, "resume_latest", False),
         resume_local=getattr(parsed, "resume_local", False),
         lite_strategy=getattr(parsed, "lite_strategy", False),
+        deep_research_strategy=getattr(parsed, "deep_research_strategy", False),
         fast_mode=getattr(parsed, "fast_mode", False),
         premium_mode=(
             getattr(parsed, "premium_mode", False) or getattr(parsed, "mode", None) == "premium"
@@ -725,6 +731,14 @@ def main(args: list[str] | None = None) -> int:
 
     validation_result = validate_config(include_api_keys=include_api_keys)
     if not validation_result.valid:
+        if config.json_output:
+            return report_command_error(
+                json_output=True,
+                operation=config.command.value,
+                error_type="configuration_invalid",
+                message="Configuration validation failed",
+                hints=tuple(str(error) for error in validation_result.errors),
+            )
         if _should_offer_interactive_key_setup(validation_result):
             console.warn("No API keys configured yet.")
             console.info("Primr will tell you what each key is for and where to get it.")
@@ -882,7 +896,7 @@ def _create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--skip-confirm",
         action="store_true",
-        help="Explicitly approve non-interactive batch, enrich, or standalone strategy execution",
+        help="Explicitly approve non-interactive batch, strategy, or vendor research execution",
     )
 
     # Research options
@@ -996,7 +1010,13 @@ def _create_parser() -> argparse.ArgumentParser:
         "--lite",
         action="store_true",
         dest="lite_strategy",
-        help="Use Pro model instead of Deep Research for AI strategy (faster, cheaper, less depth)",
+        help="Use the Pro model for AI strategy (the default for --ai-strategy-only): fast, ~$1, less depth",
+    )
+    parser.add_argument(
+        "--deep-research",
+        action="store_true",
+        dest="deep_research_strategy",
+        help="Opt --ai-strategy-only into the thorough Deep Research engine (~$2.50/task) instead of the ~$1 default",
     )
     parser.add_argument(
         "--fast",
@@ -1048,12 +1068,7 @@ def _create_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", type=str, help="Custom output directory")
     parser.add_argument("--list-recent", action="store_true", help="List recent outputs")
     parser.add_argument("--clean-temp", action="store_true", help="Clean temporary files")
-    parser.add_argument(
-        "--refresh-vendor-research", action="store_true", help="Force refresh vendor research"
-    )
-    parser.add_argument(
-        "--generate-vendor-research", type=str, choices=["azure", "aws", "gcp", "agnostic", "all"]
-    )
+    add_vendor_research_arguments(parser)
     parser.add_argument(
         "--check-jobs",
         action="store_true",
@@ -1390,30 +1405,6 @@ def _handle_enrich(config: CLIConfig) -> int:
     )
 
 
-def _resolve_batch_modes(config: CLIConfig) -> tuple[bool, bool, str] | str:
-    """Resolve the exact routing shape used by every company in a batch."""
-    if config.premium_mode and config.fast_mode:
-        return "Cannot use both --fast and --premium. Choose one."
-    use_fast_mode = config.fast_mode
-    use_premium_mode = config.premium_mode
-    full_modes = ("complete", "structured", "hybrid")
-    if not use_fast_mode and not use_premium_mode and config.mode in full_modes:
-        use_fast_mode = bool(os.environ.get("XAI_API_KEY"))
-    if use_fast_mode and config.mode not in full_modes:
-        return f"--fast only works with full mode, not --mode {config.mode}"
-    if use_premium_mode and config.mode not in full_modes:
-        return f"--premium only works with full mode, not --mode {config.mode}"
-    if use_premium_mode:
-        mode_label = "premium (Gemini + Deep Research)"
-    elif use_fast_mode:
-        from primr.core.cli_dryrun import _full_mode_label
-
-        mode_label = _full_mode_label(config.grok_tier)
-    else:
-        mode_label = config.mode
-    return (use_fast_mode, use_premium_mode, mode_label)
-
-
 def _unsupported_batch_option(config: CLIConfig) -> str | None:
     """Return the first option whose batch semantics are not governed yet."""
     checks = (
@@ -1499,10 +1490,15 @@ def _handle_batch(config: CLIConfig) -> int:
         )
     if not prepare_batch_inference_runtime(config, console):
         return 1
-    resolved_modes = _resolve_batch_modes(config)
+    from primr.core.cli_budget import resolve_batch_modes, strategy_runtime_error
+
+    resolved_modes = resolve_batch_modes(config)
     if isinstance(resolved_modes, str):
         return _batch_handler_error(config, resolved_modes)
     use_fast_mode, use_premium_mode, mode_label = resolved_modes
+    runtime_error = strategy_runtime_error(config, fast_mode=use_fast_mode)
+    if runtime_error:
+        return _batch_handler_error(config, runtime_error)
 
     def execution_preflight() -> tuple[bool, list[str]]:
         """Run network-bearing diagnostics only after batch approval."""
@@ -2456,79 +2452,64 @@ def _handle_research(config: CLIConfig) -> int:
     company_name = request.company_name
     website = request.website
 
-    # Run preflight checks before starting the pipeline
-    if not config.json_output:
-        console.step("Preflight checks")
-    preflight_ok, preflight_errors = _run_preflight_checks(
-        config.mode,
-        premium_mode=config.premium_mode,
-        fast_mode=config.fast_mode,
-    )
-    if not preflight_ok:
+    from primr.core.cli_budget import resolve_runtime_selection, strategy_runtime_error
+
+    selection = resolve_runtime_selection(config)
+    use_fast_mode = selection.fast_mode
+    use_premium_mode = selection.premium_mode
+
+    runtime_error = strategy_runtime_error(config, fast_mode=use_fast_mode)
+    if runtime_error:
+        return report_command_error(
+            json_output=config.json_output,
+            operation="research",
+            error_type="unsupported_strategy_runtime",
+            message=runtime_error,
+        )
+
+    def report_preflight_failure(errors: list[str]) -> int:
         if config.json_output:
             return report_command_error(
                 json_output=True,
                 operation="research",
                 error_type="preflight_failed",
                 message="Preflight checks failed",
-                hints=(*preflight_errors, "Run 'primr doctor' for detailed diagnostics"),
+                hints=(*errors, "Run 'primr doctor' for detailed diagnostics"),
             )
-        for error in preflight_errors:
+        for error in errors:
             console.error(error)
         console.blank()
         console.info("Run 'primr doctor' for detailed diagnostics")
         return 1
 
-    # Determine effective fast_mode for this run
-    use_fast_mode = config.fast_mode
-    use_premium_mode = config.premium_mode
-
-    if (
-        not use_fast_mode
-        and not use_premium_mode
-        and config.mode in ("complete", "structured", "hybrid")
-    ):
-        # Auto-detect: if XAI_API_KEY is set, default to fast mode
-        if os.environ.get("XAI_API_KEY"):
-            use_fast_mode = True
-            tier_label = {
-                "fast": "Grok 4.3 (low-effort)",
-                "hybrid": "Grok 4.3 hybrid",
-                "max": "Grok 4.3 max",
-            }
-            if not config.json_output:
-                console.info(
-                    f"Using {tier_label.get(config.grok_tier, 'Grok')} · "
-                    "for deeper research add --premium"
-                )
-        elif not config.json_output:
-            console.info("Using standard mode (Gemini). Set XAI_API_KEY for faster, cheaper runs.")
-
-    # Fast mode preflight: verify XAI_API_KEY and openai package
-    if use_fast_mode:
-        if not os.environ.get("XAI_API_KEY"):
-            return report_command_error(
-                json_output=config.json_output,
-                operation="research",
-                error_type="missing_provider_key",
-                message="Fast mode requires XAI_API_KEY in your .env or environment",
-                hints=("Set it with: primr keys set xai", "Get a key at https://console.x.ai/"),
-            )
-        try:
-            import openai  # noqa: F401
-        except ImportError:
-            return report_command_error(
-                json_output=config.json_output,
-                operation="research",
-                error_type="missing_dependency",
-                message="Fast mode requires the 'openai' package",
-                hints=("Install with: pip install 'primr[fast]' or pip install openai",),
-            )
-        if config.lite_strategy and not config.json_output:
-            console.warn("--lite is ignored with --fast (fast mode uses Grok for all calls)")
-
+    # Local checks are safe to run before the cost gate.
     if not config.json_output:
-        console.ok("All systems ready")
+        console.step("Preflight checks")
+    preflight_ok, preflight_errors = _run_preflight_checks(
+        config.mode,
+        premium_mode=use_premium_mode,
+        fast_mode=use_fast_mode,
+        refresh_vendor_research=(config.refresh_vendor_research and config.ai_strategy),
+        allow_network=False,
+    )
+    if not preflight_ok:
+        return report_preflight_failure(preflight_errors)
+
+    if selection.auto_fast_mode and not config.json_output:
+        tier_label = {
+            "fast": "Grok 4.3 (low-effort)",
+            "hybrid": "Grok 4.3 hybrid",
+            "max": "Grok 4.3 max",
+        }
+        console.info(
+            f"Using {tier_label.get(config.grok_tier, 'Grok')} fast mode; "
+            "for deeper research add --premium"
+        )
+    elif not use_fast_mode and not config.json_output:
+        console.info("Using standard mode (Gemini). Set XAI_API_KEY for faster, cheaper runs.")
+
+    if use_fast_mode and config.lite_strategy and not config.json_output:
+        console.warn("--lite is ignored with --fast (fast mode uses Grok for all calls)")
 
     context_files = resolve_research_context_files(config)
     if context_files is None:
@@ -2547,23 +2528,34 @@ def _handle_research(config: CLIConfig) -> int:
 
     from primr.core.cli_budget import activate_run_budget
 
-    budget_activation = activate_run_budget(
-        config,
-        fast_mode=use_fast_mode,
-        premium_mode=use_premium_mode,
-        emit_output=not config.json_output,
-    )
-    if not budget_activation.ok:
-        return report_command_error(
-            json_output=config.json_output,
-            operation="research",
-            error_type="budget_refused",
-            message=budget_activation.error_message or "Run budget was refused",
-            hints=budget_activation.hints,
-        )
-
-    # Run research
     try:
+        budget_activation = activate_run_budget(
+            config,
+            fast_mode=use_fast_mode,
+            premium_mode=use_premium_mode,
+            emit_output=not config.json_output,
+        )
+        if not budget_activation.ok:
+            return report_command_error(
+                json_output=config.json_output,
+                operation="research",
+                error_type="budget_refused",
+                message=budget_activation.error_message or "Run budget was refused",
+                hints=budget_activation.hints,
+            )
+
+        network_ok, network_errors = _run_network_preflight_checks(
+            config.mode,
+            premium_mode=use_premium_mode,
+            fast_mode=use_fast_mode,
+            refresh_vendor_research=(config.refresh_vendor_research and config.ai_strategy),
+        )
+        if not network_ok:
+            return report_preflight_failure(network_errors)
+        if not config.json_output:
+            console.ok("All systems ready")
+
+        run_context: dict[str, str] = {}
         result_path = perform_research(
             company_name,
             website,
@@ -2592,6 +2584,7 @@ def _handle_research(config: CLIConfig) -> int:
             grok_tier=config.grok_tier,
             skip_recon=config.skip_recon,
             continuous_reasoning=config.continuous_reasoning,
+            run_context=run_context,
         )
     except ResumeLeaseError as exc:
         if config.json_output:
@@ -2599,24 +2592,22 @@ def _handle_research(config: CLIConfig) -> int:
         report_research_workspace_error(exc, json_output=False)
         result_path = None
     finally:
-        if budget_activation.active:
-            from primr.utils.run_budget import clear_run_budget
+        from primr.utils.run_budget import clear_run_budget
 
-            clear_run_budget()
+        clear_run_budget()
 
-    if config.open_after and result_path:
-        open_file(result_path)
+    from primr.core.cli_research_result import finalize_research_command
 
-    if config.json_output:
-        from primr.core.cli_output import emit_json, research_result_json
-
-        emit_json(
-            research_result_json(
-                result_path, company=company_name, website=website, mode=config.mode
-            )
-        )
-
-    return 0 if result_path else 1
+    return finalize_research_command(
+        result_path=result_path,
+        run_context=run_context,
+        company_name=company_name,
+        website=website,
+        mode=config.mode,
+        json_output=config.json_output,
+        open_after=config.open_after,
+        open_result=open_file,
+    )
 
 
 def list_recent_outputs(output_dir: str | None = None, *, json_output: bool = False) -> int:

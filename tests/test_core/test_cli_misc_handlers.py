@@ -35,35 +35,129 @@ def _config(**overrides):
 
 
 class TestHandleGenerateVendor:
-    def test_no_vendor_returns_zero(self, monkeypatch):
+    @pytest.fixture(autouse=True)
+    def valid_preflight(self, monkeypatch):
+        monkeypatch.setattr(
+            "primr.core.vendor_research._validate_vendor_research_preflight",
+            lambda _vendor: [],
+        )
+
+    def test_no_vendor_returns_nonzero(self, monkeypatch):
         gen_mock = MagicMock()
         monkeypatch.setattr("primr.core.vendor_research.generate_vendor_research_sync", gen_mock)
-        # No vendor specified -> loops over empty list -> returns 0
         result = run_generate_vendor(_config(generate_vendor=None))
-        assert result == 0
+        assert result == 1
         gen_mock.assert_not_called()
 
-    def test_all_generates_four_vendors(self, monkeypatch):
+    def test_all_generates_every_supported_vendor(self, monkeypatch):
         gen_mock = MagicMock(return_value="/path.json")
         monkeypatch.setattr("primr.core.vendor_research.generate_vendor_research_sync", gen_mock)
         result = run_generate_vendor(_config(generate_vendor="all"))
         assert result == 0
-        # all == azure, aws, gcp, agnostic
-        assert gen_mock.call_count == 4
+        assert gen_mock.call_count == 5
 
     def test_single_vendor(self, monkeypatch):
         gen_mock = MagicMock(return_value="/path.json")
         monkeypatch.setattr("primr.core.vendor_research.generate_vendor_research_sync", gen_mock)
         result = run_generate_vendor(_config(generate_vendor="azure"))
         assert result == 0
-        gen_mock.assert_called_once_with("azure")
+        gen_mock.assert_called_once_with("azure", emit_console=True)
 
-    def test_failed_generation_still_returns_zero(self, monkeypatch):
-        # The function logs the error but doesn't escalate exit code
+    def test_failed_generation_returns_nonzero(self, monkeypatch):
         gen_mock = MagicMock(return_value=None)
         monkeypatch.setattr("primr.core.vendor_research.generate_vendor_research_sync", gen_mock)
         result = run_generate_vendor(_config(generate_vendor="azure"))
+        assert result == 1
+
+    def test_dry_run_estimates_all_without_provider_calls(self, monkeypatch, capsys):
+        gen_mock = MagicMock()
+        monkeypatch.setattr("primr.core.vendor_research.generate_vendor_research_sync", gen_mock)
+
+        result = run_generate_vendor(
+            _config(generate_vendor="all", dry_run_requested=True, json_output=True)
+        )
+
+        payload = json.loads(capsys.readouterr().out)
         assert result == 0
+        assert payload["deep_research_tasks"] == 5
+        assert payload["estimated_cost_usd"] == 12.5
+        assert payload["dry_run"] is True
+        gen_mock.assert_not_called()
+
+    def test_budget_blocks_execution_before_provider_calls(self, monkeypatch):
+        gen_mock = MagicMock()
+        monkeypatch.setattr("primr.core.vendor_research.generate_vendor_research_sync", gen_mock)
+
+        result = run_generate_vendor(
+            _config(generate_vendor="all", budget_usd=12.49, skip_confirm=True)
+        )
+
+        assert result == 1
+        gen_mock.assert_not_called()
+
+    @pytest.mark.parametrize("budget", [float("nan"), float("inf")])
+    def test_nonfinite_budget_error_is_strict_json(self, budget, monkeypatch, capsys):
+        gen_mock = MagicMock()
+        monkeypatch.setattr("primr.core.vendor_research.generate_vendor_research_sync", gen_mock)
+
+        result = run_generate_vendor(
+            _config(
+                generate_vendor="azure",
+                budget_usd=budget,
+                json_output=True,
+                skip_confirm=True,
+            )
+        )
+
+        raw = capsys.readouterr().out
+        payload = json.loads(
+            raw,
+            parse_constant=lambda token: pytest.fail(f"nonstandard JSON token: {token}"),
+        )
+        assert result == 1
+        assert payload["error_type"] == "invalid_budget"
+        assert payload["estimate"]["budget_usd"] is None
+        gen_mock.assert_not_called()
+
+    def test_json_execution_requires_explicit_noninteractive_approval(self, monkeypatch, capsys):
+        gen_mock = MagicMock()
+        monkeypatch.setattr("primr.core.vendor_research.generate_vendor_research_sync", gen_mock)
+
+        result = run_generate_vendor(
+            _config(generate_vendor="azure", json_output=True, skip_confirm=False)
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert result == 1
+        assert payload["error_type"] == "approval_required"
+        assert payload["estimate"]["estimated_cost_usd"] == 2.5
+        gen_mock.assert_not_called()
+
+    def test_interactive_decline_starts_no_provider_calls(self, monkeypatch):
+        gen_mock = MagicMock()
+        monkeypatch.setattr("primr.core.vendor_research.generate_vendor_research_sync", gen_mock)
+        monkeypatch.setattr("primr.core.cli_init._prompt_yes_no", lambda *a, **k: False)
+
+        result = run_generate_vendor(_config(generate_vendor="azure", skip_confirm=False))
+
+        assert result == 0
+        gen_mock.assert_not_called()
+
+    def test_json_partial_failure_reports_artifacts_and_returns_nonzero(self, monkeypatch, capsys):
+        gen_mock = MagicMock(
+            side_effect=["/cache/azure.md", None, "/cache/gcp.md", None, "/cache/agnostic.md"]
+        )
+        monkeypatch.setattr("primr.core.vendor_research.generate_vendor_research_sync", gen_mock)
+
+        result = run_generate_vendor(
+            _config(generate_vendor="all", json_output=True, skip_confirm=True)
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert result == 1
+        assert payload["status"] == "partial"
+        assert len(payload["artifacts"]) == 3
+        assert payload["failed_vendors"] == ["aws", "private"]
 
 
 # ---------------------------------------------------------------------------
