@@ -29,6 +29,22 @@ class QuotaExhaustedError(RuntimeError):
 
 
 @dataclass(frozen=True)
+class CredentialCheck:
+    """Result of a lightweight, auth-only credential validation.
+
+    ``ok`` is True when the key authenticated against the provider (typically a
+    free ``models.list`` call — no model generation, no token spend). ``detail``
+    is a short human-readable status or error class. ``latency_ms`` is the round
+    trip when measured.
+    """
+
+    provider: str
+    ok: bool
+    detail: str
+    latency_ms: int | None = None
+
+
+@dataclass(frozen=True)
 class ChatResponse:
     """Normalized return shape for a single chat call.
 
@@ -99,6 +115,19 @@ class Provider(ABC):
     def __init__(self, name: str) -> None:
         self.name = name
         self._usage = _UsageAccumulator()
+
+    def validate_credentials(self) -> CredentialCheck:
+        """Auth-only credential check. Override with a free list/ping call.
+
+        The default reports "unsupported" so a provider without a cheap probe
+        never blocks ``primr keys test``. Implementations must NOT generate
+        model output (no token spend) — use a free endpoint like ``models.list``.
+        """
+        return CredentialCheck(
+            provider=self.name,
+            ok=False,
+            detail="credential validation not implemented for this provider",
+        )
 
     @abstractmethod
     def chat(

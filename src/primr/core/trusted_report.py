@@ -129,6 +129,7 @@ def validate_trusted_report(
     report_path: str | Path,
     *,
     allowed_roots: Iterable[str | Path] | None = None,
+    max_bytes: int | None = None,
 ) -> TrustedReport:
     """Validate and hash one no-link, single-name regular report."""
     supplied = Path(report_path).expanduser()
@@ -147,6 +148,8 @@ def validate_trusted_report(
         raise ReportSnapshotError("Report path is not a regular file")
     if metadata.st_nlink > 1:
         raise ReportSnapshotError("Report file cannot be a hard link")
+    if max_bytes is not None and metadata.st_size > max(0, max_bytes):
+        raise ReportSnapshotError("Report file exceeds the allowed size")
 
     digest = _validated_report_digest(resolved, metadata, roots)
     return TrustedReport(

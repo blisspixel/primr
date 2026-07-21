@@ -1,6 +1,6 @@
 # Next Steps
 
-Last research refresh: 2026-07-10.
+Last research refresh: 2026-07-19.
 
 This page answers the working question: what should Primr do next, and why?
 `ROADMAP.md` remains the ordered backlog. This page is the shorter execution
@@ -63,6 +63,33 @@ for Primr's shape:
   contradiction, source independence, source authority, uncertainty honesty,
   reasoning strength, and business relevance through pre-registered evals,
   agreement checks, and human spot review where needed.
+- Keep AI Strategy business-first. Begin with company economics, strategic
+  tensions, industry change, value pools, and the art of the possible. Rank
+  revenue, margin, service, product, productivity, and risk outcomes before
+  selecting models, vendors, or infrastructure. Stanford's 2026 AI Index shows
+  rapid adoption and investment alongside mixed macro-level productivity
+  evidence, which supports explicit value hypotheses rather than technology-led
+  certainty.
+- Make each AI initiative carry business and technical unit economics. Connect
+  total cost and marginal cost to a measurable unit such as revenue, cost to
+  serve, transaction, case resolved, cycle time, or risk reduction. FinOps
+  guidance explicitly uses those links to inform workload placement, packaging,
+  pricing, and roadmap tradeoffs.
+- Treat the observed technology estate as evidence, not destiny. AI Strategy
+  should account for every credible recon signal across productivity, identity,
+  data, cloud, AI providers, and existing data-center capability, then assign a
+  disposition such as reuse, integrate, contain, migrate, retire, or evaluate.
+- Default to workload-specific placement analysis across public cloud, private
+  cloud, on-premises accelerated infrastructure, edge, and hybrid patterns.
+  Recommend owned accelerated capacity only when sustained utilization, data
+  gravity, latency, sovereignty, resilience, or unit economics justify the
+  operational burden. Current vendor architecture guidance supports both
+  consumption-based AI and purpose-built AI factories, but neither is a
+  universal default.
+- Keep governance tied to business context throughout the lifecycle. NIST AI
+  RMF calls for mission goals and business value to be defined before system
+  decisions, with ongoing governance, measurement, and management rather than a
+  one-time risk checklist.
 
 Reference anchors:
 
@@ -99,6 +126,13 @@ Reference anchors:
   <https://www.nist.gov/itl/ai-risk-management-framework/generative-artificial-intelligence>
 - NIST Practices for Automated Benchmark Evaluations for AI System Security:
   <https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.800-2.ipd.pdf>
+- Stanford AI Index 2026: <https://hai.stanford.edu/ai-index>
+- NIST AI RMF Core: <https://airc.nist.gov/airmf-resources/airmf/5-sec-core/>
+- FinOps Unit Economics:
+  <https://www.finops.org/framework/capabilities/unit-economics/>
+- Azure Well-Architected AI design principles:
+  <https://learn.microsoft.com/en-us/azure/well-architected/ai/design-principles>
+- NVIDIA AI Factories: <https://www.nvidia.com/en-us/solutions/ai-factories/>
 - OWASP Top 10 for LLM Applications 2025:
   <https://genai.owasp.org/owasp-top-10-for-llm-applications-2025/>
 - OpenAI evaluation best practices:

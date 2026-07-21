@@ -13,6 +13,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from primr.core.fast_run_summary import _strategy_display_label, finalize_fast_run
+from primr.core.strategy_outcome import StrategyOutcomeTracker
+from primr.core.vendor_refresh_outcome import VendorRefreshTracker
 
 
 @pytest.fixture
@@ -55,6 +57,9 @@ def _call(env, **overrides):
         "report_trust_stats": [],
         "strategy_trust_stats": [],
         "search_query_count": 18,
+        "vendor_refresh_tasks_started": 0,
+        "strategy_outcome": StrategyOutcomeTracker(()).snapshot(),
+        "vendor_refresh_outcome": VendorRefreshTracker(()).snapshot(),
     }
     defaults.update(overrides)
     with patch("primr.core.fast_run_summary.log_job_summary") as job_log:
@@ -107,6 +112,13 @@ class TestFinalize:
         assert state["artifact_gate_passed"] is True
         assert state["actual_cost_usd"] == 0.79
 
+    def test_refresh_cost_is_in_run_total_without_duplicate_usage(self, env):
+        _call(env, vendor_refresh_tasks_started=2)
+
+        assert env["run_state"]["actual_cost_usd"] == 5.79
+        usage = env["tracker"].record_usage.call_args.kwargs
+        assert usage["pipeline_cost"] == 0.79
+
     def test_artifact_gate_fails_on_non_docx_strategy(self, env):
         _call(env, strategy_paths={"ai_azure": str(env["tmp"] / "strategy.md")})
         assert env["run_state"]["artifact_gate_passed"] is False
@@ -114,6 +126,20 @@ class TestFinalize:
     def test_artifact_gate_fails_without_report_docx(self, env):
         _call(env, docx_path=None)
         assert env["run_state"]["artifact_gate_passed"] is False
+
+    def test_partial_strategy_outcome_fails_artifact_gate_and_is_persisted(self, env):
+        tracker = StrategyOutcomeTracker(("ai:azure", "ai:aws"))
+        tracker.mark_completed("ai:azure")
+
+        _call(
+            env,
+            strategy_paths={"ai_azure": str(env["tmp"] / "strategy.docx")},
+            strategy_outcome=tracker.snapshot(),
+        )
+
+        assert env["run_state"]["artifact_gate_passed"] is False
+        assert env["run_state"]["strategy_status"] == "partial"
+        assert env["run_state"]["strategy_failed_targets"] == ["ai:aws"]
 
     def test_usage_recorded_with_cache_tokens(self, env):
         _call(env)

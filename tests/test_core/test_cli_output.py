@@ -9,6 +9,8 @@ from primr.core.cli_output import (
     emit_json,
     research_result_json,
 )
+from primr.core.strategy_outcome import StrategyOutcomeTracker
+from primr.core.vendor_refresh_outcome import VendorRefreshTracker
 from primr.utils.cost_estimator import CostEstimate
 
 
@@ -103,6 +105,66 @@ class TestResearchResultJson:
         )
         assert d["docx_path"] == str(docx.resolve())
         assert d["mode"] == "premium"
+
+    def test_binary_docx_primary_is_not_decoded_as_text(self, tmp_path):
+        docx = tmp_path / "report.docx"
+        docx.write_bytes(b"PK\x03\x04\x80\xff\x00")
+
+        payload = research_result_json(
+            str(docx),
+            company="ExampleCo",
+            website="https://example.co",
+            mode="complete",
+            fulfillment_status="completed",
+            outcome_state_status="available",
+            run_state_path=str(tmp_path / "_run_state.json"),
+        )
+
+        assert payload["status"] == "completed"
+        assert payload["fulfillment_status"] == "completed"
+        assert payload["report_path"] == str(docx.resolve())
+        assert payload["docx_path"] == str(docx.resolve())
+        assert payload["word_count"] is None
+        assert payload["outcome_state_status"] == "available"
+
+    def test_preserves_completed_report_with_partial_strategy_status(self, tmp_path):
+        report = tmp_path / "report.md"
+        report.write_text("base report", encoding="utf-8")
+        tracker = StrategyOutcomeTracker(("ai:azure", "ai:aws"))
+        tracker.mark_completed("ai:azure")
+
+        payload = research_result_json(
+            str(report),
+            company="ExampleCo",
+            website="https://example.co",
+            mode="complete",
+            strategy_outcome=tracker.snapshot(),
+        )
+
+        assert payload["status"] == "completed"
+        assert payload["strategy_status"] == "partial"
+        assert payload["strategy_failed_targets"] == ["ai:aws"]
+
+    def test_includes_vendor_refresh_fulfillment(self, tmp_path):
+        report = tmp_path / "report.md"
+        report.write_text("base report", encoding="utf-8")
+        refresh = VendorRefreshTracker(("azure", "aws"))
+        refresh.observe("azure", "started")
+        refresh.observe("azure", "completed")
+        refresh.mark_skipped("aws")
+
+        payload = research_result_json(
+            str(report),
+            company="ExampleCo",
+            website="https://example.co",
+            mode="complete",
+            vendor_refresh_outcome=refresh.snapshot(),
+        )
+
+        assert payload["status"] == "completed"
+        assert payload["vendor_refresh_status"] == "partial"
+        assert payload["vendor_refresh_completed"] == ["azure"]
+        assert payload["vendor_refresh_skipped"] == ["aws"]
 
 
 class TestEmitJson:

@@ -26,6 +26,10 @@ KEY_ALIASES: dict[str, str] = {
     "gpt": "OPENAI_API_KEY",
     "ollama": "OLLAMA_API_KEY",
     "local": "OLLAMA_API_KEY",
+    "foundry": "AZURE_OPENAI_API_KEY",
+    "azure": "AZURE_OPENAI_API_KEY",
+    "bedrock": "AWS_BEARER_TOKEN_BEDROCK",
+    "aws": "AWS_BEARER_TOKEN_BEDROCK",
     "search": "SEARCH_API_KEY",
     "google-search": "SEARCH_API_KEY",
     "search-engine": "SEARCH_ENGINE_ID",
@@ -38,6 +42,8 @@ KEY_HELP: dict[str, str] = {
     "ANTHROPIC_API_KEY": "Anthropic Claude provider (reasoning/writing/pro; needs `pip install anthropic`)",
     "OPENAI_API_KEY": "OpenAI GPT provider (utility/reasoning/writing; needs `pip install openai`)",
     "OLLAMA_API_KEY": "Optional key for Ollama or another local OpenAI-compatible endpoint",
+    "AZURE_OPENAI_API_KEY": "Microsoft Foundry / Azure OpenAI (also set AZURE_OPENAI_BASE_URL or AZURE_OPENAI_ENDPOINT)",
+    "AWS_BEARER_TOKEN_BEDROCK": "Amazon Bedrock API key (or use AWS_ACCESS_KEY_ID/AWS_PROFILE + AWS_REGION; needs `pip install 'primr[bedrock]'`)",
     "SEARCH_API_KEY": "Google Custom Search, only with SEARCH_PROVIDER=google",
     "SEARCH_ENGINE_ID": "Google Custom Search engine ID",
 }
@@ -71,6 +77,12 @@ SUPERVISED_BLOCKED_ENV_PREFIXES = (
 )
 SUPERVISED_WORKER_ENV_NAMES = frozenset(
     {
+        # NOTE: cloud-infrastructure credentials (AWS_*, AZURE_* secrets) are
+        # deliberately NOT inherited by supervised workers — worker_environment
+        # strips them as a trust boundary (see tests/mcp_server/test_job_process
+        # ::test_worker_environment_strips_controller_names_case_insensitively).
+        # The Foundry/Bedrock providers run in the main process; worker-side use
+        # would need a credential-passing design that respects this boundary.
         "ALL_PROXY",
         "ANTHROPIC_API_KEY",
         "APPDATA",

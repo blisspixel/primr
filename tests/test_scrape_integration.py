@@ -120,7 +120,8 @@ class TestOrchestratorTierEscalation:
             ScrapeTier(name="tier2", scrape_fn=tier2_should_not_run, timeout=30),
         ]
 
-        result = orchestrator.scrape_url("https://example.com/page1")
+        with patch("primr.utils.security.is_safe_url", return_value=(True, None)):
+            result = orchestrator.scrape_url("https://example.com/page1")
 
         assert result.success
         assert call_order == ["tier1"]
@@ -153,7 +154,8 @@ class TestOrchestratorTierEscalation:
             ScrapeTier(name="tier2", scrape_fn=tier2_success, timeout=30),
         ]
 
-        result = orchestrator.scrape_url("https://example.com/page2")
+        with patch("primr.utils.security.is_safe_url", return_value=(True, None)):
+            result = orchestrator.scrape_url("https://example.com/page2")
 
         assert result.success
         assert result.tier == "tier2"
@@ -175,7 +177,8 @@ class TestOrchestratorTierEscalation:
             ScrapeTier(name="tier2", scrape_fn=always_fail, timeout=30),
         ]
 
-        result = orchestrator.scrape_url("https://example.com/page3")
+        with patch("primr.utils.security.is_safe_url", return_value=(True, None)):
+            result = orchestrator.scrape_url("https://example.com/page3")
 
         assert not result.success
         assert result.error is not None
@@ -206,7 +209,8 @@ class TestOrchestratorCaching:
 
         orchestrator.tiers = [ScrapeTier(name="tier1", scrape_fn=should_not_run, timeout=30)]
 
-        result = orchestrator.scrape_url(url)
+        with patch("primr.utils.security.is_safe_url", return_value=(True, None)):
+            result = orchestrator.scrape_url(url)
 
         assert result.success
         assert result.cached

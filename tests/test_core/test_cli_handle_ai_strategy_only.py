@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -281,8 +282,71 @@ class TestStrategyGeneration:
 
         assert result == 0
         output = capsys.readouterr().out
-        assert "Deep Research tasks: 3" in output
-        assert "Vendor refresh tasks: 1" in output
+        # Lite is the default engine for BOTH strategy and vendor news, so a
+        # default refresh starts zero Deep Research tasks; the two vendor refreshes
+        # are grounded lite calls.
+        assert "Deep Research tasks: 0" in output
+        assert "Vendor refresh tasks: 2" in output
+        gen_mock.assert_not_called()
+
+    def test_deep_research_opt_in_prices_strategy_as_deep_research(
+        self, report_under_output, monkeypatch, capsys
+    ):
+        gen_mock = MagicMock()
+        monkeypatch.setattr("primr.core.research_agent._generate_strategy_section", gen_mock)
+
+        result = _handle_ai_strategy_only(
+            _config(
+                ai_strategy_only_path=str(report_under_output),
+                dry_run_requested=True,
+                deep_research_strategy=True,
+                refresh_vendor_research=True,
+                platforms=("azure", "agnostic"),
+            )
+        )
+
+        assert result == 0
+        output = capsys.readouterr().out
+        # --deep-research restores the thorough engine: 2 strategy + 2 refresh = 4.
+        assert "Deep Research tasks: 4" in output
+        assert "Vendor refresh tasks: 2" in output
+        gen_mock.assert_not_called()
+
+    def test_default_ai_strategy_is_lite_priced(self, report_under_output, monkeypatch, capsys):
+        gen_mock = MagicMock()
+        monkeypatch.setattr("primr.core.research_agent._generate_strategy_section", gen_mock)
+
+        result = _handle_ai_strategy_only(
+            _config(
+                ai_strategy_only_path=str(report_under_output),
+                dry_run_requested=True,
+                platforms=("agnostic",),
+            )
+        )
+
+        assert result == 0
+        output = capsys.readouterr().out
+        # Default (no --deep-research): the ~$1 lite engine, zero Deep Research tasks.
+        assert "Deep Research tasks: 0" in output
+        gen_mock.assert_not_called()
+
+    def test_ambient_refresh_is_not_priced_or_executed(
+        self, report_under_output, monkeypatch, capsys
+    ):
+        monkeypatch.setenv("PRIMR_ALLOW_VENDOR_REFRESH", "1")
+        gen_mock = MagicMock()
+        monkeypatch.setattr("primr.core.research_agent._generate_strategy_section", gen_mock)
+
+        result = _handle_ai_strategy_only(
+            _config(
+                ai_strategy_only_path=str(report_under_output),
+                dry_run_requested=True,
+                platforms=("azure",),
+            )
+        )
+
+        assert result == 0
+        assert "Vendor refresh tasks" not in capsys.readouterr().out
         gen_mock.assert_not_called()
 
     def test_generates_for_each_vendor_in_ai_strategy(self, report_under_output, monkeypatch):
@@ -403,6 +467,21 @@ class TestStrategyGeneration:
         )
         assert result == 1
 
+    def test_partial_multi_vendor_generation_returns_1(self, report_under_output, monkeypatch):
+        gen_mock = MagicMock(side_effect=["/output/aws.docx", None])
+        monkeypatch.setattr("primr.core.research_agent._generate_strategy_section", gen_mock)
+
+        result = _handle_ai_strategy_only(
+            _config(
+                ai_strategy_only_path=str(report_under_output),
+                strategy_type="ai",
+                platforms=("aws", "azure"),
+            )
+        )
+
+        assert result == 1
+        assert gen_mock.call_count == 2
+
     def test_opens_last_result_when_requested(self, report_under_output, monkeypatch):
         gen_mock = MagicMock(return_value="/output/strategy.docx")
         open_mock = MagicMock()
@@ -416,6 +495,145 @@ class TestStrategyGeneration:
             )
         )
         open_mock.assert_called_once_with("/output/strategy.docx")
+
+
+class TestStrategyJsonContract:
+    def test_dry_run_emits_one_estimate_and_never_generates(
+        self, report_under_output, monkeypatch, capsys
+    ):
+        gen_mock = MagicMock()
+        monkeypatch.setattr("primr.core.research_agent._generate_strategy_section", gen_mock)
+
+        result = _handle_ai_strategy_only(
+            _config(
+                ai_strategy_only_path=str(report_under_output),
+                dry_run_requested=True,
+                json_output=True,
+                platforms=("azure",),
+            )
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert result == 0
+        assert payload["schema_version"] == "primr.strategy-estimate.v1"
+        assert payload["dry_run"] is True
+        gen_mock.assert_not_called()
+
+    def test_execution_requires_noninteractive_approval(
+        self, report_under_output, monkeypatch, capsys
+    ):
+        gen_mock = MagicMock()
+        input_mock = MagicMock(side_effect=AssertionError("input must not be called"))
+        monkeypatch.setattr("primr.core.research_agent._generate_strategy_section", gen_mock)
+        monkeypatch.setattr("builtins.input", input_mock)
+
+        result = _handle_ai_strategy_only(
+            _config(
+                ai_strategy_only_path=str(report_under_output),
+                json_output=True,
+                skip_confirm=False,
+                platforms=("azure",),
+            )
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert result == 1
+        assert payload["schema_version"] == "primr.strategy-command.v1"
+        assert payload["error_type"] == "approval_required"
+        assert payload["status"] == "not_started"
+        input_mock.assert_not_called()
+        gen_mock.assert_not_called()
+
+    def test_success_emits_one_result_and_suppresses_generator_stdout(
+        self, report_under_output, monkeypatch, capsys
+    ):
+        def generate(**_kwargs):
+            print("provider progress must not reach machine stdout")
+            return "/output/strategy.docx"
+
+        monkeypatch.setattr("primr.core.research_agent._generate_strategy_section", generate)
+
+        result = _handle_ai_strategy_only(
+            _config(
+                ai_strategy_only_path=str(report_under_output),
+                json_output=True,
+                skip_confirm=True,
+                platforms=("azure",),
+            )
+        )
+
+        output = capsys.readouterr().out
+        payload = json.loads(output)
+        assert result == 0
+        assert payload["schema_version"] == "primr.strategy-result.v1"
+        assert payload["status"] == "completed"
+        assert payload["expected_targets"] == ["ai:azure"]
+        assert payload["artifacts"] == [
+            {
+                "target": "ai:azure",
+                "platform": "azure",
+                "path": "/output/strategy.docx",
+            }
+        ]
+        assert "provider progress" not in output
+
+    def test_partial_result_names_failed_target(self, report_under_output, monkeypatch, capsys):
+        gen_mock = MagicMock(side_effect=["/output/aws.docx", None])
+        monkeypatch.setattr("primr.core.research_agent._generate_strategy_section", gen_mock)
+
+        result = _handle_ai_strategy_only(
+            _config(
+                ai_strategy_only_path=str(report_under_output),
+                json_output=True,
+                skip_confirm=True,
+                platforms=("aws", "azure"),
+            )
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert result == 1
+        assert payload["status"] == "partial"
+        assert payload["expected_targets"] == ["ai:aws", "ai:azure"]
+        assert payload["failed_targets"] == ["ai:azure"]
+        assert len(payload["artifacts"]) == 1
+
+    def test_provider_exception_is_body_safe_failed_result(
+        self, report_under_output, monkeypatch, capsys, caplog
+    ):
+        def fail(**_kwargs):
+            raise RuntimeError("private-provider-response-body")
+
+        monkeypatch.setattr("primr.core.research_agent._generate_strategy_section", fail)
+
+        result = _handle_ai_strategy_only(
+            _config(
+                ai_strategy_only_path=str(report_under_output),
+                json_output=True,
+                skip_confirm=True,
+                platforms=("azure",),
+            )
+        )
+
+        output = capsys.readouterr().out
+        payload = json.loads(output)
+        assert result == 1
+        assert payload["status"] == "failed"
+        assert payload["failed_targets"] == ["ai:azure"]
+        assert "private-provider-response-body" not in output
+        assert "private-provider-response-body" not in caplog.text
+
+    def test_invalid_report_emits_one_error_object(self, tmp_path, capsys):
+        result = _handle_ai_strategy_only(
+            _config(
+                ai_strategy_only_path=str(tmp_path / "missing.md"),
+                json_output=True,
+            )
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert result == 1
+        assert payload["schema_version"] == "primr.strategy-command.v1"
+        assert payload["error_type"] == "invalid_report"
 
 
 def test_parse_standalone_dry_run_keeps_governed_handler():

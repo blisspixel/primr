@@ -7,6 +7,7 @@ from primr.utils.run_budget import (
     clear_run_budget,
     get_run_budget,
     set_run_budget,
+    skip_stage_if_cost_would_exceed,
 )
 
 
@@ -73,6 +74,18 @@ class TestRunBudget:
 class TestActiveBudgetRegistry:
     def test_no_budget_by_default(self):
         assert get_run_budget() is None
+
+    def test_discrete_task_is_skipped_when_remaining_budget_cannot_cover_it(self):
+        set_run_budget(3.0)
+
+        assert skip_stage_if_cost_would_exceed(0.75, 2.5, "vendor refresh") is True
+        assert get_run_budget().spent == 0.75
+
+    def test_discrete_task_runs_when_budget_has_headroom(self):
+        set_run_budget(4.0)
+
+        assert skip_stage_if_cost_would_exceed(0.75, 2.5, "vendor refresh") is False
+        assert get_run_budget().spent == 0.75
 
     def test_set_and_get(self):
         budget = set_run_budget(3.5)

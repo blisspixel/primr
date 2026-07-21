@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "primr"
-version = "1.36.1"
+version = "1.37.0"
 description = "Turn any company or organization URL into a strategic intelligence brief. Adaptive scraping + AI-powered research and synthesis."
 readme = "README.md"
 license = "Apache-2.0"
@@ -125,6 +125,14 @@ anthropic = [
     # install this for you. The July 2026 floor is needed for current Messages
     # request fields such as output_config.effort and adaptive thinking config.
     "anthropic>=0.109.1",
+]
+bedrock = [
+    # Optional: enables the Amazon Bedrock provider via the boto3 bedrock-runtime
+    # `converse` API (provider-agnostic). Auth uses the standard AWS credential
+    # chain (AWS_ACCESS_KEY_ID/SECRET/REGION or AWS_PROFILE) or a Bedrock API key
+    # (AWS_BEARER_TOKEN_BEDROCK). Foundry needs no extra — it reuses the core
+    # `openai` SDK against Azure's OpenAI-compatible /openai/v1/ endpoint.
+    "boto3>=1.40.0",
 ]
 a2a = [
     # Pinned to 0.3.x: a2a-sdk 1.0 made breaking API changes (TaskStore.list,

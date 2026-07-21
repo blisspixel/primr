@@ -19,15 +19,23 @@ Usage:
     is_current = is_vendor_research_current("azure")
 """
 
+from __future__ import annotations
+
 import os
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from primr.ai.deep_research import ResearchProgress, ResearchResult
 
 from primr.config.config import PROJECT_ROOT
-from primr.utils.console import console
+from primr.utils.atomic_io import atomic_write_text
+from primr.utils.console import get_console
+from primr.utils.fs_safety import check_dir_atomic_writable
 from primr.utils.logging_config import get_logger
 from primr.utils.user_cache import get_user_cache_subdir, migrate_legacy_file
 
@@ -38,6 +46,40 @@ logger = get_logger("vendor_research")
 # cost. Override per machine with PRIMR_VENDOR_NEWS_TTL_DAYS (e.g. dial down
 # during Ignite/re:Invent week, up for slow vendors).
 DEFAULT_VENDOR_NEWS_TTL_DAYS = 7
+_vendor_task_counter_lock = threading.Lock()
+_vendor_tasks_started = 0
+
+
+def get_vendor_research_tasks_started() -> int:
+    """Return the process-lifetime count of vendor provider tasks started."""
+
+    with _vendor_task_counter_lock:
+        return _vendor_tasks_started
+
+
+def _record_vendor_research_task_started() -> None:
+    """Increment the task counter immediately before provider submission."""
+
+    global _vendor_tasks_started
+    with _vendor_task_counter_lock:
+        _vendor_tasks_started += 1
+
+
+def _notify_task_observer(
+    observer: Callable[[str], None] | None,
+    event: str,
+) -> None:
+    """Notify run-local accounting without letting telemetry break delivery."""
+
+    if observer is None:
+        return
+    try:
+        observer(event)
+    except Exception as exc:
+        logger.debug(
+            "Vendor research task observer failed: failure_type=%s",
+            type(exc).__name__,
+        )
 
 
 def get_vendor_news_ttl_days() -> int:
@@ -137,7 +179,7 @@ def get_vendor_research_path(vendor: str, month: str | None = None) -> Path:
     migrated to the cache on first access.
 
     Args:
-        vendor: Cloud vendor (azure, aws, gcp, agnostic)
+        vendor: Cloud vendor (azure, aws, gcp, private, agnostic)
         month: Month string (YYYY-MM format), defaults to current
 
     Returns:
@@ -207,7 +249,13 @@ def is_vendor_research_current(vendor: str, max_age_days: int | None = None) -> 
 
 
 def get_or_generate_vendor_research_sync(
-    vendor: str, force_refresh: bool = False, on_progress: Callable[[str], None] | None = None
+    vendor: str,
+    force_refresh: bool = False,
+    on_progress: Callable[[str], None] | None = None,
+    *,
+    allow_auto_refresh: bool | None = None,
+    task_observer: Callable[[str], None] | None = None,
+    lite: bool = True,
 ) -> list[str]:
     """
     Get vendor research files, generating only after explicit opt-in (synchronous).
@@ -219,9 +267,12 @@ def get_or_generate_vendor_research_sync(
     4. Missing auto-generated research is skipped unless explicit refresh is enabled
 
     Args:
-        vendor: Cloud vendor (azure, aws, gcp, agnostic)
+        vendor: Cloud vendor (azure, aws, gcp, private, agnostic)
         force_refresh: If True, regenerate even if current exists
         on_progress: Optional progress callback
+        allow_auto_refresh: Override environment-driven refresh behavior. Pass
+            False from estimate-bound integrated runs so only explicit
+            ``force_refresh`` can start a paid refresh task.
 
     Returns:
         List of paths to vendor research files
@@ -240,32 +291,54 @@ def get_or_generate_vendor_research_sync(
     research_exists, age_days = _vendor_research_age(research_path)
     is_fresh = research_exists and age_days is not None and age_days <= get_vendor_news_ttl_days()
     is_stale = research_exists and not is_fresh
-    auto_refresh_enabled = _allow_vendor_auto_refresh()
+    auto_refresh_enabled, refresh_hint = _resolve_vendor_refresh_policy(allow_auto_refresh)
     refresh_now = force_refresh or (is_stale and auto_refresh_enabled)
     generate_missing_now = not research_exists and auto_refresh_enabled
 
     if is_fresh and not force_refresh:
         result_paths.append(str(research_path))
-        console.info(f"Using vendor research: {research_path.name} ({age_days}d old)")
+        get_console().info(f"Using vendor research: {research_path.name} ({age_days}d old)")
         logger.info("Reusing vendor research file: %s (age: %dd)", research_path, age_days)
     elif is_stale and not refresh_now:
         result_paths.append(str(research_path))
-        console.warn(
+        get_console().warn(
             f"Vendor research is {age_days}d old (>{get_vendor_news_ttl_days()}d TTL) - reusing without refresh "
-            "(set PRIMR_ALLOW_VENDOR_REFRESH=1 or pass force_refresh=True to regenerate)"
+            f"({refresh_hint})"
         )
     elif refresh_now or generate_missing_now:
-        generated = generate_vendor_research_sync(vendor, on_progress)
+        generated = _generate_vendor_research_sync(vendor, on_progress, task_observer, lite)
         if generated:
             result_paths.append(generated)
+        elif research_exists:
+            result_paths.append(str(research_path))
+            get_console().warn("Vendor research refresh failed; reusing the existing cached file")
+            logger.warning(
+                "Vendor research refresh failed; cached fallback retained: vendor=%s age_days=%s",
+                vendor,
+                age_days,
+            )
     elif not research_exists and not result_paths:
-        console.warn(
+        get_console().warn(
             "No cached vendor research found; skipping automatic Deep Research generation "
-            "(set PRIMR_ALLOW_VENDOR_REFRESH=1 or pass force_refresh=True to generate)"
+            f"({refresh_hint})"
         )
         logger.info("Vendor research missing and auto-generation disabled: %s", research_path)
 
     return result_paths
+
+
+def _generate_vendor_research_sync(
+    vendor: str,
+    on_progress: Callable[[str], None] | None,
+    task_observer: Callable[[str], None] | None,
+    lite: bool = True,
+) -> str | None:
+    """Generate vendor research while preserving legacy mock call shapes."""
+    if task_observer is None:
+        return generate_vendor_research_sync(vendor, on_progress, lite=lite)
+    return generate_vendor_research_sync(
+        vendor, on_progress, task_observer=task_observer, lite=lite
+    )
 
 
 def _vendor_research_age(research_path: Path) -> tuple[bool, int | None]:
@@ -306,16 +379,15 @@ def _resolve_vendor_refresh_policy(allow_auto_refresh: bool | None) -> tuple[boo
     return enabled, hint
 
 
-def _acknowledge_vendor_research_output(interaction_id: object, research_path: Path) -> None:
+def _acknowledge_vendor_research_output(interaction_id: object, research_path: Path) -> bool:
     """Clear the pending job after its durable output has been written."""
     from primr.ai.job_persistence import acknowledge_pending_job_after_outputs
 
-    if (
+    return not (
         isinstance(interaction_id, str)
         and interaction_id
         and not acknowledge_pending_job_after_outputs(interaction_id, [research_path])
-    ):
-        console.warn("Vendor research was saved, but its pending job remains listed.")
+    )
 
 
 def _record_vendor_research_usage(vendor: str, duration_seconds: float, cost: float) -> None:
@@ -334,7 +406,10 @@ def _record_vendor_research_usage(vendor: str, duration_seconds: float, cost: fl
         )
         tracker.save()
     except Exception as exc:
-        logger.debug("Vendor research usage tracking skipped: %s", exc)
+        logger.debug(
+            "Vendor research usage tracking skipped: failure_type=%s",
+            type(exc).__name__,
+        )
 
 
 async def get_or_generate_vendor_research(
@@ -343,6 +418,7 @@ async def get_or_generate_vendor_research(
     on_progress: Callable[[str], None] | None = None,
     *,
     allow_auto_refresh: bool | None = None,
+    lite: bool = True,
 ) -> VendorResearchResult:
     """Get cached vendor research, generating only after explicit refresh approval."""
     import time
@@ -355,9 +431,7 @@ async def get_or_generate_vendor_research(
     if vendor.lower() == "azure":
         manual_path = get_manual_research_path(vendor)
         if manual_path:
-            files.append(
-                VendorResearchFile(path=manual_path, vendor=vendor, month="manual", is_manual=True)
-            )
+            files.append(_vendor_research_file(manual_path, vendor, "manual", is_manual=True))
 
     research_path = get_vendor_research_path(vendor)
     research_exists, age_days = _vendor_research_age(research_path)
@@ -368,20 +442,12 @@ async def get_or_generate_vendor_research(
     generate_missing_now = not research_exists and auto_refresh_enabled
 
     if is_fresh and not force_refresh:
-        files.append(
-            VendorResearchFile(
-                path=research_path, vendor=vendor, month=current_month, is_manual=False
-            )
-        )
-        console.info(f"Using vendor research: {research_path.name} ({age_days}d old)")
+        files.append(_vendor_research_file(research_path, vendor, current_month))
+        get_console().info(f"Using vendor research: {research_path.name} ({age_days}d old)")
         logger.info("Reusing vendor research file: %s (age: %dd)", research_path, age_days)
     elif is_stale and not refresh_now:
-        files.append(
-            VendorResearchFile(
-                path=research_path, vendor=vendor, month=current_month, is_manual=False
-            )
-        )
-        console.warn(
+        files.append(_vendor_research_file(research_path, vendor, current_month))
+        get_console().warn(
             f"Vendor research is {age_days}d old (>{get_vendor_news_ttl_days()}d TTL) - reusing without refresh "
             f"({refresh_hint})"
         )
@@ -392,19 +458,23 @@ async def get_or_generate_vendor_research(
         )
     elif refresh_now or generate_missing_now:
         if research_exists and not force_refresh:
-            console.info(
+            get_console().info(
                 f"Vendor research is {age_days}d old (>{get_vendor_news_ttl_days()}d TTL) - refreshing..."
             )
-        result = await generate_vendor_research(vendor, on_progress)
+        result = await generate_vendor_research(vendor, on_progress, lite=lite)
         if result:
-            files.append(
-                VendorResearchFile(
-                    path=Path(result), vendor=vendor, month=current_month, is_manual=False
-                )
-            )
+            files.append(_vendor_research_file(Path(result), vendor, current_month))
             generated = True
+        elif research_exists:
+            files.append(_vendor_research_file(research_path, vendor, current_month))
+            get_console().warn("Vendor research refresh failed; reusing the existing cached file")
+            logger.warning(
+                "Vendor research refresh failed; cached fallback retained: vendor=%s age_days=%s",
+                vendor,
+                age_days,
+            )
     elif not research_exists and not files:
-        console.warn(
+        get_console().warn(
             "No cached vendor research found; skipping automatic Deep Research generation "
             f"({refresh_hint})"
         )
@@ -415,67 +485,132 @@ async def get_or_generate_vendor_research(
     )
 
 
+def _vendor_research_file(
+    path: Path,
+    vendor: str,
+    month: str,
+    *,
+    is_manual: bool = False,
+) -> VendorResearchFile:
+    """Build consistent metadata for a cached or generated research file."""
+    return VendorResearchFile(path=path, vendor=vendor, month=month, is_manual=is_manual)
+
+
 def generate_vendor_research_sync(
-    vendor: str, on_progress: Callable[[str], None] | None = None
+    vendor: str,
+    on_progress: Callable[[str], None] | None = None,
+    *,
+    emit_console: bool = True,
+    task_observer: Callable[[str], None] | None = None,
+    lite: bool = True,
 ) -> str | None:
     """
-    Generate fresh vendor AI research using Deep Research (synchronous).
+    Generate fresh vendor AI research (synchronous).
+
+    Defaults to the grounded lite engine; pass ``lite=False`` for Deep Research.
 
     Args:
-        vendor: Cloud vendor (azure, aws, gcp, agnostic)
+        vendor: Cloud vendor (azure, aws, gcp, private, agnostic)
         on_progress: Optional progress callback
+        lite: Use the grounded lite engine (default) vs Deep Research.
 
     Returns:
         Path to generated research file, or None if failed
     """
     from primr.utils.async_utils import run_sync
 
-    return run_sync(generate_vendor_research(vendor, on_progress))
+    return run_sync(
+        generate_vendor_research(
+            vendor,
+            on_progress,
+            emit_console=emit_console,
+            task_observer=task_observer,
+            lite=lite,
+        )
+    )
 
 
 async def generate_vendor_research(
-    vendor: str, on_progress: Callable[[str], None] | None = None
+    vendor: str,
+    on_progress: Callable[[str], None] | None = None,
+    *,
+    emit_console: bool = True,
+    task_observer: Callable[[str], None] | None = None,
+    lite: bool = True,
 ) -> str | None:
     """
-    Generate fresh vendor AI research using Deep Research (async).
+    Generate fresh vendor AI research (async).
 
-    Creates comprehensive overview of latest AI services and capabilities
-    for the specified cloud vendor.
+    By default (``lite=True``) this uses one grounded Google Search call to
+    produce a current, cited brief for a fraction of the Deep Research cost.
+    Pass ``lite=False`` (the ``--deep-research`` opt-in) for the heavyweight
+    Deep Research agent.
 
     Args:
-        vendor: Cloud vendor (azure, aws, gcp, agnostic)
+        vendor: Cloud vendor (azure, aws, gcp, private, agnostic)
         on_progress: Optional progress callback
+        lite: Use the grounded lite engine (default) vs Deep Research.
 
     Returns:
         Path to generated research file, or None if failed
     """
-    from primr.ai.deep_research import ResearchStatus, get_deep_research_client
+    from primr.ai.deep_research import get_deep_research_client
 
-    # Pre-flight validation
-    preflight_errors = _validate_vendor_research_preflight(vendor)
-    if preflight_errors:
-        for err in preflight_errors:
-            console.error(f"  - {err}")
+    emit_console = emit_console and not get_console().quiet
+
+    if lite:
+        return generate_vendor_news_lite(
+            vendor,
+            on_progress,
+            emit_console=emit_console,
+            task_observer=task_observer,
+        )
+
+    if not _vendor_generation_preflight_passed(vendor, emit_console, task_observer):
         return None
 
     # Build prompt
     prompt = _build_vendor_prompt(vendor)
 
-    console.info(f"Generating fresh {vendor.upper()} AI research...")
+    if emit_console:
+        get_console().info(f"Generating fresh {vendor.upper()} AI research...")
     from primr.config.models import DEEP_RESEARCH_COST
 
-    console.info(
-        f"Estimated: 5-10 min, ~${DEEP_RESEARCH_COST.standard_task_cost:.2f} planning cost"
-    )
+    if emit_console:
+        get_console().info(
+            f"Estimated: 5-10 min, ~${DEEP_RESEARCH_COST.standard_task_cost:.2f} planning cost"
+        )
 
     client = get_deep_research_client()
+    progress_callback = _vendor_progress_callback(on_progress, emit_console)
+    return await _submit_vendor_research(
+        vendor,
+        prompt,
+        client,
+        progress_callback,
+        DEEP_RESEARCH_COST.standard_task_cost,
+        emit_console=emit_console,
+        task_observer=task_observer,
+    )
 
-    def progress_callback(progress):
-        if progress.message:
-            if on_progress:
-                on_progress(progress.message)
-            console.info(f"Vendor Research: {progress.message}")
 
+async def _submit_vendor_research(
+    vendor: str,
+    prompt: str,
+    client,
+    progress_callback: Callable[[ResearchProgress], None],
+    actual_cost: float,
+    *,
+    emit_console: bool,
+    task_observer: Callable[[str], None] | None,
+) -> str | None:
+    """Submit one provider task and account for every submitted outcome."""
+    import time
+
+    _record_vendor_research_task_started()
+    _notify_task_observer(task_observer, "started")
+    submitted_at = time.monotonic()
+    usage_recorded = False
     try:
         result = await client.research(
             query=prompt,
@@ -484,30 +619,203 @@ async def generate_vendor_research(
             timeout=1800,  # 30 min timeout
         )
 
-        if result.status != ResearchStatus.COMPLETED or not result.content:
-            console.error("Vendor research generation failed")
-            return None
+        # The provider task has completed and may be billed even when local
+        # publication subsequently fails. Record it before touching the cache.
+        _record_vendor_research_usage(
+            vendor,
+            float(result.duration_seconds),
+            actual_cost,
+        )
+        usage_recorded = True
 
-        research_path = get_vendor_research_path(vendor)
-        research_path.parent.mkdir(parents=True, exist_ok=True)
+        return _publish_vendor_research(
+            vendor,
+            result,
+            actual_cost,
+            emit_console=emit_console,
+            task_observer=task_observer,
+        )
 
-        research_path.write_text(result.content, encoding="utf-8")
-        _acknowledge_vendor_research_output(getattr(result, "interaction_id", ""), research_path)
+    except Exception as exc:
+        if not usage_recorded:
+            _record_vendor_research_usage(
+                vendor,
+                time.monotonic() - submitted_at,
+                actual_cost,
+            )
+        _notify_task_observer(task_observer, "failed")
+        failure_type = type(exc).__name__
+        if emit_console:
+            get_console().error(f"Vendor research failed ({failure_type})")
+        logger.warning(
+            "Vendor research failed: vendor=%s failure_type=%s",
+            vendor,
+            failure_type,
+        )
+        return None
 
-        # Report the same planning estimate used by the approval surfaces.
-        actual_cost = DEEP_RESEARCH_COST.standard_task_cost
-        duration_str = f"{result.duration_seconds / 60:.1f}m"
-        _record_vendor_research_usage(vendor, float(result.duration_seconds), actual_cost)
 
-        console.ok(
+def _vendor_generation_preflight_passed(
+    vendor: str,
+    emit_console: bool,
+    task_observer: Callable[[str], None] | None,
+) -> bool:
+    """Report local generation prerequisites before provider submission."""
+    errors = _validate_vendor_research_preflight(vendor)
+    if not errors:
+        return True
+    _notify_task_observer(task_observer, "failed")
+    if emit_console:
+        for error in errors:
+            get_console().error(f"  - {error}")
+    return False
+
+
+def _vendor_progress_callback(
+    on_progress: Callable[[str], None] | None,
+    emit_console: bool,
+) -> Callable[[ResearchProgress], None]:
+    """Build the progress adapter shared by provider and CLI callbacks."""
+
+    def callback(progress: ResearchProgress) -> None:
+        if not progress.message:
+            return
+        if on_progress:
+            on_progress(progress.message)
+        if emit_console:
+            get_console().info(f"Vendor Research: {progress.message}")
+
+    return callback
+
+
+def _publish_vendor_research(
+    vendor: str,
+    result: ResearchResult,
+    actual_cost: float,
+    *,
+    emit_console: bool,
+    task_observer: Callable[[str], None] | None,
+) -> str | None:
+    """Publish a successful provider result and report its durable outcome."""
+    from primr.ai.deep_research import ResearchStatus
+
+    if result.status != ResearchStatus.COMPLETED or not result.content:
+        _notify_task_observer(task_observer, "failed")
+        if emit_console:
+            get_console().error("Vendor research generation failed")
+        return None
+
+    research_path = get_vendor_research_path(vendor)
+    research_path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(research_path, result.content)
+    _acknowledge_published_vendor_research(result, research_path, emit_console)
+
+    duration_str = f"{result.duration_seconds / 60:.1f}m"
+    if emit_console:
+        get_console().ok(
             f"Vendor research saved: {research_path.name} ({duration_str}, ~${actual_cost:.2f})"
         )
-        return str(research_path)
+    _notify_task_observer(task_observer, "completed")
+    return str(research_path)
 
-    except Exception as e:
-        console.error(f"Vendor research failed: {e}")
-        logger.exception("Vendor research error")
+
+def _lite_vendor_news_cost(model: str, input_tokens: int, output_tokens: int) -> float:
+    """Metered cost of one grounded lite brief: tokens plus a grounding request."""
+    from primr.config.models import PrimrModels
+
+    # Google Search grounding is billed per grounded request (~$0.035 after the
+    # free tier); token cost uses the conservative tier for the reasoning model.
+    grounding = 0.035
+    try:
+        token_cost = PrimrModels.calculate_cost_conservative(model, input_tokens, output_tokens)
+    except Exception:
+        token_cost = 0.0
+    return round(token_cost + grounding, 6)
+
+
+def generate_vendor_news_lite(
+    vendor: str,
+    on_progress: Callable[[str], None] | None = None,
+    *,
+    emit_console: bool = True,
+    task_observer: Callable[[str], None] | None = None,
+) -> str | None:
+    """Generate a current, cited vendor AI-news brief with one grounded call.
+
+    Uses Gemini + the live Google Search grounding tool instead of the
+    heavyweight Deep Research agent: current and sourced, but a metered model
+    call (~$0.06-0.20) rather than a flat Deep Research task. Returns the cache
+    path, or ``None`` when the engine is unavailable so the caller can fall back.
+    """
+    from primr.ai.providers.gemini import GeminiProvider
+    from primr.config.models import PrimrModels
+
+    if not _vendor_generation_preflight_passed(vendor, emit_console, task_observer):
         return None
+
+    provider = GeminiProvider()
+    if not provider.is_available():
+        if emit_console:
+            get_console().warn("Grounded AI-news engine unavailable (no Gemini key)")
+        return None
+
+    prompt = _build_vendor_prompt(vendor)
+    model = PrimrModels.PRO_MODEL
+    if emit_console:
+        get_console().info(f"Gathering current {vendor.upper()} AI news (grounded web search)...")
+    if on_progress:
+        on_progress(f"Searching the live web for {vendor.upper()} AI updates")
+
+    _notify_task_observer(task_observer, "started")
+    try:
+        result = provider.search_and_summarize(prompt, model=model, max_tokens=12_000)
+    except Exception as exc:
+        _notify_task_observer(task_observer, "failed")
+        if emit_console:
+            get_console().error(f"Grounded AI-news generation failed ({type(exc).__name__})")
+        logger.warning(
+            "Lite vendor news failed: vendor=%s failure_type=%s", vendor, type(exc).__name__
+        )
+        return None
+
+    if result is None or not result.text.strip():
+        _notify_task_observer(task_observer, "failed")
+        if emit_console:
+            get_console().error("Grounded AI-news generation returned an empty brief")
+        return None
+
+    cost = _lite_vendor_news_cost(model, result.input_tokens, result.output_tokens)
+    research_path = get_vendor_research_path(vendor)
+    research_path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(research_path, result.text)
+    _record_vendor_research_usage(vendor, 0.0, cost)
+    if emit_console:
+        get_console().ok(
+            f"AI news saved: {research_path.name} "
+            f"({len(result.search_queries)} live searches, "
+            f"{len(result.citations)} sources, ~${cost:.2f})"
+        )
+    _notify_task_observer(task_observer, "completed")
+    return str(research_path)
+
+
+def _acknowledge_published_vendor_research(
+    result: ResearchResult,
+    research_path: Path,
+    emit_console: bool,
+) -> None:
+    """Acknowledge a durable cache without turning bookkeeping into data loss."""
+    try:
+        acknowledged = _acknowledge_vendor_research_output(result.interaction_id, research_path)
+        if not acknowledged and emit_console:
+            get_console().warn("Vendor research was saved, but its pending job remains listed.")
+    except Exception as exc:
+        logger.warning(
+            "Vendor research pending-job acknowledgement failed: failure_type=%s",
+            type(exc).__name__,
+        )
+        if emit_console:
+            get_console().warn("Vendor research was saved, but its pending job remains listed.")
 
 
 # =============================================================================
@@ -518,6 +826,7 @@ async def generate_vendor_research(
 def _validate_vendor_research_preflight(vendor: str) -> list[str]:
     """Validate prerequisites for vendor research generation."""
     from primr.config.settings import get_settings
+    from primr.utils.errors import ConfigurationError
 
     errors = []
 
@@ -528,21 +837,23 @@ def _validate_vendor_research_preflight(vendor: str) -> list[str]:
 
     # Validate API key
     settings = get_settings()
-    if not settings.api.gemini_key:
+    try:
+        gemini_key = settings.api.gemini_key
+    except ConfigurationError:
+        gemini_key = None
+    if not gemini_key:
         errors.append("GEMINI_API_KEY not configured")
+    elif len(gemini_key) < 10:
+        errors.append("GEMINI_API_KEY appears invalid (too short)")
 
     # Check the actual output directory is writable. Generated vendor research
     # is saved in the per-user cache (see get_vendor_research_path), so
     # validate that directory, or an unwritable output dir is only discovered
     # after the expensive Deep Research call has completed.
     vendor_dir = get_vendor_research_dir()
-    try:
-        vendor_dir.mkdir(parents=True, exist_ok=True)
-        test_file = vendor_dir / ".write_test"
-        test_file.write_text("test")
-        test_file.unlink()
-    except Exception as e:
-        errors.append(f"Vendor research directory not writable: {vendor_dir} ({e})")
+    writable, error = check_dir_atomic_writable(vendor_dir)
+    if not writable:
+        errors.append(f"Vendor research directory not writable: {error}")
 
     return errors
 

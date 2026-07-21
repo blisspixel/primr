@@ -155,6 +155,7 @@ def test_preflight_empty_company_returns_none(tmp_path: Path):
 
 
 def test_preflight_missing_api_key_returns_none(tmp_path: Path):
+    task_events: list[str] = []
     with (
         patch("primr.core.strategy_generation.Path.exists", return_value=True),
         patch("builtins.open", side_effect=_yaml_read_open),
@@ -169,8 +170,10 @@ def test_preflight_missing_api_key_returns_none(tmp_path: Path):
             strategy_name="custom",
             strategy_yaml="custom",
             company_name="Acme",
+            strategy_task_observer=task_events.append,
         )
     assert result is None
+    assert task_events == []
 
 
 def test_research_failure_returns_none(tmp_path: Path):
@@ -212,6 +215,7 @@ def test_successful_generation_writes_outputs(tmp_path: Path):
     client.research = AsyncMock(return_value=fake_result)
 
     out_dir = tmp_path / "out"
+    task_events: list[str] = []
 
     with (
         patch("primr.core.strategy_generation.Path.exists", return_value=True),
@@ -236,6 +240,7 @@ def test_successful_generation_writes_outputs(tmp_path: Path):
                 company_name="Acme",
                 output_dir=out_dir,
                 write_txt=True,
+                strategy_task_observer=task_events.append,
             )
 
     assert result is not None
@@ -246,6 +251,7 @@ def test_successful_generation_writes_outputs(tmp_path: Path):
     txt_files = list(out_dir.glob("*.txt"))
     assert md_files
     assert txt_files
+    assert task_events == ["started", "completed"]
 
 
 def test_skills_generation_emits_per_role_files(tmp_path: Path):

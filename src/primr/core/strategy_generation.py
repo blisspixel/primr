@@ -10,6 +10,7 @@ and evolve without touching the main orchestration hub.
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
@@ -23,6 +24,22 @@ from primr.utils.console import console
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("core.strategy_generation")
+
+
+def _notify_strategy_task_observer(
+    observer: Callable[[str], None] | None,
+    event: str,
+) -> None:
+    """Keep run-local task accounting outside the strategy delivery path."""
+    if observer is None:
+        return
+    try:
+        observer(event)
+    except Exception as exc:
+        logger.debug(
+            "Strategy task observer failed: failure_type=%s",
+            type(exc).__name__,
+        )
 
 
 def _emit_legacy_skill_files(strategy_content: str, strategy_path: Path) -> None:
@@ -164,6 +181,7 @@ def generate_generic_strategy(
     output_dir: str | Path | None = None,
     diagnostics_dir: str | Path | None = None,
     write_txt: bool = True,
+    strategy_task_observer: Callable[[str], None] | None = None,
 ) -> str | None:
     """
     Generate a strategy document using Deep Research and the strategy YAML definition.
@@ -234,6 +252,7 @@ def generate_generic_strategy(
 
         from primr.utils.async_utils import run_sync
 
+        _notify_strategy_task_observer(strategy_task_observer, "started")
         result = run_sync(
             client.research(
                 query=prompt,
@@ -251,8 +270,10 @@ def generate_generic_strategy(
         )
 
         if result.status != ResearchStatus.COMPLETED or not result.content:
+            _notify_strategy_task_observer(strategy_task_observer, "failed")
             console.error(f"{strategy_display_name} research failed")
             return None
+        _notify_strategy_task_observer(strategy_task_observer, "completed")
 
         result_interaction_id = getattr(result, "interaction_id", "")
         pending_interaction_id = (

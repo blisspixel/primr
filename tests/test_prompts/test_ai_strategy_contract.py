@@ -23,11 +23,38 @@ def strategy_config():
 
 
 def test_contract_version_and_business_first_order(strategy_config):
-    assert strategy_config["meta"]["version"] == "2.1.0"
+    assert strategy_config["meta"]["version"] == "2.2.0"
     section_ids = [section["id"] for section in strategy_config["sections"]]
     assert section_ids.index("strategic_thesis") < section_ids.index("competitive_landscape")
     assert section_ids.index("competitive_landscape") < section_ids.index("current_state")
     assert section_ids.index("opportunity_domains") < section_ids.index("architecture_posture")
+    # The complete inventory is developed before the prioritized portfolio.
+    assert section_ids.index("opportunity_domains") < section_ids.index("prioritization_filters")
+
+
+def test_contract_preserves_full_inventory_and_prioritizes_transparently(strategy_config):
+    contract = " ".join(strategy_config["hard_requirements"].lower().split())
+
+    for requirement in (
+        "complete opportunity inventory",
+        "prioritized portfolio",
+        "do not discard an idea",
+        "required idea connection",
+        "required portfolio hierarchy",
+        "foundational capability",
+        "defer pending evidence",
+        "required news-driven ideation",
+        "last 30-90 days",
+        "proven operating pattern",
+        "frontier possibility",
+        "owner to confirm",
+        "confirmed evidence, reported information, inference",
+    ):
+        assert requirement in contract, requirement
+
+    epistemic = strategy_config["epistemic_rules"]
+    assert "idea_preservation" in epistemic
+    assert "maturity_honesty" in epistemic
 
 
 def test_contract_requires_complete_stack_economics_and_placement(strategy_config):

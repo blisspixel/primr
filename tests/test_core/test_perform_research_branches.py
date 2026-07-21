@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from primr.core.research_agent import perform_research
+from primr.core.research_agent import _generate_strategy_section, perform_research
 
 
 @pytest.fixture
@@ -41,8 +41,46 @@ class TestEarlyReturns:
         )
         assert result is None
 
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"strategies": ["customer_experience"]},
+            {"platforms": ("aws", "azure")},
+        ],
+    )
+    def test_legacy_structured_rejects_silently_ignored_strategy_shapes(
+        self, isolated_run, monkeypatch, overrides
+    ):
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+
+        result = perform_research(
+            company_name="ExampleCo",
+            website="https://example.co",
+            mode="structured",
+            skip_recon=True,
+            skip_confirm=True,
+            **overrides,
+        )
+
+        assert result is None
+
 
 class TestDispatch:
+    def test_skills_strategy_reaches_generic_generator(self, isolated_run, monkeypatch):
+        generate = MagicMock(return_value="/path/to/skills.docx")
+        monkeypatch.setattr("primr.core.research_agent._generate_generic_strategy", generate)
+
+        result = _generate_strategy_section(
+            "skills",
+            "ExampleCo",
+            "agnostic",
+            company_research_path="/path/to/overview.docx",
+        )
+
+        assert result == "/path/to/skills.docx"
+        assert generate.call_args.kwargs["strategy_name"] == "skills"
+        assert generate.call_args.kwargs["strategy_yaml"] == "skills"
+
     def test_dispatches_to_fast_mode_when_fast_flag_set(self, isolated_run, monkeypatch):
         fast_mock = MagicMock(return_value="/path/to/fast_report.docx")
         monkeypatch.setattr("primr.core.research_agent.perform_fast_research", fast_mock)
@@ -57,6 +95,23 @@ class TestDispatch:
         )
         assert result == "/path/to/fast_report.docx"
         fast_mock.assert_called_once()
+
+    def test_fast_dispatch_forwards_vendor_refresh_intent(self, isolated_run, monkeypatch):
+        fast_mock = MagicMock(return_value="/path/to/fast_report.docx")
+        monkeypatch.setattr("primr.core.research_agent.perform_fast_research", fast_mock)
+
+        result = perform_research(
+            company_name="ExampleCo",
+            website="https://example.co",
+            fast_mode=True,
+            mode="complete",
+            skip_recon=True,
+            skip_confirm=True,
+            refresh_vendor_research=True,
+        )
+
+        assert result == "/path/to/fast_report.docx"
+        assert fast_mock.call_args.kwargs["refresh_vendor_research"] is True
 
     def test_fast_mode_verify_runs_claim_verification(self, isolated_run, monkeypatch):
         fast_mock = MagicMock(return_value="/path/to/fast_report.docx")

@@ -1,0 +1,71 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Best-practice Amazon Bedrock access for primr's BedrockProvider. Bedrock
+  foundation models are on-demand (no per-model deployment resource), so this
+  stack provisions GOVERNANCE + LEAST-PRIVILEGE ACCESS, not an endpoint:
+  a scoped invoke policy and a content-filter guardrail. Invoke on-demand via
+  the converse API (e.g. us.amazon.nova-micro-v1:0). Verified live 2026-07-21.
+
+Parameters:
+  AllowedModelWildcard:
+    Type: String
+    Default: "amazon.nova-*"
+    Description: Model-id pattern this policy may invoke (least privilege).
+
+Resources:
+  # Least-privilege managed policy: only Bedrock invoke/converse, only on the
+  # allowed foundation models + cross-region inference profiles.
+  BedrockInvokePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub "primr-bedrock-invoke-${AWS::Region}"
+      Description: Least-privilege Bedrock invoke/converse for primr.
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: BedrockInvoke
+            Effect: Allow
+            Action:
+              - bedrock:InvokeModel
+              - bedrock:InvokeModelWithResponseStream
+              - bedrock:Converse
+              - bedrock:ConverseStream
+            Resource:
+              - !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/${AllowedModelWildcard}"
+              - !Sub "arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/*"
+              - !Sub "arn:aws:bedrock:*::foundation-model/${AllowedModelWildcard}"
+          - Sid: BedrockReadCatalog
+            Effect: Allow
+            Action:
+              - bedrock:ListFoundationModels
+              - bedrock:GetFoundationModel
+              - bedrock:ListInferenceProfiles
+            Resource: "*"
+
+  # Governance best practice: a content-filter guardrail primr can attach to
+  # converse calls via guardrailIdentifier for safer untrusted-input handling.
+  PrimrGuardrail:
+    Type: AWS::Bedrock::Guardrail
+    Properties:
+      Name: !Sub "primr-guardrail-${AWS::Region}"
+      Description: Baseline content filters for primr Bedrock calls.
+      BlockedInputMessaging: "This request was blocked by the primr guardrail."
+      BlockedOutputsMessaging: "This response was blocked by the primr guardrail."
+      ContentPolicyConfig:
+        FiltersConfig:
+          - Type: PROMPT_ATTACK
+            InputStrength: HIGH
+            OutputStrength: NONE
+          - Type: MISCONDUCT
+            InputStrength: MEDIUM
+            OutputStrength: MEDIUM
+
+Outputs:
+  InvokePolicyArn:
+    Description: Attach this to the IAM principal primr runs as.
+    Value: !Ref BedrockInvokePolicy
+  GuardrailId:
+    Description: Pass as guardrailIdentifier on converse for governed calls.
+    Value: !GetAtt PrimrGuardrail.GuardrailId
+  GuardrailArn:
+    Value: !GetAtt PrimrGuardrail.GuardrailArn

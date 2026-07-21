@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock
 
 import pytest
@@ -75,6 +76,106 @@ class TestMainHandlerRouting:
         handler = MagicMock(return_value=0)
         monkeypatch.setattr("primr.core.cli._handle_show_usage", handler)
         assert main(["--show-usage"]) == 0
+
+    def test_vendor_json_stays_one_object_when_provider_reports_progress(
+        self, passing_validation, stub_logging, monkeypatch, capsys
+    ):
+        from primr.utils.console import get_console, set_console
+
+        original_console = get_console()
+        monkeypatch.setattr("primr.utils.banner.maybe_show_startup_banner", lambda **kw: None)
+        monkeypatch.setattr(
+            "primr.core.vendor_research._validate_vendor_research_preflight",
+            lambda _vendor: [],
+        )
+
+        def generate(vendor, *, emit_console):
+            assert emit_console is False
+            if emit_console:
+                get_console().error(f"PROGRESS-{vendor}")
+            return f"/cache/{vendor}.md"
+
+        monkeypatch.setattr(
+            "primr.core.vendor_research.generate_vendor_research_sync",
+            generate,
+        )
+        try:
+            result = main(
+                [
+                    "--generate-vendor-research",
+                    "aws",
+                    "--json",
+                    "--skip-confirm",
+                ]
+            )
+        finally:
+            set_console(original_console)
+
+        payload = json.loads(capsys.readouterr().out)
+        assert result == 0
+        assert payload["status"] == "completed"
+        assert payload["artifacts"] == [{"vendor": "aws", "path": "/cache/aws.md"}]
+
+    def test_invalid_configuration_json_is_one_structured_error(self, monkeypatch, capsys):
+        result = MagicMock(valid=False, errors=["provider key missing"])
+        monkeypatch.setattr(
+            "primr.utils.config_validation.validate_config",
+            lambda **_kwargs: result,
+        )
+
+        assert main(["Acme Corp", "https://acme.example", "--json"]) == 1
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["operation"] == "research"
+        assert payload["error_type"] == "configuration_invalid"
+        assert payload["hints"] == ["provider key missing"]
+
+    @pytest.mark.parametrize(
+        ("gemini_key", "expected_hint"),
+        [
+            (None, "GEMINI_API_KEY not configured"),
+            ("short", "GEMINI_API_KEY appears invalid (too short)"),
+        ],
+    )
+    def test_vendor_json_invalid_key_is_one_structured_error(
+        self,
+        passing_validation,
+        stub_logging,
+        monkeypatch,
+        capsys,
+        gemini_key,
+        expected_hint,
+    ):
+        from primr.config.settings import reset_settings
+        from primr.utils.console import get_console, set_console
+
+        original_console = get_console()
+        generate = MagicMock()
+        if gemini_key is None:
+            monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        else:
+            monkeypatch.setenv("GEMINI_API_KEY", gemini_key)
+        reset_settings()
+        monkeypatch.setattr("primr.utils.banner.maybe_show_startup_banner", lambda **kw: None)
+        monkeypatch.setattr(
+            "primr.core.vendor_research.check_dir_atomic_writable",
+            lambda _path: (True, None),
+        )
+        monkeypatch.setattr(
+            "primr.core.vendor_research.generate_vendor_research_sync",
+            generate,
+        )
+        try:
+            result = main(["--generate-vendor-research", "aws", "--json"])
+        finally:
+            reset_settings()
+            set_console(original_console)
+
+        payload = json.loads(capsys.readouterr().out)
+        assert result == 1
+        assert payload["error_type"] == "preflight_failed"
+        assert payload["hints"] == [expected_hint]
+        generate.assert_not_called()
 
     def test_calibration_decision_bypasses_api_key_validation(self, stub_logging, monkeypatch):
         validation_calls = []

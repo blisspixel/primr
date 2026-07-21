@@ -11,7 +11,11 @@ FULL_EXECUTION_MODES = ("complete", "hybrid", "structured")
 
 
 def _check_model_provider_keys(
-    mode: str, *, premium_mode: bool = False, fast_mode: bool = False
+    mode: str,
+    *,
+    premium_mode: bool = False,
+    fast_mode: bool = False,
+    refresh_vendor_research: bool = False,
 ) -> tuple[list[str], str, bool, bool]:
     errors = []
 
@@ -22,7 +26,7 @@ def _check_model_provider_keys(
     has_gemini = bool(gemini_key and len(gemini_key) >= 10)
     has_xai = bool(xai_key and len(xai_key) >= 10)
     is_full_execution = mode in FULL_EXECUTION_MODES
-    requires_gemini = mode == "deep-research" or premium_mode
+    requires_gemini = mode == "deep-research" or premium_mode or refresh_vendor_research
     requires_xai = fast_mode
 
     if requires_gemini:
@@ -33,7 +37,7 @@ def _check_model_provider_keys(
             )
         elif len(gemini_key) < 10:
             errors.append("GEMINI_API_KEY set but appears too short")
-    elif requires_xai:
+    if requires_xai:
         if not xai_key:
             errors.append(
                 "XAI_API_KEY not configured. Run 'primr keys set xai' "
@@ -41,7 +45,7 @@ def _check_model_provider_keys(
             )
         elif len(xai_key) < 10:
             errors.append("XAI_API_KEY set but appears too short")
-    elif is_full_execution:
+    elif is_full_execution and not requires_gemini:
         if gemini_key and len(gemini_key) < 10:
             errors.append("GEMINI_API_KEY set but appears too short")
         if xai_key and len(xai_key) < 10:
@@ -83,6 +87,20 @@ def _check_playwright(mode: str, errors: list[str]) -> None:
             errors.append(f"Playwright check failed: {error_msg}")
 
 
+def _check_fast_dependency(fast_mode: bool, errors: list[str]) -> None:
+    """Validate the optional fast client without making a network request."""
+
+    if not fast_mode:
+        return
+    try:
+        import openai  # noqa: F401
+    except ImportError:
+        errors.append(
+            "Fast mode requires the 'openai' package. Install with: "
+            "pip install 'primr[fast]' or pip install openai"
+        )
+
+
 def _check_gemini_connectivity(
     gemini_key: str,
     *,
@@ -100,10 +118,7 @@ def _check_gemini_connectivity(
         from google import genai
 
         client = genai.Client(api_key=gemini_key, http_options=default_genai_http_options())
-        _ = client.models.generate_content(
-            model=PrimrModels.FAST_MODEL,
-            contents="Reply with: ok",
-        )
+        _ = client.models.get(model=PrimrModels.FAST_MODEL)
     except Exception as e:
         error_str = str(e).lower()
         if "quota" in error_str or "rate" in error_str:
@@ -162,6 +177,7 @@ def _run_preflight_checks(
     *,
     premium_mode: bool = False,
     fast_mode: bool = False,
+    refresh_vendor_research: bool = False,
     allow_network: bool = True,
 ) -> tuple[bool, list[str]]:
     """
@@ -174,9 +190,13 @@ def _run_preflight_checks(
         (success, errors) - True if all checks pass, list of error messages if not
     """
     errors, gemini_key, requires_gemini, is_full_execution = _check_model_provider_keys(
-        mode, premium_mode=premium_mode, fast_mode=fast_mode
+        mode,
+        premium_mode=premium_mode,
+        fast_mode=fast_mode,
+        refresh_vendor_research=refresh_vendor_research,
     )
     _check_playwright(mode, errors)
+    _check_fast_dependency(fast_mode, errors)
     if allow_network:
         _check_gemini_connectivity(
             gemini_key,
@@ -186,4 +206,30 @@ def _run_preflight_checks(
         )
         _check_google_search(errors)
 
+    return (len(errors) == 0, errors)
+
+
+def _run_network_preflight_checks(
+    mode: str,
+    *,
+    premium_mode: bool = False,
+    fast_mode: bool = False,
+    refresh_vendor_research: bool = False,
+) -> tuple[bool, list[str]]:
+    """Run only provider and search connectivity checks after budget approval."""
+
+    errors, gemini_key, requires_gemini, is_full_execution = _check_model_provider_keys(
+        mode,
+        premium_mode=premium_mode,
+        fast_mode=fast_mode,
+        refresh_vendor_research=refresh_vendor_research,
+    )
+    if not errors:
+        _check_gemini_connectivity(
+            gemini_key,
+            requires_gemini=requires_gemini,
+            is_full_execution=is_full_execution,
+            errors=errors,
+        )
+        _check_google_search(errors)
     return (len(errors) == 0, errors)

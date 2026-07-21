@@ -100,20 +100,28 @@ class TestRetirementMigration:
 
 
 class TestRegistryExpansion:
-    """Task 3.6 — Verify provider registry contains all five providers."""
+    """Task 3.6 — Verify the provider registry contains all seven providers."""
 
-    def test_known_providers_has_five_entries(self) -> None:
-        """KNOWN_PROVIDERS contains exactly 5 entries."""
+    def test_known_providers_has_seven_entries(self) -> None:
+        """KNOWN_PROVIDERS contains exactly 7 entries."""
         from primr.ai.providers.registry import KNOWN_PROVIDERS
 
-        assert len(KNOWN_PROVIDERS) == 5
+        assert len(KNOWN_PROVIDERS) == 7
 
     def test_known_providers_names(self) -> None:
-        """KNOWN_PROVIDERS contains xai, gemini, openai, anthropic, ollama."""
+        """KNOWN_PROVIDERS contains the direct APIs plus the deployment surfaces."""
         from primr.ai.providers.registry import KNOWN_PROVIDERS
 
         names = {p.name for p in KNOWN_PROVIDERS}
-        assert names == {"xai", "gemini", "openai", "anthropic", "ollama"}
+        assert names == {
+            "xai",
+            "gemini",
+            "openai",
+            "anthropic",
+            "ollama",
+            "foundry",
+            "bedrock",
+        }
 
     def test_get_available_providers_includes_ollama_without_env(self, monkeypatch) -> None:
         """Ollama is available even without OLLAMA_API_KEY (has api_key_default)."""
@@ -152,6 +160,8 @@ class TestRegistryExpansion:
         """build_provider returns correct provider types for each entry."""
         from primr.ai.providers import OpenAICompatibleProvider
         from primr.ai.providers.anthropic import AnthropicProvider
+        from primr.ai.providers.azure_foundry import AzureFoundryProvider
+        from primr.ai.providers.bedrock import BedrockProvider
         from primr.ai.providers.gemini import GeminiProvider
         from primr.ai.providers.registry import KNOWN_PROVIDERS, build_provider
 
@@ -161,6 +171,8 @@ class TestRegistryExpansion:
             "openai": OpenAICompatibleProvider,
             "anthropic": AnthropicProvider,
             "ollama": OpenAICompatibleProvider,
+            "foundry": AzureFoundryProvider,
+            "bedrock": BedrockProvider,
         }
         for entry in KNOWN_PROVIDERS:
             provider = build_provider(entry)

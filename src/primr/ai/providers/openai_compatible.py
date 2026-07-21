@@ -21,7 +21,12 @@ from typing import Any
 
 from primr.ai.error_policy import extract_retry_after_seconds as _extract_retry_after_seconds
 from primr.ai.provider_availability import LocalCapacityBusyError
-from primr.ai.providers.base import ChatResponse, Provider, ProviderUnavailableError
+from primr.ai.providers.base import (
+    ChatResponse,
+    CredentialCheck,
+    Provider,
+    ProviderUnavailableError,
+)
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("ai.providers.openai_compatible")
@@ -200,6 +205,34 @@ class OpenAICompatibleProvider(Provider):
             base_url=self._base_url,
         )
         return self._client
+
+    def validate_credentials(self) -> CredentialCheck:
+        """Auth-only check via the free ``GET /models`` endpoint (no generation)."""
+        import time
+
+        if not self.is_available():
+            return CredentialCheck(
+                provider=self.name, ok=False, detail=f"{self._api_key_env} not set"
+            )
+        start = time.monotonic()
+        try:
+            client = self._get_client()
+            models = client.models.list()
+            count = len(list(getattr(models, "data", []) or []))
+            latency = int((time.monotonic() - start) * 1000)
+            return CredentialCheck(
+                provider=self.name,
+                ok=True,
+                detail=f"authenticated; {count} models visible",
+                latency_ms=latency,
+            )
+        except Exception as exc:
+            return CredentialCheck(
+                provider=self.name,
+                ok=False,
+                detail=f"{type(exc).__name__}: {str(exc)[:120]}",
+                latency_ms=int((time.monotonic() - start) * 1000),
+            )
 
     # -----------------------------------------------------------------
     # Chat

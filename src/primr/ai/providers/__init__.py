@@ -22,12 +22,15 @@ as provider-specific kwargs that the relevant provider knows how to use and
 others ignore.
 """
 
+from primr.ai.providers.azure_foundry import AzureFoundryProvider
 from primr.ai.providers.base import (
     ChatResponse,
+    CredentialCheck,
     Provider,
     ProviderUnavailableError,
     QuotaExhaustedError,
 )
+from primr.ai.providers.bedrock import BedrockProvider
 from primr.ai.providers.gemini import GeminiProvider
 from primr.ai.providers.openai_compatible import OpenAICompatibleProvider
 from primr.ai.providers.registry import (
@@ -36,13 +39,17 @@ from primr.ai.providers.registry import (
     build_provider,
     get_available_providers,
     list_known_providers,
+    validate_provider_credentials,
 )
 from primr.ai.providers.xai import BrowseSummary, XAIProvider
 
 __all__ = [
     "KNOWN_PROVIDERS",
+    "AzureFoundryProvider",
+    "BedrockProvider",
     "BrowseSummary",
     "ChatResponse",
+    "CredentialCheck",
     "GeminiProvider",
     "OpenAICompatibleProvider",
     "Provider",
@@ -53,4 +60,5 @@ __all__ = [
     "build_provider",
     "get_available_providers",
     "list_known_providers",
+    "validate_provider_credentials",
 ]

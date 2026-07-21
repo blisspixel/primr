@@ -85,6 +85,11 @@ class TestPerformScrapeOnly:
         # Output files should exist
         assert (folder / "scraped_content.txt").exists()
         assert (folder / "insights.txt").exists()
+        from primr.core.strategy_outcome import load_strategy_outcome
+        from primr.core.vendor_refresh_outcome import load_vendor_refresh_outcome
+
+        assert load_strategy_outcome(str(folder)).status == "not_requested"
+        assert load_vendor_refresh_outcome(str(folder)).status == "not_requested"
 
     def test_happy_path_with_quality_validation_pass(self, isolated, monkeypatch, tmp_path):
         folder = tmp_path / "work"

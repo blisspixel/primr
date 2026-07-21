@@ -228,3 +228,102 @@ def test_extract_usage_cached_tokens():
 
 def test_rate_limited_false_for_daily():
     assert _is_rate_limited(Exception("resource_exhausted per_day")) is False
+
+
+# ---------------------------------------------------------------------------
+# Grounded web search (search_and_summarize)
+# ---------------------------------------------------------------------------
+
+
+def _grounded_resp(text="brief", queries=("q1",), uris=("https://x",), in_tok=900, out_tok=1800):
+    chunks = [SimpleNamespace(web=SimpleNamespace(uri=u)) for u in uris]
+    cand = SimpleNamespace(
+        grounding_metadata=SimpleNamespace(
+            web_search_queries=list(queries), grounding_chunks=chunks
+        )
+    )
+    return SimpleNamespace(
+        text=text,
+        candidates=[cand],
+        usage_metadata=SimpleNamespace(prompt_token_count=in_tok, candidates_token_count=out_tok),
+    )
+
+
+def test_search_and_summarize_returns_grounded_result_with_evidence():
+    p = _provider()
+    fake = MagicMock()
+    fake.models.generate_content.return_value = _grounded_resp()
+    p._client = fake
+    result = p.search_and_summarize(
+        "latest AWS AI", model="gemini-3.1-pro-preview", max_tokens=8_000
+    )
+    assert result is not None
+    assert result.text == "brief"
+    assert result.search_queries == ("q1",)
+    assert result.citations == ("https://x",)
+    assert result.input_tokens == 900
+    assert result.output_tokens == 1800
+    # The live google_search grounding tool must be attached.
+    config = fake.models.generate_content.call_args.kwargs["config"]
+    assert config.tools
+    assert config.max_output_tokens == 8_000
+
+
+def test_search_and_summarize_empty_body_returns_none():
+    p = _provider()
+    fake = MagicMock()
+    fake.models.generate_content.return_value = _grounded_resp(text="   ")
+    p._client = fake
+    assert p.search_and_summarize("q", model="gemini-3.1-pro-preview") is None
+
+
+def test_search_and_summarize_tolerates_missing_grounding_metadata():
+    p = _provider()
+    fake = MagicMock()
+    fake.models.generate_content.return_value = SimpleNamespace(
+        text="body",
+        candidates=[SimpleNamespace(grounding_metadata=None)],
+        usage_metadata=SimpleNamespace(prompt_token_count=1, candidates_token_count=2),
+    )
+    p._client = fake
+    result = p.search_and_summarize("q", model="gemini-3.1-pro-preview")
+    assert result is not None
+    assert result.text == "body"
+    assert result.citations == ()
+    assert result.search_queries == ()
+
+
+# ---------------------------------------------------------------------------
+# Credential validation (auth-only, free models.list)
+# ---------------------------------------------------------------------------
+
+
+def test_validate_credentials_ok(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    p = _provider()
+    fake = MagicMock()
+    fake.models.list.return_value = iter([object(), object(), object()])
+    p._client = fake
+    result = p.validate_credentials()
+    assert result.ok is True
+    assert result.provider == "gemini"
+    assert "3 models" in result.detail
+    fake.models.list.assert_called_once()
+
+
+def test_validate_credentials_no_key(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    result = _provider().validate_credentials()
+    assert result.ok is False
+    assert "not set" in result.detail
+
+
+def test_validate_credentials_reports_auth_error(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "k")
+    p = _provider()
+    fake = MagicMock()
+    fake.models.list.side_effect = RuntimeError("invalid api key")
+    p._client = fake
+    result = p.validate_credentials()
+    assert result.ok is False
+    assert "RuntimeError" in result.detail

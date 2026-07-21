@@ -69,17 +69,64 @@ Gemini 3.1 Pro Preview is the default Pro model. It has tiered pricing: $2/$12 p
 
 Vendor research is shared in the per-user cache and reused when present. Stale or
 missing cache files do not trigger fresh Deep Research automatically because the
-static run estimate does not include that extra task. Use one of these explicit
-opt-ins when a refresh is intentional:
+run must quote that extra task before execution. Use the matching explicit
+control when a refresh is intentional:
 
-- `primr --generate-vendor-research <vendor>`
+- `primr --generate-vendor-research <vendor> --dry-run`, then repeat without
+  `--dry-run` and approve the quoted aggregate estimate
 - `primr "Company" https://company.com --refresh-vendor-research`
-- `PRIMR_ALLOW_VENDOR_REFRESH=1`
+
+Integrated research and standalone strategy commands ignore ambient automatic
+refresh settings. Their dry-run and budget estimates include one separate Deep
+Research refresh task per selected platform only when
+`--refresh-vendor-research` is present. `PRIMR_ALLOW_VENDOR_REFRESH=1` remains
+available to direct library callers that explicitly leave cache policy under
+environment control; estimate-bound CLI and MCP paths override it to prevent
+unquoted provider work.
+
+The direct cache command accepts `azure`, `aws`, `gcp`, `private`, `agnostic`,
+or `all`, plus `--budget <usd>` and `--json`.
+It starts no provider work during dry-run, requires confirmation by default,
+and treats `--skip-confirm` as explicit noninteractive approval. JSON execution
+returns a structured prerequisite error when preflight fails; after preflight
+passes, execution without `--skip-confirm` returns an `approval_required`
+object. Any failed target produces a nonzero exit code while successful artifact
+paths remain in the human or JSON result.
+
+Cache publication uses a same-directory atomic replacement. A completed remote
+task is recorded before local publication, linked destination files are
+replaced rather than followed, and a failed refresh reuses an existing cache
+with a visible warning. A provider or polling exception after submission also
+records a conservative task-cost row, while local preflight failure records no
+provider usage. Fast multi-platform refresh tasks run serially before parallel
+strategy writing because the provider client and usage ledger are shared
+process state. Each later refresh budget gate includes earlier submitted tasks.
+
+Explicit refresh execution has a run-local outcome ledger. Provider submission
+callbacks record which targets started and which completed, failed, or were
+skipped by the budget gate. This avoids attributing work from another concurrent
+job to the current run. Partial refresh remains visible even when a cached file
+lets strategy generation continue, and causes a nonzero CLI result while
+preserving the completed report and successful artifacts.
+
+AI Strategy Deep Research uses the same run-local submission accounting.
+Preflight and context-assembly failures do not count as provider spend, while a
+task that reaches provider submission remains counted even if publication later
+fails. Optional standard-strategy setup errors persist a failed strategy
+outcome and preserve the completed base report instead of converting the whole
+run into an apparent report failure.
+
+Standalone strategy JSON has separate estimate, refusal, and result contracts.
+Use `--dry-run --json` for the one-object estimate. Execution with `--json`
+requires `--skip-confirm` and returns one result object containing expected
+targets, successful artifact paths, and failed targets. Without that explicit
+approval, the command returns one `approval_required` object and starts no
+provider work.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `PRIMR_VENDOR_NEWS_TTL_DAYS` | Freshness threshold for cached vendor research before Primr reports it as stale. Stale files are still reused unless refresh is explicitly enabled. | `7` |
-| `PRIMR_ALLOW_VENDOR_REFRESH` | Allows stale or missing vendor research cache to trigger a fresh Deep Research generation in paths that request vendor context. | unset |
+| `PRIMR_ALLOW_VENDOR_REFRESH` | Allows stale or missing vendor research cache to trigger generation only in direct library paths that leave refresh policy environment-controlled. Integrated CLI and MCP strategy paths override it off. | unset |
 
 ### Reasoning Topology
 

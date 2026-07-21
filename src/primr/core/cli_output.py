@@ -17,6 +17,8 @@ from typing import TYPE_CHECKING
 from primr.core.cli_command_output import emit_json as _emit_json
 
 if TYPE_CHECKING:
+    from primr.core.strategy_outcome import StrategyOutcome
+    from primr.core.vendor_refresh_outcome import VendorRefreshOutcome
     from primr.utils.cost_estimator import CostEstimate
 
 
@@ -50,11 +52,16 @@ def research_result_json(
     company: str | None,
     website: str | None,
     mode: str,
+    strategy_outcome: StrategyOutcome | None = None,
+    vendor_refresh_outcome: VendorRefreshOutcome | None = None,
+    fulfillment_status: str | None = None,
+    outcome_state_status: str | None = None,
+    run_state_path: str | None = None,
 ) -> dict[str, object]:
     """Structured result summary for a completed/failed research run.
 
-    Reports status, the run inputs, and the produced artifacts (Markdown plus a
-    sibling DOCX when present) with a cheap word count. Paths are absolute so a
+    Reports base-artifact status, aggregate fulfillment, run inputs, and
+    produced artifacts with a cheap text word count. Paths are absolute so a
     caller in another directory can open them directly.
     """
     out: dict[str, object] = {
@@ -69,11 +76,21 @@ def research_result_json(
     if result_path:
         report = Path(result_path)
         out["report_path"] = str(report.resolve())
-        try:
-            out["word_count"] = len(report.read_text(encoding="utf-8").split())
-        except OSError:
-            pass
-        docx = report.with_suffix(".docx")
+        if report.suffix.lower() in {".md", ".txt"}:
+            try:
+                out["word_count"] = len(report.read_text(encoding="utf-8").split())
+            except (OSError, UnicodeDecodeError):
+                out["word_count"] = None
+        docx = report if report.suffix.lower() == ".docx" else report.with_suffix(".docx")
         if docx.exists():
             out["docx_path"] = str(docx.resolve())
+    if fulfillment_status is not None:
+        out["fulfillment_status"] = fulfillment_status
+    if outcome_state_status is not None:
+        out["outcome_state_status"] = outcome_state_status
+        out["run_state_path"] = run_state_path
+    if strategy_outcome is not None:
+        out.update(strategy_outcome.as_run_state())
+    if vendor_refresh_outcome is not None:
+        out.update(vendor_refresh_outcome.as_run_state())
     return out

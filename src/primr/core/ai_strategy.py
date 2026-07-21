@@ -312,14 +312,20 @@ async def generate_ai_strategy(
         nonlocal recovered_interaction_id
         recovered_interaction_id = interaction_id
 
-    # Execute Deep Research
-    content = await _execute_strategy_research(
-        prompt=prompt,
-        context_files=context_files,
-        timeout=config.timeout_seconds,
-        on_progress=on_progress,
-        on_recovery_ready=capture_recovered_interaction,
-    )
+    from primr.core.strategy_context import stable_vendor_context_snapshots
+
+    with stable_vendor_context_snapshots(vendor_paths) as vendor_snapshots:
+        vendor_paths = [snapshot.source_path for snapshot in vendor_snapshots]
+        safe_context_files = context_files + [
+            snapshot.snapshot_path for snapshot in vendor_snapshots
+        ]
+        content = await _execute_strategy_research(
+            prompt=prompt,
+            context_files=safe_context_files,
+            timeout=config.timeout_seconds,
+            on_progress=on_progress,
+            on_recovery_ready=capture_recovered_interaction,
+        )
 
     if not content:
         return AIStrategyResult(
@@ -465,6 +471,15 @@ async def _gather_context(
     if config.company_research_path and os.path.exists(config.company_research_path):
         context_files.append(config.company_research_path)
 
+        # Attach the run's recon context when it sits alongside the report, so the
+        # standalone strategy path also sees the full observed vendor stack
+        # (identity, cloud, AI providers) rather than only the report narrative.
+        recon_sibling = os.path.join(
+            os.path.dirname(config.company_research_path), "_recon_context.txt"
+        )
+        if os.path.exists(recon_sibling) and recon_sibling not in context_files:
+            context_files.append(recon_sibling)
+
     for context_path in config.additional_context_paths:
         if context_path not in context_files:
             context_files.append(context_path)
@@ -477,8 +492,7 @@ async def _gather_context(
     for path in yaml_context_files:
         if path.exists():
             path_str = str(path)
-            if path_str not in context_files:
-                context_files.append(path_str)
+            if path_str not in vendor_paths:
                 vendor_paths.append(path_str)
 
     if yaml_context_files:
@@ -487,41 +501,49 @@ async def _gather_context(
         )
 
     if not yaml_context_files:
-        from primr.core.vendor_research import (
-            generate_vendor_research,
-            get_or_generate_vendor_research,
-            get_vendor_research_path,
-        )
-
-        if config.platform != Platform.AGNOSTIC:
-            if config.force_refresh_vendor:
-                console.info(f"Force refreshing {vendor_str.upper()} vendor research...")
-                generated = await generate_vendor_research(vendor_str, on_progress)
-                if generated:
-                    vendor_paths = [generated]
-            else:
-                result = await get_or_generate_vendor_research(
-                    vendor_str,
-                    force_refresh=False,  # Explicitly pass force_refresh
-                    on_progress=on_progress,
-                    allow_auto_refresh=config.allow_vendor_refresh,
-                )
-                vendor_paths = [str(p) for p in result.paths]
-
-            for path in vendor_paths:
-                if path and os.path.exists(path):
-                    context_files.append(path)
-
-            if vendor_paths:
-                console.info(
-                    f"Using {len(vendor_paths)} {vendor_str.upper()} research doc(s) as context"
-                )
-
-        agnostic_path = get_vendor_research_path("agnostic")
-        if agnostic_path.exists() and str(agnostic_path) not in context_files:
-            context_files.append(str(agnostic_path))
+        vendor_paths = await _resolve_generated_vendor_paths(config, vendor_str, on_progress)
 
     return context_files, vendor_paths
+
+
+async def _resolve_generated_vendor_paths(
+    config: AIStrategyConfig,
+    vendor_str: str,
+    on_progress: Callable[[str], None] | None,
+) -> list[str]:
+    """Resolve vendor-research paths when the strategy YAML supplies none.
+
+    ``--refresh-vendor-research`` (``force_refresh_vendor``) is freshness-aware:
+    reuse a cache within the freshness window, regenerate only stale/missing docs.
+    """
+    from primr.core.vendor_research import (
+        get_or_generate_vendor_research,
+        get_vendor_research_path,
+    )
+
+    vendor_paths: list[str] = []
+    if config.platform != Platform.AGNOSTIC:
+        if config.force_refresh_vendor:
+            console.info(
+                f"Ensuring fresh {vendor_str.upper()} vendor research "
+                "(reuse if current, regenerate if stale or missing)..."
+            )
+        result = await get_or_generate_vendor_research(
+            vendor_str,
+            force_refresh=False,
+            on_progress=on_progress,
+            allow_auto_refresh=True if config.force_refresh_vendor else config.allow_vendor_refresh,
+        )
+        vendor_paths = [str(p) for p in result.paths]
+        if vendor_paths:
+            console.info(
+                f"Using {len(vendor_paths)} {vendor_str.upper()} research doc(s) as context"
+            )
+
+    agnostic_path = get_vendor_research_path("agnostic")
+    if agnostic_path.exists() and str(agnostic_path) not in vendor_paths:
+        vendor_paths.append(str(agnostic_path))
+    return vendor_paths
 
 
 async def _poll_for_completion(

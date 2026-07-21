@@ -9,7 +9,7 @@ All external I/O (llm, deep research client, vendor research, DOCX) mocked.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -18,9 +18,6 @@ from primr.core.ai_strategy_runtime import (
     build_ai_strategy_prompt,
     generate_ai_strategy_section,
 )
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # build_ai_strategy_prompt
@@ -81,10 +78,16 @@ def test_preflight_invalid_vendor():
 
 
 def test_preflight_missing_api_key():
+    task_events: list[str] = []
     with patch("primr.core.ai_strategy_runtime.get_settings") as mock_settings:
         mock_settings.return_value.api.gemini_key = None
-        result = generate_ai_strategy_section(company_name="Acme", platform="azure")
+        result = generate_ai_strategy_section(
+            company_name="Acme",
+            platform="azure",
+            strategy_task_observer=task_events.append,
+        )
     assert result is None
+    assert task_events == []
 
 
 def test_preflight_missing_research_file(tmp_path: Path):
@@ -194,6 +197,48 @@ def test_lite_strategy_bounds_large_context_and_uses_estimated_model(tmp_path: P
     assert mock_llm.call_args.kwargs["model"] == pick_model_for_role(Role.REASONING)
 
 
+def test_lite_strategy_rejects_linked_vendor_context(tmp_path: Path):
+    company = tmp_path / "company.md"
+    company.write_text("COMPANY_CONTEXT", encoding="utf-8")
+    outside = tmp_path / "outside.md"
+    outside.write_text("LINKED_VENDOR_MUST_NOT_EGRESS", encoding="utf-8")
+    linked = tmp_path / "vendor.md"
+    try:
+        linked.hardlink_to(outside)
+    except OSError:
+        pytest.skip("hard links are unavailable on this filesystem")
+
+    with (
+        patch("primr.core.ai_strategy_runtime.get_settings") as settings,
+        patch(
+            "primr.core.ai_strategy_runtime.get_or_generate_vendor_research_sync",
+            return_value=[str(linked)],
+        ),
+        patch(
+            "primr.core.ai_strategy_runtime.get_vendor_research_path",
+            return_value=tmp_path / "missing-agnostic.md",
+        ),
+        patch(
+            "primr.core.ai_strategy_runtime.llm",
+            return_value="# Strategy body",
+        ) as model,
+        patch("primr.core.ai_strategy_runtime.markdown_to_docx"),
+    ):
+        settings.return_value.api.gemini_key = "fake"
+        result = generate_ai_strategy_section(
+            company_name="Acme",
+            platform="aws",
+            company_research_path=str(company),
+            lite_strategy=True,
+            output_dir=tmp_path / "out",
+        )
+
+    prompt = model.call_args.args[0]
+    assert result is not None
+    assert "COMPANY_CONTEXT" in prompt
+    assert "LINKED_VENDOR_MUST_NOT_EGRESS" not in prompt
+
+
 def test_lite_context_logs_do_not_expose_input_paths(tmp_path: Path, caplog) -> None:
     from primr.core.strategy_context import build_bounded_lite_strategy_prompt
 
@@ -253,15 +298,16 @@ def test_lite_strategy_empty_llm_returns_none(tmp_path: Path):
     assert result is None
 
 
-def test_lite_strategy_force_refresh_vendor(tmp_path: Path):
+@pytest.mark.parametrize("platform", ["aws", "agnostic"])
+def test_lite_strategy_force_refresh_vendor(tmp_path: Path, platform: str):
     out_dir = tmp_path / "out"
     with (
         patch("primr.core.ai_strategy_runtime.get_settings") as mock_settings,
         patch("primr.core.ai_strategy_runtime.get_vendor_research_path") as mock_vpath,
         patch(
-            "primr.core.ai_strategy_runtime.generate_vendor_research_sync",
-            return_value=None,
-        ) as mock_gen,
+            "primr.core.ai_strategy_runtime.get_or_generate_vendor_research_sync",
+            return_value=[],
+        ) as mock_get,
         patch(
             "primr.core.ai_strategy_runtime.llm",
             return_value="# Strategy body",
@@ -272,13 +318,21 @@ def test_lite_strategy_force_refresh_vendor(tmp_path: Path):
         mock_vpath.return_value = tmp_path / "no-agnostic.txt"
         result = generate_ai_strategy_section(
             company_name="Acme",
-            platform="aws",
+            platform=platform,
             lite_strategy=True,
             force_refresh_vendor=True,
             output_dir=out_dir,
         )
     assert result is not None
-    assert mock_gen.called
+    # --refresh-vendor-research is freshness-aware: reuse if current, regenerate
+    # only when stale or missing (force_refresh=False, allow_auto_refresh=True).
+    # lite_strategy=True selects the grounded lite AI-news engine (lite=True).
+    mock_get.assert_called_once_with(
+        platform,
+        force_refresh=False,
+        allow_auto_refresh=True,
+        lite=True,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -288,6 +342,7 @@ def test_lite_strategy_force_refresh_vendor(tmp_path: Path):
 
 def test_deep_research_success(tmp_path: Path):
     out_dir = tmp_path / "out"
+    task_events: list[str] = []
 
     fake_result = MagicMock()
     fake_result.content = "# Deep strategy body"
@@ -332,12 +387,62 @@ def test_deep_research_success(tmp_path: Path):
             platform="gcp",
             lite_strategy=False,
             output_dir=out_dir,
+            strategy_task_observer=task_events.append,
         )
 
     assert result is not None
     assert client.research.called
+    assert task_events == ["started", "completed"]
     acknowledge_mock.assert_called_once()
     assert len(acknowledge_mock.call_args.args[1]) == 3
+
+
+def test_deep_research_uploads_private_vendor_snapshot(tmp_path: Path):
+    out_dir = tmp_path / "out"
+    company = tmp_path / "company.md"
+    vendor = tmp_path / "vendor.md"
+    company.write_text("company body", encoding="utf-8")
+    vendor.write_text("vendor body", encoding="utf-8")
+    seen_snapshot: Path | None = None
+    fake_result = MagicMock(content="# Strategy", interaction_id="", status="completed")
+
+    async def research(**kwargs):
+        nonlocal seen_snapshot
+        paths = kwargs["context_files"]
+        assert paths[0] == str(company)
+        seen_snapshot = Path(paths[1])
+        assert seen_snapshot != vendor
+        assert seen_snapshot.read_text(encoding="utf-8") == "vendor body"
+        return fake_result
+
+    client = MagicMock(research=research)
+    fake_dr_module = MagicMock()
+    fake_dr_module.get_deep_research_client.return_value = client
+    fake_dr_module.ResearchStatus.COMPLETED = "completed"
+    with (
+        patch("primr.core.ai_strategy_runtime.get_settings") as settings,
+        patch(
+            "primr.core.ai_strategy_runtime.get_or_generate_vendor_research_sync",
+            return_value=[str(vendor)],
+        ),
+        patch(
+            "primr.core.ai_strategy_runtime.get_vendor_research_path",
+            return_value=tmp_path / "missing-agnostic.md",
+        ),
+        patch.dict("sys.modules", {"primr.ai.deep_research": fake_dr_module}),
+        patch("primr.core.ai_strategy_runtime.markdown_to_docx"),
+    ):
+        settings.return_value.api.gemini_key = "fake"
+        result = generate_ai_strategy_section(
+            company_name="Acme",
+            platform="aws",
+            company_research_path=str(company),
+            output_dir=out_dir,
+        )
+
+    assert result is not None
+    assert seen_snapshot is not None
+    assert not seen_snapshot.exists()
 
 
 def test_deep_research_docx_failure_retains_pending_job(tmp_path: Path):

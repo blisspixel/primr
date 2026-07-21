@@ -183,8 +183,18 @@ def test_save_strategy_outputs_docx_permission_retry(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 async def test_generate_ai_strategy_success(tmp_path, monkeypatch):
     monkeypatch.setattr("primr.core.ai_strategy.OUTPUT_DIR", str(tmp_path))
+    company_context = tmp_path / "company.md"
+    vendor_context = tmp_path / "azure.txt"
+    company_context.write_text("company body", encoding="utf-8")
+    vendor_context.write_text("vendor body", encoding="utf-8")
+    seen_snapshot = None
 
     async def execute_with_recovered_job(**kwargs):
+        nonlocal seen_snapshot
+        assert kwargs["context_files"][0] == str(company_context)
+        seen_snapshot = Path(kwargs["context_files"][1])
+        assert seen_snapshot != vendor_context
+        assert seen_snapshot.read_text(encoding="utf-8") == "vendor body"
         kwargs["on_recovery_ready"]("iid-recovered")
         return "# Strategy content"
 
@@ -192,7 +202,7 @@ async def test_generate_ai_strategy_success(tmp_path, monkeypatch):
         patch("primr.core.ai_strategy._validate_preflight", return_value=[]),
         patch(
             "primr.core.ai_strategy._gather_context",
-            new=AsyncMock(return_value=([], ["/v/azure.txt"])),
+            new=AsyncMock(return_value=([str(company_context)], [str(vendor_context)])),
         ),
         patch(
             "primr.core.ai_strategy.build_ai_strategy_prompt",
@@ -219,7 +229,9 @@ async def test_generate_ai_strategy_success(tmp_path, monkeypatch):
 
     assert result.success is True
     assert result.content == "# Strategy content"
-    assert result.vendor_research_paths == ["/v/azure.txt"]
+    assert result.vendor_research_paths == [str(vendor_context.resolve())]
+    assert seen_snapshot is not None
+    assert not seen_snapshot.exists()
     acknowledge_mock.assert_called_once_with(
         "iid-recovered",
         [str(tmp_path / "s.docx"), str(tmp_path / "s.md"), str(tmp_path / "s.txt")],
@@ -390,5 +402,5 @@ async def test_gather_context_uses_yaml_files(tmp_path):
     with patch.dict("sys.modules", {"primr.prompts.registry": fake_registry_mod}):
         context_files, vendor_paths = await _gather_context(config)
 
-    assert str(yaml_file) in context_files
+    assert str(yaml_file) not in context_files
     assert str(yaml_file) in vendor_paths

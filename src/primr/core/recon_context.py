@@ -18,6 +18,7 @@ __all__ = [
     "SECTION_IDENTITY_AUTH",
     "SECTION_INFRASTRUCTURE",
     "SECTION_SIGNAL_INTELLIGENCE",
+    "SECTION_STACK_COVERAGE",
     "format_recon_context",
 ]
 
@@ -27,6 +28,169 @@ SECTION_SIGNAL_INTELLIGENCE = "Signal Intelligence"
 SECTION_EMAIL_SECURITY = "Email Security"
 SECTION_IDENTITY_AUTH = "Identity & Auth"
 SECTION_INFRASTRUCTURE = "Infrastructure"
+SECTION_STACK_COVERAGE = "Observed Vendor Stack the Strategy Must Address"
+
+# --- Slug classification maps -------------------------------------------------
+# Kept at module scope so the coverage rollup and the detailed sections classify
+# every signal identically. Display names follow the recon_tool fingerprint
+# catalog (data/fingerprints/*.yaml). The AI set intentionally spans model
+# providers, AI-native search, agent frameworks, LLM tooling, and MCP endpoints
+# so a Claude/OpenAI/agent-framework signal is never buried in the generic
+# service list.
+AI_PROVIDER_SLUGS: dict[str, str] = {
+    "anthropic": "Anthropic (Claude)",
+    "openai": "OpenAI Enterprise",
+    "mistral": "Mistral AI",
+    "perplexity": "Perplexity Enterprise",
+    "glean": "Glean (Enterprise AI Search)",
+    "n8n": "n8n (workflow automation / AI orchestration)",
+    "dify": "Dify (AI app builder)",
+    "autogen": "AutoGen (agent framework)",
+    "crewai-aid": "CrewAI (agent framework)",
+    "langsmith": "LangSmith (LLM observability)",
+    "mcp-discovery": "Model Context Protocol endpoint",
+}
+
+IDENTITY_PROVIDER_SLUGS: dict[str, str] = {
+    "okta": "Okta",
+    "auth0": "Auth0 (Okta)",
+    "ping-identity": "Ping Identity",
+    "onelogin": "OneLogin",
+    "duo": "Duo Security",
+    "beyond-identity": "Beyond Identity",
+    "cisco-identity": "Cisco Identity",
+}
+
+AZURE_SLUGS = {"azure-dns", "azure-cdn", "azure-appservice", "azure-tm"}
+AWS_SLUGS = {"aws-route53", "aws-cloudfront", "aws-ses", "aws-acm"}
+GCP_SLUGS = {"gcp-dns", "google-trust"}
+
+SECURITY_SLUGS = {
+    "crowdstrike",
+    "sentinelone",
+    "knowbe4",
+    "proofpoint",
+    "mimecast",
+    "zscaler",
+    "netskope",
+    "paloalto",
+    "wiz",
+    "sophos",
+    "okta",
+    "duo",
+    "1password",
+    "jamf",
+    "kandji",
+    "barracuda",
+    "trendmicro",
+    "trellix",
+    "ping-identity",
+    "cyberark",
+    "cato",
+    "lakera",
+}
+
+DATA_SLUGS = {
+    "databricks",
+    "snowflake",
+    "mongodb",
+    "dynatrace",
+    "segment",
+    "datadog",
+    "newrelic",
+    "pagerduty",
+}
+
+CRM_SLUGS = {
+    "salesforce",
+    "hubspot",
+    "marketo",
+    "pardot",
+    "eloqua",
+    "klaviyo",
+    "6sense",
+    "outreach",
+    "salesloft",
+    "clearbit",
+    "demandbase",
+    "drift",
+    "gong",
+    "intercom",
+    "apollo",
+}
+
+HR_SLUGS = {"workday", "sap", "ukg", "rippling", "deel"}
+
+FILE_SLUGS = {"box", "egnyte", "dropbox"}
+
+
+def _stack_coverage_lines(info: TenantInfo) -> list[str]:
+    """Build the up-front coverage rollup naming every observed ecosystem.
+
+    Returns an empty list when nothing strategically relevant was detected, so
+    the section is omitted for empty tenants. The rollup exists to stop the
+    strategy from anchoring only on the email or the primary cloud provider: it
+    names identity, cloud, AI, and key SaaS ecosystems and instructs the model
+    to evaluate each one.
+    """
+    slugs = set(info.slugs)
+
+    productivity: list[str] = []
+    if "microsoft365" in slugs:
+        productivity.append("Microsoft 365")
+    if "google-workspace" in slugs:
+        productivity.append("Google Workspace")
+
+    identity = [name for slug, name in IDENTITY_PROVIDER_SLUGS.items() if slug in slugs]
+    if info.auth_type and not identity:
+        identity.append(f"{info.auth_type} identity (provider not fingerprinted)")
+
+    clouds: list[str] = []
+    if slugs & AWS_SLUGS:
+        clouds.append("Amazon Web Services (AWS)")
+    if slugs & AZURE_SLUGS:
+        clouds.append("Microsoft Azure")
+    if slugs & GCP_SLUGS:
+        clouds.append("Google Cloud (GCP)")
+
+    ai_providers = [name for slug, name in AI_PROVIDER_SLUGS.items() if slug in slugs]
+
+    other: list[str] = []
+    if slugs & DATA_SLUGS:
+        other.append("data & analytics")
+    if slugs & SECURITY_SLUGS:
+        other.append("security")
+    if slugs & CRM_SLUGS:
+        other.append("CRM / go-to-market")
+    if slugs & HR_SLUGS:
+        other.append("HR & operations")
+    if slugs & FILE_SLUGS:
+        other.append("file sharing")
+
+    if not any((productivity, identity, clouds, ai_providers, other)):
+        return []
+
+    lines = [f"--- {SECTION_STACK_COVERAGE} ---"]
+    lines.append(
+        "The AI Strategy must evaluate every ecosystem observed below, not only the "
+        "email or the primary cloud provider. For each, assess integration fit, AI "
+        "capabilities, governance, and at least one credible alternative. Absence of "
+        "a category means no public signal was observed, not that the vendor is absent."
+    )
+    if productivity:
+        lines.append(f"  Productivity / Email: {', '.join(productivity)}")
+    if identity:
+        lines.append(f"  Identity: {', '.join(sorted(identity))}")
+    if clouds:
+        lines.append(f"  Public cloud: {', '.join(sorted(clouds))}")
+    if ai_providers:
+        lines.append(f"  AI providers / tools: {', '.join(sorted(ai_providers))}")
+    if other:
+        lines.append(
+            "  Additional detected ecosystems (detailed below): " + ", ".join(sorted(other))
+        )
+    lines.append("")
+    return lines
 
 
 def format_recon_context(info: TenantInfo) -> str:
@@ -63,6 +227,10 @@ def format_recon_context(info: TenantInfo) -> str:
     sections.append(f"Confidence: {info.confidence.value}")
     sections.append("")
 
+    # Up-front coverage rollup so the strategy addresses the whole observed stack,
+    # not just the email or cloud provider. Omitted when nothing was detected.
+    sections.extend(_stack_coverage_lines(info))
+
     # Detected services, categorized for strategic relevance.
     if info.services:
         sections.append(f"--- {SECTION_DETECTED_SERVICES} ---")
@@ -75,8 +243,7 @@ def format_recon_context(info: TenantInfo) -> str:
         sections.append("")
 
     # AI and productivity intelligence is the key strategic signal.
-    ai_slugs = {"openai", "anthropic", "mistral", "perplexity", "glean"}
-    detected_ai = [s for s in info.slugs if s in ai_slugs]
+    detected_ai = [s for s in info.slugs if s in AI_PROVIDER_SLUGS]
     m365_detected = "microsoft365" in info.slugs
     gws_detected = "google-workspace" in info.slugs
 
@@ -97,18 +264,13 @@ def format_recon_context(info: TenantInfo) -> str:
                 "alternatives and avoiding assumptions about licenses or active use."
             )
         if detected_ai:
-            ai_names = {
-                "openai": "OpenAI (ChatGPT Enterprise)",
-                "anthropic": "Anthropic (Claude)",
-                "mistral": "Mistral AI",
-                "perplexity": "Perplexity Enterprise",
-                "glean": "Glean (Enterprise AI Search)",
-            }
-            ai_list = [ai_names.get(s, s) for s in detected_ai]
+            ai_list = [AI_PROVIDER_SLUGS[s] for s in detected_ai]
             sections.append(
                 f"  AI provider or product indicators detected: {', '.join(ai_list)}. "
                 "These may reflect domain verification, evaluation, integration, or active use. "
-                "Validate scope and ownership before treating them as deployed capabilities."
+                "Validate scope and ownership before treating them as deployed capabilities. "
+                "The strategy must address the AI providers the company already touches, "
+                "including how they coexist with any recommended platform."
             )
         sections.append("")
 
@@ -137,9 +299,14 @@ def format_recon_context(info: TenantInfo) -> str:
         sections.append("")
 
     # Identity & Auth
-    if info.auth_type:
+    detected_identity = [s for s in info.slugs if s in IDENTITY_PROVIDER_SLUGS]
+    if info.auth_type or detected_identity:
         sections.append(f"--- {SECTION_IDENTITY_AUTH} ---")
-        sections.append(f"  Auth Type: {info.auth_type}")
+        if info.auth_type:
+            sections.append(f"  Auth Type: {info.auth_type}")
+        if detected_identity:
+            id_names = [IDENTITY_PROVIDER_SLUGS[s] for s in detected_identity]
+            sections.append(f"  Identity provider indicators: {', '.join(id_names)}")
         auth_insights = [
             i
             for i in info.insights
@@ -158,54 +325,36 @@ def format_recon_context(info: TenantInfo) -> str:
     if infra_insights or info.slugs:
         sections.append(f"--- {SECTION_INFRASTRUCTURE} ---")
         # Interpret cloud platform from slugs
-        azure_slugs = {"azure-dns", "azure-cdn", "azure-appservice", "azure-tm"}
-        aws_slugs = {"aws-route53", "aws-cloudfront", "aws-ses", "aws-acm"}
-        gcp_slugs = {"gcp-dns", "google-trust"}
-        detected_azure = [s for s in info.slugs if s in azure_slugs]
-        detected_aws = [s for s in info.slugs if s in aws_slugs]
-        detected_gcp = [s for s in info.slugs if s in gcp_slugs]
+        detected_azure = [s for s in info.slugs if s in AZURE_SLUGS]
+        detected_aws = [s for s in info.slugs if s in AWS_SLUGS]
+        detected_gcp = [s for s in info.slugs if s in GCP_SLUGS]
         if detected_azure:
             sections.append(f"  Azure infrastructure detected: {', '.join(detected_azure)}")
         if detected_aws:
             sections.append(f"  AWS infrastructure detected: {', '.join(detected_aws)}")
         if detected_gcp:
             sections.append(f"  GCP infrastructure detected: {', '.join(detected_gcp)}")
-        if detected_azure and detected_aws:
+        multi_cloud = [
+            name
+            for name, present in (
+                ("Azure", detected_azure),
+                ("AWS", detected_aws),
+                ("GCP", detected_gcp),
+            )
+            if present
+        ]
+        if len(multi_cloud) > 1:
             sections.append(
-                "  Multiple public-cloud infrastructure signals observed: Azure and AWS. "
+                f"  Multiple public-cloud infrastructure signals observed: {', '.join(multi_cloud)}. "
                 "Evaluate an integrated multicloud or hybrid posture, but do not infer that "
-                "all workloads or control planes actively use both."
+                "all workloads or control planes actively use every one."
             )
         for insight in infra_insights:
             sections.append(f"  - {insight}")
         sections.append("")
 
     # Security stack summary for security strategy
-    security_slugs = {
-        "crowdstrike",
-        "sentinelone",
-        "knowbe4",
-        "proofpoint",
-        "mimecast",
-        "zscaler",
-        "netskope",
-        "paloalto",
-        "wiz",
-        "sophos",
-        "okta",
-        "duo",
-        "1password",
-        "jamf",
-        "kandji",
-        "barracuda",
-        "trendmicro",
-        "trellix",
-        "ping-identity",
-        "cyberark",
-        "cato",
-        "lakera",
-    }
-    detected_security = [s for s in info.slugs if s in security_slugs]
+    detected_security = [s for s in info.slugs if s in SECURITY_SLUGS]
     if detected_security:
         sections.append("--- Security Stack ---")
         sections.append(
@@ -217,17 +366,7 @@ def format_recon_context(info: TenantInfo) -> str:
         sections.append("")
 
     # Data & analytics for data fabric strategy
-    data_slugs = {
-        "databricks",
-        "snowflake",
-        "mongodb",
-        "dynatrace",
-        "segment",
-        "datadog",
-        "newrelic",
-        "pagerduty",
-    }
-    detected_data = [s for s in info.slugs if s in data_slugs]
+    detected_data = [s for s in info.slugs if s in DATA_SLUGS]
     if detected_data:
         sections.append("--- Data & Analytics Stack ---")
         sections.append(
@@ -239,24 +378,7 @@ def format_recon_context(info: TenantInfo) -> str:
         sections.append("")
 
     # CRM & GTM for CX strategy
-    crm_slugs = {
-        "salesforce",
-        "hubspot",
-        "marketo",
-        "pardot",
-        "eloqua",
-        "klaviyo",
-        "6sense",
-        "outreach",
-        "salesloft",
-        "clearbit",
-        "demandbase",
-        "drift",
-        "gong",
-        "intercom",
-        "apollo",
-    }
-    detected_crm = [s for s in info.slugs if s in crm_slugs]
+    detected_crm = [s for s in info.slugs if s in CRM_SLUGS]
     if detected_crm:
         sections.append("--- CRM & Go-to-Market Stack ---")
         sections.append(
@@ -268,8 +390,7 @@ def format_recon_context(info: TenantInfo) -> str:
         sections.append("")
 
     # HR & Operations
-    hr_slugs = {"workday", "sap", "ukg", "rippling", "deel"}
-    detected_hr = [s for s in info.slugs if s in hr_slugs]
+    detected_hr = [s for s in info.slugs if s in HR_SLUGS]
     if detected_hr:
         sections.append("--- HR & Operations Stack ---")
         sections.append(
@@ -281,8 +402,7 @@ def format_recon_context(info: TenantInfo) -> str:
         sections.append("")
 
     # File Sharing & Collaboration
-    file_slugs = {"box", "egnyte", "dropbox"}
-    detected_file = [s for s in info.slugs if s in file_slugs]
+    detected_file = [s for s in info.slugs if s in FILE_SLUGS]
     if detected_file:
         sections.append("--- File Sharing & Collaboration ---")
         sections.append(

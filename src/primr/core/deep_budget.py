@@ -6,7 +6,7 @@ from primr.config.models import DEEP_RESEARCH_COST
 
 _DEEP_RESEARCH_MODES = frozenset({"deep-research", "complete", "hybrid"})
 _DEEP_RESEARCH_STRATEGIES = frozenset(
-    {"customer_experience", "modern_security_compliance", "data_fabric_strategy"}
+    {"customer_experience", "modern_security_compliance", "data_fabric_strategy", "skills"}
 )
 
 
@@ -35,10 +35,15 @@ def deep_research_spend(
     mode: str,
     pipeline_cost: float,
     optional_strategy_tasks_started: int = 0,
+    vendor_refresh_tasks_started: int = 0,
 ) -> float:
     """Return observed non-fast spend from token usage plus flat DR tasks."""
 
-    task_count = count_main_deep_research_tasks(mode) + max(0, optional_strategy_tasks_started)
+    task_count = (
+        count_main_deep_research_tasks(mode)
+        + max(0, optional_strategy_tasks_started)
+        + max(0, vendor_refresh_tasks_started)
+    )
     return max(0.0, pipeline_cost) + deep_research_flat_cost(task_count)
 
 
@@ -46,6 +51,7 @@ def skip_optional_strategy_if_over_budget(
     *,
     mode: str,
     optional_strategy_tasks_started: int,
+    vendor_refresh_tasks_started: int,
     folder_path: str,
     strategy_name: str,
     platform: str,
@@ -61,6 +67,7 @@ def skip_optional_strategy_if_over_budget(
         mode=mode,
         pipeline_cost=usage.get("total_cost", 0.0),
         optional_strategy_tasks_started=optional_strategy_tasks_started,
+        vendor_refresh_tasks_started=vendor_refresh_tasks_started,
     )
     if not skip_stage_if_over_budget(spend, "optional strategy generation"):
         return False

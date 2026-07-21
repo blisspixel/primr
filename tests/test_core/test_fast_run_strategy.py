@@ -9,6 +9,7 @@ extraction); the YAML loop reads the real strategy YAML from the package.
 
 from __future__ import annotations
 
+import threading
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -45,7 +46,8 @@ def seams(monkeypatch, tmp_path):
         "primr.core.research_agent._build_ai_strategy_prompt", mocks["build_ai_prompt"]
     )
     monkeypatch.setattr(
-        "primr.core.research_agent._get_or_generate_vendor_research", mocks["vendor_research"]
+        "primr.core.fast_run_strategy.get_or_generate_vendor_research_sync",
+        mocks["vendor_research"],
     )
     monkeypatch.setattr("primr.core.research_agent._enrich_strategy_content", mocks["enrich"])
     monkeypatch.setattr("primr.core.research_agent._prepare_strategy_for_output", mocks["prepare"])
@@ -61,7 +63,13 @@ def seams(monkeypatch, tmp_path):
         lambda executor, fn, folder: SimpleNamespace(success=True, output=fn(), skip_reason=None),
     )
     monkeypatch.setattr("primr.core.fast_run_strategy.call_with_failover", mocks["failover"])
+    agnostic_research_path = tmp_path / "vendor-research-agnostic.txt"
+    monkeypatch.setattr(
+        "primr.core.fast_run_strategy.get_vendor_research_path",
+        lambda _vendor: agnostic_research_path,
+    )
     monkeypatch.setattr("primr.utils.run_budget.get_run_budget", lambda: None)
+    mocks["agnostic_research_path"] = agnostic_research_path
     mocks["tmp"] = tmp_path
     return mocks
 
@@ -78,6 +86,7 @@ def _call(seams, **overrides) -> StrategyPhaseResult:
         "analysis_workbook": "workbook",
         "validated_source_urls": ["https://acme.example/about"],
         "discovery_notes_content": None,
+        "refresh_vendor_research": False,
         "grok_reasoning": "reasoner-model",
         "grok_writing": "writer-model",
         "folder_path": str(seams["tmp"]),
@@ -105,6 +114,8 @@ class TestSkipPaths:
         monkeypatch.setattr("primr.utils.run_budget.get_run_budget", lambda: budget)
         result = _call(seams)
         assert result.strategy_paths == {}
+        assert result.strategy_outcome.status == "failed"
+        assert result.strategy_outcome.skipped_targets == ("ai:azure",)
         seams["failover"].assert_not_called()
         budget.sync_spend.assert_called_once_with(0.50)
 
@@ -181,6 +192,7 @@ class TestAIStrategySingleVendor:
     def test_full_pipeline_saves_with_ai_key(self, seams):
         result = _call(seams)
         assert result.strategy_paths == {"ai": str(seams["tmp"] / "azure.docx")}
+        assert result.strategy_outcome.status == "completed"
         seams["enrich"].assert_called_once()
         seams["prepare"].assert_called_once()
 
@@ -196,10 +208,275 @@ class TestAIStrategySingleVendor:
         _call(seams, platforms=["agnostic"])
         seams["vendor_research"].assert_not_called()
 
+    def test_default_vendor_cache_lookup_disables_ambient_refresh(self, seams):
+        _call(seams)
+
+        seams["vendor_research"].assert_called_once_with(
+            "azure",
+            force_refresh=False,
+            allow_auto_refresh=False,
+            lite=True,
+        )
+
+    def test_explicit_refresh_reaches_agnostic_vendor_generation(self, seams):
+        refreshed = seams["tmp"] / "refreshed-agnostic.txt"
+        refreshed.write_text("Fresh cross-industry context.", encoding="utf-8")
+        seams["vendor_research"].return_value = [str(refreshed)]
+        seams["agnostic_research_path"].write_text(
+            "Stale cross-industry context.",
+            encoding="utf-8",
+        )
+
+        _call(
+            seams,
+            platforms=["agnostic"],
+            refresh_vendor_research=True,
+        )
+
+        call = seams["vendor_research"].call_args
+        assert call.args == ("agnostic",)
+        # Freshness-aware refresh: reuse a current cache, regenerate only when
+        # stale or missing (force_refresh=False, allow_auto_refresh=True).
+        assert call.kwargs["force_refresh"] is False
+        assert call.kwargs["allow_auto_refresh"] is True
+        assert callable(call.kwargs["task_observer"])
+        prompt = seams["failover"].call_args.args[1]
+        assert "Fresh cross-industry context." in prompt
+        assert "Stale cross-industry context." not in prompt
+
+    def test_failed_agnostic_refresh_falls_back_to_cached_context(self, seams):
+        seams["vendor_research"].return_value = []
+        seams["agnostic_research_path"].write_text(
+            "Fallback cross-industry context.",
+            encoding="utf-8",
+        )
+
+        _call(
+            seams,
+            platforms=["agnostic"],
+            refresh_vendor_research=True,
+        )
+
+        prompt = seams["failover"].call_args.args[1]
+        assert prompt.count("Fallback cross-industry context.") == 1
+
+    def test_vendor_cache_failure_is_body_safe_and_non_blocking(self, seams, caplog):
+        seams["vendor_research"].side_effect = OSError("private-vendor-cache-location")
+
+        result = _call(seams)
+
+        assert "ai" in result.strategy_paths
+        assert seams["failover"].call_count == 1
+        assert "private-vendor-cache-location" not in caplog.text
+
+    def test_multi_vendor_refresh_is_resolved_before_parallel_writing(self, seams):
+        caller_thread = threading.current_thread().name
+        lookup_threads: list[str] = []
+
+        def resolve(_vendor, **_kwargs):
+            lookup_threads.append(threading.current_thread().name)
+            return []
+
+        seams["vendor_research"].side_effect = resolve
+
+        _call(
+            seams,
+            platforms=["azure", "aws", "gcp"],
+            refresh_vendor_research=True,
+        )
+
+        assert lookup_threads == [caller_thread, caller_thread, caller_thread]
+        assert seams["failover"].call_count == 3
+
+    def test_refresh_count_tracks_only_provider_tasks_that_started(self, seams):
+        def refreshed(_vendor, **kwargs):
+            kwargs["task_observer"]("started")
+            kwargs["task_observer"]("completed")
+            return []
+
+        seams["vendor_research"].side_effect = refreshed
+
+        result = _call(seams, refresh_vendor_research=True)
+
+        assert result.vendor_refresh_tasks_started == 1
+        assert result.vendor_refresh_outcome.status == "completed"
+
+    def test_refresh_without_budget_headroom_reuses_cache(self, seams, monkeypatch):
+        skip = MagicMock(return_value=True)
+        monkeypatch.setattr(
+            "primr.core.fast_run_strategy.skip_stage_if_cost_would_exceed",
+            skip,
+        )
+
+        result = _call(seams, refresh_vendor_research=True)
+
+        assert result.vendor_refresh_tasks_started == 0
+        seams["vendor_research"].assert_called_once_with(
+            "azure",
+            force_refresh=False,
+            allow_auto_refresh=False,
+            lite=True,
+        )
+        skip.assert_called_once()
+
+    def test_later_refresh_gate_includes_earlier_submitted_task(self, seams, monkeypatch):
+        observed_spend: list[float] = []
+
+        def budget_gate(spend, _incremental_cost, _label):
+            observed_spend.append(spend)
+            return len(observed_spend) == 2
+
+        def refresh(_vendor, **kwargs):
+            observer = kwargs.get("task_observer")
+            if observer:
+                observer("started")
+                observer("completed")
+            return []
+
+        monkeypatch.setattr(
+            "primr.core.fast_run_strategy.skip_stage_if_cost_would_exceed",
+            budget_gate,
+        )
+        seams["vendor_research"].side_effect = refresh
+
+        result = _call(
+            seams,
+            platforms=["azure", "aws"],
+            refresh_vendor_research=True,
+        )
+
+        assert observed_spend == [0.50, 3.00]
+        assert result.vendor_refresh_tasks_started == 1
+        assert result.vendor_refresh_outcome.status == "partial"
+        assert result.vendor_refresh_outcome.completed_vendors == ("azure",)
+        assert result.vendor_refresh_outcome.skipped_vendors == ("aws",)
+        assert seams["vendor_research"].call_args_list[1].kwargs == {
+            "force_refresh": False,
+            "allow_auto_refresh": False,
+            "lite": True,
+        }
+
+    def test_mixed_refresh_uses_fresh_cross_industry_context_for_every_vendor(self, seams):
+        vendor_path = seams["tmp"] / "vendor-research-aws.txt"
+        vendor_path.write_text("AWS capability evidence.", encoding="utf-8")
+        seams["agnostic_research_path"].write_text(
+            "Stale cross-industry context.", encoding="utf-8"
+        )
+
+        def refresh(vendor, **_kwargs):
+            if vendor == "agnostic":
+                seams["agnostic_research_path"].write_text(
+                    "Fresh cross-industry context.", encoding="utf-8"
+                )
+                return [str(seams["agnostic_research_path"])]
+            return [str(vendor_path)]
+
+        seams["vendor_research"].side_effect = refresh
+
+        _call(
+            seams,
+            platforms=["aws", "agnostic"],
+            refresh_vendor_research=True,
+        )
+
+        prompts = [call.args[1] for call in seams["failover"].call_args_list]
+        aws_prompt = next(prompt for prompt in prompts if "AWS capability evidence." in prompt)
+        assert "Fresh cross-industry context." in aws_prompt
+        assert "Stale cross-industry context." not in aws_prompt
+
+    def test_cached_cross_industry_research_reaches_agnostic_prompt_once(self, seams):
+        seams["agnostic_research_path"].write_text(
+            "Cross-industry value pools and operating-model evidence.",
+            encoding="utf-8",
+        )
+
+        _call(seams, platforms=["agnostic"])
+
+        prompt = seams["failover"].call_args.args[1]
+        assert prompt.count("Cross-industry value pools") == 1
+        assert prompt.count("--- Cross-industry AI research ---") == 1
+        seams["vendor_research"].assert_not_called()
+
+    def test_vendor_prompt_combines_vendor_and_cross_industry_research(self, seams):
+        vendor_path = seams["tmp"] / "vendor-research-azure.txt"
+        vendor_path.write_text("Vendor capability evidence.", encoding="utf-8")
+        seams["vendor_research"].return_value = [str(vendor_path)]
+        seams["agnostic_research_path"].write_text(
+            "Cross-industry operating evidence.",
+            encoding="utf-8",
+        )
+
+        _call(seams)
+
+        prompt = seams["failover"].call_args.args[1]
+        assert prompt.count("Vendor capability evidence.") == 1
+        assert prompt.count("Cross-industry operating evidence.") == 1
+
+    def test_cached_cross_industry_research_is_bounded(self, seams):
+        seams["agnostic_research_path"].write_text(
+            "A" * 30_000 + "DO_NOT_INCLUDE",
+            encoding="utf-8",
+        )
+
+        _call(seams, platforms=["agnostic"])
+
+        prompt = seams["failover"].call_args.args[1]
+        assert "A" * 30_000 in prompt
+        assert "DO_NOT_INCLUDE" not in prompt
+
+    def test_linked_cross_industry_cache_is_rejected_without_blocking(self, seams):
+        source = seams["tmp"] / "source-research.txt"
+        source.write_text("LINKED_CONTEXT_MUST_NOT_EGRESS", encoding="utf-8")
+        seams["agnostic_research_path"].hardlink_to(source)
+
+        result = _call(seams, platforms=["agnostic"])
+
+        assert "ai" in result.strategy_paths
+        prompt = seams["failover"].call_args.args[1]
+        assert "LINKED_CONTEXT_MUST_NOT_EGRESS" not in prompt
+        seams["vendor_research"].assert_not_called()
+
+    def test_in_place_cache_mutation_is_rejected(self, seams, monkeypatch):
+        from primr.core import trusted_report
+
+        cache_path = seams["agnostic_research_path"]
+        cache_path.write_text("MUTATING_CONTEXT", encoding="utf-8")
+        real_digest = trusted_report.hashlib.file_digest
+
+        def digest_then_mutate(handle, algorithm):
+            digest = real_digest(handle, algorithm)
+            metadata = cache_path.stat()
+            cache_path.touch()
+            if cache_path.stat().st_mtime_ns == metadata.st_mtime_ns:
+                cache_path.write_text("MUTATING_CONTEXT_CHANGED", encoding="utf-8")
+            return digest
+
+        monkeypatch.setattr(trusted_report.hashlib, "file_digest", digest_then_mutate)
+
+        result = _call(seams, platforms=["agnostic"])
+
+        prompt = seams["failover"].call_args.args[1]
+        assert "MUTATING_CONTEXT" not in prompt
+        assert "ai" in result.strategy_paths
+
+    def test_cache_lookup_failure_is_body_safe_and_non_blocking(self, seams, monkeypatch, caplog):
+        monkeypatch.setattr(
+            "primr.core.fast_run_strategy.get_vendor_research_path",
+            MagicMock(side_effect=OSError("private-cache-location")),
+        )
+
+        result = _call(seams, platforms=["agnostic"])
+
+        assert "ai" in result.strategy_paths
+        assert "private-cache-location" not in caplog.text
+        seams["vendor_research"].assert_not_called()
+
     def test_llm_failure_abandons_vendor_without_raising(self, seams):
         seams["failover"].side_effect = RuntimeError("API down")
         result = _call(seams)
         assert result.strategy_paths == {}
+        assert result.strategy_outcome.status == "failed"
+        assert result.strategy_outcome.failed_targets == ("ai:azure",)
         seams["save"].assert_not_called()
 
     def test_enrich_failure_keeps_original_content(self, seams):
@@ -230,6 +507,9 @@ class TestAIStrategyMultiVendor:
         seams["failover"].side_effect = flaky
         result = _call(seams, platforms=["azure", "aws"])
         assert len(result.strategy_paths) == 1
+        assert result.strategy_outcome.status == "partial"
+        assert len(result.strategy_outcome.completed_targets) == 1
+        assert len(result.strategy_outcome.failed_targets) == 1
 
 
 class TestYamlStrategies:

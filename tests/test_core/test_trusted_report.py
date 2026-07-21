@@ -53,6 +53,14 @@ def test_validation_rejects_a_report_outside_allowed_roots(tmp_path: Path) -> No
         validate_trusted_report(report, allowed_roots=(allowed_root,))
 
 
+def test_validation_rejects_file_over_size_limit_before_snapshot(tmp_path: Path) -> None:
+    report = tmp_path / "report.md"
+    report.write_bytes(b"12345")
+
+    with pytest.raises(ReportSnapshotError, match="exceeds the allowed size"):
+        validate_trusted_report(report, max_bytes=4)
+
+
 def test_snapshot_rechecks_root_containment_after_validation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

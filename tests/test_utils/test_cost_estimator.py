@@ -133,6 +133,39 @@ class TestEstimateCost:
         deep_estimate = estimate_cost("deep-research", use_historical=False)
         assert estimate.total_cost > deep_estimate.total_cost
 
+    def test_nonfast_vendor_refresh_is_a_separate_deep_research_task(self):
+        base = estimate_cost("complete", use_historical=False)
+        refreshed = estimate_cost(
+            "complete",
+            use_historical=False,
+            vendor_research_refreshes=1,
+        )
+
+        assert refreshed.deep_research_cost == (
+            base.deep_research_cost + DEEP_RESEARCH_COST.standard_task_cost
+        )
+        assert refreshed.total_cost == pytest.approx(
+            base.total_cost + DEEP_RESEARCH_COST.standard_task_cost
+        )
+        assert any("1 explicitly requested vendor research refresh" in n for n in refreshed.notes)
+
+    def test_fast_vendor_refresh_is_priced_without_changing_model_tokens(self):
+        base = estimate_cost("complete", use_historical=False, fast_mode=True)
+        refreshed = estimate_cost(
+            "complete",
+            use_historical=False,
+            fast_mode=True,
+            vendor_research_refreshes=2,
+        )
+
+        assert refreshed.estimated_input_tokens == base.estimated_input_tokens
+        assert refreshed.estimated_output_tokens == base.estimated_output_tokens
+        assert refreshed.deep_research_cost == 2 * DEEP_RESEARCH_COST.standard_task_cost
+        assert refreshed.total_cost == pytest.approx(
+            base.total_cost + 2 * DEEP_RESEARCH_COST.standard_task_cost
+        )
+        assert "2 vendor research refresh task(s)" in refreshed.duration_minutes
+
     def test_verify_raises_estimate(self):
         """--verify adds post-QA claim-verification tokens, so its estimate must
         exceed the unverified base run. This is what makes pricing --verify
@@ -253,15 +286,19 @@ class TestStrategyTypeEstimates:
         )
         assert any("customer_experience" in n for n in with_strategy.notes)
 
-    def test_placeholder_strategy_priced_at_zero_with_note(self):
-        """Non-DR types warn-skip at runtime on non-fast paths; pricing them
-        would tell the user they pay for a document they will not get."""
+    def test_skills_strategy_priced_as_deep_research_task(self):
+        """The generic YAML strategy types (customer_experience, modern_security_
+        compliance, data_fabric_strategy, skills) each run as one Deep Research
+        task on non-fast paths, so each adds the flat DR planning cost."""
         base = estimate_cost("complete", use_historical=False, include_ai_strategy=False)
         with_strategy = estimate_cost(
             "complete", use_historical=False, include_ai_strategy=False, strategy_types=["skills"]
         )
-        assert with_strategy.total_cost == base.total_cost
-        assert any("skip" in n and "skills" in n for n in with_strategy.notes)
+        assert (
+            with_strategy.deep_research_cost
+            == base.deep_research_cost + DEEP_RESEARCH_COST.standard_task_cost
+        )
+        assert any("skills" in n for n in with_strategy.notes)
 
     def test_fast_mode_strategy_adds_writing_bundle(self, monkeypatch):
         # Pin provider keys so routing (and therefore pricing) is deterministic.
@@ -930,6 +967,7 @@ class TestDisplayCostEstimateStrategyTypes:
         def fake_estimate(mode, include_ai_strategy=False, **kwargs):
             captured["mode"] = mode
             captured["strategy_types"] = kwargs.get("strategy_types")
+            captured["vendor_research_refreshes"] = kwargs.get("vendor_research_refreshes")
             return ce.CostEstimate(
                 mode=mode,
                 estimated_input_tokens=0,
@@ -952,9 +990,11 @@ class TestDisplayCostEstimateStrategyTypes:
             "AcmeCo",
             include_ai_strategy=True,
             strategy_types=["customer_experience"],
+            vendor_research_refreshes=2,
         )
         assert result is False
         assert captured["strategy_types"] == ["customer_experience"]
+        assert captured["vendor_research_refreshes"] == 2
 
 
 class TestStrategyTypePrecedenceWithExplicitAi:

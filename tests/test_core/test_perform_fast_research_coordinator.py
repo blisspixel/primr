@@ -178,6 +178,22 @@ class TestHappyPathWiring:
         _run(stages)
         assert stages["gaps"].call_args.kwargs["hiring_block"] == "=== HIRING SIGNALS ===\npostings"
 
+    def test_vendor_refresh_intent_reaches_strategy_phase(self, stages):
+        _run(stages, refresh_vendor_research=True)
+
+        assert stages["strategy"].call_args.kwargs["refresh_vendor_research"] is True
+
+    def test_started_vendor_refresh_count_reaches_finalizer(self, stages):
+        stages["strategy"].return_value = StrategyPhaseResult(
+            {},
+            [],
+            vendor_refresh_tasks_started=2,
+        )
+
+        _run(stages, refresh_vendor_research=True)
+
+        assert stages["finalize"].call_args.kwargs["vendor_refresh_tasks_started"] == 2
+
     def test_insights_file_written_before_gap_phase(self, stages):
         _run(stages)
         insights = (stages["tmp"] / "insights.txt").read_text(encoding="utf-8")

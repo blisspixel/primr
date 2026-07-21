@@ -61,7 +61,8 @@ For hard-zero collection:
 2. Explain that collection costs `$0.00` in model API spend but performs public
    network requests.
 3. Run `primr prep` without a spend-approval gate.
-4. Read `prep_manifest.json`, `source_index.json`, and `research_packet.md`.
+4. Read `prep_manifest.json`, `source_index.json`, `research_packet.md`, and
+   `HOST_WORKFLOW.md`.
 5. Use `primr-zero` in the current host to close external gaps and write the
    dossier inside the prep bundle without silently switching to API billing.
 6. Run deterministic report QA when available, then confirm the Markdown as

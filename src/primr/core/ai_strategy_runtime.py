@@ -5,6 +5,7 @@ Legacy AI strategy runtime extracted from research_agent.
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
@@ -12,8 +13,8 @@ from primr.ai.llm import llm
 from primr.config.config import OUTPUT_DIR
 from primr.config.models import LITE_AI_STRATEGY_MAX_OUTPUT_TOKENS
 from primr.config.settings import get_settings
+from primr.core.strategy_context import stable_vendor_context_snapshots
 from primr.core.vendor_research import (
-    generate_vendor_research_sync,
     get_or_generate_vendor_research_sync,
     get_vendor_research_path,
 )
@@ -22,6 +23,87 @@ from primr.utils.console import console
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("core.ai_strategy_runtime")
+
+
+def _notify_strategy_task_observer(
+    observer: Callable[[str], None] | None,
+    event: str,
+) -> None:
+    """Keep run-local accounting failures outside the delivery path."""
+    if observer is None:
+        return
+    try:
+        observer(event)
+    except Exception as exc:
+        logger.debug(
+            "AI Strategy task observer failed: failure_type=%s",
+            type(exc).__name__,
+        )
+
+
+def _generate_strategy_content(
+    *,
+    prompt: str,
+    context_files: list[str],
+    lite_strategy: bool,
+    company_name: str,
+    platform: str,
+    strategy_task_observer: Callable[[str], None] | None,
+) -> tuple[str | None, str]:
+    """Run one strategy provider call while caller-owned snapshots stay live."""
+
+    if lite_strategy:
+        console.info("AI Strategy: Starting research (Pro mode)...")
+        from primr.ai.routing import Role, pick_model_for_role
+        from primr.core.strategy_context import build_bounded_lite_strategy_prompt
+
+        combined_prompt = build_bounded_lite_strategy_prompt(prompt, context_files)
+        strategy_content = llm(
+            combined_prompt,
+            model_type="reasoning",
+            temperature=1.0,
+            thinking_level="high",
+            model=pick_model_for_role(Role.REASONING),
+            max_tokens=LITE_AI_STRATEGY_MAX_OUTPUT_TOKENS,
+        )
+        if not strategy_content or not strategy_content.strip():
+            console.error("AI Strategy Pro generation failed - empty response")
+            return None, ""
+        return strategy_content, ""
+
+    from primr.ai.deep_research import ResearchStatus, get_deep_research_client
+    from primr.utils.async_utils import run_sync
+
+    console.info("AI Strategy: Starting research (background mode)...")
+    client = get_deep_research_client()
+
+    def progress_callback(progress) -> None:
+        if progress.message:
+            console.info(f"AI Strategy: {progress.message}")
+
+    _notify_strategy_task_observer(strategy_task_observer, "started")
+    result = run_sync(
+        client.research(
+            query=prompt,
+            output_format=None,
+            on_progress=progress_callback,
+            context_files=context_files if context_files else None,
+            timeout=1800,
+            job_metadata={
+                "report_kind": "ai_strategy",
+                "strategy_type": "ai",
+                "company_name": company_name,
+                "cloud_vendor": platform.lower(),
+            },
+        )
+    )
+    if result.status != ResearchStatus.COMPLETED or not result.content:
+        _notify_strategy_task_observer(strategy_task_observer, "failed")
+        console.error("AI Strategy research failed")
+        return None, ""
+    _notify_strategy_task_observer(strategy_task_observer, "completed")
+    interaction_id = getattr(result, "interaction_id", "")
+    return result.content, interaction_id if isinstance(interaction_id, str) else ""
 
 
 def generate_ai_strategy_section(
@@ -34,6 +116,8 @@ def generate_ai_strategy_section(
     output_dir: str | Path | None = None,
     diagnostics_dir: str | Path | None = None,
     write_txt: bool = True,
+    vendor_refresh_observer: Callable[[str], None] | None = None,
+    strategy_task_observer: Callable[[str], None] | None = None,
 ) -> str | None:
     """Generate AI strategy using the legacy sync runtime."""
     preflight_errors: list[str] = []
@@ -82,87 +166,72 @@ def generate_ai_strategy_section(
         if company_research_path and os.path.exists(company_research_path):
             context_files.append(company_research_path)
 
+            # Attach the run's recon context when it sits alongside the report so
+            # the strategy addresses the full observed vendor stack (identity,
+            # cloud, AI providers), not only the report narrative or one platform.
+            recon_sibling = os.path.join(
+                os.path.dirname(company_research_path), "_recon_context.txt"
+            )
+            if os.path.exists(recon_sibling) and recon_sibling not in context_files:
+                context_files.append(recon_sibling)
+                console.info("Using recon context (observed vendor stack) as strategy context")
+
         vendor_doc_paths: list[str] = []
-        if platform.lower() != "agnostic":
-            if force_refresh_vendor:
-                console.info(f"Force refreshing {platform.upper()} vendor research...")
-                generated = generate_vendor_research_sync(platform)
-                vendor_doc_paths = [generated] if generated else []
-            else:
-                vendor_doc_paths = get_or_generate_vendor_research_sync(platform)
-
-            for vendor_doc_path in vendor_doc_paths:
-                if vendor_doc_path and os.path.exists(vendor_doc_path):
-                    context_files.append(vendor_doc_path)
-
-            if vendor_doc_paths:
-                console.info(
-                    f"Using {len(vendor_doc_paths)} {platform.upper()} research doc(s) as context"
+        if force_refresh_vendor:
+            # Freshness-aware: reuse a cache newer than the freshness window,
+            # regenerate only when it is stale or missing. This is what
+            # --refresh-vendor-research means, so a habitual flag does not
+            # re-bill a paid Deep Research task every run.
+            console.info(
+                f"Ensuring fresh {platform.upper()} vendor research "
+                f"(reuse if within the freshness window, regenerate if stale or missing)..."
+            )
+            if vendor_refresh_observer is None:
+                vendor_doc_paths = get_or_generate_vendor_research_sync(
+                    platform,
+                    force_refresh=False,
+                    allow_auto_refresh=True,
+                    lite=lite_strategy,
                 )
+            else:
+                vendor_doc_paths = get_or_generate_vendor_research_sync(
+                    platform,
+                    force_refresh=False,
+                    allow_auto_refresh=True,
+                    task_observer=vendor_refresh_observer,
+                    lite=lite_strategy,
+                )
+        elif platform.lower() != "agnostic":
+            vendor_doc_paths = get_or_generate_vendor_research_sync(
+                platform,
+                allow_auto_refresh=False,
+                lite=lite_strategy,
+            )
+
+        if vendor_doc_paths:
+            console.info(
+                f"Using {len(vendor_doc_paths)} {platform.upper()} research doc(s) as context"
+            )
 
         agnostic_path = str(get_vendor_research_path("agnostic"))
-        if os.path.exists(agnostic_path):
-            context_files.append(agnostic_path)
+        if os.path.exists(agnostic_path) and agnostic_path not in vendor_doc_paths:
+            vendor_doc_paths.append(agnostic_path)
             console.info("Using cross-industry AI research as additional context")
 
-        pending_interaction_id = ""
-        if lite_strategy:
-            console.info("AI Strategy: Starting research (Pro mode)...")
-            from primr.ai.routing import Role, pick_model_for_role
-            from primr.core.strategy_context import build_bounded_lite_strategy_prompt
-
-            combined_prompt = build_bounded_lite_strategy_prompt(prompt, context_files)
-            lite_model = pick_model_for_role(Role.REASONING)
-
-            strategy_content = llm(
-                combined_prompt,
-                model_type="reasoning",
-                temperature=1.0,
-                thinking_level="high",
-                model=lite_model,
-                max_tokens=LITE_AI_STRATEGY_MAX_OUTPUT_TOKENS,
+        with stable_vendor_context_snapshots(vendor_doc_paths) as vendor_snapshots:
+            safe_context_files = context_files + [
+                snapshot.snapshot_path for snapshot in vendor_snapshots
+            ]
+            strategy_content, pending_interaction_id = _generate_strategy_content(
+                prompt=prompt,
+                context_files=safe_context_files,
+                lite_strategy=lite_strategy,
+                company_name=company_name,
+                platform=platform,
+                strategy_task_observer=strategy_task_observer,
             )
-
-            if not strategy_content or not strategy_content.strip():
-                console.error("AI Strategy Pro generation failed - empty response")
-                return None
-        else:
-            from primr.ai.deep_research import ResearchStatus, get_deep_research_client
-
-            console.info("AI Strategy: Starting research (background mode)...")
-            client = get_deep_research_client()
-
-            def progress_callback(progress) -> None:
-                if progress.message:
-                    console.info(f"AI Strategy: {progress.message}")
-
-            from primr.utils.async_utils import run_sync
-
-            result = run_sync(
-                client.research(
-                    query=prompt,
-                    output_format=None,
-                    on_progress=progress_callback,
-                    context_files=context_files if context_files else None,
-                    timeout=1800,
-                    job_metadata={
-                        "report_kind": "ai_strategy",
-                        "strategy_type": "ai",
-                        "company_name": company_name,
-                        "cloud_vendor": platform.lower(),
-                    },
-                )
-            )
-
-            if result.status != ResearchStatus.COMPLETED or not result.content:
-                console.error("AI Strategy research failed")
-                return None
-
-            strategy_content = result.content
-            result_interaction_id = getattr(result, "interaction_id", "")
-            pending_interaction_id = (
-                result_interaction_id if isinstance(result_interaction_id, str) else ""
-            )
+        if not strategy_content:
+            return None
 
         date_str = datetime.now().strftime("%m-%d-%Y")
         vendor_tag = f"_{platform.upper()}" if platform.lower() != "agnostic" else ""

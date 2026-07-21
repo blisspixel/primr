@@ -81,9 +81,46 @@ def test_ai_posture_detected_ai_tools():
     info = _tenant(slugs=("openai", "anthropic", "glean"))
     result = format_recon_context(info)
     assert "AI provider or product indicators detected" in result
-    assert "OpenAI (ChatGPT Enterprise)" in result
+    assert "OpenAI Enterprise" in result
     assert "Anthropic (Claude)" in result
     assert "Glean (Enterprise AI Search)" in result
+
+
+def test_ai_posture_detects_agent_frameworks_and_llm_tooling():
+    """AI slugs beyond the classic providers must surface, not hide in Detected Services."""
+    info = _tenant(slugs=("n8n", "dify", "autogen", "crewai-aid", "langsmith", "mcp-discovery"))
+    result = format_recon_context(info)
+    assert "AI provider or product indicators detected" in result
+    for name in ("n8n", "Dify", "AutoGen", "CrewAI", "LangSmith", "Model Context Protocol"):
+        assert name in result, name
+
+
+def test_stack_coverage_rollup_names_the_whole_mixed_stack():
+    """A Google-Workspace + AWS + Claude company must have all three surfaced up front."""
+    info = _tenant(
+        slugs=("google-workspace", "aws-route53", "aws-cloudfront", "anthropic", "okta"),
+        auth_type="Federated",
+    )
+    result = format_recon_context(info)
+    assert "Observed Vendor Stack the Strategy Must Address" in result
+    assert "not only the email or the primary cloud provider" in " ".join(result.split())
+    coverage = result.split("--- AI & Productivity Posture ---")[0]
+    assert "Google Workspace" in coverage
+    assert "Amazon Web Services (AWS)" in coverage
+    assert "Anthropic (Claude)" in coverage
+    assert "Okta" in coverage
+
+
+def test_stack_coverage_rollup_absent_when_nothing_detected():
+    result = format_recon_context(_tenant())
+    assert "Observed Vendor Stack the Strategy Must Address" not in result
+
+
+def test_identity_providers_surface_without_auth_type():
+    info = _tenant(slugs=("okta",))
+    result = format_recon_context(info)
+    assert "--- Identity & Auth ---" in result
+    assert "Identity provider indicators: Okta" in result
 
 
 def test_signal_intelligence_section():

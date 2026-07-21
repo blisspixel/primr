@@ -239,6 +239,36 @@ def test_sync_generates_missing_with_explicit_opt_in(tmp_path: Path, monkeypatch
     assert str(tmp_path / "generated.txt") in paths
 
 
+def test_sync_explicit_policy_disables_ambient_refresh(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("PRIMR_ALLOW_VENDOR_REFRESH", "1")
+    missing = tmp_path / "missing.txt"
+    with (
+        patch("primr.core.vendor_research.get_vendor_research_path", return_value=missing),
+        patch(
+            "primr.core.vendor_research.generate_vendor_research_sync",
+            return_value=str(tmp_path / "generated.txt"),
+        ) as mock_gen,
+    ):
+        paths = get_or_generate_vendor_research_sync("aws", allow_auto_refresh=False)
+    mock_gen.assert_not_called()
+    assert paths == []
+
+
+def test_sync_failed_force_refresh_reuses_existing_cache(tmp_path: Path):
+    cached = tmp_path / "vendor-research-aws.txt"
+    cached.write_text("existing context", encoding="utf-8")
+    with (
+        patch("primr.core.vendor_research.get_vendor_research_path", return_value=cached),
+        patch(
+            "primr.core.vendor_research.generate_vendor_research_sync",
+            return_value=None,
+        ),
+    ):
+        paths = get_or_generate_vendor_research_sync("aws", force_refresh=True)
+
+    assert paths == [str(cached)]
+
+
 # ---------------------------------------------------------------------------
 # get_or_generate_vendor_research (async)
 # ---------------------------------------------------------------------------
@@ -284,6 +314,23 @@ async def test_async_missing_skips_without_opt_in(tmp_path: Path, monkeypatch):
     assert not mock_gen.called
     assert result.generated is False
     assert result.paths == []
+
+
+@pytest.mark.asyncio
+async def test_async_failed_force_refresh_reuses_existing_cache(tmp_path: Path):
+    cached = tmp_path / "vendor-research-aws.txt"
+    cached.write_text("existing context", encoding="utf-8")
+    with (
+        patch("primr.core.vendor_research.get_vendor_research_path", return_value=cached),
+        patch(
+            "primr.core.vendor_research.generate_vendor_research",
+            new=AsyncMock(return_value=None),
+        ),
+    ):
+        result = await get_or_generate_vendor_research("aws", force_refresh=True)
+
+    assert result.generated is False
+    assert result.paths == [cached]
 
 
 @pytest.mark.asyncio
@@ -348,7 +395,7 @@ async def test_async_force_refresh(tmp_path: Path):
 
 def test_preflight_invalid_vendor():
     with patch("primr.config.settings.get_settings") as mock_settings:
-        mock_settings.return_value.api.gemini_key = "fake"
+        mock_settings.return_value.api.gemini_key = "fake-key-long"
         errors = _validate_vendor_research_preflight("badcloud")
     assert any("Invalid vendor" in e for e in errors)
 
@@ -362,9 +409,16 @@ def test_preflight_missing_api_key():
 
 def test_preflight_passes_valid():
     with patch("primr.config.settings.get_settings") as mock_settings:
-        mock_settings.return_value.api.gemini_key = "fake"
+        mock_settings.return_value.api.gemini_key = "fake-key-long"
         errors = _validate_vendor_research_preflight("aws")
     assert errors == []
+
+
+def test_preflight_rejects_obviously_short_api_key():
+    with patch("primr.config.settings.get_settings") as mock_settings:
+        mock_settings.return_value.api.gemini_key = "short"
+        errors = _validate_vendor_research_preflight("aws")
+    assert errors == ["GEMINI_API_KEY appears invalid (too short)"]
 
 
 @pytest.mark.parametrize("vendor", ["azure", "aws", "gcp", "agnostic", "private"])
@@ -392,12 +446,14 @@ def test_build_vendor_prompt_contains_vendor_name():
 
 @pytest.mark.asyncio
 async def test_generate_vendor_research_preflight_fail():
+    events: list[str] = []
     with patch(
         "primr.core.vendor_research._validate_vendor_research_preflight",
         return_value=["boom"],
     ):
-        result = await generate_vendor_research("aws")
+        result = await generate_vendor_research("aws", task_observer=events.append, lite=False)
     assert result is None
+    assert events == ["failed"]
 
 
 @pytest.mark.asyncio
@@ -413,6 +469,7 @@ async def test_generate_vendor_research_success(tmp_path: Path):
     client = MagicMock()
     client.research = AsyncMock(return_value=fake_result)
     tracker = MagicMock()
+    events: list[str] = []
 
     with (
         patch(
@@ -427,7 +484,7 @@ async def test_generate_vendor_research_success(tmp_path: Path):
         ) as acknowledge_mock,
         patch("primr.utils.usage_tracker.get_usage_tracker", return_value=tracker),
     ):
-        result = await generate_vendor_research("aws")
+        result = await generate_vendor_research("aws", task_observer=events.append, lite=False)
 
     assert result == str(out)
     assert out.read_text(encoding="utf-8") == "Research body content"
@@ -443,6 +500,121 @@ async def test_generate_vendor_research_success(tmp_path: Path):
         deep_research_cost=DEEP_RESEARCH_COST.standard_task_cost,
     )
     tracker.save.assert_called_once_with()
+    assert events == ["started", "completed"]
+
+
+@pytest.mark.asyncio
+async def test_saved_vendor_research_survives_acknowledgement_failure(
+    tmp_path: Path, caplog, capsys
+):
+    out = tmp_path / "vendor-research.md"
+    fake_result = MagicMock(
+        status=ResearchStatus.COMPLETED,
+        content="Durable research body",
+        duration_seconds=20.0,
+        interaction_id="interaction-123",
+    )
+    client = MagicMock(research=AsyncMock(return_value=fake_result))
+    with (
+        patch("primr.core.vendor_research._validate_vendor_research_preflight", return_value=[]),
+        patch("primr.core.vendor_research.get_vendor_research_path", return_value=out),
+        patch("primr.ai.deep_research.get_deep_research_client", return_value=client),
+        patch("primr.core.vendor_research._record_vendor_research_usage"),
+        patch(
+            "primr.core.vendor_research._acknowledge_vendor_research_output",
+            side_effect=RuntimeError("sensitive-ack-body"),
+        ),
+    ):
+        result = await generate_vendor_research("aws", lite=False)
+
+    assert result == str(out)
+    assert out.read_text(encoding="utf-8") == "Durable research body"
+    assert "pending job remains listed" in capsys.readouterr().out
+    assert "sensitive-ack-body" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_saved_vendor_research_survives_negative_acknowledgement(tmp_path: Path, capsys):
+    out = tmp_path / "vendor-research.md"
+    fake_result = MagicMock(
+        status=ResearchStatus.COMPLETED,
+        content="Durable research body",
+        duration_seconds=20.0,
+        interaction_id="interaction-123",
+    )
+    client = MagicMock(research=AsyncMock(return_value=fake_result))
+    with (
+        patch("primr.core.vendor_research._validate_vendor_research_preflight", return_value=[]),
+        patch("primr.core.vendor_research.get_vendor_research_path", return_value=out),
+        patch("primr.ai.deep_research.get_deep_research_client", return_value=client),
+        patch("primr.core.vendor_research._record_vendor_research_usage"),
+        patch(
+            "primr.ai.job_persistence.acknowledge_pending_job_after_outputs",
+            return_value=False,
+        ),
+    ):
+        result = await generate_vendor_research("aws", lite=False)
+
+    assert result == str(out)
+    assert out.read_text(encoding="utf-8") == "Durable research body"
+    assert "pending job remains listed" in capsys.readouterr().out
+
+
+def test_vendor_usage_failure_log_omits_exception_body(caplog):
+    from primr.core.vendor_research import _record_vendor_research_usage
+
+    caplog.set_level("DEBUG")
+    with patch(
+        "primr.utils.usage_tracker.get_usage_tracker",
+        side_effect=RuntimeError("sensitive-usage-body"),
+    ):
+        _record_vendor_research_usage("aws", 1.0, 2.5)
+
+    assert "RuntimeError" in caplog.text
+    assert "sensitive-usage-body" not in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("link_kind", ["symbolic", "hard"])
+async def test_generate_vendor_research_replaces_link_without_clobbering_target(
+    tmp_path: Path, link_kind: str
+):
+    outside = tmp_path / "outside.txt"
+    outside.write_text("outside stays unchanged", encoding="utf-8")
+    cache_path = tmp_path / "vendor-cache.txt"
+    try:
+        if link_kind == "symbolic":
+            cache_path.symlink_to(outside)
+        else:
+            cache_path.hardlink_to(outside)
+    except OSError:
+        pytest.skip(f"{link_kind} links are unavailable on this filesystem")
+
+    fake_result = MagicMock(
+        status=ResearchStatus.COMPLETED,
+        content="new cache content",
+        duration_seconds=30.0,
+        interaction_id="interaction-123",
+    )
+    client = MagicMock(research=AsyncMock(return_value=fake_result))
+
+    with (
+        patch("primr.core.vendor_research._validate_vendor_research_preflight", return_value=[]),
+        patch("primr.core.vendor_research.get_vendor_research_path", return_value=cache_path),
+        patch("primr.ai.deep_research.get_deep_research_client", return_value=client),
+        patch("primr.core.vendor_research._record_vendor_research_usage"),
+        patch(
+            "primr.ai.job_persistence.acknowledge_pending_job_after_outputs",
+            return_value=True,
+        ),
+    ):
+        result = await generate_vendor_research("aws", lite=False)
+
+    assert result == str(cache_path)
+    assert outside.read_text(encoding="utf-8") == "outside stays unchanged"
+    assert cache_path.read_text(encoding="utf-8") == "new cache content"
+    assert not cache_path.is_symlink()
+    assert cache_path.stat().st_nlink == 1
 
 
 @pytest.mark.asyncio
@@ -450,9 +622,11 @@ async def test_generate_vendor_research_failed_status(tmp_path: Path):
     fake_result = MagicMock()
     fake_result.status = ResearchStatus.FAILED
     fake_result.content = ""
+    fake_result.duration_seconds = 45.0
 
     client = MagicMock()
     client.research = AsyncMock(return_value=fake_result)
+    events: list[str] = []
 
     with (
         patch(
@@ -464,17 +638,23 @@ async def test_generate_vendor_research_failed_status(tmp_path: Path):
             return_value=tmp_path / "out.txt",
         ),
         patch("primr.ai.deep_research.get_deep_research_client", return_value=client),
+        patch("primr.core.vendor_research._record_vendor_research_usage") as record_usage,
     ):
-        result = await generate_vendor_research("aws")
+        result = await generate_vendor_research("aws", task_observer=events.append, lite=False)
     assert result is None
+    record_usage.assert_called_once()
+    assert events == ["started", "failed"]
 
 
 @pytest.mark.asyncio
-async def test_generate_vendor_research_write_failure_retains_job(tmp_path: Path):
+async def test_generate_vendor_research_write_failure_retains_job_and_records_usage(
+    tmp_path: Path, caplog, capsys
+):
     fake_result = MagicMock(
         status=ResearchStatus.COMPLETED,
         content="Research body",
         interaction_id="interaction-123",
+        duration_seconds=45.0,
     )
     client = MagicMock(research=AsyncMock(return_value=fake_result))
     with (
@@ -484,17 +664,26 @@ async def test_generate_vendor_research_write_failure_retains_job(tmp_path: Path
             return_value=tmp_path / "vendor.md",
         ),
         patch("primr.ai.deep_research.get_deep_research_client", return_value=client),
-        patch("pathlib.Path.write_text", side_effect=OSError("disk full")),
+        patch(
+            "primr.core.vendor_research.atomic_write_text",
+            side_effect=OSError("private-cache-location"),
+        ),
+        patch("primr.core.vendor_research._record_vendor_research_usage") as record_usage,
         patch("primr.ai.job_persistence.acknowledge_pending_job_after_outputs") as acknowledge_mock,
     ):
-        result = await generate_vendor_research("aws")
+        result = await generate_vendor_research("aws", lite=False)
 
     assert result is None
+    record_usage.assert_called_once()
     acknowledge_mock.assert_not_called()
+    output = capsys.readouterr().out
+    assert "OSError" in output
+    assert "private-cache-location" not in output
+    assert "private-cache-location" not in caplog.text
 
 
 @pytest.mark.asyncio
-async def test_generate_vendor_research_exception(tmp_path: Path):
+async def test_generate_vendor_research_exception_is_body_safe(tmp_path: Path, caplog, capsys):
     client = MagicMock()
     client.research = AsyncMock(side_effect=RuntimeError("network down"))
 
@@ -508,6 +697,117 @@ async def test_generate_vendor_research_exception(tmp_path: Path):
             return_value=tmp_path / "out.txt",
         ),
         patch("primr.ai.deep_research.get_deep_research_client", return_value=client),
+        patch("primr.core.vendor_research._record_vendor_research_usage") as record_usage,
+    ):
+        result = await generate_vendor_research("aws", lite=False)
+    assert result is None
+    record_usage.assert_called_once()
+    assert record_usage.call_args.args[0] == "aws"
+    assert record_usage.call_args.args[1] >= 0
+    output = capsys.readouterr().out
+    assert "RuntimeError" in output
+    assert "network down" not in output
+    assert "network down" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_generate_vendor_research_can_suppress_provider_failure_console(caplog, capsys):
+    client = MagicMock(research=AsyncMock(side_effect=RuntimeError("private-provider-body")))
+    with (
+        patch("primr.core.vendor_research._validate_vendor_research_preflight", return_value=[]),
+        patch("primr.ai.deep_research.get_deep_research_client", return_value=client),
+        patch("primr.core.vendor_research._record_vendor_research_usage") as record_usage,
+    ):
+        result = await generate_vendor_research("aws", emit_console=False, lite=False)
+
+    assert result is None
+    record_usage.assert_called_once()
+    assert capsys.readouterr().out == ""
+    assert "private-provider-body" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_quiet_console_suppresses_integrated_refresh_failure(capsys):
+    from primr.utils.console import Console, get_console, set_console
+
+    original_console = get_console()
+    client = MagicMock(research=AsyncMock(side_effect=RuntimeError("provider failed")))
+    set_console(Console(quiet=True))
+    try:
+        with (
+            patch(
+                "primr.core.vendor_research._validate_vendor_research_preflight", return_value=[]
+            ),
+            patch("primr.ai.deep_research.get_deep_research_client", return_value=client),
+            patch("primr.core.vendor_research._record_vendor_research_usage") as record_usage,
+        ):
+            result = await generate_vendor_research("aws", lite=False)
+    finally:
+        set_console(original_console)
+
+    assert result is None
+    record_usage.assert_called_once()
+    assert capsys.readouterr().out == ""
+
+
+# ---------------------------------------------------------------------------
+# Lite grounded AI-news engine (default path)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_generate_vendor_research_defaults_to_grounded_lite_engine(tmp_path: Path):
+    """The default (lite=True) uses one grounded call, not Deep Research."""
+    out = tmp_path / "vendor-research-aws.txt"
+
+    from primr.ai.providers.gemini import GeminiGroundedResult
+
+    grounded = GeminiGroundedResult(
+        text="# AWS AI Services and Capabilities\n\nCurrent, cited body.",
+        citations=("https://aws.amazon.com/bedrock/",),
+        search_queries=("aws bedrock 2026 updates",),
+        input_tokens=900,
+        output_tokens=1800,
+        cached_input_tokens=0,
+    )
+    provider = MagicMock()
+    provider.is_available.return_value = True
+    provider.search_and_summarize.return_value = grounded
+    tracker = MagicMock()
+    events: list[str] = []
+
+    with (
+        patch("primr.core.vendor_research._validate_vendor_research_preflight", return_value=[]),
+        patch("primr.core.vendor_research.get_vendor_research_path", return_value=out),
+        patch("primr.ai.providers.gemini.GeminiProvider", return_value=provider),
+        patch("primr.ai.deep_research.get_deep_research_client") as deep_client,
+        patch("primr.utils.usage_tracker.get_usage_tracker", return_value=tracker),
+    ):
+        result = await generate_vendor_research("aws", task_observer=events.append)
+
+    assert result == str(out)
+    assert "Current, cited body." in out.read_text(encoding="utf-8")
+    provider.search_and_summarize.assert_called_once()
+    deep_client.assert_not_called()  # no Deep Research task
+    assert events == ["started", "completed"]
+    # Metered as a cheap model call, far below a Deep Research task.
+    from primr.config.models import DEEP_RESEARCH_COST
+
+    recorded_cost = tracker.record_usage.call_args.kwargs["deep_research_cost"]
+    assert 0 < recorded_cost < DEEP_RESEARCH_COST.standard_task_cost
+
+
+@pytest.mark.asyncio
+async def test_generate_vendor_research_lite_returns_none_when_engine_unavailable(tmp_path: Path):
+    """Without a grounding-capable key the lite engine yields None (caller falls back)."""
+    provider = MagicMock()
+    provider.is_available.return_value = False
+
+    with (
+        patch("primr.core.vendor_research._validate_vendor_research_preflight", return_value=[]),
+        patch("primr.ai.providers.gemini.GeminiProvider", return_value=provider),
     ):
         result = await generate_vendor_research("aws")
+
     assert result is None
+    provider.search_and_summarize.assert_not_called()

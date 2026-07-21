@@ -125,3 +125,34 @@ def skip_stage_if_over_budget(spent_usd: float, stage_label: str) -> bool:
         spent_usd=round(spent_usd, 4),
     )
     return True
+
+
+def skip_stage_if_cost_would_exceed(
+    spent_usd: float,
+    estimated_next_cost_usd: float,
+    stage_label: str,
+) -> bool:
+    """Skip a discrete paid task when the active budget cannot cover it."""
+
+    budget = get_run_budget()
+    if budget is None:
+        return False
+    budget.sync_spend(spent_usd)
+    if not budget.would_exceed(estimated_next_cost_usd):
+        return False
+
+    from primr.utils.console import console
+    from primr.utils.observability import log_structured
+
+    console.warn(
+        f"Run budget ${budget.max_cost:.2f} cannot cover {stage_label} "
+        f"(~${spent_usd:.2f} spent, ~${estimated_next_cost_usd:.2f} next); skipping"
+    )
+    log_structured(
+        "warning",
+        f"Run budget cannot cover {stage_label}; task skipped",
+        budget_usd=budget.max_cost,
+        spent_usd=round(spent_usd, 4),
+        estimated_next_cost_usd=round(max(0.0, estimated_next_cost_usd), 4),
+    )
+    return True
