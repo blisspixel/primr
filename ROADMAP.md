@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.37.0
+Current State: v1.37.1
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -1985,6 +1985,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.37.1 | Jul 2026 | **Zero-cost render parity and dependency hardening.** A standalone `primr render` verb converts any Markdown report to DOCX/TXT with no model calls, so the Primr Zero / host-assisted path ships the same `.md` + `.docx` deliverables as a provider-backed run. Bumps `pyasn1` to 0.6.4 (CVE-2026-59885/59886). |
 | 1.37.0 | Jul 2026 | **Truthful strategy fulfillment and complete cost governance.** Integrated, standalone, batch, machine-readable, and monitoring surfaces now share canonical strategy and vendor-refresh outcomes. Estimates, budgets, provider submissions, actual-cost summaries, and partial exits stay aligned across fast, standard, and deep routes. Every AI Strategy path receives bounded cross-industry and observed-stack context, explicit refresh stays opt-in, the active Skills strategy reaches delivery, scrape-only success is unambiguous, and preflight performs no model generation. |
 | 1.36.1 | Jul 2026 | **Fail-closed controller and operator contracts.** Strict self-update parsing and confirmation, versioned CLI machine errors, stable strategy snapshots, restart-bound approvals, truthful readiness, secure journal and audit continuity, exact trace ownership, single-replica Azure topology, and fail-closed deployment validation make existing workflows safer and easier to operate. |
 | 1.36.0 | Jul 2026 | **Business-first strategy and governed recovery.** AI Strategy 2.1 leads with enterprise performance, value choices, measurable outcomes, non-AI alternatives, complete stack disposition, and workload-specific hybrid economics. Standalone strategy recovery is estimate-first and digest-bound. Batch research and enrichment use separate whole-operation quotes, exact approval, budgets, and retry policy. Atomic workspaces, cross-process leases, publication locks, job-local MCP strategy artifacts, duplicate-interaction prevention, and exact lite output caps harden concurrent execution. |

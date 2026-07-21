@@ -58,6 +58,16 @@ Terminal users who want the host-assisted path can run `primr prep` and hand
 the published bundle to their agent. Agent users who want the provider-backed
 path must ask for it explicitly and approve its fresh estimate.
 
+**Same outputs, however you run it.** Primr meets you where you are — bring API
+keys (pricier, can be the highest quality), run on a quota/subscription host
+(excellent, `$0` incremental), or stay all-local (improving fast, `$0`
+marginal). Every mode produces the same deliverable set: a Strategic Overview
+and an AI Strategy, each as Markdown **and** DOCX, plus any optional strategy
+modules, scraping corpus, and skill packs. The credential is transport, not a
+different product. On the host/Zero path, `primr render <file>.md` converts any
+host-written Markdown to DOCX/TXT at `$0` (no model calls), so the artifacts
+match a provider-backed run.
+
 ### Agent-host path
 
 Point a capable agent at this repository and ask it:
@@ -277,6 +287,7 @@ See [Run Modes and Costs](docs/RUN_MODES.md) for the full mode matrix, platform 
 | Site corpus and extracted insights only | `primr "Company" https://company.com --mode scrape` |
 | DNS intelligence only, no model keys required | `primr recon company.com` |
 | Agent Skills pack for downstream hosts | `primr skills "Company" https://company.com` |
+| Convert a Markdown report to DOCX/TXT (zero cost, no model calls) | `primr render "output/report.md"` |
 | Quote website enrichment without starting it | `primr --batch "companies.csv" --enrich --dry-run` |
 | Quote a whole research batch without starting it | `primr --batch "companies_enriched.csv" --dry-run` |
 | Quote a strategy from an existing report | `primr --ai-strategy-only "output/report.md" --dry-run` |

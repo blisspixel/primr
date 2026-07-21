@@ -135,6 +135,7 @@ from primr.core.cli_recovery import (
     check_pending_jobs,
     resume_pending_jobs,
 )
+from primr.core.cli_render import is_render_command, run_render
 from primr.core.cli_research_request import (
     report_research_workspace_error,
     resolve_research_context_files,
@@ -712,6 +713,8 @@ def main(args: list[str] | None = None) -> int:
         return _run_recon(args)
     if _is_keys_command(args):
         return run_keys(args)
+    if is_render_command(args):
+        return run_render(args)
     if is_mcp_command(args):
         return run_mcp(args)
     if is_skills_command(args):
