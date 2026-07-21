@@ -142,6 +142,41 @@ This checks structure and citation discipline. It is not factual verification.
 Perform a separate evidence review for unsupported claims, contradictions,
 source independence, dates, uncertainty labels, and recommendation logic.
 
+## Produce DOCX (same artifacts as a paid run)
+
+Primr Zero writes Markdown, but the deliverables should match a provider-backed
+run. Convert each finished report to DOCX (and TXT) with the zero-cost renderer
+— no model calls, no network:
+
+```bash
+primr render path/to/report.md
+```
+
+This emits `report.docx` and `report.txt` beside the Markdown. Run it on the
+Strategic Overview and on any AI Strategy or optional-strategy document you
+produce, so the user gets the full `.md` + `.docx` set regardless of how the
+report was processed.
+
+## Optional AI Strategy (host-written, still $0)
+
+The paid pipeline can generate a separate business-first AI Strategy document.
+On the Zero path you produce the equivalent yourself from the same evidence, at
+no Primr model spend. When the user wants it (or asks for "the AI strategy"),
+write a second Markdown document that:
+
+- Starts from the company's economics and strategy, not an AI product catalog.
+- Keeps a complete opportunity inventory separate from a short prioritized
+  portfolio, with a portfolio-hierarchy label per idea.
+- Ties each prioritized initiative to a measurable business outcome, names the
+  strongest non-AI alternative, and states the evidence that would change the
+  call.
+- Never invents baselines, ROI, budgets, ownership, or adoption. Name the metric
+  to establish, and label an unknown owner "Owner to confirm."
+- Uses the same `[cite: N]` + `## Sources` citation format as the Overview.
+
+Name it `<Company>_AI_Strategy_<date>.md`, then `primr render` it to DOCX so the
+AI Strategy ships as `.md` + `.docx` too.
+
 ## Hand off to downstream tools
 
 When the user requests another skill or document workflow, pass explicit input
