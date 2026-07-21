@@ -19,6 +19,7 @@ from primr.core import cli_recovery
 from primr.core.cli_recovery import (
     _build_recovered_basename,
     _find_latest_run_state,
+    _local_run_status_snapshot,
     _safe_interaction_fragment,
     _sanitize_output_stem,
     _save_recovered_outputs,
@@ -513,6 +514,87 @@ class TestShowLatestRunStateHint:
         assert "Company: ExampleCo" in all_calls
         assert "Updated: 2026-07-10T12:00:00" in all_calls
         assert "unknown" not in all_calls.lower()
+
+    def test_partial_fulfillment_names_unresolved_targets_and_recovery(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(cli_recovery, "WORKING_DIR", str(tmp_path))
+        run_dir = tmp_path / "ExampleCo" / "run"
+        run_dir.mkdir(parents=True)
+        (run_dir / "_run_state.json").write_text(
+            json.dumps(
+                {
+                    "company_name": "ExampleCo",
+                    "status": "completed",
+                    "strategy_status": "partial",
+                    "strategy_expected_targets": ["ai:azure", "ai:aws"],
+                    "strategy_completed_targets": ["ai:azure"],
+                    "strategy_failed_targets": ["ai:aws"],
+                    "strategy_skipped_targets": [],
+                    "vendor_refresh_status": "not_requested",
+                    "vendor_refresh_expected": [],
+                    "vendor_refresh_started": [],
+                    "vendor_refresh_completed": [],
+                    "vendor_refresh_failed": [],
+                    "vendor_refresh_skipped": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with patch("primr.core.cli_recovery.console") as console_mock:
+            _show_latest_run_state_hint()
+
+        output = " ".join(str(call) for call in console_mock.info.call_args_list)
+        assert "Fulfillment: partial" in output
+        assert "strategy:ai:aws" in output
+        assert "fresh dry-run" in output
+        assert "--resume-local" not in output
+
+        snapshot = _local_run_status_snapshot()
+        assert snapshot is not None
+        assert snapshot["lifecycle_state"] == "completed"
+        assert snapshot["fulfillment"]["status"] == "partial"
+        assert snapshot["fulfillment"]["strategy"]["failed"] == ["ai:aws"]
+
+    @pytest.mark.parametrize("lifecycle", [None, "mystery"])
+    def test_noncanonical_lifecycle_never_reports_completed(self, lifecycle):
+        state = {
+            "status": lifecycle,
+            "strategy_status": "not_requested",
+            "strategy_expected_targets": [],
+            "strategy_completed_targets": [],
+            "strategy_failed_targets": [],
+            "strategy_skipped_targets": [],
+            "vendor_refresh_status": "not_requested",
+            "vendor_refresh_expected": [],
+            "vendor_refresh_started": [],
+            "vendor_refresh_completed": [],
+            "vendor_refresh_failed": [],
+            "vendor_refresh_skipped": [],
+        }
+
+        assert cli_recovery._local_fulfillment_snapshot(state)["status"] == "unknown"
+
+    def test_inconsistent_outcome_partition_never_reports_completed(self):
+        state = {
+            "status": "completed",
+            "strategy_status": "completed",
+            "strategy_expected_targets": ["ai:azure"],
+            "strategy_completed_targets": [],
+            "strategy_failed_targets": [],
+            "strategy_skipped_targets": [],
+            "vendor_refresh_status": "not_requested",
+            "vendor_refresh_expected": [],
+            "vendor_refresh_started": [],
+            "vendor_refresh_completed": [],
+            "vendor_refresh_failed": [],
+            "vendor_refresh_skipped": [],
+        }
+
+        fulfillment = cli_recovery._local_fulfillment_snapshot(state)
+
+        assert fulfillment["status"] == "unknown"
+        assert fulfillment["strategy"]["status"] is None
+        assert fulfillment["strategy"]["expected"] == []
 
 
 # ---------------------------------------------------------------------------

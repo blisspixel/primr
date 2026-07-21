@@ -15,12 +15,13 @@ if TYPE_CHECKING:
     from primr.core.cli import CLIConfig
 
 
-def _has_provider_routed_standard_key() -> bool:
-    """Return True when dry-run should price the provider-routed standard path."""
+def _has_full_provider_key() -> bool:
+    """Return whether a configured provider can shape the full-mode label."""
     return any(
         os.environ.get(key)
         for key in (
             "XAI_API_KEY",
+            "GEMINI_API_KEY",
             "OPENAI_API_KEY",
             "ANTHROPIC_API_KEY",
         )
@@ -70,16 +71,11 @@ def run_dry_run(config: CLIConfig) -> int:
             message="Cannot use both --fast and --premium. Choose one.",
         )
 
-    use_fast_mode = config.fast_mode
-    use_premium_mode = config.premium_mode
+    from primr.core.cli_budget import resolve_runtime_selection
 
-    if (
-        not use_fast_mode
-        and not use_premium_mode
-        and config.mode in ("complete", "structured", "hybrid")
-    ):
-        if _has_provider_routed_standard_key():
-            use_fast_mode = True
+    selection = resolve_runtime_selection(config)
+    use_fast_mode = selection.fast_mode
+    use_premium_mode = selection.premium_mode
 
     # Validate compatibility.
     if use_fast_mode and config.mode not in ("complete", "structured", "hybrid"):
@@ -100,12 +96,23 @@ def run_dry_run(config: CLIConfig) -> int:
 
     if use_premium_mode:
         mode_label = "premium (Gemini + Deep Research)"
-    elif use_fast_mode:
+    elif use_fast_mode or (
+        config.mode in ("complete", "structured", "hybrid") and _has_full_provider_key()
+    ):
         mode_label = _full_mode_label(config.grok_tier)
     else:
         mode_label = config.mode
 
-    from primr.core.cli_budget import build_run_estimate
+    from primr.core.cli_budget import build_run_estimate, strategy_runtime_error
+
+    runtime_error = strategy_runtime_error(config, fast_mode=use_fast_mode)
+    if runtime_error:
+        return report_command_error(
+            json_output=config.json_output,
+            operation="research_estimate",
+            error_type="unsupported_strategy_runtime",
+            message=runtime_error,
+        )
 
     estimate = build_run_estimate(config, fast_mode=use_fast_mode, premium_mode=use_premium_mode)
 

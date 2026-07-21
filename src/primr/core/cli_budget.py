@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from math import isfinite
 from typing import TYPE_CHECKING
@@ -24,11 +25,66 @@ class BudgetActivation:
     hints: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class RuntimeSelection:
+    """Provider-backed runtime route shared by preview and execution."""
+
+    fast_mode: bool
+    premium_mode: bool
+    auto_fast_mode: bool
+
+
+def resolve_runtime_selection(config: CLIConfig) -> RuntimeSelection:
+    """Resolve the fast/premium route exactly once for every CLI surface."""
+
+    auto_fast_mode = bool(
+        not config.fast_mode
+        and not config.premium_mode
+        and config.mode in ("complete", "structured", "hybrid")
+        and os.environ.get("XAI_API_KEY")
+    )
+    return RuntimeSelection(
+        fast_mode=config.fast_mode or auto_fast_mode,
+        premium_mode=config.premium_mode,
+        auto_fast_mode=auto_fast_mode,
+    )
+
+
+def resolve_batch_modes(config: CLIConfig) -> tuple[bool, bool, str] | str:
+    """Resolve and validate the runtime shape shared by a batch."""
+
+    if config.premium_mode and config.fast_mode:
+        return "Cannot use both --fast and --premium. Choose one."
+    selection = resolve_runtime_selection(config)
+    full_modes = ("complete", "structured", "hybrid")
+    if selection.fast_mode and config.mode not in full_modes:
+        return f"--fast only works with full mode, not --mode {config.mode}"
+    if selection.premium_mode and config.mode not in full_modes:
+        return f"--premium only works with full mode, not --mode {config.mode}"
+    if selection.premium_mode:
+        mode_label = "premium (Gemini + Deep Research)"
+    elif selection.fast_mode:
+        from primr.core.cli_dryrun import _full_mode_label
+
+        mode_label = _full_mode_label(config.grok_tier)
+    else:
+        mode_label = config.mode
+    return (selection.fast_mode, selection.premium_mode, mode_label)
+
+
 def estimate_vendor_count(config: CLIConfig) -> int:
     """Return the vendor count to feed research cost estimates."""
     if not config.ai_strategy:
         return 1
     return max(len(config.cloud_vendors), 1)
+
+
+def _estimate_runtime_vendor_count(config: CLIConfig, *, fast_mode: bool) -> int:
+    """Return the vendor fan-out the selected runtime actually executes."""
+
+    if not fast_mode and config.mode == "structured":
+        return 1
+    return estimate_vendor_count(config)
 
 
 def estimate_strategy_types(config: CLIConfig) -> list[str]:
@@ -40,6 +96,36 @@ def estimate_strategy_types(config: CLIConfig) -> list[str]:
     """
     stype = getattr(config, "strategy_type", "ai")
     return [stype] if stype and stype != "ai" else []
+
+
+def strategy_runtime_error(config: CLIConfig, *, fast_mode: bool) -> str | None:
+    """Reject option shapes the selected runtime would silently ignore."""
+
+    if fast_mode or config.mode != "structured":
+        return None
+    strategy_types = estimate_strategy_types(config)
+    if strategy_types:
+        return (
+            f"--strategy-type {strategy_types[0]} is not supported by the legacy "
+            "structured runtime. Use --mode complete or configure XAI fast mode."
+        )
+    platforms = tuple(getattr(config, "platforms", ()) or ())
+    if len(platforms) > 1:
+        return (
+            "Multiple --platform values are not supported by the legacy structured "
+            "runtime. Use --mode complete or configure XAI fast mode."
+        )
+    return None
+
+
+def estimate_vendor_refresh_count(config: CLIConfig, *, fast_mode: bool) -> int:
+    """Return estimate-bound vendor refresh tasks for this runtime shape."""
+
+    if not getattr(config, "refresh_vendor_research", False) or not config.ai_strategy:
+        return 0
+    if not fast_mode and estimate_strategy_types(config):
+        return 0
+    return _estimate_runtime_vendor_count(config, fast_mode=fast_mode)
 
 
 def build_run_estimate(config: CLIConfig, *, fast_mode: bool, premium_mode: bool) -> CostEstimate:
@@ -61,13 +147,17 @@ def build_run_estimate(config: CLIConfig, *, fast_mode: bool, premium_mode: bool
     estimate = estimate_cost(
         config.mode,
         config.ai_strategy,
-        num_vendors=estimate_vendor_count(config),
+        num_vendors=_estimate_runtime_vendor_count(config, fast_mode=fast_mode),
         lite_strategy=config.lite_strategy,
         fast_mode=fast_mode,
         premium_mode=premium_mode,
         verify=config.verify,
         grok_tier=config.grok_tier,
         strategy_types=estimate_strategy_types(config),
+        vendor_research_refreshes=estimate_vendor_refresh_count(
+            config,
+            fast_mode=fast_mode,
+        ),
     )
     from primr.core.cli_inference import append_inference_estimate_note
 

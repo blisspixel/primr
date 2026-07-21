@@ -186,7 +186,8 @@ def test_preflight_passes_with_key_and_writable(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_gather_context_force_refresh_vendor(tmp_path: Path):
-    """force_refresh_vendor calls generate_vendor_research (lines 427-431)."""
+    """--refresh-vendor-research is freshness-aware: it reuses a fresh cache and
+    regenerates only stale/missing docs, so it never forces a paid task."""
     generated = tmp_path / "azure.txt"
     generated.write_text("vendor", encoding="utf-8")
 
@@ -195,9 +196,12 @@ async def test_gather_context_force_refresh_vendor(tmp_path: Path):
     fake_registry_mod = MagicMock()
     fake_registry_mod.get_registry.return_value = registry
 
+    result = MagicMock()
+    result.paths = [generated]
     fake_vendor_mod = MagicMock()
-    fake_vendor_mod.generate_vendor_research = AsyncMock(return_value=str(generated))
-    fake_vendor_mod.get_or_generate_vendor_research = AsyncMock()
+    fake_vendor_mod.generate_vendor_research = AsyncMock()
+    fake_vendor_mod.get_or_generate_vendor_research = AsyncMock(return_value=result)
+    fake_vendor_mod.get_vendor_research_path.return_value = tmp_path / "missing-agnostic.txt"
 
     config = AIStrategyConfig(
         company_name="Acme",
@@ -214,10 +218,14 @@ async def test_gather_context_force_refresh_vendor(tmp_path: Path):
     ):
         context_files, vendor_paths = await _gather_context(config)
 
-    assert str(generated) in context_files
+    assert str(generated) not in context_files
     assert str(generated) in vendor_paths
-    assert fake_vendor_mod.generate_vendor_research.called
-    assert not fake_vendor_mod.get_or_generate_vendor_research.called
+    # Freshness-aware path, not an unconditional force-generate.
+    assert not fake_vendor_mod.generate_vendor_research.called
+    assert fake_vendor_mod.get_or_generate_vendor_research.called
+    call = fake_vendor_mod.get_or_generate_vendor_research.call_args
+    assert call.kwargs["force_refresh"] is False
+    assert call.kwargs["allow_auto_refresh"] is True
 
 
 @pytest.mark.asyncio
@@ -248,7 +256,7 @@ async def test_gather_context_get_or_generate_vendor(tmp_path: Path):
     ):
         context_files, vendor_paths = await _gather_context(config)
 
-    assert str(vendor_file) in context_files
+    assert str(vendor_file) not in context_files
     assert str(vendor_file) in vendor_paths
     fake_vendor_mod.get_or_generate_vendor_research.assert_awaited_once_with(
         "aws",
@@ -284,7 +292,8 @@ async def test_gather_context_agnostic_appends_agnostic_file(tmp_path: Path):
     ):
         context_files, vendor_paths = await _gather_context(config)
 
-    assert str(agnostic_file) in context_files
+    assert str(agnostic_file) not in context_files
+    assert str(agnostic_file) in vendor_paths
     fake_vendor_mod.get_vendor_research_path.assert_called_once_with("agnostic")
 
 

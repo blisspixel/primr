@@ -10,11 +10,17 @@ primr "Company" https://company.com --dry-run
 
 Dry-run output is the source of truth for the next run. The numbers below are current guideposts for the common xAI plus Gemini setup, not guarantees.
 
+Except for the Primr Zero row, this matrix describes direct terminal execution
+through Primr's provider-backed pipeline. A bare request in a capable agent
+chat defaults to Primr Zero; the same text entered in a terminal retains the
+provider-backed behavior.
+
 ## Mode Matrix
 
 | Mode | Command shape | Output | Typical time | Typical cost |
 |------|---------------|--------|--------------|--------------|
-| Default | `primr "Company" url` | Strategic Overview plus one integrated AI Strategy | 34-53 min | ~$0.89 |
+| Primr Zero in an agent host | Ask the host: `primr "Company" url` | Keyless evidence bundle plus host-written dossier | 5-15 min collection, then host-dependent | $0.00 incremental model API spend when the host is plan-backed |
+| Provider-backed default | `primr "Company" url` in a terminal | Strategic Overview plus one integrated AI Strategy | 34-53 min | ~$0.89 |
 | Base report only | `primr "Company" url --no-ai-strategy` | Strategic Overview | 31-47 min | ~$0.76-$0.79 |
 | XAI-only default | `primr "Company" url` with no Gemini key | Strategic Overview plus one integrated AI Strategy | 34-53 min | ~$5.06 |
 | XAI-only base | `primr "Company" url --no-ai-strategy` with no Gemini key | Strategic Overview | 31-47 min | ~$4.36 |
@@ -139,9 +145,44 @@ Cost behavior:
 - Required Deep Research tasks cannot be stopped mid-flight by `--budget`; scrape remains estimate-gated only.
 - MCP HTTP tools can enforce server-side cost caps and approval tokens.
 - Vendor-research generation is explicit: cached research is reused, but missing
-  or stale cache files do not trigger fresh Deep Research unless you pass
-  `--refresh-vendor-research`, run `primr --generate-vendor-research`, or set
-  `PRIMR_ALLOW_VENDOR_REFRESH=1`.
+  or stale cache files do not trigger fresh Deep Research in estimate-bound
+  runs unless you pass `--refresh-vendor-research`. Dry-run and budget output
+  then include one separate refresh task per selected platform. Use
+  `primr --generate-vendor-research <vendor> --dry-run` to quote deliberate
+  direct cache generation. The direct command aggregates `all` targets, honors
+  `--budget`, requires confirmation unless `--skip-confirm` is supplied, and
+  returns nonzero if any requested target fails. `all` covers Azure, AWS, GCP,
+  private accelerated infrastructure, and vendor-neutral research.
+  Ambient `PRIMR_ALLOW_VENDOR_REFRESH` applies only to direct library callers
+  that leave policy environment-controlled; integrated CLI and MCP strategy
+  paths override it off.
+- A fast run with `--refresh-vendor-research` preflights both XAI and Gemini
+  credentials before starting the base pipeline. Multi-platform refresh tasks
+  run serially, then the strategy-writing calls fan out in parallel.
+- Local dependency and configuration checks run before the cost gate. Network
+  connectivity checks run only after the estimate is within `--budget`, so a
+  refused run cannot make provider requests.
+- A completed base report and requested strategy artifacts have separate
+  outcomes. If any explicitly requested strategy or refresh target fails or is
+  budget-skipped, the report remains available, the run state and JSON result
+  list each target outcome, and the CLI returns nonzero instead of hiding the
+  partial result. JSON `status` describes the base artifact while
+  `fulfillment_status` describes the whole request. Missing or malformed
+  outcome state produces `fulfillment_status: unknown` and a nonzero exit.
+  Human completion output and `primr --check-jobs` surface unresolved targets
+  and the state path. Local monitoring also requires a canonical completed
+  lifecycle and internally consistent outcome partitions before it reports
+  completed fulfillment. Standalone multi-platform strategy generation follows
+  the same all-target success rule.
+- Fast, deep, complete, hybrid, and standard summaries reconcile refresh tasks
+  that actually reached provider submission. Standard mode also includes its
+  AI Strategy Deep Research task. AI Strategy and refresh counts are run-local,
+  so overlapping runs cannot claim one another's submissions. Refresh usage is
+  not duplicated in the main run history because each submitted refresh
+  records its own usage row.
+- The legacy non-fast `structured` runtime supports one AI Strategy platform.
+  It rejects custom strategy types and multiple explicit platforms before any
+  provider preflight; use complete mode or XAI fast mode for those shapes.
 - Gemini PDF extraction is off by default and local PyMuPDF parsing is used
   instead. Set `PRIMR_PDF_LLM_MAX_CALLS=N` only when provider-backed PDF chart
   and table extraction is worth the extra spend.
@@ -182,6 +223,11 @@ Without `--dry-run`, Primr emits the same estimate and asks for approval before
 it creates a private content-digest-verified report snapshot. A report changed
 during approval is rejected before strategy generation. Normal full Strategic
 Overviews are retained in strategy context up to a 200,000-character bound.
+For automation, `--dry-run --json` emits one `primr.strategy-estimate.v1`
+object. Approved `--json --skip-confirm` execution emits one
+`primr.strategy-result.v1` object with expected targets, successful artifacts,
+and failures. JSON execution without `--skip-confirm` returns a structured
+approval-required refusal and never prompts.
 
 ## Output Locations
 

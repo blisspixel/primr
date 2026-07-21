@@ -7,8 +7,8 @@
 
 meta:
   name: "Business-First AI Strategy"
-  version: "2.1.0"
-  description: "Evidence-grounded enterprise AI strategy starting with business performance, industry possibilities, capital choices, and executive decisions"
+  version: "2.2.0"
+  description: "Evidence-grounded enterprise AI strategy that preserves a complete company-specific opportunity inventory, prioritizes transparently, and translates current AI developments into ideas without fabricating company facts"
   output_format: "markdown"
   output_filename: "{company_name}_AI_Strategy"
   expected_pages: "18-30"
@@ -93,7 +93,7 @@ hard_requirements: |
   1. Executive decisions and the business context
   2. Business value pools and industry art of the possible
   3. Evidence basis and likely current state
-  4. Prioritized initiative portfolio and explicit choices
+  4. Complete opportunity inventory, then the prioritized portfolio and explicit choices
   5. Business case, unit economics, operating model, and adoption
   6. Architecture and workload placement
   7. Governance, risk, roadmap, and board actions
@@ -123,6 +123,62 @@ hard_requirements: |
   - Distinguish reported tool adoption, production deployment, realized operating
     value, and durable advantage. Do not treat a broad adoption survey or vendor case
     study as proof of company-specific economics.
+
+  REQUIRED OPPORTUNITY INVENTORY AND PRIORITIZED PORTFOLIO
+  Produce two distinct, clearly separated outputs.
+  - COMPLETE OPPORTUNITY INVENTORY: generate a broad inventory of credible,
+    company-specific AI opportunities and preserve every sufficiently grounded idea,
+    including ideas that are lower priority, longer term, dependent on missing
+    capabilities, or not yet supported by enough evidence. Do not discard an idea
+    merely because it is not a current priority. Organize by business outcome,
+    workflow, product, service, customer, and workforce. Keep each entry compact.
+  - PRIORITIZED PORTFOLIO: select the ideas most relevant for leadership attention
+    now. Explain why each was prioritized, why other credible ideas were deferred,
+    and what evidence could change the prioritization. Produce full initiative
+    decision cards only for prioritized ideas.
+  - Preserve ideas built from weak but potentially important signals as emerging
+    opportunities or longer-term options. State the uncertainty and what must be
+    learned before they could be prioritized. Do not delete a potentially valuable
+    idea solely because its evidence is incomplete.
+  - Separate the complete inventory from the prioritized portfolio so leaders can
+    see everything considered and everything deferred, not only the current picks.
+
+  REQUIRED IDEA CONNECTION
+  Every idea, in the inventory or the portfolio, must identify:
+  - The company-specific business anchor it attaches to
+  - The affected workflow, product, service, customer, or workforce group
+  - The business outcome it may influence
+  - Why AI may be useful, and why a conventional process, software, analytics, or
+    automation approach may be better
+  - Supporting evidence and its strength
+  - Dependencies, unknowns, and questions to validate
+  Provide compact summaries for inventory entries. Do not manufacture baselines,
+  cost models, targets, owners, or implementation plans simply to fill an inventory
+  field; reserve detailed decision cards for the prioritized portfolio.
+
+  REQUIRED PORTFOLIO HIERARCHY
+  Classify every idea as exactly one of: foundational capability, near-term
+  practical opportunity, strategic expansion opportunity, differentiated product or
+  service opportunity, longer-term option, monitor, or defer pending evidence.
+
+  REQUIRED NEWS-DRIVEN IDEATION
+  Treat industry research as an idea generator, not a news summary.
+  - Research current AI developments using recent primary and official sources,
+    preferring the last 30-90 days when materially relevant.
+  - Verify current product names, capabilities, availability, limitations, and
+    maturity before using them.
+  - Translate each material development into one or more possible implications for
+    this company, naming the workflows, products, services, customers, employees,
+    or risks it could affect.
+  - Generate additional candidate ideas when a development makes a use case newly
+    practical, safer, less expensive, easier to deploy, or more strategically
+    important. Ignore developments that do not materially change the range of
+    credible opportunities for this company.
+  - For every idea materially influenced by a recent development, label the
+    underlying pattern as exactly one of: proven operating pattern, scaling pattern,
+    emerging opportunity, frontier possibility, or primarily vendor-led or unproven
+    claim. Do not present an emerging or frontier capability as a proven production
+    pattern.
 
   REQUIRED INITIATIVE DECISION CARD
   Every prioritized initiative must state:
@@ -179,8 +235,15 @@ hard_requirements: |
     feature, price, availability, or lifecycle state. State the capability requirement,
     evidence gap, and exact validation action instead.
   - Never invent internal baselines, dollar values, adoption rates, product usage,
-    or competitor deployments. When evidence is insufficient, provide the formula,
-    required inputs, and validation action instead of a fabricated number.
+    competitor deployments, customer-specific ROI, savings, revenue, budgets,
+    staffing, timelines, adoption levels, data quality, technical readiness, or
+    ownership. When a baseline is unknown, name the metric that must be established.
+    When value is uncertain, describe the value mechanism and expected direction of
+    change rather than fabricating a percentage or dollar amount. When ownership is
+    unknown, identify the likely accountable function and label it "Owner to confirm."
+  - Clearly distinguish confirmed evidence, reported information, inference,
+    hypothesis, and unknown. Do not let one uncertain item silently become a
+    factual premise for another.
 
 writing_standards: |
   Write for executives who need to make tradeoffs. Lead each section with the decision
@@ -231,6 +294,17 @@ epistemic_rules:
   source_honesty: |
     DNS, hiring, and public web signals have bounded meanings. State what each signal
     supports and what it cannot establish without internal validation.
+  idea_preservation: |
+    Preserve the complete inventory of credible company-specific ideas. Do not delete
+    a potentially valuable idea because it is lower priority, longer term, dependent on
+    missing capabilities, or supported only by weak evidence. Retain it as an emerging
+    opportunity or longer-term option, state the uncertainty, and name what must be
+    learned before it could be prioritized.
+  maturity_honesty: |
+    For any idea shaped by a recent AI development, label the underlying pattern as
+    proven operating pattern, scaling pattern, emerging opportunity, frontier
+    possibility, or primarily vendor-led or unproven claim. Never present an emerging
+    or frontier capability as a proven production pattern.
 
 formatting:
   paragraphs: "Use concise paragraphs for reasoning and implications"
@@ -244,8 +318,10 @@ heuristics:
     If a recommendation starts with a product name, rewrite it to start with the
     business outcome, accountable owner, and decision to be made.
   portfolio_not_catalog: |
-    Rank a few initiatives across value, evidence, feasibility, risk, adoption load,
-    and option value. A longer list is not a deeper strategy.
+    Keep the prioritized portfolio short: rank a few initiatives across value,
+    evidence, feasibility, risk, adoption load, and option value. A longer prioritized
+    list is not a deeper strategy. This restraint applies to the prioritized portfolio,
+    not to the complete opportunity inventory, which stays broad but compact.
   complementary_assets: |
     Treat data, process design, skills, incentives, governance, integration, and
     operating ownership as part of the investment rather than implementation detail.
@@ -324,7 +400,14 @@ sections:
         covers:
           - "Measured evolution, accelerated adoption, and disruption scenarios"
           - "Leading indicators and implications for the company's timing"
-    depth: "Use current primary, official, or first-party sources. Do not infer a competitor deployment without evidence."
+    depth: |
+      Use current primary, official, or first-party sources, preferring developments
+      from the last 30-90 days when materially relevant. Do not infer a competitor
+      deployment without evidence. Translate each material development into
+      company-specific implications and candidate ideas rather than summarizing news,
+      and label the underlying pattern maturity (proven, scaling, emerging, frontier,
+      or primarily vendor-led/unproven). Feed the resulting ideas into the Complete
+      Opportunity Inventory in Part 5.
 
   - id: current_state
     name: "Evidence Basis and Likely Current State"
@@ -355,9 +438,9 @@ sections:
     depth: "Do not score maturity from a service list alone. Unknown is a valid result."
 
   - id: opportunity_domains
-    name: "Business Value Portfolio"
+    name: "Complete Opportunity Inventory"
     part: 5
-    purpose: "Develop company-specific opportunities by value pool rather than technology category"
+    purpose: "Generate and preserve every credible company-specific opportunity, organized by value pool rather than technology category, before any prioritization"
     subsections:
       - id: growth_value
         name: "Growth, Retention, Pricing, and Market Expansion"
@@ -380,25 +463,38 @@ sections:
         name: "Risk, Safety, Compliance, and Resilience"
         covers:
           - "Error reduction, fraud, compliance, security, continuity, key-person risk, and decision quality"
-    depth: "Generate a broad candidate set, then carry only the strongest evidence-backed items forward."
+    depth: |
+      Generate a broad inventory and preserve every sufficiently grounded idea,
+      including lower-priority, longer-term, capability-dependent, and weakly-evidenced
+      ideas. Do not discard ideas here; selection happens in Part 6. Keep each entry
+      compact and connected to the company (anchor, affected workflow/product/service/
+      customer/workforce, outcome, why AI, why a conventional approach may be better,
+      evidence strength, dependencies, unknowns, validation questions). Tag each idea
+      with its portfolio-hierarchy class and, when news-driven, its pattern maturity.
+      Do not manufacture baselines or business cases to fill inventory fields.
 
   - id: prioritization_filters
-    name: "Portfolio Prioritization and Explicit Choices"
+    name: "Prioritized Portfolio and Explicit Choices"
     part: 6
-    purpose: "Make selection logic visible and comparable"
+    purpose: "Prioritize the complete inventory transparently, only after every credible idea has been shown"
     covers:
-      - "Business value and strategic differentiation"
-      - "Evidence confidence and measurability"
-      - "Time to value and option value"
-      - "Data, process, integration, and stack readiness"
-      - "Adoption load and accountable ownership"
+      - "Strategic relevance and company-specific fit"
+      - "Business value mechanism and differentiation potential"
+      - "Evidence strength and feasibility"
+      - "Data and process readiness"
+      - "Adoption complexity and accountable ownership"
       - "Risk, autonomy, affected people, and regulatory exposure"
       - "Fully loaded unit economics and commercial flexibility"
-      - "Opportunity cost, capital intensity, management attention, and portfolio balance"
+      - "Dependency on other capabilities, opportunity cost, and portfolio balance"
     depth: |
-      Show the scored or reasoned ranking, sensitivity to uncertain assumptions, and
-      why the selected portfolio wins. Include an explicit What NOT to Pursue table
-      with rationale, revisit trigger, and signal to watch.
+      Prioritize only after Part 5's complete inventory is on the page. Show the
+      reasoned ranking and its sensitivity to uncertain assumptions, and explain the
+      ranking in plain language. Do not use false numerical precision when the
+      underlying evidence is qualitative. State why each prioritized idea won, why
+      other credible ideas were deferred, and what evidence would change the ranking.
+      Assign each idea its portfolio-hierarchy class. Include an explicit What NOT to
+      Pursue Now table with rationale, revisit trigger, and signal to watch;
+      "deferred" means retained and watched, not deleted.
 
   - id: quick_wins
     name: "Initiative Decision Cards: Quick Wins and Bigger Bets"

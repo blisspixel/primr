@@ -11,6 +11,23 @@ from primr.core.cli import process_batch
 from primr.core.cli_batch import _ColumnMap
 
 
+def _complete_research(report_path, state_path):
+    def run(*_args, **kwargs):
+        from primr.core.strategy_outcome import StrategyOutcomeTracker, persist_strategy_outcome
+        from primr.core.vendor_refresh_outcome import (
+            VendorRefreshTracker,
+            persist_vendor_refresh_outcome,
+        )
+
+        state_path.mkdir(parents=True, exist_ok=True)
+        kwargs["run_context"]["working_folder"] = str(state_path)
+        persist_strategy_outcome(str(state_path), StrategyOutcomeTracker(()).snapshot())
+        persist_vendor_refresh_outcome(str(state_path), VendorRefreshTracker(()).snapshot())
+        return str(report_path)
+
+    return run
+
+
 @pytest.fixture
 def isolated(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
@@ -97,7 +114,7 @@ class TestProcessBatch:
         out_path = isolated / "output" / "report.docx"
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text("x" * (20 * 1024), encoding="utf-8")
-        perform_mock.return_value = str(out_path)
+        perform_mock.side_effect = _complete_research(out_path, isolated / "run-state")
 
         monkeypatch.setattr("time.sleep", lambda *_a, **_k: None)
         result = process_batch("/path.csv", skip_confirm=True)

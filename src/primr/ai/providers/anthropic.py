@@ -27,6 +27,7 @@ from typing import Any
 
 from primr.ai.providers.base import (
     ChatResponse,
+    CredentialCheck,
     Provider,
     ProviderUnavailableError,
     QuotaExhaustedError,
@@ -225,6 +226,38 @@ class AnthropicProvider(Provider):
             return True
         except ImportError:
             return False
+
+    def validate_credentials(self) -> CredentialCheck:
+        """Auth-only check via the free ``models.list`` endpoint (no generation)."""
+        import time
+
+        if not self.is_available():
+            key_missing = not os.getenv(self._api_key_env)
+            detail = (
+                f"{self._api_key_env} not set"
+                if key_missing
+                else "anthropic package not installed (pip install anthropic)"
+            )
+            return CredentialCheck(provider=self.name, ok=False, detail=detail)
+        start = time.monotonic()
+        try:
+            client = self._get_client()
+            models = client.models.list(limit=1)
+            count = len(list(getattr(models, "data", []) or []))
+            latency = int((time.monotonic() - start) * 1000)
+            return CredentialCheck(
+                provider=self.name,
+                ok=True,
+                detail=f"authenticated; models endpoint reachable ({count}+ visible)",
+                latency_ms=latency,
+            )
+        except Exception as exc:
+            return CredentialCheck(
+                provider=self.name,
+                ok=False,
+                detail=f"{type(exc).__name__}: {str(exc)[:120]}",
+                latency_ms=int((time.monotonic() - start) * 1000),
+            )
 
     # -----------------------------------------------------------------
     # Lazy client init

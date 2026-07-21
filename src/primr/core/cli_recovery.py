@@ -266,10 +266,14 @@ def _show_latest_run_state_hint() -> None:
     company = str(state.get("company_name", "")).strip()
     if not company or company.lower() == "unknown":
         company = Path(path).parent.parent.name
+    fulfillment = _local_fulfillment_snapshot(state)
     fields = (
         ("Company", company),
         ("Mode", state.get("mode")),
         ("Status", state.get("status")),
+        ("Fulfillment", fulfillment["status"]),
+        ("Strategy", fulfillment["strategy"]["status"]),
+        ("Vendor refresh", fulfillment["vendor_refresh"]["status"]),
         ("Phase", state.get("current_phase")),
         ("Updated", state.get("updated_at")),
     )
@@ -279,8 +283,14 @@ def _show_latest_run_state_hint() -> None:
         rendered = str(value or "").strip()
         if rendered and rendered.lower() != "unknown":
             console.info(f"  {label}: {rendered}")
+    unresolved = _local_unresolved_targets(fulfillment)
+    if unresolved:
+        console.info(f"  Unresolved: {', '.join(unresolved)}")
     console.info(f"  File: {path}")
-    console.info("  Next: rerun the original company and URL with `--resume-local`.")
+    if fulfillment["status"] == "partial":
+        console.info("  Next: review a fresh dry-run before retrying only unresolved targets.")
+    elif str(state.get("status", "")).lower() != "completed":
+        console.info("  Next: rerun the original company and URL with `--resume-local`.")
 
 
 def _local_run_status_snapshot() -> dict[str, Any] | None:
@@ -294,7 +304,7 @@ def _local_run_status_snapshot() -> dict[str, Any] | None:
     company = str(state.get("company_name", "")).strip()
     if not company or company.lower() == "unknown":
         company = Path(path).parent.parent.name
-    return build_job_status(
+    snapshot = build_job_status(
         job_id=state.get("run_id"),
         source="local_run",
         status=state.get("status"),
@@ -309,6 +319,54 @@ def _local_run_status_snapshot() -> dict[str, Any] | None:
         error_message=state.get("error"),
         error_source="local_run" if state.get("error") else None,
     )
+    snapshot["fulfillment"] = _local_fulfillment_snapshot(state)
+    return snapshot
+
+
+def _local_fulfillment_snapshot(state: dict[str, Any]) -> dict[str, Any]:
+    """Project local strategy and refresh fulfillment into monitoring output."""
+    from primr.core.strategy_outcome import strategy_outcome_from_state
+    from primr.core.vendor_refresh_outcome import vendor_refresh_outcome_from_state
+
+    strategy = strategy_outcome_from_state(state)
+    refresh = vendor_refresh_outcome_from_state(state)
+    lifecycle = str(state.get("status", "")).strip().lower()
+    if lifecycle in {"running", "pending", "queued"}:
+        overall = "in_progress"
+    elif lifecycle in {"failed", "error", "cancelled", "canceled"}:
+        overall = "failed"
+    elif lifecycle != "completed" or strategy is None or refresh is None:
+        overall = "unknown"
+    elif strategy.requires_nonzero_exit or refresh.requires_nonzero_exit:
+        overall = "partial"
+    else:
+        overall = "completed"
+    return {
+        "status": overall,
+        "strategy": {
+            "status": strategy.status if strategy else None,
+            "expected": list(strategy.expected_targets) if strategy else [],
+            "completed": list(strategy.completed_targets) if strategy else [],
+            "failed": list(strategy.failed_targets) if strategy else [],
+            "skipped": list(strategy.skipped_targets) if strategy else [],
+        },
+        "vendor_refresh": {
+            "status": refresh.status if refresh else None,
+            "expected": list(refresh.expected_vendors) if refresh else [],
+            "completed": list(refresh.completed_vendors) if refresh else [],
+            "failed": list(refresh.failed_vendors) if refresh else [],
+            "skipped": list(refresh.skipped_vendors) if refresh else [],
+        },
+    }
+
+
+def _local_unresolved_targets(fulfillment: dict[str, Any]) -> list[str]:
+    strategy = fulfillment["strategy"]
+    refresh = fulfillment["vendor_refresh"]
+    return [
+        *(f"strategy:{target}" for target in strategy["failed"] + strategy["skipped"]),
+        *(f"vendor:{vendor}" for vendor in refresh["failed"] + refresh["skipped"]),
+    ]
 
 
 def _read_pending_jobs() -> tuple[bool, dict[str, dict[str, Any]]]:

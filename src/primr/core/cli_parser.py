@@ -140,6 +140,24 @@ def add_inference_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def add_vendor_research_arguments(parser: argparse.ArgumentParser) -> None:
+    """Register explicit vendor cache controls and their cost guidance."""
+
+    parser.add_argument(
+        "--refresh-vendor-research",
+        action="store_true",
+        help="Force refresh vendor research as an estimated part of this run",
+    )
+    parser.add_argument(
+        "--generate-vendor-research",
+        choices=["azure", "aws", "gcp", "private", "agnostic", "all"],
+        help=(
+            "Generate the shared vendor research cache after an aggregate estimate "
+            "and approval; use --dry-run first"
+        ),
+    )
+
+
 def _discover_strategies() -> list[dict[str, str]]:
     """Discover available strategy types from YAML configs.
 

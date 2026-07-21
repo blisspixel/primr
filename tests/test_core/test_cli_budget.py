@@ -16,6 +16,8 @@ from primr.core.cli_budget import (
     build_run_estimate,
     estimate_strategy_types,
     estimate_vendor_count,
+    estimate_vendor_refresh_count,
+    strategy_runtime_error,
 )
 from primr.utils.run_budget import clear_run_budget, get_run_budget
 
@@ -30,6 +32,7 @@ def _config(**overrides) -> SimpleNamespace:
         "grok_tier": "hybrid",
         "strategy_type": "ai",
         "verify": False,
+        "refresh_vendor_research": False,
     }
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -66,6 +69,61 @@ class TestEstimateVendorCount:
         assert estimate_vendor_count(_config(ai_strategy=True, cloud_vendors=["azure", "aws"])) == 2
 
 
+class TestEstimateVendorRefreshCount:
+    def test_requires_explicit_refresh_and_ai_strategy(self):
+        assert estimate_vendor_refresh_count(_config(), fast_mode=True) == 0
+        assert (
+            estimate_vendor_refresh_count(
+                _config(refresh_vendor_research=True, ai_strategy=False),
+                fast_mode=True,
+            )
+            == 0
+        )
+
+    def test_fast_mode_prices_each_requested_vendor(self):
+        config = _config(
+            ai_strategy=True,
+            cloud_vendors=["aws", "azure"],
+            refresh_vendor_research=True,
+        )
+        assert estimate_vendor_refresh_count(config, fast_mode=True) == 2
+
+    def test_nonfast_non_ai_strategy_does_not_price_unused_refresh(self):
+        config = _config(
+            mode="complete",
+            ai_strategy=True,
+            cloud_vendors=["aws"],
+            refresh_vendor_research=True,
+            strategy_type="customer_experience",
+        )
+        assert estimate_vendor_refresh_count(config, fast_mode=False) == 0
+
+    def test_nonfast_structured_prices_its_single_vendor_runtime(self):
+        config = _config(
+            mode="structured",
+            ai_strategy=True,
+            cloud_vendors=["aws", "azure"],
+            refresh_vendor_research=True,
+        )
+        assert estimate_vendor_refresh_count(config, fast_mode=False) == 1
+
+
+class TestStrategyRuntimeError:
+    def test_rejects_non_ai_strategy_on_nonfast_structured_runtime(self):
+        config = _config(mode="structured", strategy_type="customer_experience")
+        assert "not supported" in (strategy_runtime_error(config, fast_mode=False) or "")
+
+    def test_rejects_multi_platform_nonfast_structured_runtime(self):
+        config = _config(mode="structured", platforms=("aws", "azure"))
+        assert "Multiple --platform" in (strategy_runtime_error(config, fast_mode=False) or "")
+
+    def test_fast_and_complete_shapes_are_supported(self):
+        structured = _config(mode="structured", strategy_type="customer_experience")
+        complete = _config(mode="complete", strategy_type="customer_experience")
+        assert strategy_runtime_error(structured, fast_mode=True) is None
+        assert strategy_runtime_error(complete, fast_mode=False) is None
+
+
 class TestBuildRunEstimate:
     """The single estimate-shaping seam. Every surface that quotes a run -
     ``--dry-run``, the ``--budget`` gate, and (by mirroring these flags) the
@@ -90,6 +148,7 @@ class TestBuildRunEstimate:
             grok_tier="max",
             strategy_type="customer_experience",
             verify=True,
+            refresh_vendor_research=True,
         )
         build_run_estimate(config, fast_mode=True, premium_mode=False)
 
@@ -103,6 +162,7 @@ class TestBuildRunEstimate:
         assert captured["strategy_types"] == ["customer_experience"]
         # The flag this cycle closed: verify was dropped by dry-run and the gate.
         assert captured["verify"] is True
+        assert captured["vendor_research_refreshes"] == 2
 
     def test_verify_flag_is_forwarded_false_by_default(self, monkeypatch):
         captured: dict = {}
@@ -115,6 +175,7 @@ class TestBuildRunEstimate:
         build_run_estimate(_config(), fast_mode=False, premium_mode=True)
         assert captured["verify"] is False
         assert captured["premium_mode"] is True
+        assert captured["vendor_research_refreshes"] == 0
 
 
 class TestActivateRunBudget:
