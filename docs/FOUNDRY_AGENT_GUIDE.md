@@ -100,7 +100,7 @@ You have access to Primr company research tools. When a user asks you to researc
    bodies.
 6. Share the results with the user
 
-Always estimate before submitting. Research jobs cost real money (~$0.75 for standard mode).
+Always estimate before submitting. Research jobs cost real money (~$0.75-$1 for standard mode).
 Use show_usage to check remaining budget if the user asks about costs.
 ```
 

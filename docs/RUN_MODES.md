@@ -29,6 +29,7 @@ provider-backed behavior.
 | Premium | `primr "Company" url --premium` | Deep Research plus hiring signals plus strategy | 50-75 min | ~$5 |
 | Premium lite | `primr "Company" url --premium --lite` | Premium strategy with lighter model path | 50-80 min | ~$4 |
 | Recon | `primr recon company.com` | DNS intelligence | 2-3 sec | $0.00 |
+| Render | `primr render <file>.md` | DOCX + TXT from existing Markdown | <5 sec | $0.00 |
 | Skill pack | `primr skills "Company" url` | Agent Skills tree plus Cowork zip | ~3 min | ~$0.30 |
 
 ## Default Provider Recipe
@@ -144,10 +145,13 @@ Cost behavior:
 - Premium, deep, and non-fast complete or hybrid runs checkpoint before and between optional strategy documents after the required Deep Research task completes.
 - Required Deep Research tasks cannot be stopped mid-flight by `--budget`; scrape remains estimate-gated only.
 - MCP HTTP tools can enforce server-side cost caps and approval tokens.
-- Vendor-research generation is explicit: cached research is reused, but missing
-  or stale cache files do not trigger fresh Deep Research in estimate-bound
-  runs unless you pass `--refresh-vendor-research`. Dry-run and budget output
-  then include one separate refresh task per selected platform. Use
+- Vendor-research generation (AI news) is freshness-aware and explicit: cached
+  research is reused, but missing or stale cache files do not trigger a fresh
+  refresh in estimate-bound runs unless you pass `--refresh-vendor-research`.
+  The default refresh engine is grounded-lite (~$0.30, one Gemini plus Google
+  Search grounded call, live and cited); `--deep-research` restores the thorough
+  Deep Research engine (~$2.50/task). Dry-run and budget output then include one
+  separate refresh task per selected platform. Use
   `primr --generate-vendor-research <vendor> --dry-run` to quote deliberate
   direct cache generation. The direct command aggregates `all` targets, honors
   `--budget`, requires confirmation unless `--skip-confirm` is supplied, and
@@ -219,6 +223,10 @@ Standalone strategy recovery has its own gate:
 primr --ai-strategy-only "output/report.md" --dry-run
 ```
 
+`--ai-strategy-only` defaults to the ~$1 Pro-model lite engine (2-3 min); add
+`--deep-research` to restore the thorough Deep Research engine (~$2.50/task).
+The estimate reflects the selected engine.
+
 Without `--dry-run`, Primr emits the same estimate and asks for approval before
 it creates a private content-digest-verified report snapshot. A report changed
 during approval is rejected before strategy generation. Normal full Strategic
@@ -234,9 +242,12 @@ approval-required refusal and never prompts.
 Default output:
 
 ```text
-output/<company>/
+output/
 working/<company>/<timestamp>/
 ```
+
+Deliverables write flat into `output/` with the company name in each filename;
+there is no `output/<company>/` subfolder.
 
 Common files:
 
@@ -257,6 +268,13 @@ primr "Company" https://company.com --output-dir "C:\Clients\Company"
 ```
 
 With a custom output directory, Markdown and DOCX deliverables go there. TXT mirrors and validation diagnostics stay in the run diagnostics folder.
+
+### Rendering existing Markdown
+
+`primr render <file>.md` exposes the internal renderer for host-written or
+Primr-Zero Markdown. It writes a `.docx` (plus a `.txt` unless `--no-txt`)
+beside the source file, or into `--output-dir` when given, with no model calls
+or network access. Use `--title` and `--subtitle` to set document metadata.
 
 ## Example Run
 

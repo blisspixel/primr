@@ -4,7 +4,8 @@
 
 primr is an **LLM-API client + adaptive web scraper + MCP/A2A agent**. It does
 **not** train, fine-tune, host, or serve models - the models are third-party
-hosted APIs (Gemini, Grok, OpenAI, Anthropic, Ollama). Per primr's design
+hosted APIs (Gemini, Grok, OpenAI, Anthropic, AWS Bedrock, Azure/Microsoft
+Foundry, Ollama, and any OpenAI-compatible endpoint). Per primr's design
 philosophy, *the model is a commodity; the orchestration pipeline is the asset.*
 
 That framing scopes the threat model. Whole categories of adversarial-ML
@@ -119,8 +120,8 @@ MCP/A2A tool surfaces, and (4) provider secrets + the dependency supply chain.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.36.x  | Yes                |
-| < 1.36  | No                 |
+| 1.37.x  | Yes                |
+| < 1.37  | No                 |
 
 Requires Python 3.12+ (3.10/3.11 are past or nearing end-of-life).
 

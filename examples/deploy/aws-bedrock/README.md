@@ -51,8 +51,14 @@ region from `AWS_REGION` or `aws configure`. No base URL needed.
 primr keys test bedrock     # free, auth-only: "authenticated; N foundation models visible"
 ```
 
-Route a stage through Bedrock by setting a model override to a Bedrock id, e.g.
-`AI_REASONING_MODEL=us.amazon.nova-lite-v1:0`.
+This validates the deployment (credentials, region, and visible foundation
+models). Note that full research-pipeline routing through Bedrock is **not yet
+wired**: the model-name→provider router has no Bedrock branch, so a Bedrock
+model id set via `AI_REASONING_MODEL` (e.g. `us.amazon.nova-lite-v1:0`) is not
+recognized as a Bedrock model — it falls through to the first-party xAI path and
+the run cannot even be priced. To route utility-tier inference through a custom
+endpoint today, use the OpenAI-compatible gateway seam (`LOCAL_LLM_BASE_URL` /
+`LOCAL_LLM_API_KEY`).
 
 ## 4. Clean up
 

@@ -48,9 +48,16 @@ export AZURE_OPENAI_BASE_URL="https://$ACCT.cognitiveservices.azure.com/openai/v
 primr keys test foundry     # free, auth-only: should report "authenticated"
 ```
 
-Then set `AI_REASONING_MODEL=grok-4.3` (the deployment name) to route strategy
-through it, or call the provider directly. The Foundry provider passes the
-deployment name as the OpenAI `model` field.
+This unified AIServices account uses the `*.cognitiveservices.azure.com` host; a
+dedicated Azure OpenAI resource would use `*.openai.azure.com` instead.
+
+`primr keys test foundry` validates the deployment credentials. Note that
+setting `AI_REASONING_MODEL=grok-4.3` does **not** exercise this Foundry
+endpoint: `grok-4.3` is registered with provider `xai`, so it routes to the
+first-party xAI API (`api.x.ai`, `XAI_API_KEY`), not the Foundry account you
+just deployed. Full-pipeline Foundry routing is not yet wired. To route
+utility-tier inference through this custom endpoint today, use the
+OpenAI-compatible gateway seam (`LOCAL_LLM_BASE_URL` / `LOCAL_LLM_API_KEY`).
 
 ## 4. Clean up (avoid ongoing cost)
 
