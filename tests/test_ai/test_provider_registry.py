@@ -140,3 +140,34 @@ class TestBuildProvider:
 
         assert isinstance(first, GeminiProvider)
         assert second is first
+
+
+def test_validate_provider_credentials_captures_build_failure():
+    """A provider whose construction/probe raises is reported, not raised."""
+    from primr.ai.providers import ProviderEntry, validate_provider_credentials
+
+    entry = ProviderEntry(name="xai", api_key_env="XAI_API_KEY", description="x")
+    with patch(
+        "primr.ai.providers.registry.build_provider",
+        side_effect=RuntimeError("boom"),
+    ):
+        result = validate_provider_credentials(entry)
+    assert result.ok is False
+    assert result.provider == "xai"
+    assert "RuntimeError" in result.detail
+
+
+def test_validate_provider_credentials_delegates_to_provider():
+    from unittest.mock import MagicMock
+
+    from primr.ai.providers import CredentialCheck, ProviderEntry, validate_provider_credentials
+
+    entry = ProviderEntry(name="gemini", api_key_env="GEMINI_API_KEY", description="g")
+    provider = MagicMock()
+    provider.validate_credentials.return_value = CredentialCheck(
+        provider="gemini", ok=True, detail="ok"
+    )
+    with patch("primr.ai.providers.registry.build_provider", return_value=provider):
+        result = validate_provider_credentials(entry)
+    assert result.ok is True
+    provider.validate_credentials.assert_called_once()

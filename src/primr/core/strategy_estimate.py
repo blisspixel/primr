@@ -66,6 +66,23 @@ class StandaloneStrategyEstimate:
         }
 
 
+# Conservative token shape + grounding surcharge for one grounded lite vendor
+# AI-news brief (Pro model + one live Google Search request).
+_LITE_VENDOR_NEWS_INPUT_TOKENS = 8_000
+_LITE_VENDOR_NEWS_OUTPUT_TOKENS = 12_000
+_GROUNDING_REQUEST_COST = 0.035
+
+
+def _lite_vendor_news_cost() -> float:
+    """Conservative cost of one grounded lite vendor AI-news brief."""
+    token_cost = PrimrModels.calculate_cost_conservative(
+        PrimrModels.PRO_MODEL,
+        _LITE_VENDOR_NEWS_INPUT_TOKENS,
+        _LITE_VENDOR_NEWS_OUTPUT_TOKENS,
+    )
+    return round(token_cost + _GROUNDING_REQUEST_COST, 6)
+
+
 def estimate_standalone_strategy(
     strategy_type: str,
     *,
@@ -78,7 +95,7 @@ def estimate_standalone_strategy(
     AI strategy fan-out starts one generation call per platform. Standard AI
     and generic strategies use one Deep Research task per generated document.
     Lite AI generation uses the active Pro model, while an explicit vendor
-    refresh remains a separate Deep Research task for each non-agnostic target.
+    refresh remains a separate Deep Research task for each selected target.
     """
     normalized_type = strategy_type.strip().lower()
     if normalized_type not in SUPPORTED_STRATEGY_IDS:
@@ -98,10 +115,15 @@ def estimate_standalone_strategy(
 
     vendor_refresh_tasks = 0
     if normalized_type in AI_STRATEGY_IDS and refresh_vendor_research:
-        vendor_refresh_tasks = sum(platform != "agnostic" for platform in selected_platforms)
+        vendor_refresh_tasks = len(selected_platforms)
 
+    # The engine choice (lite vs Deep Research) applies to BOTH the strategy and
+    # the vendor AI-news refresh. Lite strategy generation uses one Pro-model
+    # call; lite vendor news uses one grounded Google Search call per vendor.
+    # Deep Research prices each as a flat Deep Research task.
     generation_dr_tasks = 0 if lite_strategy else strategy_calls
-    deep_research_tasks = generation_dr_tasks + vendor_refresh_tasks
+    vendor_refresh_dr_tasks = 0 if lite_strategy else vendor_refresh_tasks
+    deep_research_tasks = generation_dr_tasks + vendor_refresh_dr_tasks
     deep_research_cost = deep_research_tasks * DEEP_RESEARCH_COST.standard_task_cost
 
     lite_cost = 0.0
@@ -115,21 +137,26 @@ def estimate_standalone_strategy(
             LITE_AI_STRATEGY_MAX_INPUT_TOKENS * strategy_calls,
             LITE_AI_STRATEGY_MAX_OUTPUT_TOKENS * strategy_calls,
         )
+        if vendor_refresh_tasks:
+            lite_cost += _lite_vendor_news_cost() * vendor_refresh_tasks
 
     if lite_strategy:
         generation_min = LITE_AI_STRATEGY_OVERHEAD["duration_min"] * strategy_calls
         generation_max = LITE_AI_STRATEGY_OVERHEAD["duration_max"] * strategy_calls
+        refresh_min = LITE_AI_STRATEGY_OVERHEAD["duration_min"] * vendor_refresh_tasks
+        refresh_max = LITE_AI_STRATEGY_OVERHEAD["duration_max"] * vendor_refresh_tasks
     else:
         generation_min = AI_STRATEGY_OVERHEAD["duration_min"] * strategy_calls
         generation_max = AI_STRATEGY_OVERHEAD["duration_max"] * strategy_calls
+        refresh_min = AI_STRATEGY_OVERHEAD["duration_min"] * vendor_refresh_tasks
+        refresh_max = AI_STRATEGY_OVERHEAD["duration_max"] * vendor_refresh_tasks
 
-    refresh_min = AI_STRATEGY_OVERHEAD["duration_min"] * vendor_refresh_tasks
-    refresh_max = AI_STRATEGY_OVERHEAD["duration_max"] * vendor_refresh_tasks
     estimated_cost = round(deep_research_cost + lite_cost, 6)
     cost_basis = (
         "Conservative planning estimate for the exact strategy fan-out. "
-        "Deep Research tasks use the configured flat planning cost; lite calls use "
-        "the active reasoning model's highest applicable token tier; "
+        "Deep Research tasks use the configured flat planning cost; lite strategy "
+        "and lite vendor AI-news calls use the active reasoning / Pro model's "
+        "highest applicable token tier plus a grounded-search surcharge; "
         "actual token and tool usage varies."
     )
 

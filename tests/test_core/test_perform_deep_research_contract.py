@@ -61,6 +61,7 @@ def seams(monkeypatch, tmp_path):
 
     orchestrator = SimpleNamespace(research=fake_research)
     monkeypatch.setattr(research_agent, "get_orchestrator", lambda: orchestrator)
+    monkeypatch.setattr(research_agent, "collect_fenced_hiring_block", lambda **_: "")
 
     save_section = MagicMock()
     monkeypatch.setattr(research_agent, "save_section_output", save_section)
@@ -82,7 +83,15 @@ def seams(monkeypatch, tmp_path):
     )
     final_report = MagicMock(return_value=str(out_dir / "assembled.docx"))
     monkeypatch.setattr(research_agent, "generate_final_report", final_report)
-    strategy_gen = MagicMock(side_effect=lambda **k: str(out_dir / f"{k['platform']}.docx"))
+
+    def generate_strategy(**kwargs):
+        observer = kwargs.get("strategy_task_observer")
+        if observer:
+            observer("started")
+            observer("completed")
+        return str(out_dir / f"{kwargs['platform']}.docx")
+
+    strategy_gen = MagicMock(side_effect=generate_strategy)
     monkeypatch.setattr(research_agent, "_generate_strategy_section", strategy_gen)
 
     fake_client = MagicMock()
@@ -265,6 +274,24 @@ class TestStrategyLoop:
         assert seams["strategy_gen"].call_count == 2
         vendors = [c.kwargs["platform"] for c in seams["strategy_gen"].call_args_list]
         assert vendors == ["aws", "azure"]
+        state = _read_state(seams["folder"])
+        assert state["strategy_status"] == "completed"
+        assert state["strategy_completed_targets"] == ["ai:aws", "ai:azure"]
+
+    def test_partial_strategy_failure_keeps_report_and_records_nonzero_signal(self, seams):
+        seams["strategy_gen"].side_effect = [
+            str(seams["out_dir"] / "aws.docx"),
+            None,
+        ]
+
+        result = _run(seams, strategies=["ai"], platforms=("aws", "azure"))
+
+        assert result == str(seams["out_dir"] / "deep.docx")
+        state = _read_state(seams["folder"])
+        assert state["status"] == "completed"
+        assert state["strategy_status"] == "partial"
+        assert state["strategy_completed_targets"] == ["ai:aws"]
+        assert state["strategy_failed_targets"] == ["ai:azure"]
 
     def test_explicit_ai_strategies_count_deep_research_task_cost(self, seams):
         _run(seams, strategies=["ai"], platforms=("aws", "azure"))
@@ -273,6 +300,45 @@ class TestStrategyLoop:
         expected_tasks = 3  # main report + one explicit AI strategy per vendor
         assert kwargs["deep_research_cost"] == pytest.approx(
             expected_tasks * DEEP_RESEARCH_COST.standard_task_cost
+        )
+
+    def test_strategy_preflight_failure_is_not_counted_as_provider_spend(self, seams):
+        seams["strategy_gen"].side_effect = lambda **_kwargs: None
+
+        _run(seams, strategies=["ai"], platforms=("azure",))
+
+        kwargs = seams["tracker"].record_usage.call_args.kwargs
+        assert kwargs["deep_research_cost"] == pytest.approx(DEEP_RESEARCH_COST.standard_task_cost)
+
+    def test_explicit_refresh_is_prepared_once_before_strategy_generation(self, seams, monkeypatch):
+        from primr.core.deep_vendor_refresh import DeepVendorRefreshResult
+
+        refresh = MagicMock(
+            return_value=DeepVendorRefreshResult(
+                planned_count=2,
+                started_count=2,
+            )
+        )
+        monkeypatch.setattr(
+            "primr.core.deep_vendor_refresh.refresh_deep_strategy_vendors",
+            refresh,
+        )
+
+        _run(
+            seams,
+            strategies=["ai"],
+            platforms=("aws", "azure"),
+            refresh_vendor_research=True,
+        )
+
+        refresh.assert_called_once_with(
+            mode="deep-research",
+            vendors=["aws", "azure"],
+            folder_path=str(seams["folder"]),
+        )
+        assert all(
+            call.kwargs["force_refresh_vendor"] is False
+            for call in seams["strategy_gen"].call_args_list
         )
 
     def test_legacy_ai_strategy_flag_maps_to_ai(self, seams):
@@ -290,6 +356,8 @@ class TestStrategyLoop:
         assert result == str(seams["out_dir"] / "deep.docx")
         seams["strategy_gen"].assert_not_called()
         state = _read_state(seams["folder"])
+        assert state["strategy_status"] == "failed"
+        assert state["strategy_skipped_targets"] == ["ai:azure"]
         assert any(
             event.get("phase") == "strategy_generation"
             and event.get("status") == "skipped"
@@ -301,3 +369,4 @@ class TestStrategyLoop:
     def test_no_strategy_skips_loop(self, seams):
         _run(seams)
         seams["strategy_gen"].assert_not_called()
+        assert _read_state(seams["folder"])["strategy_status"] == "not_requested"

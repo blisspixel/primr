@@ -20,6 +20,7 @@ def test_strategy_deep_research_classification():
     assert strategy_uses_deep_research("ai", lite_strategy=False) is True
     assert strategy_uses_deep_research("ai", lite_strategy=True) is False
     assert strategy_uses_deep_research("customer_experience", lite_strategy=False) is True
+    assert strategy_uses_deep_research("skills", lite_strategy=False) is True
     assert strategy_uses_deep_research("unknown_placeholder", lite_strategy=False) is False
 
 
@@ -32,4 +33,5 @@ def test_deep_research_flat_cost_and_spend():
         mode="deep-research",
         pipeline_cost=1.25,
         optional_strategy_tasks_started=2,
-    ) == pytest.approx(1.25 + (3 * task_cost))
+        vendor_refresh_tasks_started=1,
+    ) == pytest.approx(1.25 + (4 * task_cost))

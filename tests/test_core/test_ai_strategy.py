@@ -296,7 +296,7 @@ class TestBuildAIStrategyPrompt:
             "Business Strategy and AI Strategic Thesis",
             "Industry Direction and Art of the Possible",
             "Evidence Basis and Likely Current State",
-            "Business Value Portfolio",
+            "Complete Opportunity Inventory",
             "Quick Wins and Bigger Bets",
             "Explicit Choices",
             "Board Decision Summary",

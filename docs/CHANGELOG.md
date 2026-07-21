@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.37.0] - 2026-07-21
+
+### Changed
+
+- **`--ai-strategy-only` now defaults to the ~$1 lite engine.** Standalone AI
+  strategy generation uses the Pro reasoning model by default (typically under
+  $1, 2-3 min) instead of Deep Research. Opt into the thorough Deep Research
+  engine with the new `--deep-research` flag (~$2.50/task). `--dry-run` reflects
+  the selected engine.
+- **`--refresh-vendor-research` is now freshness-aware.** It reuses vendor
+  research (AI news) that is newer than the freshness window and regenerates
+  only stale or missing docs, instead of forcing a paid Deep Research task on
+  every run. The shared per-user cache is unchanged.
+- **AI news (vendor research) now defaults to a grounded lite engine (~$0.30),
+  not Deep Research (~$2.50).** A single Gemini + Google Search grounded call
+  produces a current, cited vendor brief for a fraction of the cost; the
+  heavyweight Deep Research engine is opt-in via `--deep-research`. A default
+  `--refresh-vendor-research` on one platform is now ~$0.50 total instead of
+  ~$2.71. `GeminiProvider.search_and_summarize` adds the live-search capability;
+  the dry-run estimate prices lite refresh as a metered model call.
+
+### Added
+
+- **Two new inference providers: Microsoft Foundry and Amazon Bedrock.** Both are
+  full providers (chat, usage accounting, retry/backoff, credential validation)
+  registered in the provider registry so `primr keys test`, `doctor`, and routing
+  see them. **Foundry** reuses the core `openai` SDK against Azure's
+  OpenAI-compatible `/openai/v1/` endpoint (`AZURE_OPENAI_API_KEY` +
+  `AZURE_OPENAI_BASE_URL`/`AZURE_OPENAI_ENDPOINT`) — no extra dependency, and
+  unlocks ultra-cheap Phi-4 reasoning plus GPT/Llama/DeepSeek on Azure.
+  **Bedrock** uses the boto3 `bedrock-runtime` `converse` API (provider-agnostic
+  across Claude/Nova/Llama/Gemma/DeepSeek), authenticating via the standard AWS
+  credential chain or a Bedrock API key (`AWS_BEARER_TOKEN_BEDROCK`); install
+  with `pip install 'primr[bedrock]'`. `primr keys set foundry|bedrock` and
+  `keys test` recognize both. The Bedrock provider resolves its region from
+  `AWS_REGION` **or** an `aws configure`/profile default, so it works with a
+  standard AWS setup. Verified end-to-end deployment-to-teardown IaC lives in
+  `examples/deploy/` (Azure Foundry Bicep deploying Grok; AWS Bedrock
+  CloudFormation for a least-privilege invoke policy + guardrail).
+- **`primr keys test` — live, auth-only key validation.** Validates that each
+  configured provider key actually authenticates via a free `models.list` call
+  (no model generation, no token spend), reporting per-provider OK/FAIL with
+  latency. `primr keys test <provider>` checks one. Complements `primr doctor`,
+  which deliberately never makes a live model call. Backed by a new
+  `Provider.validate_credentials()` seam implemented for Gemini, the
+  OpenAI-compatible providers (OpenAI/xAI/Ollama), and Anthropic.
+- **`.env.example` / `.env` cover every recognized key**, including the
+  OpenAI-compatible endpoint seam (`LOCAL_LLM_BASE_URL` / `LOCAL_LLM_API_KEY`)
+  for local servers or an Azure Foundry / Bedrock gateway, plus current
+  model-override guidance.
+- **Full observed-stack grounding for the AI strategy.** Recon context now leads
+  with an "Observed Vendor Stack the Strategy Must Address" rollup naming the
+  detected identity, cloud, AI-provider, and key SaaS ecosystems, so the strategy
+  addresses the whole stack (for example Microsoft 365 + Okta + AWS/Azure +
+  Anthropic/Claude) rather than only the email or primary cloud provider. AI
+  detection now covers agent frameworks and LLM tooling (n8n, Dify, AutoGen,
+  CrewAI, LangSmith, MCP endpoints) in addition to model providers, identity
+  providers are surfaced even without an auth type, and the standalone strategy
+  path attaches a co-located `_recon_context.txt` when present.
+- **AI Strategy prompt v2.2.0** preserves a complete opportunity inventory
+  separate from the prioritized portfolio, adds a portfolio hierarchy and
+  transparent prioritization, translates recent AI developments into
+  company-specific ideas with explicit pattern-maturity labels, and strengthens
+  the no-fabrication evidence rules (unknown baselines, ownership, and value are
+  named rather than invented).
+
 ### Fixed
 
 - **`primr --analyze-report` no longer misgrades a Strategic Overview as an AI
@@ -18,6 +84,122 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `report-contract.md` now documents the exact citation format the QA gate
   expects (inline `[cite: N]` markers + a `## Sources` appendix) with a worked
   example, so a contract-compliant report also passes the gate.
+- Approved execution preflight now validates Gemini access through model
+  metadata instead of generating a throwaway response. Cost estimates and
+  approval boundaries therefore cover every model-generation call.
+- Successful scrape-only runs now persist explicit `not_requested` strategy
+  and vendor-refresh outcomes. Batch research reads the same canonical outcome
+  state as single-company execution, preserves a completed base report on
+  partial fulfillment, and returns nonzero when requested work is incomplete
+  or cannot be verified.
+- Batch resume now skips an existing base report only when its stable hash is
+  bound to a canonically completed run whose mode, URL, strategy targets, and
+  refresh targets exactly match the new request. Partial, changed, and
+  outcome-free artifacts require a fresh estimate instead of silently becoming
+  successful on the next invocation.
+- The active `skills` strategy now reaches its existing generic generator from
+  integrated runs and is included in Deep Research budget accounting. Its
+  per-role skill artifacts remain part of the generated deliverable.
+- Scraper tier-escalation tests now isolate URL-safety approval from DNS, so a
+  local resolver outage cannot turn a deterministic unit test into a CI
+  failure while dedicated SSRF tests continue to cover the security boundary.
+- Generated Primr Zero host workflows now point to the bundled skill and its
+  full report contract, and distinguish `$0` Primr model spend from host billing
+  or plan limits that Primr cannot verify.
+- Standalone `--ai-strategy-only --json` now separates zero-call estimates,
+  approval-required refusals, and execution results into versioned one-object
+  contracts. Successful and partial results name every expected target and
+  preserve successful artifact paths; provider exceptions stay body-safe and
+  return nonzero without contaminating machine stdout.
+- Local job monitoring now accepts fulfillment state only when the run
+  lifecycle and both persisted outcome partitions are canonical. Missing,
+  unknown, or internally inconsistent state reports `unknown` instead of a
+  false completed result.
+- Fast multi-platform refresh budget checks now include every earlier refresh
+  that reached provider submission. A later target cannot pass its incremental
+  budget gate using the stale end-of-loop task count.
+- Vendor research usage now records a conservative submitted-task row when the
+  provider call or polling path raises. Preflight failures remain unrecorded,
+  and publication failures remain single-counted.
+- Integrated research now distinguishes successful base-report publication
+  from strategy and explicit vendor-refresh fulfillment. Run state and JSON
+  list expected, completed, failed, and budget-skipped targets; partial results
+  preserve successful artifact paths but return a nonzero CLI status. The
+  standalone multi-platform strategy command likewise requires every requested
+  target to succeed.
+- Research JSON now handles binary DOCX primary artifacts without attempting a
+  text decode. It preserves base-artifact `status` and adds an aggregate
+  `fulfillment_status`; missing or inconsistent outcome state fails closed as
+  `unknown` with a nonzero exit instead of being accepted as success.
+- Human completion output and local job monitoring now show partial strategy or
+  refresh targets, unresolved work, and the exact run-state path. Completed base
+  reports remain available with focused dry-run guidance for retrying only the
+  unresolved work.
+- AI Strategy Deep Research accounting now uses run-local submission callbacks
+  across standard and deep routes. Concurrent runs cannot claim one another's
+  tasks, preflight failures are not priced as submitted work, and optional
+  standard-strategy setup failures preserve the base report while persisting a
+  failed strategy outcome.
+- Vendor-refresh accounting now uses run-local provider callbacks rather than
+  process-global counter deltas. Concurrent jobs cannot claim each other's
+  refresh tasks, budget checks use only the current run's submitted work, and a
+  cached fallback no longer hides a failed explicit refresh.
+- Standard-mode actual-cost and usage summaries now include its AI Strategy
+  Deep Research task and every explicit refresh task that reached submission.
+  Refresh tasks remain excluded from the main usage row because their own
+  durable usage records already carry that cost.
+- Local preflight checks now run before the cost gate, while network
+  connectivity checks wait until after budget acceptance. A run refused by
+  `--budget` performs no provider connectivity request, and active budget state
+  is cleared even when activation or network preflight raises.
+- Machine-readable research and direct vendor commands now keep stdout to one
+  JSON object on configuration, preflight, provider-failure, partial-result,
+  and success paths. Provider progress and optional cache failures cannot
+  contaminate the JSON channel.
+- Lite, standard, and asynchronous AI Strategy paths now consume vendor and
+  cross-industry context through one bounded private-snapshot seam. Symbolic
+  links, hard links, oversized inputs, and files that mutate during validation
+  are rejected before provider egress, and snapshots are removed after success
+  or failure.
+- Deep-research contract tests no longer perform an accidental live hiring-data
+  lookup, reducing the 20-test group from timeout-scale latency to a few
+  seconds and keeping local validation network-independent.
+- Fast AI Strategy generation now includes the same existing cached
+  cross-industry research used by standard and standalone strategy paths,
+  including for vendor-neutral runs. The cache is never generated or refreshed
+  by this lookup, reads stay bounded, linked or unstable files are rejected,
+  and cache failures remain visible without exposing local paths or blocking
+  strategy generation.
+- `--refresh-vendor-research` now reaches both fast and standard AI Strategy
+  execution, including vendor-neutral strategy runs. Dry-run, interactive, and
+  budget estimates conservatively quote each requested refresh as a separate
+  Deep Research task before execution.
+- Estimate-bound CLI and MCP strategy paths now reuse cached vendor research
+  without honoring ambient automatic-refresh configuration. Optional cache
+  lookup and read failures remain body-safe and no longer block fast strategy
+  generation; an unsuccessful vendor-neutral refresh falls back to the existing
+  cached cross-industry context when available.
+- Vendor-research publication now uses symlink-safe atomic replacement and an
+  atomic writability probe. Provider-task usage is recorded before local cache
+  publication, publication failures expose only their stable failure type, and
+  a failed refresh reuses an existing cache with an explicit warning.
+- Multi-platform fast refreshes now resolve serially before parallel strategy
+  writing, preventing shared provider-client and usage-tracker races. Fast
+  refresh preflight requires both the fast-runtime key and the Deep Research
+  key before the base pipeline starts.
+- Dry-run now auto-selects the fast cost shape only when execution would select
+  it. Non-XAI provider configuration keeps its routed standard estimate instead
+  of receiving a fast estimate that execution cannot follow.
+- The legacy non-fast `structured` runtime now rejects custom strategy types or
+  multiple explicit platforms before preflight instead of silently producing a
+  different or incomplete strategy set. Its estimates use the single platform
+  that runtime supports.
+- Direct `--generate-vendor-research` runs now quote an aggregate estimate,
+  support zero-call dry-run and budget enforcement, require confirmation unless
+  `--skip-confirm` explicitly approves noninteractive execution, and provide
+  one-object JSON estimates and results. Partial or total generation failure
+  returns nonzero without hiding successful artifact paths, and `all` includes
+  the private accelerated-infrastructure target.
 
 ## [1.36.1] - 2026-07-18
 

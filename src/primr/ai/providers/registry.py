@@ -13,6 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from primr.ai.providers.base import CredentialCheck
 from primr.ai.providers.gemini import GeminiProvider
 from primr.ai.providers.openai_compatible import OpenAICompatibleProvider
 from primr.ai.providers.xai import XAIProvider
@@ -33,6 +34,10 @@ class ProviderEntry:
     base_url: str | None = None
     roles: tuple[str, ...] = ()
     api_key_default: str | None = None
+    # Alternative env vars that also make the provider configured (e.g. Bedrock
+    # can authenticate via AWS_ACCESS_KEY_ID / AWS_PROFILE instead of a Bedrock
+    # API key). Any one being set marks the provider available for listing.
+    env_alternatives: tuple[str, ...] = ()
 
 
 # Static registry of providers primr knows about. Adding a new provider is
@@ -70,6 +75,19 @@ KNOWN_PROVIDERS: tuple[ProviderEntry, ...] = (
         description="Ollama local inference (utility, zero cost)",
         roles=("utility",),
     ),
+    ProviderEntry(
+        name="foundry",
+        api_key_env="AZURE_OPENAI_API_KEY",
+        description="Microsoft Foundry / Azure OpenAI (OpenAI-compatible: Phi, GPT, Llama, DeepSeek)",
+        roles=("utility", "reasoning", "writing", "pro"),
+    ),
+    ProviderEntry(
+        name="bedrock",
+        api_key_env="AWS_BEARER_TOKEN_BEDROCK",
+        env_alternatives=("AWS_ACCESS_KEY_ID", "AWS_PROFILE", "AWS_ROLE_ARN"),
+        description="Amazon Bedrock via converse (Claude, Nova, Llama, Gemma, DeepSeek)",
+        roles=("utility", "reasoning", "writing", "pro", "premium_research"),
+    ),
 )
 _PROVIDER_INSTANCES: dict[str, Provider] = {}
 
@@ -87,7 +105,12 @@ def get_available_providers() -> list[ProviderEntry]:
     """
     import os
 
-    return [p for p in KNOWN_PROVIDERS if os.getenv(p.api_key_env) or p.api_key_default is not None]
+    def _configured(p: ProviderEntry) -> bool:
+        if p.api_key_default is not None or os.getenv(p.api_key_env):
+            return True
+        return any(os.getenv(alt) for alt in p.env_alternatives)
+
+    return [p for p in KNOWN_PROVIDERS if _configured(p)]
 
 
 def build_provider(entry: ProviderEntry) -> Provider:
@@ -114,7 +137,32 @@ def build_provider(entry: ProviderEntry) -> Provider:
             api_key_env="OLLAMA_API_KEY",
             api_key_default="ollama",
         )
+    if entry.name == "foundry":
+        from primr.ai.providers.azure_foundry import AzureFoundryProvider
+
+        return AzureFoundryProvider()
+    if entry.name == "bedrock":
+        from primr.ai.providers.bedrock import BedrockProvider
+
+        return BedrockProvider()
     raise ValueError(f"No provider factory for entry {entry.name!r}")
+
+
+def validate_provider_credentials(entry: ProviderEntry) -> CredentialCheck:
+    """Live, auth-only validation for one provider.
+
+    Builds the provider and runs its ``validate_credentials`` probe (a free
+    ``models.list``-style call — no model generation, no token spend). Every
+    failure class is captured and returned as a result rather than raised, so a
+    caller can report on all providers uniformly.
+    """
+    try:
+        provider = build_provider(entry)
+    except Exception as exc:
+        return CredentialCheck(
+            provider=entry.name, ok=False, detail=f"{type(exc).__name__}: {str(exc)[:120]}"
+        )
+    return provider.validate_credentials()
 
 
 def get_registered_provider_for_model(model_name: str) -> Provider:

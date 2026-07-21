@@ -19,6 +19,7 @@ from primr.core.cli import (
     MODE_MAP,
     CLIConfig,
     Command,
+    _create_parser,
     _ensure_project_env_file,
     _handle_research,
     _resolve_local_judge_models,
@@ -489,6 +490,18 @@ class TestParseArgs:
         config = parse_args(["--generate-vendor-research", "azure"])
         assert config.command == Command.GENERATE_VENDOR
         assert config.generate_vendor == "azure"
+        assert config.skip_confirm is False
+
+    def test_parse_generate_vendor_skip_confirm_is_explicit_approval(self):
+        config = parse_args(["--generate-vendor-research", "azure", "--skip-confirm"])
+        assert config.skip_confirm is True
+
+    def test_generate_vendor_help_explains_cost_gate_and_supported_targets(self):
+        parser = _create_parser()
+        action = next(item for item in parser._actions if item.dest == "generate_vendor_research")
+        assert "aggregate estimate" in (action.help or "")
+        assert "--dry-run" in (action.help or "")
+        assert "private" in action.choices
 
     def test_parse_quiet_flag(self):
         """Test parsing quiet flag."""
@@ -543,13 +556,30 @@ class TestParseArgs:
         assert config.cloud_vendors == ("aws",)
         assert config.cloud_vendor == "aws"
 
-    def test_handle_research_passes_output_dir_and_auto_platform_none(self):
+    def test_handle_research_passes_output_dir_and_auto_platform_none(self, tmp_path):
         """Research handler should pass custom output dir and preserve recon auto-detect."""
         config = parse_args(["Acme Corp", "https://acme.example", "--output-dir", "client-output"])
+
+        def successful_run(*_args, **kwargs):
+            from primr.core.strategy_outcome import StrategyOutcomeTracker, persist_strategy_outcome
+            from primr.core.vendor_refresh_outcome import (
+                VendorRefreshTracker,
+                persist_vendor_refresh_outcome,
+            )
+
+            kwargs["run_context"]["working_folder"] = str(tmp_path)
+            persist_strategy_outcome(str(tmp_path), StrategyOutcomeTracker(()).snapshot())
+            persist_vendor_refresh_outcome(str(tmp_path), VendorRefreshTracker(()).snapshot())
+            return "report.docx"
+
         with (
             patch("primr.core.cli._run_preflight_checks", return_value=(True, [])),
             patch(
-                "primr.core.research_agent.perform_research", return_value="report.docx"
+                "primr.core.cli._run_network_preflight_checks",
+                return_value=(True, []),
+            ),
+            patch(
+                "primr.core.research_agent.perform_research", side_effect=successful_run
             ) as mock_research,
             patch.dict(os.environ, {}, clear=True),
         ):

@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from primr.core.cli import _run_preflight_checks
+from primr.core.cli_preflight import _run_network_preflight_checks
 
 
 def _mock_playwright_ready():
@@ -55,6 +56,50 @@ class TestPreflightApiKey:
         assert ok is False
         assert any("GEMINI_API_KEY" in e for e in errors)
 
+    def test_fast_vendor_refresh_requires_both_provider_keys(self, monkeypatch):
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.setenv("XAI_API_KEY", "not-a-real-xai-test-key")
+        with patch("playwright.sync_api.sync_playwright", return_value=_mock_playwright_ready()):
+            ok, errors = _run_preflight_checks(
+                "complete",
+                fast_mode=True,
+                refresh_vendor_research=True,
+                allow_network=False,
+            )
+
+        assert ok is False
+        assert any("GEMINI_API_KEY" in error for error in errors)
+        assert not any("XAI_API_KEY" in error for error in errors)
+
+    def test_fast_vendor_refresh_still_requires_xai(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "not-a-real-gemini-test-key")
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        with patch("playwright.sync_api.sync_playwright", return_value=_mock_playwright_ready()):
+            ok, errors = _run_preflight_checks(
+                "complete",
+                fast_mode=True,
+                refresh_vendor_research=True,
+                allow_network=False,
+            )
+
+        assert ok is False
+        assert any("XAI_API_KEY" in error for error in errors)
+
+    def test_fast_mode_detects_missing_optional_client_locally(self, monkeypatch):
+        monkeypatch.setenv("XAI_API_KEY", "not-a-real-xai-test-key")
+        with (
+            patch("playwright.sync_api.sync_playwright", return_value=_mock_playwright_ready()),
+            patch.dict("sys.modules", {"openai": None}),
+        ):
+            ok, errors = _run_preflight_checks(
+                "complete",
+                fast_mode=True,
+                allow_network=False,
+            )
+
+        assert ok is False
+        assert any("openai" in error for error in errors)
+
 
 class TestPreflightPlaywrightSkip:
     def test_deep_research_mode_skips_playwright_check(self, monkeypatch):
@@ -85,6 +130,23 @@ class TestPreflightPlaywrightFailure:
 
 
 class TestPreflightApiConnectivity:
+    def test_connectivity_uses_model_metadata_without_generation(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "AI" + "x" * 30)
+        monkeypatch.setenv("SEARCH_PROVIDER", "auto")
+        fake = MagicMock()
+        fake.Client.return_value.models.get.return_value = MagicMock()
+
+        with (
+            patch.dict("sys.modules", {"google": MagicMock(genai=fake)}),
+            patch("google.genai", fake, create=True),
+        ):
+            ok, errors = _run_preflight_checks("deep-research")
+
+        assert ok is True
+        assert errors == []
+        fake.Client.return_value.models.get.assert_called_once()
+        fake.Client.return_value.models.generate_content.assert_not_called()
+
     def test_local_only_preflight_skips_provider_and_search_calls(self, monkeypatch):
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.setenv("XAI_API_KEY", "not-a-real-xai-test-key")
@@ -100,12 +162,28 @@ class TestPreflightApiConnectivity:
         gemini.assert_not_called()
         search.assert_not_called()
 
+    def test_network_preflight_does_not_repeat_local_dependency_checks(self, monkeypatch):
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.setenv("XAI_API_KEY", "not-a-real-xai-test-key")
+        with (
+            patch("primr.core.cli_preflight._check_gemini_connectivity") as gemini,
+            patch("primr.core.cli_preflight._check_google_search") as search,
+            patch("primr.core.cli_preflight._check_playwright") as playwright,
+            patch("primr.core.cli_preflight._check_fast_dependency") as dependency,
+        ):
+            ok, errors = _run_network_preflight_checks("complete", fast_mode=True)
+
+        assert ok is True
+        assert errors == []
+        gemini.assert_called_once()
+        search.assert_called_once()
+        playwright.assert_not_called()
+        dependency.assert_not_called()
+
     def test_quota_error_returns_specific_message(self, monkeypatch):
         monkeypatch.setenv("GEMINI_API_KEY", "AI" + "x" * 30)
         fake = MagicMock()
-        fake.Client.return_value.models.generate_content.side_effect = RuntimeError(
-            "429 quota exceeded"
-        )
+        fake.Client.return_value.models.get.side_effect = RuntimeError("429 quota exceeded")
         # Skip playwright check by using deep-research mode
         with (
             patch.dict("sys.modules", {"google": MagicMock(genai=fake)}),
@@ -117,9 +195,7 @@ class TestPreflightApiConnectivity:
     def test_invalid_key_returns_specific_message(self, monkeypatch):
         monkeypatch.setenv("GEMINI_API_KEY", "AI" + "x" * 30)
         fake = MagicMock()
-        fake.Client.return_value.models.generate_content.side_effect = RuntimeError(
-            "invalid api key"
-        )
+        fake.Client.return_value.models.get.side_effect = RuntimeError("invalid api key")
         with (
             patch.dict("sys.modules", {"google": MagicMock(genai=fake)}),
             patch("google.genai", fake, create=True),
@@ -137,7 +213,7 @@ class TestPreflightSearchProvider:
 
         # Stub API connectivity to skip
         fake = MagicMock()
-        fake.Client.return_value.models.generate_content.return_value = MagicMock()
+        fake.Client.return_value.models.get.return_value = MagicMock()
         with (
             patch.dict("sys.modules", {"google": MagicMock(genai=fake)}),
             patch("google.genai", fake, create=True),
@@ -150,7 +226,7 @@ class TestPreflightSearchProvider:
 def test_deep_research_doesnt_need_playwright(monkeypatch, mode):
     monkeypatch.setenv("GEMINI_API_KEY", "AI" + "x" * 30)
     fake = MagicMock()
-    fake.Client.return_value.models.generate_content.return_value = MagicMock()
+    fake.Client.return_value.models.get.return_value = MagicMock()
     with (
         patch.dict("sys.modules", {"google": MagicMock(genai=fake)}),
         patch("google.genai", fake, create=True),

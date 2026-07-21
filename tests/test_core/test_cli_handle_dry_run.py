@@ -132,6 +132,27 @@ class TestDryRunFlags:
         result = run_dry_run(_config(fast_mode=True, mode="complete"))
         assert result == 0
 
+    def test_nonfast_structured_custom_strategy_fails_before_estimate(
+        self, mocks, monkeypatch, capsys
+    ):
+        import json
+
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+
+        assert (
+            run_dry_run(
+                _config(
+                    mode="structured",
+                    strategy_type="customer_experience",
+                    json_output=True,
+                )
+            )
+            == 1
+        )
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["error_type"] == "unsupported_strategy_runtime"
+
     def test_auto_fast_mode_when_xai_key_set(self, mocks, monkeypatch):
         # Without --fast or --premium, complete mode auto-promotes to fast when XAI key is set.
         monkeypatch.setenv("XAI_API_KEY", "x" * 30)
@@ -161,6 +182,23 @@ class TestDryRunFlags:
         assert result == 0
         payload = json.loads(capsys.readouterr().out)
         assert payload["mode_label"] == expected_label
+
+    @pytest.mark.parametrize("env_name", ["GEMINI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"])
+    def test_non_xai_provider_does_not_select_fast_cost_shape(self, mocks, monkeypatch, env_name):
+        estimate_cost = MagicMock(return_value=mocks)
+        monkeypatch.setattr("primr.utils.cost_estimator.estimate_cost", estimate_cost)
+        for key in (
+            "XAI_API_KEY",
+            "GEMINI_API_KEY",
+            "OPENAI_API_KEY",
+            "ANTHROPIC_API_KEY",
+        ):
+            monkeypatch.delenv(key, raising=False)
+        monkeypatch.setenv(env_name, "provider-key-" + "x" * 20)
+
+        assert run_dry_run(_config(mode="complete")) == 0
+
+        assert estimate_cost.call_args.kwargs["fast_mode"] is False
 
     def test_skip_recon_branch_taken(self, mocks):
         result = run_dry_run(_config(mode="scrape", skip_recon=True))

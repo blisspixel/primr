@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import csv
 import glob
+import json
 import logging
 import os
+import stat
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
@@ -26,6 +28,7 @@ _BATCH_SCHEMA_VERSION = "primr.batch-plan.v1"
 _ENRICH_SCHEMA_VERSION = "primr.batch-enrich-plan.v1"
 _MAX_CONSECUTIVE_FAILURES = 3
 _MIN_REPORT_SIZE_KB = 5
+_MAX_RUN_STATE_BYTES = 1024 * 1024
 
 
 def _required_number(values: Mapping[str, object], key: str) -> float:
@@ -121,10 +124,18 @@ def _extract_companies(
     return (tuple(companies), tuple(invalid_rows))
 
 
-def _find_existing_report(company: str, output_root: Path) -> ExistingBatchReport | None:
-    """Find today's durable report without interpreting company glob characters."""
+def _find_existing_report(
+    company: BatchCompany,
+    output_root: Path,
+    *,
+    expected_mode: str,
+    expected_strategy_targets: tuple[str, ...],
+    expected_refresh_vendors: tuple[str, ...],
+) -> ExistingBatchReport | None:
+    """Find today's report only when its owning run fulfilled this exact request."""
+
     today = datetime.now().strftime("%m-%d-%Y")
-    candidates = {company, company.replace(" ", "_").replace("/", "_")}
+    candidates = {company.name, company.name.replace(" ", "_").replace("/", "_")}
     matches: list[str] = []
     for name in candidates:
         pattern = str(output_root / f"{glob.escape(name)}*Overview*{today}*")
@@ -135,10 +146,110 @@ def _find_existing_report(company: str, output_root: Path) -> ExistingBatchRepor
         dict.fromkeys(matches),
         key=lambda path: ({".docx": 0, ".md": 1, ".txt": 2}.get(Path(path).suffix, 3), path),
     )
-    selected = ordered[0]
-    size_kb = os.path.getsize(selected) / 1024 if os.path.exists(selected) else 0.0
-    placeholder = BatchCompany(company, None, "", {})
-    return ExistingBatchReport(placeholder, selected, size_kb)
+    for selected in ordered:
+        if not _has_matching_completed_run(
+            company,
+            selected,
+            expected_mode=expected_mode,
+            expected_strategy_targets=expected_strategy_targets,
+            expected_refresh_vendors=expected_refresh_vendors,
+        ):
+            continue
+        size_kb = os.path.getsize(selected) / 1024 if os.path.exists(selected) else 0.0
+        return ExistingBatchReport(company, selected, size_kb)
+    return None
+
+
+def _has_matching_completed_run(
+    company: BatchCompany,
+    report_path: str,
+    *,
+    expected_mode: str,
+    expected_strategy_targets: tuple[str, ...],
+    expected_refresh_vendors: tuple[str, ...],
+) -> bool:
+    """Verify exact request fulfillment from bounded canonical run state."""
+
+    from primr.config.config import WORKING_DIR
+    from primr.core.research_artifact_binding import primary_artifact_matches_state
+    from primr.core.strategy_outcome import strategy_outcome_from_state
+    from primr.core.vendor_refresh_outcome import vendor_refresh_outcome_from_state
+    from primr.core.workspace import derive_working_folder_name
+
+    company_root = Path(WORKING_DIR) / derive_working_folder_name(company.name, company.website)
+    if not company_root.is_dir() or company_root.is_symlink():
+        return False
+    for state_path in company_root.glob("*/_run_state.json"):
+        state = _read_bounded_run_state(state_path)
+        if state is None:
+            continue
+        strategy = strategy_outcome_from_state(state)
+        refresh = vendor_refresh_outcome_from_state(state)
+        recorded_website = str(state.get("website", "")).rstrip("/")
+        expected_website = str(company.website or "").rstrip("/")
+        if (
+            str(state.get("status", "")).lower() != "completed"
+            or str(state.get("company_name", "")).casefold() != company.name.casefold()
+            or recorded_website != expected_website
+            or state.get("mode") != expected_mode
+            or strategy is None
+            or refresh is None
+            or strategy.expected_targets != expected_strategy_targets
+            or refresh.expected_vendors != expected_refresh_vendors
+            or strategy.requires_nonzero_exit
+            or refresh.requires_nonzero_exit
+            or not primary_artifact_matches_state(state, report_path)
+        ):
+            continue
+        return True
+    return False
+
+
+def _read_bounded_run_state(path: Path) -> dict[str, object] | None:
+    """Read one small, singly linked regular run-state file."""
+
+    from primr.utils.fs_safety import (
+        path_contains_link_or_reparse_point,
+        path_is_linked_or_nonregular_file,
+    )
+
+    if path_contains_link_or_reparse_point(path) or path_is_linked_or_nonregular_file(path):
+        return None
+    descriptor: int | None = None
+    try:
+        flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(path, flags)
+        before = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_nlink != 1
+            or before.st_size <= 0
+            or before.st_size > _MAX_RUN_STATE_BYTES
+        ):
+            return None
+        chunks: list[bytes] = []
+        remaining = _MAX_RUN_STATE_BYTES + 1
+        while remaining > 0:
+            chunk = os.read(descriptor, min(64 * 1024, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        after = os.fstat(descriptor)
+        if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mtime_ns,
+        ) or sum(len(chunk) for chunk in chunks) != after.st_size:
+            return None
+        payload = json.loads(b"".join(chunks).decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+    return payload if isinstance(payload, dict) else None
 
 
 def build_batch_plan(
@@ -148,6 +259,9 @@ def build_batch_plan(
     limit: int | None,
     output_dir: str | Path | None,
     quiet: bool,
+    expected_mode: str,
+    expected_strategy_targets: tuple[str, ...],
+    expected_refresh_vendors: tuple[str, ...],
 ) -> BatchPlan:
     """Build a deterministic plan from one file snapshot."""
     df, col_map = _prepare_batch_df(
@@ -162,7 +276,13 @@ def build_batch_plan(
     missing: list[BatchCompany] = []
     existing: list[ExistingBatchReport] = []
     for company in companies:
-        found = _find_existing_report(company.name, output_root)
+        found = _find_existing_report(
+            company,
+            output_root,
+            expected_mode=expected_mode,
+            expected_strategy_targets=expected_strategy_targets,
+            expected_refresh_vendors=expected_refresh_vendors,
+        )
         if found is not None:
             existing.append(
                 ExistingBatchReport(company=company, path=found.path, size_kb=found.size_kb)
@@ -402,6 +522,33 @@ def _authorize_batch_execution(
     return None
 
 
+def _batch_artifact_status(
+    result_path: str,
+    working_folder: str | None,
+    size_kb: float,
+) -> tuple[str, str | None, str | None]:
+    """Return truthful batch status, diagnostic text, and run-state path."""
+
+    from primr.core.cli_research_result import assess_research_fulfillment
+
+    assessment = assess_research_fulfillment(result_path, working_folder)
+    if assessment.status == "unknown":
+        return (
+            "partial",
+            "outcome state unavailable; inspect logs before retrying",
+            assessment.run_state_path,
+        )
+    if assessment.status != "completed":
+        return (
+            "partial",
+            "requested strategy or vendor refresh work is incomplete",
+            assessment.run_state_path,
+        )
+    if size_kb < _MIN_REPORT_SIZE_KB:
+        return "warning", "small report", assessment.run_state_path
+    return "ok", None, assessment.run_state_path
+
+
 def process_batch(
     file_path: str,
     mode: str = "complete",
@@ -446,12 +593,23 @@ def process_batch(
         return 1
 
     try:
+        from primr.core.platform_mapper import DEFAULT_PLATFORM_FALLBACK
+        from primr.core.strategy_outcome import expected_strategy_targets as expand_targets
+
+        requested_strategies = list(strategies) if strategies else (["ai"] if ai_strategy else [])
+        requested_platforms = platforms or DEFAULT_PLATFORM_FALLBACK
         plan = build_batch_plan(
             file_path,
             industry=industry,
             limit=limit,
             output_dir=output_dir,
             quiet=json_output,
+            expected_mode=mode,
+            expected_strategy_targets=expand_targets(
+                requested_strategies,
+                tuple(requested_platforms),
+            ),
+            expected_refresh_vendors=(),
         )
     except (Exception, SystemExit) as exc:
         message = "Could not read or classify the batch file"
@@ -538,6 +696,7 @@ def process_batch(
         try:
             if per_company_budget is not None:
                 set_run_budget(per_company_budget)
+            run_context: dict[str, str] = {}
             result_path = research_runner(
                 company.name,
                 company.website,
@@ -560,12 +719,22 @@ def process_batch(
                 grok_tier=grok_tier,
                 skip_recon=skip_recon,
                 continuous_reasoning=continuous_reasoning,
+                run_context=run_context,
             )
             if not result_path:
                 raise RuntimeError("research returned no output artifact")
+            from primr.core.research_artifact_binding import bind_primary_artifact
+
+            binding_available = bind_primary_artifact(
+                run_context.get("working_folder"),
+                result_path,
+            )
             size_kb = os.path.getsize(result_path) / 1024 if os.path.exists(result_path) else 0.0
-            status = "warning" if size_kb < _MIN_REPORT_SIZE_KB else "ok"
-            error = "small report" if status == "warning" else None
+            status, error, run_state_path = _batch_artifact_status(
+                result_path,
+                run_context.get("working_folder"),
+                size_kb,
+            )
             results.append(
                 {
                     "company": company.name,
@@ -576,7 +745,17 @@ def process_batch(
                 }
             )
             consecutive_failures = 0
-            if status == "warning":
+            if status == "partial":
+                console.warn(
+                    "Base report preserved, but requested work is incomplete. "
+                    f"Run state: {run_state_path or 'unavailable'}"
+                )
+            elif not binding_available and Path(result_path).is_file():
+                console.warn(
+                    "Resume verification could not bind this report to its run state. "
+                    "A later batch run will require a fresh estimate."
+                )
+            elif status == "warning":
                 console.warn(f"Report is only {size_kb:.1f}KB and may be incomplete")
             else:
                 console.ok(f"Done: {size_kb:.0f}KB")
@@ -649,9 +828,13 @@ def _render_batch_summary(results: list[dict[str, object]]) -> int:
             f"{result['status']!s:<13} {size_label:>8}  {result['error'] or ''}"
         )
     failed = sum(result["status"] in {"failed", "not_attempted"} for result in results)
+    partial = sum(result["status"] == "partial" for result in results)
     usable = sum(result["status"] in {"ok", "warning"} for result in results)
-    if failed:
-        console.error(f"Batch finished with {usable} usable and {failed} failed or not attempted.")
+    if failed or partial:
+        console.error(
+            f"Batch finished with {usable} complete, {partial} partial, "
+            f"and {failed} failed or not attempted."
+        )
         console.info("Re-run the same command to resume completed work safely.")
         return 1
     console.success_box(f"All {usable} reports are usable", "Batch complete")

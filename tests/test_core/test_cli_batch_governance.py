@@ -185,8 +185,19 @@ def test_batch_forwards_flags_and_clears_per_company_budget(monkeypatch, tmp_pat
     observed_budget: list[float | None] = []
 
     def _research(*args, **kwargs):
+        from primr.core.strategy_outcome import StrategyOutcomeTracker, persist_strategy_outcome
+        from primr.core.vendor_refresh_outcome import (
+            VendorRefreshTracker,
+            persist_vendor_refresh_outcome,
+        )
+
         budget = get_run_budget()
         observed_budget.append(None if budget is None else budget.max_cost)
+        state_path = tmp_path / "run-state"
+        state_path.mkdir()
+        kwargs["run_context"]["working_folder"] = str(state_path)
+        persist_strategy_outcome(str(state_path), StrategyOutcomeTracker(()).snapshot())
+        persist_vendor_refresh_outcome(str(state_path), VendorRefreshTracker(()).snapshot())
         return str(report)
 
     research = MagicMock(side_effect=_research)
@@ -244,6 +255,7 @@ def test_batch_forwards_flags_and_clears_per_company_budget(monkeypatch, tmp_pat
         "grok_tier": "premium",
         "skip_recon": True,
         "continuous_reasoning": False,
+        "run_context": {"working_folder": str(tmp_path / "run-state")},
     }
 
 
