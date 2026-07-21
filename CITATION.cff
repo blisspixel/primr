@@ -17,7 +17,7 @@ license: Apache-2.0
 # tests/test_release_integrity.py - bump it together with pyproject.toml,
 # primr.__version__, and the ROADMAP "Current State" line.
 version: 1.37.0
-date-released: "2026-07-19"
+date-released: "2026-07-21"
 keywords:
   - company-research
   - strategic-analysis

@@ -213,17 +213,70 @@ class ReportAnalyzer:
         self.content = self._load_content()
         self.report_type = self._detect_report_type()
 
-    def _detect_report_type(self) -> str:
-        """Detect the type of report based on content and filename."""
-        filename = self.report_path.name.lower()
-        content_lower = self.content.lower()
+    # Distinctive section names that fingerprint each report template. Matched
+    # as substrings against the report's own ``##`` headings, so a report is
+    # classified by its actual structure rather than by an incidental mention.
+    _STRATEGIC_OVERVIEW_MARKERS: tuple[str, ...] = (
+        "products and services",
+        "target customers",
+        "competitive differentiation",
+        "competitive landscape",
+        "business model",
+        "swot",
+        "strategic tensions",
+        "porter",
+        "value chain",
+        "discovery questions",
+        "strategic positioning",
+    )
+    _AI_STRATEGY_MARKERS: tuple[str, ...] = (
+        "executive decision brief",
+        "art of the possible",
+        "value pool",
+        "opportunity inventory",
+        "prioritized portfolio",
+        "initiative decision card",
+        "workload placement",
+        "board decision",
+        "governance, risk",
+    )
 
-        if "ai_strategy" in filename or "ai strategy" in content_lower:
+    def _detect_report_type(self) -> str:
+        """Detect the report template from the filename, then section structure.
+
+        Filename is the strongest signal. When it does not disambiguate (e.g. a
+        host-written file that does not follow the naming convention), classify
+        by which template's distinctive section headings are present — NOT by an
+        incidental substring like "ai strategy", which mis-flags a Strategic
+        Overview that merely discusses a company's AI strategy.
+        """
+        filename = self.report_path.name.lower()
+        if "ai_strategy" in filename:
             return "ai_strategy"
-        elif "strategic_overview" in filename or "company overview" in content_lower:
+        if "strategic_overview" in filename or "company_overview" in filename:
             return "strategic_overview"
-        else:
-            return "unknown"
+        return self._detect_report_type_from_sections()
+
+    def _detect_report_type_from_sections(self) -> str:
+        """Classify by section fingerprint, falling back to legacy phrases."""
+        headings = [h.lower() for h in re.findall(r"^#{1,3}\s+(.+)$", self.content, re.MULTILINE)]
+        overview_hits = sum(
+            any(marker in h for h in headings) for marker in self._STRATEGIC_OVERVIEW_MARKERS
+        )
+        strategy_hits = sum(
+            any(marker in h for h in headings) for marker in self._AI_STRATEGY_MARKERS
+        )
+        if overview_hits >= 2 and overview_hits >= strategy_hits:
+            return "strategic_overview"
+        if strategy_hits >= 2 and strategy_hits > overview_hits:
+            return "ai_strategy"
+        # No structural signal: only then consult legacy content phrases.
+        content_lower = self.content.lower()
+        if "company overview" in content_lower:
+            return "strategic_overview"
+        if "ai strategy" in content_lower:
+            return "ai_strategy"
+        return "unknown"
 
     def _load_content(self) -> str:
         """Load report content from file."""

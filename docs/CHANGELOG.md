@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.37.0] - 2026-07-21
+
 ### Changed
 
 - **`--ai-strategy-only` now defaults to the ~$1 lite engine.** Standalone AI
@@ -71,10 +73,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the no-fabrication evidence rules (unknown baselines, ownership, and value are
   named rather than invented).
 
-## [1.37.0] - 2026-07-19
-
 ### Fixed
 
+- **`primr --analyze-report` no longer misgrades a Strategic Overview as an AI
+  Strategy.** Report-type detection previously keyed on the substring "ai
+  strategy" appearing anywhere in the body, so a 23-section Strategic Overview
+  that merely discussed a company's AI strategy was graded against the wrong
+  template (and penalized for missing sections it should not have). Detection now
+  uses the filename first, then a section-structure fingerprint. The primr-zero
+  `report-contract.md` now documents the exact citation format the QA gate
+  expects (inline `[cite: N]` markers + a `## Sources` appendix) with a worked
+  example, so a contract-compliant report also passes the gate.
 - Approved execution preflight now validates Gemini access through model
   metadata instead of generating a throwaway response. Cost estimates and
   approval boundaries therefore cover every model-generation call.
