@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.37.1] - 2026-07-21
+
 ### Added
 
 - **`primr render <file>.md` — zero-cost Markdown → DOCX/TXT.** Exposes the
@@ -20,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   spend), so a quota/subscription-host run yields the same Strategic Overview +
   AI Strategy in `.md` **and** `.docx` as a paid run — the same outputs
   regardless of how the report was processed.
+
+### Security
+
+- **Bumped `pyasn1` to 0.6.4** (CVE-2026-59885, CVE-2026-59886). Transitive
+  dependency; the deployment lock exports were regenerated to match.
 
 ## [1.37.0] - 2026-07-21
 
