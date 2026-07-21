@@ -271,6 +271,35 @@ class TestAnalyzeStructureReportTypeAware:
         assert len(result["key_sections_missing"]) > 0
         assert "Current State" in result["key_sections_missing"]
 
+    def test_overview_mentioning_ai_strategy_not_misdetected(self):
+        """A Strategic Overview that merely discusses a company's AI strategy,
+        with a non-conforming filename, is classified by its section structure
+        rather than the incidental phrase (regression for the substring bug)."""
+        content = (
+            "# Company Brief\n"
+            "The company is pursuing an ambitious AI strategy across products.\n"
+            "## Executive Summary\nText\n"
+            "## Products and Services\nText\n"
+            "## Target Customers\nText\n"
+            "## SWOT Analysis\nText\n"
+            "## Strategic Positioning Hypothesis\nText\n"
+        )
+        analyzer = _make_analyzer(content, "mycompany_brief_final.md")
+        assert analyzer.report_type == "strategic_overview"
+
+    def test_ai_strategy_detected_by_sections_without_typed_filename(self):
+        """An AI Strategy doc is classified by its distinctive sections even when
+        the filename does not carry the type."""
+        content = (
+            "# Doc\n"
+            "## Executive Decision Brief\nText\n"
+            "## Value Pool Thesis\nText\n"
+            "## Prioritized Portfolio and Explicit Choices\nText\n"
+            "## Board Decision Summary\nText\n"
+        )
+        analyzer = _make_analyzer(content, "notes.md")
+        assert analyzer.report_type == "ai_strategy"
+
 
 # =============================================================================
 # Scaffolding Leakage Detection

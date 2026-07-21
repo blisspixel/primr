@@ -43,6 +43,30 @@ as one of the 23 analytical sections.
 - Treat repeated syndicated coverage as one underlying source.
 - Name blocked, missing, partial, and stale coverage.
 
+## Citation format
+
+`primr --analyze-report` scores citations by inline numeric markers resolved
+against a source appendix. Follow this exact format so a contract-compliant
+report also passes the QA gate:
+
+- Put an inline `[cite: N]` marker right after each material claim, where `N` is
+  the source number.
+- Finish with a `## Sources` appendix (`## References` or `## Citations` also
+  work) listing each numbered source on its own line as `[cite: N] Title — URL`.
+- A plain Markdown hyperlink alone is not counted by the gate. Pair it with a
+  `[cite: N]` marker and a numbered `## Sources` entry.
+
+Worked example:
+
+```
+Acme grew headcount 40% in 2025 [cite: 1] and now lists a dedicated AI
+platform team [cite: 2].
+
+## Sources
+[cite: 1] Acme FY2025 report — https://acme.example/annual
+[cite: 2] Acme careers, AI Platform — https://acme.example/careers
+```
+
 ## Depth rules
 
 Prioritize executive summary, products, customers, finances, leadership,

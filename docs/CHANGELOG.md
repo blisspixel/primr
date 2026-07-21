@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`primr --analyze-report` no longer misgrades a Strategic Overview as an AI
+  Strategy.** Report-type detection previously keyed on the substring "ai
+  strategy" appearing anywhere in the body, so a 23-section Strategic Overview
+  that merely discussed a company's AI strategy was graded against the wrong
+  template (and penalized for missing sections it should not have). Detection now
+  uses the filename first, then a section-structure fingerprint. The primr-zero
+  `report-contract.md` now documents the exact citation format the QA gate
+  expects (inline `[cite: N]` markers + a `## Sources` appendix) with a worked
+  example, so a contract-compliant report also passes the gate.
+
 ## [1.36.1] - 2026-07-18
 
 ### Changed
