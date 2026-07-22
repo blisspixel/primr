@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.37.2
+Current State: v1.38.0
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -1990,6 +1990,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.38.0 | Jul 2026 | **Multi-cloud provider routing: AWS Bedrock and Azure AI Foundry.** Research runs can now route stages through Bedrock (registered, priced Amazon Nova models) and Foundry (operator-declared deployment + pricing). Both are main-process only and refused inside supervised workers, keeping AWS/Azure credentials out of the lower-trust worker boundary; nothing is guessed into the cost gate. |
 | 1.37.2 | Jul 2026 | **Latest Gemini models and documentation excellence.** Registers `gemini-3.6-flash` and `gemini-3.5-flash-lite` (July 2026 GA) as available, priced, eval-gateable models without changing any default tier. Brings the full docs surface current to 1.37.x, adds a complete/dated self-enforcing documentation index, and guards every internal Markdown link in CI. |
 | 1.37.1 | Jul 2026 | **Zero-cost render parity and dependency hardening.** A standalone `primr render` verb converts any Markdown report to DOCX/TXT with no model calls, so the Primr Zero / host-assisted path ships the same `.md` + `.docx` deliverables as a provider-backed run. Bumps `pyasn1` to 0.6.4 (CVE-2026-59885/59886). |
 | 1.37.0 | Jul 2026 | **Truthful strategy fulfillment and complete cost governance.** Integrated, standalone, batch, machine-readable, and monitoring surfaces now share canonical strategy and vendor-refresh outcomes. Estimates, budgets, provider submissions, actual-cost summaries, and partial exits stay aligned across fast, standard, and deep routes. Every AI Strategy path receives bounded cross-industry and observed-stack context, explicit refresh stays opt-in, the active Skills strategy reaches delivery, scrape-only success is unambiguous, and preflight performs no model generation. |
