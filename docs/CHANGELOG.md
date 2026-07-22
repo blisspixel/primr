@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **AWS Bedrock is now routable for research runs (main-process).** Registered
+  the Amazon Nova models (`us.amazon.nova-micro-v1:0`, `-lite-`, `-pro-`) with
+  real prices, and wired the model→provider router and the standard-pipeline
+  dispatch so a stage model set to a Nova id (e.g. `AI_REASONING_MODEL`) runs
+  through the Bedrock `converse` API and prices correctly through the cost gate.
+  Bedrock routing is refused inside a supervised MCP worker — AWS credentials
+  are deliberately never inherited by workers, and a regression test pins that
+  boundary. (Azure Foundry routing is tracked as a follow-up: its model id is a
+  user deployment name, which needs a small deployment-pricing mechanism.)
+
 ## [1.37.2] - 2026-07-22
 
 ### Added

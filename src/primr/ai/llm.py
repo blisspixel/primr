@@ -199,7 +199,13 @@ def llm(
     # than fall through to the Gemini code path below (Gemini API rejects
     # unknown model names with 404). The xAI branch above stays separate
     # because grok_llm carries xAI-specific session-token bookkeeping.
-    if config is not None and config.provider in ("openai", "anthropic", "ollama"):
+    if config is not None and config.provider in (
+        "openai",
+        "anthropic",
+        "ollama",
+        "bedrock",
+        "foundry",
+    ):
         from primr.ai.routing import get_provider_for_model
 
         log_chat_interaction(prompt, f"Model: {model_name} ({config.provider} dispatch)")

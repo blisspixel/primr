@@ -903,6 +903,54 @@ class ModelRegistry:
     )
 
     # =========================================================================
+    # AMAZON BEDROCK - Amazon Nova family via the boto3 converse API.
+    # Model ids are cross-region inference-profile ids (the `us.` prefix is
+    # required for on-demand invocation). Prices verified July 2026 against the
+    # AWS Bedrock pricing page. Cached-input (Bedrock prompt caching, ~75% off)
+    # is left unset so the estimate gate assumes no cache discount (conservative).
+    # Bedrock routing is MAIN-PROCESS ONLY — see providers/registry.py; the
+    # supervised-worker credential boundary (config/env.py) is not crossed.
+    # =========================================================================
+    BEDROCK_NOVA_MICRO = ModelConfig(
+        name="us.amazon.nova-micro-v1:0",
+        display_name="Amazon Nova Micro (Bedrock)",
+        provider="bedrock",
+        cost_per_1m_input_tokens=0.035,
+        cost_per_1m_output_tokens=0.14,
+        max_input_tokens=128_000,
+        max_output_tokens=5_120,
+        supports_thinking=False,
+        supports_tools=True,
+        supports_multimodal=False,
+    )
+
+    BEDROCK_NOVA_LITE = ModelConfig(
+        name="us.amazon.nova-lite-v1:0",
+        display_name="Amazon Nova Lite (Bedrock)",
+        provider="bedrock",
+        cost_per_1m_input_tokens=0.06,
+        cost_per_1m_output_tokens=0.24,
+        max_input_tokens=300_000,
+        max_output_tokens=5_120,
+        supports_thinking=False,
+        supports_tools=True,
+        supports_multimodal=True,
+    )
+
+    BEDROCK_NOVA_PRO = ModelConfig(
+        name="us.amazon.nova-pro-v1:0",
+        display_name="Amazon Nova Pro (Bedrock)",
+        provider="bedrock",
+        cost_per_1m_input_tokens=0.80,
+        cost_per_1m_output_tokens=3.20,
+        max_input_tokens=300_000,
+        max_output_tokens=5_120,
+        supports_thinking=False,
+        supports_tools=True,
+        supports_multimodal=True,
+    )
+
+    # =========================================================================
     # DEEP RESEARCH AGENT - Autonomous research producing 12+ page reports
     # This is a SEPARATE API (Interactions API), not generate_content
     # June 2026 audit: slug refreshed deep-research-pro-preview-12-2025 ->

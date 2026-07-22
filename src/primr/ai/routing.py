@@ -369,6 +369,19 @@ def get_provider_for_model(model_name: str) -> Provider:
         return _get_anthropic_provider()
     if provider_name == "ollama":
         return _get_ollama_provider()
+    if provider_name in ("bedrock", "foundry"):
+        # Bedrock/Foundry credentials live only in the main process; a
+        # supervised worker deliberately never inherits AWS/Azure secrets
+        # (config/env.py). Refuse rather than fall through to a broken call.
+        if os.environ.get("PRIMR_SUPERVISED_WORKER") == "1":
+            raise ValueError(
+                f"Model {model_name!r} uses the {provider_name!r} provider, which "
+                "is main-process only. Supervised workers do not carry AWS/Azure "
+                "credentials by design; run this route in the main process."
+            )
+        from primr.ai.providers.registry import get_registered_provider_for_model
+
+        return get_registered_provider_for_model(model_name)
 
     raise ValueError(
         f"Model {model_name!r} has provider {provider_name!r} which has no "
