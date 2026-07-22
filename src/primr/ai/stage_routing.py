@@ -617,6 +617,14 @@ def _provider_configured(config: ModelConfig) -> bool:
         return bool(os.getenv("OPENAI_API_KEY"))
     if provider == "anthropic":
         return bool(os.getenv("ANTHROPIC_API_KEY"))
+    if provider == "bedrock":
+        return bool(
+            os.getenv("AWS_BEARER_TOKEN_BEDROCK")
+            or os.getenv("AWS_ACCESS_KEY_ID")
+            or os.getenv("AWS_PROFILE")
+        )
+    if provider == "foundry":
+        return bool(os.getenv("AZURE_OPENAI_API_KEY"))
     return provider == "ollama"
 
 

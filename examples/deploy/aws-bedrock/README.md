@@ -52,13 +52,21 @@ primr keys test bedrock     # free, auth-only: "authenticated; N foundation mode
 ```
 
 This validates the deployment (credentials, region, and visible foundation
-models). Note that full research-pipeline routing through Bedrock is **not yet
-wired**: the model-name→provider router has no Bedrock branch, so a Bedrock
-model id set via `AI_REASONING_MODEL` (e.g. `us.amazon.nova-lite-v1:0`) is not
-recognized as a Bedrock model — it falls through to the first-party xAI path and
-the run cannot even be priced. To route utility-tier inference through a custom
-endpoint today, use the OpenAI-compatible gateway seam (`LOCAL_LLM_BASE_URL` /
-`LOCAL_LLM_API_KEY`).
+models). To route a pipeline stage through Bedrock, set the stage model env var
+to a registered Nova model id (the `us.` cross-region inference-profile form):
+
+```bash
+AI_REASONING_MODEL=us.amazon.nova-pro-v1:0   # reasoning/analysis stage
+AI_REPORT_MODEL=us.amazon.nova-pro-v1:0      # section-writing stage
+AI_FAST_MODEL=us.amazon.nova-lite-v1:0       # scraping/utility stage
+```
+
+The registered ids — `us.amazon.nova-micro-v1:0`, `us.amazon.nova-lite-v1:0`,
+`us.amazon.nova-pro-v1:0` — carry real prices, so the mandatory cost estimate
+prices them correctly, and routing dispatches them to the Bedrock `converse`
+API. **Main-process only:** Bedrock routing is refused inside a supervised MCP
+worker, which deliberately does not carry AWS credentials. For other
+Bedrock-hosted models, use their inference-profile id via the same env vars.
 
 ## 4. Clean up
 

@@ -281,6 +281,10 @@ class PrimrModels:
         ModelRegistry.OLLAMA_LLAMA4_SCOUT.name: ModelRegistry.OLLAMA_LLAMA4_SCOUT,
         ModelRegistry.OLLAMA_GLM_4_6.name: ModelRegistry.OLLAMA_GLM_4_6,
         ModelRegistry.OLLAMA_PHI4_14B.name: ModelRegistry.OLLAMA_PHI4_14B,
+        # Amazon Bedrock (Nova family, main-process routing only)
+        ModelRegistry.BEDROCK_NOVA_MICRO.name: ModelRegistry.BEDROCK_NOVA_MICRO,
+        ModelRegistry.BEDROCK_NOVA_LITE.name: ModelRegistry.BEDROCK_NOVA_LITE,
+        ModelRegistry.BEDROCK_NOVA_PRO.name: ModelRegistry.BEDROCK_NOVA_PRO,
     }
 
     @classmethod
