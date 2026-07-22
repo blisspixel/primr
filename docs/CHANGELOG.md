@@ -16,8 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   through the Bedrock `converse` API and prices correctly through the cost gate.
   Bedrock routing is refused inside a supervised MCP worker — AWS credentials
   are deliberately never inherited by workers, and a regression test pins that
-  boundary. (Azure Foundry routing is tracked as a follow-up: its model id is a
-  user deployment name, which needs a small deployment-pricing mechanism.)
+  boundary.
+- **Azure AI Foundry deployments are now routable (main-process).** A Foundry
+  model id is a per-user deployment name, so the operator declares the
+  deployment and its pricing via env — `AZURE_OPENAI_DEPLOYMENT` plus either
+  `AZURE_FOUNDRY_PRICE_AS` (price/spec as a registered model) or explicit
+  `AZURE_FOUNDRY_INPUT_PRICE`/`AZURE_FOUNDRY_OUTPUT_PRICE`. primr routes the
+  selected stage to the Foundry endpoint and prices it from the declaration;
+  nothing is guessed into the cost gate, and a run fails closed (unknown model)
+  if pricing is not declared. Like Bedrock, Foundry routing is refused inside a
+  supervised worker.
 
 ## [1.37.2] - 2026-07-22
 

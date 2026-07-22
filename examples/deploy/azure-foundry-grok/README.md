@@ -51,13 +51,27 @@ primr keys test foundry     # free, auth-only: should report "authenticated"
 This unified AIServices account uses the `*.cognitiveservices.azure.com` host; a
 dedicated Azure OpenAI resource would use `*.openai.azure.com` instead.
 
-`primr keys test foundry` validates the deployment credentials. Note that
-setting `AI_REASONING_MODEL=grok-4.3` does **not** exercise this Foundry
-endpoint: `grok-4.3` is registered with provider `xai`, so it routes to the
-first-party xAI API (`api.x.ai`, `XAI_API_KEY`), not the Foundry account you
-just deployed. Full-pipeline Foundry routing is not yet wired. To route
-utility-tier inference through this custom endpoint today, use the
-OpenAI-compatible gateway seam (`LOCAL_LLM_BASE_URL` / `LOCAL_LLM_API_KEY`).
+`primr keys test foundry` validates the deployment credentials. To route a
+pipeline stage through this Foundry deployment, declare the deployment name and
+its pricing (a Foundry model id is your deployment name, so primr prices it from
+what you declare rather than guessing):
+
+```bash
+AZURE_OPENAI_DEPLOYMENT=<your-deployment-name>   # e.g. the Grok deployment
+AZURE_FOUNDRY_PRICE_AS=grok-4.3                  # price/spec as this registered model
+# ...or set explicit rates instead of PRICE_AS:
+# AZURE_FOUNDRY_INPUT_PRICE=1.25
+# AZURE_FOUNDRY_OUTPUT_PRICE=2.50
+
+AI_REASONING_MODEL=<your-deployment-name>        # select it for the reasoning stage
+```
+
+primr then routes that stage to the Foundry endpoint (using the deployment name)
+and prices it from your declaration, so the mandatory cost estimate is accurate.
+Note that a bare `AI_REASONING_MODEL=grok-4.3` still routes to first-party xAI
+(`api.x.ai`) — use your **deployment name**, not the underlying model id, to hit
+Foundry. **Main-process only:** Foundry routing is refused inside a supervised
+MCP worker, which does not carry Azure credentials.
 
 ## 4. Clean up (avoid ongoing cost)
 

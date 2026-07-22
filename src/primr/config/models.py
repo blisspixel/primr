@@ -109,7 +109,8 @@ KEY CHANGES SINCE v1.22.0:
 - Haiku 3.5 added as alternate utility-tier candidate
 """
 
-from dataclasses import dataclass
+import os
+from dataclasses import dataclass, replace
 
 from primr.config.model_registry import (
     DEFAULT_FLASH_MODEL,
@@ -153,6 +154,63 @@ class TokenCostBreakdown:
 
 DEEP_RESEARCH_COST = DeepResearchCost()
 SEARCH_COST_PER_QUERY = 0.035  # $35/1000 queries
+
+
+def _foundry_deployment_config(model_name: str) -> "ModelConfig | None":
+    """Resolve a user-declared Azure Foundry deployment to a priced ModelConfig.
+
+    A Foundry model id is a per-user *deployment name*, so primr cannot ship a
+    fixed priced entry the way it does for first-party or Bedrock models. The
+    operator instead declares the deployment and its pricing through the
+    environment, and nothing is ever guessed into the cost gate:
+
+    - ``AZURE_OPENAI_DEPLOYMENT`` — the deployment name (must equal ``model_name``).
+    - Pricing, exactly one of:
+        - ``AZURE_FOUNDRY_PRICE_AS`` — a registered model id whose price and
+          context/output specs to copy (e.g. ``gpt-5.4`` for a GPT-5.4 deployment).
+        - ``AZURE_FOUNDRY_INPUT_PRICE`` + ``AZURE_FOUNDRY_OUTPUT_PRICE`` — explicit
+          $/1M rates.
+
+    Returns ``None`` (→ unknown model → fail-closed cost gate) whenever the
+    deployment or its pricing is not fully declared, so a Foundry run can never
+    be silently mispriced.
+    """
+    deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "").strip()
+    if not deployment or deployment != model_name:
+        return None
+
+    price_as = os.getenv("AZURE_FOUNDRY_PRICE_AS", "").strip()
+    if price_as:
+        base = PrimrModels.ALL_MODELS.get(price_as)
+        if base is None:
+            return None
+        return replace(
+            base,
+            name=deployment,
+            display_name=f"Azure Foundry: {deployment}",
+            provider="foundry",
+        )
+
+    raw_in = os.getenv("AZURE_FOUNDRY_INPUT_PRICE", "").strip()
+    raw_out = os.getenv("AZURE_FOUNDRY_OUTPUT_PRICE", "").strip()
+    if raw_in and raw_out:
+        try:
+            in_price, out_price = float(raw_in), float(raw_out)
+        except ValueError:
+            return None
+        if in_price < 0 or out_price < 0:
+            return None
+        return ModelConfig(
+            name=deployment,
+            display_name=f"Azure Foundry: {deployment}",
+            provider="foundry",
+            cost_per_1m_input_tokens=in_price,
+            cost_per_1m_output_tokens=out_price,
+            max_input_tokens=128_000,
+            max_output_tokens=16_384,
+        )
+
+    return None
 
 
 class PrimrModels:
@@ -322,9 +380,14 @@ class PrimrModels:
         return (cls.GROK_MODEL_43, cls.GROK_MODEL_43)
 
     @classmethod
+    def _resolve_config(cls, model_name: str) -> ModelConfig | None:
+        """Look up a model, falling back to an env-declared Foundry deployment."""
+        return cls.ALL_MODELS.get(model_name) or _foundry_deployment_config(model_name)
+
+    @classmethod
     def get_model_config(cls, model_name: str) -> ModelConfig | None:
         """Get configuration for a specific model."""
-        return cls.ALL_MODELS.get(model_name)
+        return cls._resolve_config(model_name)
 
     @classmethod
     def get_fallback_models(cls, model_name: str) -> list[str]:
@@ -349,7 +412,7 @@ class PrimrModels:
     @classmethod
     def get_price(cls, model_name: str) -> tuple[float, float]:
         """Look up (input_price, output_price) per 1M tokens from ALL_MODELS."""
-        config = cls.ALL_MODELS.get(model_name)
+        config = cls._resolve_config(model_name)
         if config is None:
             raise KeyError(f"Unknown model: {model_name}")
         return (config.cost_per_1m_input_tokens, config.cost_per_1m_output_tokens)
@@ -394,7 +457,7 @@ class PrimrModels:
         and output counts. It is zero for flat-priced models and for standard
         tier calls.
         """
-        config = cls.ALL_MODELS.get(model_name)
+        config = cls._resolve_config(model_name)
         if config is None:
             raise KeyError(f"Unknown model: {model_name}")
 
@@ -466,7 +529,7 @@ class PrimrModels:
         Use this for **pre-run estimates** where we don't know prompt sizes.
         All token counts are clamped to non-negative values defensively.
         """
-        config = cls.ALL_MODELS.get(model_name)
+        config = cls._resolve_config(model_name)
         if config is None:
             raise KeyError(f"Unknown model: {model_name}")
 
