@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.38.0] - 2026-07-22
+
 ### Added
 
 - **AWS Bedrock is now routable for research runs (main-process).** Registered
