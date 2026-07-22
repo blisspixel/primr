@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Registered the July 2026 Gemini models** `gemini-3.6-flash` ($1.50/$7.50)
+  and `gemini-3.5-flash-lite` ($0.30/$2.50) in the model registry with real
+  prices, so they are selectable and eval-gateable. Per the model-selection
+  policy they are available but not promoted to a default tier (a default
+  repoint is decided by eval on output $/1M). `gemini-3.5-flash-cyber` (a
+  restricted dual-use pilot) and `gemini-3.5-pro` (still partner-testing) are
+  intentionally not registered yet.
+
 ## [1.37.1] - 2026-07-21
 
 ### Added

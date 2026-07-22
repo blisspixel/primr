@@ -139,6 +139,30 @@ class ModelRegistry:
     )
 
     # =========================================================================
+    # GEMINI 3.5 FLASH-LITE - Successor to 3.1 Flash-Lite (GA July 21, 2026)
+    # USE FOR: bulk writing / utility. Outperforms 3.1 Flash-Lite and exceeds
+    # Gemini 3 Flash on several benchmarks (SWE-Bench Pro 54.2% vs 49.6%,
+    # OSWorld-Verified 74.0% vs 65.1%); ~350 output tokens/sec.
+    # $0.30 input / $2.50 output per 1M tokens. Context: 1M, Output: 65k.
+    # Registered as AVAILABLE; NOT a default. Output is dearer than
+    # gemini-3.1-flash-lite ($1.50), so a writing-tier repoint is eval-gated.
+    # Cached-input rate not published at launch; left unset so the estimate gate
+    # assumes no cache discount (conservative).
+    # =========================================================================
+    GEMINI_3_5_FLASH_LITE = ModelConfig(
+        name="gemini-3.5-flash-lite",
+        display_name="Gemini 3.5 Flash-Lite",
+        provider="google",
+        cost_per_1m_input_tokens=0.30,
+        cost_per_1m_output_tokens=2.50,
+        max_input_tokens=1_048_576,  # 1M tokens
+        max_output_tokens=65_536,  # 65k tokens
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=True,
+    )
+
+    # =========================================================================
     # GEMINI 3.1 PRO - Improved reasoning, token efficiency (Preview Feb 2026)
     # DEFAULT PRO MODEL — better thinking, token efficiency, factual consistency
     # TIERED PRICING: $2/$12 (prompts <=200k) | $4/$18 (prompts >200k)
@@ -208,6 +232,30 @@ class ModelRegistry:
         supports_tools=True,
         supports_multimodal=True,
         cost_per_1m_input_tokens_cached=0.15,
+    )
+
+    # =========================================================================
+    # GEMINI 3.6 FLASH - Successor to 3.5 Flash (GA July 21, 2026)
+    # Same input price as 3.5 Flash but CHEAPER output ($7.50 vs $9.00) and ~17%
+    # fewer output tokens (Artificial Analysis Index), plus stronger coding/agent
+    # scores (DeepSWE 49% vs 37%, MLE Bench 63.9% vs 49.7%, OSWorld 83.0% vs
+    # 78.4%). Supersedes gemini-3.5-flash as the Pro-tier-replacement candidate.
+    # $1.50 input / $7.50 output per 1M tokens. Context: 1M, Output: 65k.
+    # Registered as AVAILABLE; NOT a default — a PRO-tier repoint from
+    # gemini-3.1-pro-preview ($2/$12) is eval-gated. Cached-input rate not
+    # published at launch; left unset (conservative for the estimate gate).
+    # =========================================================================
+    GEMINI_3_6_FLASH = ModelConfig(
+        name="gemini-3.6-flash",
+        display_name="Gemini 3.6 Flash",
+        provider="google",
+        cost_per_1m_input_tokens=1.50,
+        cost_per_1m_output_tokens=7.50,
+        max_input_tokens=1_048_576,  # 1M tokens
+        max_output_tokens=65_536,  # 65k tokens
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=True,
     )
 
     # =========================================================================

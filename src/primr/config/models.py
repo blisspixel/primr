@@ -36,10 +36,17 @@ xAI / GROK:
   grok-4.1-fast-*            - DEPRECATED, retired May 15, 2026
 
 GOOGLE / GEMINI:
-  gemini-3.5-flash           - NEW (GA May 19, 2026, I/O '26), $1.50/$9.00 + $0.15 cached,
-                               1M ctx, 65k out. Beats 3.1 Pro on benchmarks at lower cost.
-                               AVAILABLE but not yet a default tier — Pro-tier replacement
-                               candidate (eval-gated). 3.5 Pro (June) + Omni (weeks) pending.
+  gemini-3.6-flash           - NEW (GA Jul 21, 2026), $1.50/$7.50, 1M ctx, 65k out.
+                               Successor to 3.5 Flash: cheaper output + ~17% fewer output
+                               tokens, stronger coding/agent scores. AVAILABLE, not a default
+                               — now the Pro-tier replacement candidate (eval-gated).
+  gemini-3.5-flash           - GA May 19, 2026, $1.50/$9.00 + $0.15 cached, 1M ctx, 65k out.
+                               AVAILABLE; superseded as the Pro-tier candidate by 3.6 Flash.
+  gemini-3.5-flash-lite      - NEW (GA Jul 21, 2026), $0.30/$2.50, 1M ctx, 65k out.
+                               Successor to 3.1 Flash-Lite; beats 3 Flash on benchmarks.
+                               AVAILABLE writing/utility candidate (eval-gated; dearer output
+                               than 3.1 Flash-Lite). 3.5 Pro still partner-testing (not GA);
+                               Flash Cyber is a restricted dual-use pilot (not applicable).
   gemini-3.1-pro-preview     - PRO default, $2/$12 (<=200k) | $4/$18 (>200k), 1M ctx, 65k out
   gemini-3.1-flash-lite      - $0.25/$1.50, 1M ctx, 65k out
                                Leading writing-tier candidate for v1.24.0 sub-$1 default
@@ -230,7 +237,9 @@ class PrimrModels:
     # Model registry for lookups
     ALL_MODELS = {
         # Google / Gemini
+        ModelRegistry.GEMINI_3_6_FLASH.name: ModelRegistry.GEMINI_3_6_FLASH,
         ModelRegistry.GEMINI_3_5_FLASH.name: ModelRegistry.GEMINI_3_5_FLASH,
+        ModelRegistry.GEMINI_3_5_FLASH_LITE.name: ModelRegistry.GEMINI_3_5_FLASH_LITE,
         ModelRegistry.GEMINI_3_1_PRO.name: ModelRegistry.GEMINI_3_1_PRO,
         ModelRegistry.GEMINI_3_1_PRO_CUSTOMTOOLS.name: ModelRegistry.GEMINI_3_1_PRO_CUSTOMTOOLS,
         ModelRegistry.GEMINI_3_1_FLASH_LITE.name: ModelRegistry.GEMINI_3_1_FLASH_LITE,
