@@ -70,7 +70,7 @@ Optional LLM-judge overlays on staged reports:
 
 ```bash
 # Cloud judge (requires spend cap)
-primr --eval --eval-id eval-2026-02-r1 --eval-llm-judge --eval-judge-provider grok --eval-judge-model grok-4-1-fast-reasoning --eval-judge-max-cost 0.25
+primr --eval --eval-id eval-2026-02-r1 --eval-llm-judge --eval-judge-provider grok --eval-judge-model grok-4.3 --eval-judge-max-cost 0.25
 
 # Local judge against an Ollama/OpenAI-compatible endpoint
 primr --eval --eval-id eval-2026-03-local --eval-llm-judge --eval-judge-provider local --eval-judge-model qwen3:30b --eval-judge-base-url http://localhost:11434/v1

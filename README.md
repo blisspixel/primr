@@ -287,7 +287,7 @@ See [Run Modes and Costs](docs/RUN_MODES.md) for the full mode matrix, platform 
 | Standard Strategic Overview plus AI Strategy | `primr "Company" https://company.com` |
 | Strategic Overview only | `primr "Company" https://company.com --no-ai-strategy` |
 | Separate Microsoft and private-infrastructure strategy artifacts | `primr "Company" https://company.com --platform ms` |
-| Enable routed utility-stage pilot | `primr "Company" https://company.com --inference hybrid` |
+| Enable routed utility-stage pilot (single-company; may meter host billing) | `primr "Company" https://company.com --inference hybrid --acknowledge-host-agent-may-bill` |
 | Site corpus and extracted insights only | `primr "Company" https://company.com --mode scrape` |
 | DNS intelligence only, no model keys required | `primr recon company.com` |
 | Agent Skills pack for downstream hosts | `primr skills "Company" https://company.com` |
@@ -426,7 +426,11 @@ Important keys:
 | `GEMINI_API_KEY` | Low-cost writing, utility, premium mode, and Gemini-backed stages |
 | `OPENAI_API_KEY` | Optional OpenAI fallback provider |
 | `ANTHROPIC_API_KEY` | Optional Anthropic fallback provider |
+| `AZURE_OPENAI_API_KEY` | Optional Azure AI Foundry provider (with `AZURE_OPENAI_BASE_URL`) |
+| `AWS_BEARER_TOKEN_BEDROCK` | Optional AWS Bedrock provider (or the AWS credential chain; needs `primr[bedrock]`) |
 | `OLLAMA_BASE_URL` | Optional local OpenAI-compatible endpoint for local eval and utility paths |
+
+`primr keys test` validates any configured provider credential with a live check.
 
 See [API Key Setup](docs/API_KEYS.md) and [Configuration Reference](docs/CONFIG.md).
 

@@ -1728,7 +1728,7 @@ What gets built:
 - Cost estimator reflects local inference as $0.00 API cost while tracking runtime
 - `primr doctor --local` validates Ollama is running, models are pulled, VRAM is sufficient
 - Graceful degradation: if a local model can't handle a stage, fall back to cloud (hybrid) or skip (local) with clear logging
-- Progress display shows which backend each stage is using: `Analysis (local: qwen3:30b)` vs `Analysis (cloud: grok-4.3)`
+- Progress display shows which backend each stage is using: `Analysis (local: qwen3:32b)` vs `Analysis (cloud: grok-4.3)`
 
 Validation approach:
 - Run the eval harness on the standard company corpus: cloud baseline vs hybrid vs local
