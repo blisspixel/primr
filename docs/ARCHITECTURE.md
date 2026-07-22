@@ -1263,7 +1263,7 @@ Playwright tiers now perform adaptive lazy-load scrolling (up to 20 steps by def
 | Model | Role | Pricing (per 1M tokens) |
 |-------|------|-------------------------|
 | Grok 4.3 | Default mode: reasoning stages (analysis, workbook, cross-validation) | $1.25 in / $2.50 out · $0.20 cached |
-| Grok 4.1 fast | XAI-only utility and writing fallback when Gemini is not configured | $0.20 in / $0.50 out |
+| Grok 4.20 non-reasoning | XAI-only utility and writing fallback when Gemini is not configured | $2.00 in / $6.00 out |
 | Grok 4.20 | Legacy flagship - kept registered for resume of in-flight runs and as a fallback in the analysis chain | $2.00 in / $6.00 out |
 | Gemini 3.1 Flash-Lite | Default routed writing and utility path when `XAI_API_KEY` and `GEMINI_API_KEY` are both configured | See provider pricing in the estimator |
 | Gemini 3.1 Pro | `--premium` mode: section writing, analysis | $2/$12 (≤200k) · $4/$18 (>200k) |
