@@ -254,7 +254,7 @@ Reason: [Concise reason why this score was given.]
 
 ### Refinement Trigger
 
-Sections scoring below the threshold (default: 80) trigger additional research:
+Sections scoring below the threshold (default: 70) trigger additional research:
 
 ```python
 if score < GRADE_THRESHOLD:
@@ -339,29 +339,28 @@ Phase 1: Deep Research (Lead Researcher)
   - Role: Gather facts, data, citations
   - Output: ~12 page research dossier
 
-Phase 2: Section Writing (Gemini 3 Flash)
-  - Model: gemini-3-flash-preview
+Phase 2: Section Writing (Gemini 3.1 Pro)
+  - Model: gemini-3.1-pro-preview
   - Role: Write each section with analytical depth
-  - Input: Dossier + previous sections in prompt
+  - Input: Dossier via previous_interaction_id + prior sections
   - Output: 20 sections × ~1.5 pages = 30+ pages
 ```
 
-This architecture treats Deep Research as the **researcher** and Gemini 3 Flash as the **writer**.
+This architecture treats Deep Research as the **researcher** and Gemini 3.1 Pro as the **writer**.
 
-### Why Not `previous_interaction_id`?
+### Section Writing and `previous_interaction_id`
 
-The Gemini docs mention `previous_interaction_id` for follow-up questions. However, testing showed that direct `generate_content()` calls with the dossier in the prompt produce better results:
-
-- More reliable (no interaction state to manage)
-- Faster (no interaction lookup overhead)
-- More controllable (full prompt visible)
+Section writing continues the Deep Research interaction through
+`previous_interaction_id`, so each section builds statefully on the researched
+dossier instead of re-sending the full dossier in every prompt. See
+[ARCHITECTURE](ARCHITECTURE.md) for the current end-to-end pipeline diagram.
 
 ### Model Selection
 
 | Component | Model | Rationale |
 |-----------|-------|-----------|
 | Research Dossier | `deep-research-preview-04-2026` | Autonomous web research |
-| Section Writing | `gemini-3-flash-preview` | Fast, intelligent, cost-effective |
+| Section Writing | `gemini-3.1-pro-preview` | Analytical depth, tiered pricing |
 | Stage 1 Analysis | `gemini-3-flash-preview` | Quick section analysis |
 
 ### Adaptive Polling
