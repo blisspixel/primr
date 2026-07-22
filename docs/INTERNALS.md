@@ -698,8 +698,10 @@ primr --list-strategies
 primr "Company" https://company.example --strategy-type customer_experience
 ```
 
-Standalone `--ai-strategy-only` generation is billable and currently lacks an
-in-command estimate and approval gate, so agent workflows must not invoke it.
+Standalone `--ai-strategy-only` generation now defaults to the ~$1 lite (Pro
+reasoning) engine, emits a full estimate, and is budget-gated with a `--dry-run`
+preview and a `--deep-research` opt-in, so it is safe for agent workflows behind
+the standard estimate/approval gate.
 
 ### Error Handling
 

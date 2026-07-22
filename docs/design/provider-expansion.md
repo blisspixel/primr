@@ -61,7 +61,12 @@ will route over.
 - `Provider` ABC with xAI / Gemini / OpenAI / Anthropic / Ollama providers;
   `pick_model_for_role` falls through XAI > Gemini > OpenAI > Anthropic by
   key presence. OpenAI/Anthropic models ARE registered but from an older
-  generation; they have never been validated as full-pipeline recipes.
+  generation; they have never been validated as full-pipeline recipes. As of
+  1.37.0, `ai/providers/azure_foundry.py` and `ai/providers/bedrock.py` also
+  exist as real `Provider` classes registered in `KNOWN_PROVIDERS` — wired for
+  credential validation (`primr keys test`) and `doctor` only; full-pipeline
+  model→provider routing for them is still tracked under the gateway phase
+  (Phase C) below.
 - `OpenAICompatibleProvider` + `openai_compatible_client.chat_completion`
   (base-URL + key, retry/backoff): the seam Bedrock/Foundry/local all plug
   into.

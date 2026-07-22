@@ -111,6 +111,8 @@ primr keys set gemini
 primr keys set xai
 primr keys set openai
 primr keys set anthropic
+primr keys set foundry
+primr keys set bedrock
 primr keys list
 primr keys path
 ```

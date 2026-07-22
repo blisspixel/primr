@@ -727,7 +727,7 @@ src/primr/
 │   └── workspace.py, run_state_io.py # Workspace and durable run state
 │
 ├── ai/                      # Inference, providers, routing, and Deep Research
-│   ├── providers/          # xAI, Gemini, OpenAI-compatible, Anthropic adapters
+│   ├── providers/          # xAI, Gemini, OpenAI-compatible, Anthropic, Bedrock (boto3 converse), Azure Foundry (OpenAI-SDK) adapters
 │   ├── routing.py          # Legacy role-to-provider routing
 │   ├── capability_routing.py, stage_routing.py # Stage capability router
 │   ├── host_agent_runner.py, host_agent_cli.py # Official host-runner seam

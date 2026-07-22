@@ -137,6 +137,10 @@ work:
 primr --ai-strategy-only "output/ExampleCo_Strategic_Overview.md" --dry-run
 ```
 
+The standalone command defaults to the ~$1 Pro-model lite engine; add
+`--deep-research` for the thorough (~$2.50/task) Deep Research engine.
+`--dry-run` reflects the selected engine.
+
 Run the same command without `--dry-run` only after reviewing the emitted cost,
 time, model-call, and platform estimate. Interactive runs require approval;
 `--skip-confirm` is the explicit automation override. The report must be a
