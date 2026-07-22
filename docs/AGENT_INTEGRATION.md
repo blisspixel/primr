@@ -69,6 +69,10 @@ For hard-zero collection:
    `artifact_role: primary_report` inside that prep bundle through the local
    JSON inventory before passing its exact path to a requested downstream
    workflow.
+7. Render each finished report to DOCX/TXT with `primr render <file>.md` (zero
+   cost, no model calls) and host-write the AI Strategy from the same evidence,
+   so the Zero output set (Strategic Overview + AI Strategy, each `.md` and
+   `.docx`) matches a paid run.
 
 Treat prep exit code 130 as an intentional interruption, not a completed or
 failed bundle. Inspect the configured output root before retrying because

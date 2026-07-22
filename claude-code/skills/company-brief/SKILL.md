@@ -18,7 +18,7 @@ Be honest with the user about the trade: this is the lite method. The full primr
    - `(Reported)` - stated by one third-party source (news, analyst, review site)
    - `(Estimated)` - your inference from evidence, e.g. headcount from posting volume; say what it is triangulated from
    - `(Hypothesis)` - a plausible reading of weak signals, framed as something to validate, never as fact
-3. **Number your citations.** `[1]`, `[2]` inline; full URL list in a Sources section at the end.
+3. **Number your citations in the house format.** Mark citations inline as `[cite: 1]`, `[cite: 2]`; list the full URLs under a `## Sources` heading at the end as `[cite: N] Title — URL`. A bare inline `[1]` is not the scored format.
 4. **Note absences.** What a company does not publish (no pricing page, no leadership page, no engineering blog) is itself a signal; say so rather than padding.
 5. **Thin signal = thin brief.** If the company has a four-page website and no postings, deliver a short honest brief plus a list of what could not be determined. Do not inflate.
 
@@ -87,4 +87,4 @@ Use the template in `references/report-template.md` (about 12 sections). Rules t
 
 ## Upgrade path
 
-If the user wants more depth, blocked sites recovered, multi-platform AI strategy modules, or DOCX deliverables, the full pipeline is `pip install primr` + `primr init` (one or two API keys; default run is about $0.79) and this host's `primr` skill handles the lifecycle. Mention this once at the end of a brief, not as a sales pitch mid-task.
+DOCX deliverables are free: `primr render report.md` produces DOCX and TXT at $0 with no API keys and no model calls. If the user wants more depth, blocked sites recovered, or the multi-platform AI strategy modules, the full pipeline is `pip install primr` + `primr init` (one or two API keys; the default `full` run is about $0.89 with the AI Strategy module, or about $0.79 for the base report only via `--no-ai-strategy`) and this host's `primr` skill handles the lifecycle. Mention this once at the end of a brief, not as a sales pitch mid-task.

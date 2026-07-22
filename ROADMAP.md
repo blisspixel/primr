@@ -923,6 +923,10 @@ duplicated state. Tighten the story:
 The `is_vendor_research_current` default was 14 days; v1.26 tightened it
 to 7 days (weekly). All three gaps closed:
 
+- **Grounded-lite default (1.37.0) - DONE.** Vendor news now defaults to a
+  grounded-lite engine - a single Gemini call with live Google Search grounding
+  (~$0.30, current and cited) - instead of Deep Research. The heavyweight Deep
+  Research engine (~$2.50/task) is opt-in via `--deep-research`.
 - **Shared per-vendor cache - DONE** (via #12's per-user cache): back-to-back
   runs in different company folders now reuse one vendor research file per
   vendor. Missing cache files are now skipped unless refresh/generation is
@@ -940,8 +944,9 @@ to 7 days (weekly). All three gaps closed:
   existed as the refresh flag.)
 - **Estimate-bound refresh and context parity - DONE.** Integrated fast and
   standard strategy paths disable ambient cache refresh, carry the explicit
-  `--refresh-vendor-research` intent into execution, and conservatively add one
-  quoted Deep Research task per selected platform. Fast AI Strategy now reads
+  `--refresh-vendor-research` intent into execution, and quote one
+  grounded-lite refresh task per selected platform (or a Deep Research task
+  under `--deep-research`). Fast AI Strategy now reads
   the same cached cross-industry research as standard and standalone paths
   through bounded, identity-stable, body-safe file handling; an optional cache
   failure cannot block strategy generation. Refresh publication is atomic,

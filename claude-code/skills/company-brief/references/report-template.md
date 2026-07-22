@@ -1,6 +1,6 @@
 # Company brief template (lite primr method)
 
-Target length: 2,000-5,000 words depending on signal. Every section that makes a non-obvious claim labels it and cites it. Keep references numbered inline `[N]` with one consolidated Sources list at the end; do not scatter full URLs through the body.
+Target length: 2,000-5,000 words depending on signal. Every section that makes a non-obvious claim labels it and cites it. Keep references numbered inline in the house format `[cite: N]` with one consolidated `## Sources` list at the end (`[cite: N] Title — URL`); do not scatter full URLs through the body.
 
 ---
 

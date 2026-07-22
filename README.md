@@ -234,10 +234,14 @@ strategy artifacts are typically about $1.01 and 37-59 minutes with xAI plus
 Gemini. Cached vendor research is reused when present. Current product claims
 and names must be supported by official evidence; when that evidence is not
 available to a run, the strategy must leave the claim unasserted and name the
-evidence gap and validation action. Fresh vendor-research generation or refresh requires
-the explicit `--refresh-vendor-research` flag on an integrated run; its dry-run,
-budget gate, and approval estimate include one separate Deep Research task per
-selected platform. `primr --generate-vendor-research` is the deliberate direct
+evidence gap and validation action. AI news (vendor research) defaults to a
+grounded-lite engine (~$0.30): a single Gemini call with live Google Search
+grounding, cited from current sources rather than stale model memory.
+`--refresh-vendor-research` is freshness-aware — it reuses cached briefs newer
+than the freshness window and regenerates only stale or missing ones, so an
+integrated run does not pay to rebuild fresh research. The heavyweight Deep
+Research engine (~$2.50/task) is opt-in via `--deep-research`.
+`primr --generate-vendor-research` is the deliberate direct
 cache-generation command. It quotes the aggregate tasks, cost, and time before
 execution, supports zero-call `--dry-run` and `--budget`, and requires an
 interactive confirmation unless `--skip-confirm` explicitly approves a
@@ -290,7 +294,7 @@ See [Run Modes and Costs](docs/RUN_MODES.md) for the full mode matrix, platform 
 | Convert a Markdown report to DOCX/TXT (zero cost, no model calls) | `primr render "output/report.md"` |
 | Quote website enrichment without starting it | `primr --batch "companies.csv" --enrich --dry-run` |
 | Quote a whole research batch without starting it | `primr --batch "companies_enriched.csv" --dry-run` |
-| Quote a strategy from an existing report | `primr --ai-strategy-only "output/report.md" --dry-run` |
+| Quote a strategy from an existing report (~$1 lite by default; `--deep-research` for thorough) | `primr --ai-strategy-only "output/report.md" --dry-run` |
 | Client-facing deliverables in a chosen folder | `primr "Company" https://company.com --output-dir "C:\Clients\Company"` |
 
 For agent-host operation, a bare Primr request defaults to Primr Zero and does

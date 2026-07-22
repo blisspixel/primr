@@ -13,8 +13,10 @@ This document describes all configuration options available in Primr.
 | `OPENAI_API_KEY` | Optional OpenAI GPT/o-series provider for utility, reasoning, writing, and premium research roles | No |
 | `ANTHROPIC_API_KEY` | Optional Anthropic Claude provider for reasoning, writing, and pro roles | No |
 | `OLLAMA_API_KEY` | Optional key for Ollama or another local OpenAI-compatible endpoint; Ollama defaults to `ollama` when unset | No |
+| `AZURE_OPENAI_API_KEY` | Optional Azure AI Foundry provider (resolves the `foundry`/`azure` provider); set `AZURE_OPENAI_BASE_URL` or `AZURE_OPENAI_ENDPOINT` for the deployment endpoint | No |
+| `AWS_BEARER_TOKEN_BEDROCK` | Optional AWS Bedrock provider (resolves the `bedrock`/`aws` provider); the standard AWS credential chain (`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_REGION`/`AWS_PROFILE`) also works. Needs `pip install 'primr[bedrock]'` | No |
 
-Run `primr init` for guided first-run setup. Set keys directly with `primr keys set gemini`, `primr keys set xai`, `primr keys set openai`, `primr keys set anthropic`, or `primr keys set ollama`; shell env vars and local `.env` values are also supported. Run `primr keys path` to see the user-level config file. The measured default remains XAI + Gemini, but a single usable cloud provider key is enough for provider diagnostics.
+Run `primr init` for guided first-run setup. Set keys directly with `primr keys set gemini`, `primr keys set xai`, `primr keys set openai`, `primr keys set anthropic`, `primr keys set ollama`, `primr keys set foundry`, or `primr keys set bedrock`; shell env vars and local `.env` values are also supported. Run `primr keys path` to see the user-level config file. The measured default remains XAI + Gemini, but a single usable cloud provider key is enough for provider diagnostics.
 
 ### Agent Host Authentication
 
@@ -67,19 +69,22 @@ Gemini 3.1 Pro Preview is the default Pro model. It has tiered pricing: $2/$12 p
 
 ### Vendor Research Cache
 
-Vendor research is shared in the per-user cache and reused when present. Stale or
-missing cache files do not trigger fresh Deep Research automatically because the
-run must quote that extra task before execution. Use the matching explicit
-control when a refresh is intentional:
+Vendor research (AI news) defaults to a grounded-lite engine: one Gemini call
+with Google Search grounding produces live, cited results at roughly $0.30 per
+platform. Deep Research (~$2.50/task) is opt-in via `--deep-research`. Results
+are shared in the per-user cache and reused when present. Stale or missing cache
+files do not trigger a fresh refresh automatically because the run must quote
+that extra task before execution. Use the matching explicit control when a
+refresh is intentional:
 
 - `primr --generate-vendor-research <vendor> --dry-run`, then repeat without
   `--dry-run` and approve the quoted aggregate estimate
 - `primr "Company" https://company.com --refresh-vendor-research`
 
 Integrated research and standalone strategy commands ignore ambient automatic
-refresh settings. Their dry-run and budget estimates include one separate Deep
-Research refresh task per selected platform only when
-`--refresh-vendor-research` is present. `PRIMR_ALLOW_VENDOR_REFRESH=1` remains
+refresh settings. Their dry-run and budget estimates include one grounded-lite
+refresh task per selected platform (or a Deep Research task under
+`--deep-research`) only when `--refresh-vendor-research` is present. `PRIMR_ALLOW_VENDOR_REFRESH=1` remains
 available to direct library callers that explicitly leave cache policy under
 environment control; estimate-bound CLI and MCP paths override it to prevent
 unquoted provider work.

@@ -17,6 +17,10 @@ strict about formatting and structure in the final document pipeline.
 
 - **Final-document canonicalization** before shipping, so report/strategy
   artifacts are normalized into a stable shape before MD/TXT/DOCX rendering.
+- **Zero-cost Markdown rendering** through the `primr render` subcommand, which
+  exposes the `markdown_to_docx` renderer so any Markdown report (including
+  host-written Primr-Zero dossiers) reaches DOCX/TXT deliverable parity with a
+  paid run.
 - **Typed generated-section normalization** at the section-writing seam,
   including validation-line cleanup, embedded reference stripping, and citation
   extraction.

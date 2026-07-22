@@ -18,7 +18,7 @@ understanding.
 | [ZERO_COST](ZERO_COST.md) | Run keyless collection and finish a sourced dossier with an existing agent plan |
 | [API_KEYS](API_KEYS.md) | API key setup, security, and troubleshooting |
 | [CONFIG](CONFIG.md) | First-run configuration and the full settings reference |
-| [RUN_MODES](RUN_MODES.md) | Run modes, costs, strategy selection, and output locations |
+| [RUN_MODES](RUN_MODES.md) | Run modes, costs, strategy selection, output locations, and zero-cost `primr render` (Markdown to DOCX/TXT) |
 | [AZURE_QUICKSTART](AZURE_QUICKSTART.md) | Stand up the team/org Azure deployment end to end |
 
 ## How-to guides (task-oriented)
