@@ -66,14 +66,14 @@ Report sections are defined in YAML configuration files, not hardcoded in Python
 - **Customizable**: Users can modify sections without changing code
 - **Extensible**: New strategy reports can be added by creating new YAML files
 
-**As of December 2025, the Strategic Company Overview uses 21 sections** defined in `src/primr/prompts/company_overview.yaml`:
+**The Strategic Company Overview uses 23 sections** defined in `src/primr/prompts/company_overview.yaml`:
 
 | Part | Sections |
 |------|----------|
 | 1 - Foundational | Executive Summary, Products and Services, Target Customers, Competitive Differentiation, Financial Profile, Company History, Leadership and Organization |
-| 2 - Industry | Industry Dynamics, Competitive Landscape |
+| 2 - Industry | Industry Dynamics, Industry Outlook, Competitive Landscape |
 | 3 - Strategic | Business Model, SWOT Analysis, Strategic Tensions, Constraints and Degrees of Freedom |
-| 4 - Patterns | Narrative Gap Analysis, Fragilities, Patterns Worth Exploring, Discovery Questions, Engagement Opportunities |
+| 4 - Patterns | Narrative Gap Analysis, Fragilities, Patterns Worth Exploring, Discovery Questions, Board Perspective, Engagement Opportunities |
 | 5 - Frameworks | Porter's Five Forces, Value Chain Analysis, Strategic Positioning Hypothesis |
 
 **AI Strategy Report** uses 15 sections defined in `src/primr/prompts/strategies/ai_strategy.yaml`. It starts with business strategy and value, then treats Azure, AWS, GCP, private infrastructure, or agnostic selection as an evaluation emphasis rather than a predetermined answer.
@@ -98,16 +98,27 @@ This enables downstream parsing and structured data extraction.
 
 ### Tier Selection
 
-The scraping engine uses a simple escalation strategy:
+The scraping engine escalates through nine tiers, **browser-first** (a real
+browser defeats most modern bot defenses; plain HTTP is the last resort, and a
+vision tier sits in the middle as a safety net). The canonical order lives in
+`src/primr/data/scraping/tier_registry.py`:
 
 ```python
 def scrape(url):
-    for tier in [requests, httpx, playwright, playwright_aggressive]:
-        content, error = tier.scrape(url)
+    tiers = [
+        "playwright", "playwright_aggressive", "patchright",   # browser
+        "curl_cffi", "drissionpage_stealth", "drissionpage",   # stealth HTTP / browser
+        "vision",                                              # screenshot + Gemini extraction
+        "httpx", "requests",                                   # plain HTTP fallback
+    ]
+    for tier in tiers:
+        content, error = run_tier(tier, url)
         if content and not is_soft_blocked(content):
             return content
     return None
 ```
+
+See [ARCHITECTURE](ARCHITECTURE.md) for the full tier table and per-tier costs.
 
 Each tier is tried in order. Escalation happens on:
 - HTTP errors (4xx, 5xx)
@@ -148,21 +159,21 @@ def detect_soft_block(text, url):
 
 ### Browser Fingerprinting
 
-Four browser profiles are maintained:
+Five HTTP profiles are maintained in
+`src/primr/data/scraping/profiles.py`:
 
-| Profile | User Agent | Platform | Timezone |
-|---------|------------|----------|----------|
-| Windows Chrome | Chrome/122 on Win10 | Win32 | America/New_York |
-| Mac Chrome | Chrome/122 on macOS | MacIntel | America/Los_Angeles |
-| Windows Firefox | Firefox/123 on Win10 | Win32 | America/Chicago |
-| Mac Safari | Safari/17.2 on macOS | MacIntel | America/Denver |
+| Profile | User Agent | Platform |
+|---------|------------|----------|
+| `chrome_131_windows` | Chrome/131 on Win10 | Win32 |
+| `chrome_131_mac` | Chrome/131 on macOS | MacIntel |
+| `chrome_130_windows` | Chrome/130 on Win10 | Win32 |
+| `edge_131_windows` | Edge/131 on Win10 | Win32 |
+| `safari_18_mac` | Safari/18.2 on macOS | MacIntel |
 
-Each profile includes:
-- User agent string
-- Platform identifier
-- Vendor string
-- Timezone
-- Screen dimensions
+Each profile carries a user-agent string, platform and vendor identifiers,
+client hints, and screen dimensions. Timezone and viewport are decoupled into a
+separate `CONTEXT_PROFILES` set (America/New_York, Los_Angeles, Chicago,
+Denver) so a fingerprint and its locale can be varied independently.
 - Color depth
 - Hardware concurrency
 - Device memory
@@ -219,12 +230,13 @@ const getParameterProxyHandler = {
 
 ### Grading Criteria
 
-Each section is graded on four dimensions:
+Each section is graded on four equally-weighted criteria that contribute to a
+single **0-100** score (there are no separate per-criterion sub-scores):
 
-1. **Clarity & Readability** (0-25): Is the section well-structured?
-2. **Completeness** (0-25): Does it cover critical aspects?
-3. **Insight Depth** (0-25): Does it provide meaningful business insights?
-4. **Accuracy** (0-25): Does it match the company's website information?
+1. **Clarity & Readability**: Is the section well-structured?
+2. **Completeness**: Does it cover critical aspects?
+3. **Insight Depth**: Does it provide meaningful business insights?
+4. **Accuracy**: Does it match the company's website information?
 
 ### Grading Prompt
 
@@ -543,9 +555,14 @@ src/primr/prompts/
 │   ├── formatting.yaml       # Formatting rules
 │   └── personas.yaml         # Analyst personas
 └── strategies/
-    ├── ai_strategy.yaml      # AI strategy module
-    ├── cloud_migration.yaml  # Cloud migration (placeholder)
-    └── data_strategy.yaml    # Data strategy (placeholder)
+    ├── ai_strategy.yaml              # AI strategy module (default)
+    ├── ai_first_transformation.yaml  # Historical / non-selectable
+    ├── customer_experience.yaml      # Active strategy module
+    ├── data_fabric_strategy.yaml     # Active strategy module
+    ├── modern_security_compliance.yaml
+    ├── skills.yaml                   # Skills-pack strategy
+    ├── cloud_migration.yaml          # Placeholder
+    └── data_strategy.yaml            # Placeholder
 ```
 
 ### Core Components
