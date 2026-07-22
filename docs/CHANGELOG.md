@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.37.2] - 2026-07-22
+
 ### Added
 
 - **Registered the July 2026 Gemini models** `gemini-3.6-flash` ($1.50/$7.50)
