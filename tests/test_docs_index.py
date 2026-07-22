@@ -34,9 +34,7 @@ def test_every_top_level_doc_is_listed_in_the_index() -> None:
         for path in DOCS_DIR.glob("*.md")
         if path.name != "README.md" and path.name not in targets
     )
-    assert not missing, (
-        f"docs/README.md must link every doc under docs/. Missing: {missing}"
-    )
+    assert not missing, f"docs/README.md must link every doc under docs/. Missing: {missing}"
 
 
 def test_every_relative_index_link_resolves() -> None:
