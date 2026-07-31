@@ -164,9 +164,16 @@ PRODUCTION_STAGES: Final[tuple[ProductionStage, ...]] = (
         current_backend="routed through ai.stage_routing with legacy fast fallback",
         promotion_gate=(
             "Can route after accepted/rejected source decisions agree with the "
-            "cloud baseline on thin, blocked, and noisy-source cases."
+            "cloud baseline on the standing corpus "
+            "(source_relevance_standing_v1 representative tags), live host "
+            "route observations with billing provenance, and human review. "
+            "Offline scorecards alone are not sufficient."
         ),
-        notes="This is a strong first hybrid/local pilot because it is bounded and low-cost.",
+        notes=(
+            "Bounded hybrid/local pilot. Offline standing corpus and backend "
+            "comparison artifacts are scorecard input only "
+            "(promotion_status=not_promoted)."
+        ),
     ),
     ProductionStage(
         stage_id="fast.hiring_signals",

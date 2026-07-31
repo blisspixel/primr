@@ -31,6 +31,25 @@ async def list_tools_handler(server: Any) -> mcp_types.ListToolsResult:
     return await _handler(server, "tools/list")(None, mcp_types.PaginatedRequestParams())
 
 
+async def server_discover_handler(server: Any) -> mcp_types.DiscoverResult:
+    """Invoke the 2026-07-28 server/discover handler with a minimal context.
+
+    The SDK discover path reads ``ctx.protocol_version``; a bare ``None``
+    context is not valid even though list handlers tolerate it.
+    """
+    from types import SimpleNamespace
+
+    from mcp.server.context import ServerRequestContext
+
+    ctx = ServerRequestContext(
+        session=SimpleNamespace(),
+        lifespan_context=None,
+        protocol_version="2026-07-28",
+        method="server/discover",
+    )
+    return await _handler(server, "server/discover")(ctx, None)
+
+
 async def call_tool_handler(
     server: Any, name: str, arguments: dict[str, Any] | None = None
 ) -> mcp_types.CallToolResult:

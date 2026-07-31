@@ -36,6 +36,7 @@ from tests.mcp_server.sdk_compat import (
     list_resources_handler,
     list_tools_handler,
     read_resource_handler,
+    server_discover_handler,
 )
 
 
@@ -202,6 +203,23 @@ class TestProtocolListResponseCompleteness:
             assert hints[method].scope == "private"
         assert hints["tools/list"].ttl_ms == 300_000
         assert hints["resources/read"].ttl_ms == 0
+
+    @pytest.mark.asyncio
+    async def test_server_discover_advertises_identity_and_versions(self, server):
+        """Spec 2026-07-28: server/discover returns identity without a handshake."""
+        result = await server_discover_handler(server)
+        assert result is not None
+        wire = result.model_dump(by_alias=True, mode="json")
+        versions = wire.get("supportedVersions") or wire.get("supported_versions") or []
+        assert versions, "server/discover must advertise supported protocol versions"
+        assert any("2026-07-28" in str(v) for v in versions)
+        instructions = wire.get("instructions") or ""
+        assert "estimate_run" in instructions
+        assert "research_company" in instructions
+        capabilities = wire.get("capabilities") or {}
+        assert "tools" in capabilities
+        assert "resources" in capabilities
+        assert "prompts" in capabilities
 
 
 class TestProtocolErrorCodes:

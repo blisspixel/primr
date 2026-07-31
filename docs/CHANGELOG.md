@@ -21,10 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and labeled fixture evals now write body-free backend comparison JSON/Markdown
   (F1/precision/recall deltas, exact-match rates) plus a standing-corpus
   integrity sidecar. Comparison is review-only and does not arm promotion.
-- **MCP protocol tests for 2026-07-28 resource templates and private cache
-  hints.** Parameterized `by_job` resources must appear on
-  `resources/templates/list`, and the server's configured list/discover cache
-  hints remain `private`.
+- **MCP protocol tests for 2026-07-28 resource templates, private cache
+  hints, and `server/discover`.** Parameterized `by_job` resources must appear
+  on `resources/templates/list`, list/discover cache hints remain `private`,
+  and `server/discover` advertises `2026-07-28` support plus cost-gate
+  instructions without a session handshake.
 
 ## [1.39.0] - 2026-07-31
 
