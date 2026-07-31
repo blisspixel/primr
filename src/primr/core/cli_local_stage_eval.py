@@ -198,9 +198,13 @@ def handle_inspect_standing_source_relevance_corpus(
 
     console.blank()
     console.step("Standing Source-Relevance Corpus Inspection")
+    try:
+        stage_root = _source_relevance_stage_root(config)
+    except ValueError as exc:
+        console.error(str(exc))
+        return 1, None
     inspection = source_relevance_eval.inspect_standing_source_relevance_corpus()
-    out_dir = Path(config.eval_root) / config.eval_id / "source_relevance_stage"
-    out_path = out_dir / "standing_corpus_integrity.json"
+    out_path = stage_root / "standing_corpus_integrity.json"
     source_relevance_eval.write_standing_corpus_integrity_sidecar(out_path, inspection=inspection)
     console.info(json.dumps(inspection, indent=2, sort_keys=True))
     console.info(f"Standing corpus integrity: {out_path}")
@@ -211,6 +215,14 @@ def handle_inspect_standing_source_relevance_corpus(
         )
         return 1, out_path
     return 0, out_path
+
+
+def _source_relevance_stage_root(config: Any) -> Path:
+    """Resolve the per-eval source-relevance stage directory under eval_root."""
+
+    from primr.core.model_eval import _safe_eval_dir
+
+    return _safe_eval_dir(Path(config.eval_root), config.eval_id) / "source_relevance_stage"
 
 
 def handle_source_relevance_fixture_eval(
@@ -258,7 +270,11 @@ def handle_source_relevance_fixture_eval(
         console.error("Source relevance fixture eval produced no candidate rows.")
         return 1, None
 
-    stage_root = Path(config.eval_root) / config.eval_id / "source_relevance_stage"
+    try:
+        stage_root = _source_relevance_stage_root(config)
+    except ValueError as exc:
+        console.error(str(exc))
+        return 1, None
     report_path = stage_root / "source_relevance_stage_eval.json"
     markdown_path = stage_root / "source_relevance_stage_eval.md"
     quality_path = stage_root / "source_relevance_stage_quality_evidence.json"
