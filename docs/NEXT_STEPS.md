@@ -434,12 +434,14 @@ Done when:
   calibrated samples and human-reviewed acceptance criteria are still required
   before any promotion. The standing source-relevance corpus
   (`source_relevance_standing_v1`) is now packaged with representative tags and
-  dual cloud/host candidates, and
-  `--eval-source-relevance-standing-corpus` produces review-only scorecard
-  evidence offline. The next concrete slice is to run a controlled live
+  dual cloud/host candidates. Offline path is complete: integrity inspect
+  (sha256-bound), standing scorecard, and body-free backend comparison
+  artifacts under safe eval-id paths, all with
+  `promotion_status=not_promoted`. The next concrete slice is a controlled live
   host-vs-cloud comparison against that standing corpus after explicit approval
-  of potentially metered host use and direct cloud spend, then record a
-  human-reviewed promotion decision without auto-arming host routing.
+  of potentially metered host use and direct cloud spend, then a human-reviewed
+  promotion decision without auto-arming host routing. Broader production-stage
+  router wiring beyond the three utility stages remains open after that.
 - No hidden provider dependency remains in the full-report path for the wired
   stage.
 
