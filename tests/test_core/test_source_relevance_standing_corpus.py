@@ -57,6 +57,12 @@ def test_standing_corpus_inspection_is_scorecard_ready() -> None:
     assert inspection["case_count"] >= 5
     assert not inspection["missing_representative_tags"]
     assert STANDING_CORPUS_REQUIRED_BACKENDS.issubset(set(inspection["backends_present"]))
+    fingerprint = inspection["corpus_fingerprint"]
+    assert fingerprint["size_bytes"] > 0
+    assert len(fingerprint["sha256"]) == 64
+    raw = standing_source_relevance_corpus_path().read_bytes()
+    assert fingerprint["sha256"] == __import__("hashlib").sha256(raw).hexdigest()
+    assert fingerprint["size_bytes"] == len(raw)
 
 
 def test_standing_corpus_loads_and_scores_without_bodies() -> None:

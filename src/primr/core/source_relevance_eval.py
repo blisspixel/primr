@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -98,11 +99,13 @@ def inspect_standing_source_relevance_corpus(
     A ready corpus is scorecard input only; promotion remains operator-owned.
     """
 
+    corpus_fingerprint: dict[str, Any] | None = None
     if payload is None:
         loaded = _load_standing_corpus_payload(path)
         if loaded.get("error"):
             return loaded["error"]
         payload = loaded["payload"]
+        corpus_fingerprint = loaded.get("fingerprint")
 
     blockers: list[str] = []
     corpus_id = payload.get("corpus_id")
@@ -134,7 +137,7 @@ def inspect_standing_source_relevance_corpus(
         blockers.append("missing_required_backends")
 
     status = "ready_for_scorecard" if not blockers else "blocked"
-    return {
+    result: dict[str, Any] = {
         "schema_version": 1,
         "corpus_id": STANDING_CORPUS_ID if corpus_id is None else corpus_id,
         "status": status,
@@ -148,6 +151,9 @@ def inspect_standing_source_relevance_corpus(
         "missing_required_backends": missing_backends,
         "min_cases": STANDING_CORPUS_MIN_CASES,
     }
+    if corpus_fingerprint is not None:
+        result["corpus_fingerprint"] = corpus_fingerprint
+    return result
 
 
 def _standing_error_snapshot(status: str, blocker: str) -> dict[str, Any]:
@@ -170,12 +176,23 @@ def _load_standing_corpus_payload(path: Path | None) -> dict[str, Any]:
     if not corpus_path.is_file():
         return {"error": _standing_error_snapshot("missing", "corpus_file_missing")}
     try:
-        raw = json.loads(corpus_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
+        raw_bytes = corpus_path.read_bytes()
+    except OSError:
+        return {"error": _standing_error_snapshot("invalid", "corpus_unreadable")}
+    try:
+        raw = json.loads(raw_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
         return {"error": _standing_error_snapshot("invalid", "corpus_json_invalid")}
     if not isinstance(raw, dict):
         return {"error": _standing_error_snapshot("invalid", "corpus_root_not_object")}
-    return {"payload": raw}
+    return {
+        "payload": raw,
+        "fingerprint": {
+            "path": str(corpus_path),
+            "sha256": hashlib.sha256(raw_bytes).hexdigest(),
+            "size_bytes": len(raw_bytes),
+        },
+    }
 
 
 def _standing_required_tags(payload: dict[str, Any]) -> tuple[tuple[str, ...], list[str]]:
