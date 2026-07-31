@@ -7,6 +7,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from primr.core import source_relevance_eval
 from primr.core.cli_local_stage_eval import handle_source_relevance_fixture_eval
@@ -170,3 +172,22 @@ def test_handle_source_relevance_rejects_fixture_and_standing_together(tmp_path:
 def test_standing_corpus_id_constant_matches_package_file() -> None:
     payload = json.loads(standing_source_relevance_corpus_path().read_text(encoding="utf-8"))
     assert payload["corpus_id"] == source_relevance_eval.STANDING_CORPUS_ID
+
+
+@given(
+    body_key=st.sampled_from(
+        ["source_url", "source_text", "url", "text", "body", "snippet"]
+    ),
+    body_value=st.sampled_from(
+        ["https://must-not-leak.example", "raw body text", ["x"], {"k": "v"}]
+    ),
+)
+@settings(max_examples=20, deadline=None)
+def test_standing_inspection_blocks_any_body_field(
+    body_key: str, body_value: object
+) -> None:
+    payload = json.loads(standing_source_relevance_corpus_path().read_text(encoding="utf-8"))
+    payload["cases"][0][body_key] = body_value
+    inspection = inspect_standing_source_relevance_corpus(payload=payload)
+    assert inspection["status"] == "blocked"
+    assert "case_contains_source_body_fields" in inspection["blockers"]
