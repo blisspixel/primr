@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   corpus into review-only stage quality evidence. Scorecard input only; the
   corpus ships with `promotion_status=not_promoted` and never auto-promotes
   host routing.
+- **Offline host-vs-cloud comparison artifacts for source-relevance.** Standing
+  and labeled fixture evals now write body-free backend comparison JSON/Markdown
+  (F1/precision/recall deltas, exact-match rates) plus a standing-corpus
+  integrity sidecar. Comparison is review-only and does not arm promotion.
 - **MCP protocol tests for 2026-07-28 resource templates and private cache
   hints.** Parameterized `by_job` resources must appear on
   `resources/templates/list`, and the server's configured list/discover cache

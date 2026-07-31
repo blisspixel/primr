@@ -110,6 +110,30 @@ def test_handle_source_relevance_standing_corpus_cli(tmp_path: Path) -> None:
     assert payload["decision_policy"] == "scorecard_input_only"
     assert "must-not" not in quality_path.read_text(encoding="utf-8")
     assert any("Standing corpus" in line for line in console.infos)
+    stage_root = tmp_path / "eval-standing-001" / "source_relevance_stage"
+    comparison = json.loads(
+        (stage_root / "source_relevance_backend_comparison.json").read_text(encoding="utf-8")
+    )
+    integrity = json.loads(
+        (stage_root / "standing_corpus_integrity.json").read_text(encoding="utf-8")
+    )
+    assert comparison["evidence_type"] == "source_relevance_backend_comparison"
+    assert comparison["promotion_status"] == "not_promoted"
+    assert comparison["comparable_cases"] == 6
+    assert "avg_f1_delta" in comparison["aggregate"]
+    assert integrity["status"] == "ready_for_scorecard"
+    assert (stage_root / "source_relevance_backend_comparison.md").is_file()
+
+
+def test_backend_comparison_is_body_free() -> None:
+    cases = load_standing_source_relevance_corpus()
+    rows = build_source_relevance_eval_rows(cases)
+    comparison = source_relevance_eval.build_source_relevance_backend_comparison(rows)
+    text = json.dumps(comparison)
+    assert "http://" not in text
+    assert "https://" not in text
+    assert comparison["blockers"] == []
+    assert comparison["comparable_cases"] >= 5
 
 
 def test_handle_source_relevance_rejects_fixture_and_standing_together(tmp_path: Path) -> None:

@@ -443,6 +443,174 @@ def write_source_relevance_stage_quality_evidence(
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+def build_source_relevance_backend_comparison(
+    rows: list[SourceRelevanceEvalRow],
+    *,
+    baseline_backend: str = "cloud-baseline",
+    candidate_backend: str = "codex-host",
+) -> dict[str, Any]:
+    """Compare two backends on shared labeled cases without keep-list bodies.
+
+    Returns body-free aggregate and per-case metric deltas for operator review.
+    Does not decide promotion.
+    """
+
+    by_case: dict[str, dict[str, SourceRelevanceEvalRow]] = {}
+    for row in rows:
+        by_case.setdefault(row.case_id, {})[row.backend_id] = row
+
+    case_deltas: list[dict[str, Any]] = []
+    for case_id, backend_rows in sorted(by_case.items()):
+        baseline = backend_rows.get(baseline_backend)
+        candidate = backend_rows.get(candidate_backend)
+        if baseline is None or candidate is None:
+            continue
+        case_deltas.append(
+            {
+                "case_id": case_id,
+                "company": baseline.company,
+                "baseline_backend": baseline_backend,
+                "candidate_backend": candidate_backend,
+                "baseline_f1": baseline.f1_score,
+                "candidate_f1": candidate.f1_score,
+                "f1_delta": round(candidate.f1_score - baseline.f1_score, 2),
+                "baseline_precision": baseline.precision,
+                "candidate_precision": candidate.precision,
+                "precision_delta": round(candidate.precision - baseline.precision, 2),
+                "baseline_recall": baseline.recall,
+                "candidate_recall": candidate.recall,
+                "recall_delta": round(candidate.recall - baseline.recall, 2),
+                "baseline_exact_match": baseline.exact_match,
+                "candidate_exact_match": candidate.exact_match,
+            }
+        )
+
+    if not case_deltas:
+        return {
+            "schema_version": 1,
+            "evidence_type": "source_relevance_backend_comparison",
+            "decision_policy": "scorecard_input_only",
+            "promotion_status": "not_promoted",
+            "baseline_backend": baseline_backend,
+            "candidate_backend": candidate_backend,
+            "comparable_cases": 0,
+            "aggregate": {},
+            "cases": [],
+            "blockers": ["no_comparable_case_pairs"],
+        }
+
+    def _avg(key: str) -> float:
+        return round(sum(item[key] for item in case_deltas) / len(case_deltas), 2)
+
+    return {
+        "schema_version": 1,
+        "evidence_type": "source_relevance_backend_comparison",
+        "decision_policy": "scorecard_input_only",
+        "promotion_status": "not_promoted",
+        "baseline_backend": baseline_backend,
+        "candidate_backend": candidate_backend,
+        "comparable_cases": len(case_deltas),
+        "aggregate": {
+            "avg_baseline_f1": _avg("baseline_f1"),
+            "avg_candidate_f1": _avg("candidate_f1"),
+            "avg_f1_delta": _avg("f1_delta"),
+            "avg_precision_delta": _avg("precision_delta"),
+            "avg_recall_delta": _avg("recall_delta"),
+            "baseline_exact_match_rate_pct": round(
+                100.0
+                * sum(1 for item in case_deltas if item["baseline_exact_match"])
+                / len(case_deltas),
+                2,
+            ),
+            "candidate_exact_match_rate_pct": round(
+                100.0
+                * sum(1 for item in case_deltas if item["candidate_exact_match"])
+                / len(case_deltas),
+                2,
+            ),
+        },
+        "cases": case_deltas,
+        "blockers": [],
+        "review_note": (
+            "Offline labeled comparison only. Live host execution, billing "
+            "provenance, and human review remain required before promotion."
+        ),
+    }
+
+
+def write_source_relevance_backend_comparison(
+    path: Path,
+    *,
+    eval_id: str,
+    rows: list[SourceRelevanceEvalRow],
+    baseline_backend: str = "cloud-baseline",
+    candidate_backend: str = "codex-host",
+    corpus_inspection: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Write body-free backend comparison JSON for operator review."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    comparison = build_source_relevance_backend_comparison(
+        rows,
+        baseline_backend=baseline_backend,
+        candidate_backend=candidate_backend,
+    )
+    payload = {
+        **comparison,
+        "eval_id": eval_id,
+        "stage_id": "fast.source_relevance",
+        "corpus_inspection": corpus_inspection,
+    }
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return payload
+
+
+def write_source_relevance_backend_comparison_markdown(
+    path: Path,
+    *,
+    eval_id: str,
+    comparison: dict[str, Any],
+) -> None:
+    """Write a compact Markdown summary of the backend comparison."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    aggregate = comparison.get("aggregate") or {}
+    lines = [
+        f"# Source Relevance Backend Comparison: {eval_id}",
+        "",
+        f"- Baseline: `{comparison.get('baseline_backend')}`",
+        f"- Candidate: `{comparison.get('candidate_backend')}`",
+        f"- Comparable cases: {comparison.get('comparable_cases', 0)}",
+        f"- Decision policy: `{comparison.get('decision_policy')}`",
+        f"- Promotion status: `{comparison.get('promotion_status')}`",
+        "",
+        "| Metric | Value |",
+        "|---|---:|",
+        f"| Avg baseline F1 | {aggregate.get('avg_baseline_f1', 'n/a')} |",
+        f"| Avg candidate F1 | {aggregate.get('avg_candidate_f1', 'n/a')} |",
+        f"| Avg F1 delta (candidate - baseline) | {aggregate.get('avg_f1_delta', 'n/a')} |",
+        f"| Avg precision delta | {aggregate.get('avg_precision_delta', 'n/a')} |",
+        f"| Avg recall delta | {aggregate.get('avg_recall_delta', 'n/a')} |",
+        f"| Baseline exact-match rate % | {aggregate.get('baseline_exact_match_rate_pct', 'n/a')} |",
+        f"| Candidate exact-match rate % | {aggregate.get('candidate_exact_match_rate_pct', 'n/a')} |",
+        "",
+        comparison.get("review_note", ""),
+        "",
+    ]
+    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
+def write_standing_corpus_integrity_sidecar(
+    path: Path,
+    *,
+    inspection: dict[str, Any],
+) -> None:
+    """Persist body-free standing-corpus integrity inspection next to eval outputs."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(inspection, indent=2), encoding="utf-8")
+
+
 @dataclass(frozen=True)
 class _BackendSummary:
     backend_id: str

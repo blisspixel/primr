@@ -231,6 +231,9 @@ def handle_source_relevance_fixture_eval(
     report_path = stage_root / "source_relevance_stage_eval.json"
     markdown_path = stage_root / "source_relevance_stage_eval.md"
     quality_path = stage_root / "source_relevance_stage_quality_evidence.json"
+    comparison_path = stage_root / "source_relevance_backend_comparison.json"
+    comparison_md_path = stage_root / "source_relevance_backend_comparison.md"
+    integrity_path = stage_root / "standing_corpus_integrity.json"
     source_relevance_eval.write_source_relevance_stage_eval_report(
         report_path,
         eval_id=config.eval_id,
@@ -247,11 +250,34 @@ def handle_source_relevance_fixture_eval(
         eval_id=config.eval_id,
         rows=rows,
     )
+    corpus_inspection = None
+    if use_standing:
+        corpus_inspection = source_relevance_eval.inspect_standing_source_relevance_corpus(
+            path=fixture_path
+        )
+        source_relevance_eval.write_standing_corpus_integrity_sidecar(
+            integrity_path,
+            inspection=corpus_inspection,
+        )
+        console.info(f"Standing corpus integrity: {integrity_path}")
+    comparison = source_relevance_eval.write_source_relevance_backend_comparison(
+        comparison_path,
+        eval_id=config.eval_id,
+        rows=rows,
+        corpus_inspection=corpus_inspection,
+    )
+    source_relevance_eval.write_source_relevance_backend_comparison_markdown(
+        comparison_md_path,
+        eval_id=config.eval_id,
+        comparison=comparison,
+    )
     console.info(f"Source relevance cases: {len({row.case_id for row in rows})}")
     console.info(f"Source relevance candidate rows: {len(rows)}")
     console.info(f"Source relevance eval: {report_path}")
     console.info(f"Source relevance eval markdown: {markdown_path}")
     console.info(f"Source relevance quality evidence: {quality_path}")
+    console.info(f"Source relevance backend comparison: {comparison_path}")
+    console.info(f"Source relevance backend comparison markdown: {comparison_md_path}")
     return 0, quality_path
 
 

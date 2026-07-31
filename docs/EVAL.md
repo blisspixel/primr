@@ -134,7 +134,14 @@ Custom fixture shape:
 }
 ```
 
-The generated `source_relevance_stage_quality_evidence.json` feeds the same review-only stage scorecard as other route evidence. It does not promote host execution by itself; promotion still requires representative samples, route observations, and human-reviewed acceptance criteria.
+The generated `source_relevance_stage_quality_evidence.json` feeds the same
+review-only stage scorecard as other route evidence. Standing and labeled
+fixture runs also write `source_relevance_backend_comparison.json` /
+`.md` with body-free F1, precision, and recall deltas between
+`cloud-baseline` and `codex-host`, plus `standing_corpus_integrity.json` when
+the packaged corpus is used. None of these artifacts promote host execution;
+promotion still requires live route observations, billing provenance, and
+human-reviewed acceptance criteria.
 
 The single-company runtime opt-in, `--inference hybrid
 --acknowledge-host-agent-may-bill`, exists only to collect controlled route
