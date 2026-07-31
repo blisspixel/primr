@@ -432,9 +432,14 @@ Done when:
   evals can also produce F1 quality evidence for the experimental host-agent
   pilot. These remain report-only scorecard evidence, not promotion gates;
   calibrated samples and human-reviewed acceptance criteria are still required
-  before any promotion. The next concrete slice is to curate that standing
-  source-relevance corpus and run the controlled host-vs-cloud comparison after
-  explicit approval of potentially metered host use and direct cloud spend.
+  before any promotion. The standing source-relevance corpus
+  (`source_relevance_standing_v1`) is now packaged with representative tags and
+  dual cloud/host candidates, and
+  `--eval-source-relevance-standing-corpus` produces review-only scorecard
+  evidence offline. The next concrete slice is to run a controlled live
+  host-vs-cloud comparison against that standing corpus after explicit approval
+  of potentially metered host use and direct cloud spend, then record a
+  human-reviewed promotion decision without auto-arming host routing.
 - No hidden provider dependency remains in the full-report path for the wired
   stage.
 

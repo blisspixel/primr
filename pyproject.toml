@@ -200,6 +200,7 @@ primr = [
     "resources/skills/primr-zero/SKILL.md",
     "resources/skills/primr-zero/agents/*.yaml",
     "resources/skills/primr-zero/references/*.md",
+    "resources/eval/*.json",
 ]
 
 # mypy configuration lives in mypy.ini (authoritative — mypy ignores a

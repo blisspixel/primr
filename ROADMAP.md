@@ -145,8 +145,13 @@ Current priority order:
    quality-source, or raw run-state content. Website-summary local-stage evals
    now write scorecard-ready structured quality evidence as report-only input,
    and source-relevance labeled fixtures now write body-free precision, recall,
-   F1, and exact-match evidence for review-only host/cloud scorecards. No
-   representative standing source-relevance corpus has cleared that gate yet.
+   F1, and exact-match evidence for review-only host/cloud scorecards. The
+   packaged standing corpus `source_relevance_standing_v1` covers required
+   representative tags with dual cloud/host candidates and is scored offline
+   via `--eval-source-relevance-standing-corpus`; it remains report-only
+   (`promotion_status=not_promoted`). Live host-vs-cloud comparison and
+   human-reviewed promotion are still required before any host route clears
+   the gate.
 3. **Agent control-plane consumption resources and A2A parity.** MCP already has
    scopes, approval tokens, tool/resource-read audit events, and budget
    propagation. A2A now shares the HTTP bearer-token auth context and enforces

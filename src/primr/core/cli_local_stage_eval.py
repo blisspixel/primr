@@ -164,7 +164,9 @@ def handle_stage_quality_generation(
         )
         if exit_code != 0:
             return exit_code, generated_path
-    if config.eval_source_relevance_fixture:
+    if config.eval_source_relevance_fixture or getattr(
+        config, "eval_source_relevance_standing_corpus", False
+    ):
         exit_code, generated_path = handle_source_relevance_fixture_eval(
             config=config, console=console
         )
@@ -189,9 +191,33 @@ def handle_source_relevance_fixture_eval(
 
     console.blank()
     console.step("Source Relevance Stage Eval")
-    fixture_path = Path(config.eval_source_relevance_fixture)
+    use_standing = bool(getattr(config, "eval_source_relevance_standing_corpus", False))
+    explicit_fixture = getattr(config, "eval_source_relevance_fixture", None)
+    if use_standing and explicit_fixture:
+        console.error(
+            "Use either --eval-source-relevance-standing-corpus or "
+            "--eval-source-relevance-fixture, not both."
+        )
+        return 1, None
     try:
-        cases = source_relevance_eval.load_source_relevance_eval_fixture(fixture_path)
+        if use_standing:
+            fixture_path = source_relevance_eval.standing_source_relevance_corpus_path()
+            cases = source_relevance_eval.load_standing_source_relevance_corpus(fixture_path)
+            inspection = source_relevance_eval.inspect_standing_source_relevance_corpus(
+                path=fixture_path
+            )
+            console.info(
+                "Standing corpus "
+                f"{inspection.get('corpus_id')}: status={inspection.get('status')}, "
+                f"cases={inspection.get('case_count')}, "
+                f"promotion={inspection.get('promotion_status')}"
+            )
+        else:
+            if not explicit_fixture:
+                console.error("Source relevance fixture path is required.")
+                return 1, None
+            fixture_path = Path(explicit_fixture)
+            cases = source_relevance_eval.load_source_relevance_eval_fixture(fixture_path)
         rows = source_relevance_eval.build_source_relevance_eval_rows(cases)
     except (OSError, ValueError) as exc:
         console.error(f"Source relevance fixture eval failed: {exc}")

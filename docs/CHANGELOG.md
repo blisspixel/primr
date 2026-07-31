@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Standing `fast.source_relevance` labeled corpus (`source_relevance_standing_v1`).**
+  Ships a body-free, package-local six-case keep-list corpus with required
+  representative tags and dual `cloud-baseline` / `codex-host` candidates.
+  Integrity inspection reports readiness blockers without source bodies.
+  `primr --eval --eval-source-relevance-standing-corpus` scores the packaged
+  corpus into review-only stage quality evidence. Scorecard input only; the
+  corpus ships with `promotion_status=not_promoted` and never auto-promotes
+  host routing.
+- **MCP protocol tests for 2026-07-28 resource templates and private cache
+  hints.** Parameterized `by_job` resources must appear on
+  `resources/templates/list`, and the server's configured list/discover cache
+  hints remain `private`.
+
 ## [1.39.0] - 2026-07-31
 
 ### Security

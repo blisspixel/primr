@@ -32,6 +32,7 @@ from tests.mcp_server.sdk_compat import (
     call_tool_handler,
     get_prompt_handler,
     list_prompts_handler,
+    list_resource_templates_handler,
     list_resources_handler,
     list_tools_handler,
     read_resource_handler,
@@ -169,6 +170,38 @@ class TestProtocolListResponseCompleteness:
         messages = result.messages
         assert len(messages) > 0
         assert "max_estimated_cost_usd" in messages[0].content.text
+
+    @pytest.mark.asyncio
+    async def test_list_resource_templates_includes_parameterized_by_job_uris(self, server):
+        """Spec 2026-07-28: parameterized resources are advertised as templates."""
+        result = await list_resource_templates_handler(server)
+        templates = result.resource_templates
+        assert templates, "Server should advertise at least one resource template"
+        uri_templates = [template.uri_template for template in templates]
+        assert any("{job_id}" in uri for uri in uri_templates)
+        for template in templates:
+            assert template.name
+            assert "{" in template.uri_template
+            wire = template.model_dump(by_alias=True, mode="json")
+            assert "uriTemplate" in wire
+            assert "uri_template" not in wire
+
+    @pytest.mark.asyncio
+    async def test_server_cache_hints_are_private_and_cover_list_methods(self, server):
+        """Spec 2026-07-28: list/discover methods carry private cache hints."""
+        hints = server.server.cache_hints
+        for method in (
+            "tools/list",
+            "prompts/list",
+            "resources/list",
+            "resources/templates/list",
+            "resources/read",
+            "server/discover",
+        ):
+            assert method in hints, f"missing cache hint for {method}"
+            assert hints[method].scope == "private"
+        assert hints["tools/list"].ttl_ms == 300_000
+        assert hints["resources/read"].ttl_ms == 0
 
 
 class TestProtocolErrorCodes:

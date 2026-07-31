@@ -361,6 +361,7 @@ class CLIConfig:
     eval_stage_semantic_judge: bool = False
     eval_stage_semantic_judge_model: str | None = None
     eval_source_relevance_fixture: str | None = None
+    eval_source_relevance_standing_corpus: bool = False
     eval_page_access_fixture: str | None = None
     eval_working_root: str = "working"
     eval_stage_scorecard: bool = False
@@ -639,6 +640,9 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         eval_stage_semantic_judge=getattr(parsed, "eval_stage_semantic_judge", False),
         eval_stage_semantic_judge_model=getattr(parsed, "eval_stage_semantic_judge_model", None),
         eval_source_relevance_fixture=getattr(parsed, "eval_source_relevance_fixture", None),
+        eval_source_relevance_standing_corpus=bool(
+            getattr(parsed, "eval_source_relevance_standing_corpus", False)
+        ),
         eval_page_access_fixture=getattr(parsed, "eval_page_access_fixture", None),
         eval_working_root=getattr(parsed, "eval_working_root", "working"),
         eval_stage_scorecard=getattr(parsed, "eval_stage_scorecard", False),
