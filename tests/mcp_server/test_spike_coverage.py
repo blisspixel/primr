@@ -9,24 +9,18 @@ import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from mcp.types import ReadResourceRequest, ReadResourceRequestParams
 
 from primr.mcp_server import spike
 from primr.mcp_server.spike import create_spike_server, main, run_stdio
+from tests.mcp_server.sdk_compat import read_resource_handler
 
 
 class TestResourceTrailingSlash:
     @pytest.mark.asyncio
     async def test_read_test_resource_trailing_slash(self):
         server = create_spike_server()
-        handler = server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(uri="primr://test/"),
-            )
-        )
-        assert "Test resource content @" in result.root.contents[0].text
+        result = await read_resource_handler(server, "primr://test/")
+        assert "Test resource content @" in result.contents[0].text
 
 
 class TestRunStdio:

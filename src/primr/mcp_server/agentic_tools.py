@@ -36,7 +36,7 @@ def register_agentic_tools(server: Server, mcp_server: MCPServerContext) -> list
         Tool(
             name="query_roadmap",
             description="Query the roadmap for version status, blockers, or features",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "query": {
@@ -54,7 +54,7 @@ def register_agentic_tools(server: Server, mcp_server: MCPServerContext) -> list
         Tool(
             name="get_hypotheses",
             description="Retrieve hypotheses for a company from research memory",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "company": {
@@ -82,7 +82,7 @@ def register_agentic_tools(server: Server, mcp_server: MCPServerContext) -> list
         Tool(
             name="save_hypothesis",
             description="Save or update a hypothesis in research memory",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "company": {

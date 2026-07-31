@@ -10,6 +10,7 @@ Requirements: 1.1-1.10, 15.1-15.5, 16.1-16.10, 20.1-20.5
 import asyncio
 import contextlib
 import contextvars
+import importlib.metadata
 import ipaddress
 import logging
 import signal
@@ -17,6 +18,7 @@ import sys
 from typing import Literal
 
 from mcp.server import Server
+from mcp.server.caching import CacheHint
 from mcp.server.stdio import stdio_server
 
 from primr.mcp_server.audit_log import MCPAuditLog
@@ -39,6 +41,19 @@ TransportType = Literal["stdio", "streamable-http"]
 # Shutdown timeouts (seconds)
 SHUTDOWN_WORK_COMPLETION_TIMEOUT = 5  # Max time to wait for current work
 SHUTDOWN_TOTAL_TIMEOUT = 10  # Total shutdown timeout
+
+
+def _primr_version() -> str:
+    """Installed distribution version for MCP server identity.
+
+    Read from package metadata rather than ``primr.__version__`` so this
+    module does not import the ``primr`` package root (which would join the
+    core CLI import cycle pinned by tests/test_architecture.py).
+    """
+    try:
+        return importlib.metadata.version("primr")
+    except importlib.metadata.PackageNotFoundError:
+        return ""
 
 
 def _is_loopback_host(host: str) -> bool:
@@ -113,8 +128,35 @@ class PrimrMCPServer:
         self._auth_context_var = contextvars.ContextVar("primr_mcp_auth_context", default=None)
         self._auth_context_override = None
 
-        # Create MCP server
-        self.server = Server("primr")
+        # Create MCP server. Identity fields surface in initialize and
+        # server/discover responses; cache hints are the 2026-07-28
+        # `ttlMs`/`cacheScope` freshness metadata. Every hint is private:
+        # responses are auth-scoped and must never be reused across callers
+        # by a shared intermediary. Listings are stable per-process; reads
+        # cover live job state, so they are always revalidated.
+        self.server = Server(
+            "primr",
+            version=_primr_version(),
+            title="Primr",
+            description="Company research: URL in, sourced strategic brief out.",
+            website_url="https://github.com/blisspixel/primr",
+            instructions=(
+                "Primr runs cost real money. Call estimate_run before any "
+                "cost-incurring tool, surface the estimate, and get explicit "
+                "user approval before research_company or generate_strategy. "
+                "Research is a long-running async job: launch once, then poll "
+                "primr://research/status or use wait_for_status_change. Read "
+                "primr://agent/governance for the full contract."
+            ),
+            cache_hints={
+                "tools/list": CacheHint(ttl_ms=300_000, scope="private"),
+                "prompts/list": CacheHint(ttl_ms=300_000, scope="private"),
+                "resources/list": CacheHint(ttl_ms=10_000, scope="private"),
+                "resources/templates/list": CacheHint(ttl_ms=300_000, scope="private"),
+                "resources/read": CacheHint(ttl_ms=0, scope="private"),
+                "server/discover": CacheHint(ttl_ms=300_000, scope="private"),
+            },
+        )
 
         # Register handlers
         self._register_handlers()
@@ -419,7 +461,10 @@ class PrimrMCPServer:
         Requirements: 1.2, 1.7, 1.8, 13.1-13.10
         """
         import uvicorn
-        from mcp.server.streamable_http import StreamableHTTPServerTransport
+        from mcp.server.streamable_http_manager import (
+            StreamableHTTPASGIApp,
+            StreamableHTTPSessionManager,
+        )
         from starlette.applications import Starlette
         from starlette.routing import Mount
 
@@ -459,17 +504,22 @@ class PrimrMCPServer:
                 "TLS is terminated upstream (reverse proxy, cloud ingress)."
             )
 
-        # Create transport
-        transport = StreamableHTTPServerTransport(
-            mcp_session_id=None,  # Will be assigned per-connection
-            is_json_response_enabled=False,
+        # The session manager serves both protocol eras from one endpoint:
+        # 2026-07-28 clients speak statelessly per-request, legacy clients
+        # get the initialize handshake and a session. Its run() context owns
+        # per-session task lifecycles, entered from the app lifespan below.
+        session_manager = StreamableHTTPSessionManager(
+            app=self.server,
+            json_response=False,
         )
+        transport_asgi = StreamableHTTPASGIApp(session_manager)
 
         # Create ASGI app
         async def handle_mcp(scope, receive, send):
             """Handle MCP requests via streamable HTTP."""
             if scope["type"] == "lifespan":
-                # Handle lifespan events
+                # Mounted raw ASGI apps can still receive lifespan scopes
+                # from some servers; answer them so startup never wedges.
                 while True:
                     message = await receive()
                     if message["type"] == "lifespan.startup":
@@ -479,7 +529,7 @@ class PrimrMCPServer:
                         return
             else:
                 # Handle HTTP requests
-                await transport.handle_request(scope, receive, send)
+                await transport_asgi(scope, receive, send)
 
         async def handle_mcp_with_auth_context(scope, receive, send):
             """Bridge SDK-authenticated HTTP users into tool dispatch."""
@@ -558,10 +608,17 @@ class PrimrMCPServer:
 
         # Build app. Auth is already applied per-mount above (and the co-hosted
         # A2A app applies its own in build_app); probe routes remain public.
+        # The lifespan owns the session manager's task group: requests fail
+        # cleanly before startup and drain on shutdown.
+        @contextlib.asynccontextmanager
+        async def _lifespan(_app):
+            async with session_manager.run():
+                logger.info("MCP HTTP server started")
+                yield
+
         app = Starlette(
             routes=routes,
-            on_startup=[lambda: logger.info("MCP HTTP server started")],
-            on_shutdown=[],
+            lifespan=_lifespan,
         )
 
         # Run with uvicorn

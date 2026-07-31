@@ -150,6 +150,26 @@ def _http_server(**kwargs):
     )
 
 
+def _fake_streamable_manager_module():
+    """Fake mcp.server.streamable_http_manager with a usable run() lifespan.
+
+    Returns (module, session_manager, transport_asgi). The ASGI app double is
+    an AsyncMock so HTTP-scope dispatch can be awaited and asserted on.
+    """
+    mod = MagicMock()
+    manager = MagicMock()
+
+    @asynccontextmanager
+    async def _run():
+        yield
+
+    manager.run = _run
+    mod.StreamableHTTPSessionManager.return_value = manager
+    transport_asgi = AsyncMock()
+    mod.StreamableHTTPASGIApp.return_value = transport_asgi
+    return mod, manager, transport_asgi
+
+
 class TestRunHttp:
     @pytest.mark.parametrize(
         ("host", "expected"),
@@ -206,14 +226,16 @@ class TestRunHttp:
         served.serve = AsyncMock()
         fake_uvicorn.Server.return_value = served
 
-        def fake_starlette(routes, on_startup, on_shutdown):
+        def fake_starlette(routes, lifespan):
             captured["routes"] = routes
-            captured["on_shutdown"] = on_shutdown
+            captured["lifespan"] = lifespan
             return MagicMock()
 
         fake_auth_mod = MagicMock()
         # create_auth_middleware(verifier) -> wrapper(app) -> wrapped_app
         fake_auth_mod.create_auth_middleware.return_value = lambda app: ("wrapped", app)
+
+        fake_manager_mod, _manager, _transport_asgi = _fake_streamable_manager_module()
 
         with (
             patch("primr.mcp_server.server.configure_http_logging"),
@@ -222,7 +244,7 @@ class TestRunHttp:
                 "sys.modules",
                 {
                     "uvicorn": fake_uvicorn,
-                    "mcp.server.streamable_http": MagicMock(),
+                    "mcp.server.streamable_http_manager": fake_manager_mod,
                     "starlette.applications": MagicMock(Starlette=fake_starlette),
                     "starlette.routing": _make_routing_module(),
                     "starlette.responses": MagicMock(JSONResponse=MagicMock()),
@@ -255,15 +277,17 @@ class TestRunHttp:
 
         captured = {}
 
-        def fake_starlette(routes, on_startup, on_shutdown):
+        def fake_starlette(routes, lifespan):
             captured["routes"] = routes
-            captured["on_shutdown"] = on_shutdown
+            captured["lifespan"] = lifespan
             return MagicMock()
 
         a2a_server = MagicMock()
         a2a_server.build_app.return_value = MagicMock()
         fake_a2a_mod = MagicMock()
         fake_a2a_mod.PrimrA2AServer.return_value = a2a_server
+
+        fake_manager_mod, _manager, _transport_asgi = _fake_streamable_manager_module()
 
         with (
             patch("primr.mcp_server.server.configure_http_logging"),
@@ -272,7 +296,7 @@ class TestRunHttp:
                 "sys.modules",
                 {
                     "uvicorn": fake_uvicorn,
-                    "mcp.server.streamable_http": MagicMock(),
+                    "mcp.server.streamable_http_manager": fake_manager_mod,
                     "starlette.applications": MagicMock(Starlette=fake_starlette),
                     "starlette.routing": _make_routing_module(),
                     "starlette.responses": MagicMock(JSONResponse=MagicMock()),
@@ -300,16 +324,13 @@ class TestRunHttp:
         served.serve = AsyncMock()
         fake_uvicorn.Server.return_value = served
 
-        transport = MagicMock()
-        transport.handle_request = AsyncMock()
-        fake_streamable = MagicMock()
-        fake_streamable.StreamableHTTPServerTransport.return_value = transport
+        fake_manager_mod, _manager, transport_asgi = _fake_streamable_manager_module()
 
         captured = {}
 
-        def fake_starlette(routes, on_startup, on_shutdown):
+        def fake_starlette(routes, lifespan):
             captured["routes"] = routes
-            captured["on_shutdown"] = on_shutdown
+            captured["lifespan"] = lifespan
             return MagicMock()
 
         with (
@@ -320,7 +341,7 @@ class TestRunHttp:
                 "sys.modules",
                 {
                     "uvicorn": fake_uvicorn,
-                    "mcp.server.streamable_http": fake_streamable,
+                    "mcp.server.streamable_http_manager": fake_manager_mod,
                     "starlette.applications": MagicMock(Starlette=fake_starlette),
                     "starlette.routing": _make_routing_module(),
                     "starlette.responses": MagicMock(JSONResponse=JSONResponse),
@@ -347,11 +368,14 @@ class TestRunHttp:
             assert "lifespan.startup.complete" in sent
             assert "lifespan.shutdown.complete" in sent
             mock_shutdown.assert_not_awaited()
-            assert captured["on_shutdown"] == []
 
-            # 2) Plain HTTP request scope routes to transport.handle_request.
+            # The app lifespan owns the session manager's run() context.
+            async with captured["lifespan"](MagicMock()):
+                pass
+
+            # 2) Plain HTTP request scope routes to the transport ASGI app.
             await handle_mcp({"type": "http"}, AsyncMock(), AsyncMock())
-            assert transport.handle_request.await_count == 1
+            assert transport_asgi.await_count == 1
 
             # 3) Public probes have distinct liveness and readiness contracts.
             healthz = next(r for r in captured["routes"] if r.path == "/healthz")
@@ -397,12 +421,10 @@ class TestRunHttp:
             captured["client_id"] = ctx.client_id if ctx else None
             captured["scopes"] = ctx.scopes if ctx else []
 
-        transport = MagicMock()
-        transport.handle_request = AsyncMock(side_effect=capture_request)
-        fake_streamable = MagicMock()
-        fake_streamable.StreamableHTTPServerTransport.return_value = transport
+        fake_manager_mod, _manager, transport_asgi = _fake_streamable_manager_module()
+        transport_asgi.side_effect = capture_request
 
-        def fake_starlette(routes, on_startup, on_shutdown):
+        def fake_starlette(routes, lifespan):
             captured["routes"] = routes
             return MagicMock()
 
@@ -431,7 +453,7 @@ class TestRunHttp:
                 "sys.modules",
                 {
                     "uvicorn": fake_uvicorn,
-                    "mcp.server.streamable_http": fake_streamable,
+                    "mcp.server.streamable_http_manager": fake_manager_mod,
                     "starlette.applications": MagicMock(Starlette=fake_starlette),
                     "starlette.routing": _make_routing_module(),
                     "starlette.responses": MagicMock(JSONResponse=MagicMock()),
@@ -461,12 +483,14 @@ class TestRunHttp:
 
         captured = {}
 
-        def fake_starlette(routes, on_startup, on_shutdown):
+        def fake_starlette(routes, lifespan):
             captured["routes"] = routes
             return MagicMock()
 
         fake_a2a_mod = MagicMock()
         fake_a2a_mod.PrimrA2AServer.side_effect = RuntimeError("a2a boom")
+
+        fake_manager_mod, _manager, _transport_asgi = _fake_streamable_manager_module()
 
         with (
             patch("primr.mcp_server.server.configure_http_logging"),
@@ -475,7 +499,7 @@ class TestRunHttp:
                 "sys.modules",
                 {
                     "uvicorn": fake_uvicorn,
-                    "mcp.server.streamable_http": MagicMock(),
+                    "mcp.server.streamable_http_manager": fake_manager_mod,
                     "starlette.applications": MagicMock(Starlette=fake_starlette),
                     "starlette.routing": _make_routing_module(),
                     "starlette.responses": MagicMock(JSONResponse=MagicMock()),
@@ -503,7 +527,7 @@ class TestRunHttp:
 
         captured = {}
 
-        def fake_starlette(routes, on_startup, on_shutdown):
+        def fake_starlette(routes, lifespan):
             captured["routes"] = routes
             return MagicMock()
 
@@ -515,6 +539,8 @@ class TestRunHttp:
                 raise ImportError("a2a-sdk not installed")
             return real_import(name, *args, **kwargs)
 
+        fake_manager_mod, _manager, _transport_asgi = _fake_streamable_manager_module()
+
         with (
             patch("primr.mcp_server.server.configure_http_logging"),
             patch.object(s, "_setup_signal_handlers"),
@@ -523,7 +549,7 @@ class TestRunHttp:
                 "sys.modules",
                 {
                     "uvicorn": fake_uvicorn,
-                    "mcp.server.streamable_http": MagicMock(),
+                    "mcp.server.streamable_http_manager": fake_manager_mod,
                     "starlette.applications": MagicMock(Starlette=fake_starlette),
                     "starlette.routing": _make_routing_module(),
                     "starlette.responses": MagicMock(JSONResponse=MagicMock()),

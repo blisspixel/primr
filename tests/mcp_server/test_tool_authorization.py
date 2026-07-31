@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 from mcp.server.auth.provider import AccessToken
-from mcp.types import CallToolRequest, CallToolRequestParams
 
 from primr.mcp_server.auth import AuthContext
 from primr.mcp_server.server import create_mcp_server
 from primr.mcp_server.tool_authz import ADMIN_SCOPE, REPORT_SCOPE, scope_granted
+from tests.mcp_server.sdk_compat import call_tool_handler
 
 
 @pytest.fixture
@@ -33,14 +33,8 @@ def _context(scopes: list[str], client_id: str = "test-client") -> AuthContext:
 
 
 async def _call(server, name: str, arguments: dict) -> dict:
-    handler = server.server.request_handlers[CallToolRequest]
-    result = await handler(
-        CallToolRequest(
-            method="tools/call",
-            params=CallToolRequestParams(name=name, arguments=arguments),
-        )
-    )
-    return json.loads(result.root.content[0].text)
+    result = await call_tool_handler(server, name, arguments)
+    return json.loads(result.content[0].text)
 
 
 class TestToolScopeAuthorization:

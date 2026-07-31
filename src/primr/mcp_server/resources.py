@@ -22,7 +22,18 @@ from pathlib import Path
 
 from mcp.server import Server
 from mcp.server.lowlevel.helper_types import ReadResourceContents
-from mcp.types import Resource
+from mcp.shared.exceptions import MCPError
+from mcp.types import (
+    INVALID_PARAMS,
+    ListResourcesResult,
+    ListResourceTemplatesResult,
+    PaginatedRequestParams,
+    ReadResourceRequestParams,
+    ReadResourceResult,
+    Resource,
+    ResourceTemplate,
+    TextResourceContents,
+)
 
 from primr.mcp_server.agentic_resources import get_agentic_resources, read_agentic_resource
 from primr.mcp_server.artifact_resources import (
@@ -119,7 +130,6 @@ def register_resources(server: Server, mcp_server: MCPServerContext) -> None:
     # Get agentic resources
     agentic_resources = get_agentic_resources()
 
-    @server.list_resources()
     async def list_resources() -> list[Resource]:
         """List available resources."""
         base_resources = [
@@ -127,43 +137,43 @@ def register_resources(server: Server, mcp_server: MCPServerContext) -> None:
                 uri="primr://research/status",
                 name="Research Status",
                 description="Current research job status and progress",
-                mimeType="application/json",
+                mime_type="application/json",
             ),
             Resource(
                 uri="primr://research/next-actions",
                 name="Research Next Actions",
                 description="Recommended next client actions for the active or latest job",
-                mimeType="application/json",
+                mime_type="application/json",
             ),
             Resource(
                 uri="primr://agent/governance",
                 name="Agent Governance",
                 description="Recommended estimate, approval, and cost-cap contract for MCP clients",
-                mimeType="application/json",
+                mime_type="application/json",
             ),
             Resource(
                 uri="primr://agent/audit/recent",
                 name="Recent MCP Audit Events",
                 description="Recent privacy-preserving MCP tool invocation audit events",
-                mimeType="application/json",
+                mime_type="application/json",
             ),
             Resource(
                 uri="primr://research/modes",
                 name="Research Modes",
                 description="Available research modes, current defaults, and usage guidance",
-                mimeType="application/json",
+                mime_type="application/json",
             ),
             Resource(
                 uri="primr://output/latest",
                 name="Latest Output",
                 description="Most recent research report",
-                mimeType="application/json",
+                mime_type="application/json",
             ),
             Resource(
                 uri="primr://output/artifacts",
                 name="Pipeline Artifacts",
                 description="Intermediate pipeline stage outputs",
-                mimeType="application/json",
+                mime_type="application/json",
             ),
             ARTIFACT_METADATA_BY_JOB_RESOURCE,
             QA_SUMMARY_BY_JOB_RESOURCE,
@@ -177,33 +187,32 @@ def register_resources(server: Server, mcp_server: MCPServerContext) -> None:
                 uri="primr://config",
                 name="Configuration",
                 description="Current configuration state",
-                mimeType="application/json",
+                mime_type="application/json",
             ),
             Resource(
                 uri="primr://strategies/available",
                 name="Available Strategies",
                 description="List of available strategy document types with metadata",
-                mimeType="application/json",
+                mime_type="application/json",
             ),
             Resource(
                 uri="primr://output/by_job/{job_id}",
                 name="Output by Job ID",
                 description="Retrieve owned-job output metadata and gated preview for a specific job ID",
-                mimeType="application/json",
+                mime_type="application/json",
             ),
             REPORT_CONTENT_BY_JOB_RESOURCE,
             Resource(
                 uri="primr://output/manifest/latest",
                 name="Latest Run Manifest",
                 description="Most recent run manifest (audit trail)",
-                mimeType="application/json",
+                mime_type="application/json",
             ),
             CALIBRATION_BASELINE_INSPECTION_RESOURCE,
         ]
         # Include agentic resources
         return base_resources + agentic_resources
 
-    @server.read_resource()
     @audit_resource_reads(lambda: mcp_server)
     async def read_resource(uri: str) -> list[ReadResourceContents]:
         """Read a resource by URI."""
@@ -288,7 +297,54 @@ def register_resources(server: Server, mcp_server: MCPServerContext) -> None:
                 client_id=caller_client_id(mcp_server),
             )
 
-        raise ValueError(f"Unknown resource: {uri}")
+        # Spec 2026-07-28: an unknown resource is Invalid Params (-32602);
+        # the dedicated -32002 resource-not-found code was retired.
+        raise MCPError(INVALID_PARAMS, f"Unknown resource: {uri}")
+
+    async def _on_list_resources(
+        _ctx: object, _params: PaginatedRequestParams | None
+    ) -> ListResourcesResult:
+        return ListResourcesResult(resources=await list_resources())
+
+    async def _on_list_resource_templates(
+        _ctx: object, _params: PaginatedRequestParams | None
+    ) -> ListResourceTemplatesResult:
+        # Parameterized by_job/eval resources double as plain listings for
+        # older clients; advertise the ones with URI placeholders as proper
+        # templates so 2026-07-28 clients discover them the spec-native way.
+        templates = [
+            ResourceTemplate(
+                name=resource.name,
+                title=resource.title,
+                uri_template=resource.uri,
+                description=resource.description,
+                mime_type=resource.mime_type,
+            )
+            for resource in await list_resources()
+            if "{" in resource.uri
+        ]
+        return ListResourceTemplatesResult(resource_templates=templates)
+
+    async def _on_read_resource(
+        _ctx: object, params: ReadResourceRequestParams
+    ) -> ReadResourceResult:
+        contents = await read_resource(params.uri)
+        return ReadResourceResult(
+            contents=[
+                TextResourceContents(
+                    uri=params.uri,
+                    text=item.content if isinstance(item.content, str) else item.content.decode(),
+                    mime_type=item.mime_type,
+                )
+                for item in contents
+            ]
+        )
+
+    server.add_request_handler("resources/list", PaginatedRequestParams, _on_list_resources)
+    server.add_request_handler(
+        "resources/templates/list", PaginatedRequestParams, _on_list_resource_templates
+    )
+    server.add_request_handler("resources/read", ReadResourceRequestParams, _on_read_resource)
 
 
 def _read_research_next_actions(mcp_server: MCPServerContext) -> list[ReadResourceContents]:

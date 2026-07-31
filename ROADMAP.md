@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.38.0
+Current State: v1.39.0
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -566,12 +566,16 @@ The step-change that earns the major bump is three pillars landing together:
   shipped), a structured audit log for tool calls and resource reads,
   job-scoped artifact metadata and QA, usage/cost, source appendix, scrape
   trace, verification, and calibration summary resources,
-  A2A output negotiation (#21). The MCP `2026-07-28` release candidate is a
-  watch item for this pillar, not a current compatibility promise until the
-  final specification ships: its stateless HTTP core, explicit task handles,
-  Apps extension, JSON Schema 2020-12 tool schemas, protocol-level cache hints,
-  trace propagation, and auth hardening should shape the next HTTP MCP
-  compatibility review. Design doc:
+  A2A output negotiation (#21). The MCP `2026-07-28` specification is final
+  and **shipped in Primr**: the server runs on MCP Python SDK v2, speaks
+  2026-07-28 natively (stateless core, `server/discover`, protocol-level
+  `ttlMs`/`cacheScope` cache hints, resource templates, aligned error codes)
+  while still answering the legacy `initialize` handshake for older clients
+  on both stdio and streamable HTTP. Remaining watch items from that
+  revision: the Tasks extension (`io.modelcontextprotocol/tasks`) as a
+  spec-native surface for Primr's long-running jobs alongside the existing
+  job tools, OpenTelemetry `_meta` trace propagation, and Client ID Metadata
+  Documents on the auth side. Design doc:
   [`docs/design/2.0-agent-control-plane.md`](docs/design/2.0-agent-control-plane.md).
 
 **Exit criteria:** a downstream agent can delegate to primr unattended - on a
@@ -1990,6 +1994,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.39.0 | Jul 2026 | **Native MCP 2026-07-28 specification support.** Migrated the MCP server to MCP Python SDK v2 (`mcp>=2.0.0,<3`): one server now serves modern stateless 2026-07-28 clients (automatic `server/discover`, `ttlMs`/`cacheScope` cache hints, `resources/templates/list` for the by_job family, spec-aligned `-32602` unknown-name errors) and legacy `initialize`-handshake clients on both stdio and streamable HTTP. Closes the fresh-install breakage window from the previously uncapped `mcp>=1.28.1` dependency. |
 | 1.38.0 | Jul 2026 | **Multi-cloud provider routing: AWS Bedrock and Azure AI Foundry.** Research runs can now route stages through Bedrock (registered, priced Amazon Nova models) and Foundry (operator-declared deployment + pricing). Both are main-process only and refused inside supervised workers, keeping AWS/Azure credentials out of the lower-trust worker boundary; nothing is guessed into the cost gate. |
 | 1.37.2 | Jul 2026 | **Latest Gemini models and documentation excellence.** Registers `gemini-3.6-flash` and `gemini-3.5-flash-lite` (July 2026 GA) as available, priced, eval-gateable models without changing any default tier. Brings the full docs surface current to 1.37.x, adds a complete/dated self-enforcing documentation index, and guards every internal Markdown link in CI. |
 | 1.37.1 | Jul 2026 | **Zero-cost render parity and dependency hardening.** A standalone `primr render` verb converts any Markdown report to DOCX/TXT with no model calls, so the Primr Zero / host-assisted path ships the same `.md` + `.docx` deliverables as a provider-backed run. Bumps `pyasn1` to 0.6.4 (CVE-2026-59885/59886). |

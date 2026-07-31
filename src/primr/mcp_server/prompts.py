@@ -10,13 +10,23 @@ Requirements: 9.1-9.5, 10.1-10.4
 """
 
 from mcp.server import Server
-from mcp.types import GetPromptResult, Prompt, PromptArgument, PromptMessage, TextContent
+from mcp.shared.exceptions import MCPError
+from mcp.types import (
+    INVALID_PARAMS,
+    GetPromptRequestParams,
+    GetPromptResult,
+    ListPromptsResult,
+    PaginatedRequestParams,
+    Prompt,
+    PromptArgument,
+    PromptMessage,
+    TextContent,
+)
 
 
 def register_prompts(server: Server) -> None:
     """Register all Primr prompt templates with the MCP server."""
 
-    @server.list_prompts()
     async def list_prompts() -> list[Prompt]:
         """List available prompts."""
         return [
@@ -49,15 +59,8 @@ def register_prompts(server: Server) -> None:
             ),
         ]
 
-    @server.get_prompt()
     async def get_prompt(name: str, arguments: dict | None = None) -> GetPromptResult:
-        """Get a prompt by name.
-
-        Wrapped in GetPromptResult so the MCP SDK's pydantic validator
-        accepts the response in strict mode. Earlier MCP SDK versions
-        accepted a bare ``list[PromptMessage]``; the current SDK validates
-        the response shape and rejects the list form.
-        """
+        """Get a prompt by name."""
         if name == "research_workflow":
             messages = _get_research_workflow_prompt(arguments or {})
         elif name == "strategy_selection":
@@ -65,8 +68,19 @@ def register_prompts(server: Server) -> None:
         elif name == "governed_execution":
             messages = _get_governed_execution_prompt()
         else:
-            raise ValueError(f"Unknown prompt: {name}")
+            raise MCPError(INVALID_PARAMS, f"Unknown prompt: {name}")
         return GetPromptResult(messages=messages)
+
+    async def _on_list_prompts(
+        _ctx: object, _params: PaginatedRequestParams | None
+    ) -> ListPromptsResult:
+        return ListPromptsResult(prompts=await list_prompts())
+
+    async def _on_get_prompt(_ctx: object, params: GetPromptRequestParams) -> GetPromptResult:
+        return await get_prompt(params.name, params.arguments)
+
+    server.add_request_handler("prompts/list", PaginatedRequestParams, _on_list_prompts)
+    server.add_request_handler("prompts/get", GetPromptRequestParams, _on_get_prompt)
 
 
 def _get_research_workflow_prompt(arguments: dict) -> list[PromptMessage]:

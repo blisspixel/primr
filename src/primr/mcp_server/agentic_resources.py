@@ -32,19 +32,19 @@ def get_agentic_resources() -> list[Resource]:
             uri="primr://roadmap",
             name="Roadmap",
             description="Project roadmap with versions, features, and blockers",
-            mimeType="application/json",
+            mime_type="application/json",
         ),
         Resource(
             uri="primr://memory/{company}",
             name="Company Memory",
             description="Research memory for a specific company (hypotheses, patterns)",
-            mimeType="application/json",
+            mime_type="application/json",
         ),
         Resource(
             uri="primr://context",
             name="Context Map",
             description="Current context map summary for agent orientation",
-            mimeType="application/json",
+            mime_type="application/json",
         ),
     ]
 

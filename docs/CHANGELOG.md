@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.0] - 2026-07-31
+
+### Changed
+
+- **MCP server now speaks specification revision 2026-07-28 natively.**
+  Migrated from MCP Python SDK 1.x to v2 (`mcp>=2.0.0,<3`). One server now
+  serves both protocol eras on stdio and streamable HTTP: modern clients get
+  the stateless per-request protocol with `server/discover`, while older
+  clients keep the legacy `initialize` handshake. The dependency previously
+  had no upper bound, so fresh installs resolving SDK v2 against the v1
+  integration would have failed at import time; the pin now tracks the
+  supported major.
+- **Spec-native metadata for MCP clients.** List and read results carry
+  2026-07-28 `ttlMs`/`cacheScope` cache hints (all `private` — responses are
+  auth-scoped), the server advertises identity (name, version, instructions)
+  through `serverInfo` and `server/discover`, and the parameterized
+  `primr://.../by_job/{job_id}` resources are now discoverable via
+  `resources/templates/list` in addition to the plain listings.
+- **Protocol-correct error codes.** Unknown tools, resources, and prompts now
+  return JSON-RPC `-32602` (Invalid Params) instead of surfacing as
+  `isError` results or internal errors, matching the 2026-07-28 error-code
+  alignment that retired `-32002`.
+
 ## [1.38.0] - 2026-07-22
 
 ### Added

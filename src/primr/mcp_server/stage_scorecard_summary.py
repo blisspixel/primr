@@ -10,18 +10,18 @@ from pathlib import Path
 from typing import Any
 
 from mcp.server.lowlevel.helper_types import ReadResourceContents
-from mcp.types import AnyUrl, Resource
+from mcp.types import Resource
 
 STAGE_SCORECARD_SUMMARY_URI = "primr://eval/stage_scorecard"
 STAGE_SCORECARD_SUMMARY_RESOURCE = Resource(
-    uri=AnyUrl(f"{STAGE_SCORECARD_SUMMARY_URI}/{{eval_id}}"),
+    uri=f"{STAGE_SCORECARD_SUMMARY_URI}/{{eval_id}}",
     name="Stage Eval Scorecard Summary by Eval ID",
     description=(
         "Compact routed-stage scorecard summary for one eval id. Returns row-level "
         "routing, quality-score, status, and blocker fields without prompts, "
         "responses, quality-source bodies, report bodies, or raw run-state content."
     ),
-    mimeType="application/json",
+    mime_type="application/json",
 )
 _EVAL_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
 

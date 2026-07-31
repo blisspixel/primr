@@ -11,7 +11,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 from mcp.server.lowlevel.helper_types import ReadResourceContents
-from mcp.types import AnyUrl, Resource
+from mcp.types import Resource
 
 from primr.mcp_server.job_responses import build_output_artifact_rows
 from primr.mcp_server.resource_auth import (
@@ -28,14 +28,14 @@ logger = logging.getLogger(__name__)
 
 REPORT_CONTENT_BY_JOB_URI = "primr://output/report/by_job"
 REPORT_CONTENT_BY_JOB_RESOURCE = Resource(
-    uri=AnyUrl(f"{REPORT_CONTENT_BY_JOB_URI}/{{job_id}}"),
+    uri=f"{REPORT_CONTENT_BY_JOB_URI}/{{job_id}}",
     name="Report Content by Job ID",
     description=(
         "Explicit owned-job report-content read requiring report scope for HTTP callers. "
         "Supports content_mode=metadata|preview|full, artifact_type=report|strategy|all, "
         "and max_chars output negotiation."
     ),
-    mimeType="application/json",
+    mime_type="application/json",
 )
 
 DEFAULT_PREVIEW_CHARS = 2000

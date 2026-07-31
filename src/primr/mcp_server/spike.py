@@ -23,80 +23,98 @@ from datetime import datetime
 from typing import Any
 
 from mcp.server import Server
-from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.server.stdio import stdio_server
+from mcp.shared.exceptions import MCPError
 from mcp.types import (
+    INVALID_PARAMS,
+    CallToolRequestParams,
+    CallToolResult,
+    ListResourcesResult,
+    ListToolsResult,
+    PaginatedRequestParams,
+    ReadResourceRequestParams,
+    ReadResourceResult,
     Resource,
     TextContent,
+    TextResourceContents,
     Tool,
 )
 
 
 def create_spike_server() -> Server:
     """Create a minimal MCP server for protocol validation."""
-    server = Server("primr-spike")
 
-    @server.list_tools()
-    async def list_tools() -> list[Tool]:
+    async def list_tools(_ctx: object, _params: PaginatedRequestParams | None) -> ListToolsResult:
         """List available tools."""
-        return [
-            Tool(
-                name="ping",
-                description="Simple ping tool that returns pong with timestamp",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "message": {
-                            "type": "string",
-                            "description": "Optional message to echo back",
-                        }
+        return ListToolsResult(
+            tools=[
+                Tool(
+                    name="ping",
+                    description="Simple ping tool that returns pong with timestamp",
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "message": {
+                                "type": "string",
+                                "description": "Optional message to echo back",
+                            }
+                        },
+                        "required": [],
                     },
-                    "required": [],
-                },
-            )
-        ]
+                )
+            ]
+        )
 
-    @server.call_tool()
-    async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
+    async def call_tool(_ctx: object, params: CallToolRequestParams) -> CallToolResult:
         """Handle tool calls."""
-        if name == "ping":
+        arguments: dict[str, Any] = params.arguments or {}
+        if params.name == "ping":
             message = arguments.get("message", "")
             timestamp = datetime.now().isoformat()
             response = f"pong @ {timestamp}"
             if message:
                 response += f" - echo: {message}"
-            return [TextContent(type="text", text=response)]
+            return CallToolResult(content=[TextContent(type="text", text=response)])
 
-        raise ValueError(f"Unknown tool: {name}")
+        raise MCPError(INVALID_PARAMS, f"Unknown tool: {params.name}")
 
-    @server.list_resources()
-    async def list_resources() -> list[Resource]:
+    async def list_resources(
+        _ctx: object, _params: PaginatedRequestParams | None
+    ) -> ListResourcesResult:
         """List available resources."""
-        return [
-            Resource(
-                uri="primr://test",
-                name="Test Resource",
-                description="A simple test resource for protocol validation",
-                mimeType="text/plain",
-            )
-        ]
-
-    @server.read_resource()
-    async def read_resource(uri: str) -> list[ReadResourceContents]:
-        """Read a resource by URI."""
-        # URI comes in as AnyUrl, convert to string for comparison
-        uri_str = str(uri)
-        if uri_str == "primr://test" or uri_str == "primr://test/":
-            return [
-                ReadResourceContents(
-                    content=f"Test resource content @ {datetime.now().isoformat()}",
+        return ListResourcesResult(
+            resources=[
+                Resource(
+                    uri="primr://test",
+                    name="Test Resource",
+                    description="A simple test resource for protocol validation",
                     mime_type="text/plain",
                 )
             ]
+        )
 
-        raise ValueError(f"Unknown resource: {uri}")
+    async def read_resource(_ctx: object, params: ReadResourceRequestParams) -> ReadResourceResult:
+        """Read a resource by URI."""
+        if params.uri in ("primr://test", "primr://test/"):
+            return ReadResourceResult(
+                contents=[
+                    TextResourceContents(
+                        uri=params.uri,
+                        text=f"Test resource content @ {datetime.now().isoformat()}",
+                        mime_type="text/plain",
+                    )
+                ]
+            )
 
-    return server
+        raise MCPError(INVALID_PARAMS, f"Unknown resource: {params.uri}")
+
+    return Server(
+        "primr-spike",
+        on_list_tools=list_tools,
+        on_call_tool=call_tool,
+        on_list_resources=list_resources,
+        on_read_resource=read_resource,
+    )
 
 
 async def run_stdio() -> None:

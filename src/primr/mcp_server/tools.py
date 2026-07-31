@@ -25,12 +25,20 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 
 from mcp.server import Server
-from mcp.types import TextContent, Tool
+from mcp.shared.exceptions import MCPError
+from mcp.types import (
+    INVALID_PARAMS,
+    CallToolRequestParams,
+    CallToolResult,
+    ListToolsResult,
+    PaginatedRequestParams,
+    TextContent,
+    Tool,
+)
 
 from primr.mcp_server import research_validation
 from primr.mcp_server.agentic_tools import handle_agentic_tool, register_agentic_tools
 from primr.mcp_server.approval_tokens import (
-    APPROVAL_TOKEN_SCHEMA,
     enforce_approval_token,
     issue_approval_token,
     research_approval_args,
@@ -67,6 +75,7 @@ from primr.mcp_server.tool_authz import (
     authorize_tool_call,
     scope_denied_response,
 )
+from primr.mcp_server.tool_catalog import build_base_tools
 from primr.mcp_server.types import MCPErrorCode
 
 logger = logging.getLogger(__name__)
@@ -81,368 +90,10 @@ def register_tools(server: Server, mcp_server: MCPServerContext) -> None:
     # Get skill-pack tools (estimate_skill_pack, generate_skill_pack)
     skill_pack_tools = register_skill_pack_tools(server, mcp_server)
 
-    @server.list_tools()
     async def list_tools() -> list[Tool]:
         """List available tools."""
-        base_tools = [
-            Tool(
-                name="estimate_run",
-                description="Estimate cost and time for a research run without executing. Call this before any cost-incurring research run.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "company_url": {
-                            "type": "string",
-                            "description": "Company website URL",
-                        },
-                        "mode": {
-                            "type": "string",
-                            "enum": ["scrape", "deep", "full", "premium"],
-                            "default": "full",
-                            "description": "Research mode: full (standard Grok pipeline, default), premium (Gemini + Deep Research), scrape, deep",
-                        },
-                        "platforms": {
-                            "type": "array",
-                            "minItems": 1,
-                            "maxItems": 1,
-                            "uniqueItems": True,
-                            "items": {
-                                "type": "string",
-                                "enum": [
-                                    "azure",
-                                    "aws",
-                                    "gcp",
-                                    "agnostic",
-                                    "private",
-                                    "microsoft",
-                                    "amazon",
-                                    "google",
-                                    "nvidia",
-                                ],
-                            },
-                            "description": "Exactly one platform for the integrated AI strategy (CLI: --platform). Aliases: microsoft=azure, amazon=aws, google=gcp, nvidia=private. Default: agnostic. Add other platform documents later with estimate_strategy and generate_strategy.",
-                        },
-                        "strategy_type": {
-                            "type": "string",
-                            "enum": ["ai"],
-                            "default": "ai",
-                            "description": "Integrated research strategy type. Other modules use estimate_strategy and generate_strategy after the report completes.",
-                        },
-                        "no_ai_strategy": {
-                            "type": "boolean",
-                            "default": False,
-                            "description": "Skip AI strategy generation entirely (report only)",
-                        },
-                        "verify": {
-                            "type": "boolean",
-                            "default": False,
-                            "description": "Run post-QA claim verification (~$0.01, 3-5 min)",
-                        },
-                        "max_estimated_cost_usd": {
-                            "type": "number",
-                            "minimum": 0,
-                            "description": "Optional hard ceiling for estimated run cost. The server rejects execution if the estimate exceeds this cap.",
-                        },
-                    },
-                    "required": ["company_url"],
-                },
-            ),
-            Tool(
-                name="estimate_strategy",
-                description="Estimate cost and time for a strategy document without executing. Call this before any cost-incurring strategy generation.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "strategy_type": {
-                            "type": "string",
-                            "enum": [
-                                "ai_strategy",
-                                "customer_experience",
-                                "modern_security_compliance",
-                                "data_fabric_strategy",
-                                "skills",
-                            ],
-                            "description": "Type of strategy to estimate",
-                        },
-                        "platform": {
-                            "type": "string",
-                            "enum": [
-                                "azure",
-                                "aws",
-                                "gcp",
-                                "agnostic",
-                                "private",
-                                "microsoft",
-                                "amazon",
-                                "google",
-                                "nvidia",
-                                "ms",
-                            ],
-                            "description": "Platform for AI strategy (CLI: --platform). Aliases: microsoft=azure, amazon=aws, google=gcp, nvidia=private.",
-                        },
-                    },
-                    "required": ["strategy_type"],
-                },
-            ),
-            Tool(
-                name="research_company",
-                description="Initiate the supervised company research pipeline and return a job_id after the worker is ready. Full and premium include an agnostic AI Strategy by default unless no_ai_strategy is true. This incurs real API cost and should only be called after the user approves an estimate from estimate_run.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "company_name": {
-                            "type": "string",
-                            "description": "Display name for the company",
-                        },
-                        "company_url": {
-                            "type": "string",
-                            "description": "Company website URL (must be valid HTTP/HTTPS)",
-                        },
-                        "mode": {
-                            "type": "string",
-                            "enum": ["scrape", "deep", "full", "premium"],
-                            "default": "full",
-                            "description": "Research mode: full (standard Grok pipeline, default), premium (Gemini + Deep Research), scrape, deep",
-                        },
-                        "platform": {
-                            "type": "string",
-                            "enum": [
-                                "azure",
-                                "aws",
-                                "gcp",
-                                "agnostic",
-                                "private",
-                                "microsoft",
-                                "amazon",
-                                "google",
-                                "nvidia",
-                            ],
-                            "description": "Platform for AI strategy (CLI: --platform). Aliases: microsoft=azure, amazon=aws, google=gcp, nvidia=private. When set, strategy is generated as part of this job (no separate generate_strategy call needed). Default: agnostic.",
-                        },
-                        "no_ai_strategy": {
-                            "type": "boolean",
-                            "default": False,
-                            "description": "Skip AI strategy generation entirely (report only)",
-                        },
-                        "skip_qa": {
-                            "type": "boolean",
-                            "default": False,
-                            "description": "Skip quality assessment",
-                        },
-                        "verify": {
-                            "type": "boolean",
-                            "default": False,
-                            "description": "Run post-QA claim verification (~$0.01, 3-5 min)",
-                        },
-                        "destination": {
-                            "type": "string",
-                            "description": "Optional destination directory for output files. If not specified, uses the default output/ directory.",
-                        },
-                        "max_estimated_cost_usd": {
-                            "anyOf": [
-                                {"type": "number", "minimum": 0},
-                                {"type": "string"},
-                            ],
-                            "description": "Optional hard ceiling for estimated run cost. The server rejects execution if the estimate exceeds this cap and uses it as the runtime budget.",
-                        },
-                        "approval_token": APPROVAL_TOKEN_SCHEMA,
-                    },
-                    "required": ["company_name", "company_url"],
-                },
-            ),
-            Tool(
-                name="generate_strategy",
-                description="Generate strategy document from an existing report AFTER the fact. Only needed when adding a strategy to a previously completed research run. For new research, use research_company with platform instead; strategy is included automatically.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "report_path": {
-                            "type": "string",
-                            "description": "Path to existing research report",
-                        },
-                        "strategy_type": {
-                            "type": "string",
-                            "enum": [
-                                "ai_strategy",
-                                "customer_experience",
-                                "modern_security_compliance",
-                                "data_fabric_strategy",
-                                "skills",
-                            ],
-                            "description": "Type of strategy to generate",
-                        },
-                        "platform": {
-                            "type": "string",
-                            "enum": [
-                                "azure",
-                                "aws",
-                                "gcp",
-                                "agnostic",
-                                "private",
-                                "microsoft",
-                                "amazon",
-                                "google",
-                                "nvidia",
-                                "ms",
-                            ],
-                            "description": "Platform for AI strategy (CLI: --platform). Aliases: microsoft=azure, amazon=aws, google=gcp, nvidia=private. Default: agnostic.",
-                        },
-                        "max_estimated_cost_usd": {
-                            "type": "number",
-                            "minimum": 0,
-                            "description": "Optional hard ceiling for estimated strategy cost. The server rejects execution if the estimate exceeds this cap.",
-                        },
-                        "approval_token": APPROVAL_TOKEN_SCHEMA,
-                    },
-                    "required": ["report_path", "strategy_type"],
-                },
-            ),
-            Tool(
-                name="check_jobs",
-                description=(
-                    "Check research job status. Completed jobs return output pointers by default; "
-                    "inline report artifacts require include_artifacts=true and report scope for "
-                    "authenticated HTTP callers. Local stdio keeps legacy inline artifact behavior."
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "job_id": {
-                            "type": "string",
-                            "description": "Specific job ID to check (optional)",
-                        },
-                        "include_artifacts": {
-                            "type": "boolean",
-                            "default": False,
-                            "description": (
-                                "Include inline report and strategy artifacts. Requires report scope "
-                                "for authenticated HTTP callers; defaults to true only for local stdio "
-                                "compatibility."
-                            ),
-                        },
-                    },
-                    "required": [],
-                },
-            ),
-            Tool(
-                name="run_qa",
-                description="Run quality assessment on a report. This may incur real API cost depending on the configured QA path.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "report_path": {
-                            "type": "string",
-                            "description": "Path to report file (txt, md, docx)",
-                        },
-                    },
-                    "required": ["report_path"],
-                },
-            ),
-            Tool(
-                name="doctor",
-                description="Check system health and configuration",
-                inputSchema={
-                    "type": "object",
-                    "properties": {},
-                    "required": [],
-                },
-            ),
-            Tool(
-                name="clear_jobs",
-                description="Clear stale pending jobs",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "older_than_hours": {
-                            "type": "integer",
-                            "default": 24,
-                            "description": "Clear jobs older than this (default: 24)",
-                        },
-                    },
-                    "required": [],
-                },
-            ),
-            Tool(
-                name="cancel_job",
-                description="Cancel an active local research job. A cancelled response is returned only after the supervised worker exits; remote provider work may remain unknown when the provider has no cancellation API.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "job_id": {
-                            "type": "string",
-                            "description": "The job ID to cancel",
-                        },
-                    },
-                    "required": ["job_id"],
-                },
-            ),
-            Tool(
-                name="wait_for_status_change",
-                description="Wait for a job status to change (blocks until change or timeout)",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "job_id": {
-                            "type": "string",
-                            "description": "The job ID to monitor",
-                        },
-                        "timeout_seconds": {
-                            "type": "number",
-                            "default": 60,
-                            "minimum": 1,
-                            "maximum": 300,
-                            "description": "Maximum seconds to wait (default: 60, max: 300)",
-                        },
-                    },
-                    "required": ["job_id"],
-                },
-            ),
-            Tool(
-                name="show_usage",
-                description="Check your current spending and remaining budget. Shows daily, monthly, and all-time costs with remaining limits.",
-                inputSchema={
-                    "type": "object",
-                    "properties": {},
-                    "required": [],
-                },
-            ),
-        ]
+        return build_base_tools() + agentic_tools + skill_pack_tools
 
-        # Add A2A delegate tool if a2a-sdk is available
-        try:
-            from primr.a2a.client import A2AClient  # noqa: F401
-
-            base_tools.append(
-                Tool(
-                    name="delegate_to_agent",
-                    description="Delegate a task to an external A2A agent",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "agent_url": {
-                                "type": "string",
-                                "description": "URL of the A2A agent to call",
-                            },
-                            "message": {
-                                "type": "string",
-                                "description": "Message to send to the agent",
-                            },
-                            "skill_id": {
-                                "type": "string",
-                                "description": "Optional skill ID to target on the remote agent",
-                            },
-                        },
-                        "required": ["agent_url", "message"],
-                    },
-                ),
-            )
-        except ImportError:
-            pass
-
-        # Include agentic + skill_pack tools
-        return base_tools + agentic_tools + skill_pack_tools
-
-    @server.call_tool()
     @audit_tool_calls(lambda: mcp_server)
     async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
         """Handle tool calls."""
@@ -509,7 +160,20 @@ def register_tools(server: Server, mcp_server: MCPServerContext) -> None:
         elif name == "show_usage":
             return await _handle_show_usage(mcp_server, client_id)
 
-        raise ValueError(f"Unknown tool: {name}")
+        # Spec 2026-07-28: an unknown tool is a protocol-level Invalid Params
+        # error, not tool-execution failure content.
+        raise MCPError(INVALID_PARAMS, f"Unknown tool: {name}")
+
+    async def _on_list_tools(
+        _ctx: object, _params: PaginatedRequestParams | None
+    ) -> ListToolsResult:
+        return ListToolsResult(tools=await list_tools())
+
+    async def _on_call_tool(_ctx: object, params: CallToolRequestParams) -> CallToolResult:
+        return CallToolResult(content=list(await call_tool(params.name, params.arguments or {})))
+
+    server.add_request_handler("tools/list", PaginatedRequestParams, _on_list_tools)
+    server.add_request_handler("tools/call", CallToolRequestParams, _on_call_tool)
 
 
 async def _handle_estimate_run(
