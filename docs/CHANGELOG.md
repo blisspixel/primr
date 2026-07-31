@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.39.0] - 2026-07-31
 
+### Security
+
+- **Raised the `pymdown-extensions` floor to 11.0.0** (docs extra) for
+  CVE-2026-61632 and locked 11.0.1, keeping `pip-audit` clean.
+
 ### Changed
 
 - **MCP server now speaks specification revision 2026-07-28 natively.**
