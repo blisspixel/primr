@@ -136,6 +136,23 @@ def test_backend_comparison_is_body_free() -> None:
     assert comparison["comparable_cases"] >= 5
 
 
+def test_inspect_standing_corpus_cli_writes_integrity_json(tmp_path: Path) -> None:
+    console = _Console()
+    config = SimpleNamespace(
+        eval_id="eval-inspect-001",
+        eval_root=str(tmp_path),
+    )
+    from primr.core.cli_local_stage_eval import handle_inspect_standing_source_relevance_corpus
+
+    code, path = handle_inspect_standing_source_relevance_corpus(config=config, console=console)
+    assert code == 0
+    assert path is not None
+    assert path.is_file()
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["status"] == "ready_for_scorecard"
+    assert payload["promotion_status"] == "not_promoted"
+
+
 def test_handle_source_relevance_rejects_fixture_and_standing_together(tmp_path: Path) -> None:
     console = _Console()
     config = SimpleNamespace(

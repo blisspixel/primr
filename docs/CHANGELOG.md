@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and labeled fixture evals now write body-free backend comparison JSON/Markdown
   (F1/precision/recall deltas, exact-match rates) plus a standing-corpus
   integrity sidecar. Comparison is review-only and does not arm promotion.
+- **`--inspect-source-relevance-standing-corpus`.** Zero-network body-free
+  integrity inspection for the packaged standing corpus; exits before profile
+  scorecard work when used alone under `--eval`.
 - **MCP protocol tests for 2026-07-28 resource templates, private cache
   hints, and `server/discover`.** Parameterized `by_job` resources must appear
   on `resources/templates/list`, list/discover cache hints remain `private`,

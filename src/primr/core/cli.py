@@ -362,6 +362,7 @@ class CLIConfig:
     eval_stage_semantic_judge_model: str | None = None
     eval_source_relevance_fixture: str | None = None
     eval_source_relevance_standing_corpus: bool = False
+    inspect_source_relevance_standing_corpus: bool = False
     eval_page_access_fixture: str | None = None
     eval_working_root: str = "working"
     eval_stage_scorecard: bool = False
@@ -642,6 +643,9 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         eval_source_relevance_fixture=getattr(parsed, "eval_source_relevance_fixture", None),
         eval_source_relevance_standing_corpus=bool(
             getattr(parsed, "eval_source_relevance_standing_corpus", False)
+        ),
+        inspect_source_relevance_standing_corpus=bool(
+            getattr(parsed, "inspect_source_relevance_standing_corpus", False)
         ),
         eval_page_access_fixture=getattr(parsed, "eval_page_access_fixture", None),
         eval_working_root=getattr(parsed, "eval_working_root", "working"),
@@ -1999,6 +2003,28 @@ def _handle_eval(config: CLIConfig) -> int:
         console.error("--eval-id is required for --eval")
         console.info("Usage: primr --eval --eval-id eval-2026-02-r1")
         return 1
+
+    # Zero-network integrity inspect for the standing source-relevance corpus.
+    # Exit before profile scorecard work when that is the only requested action.
+    if getattr(config, "inspect_source_relevance_standing_corpus", False) and not any(
+        (
+            getattr(config, "eval_source_relevance_standing_corpus", False),
+            getattr(config, "eval_source_relevance_fixture", None),
+            getattr(config, "eval_local_stage", None),
+            getattr(config, "eval_page_access_fixture", None),
+            getattr(config, "eval_stage_scorecard", False),
+            getattr(config, "eval_llm_judge", False),
+            getattr(config, "eval_run_missing", False),
+        )
+    ):
+        from primr.core.cli_local_stage_eval import (
+            handle_inspect_standing_source_relevance_corpus,
+        )
+
+        code, _path = handle_inspect_standing_source_relevance_corpus(
+            config=config, console=console
+        )
+        return code
 
     if config.eval_baseline not in config.eval_profiles:
         console.error(

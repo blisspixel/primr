@@ -154,6 +154,13 @@ def handle_stage_quality_generation(
     """Run optional stage-quality evidence generators for eval scorecards."""
 
     generated_path: Path | None = None
+    if getattr(config, "inspect_source_relevance_standing_corpus", False):
+        exit_code, path = handle_inspect_standing_source_relevance_corpus(
+            config=config, console=console
+        )
+        if exit_code != 0:
+            return exit_code, path
+        generated_path = path
     if config.eval_local_stage == "website-summary":
         exit_code, generated_path = handle_website_summary_local_stage_eval(
             config=config,
@@ -180,6 +187,30 @@ def handle_stage_quality_generation(
             return exit_code, page_access_quality_path
         generated_path = generated_path or page_access_quality_path
     return 0, generated_path
+
+
+def handle_inspect_standing_source_relevance_corpus(
+    *,
+    config: Any,
+    console: Any,
+) -> tuple[int, Path | None]:
+    """Write and print body-free standing-corpus integrity JSON (zero network)."""
+
+    console.blank()
+    console.step("Standing Source-Relevance Corpus Inspection")
+    inspection = source_relevance_eval.inspect_standing_source_relevance_corpus()
+    out_dir = Path(config.eval_root) / config.eval_id / "source_relevance_stage"
+    out_path = out_dir / "standing_corpus_integrity.json"
+    source_relevance_eval.write_standing_corpus_integrity_sidecar(out_path, inspection=inspection)
+    console.info(json.dumps(inspection, indent=2, sort_keys=True))
+    console.info(f"Standing corpus integrity: {out_path}")
+    if inspection.get("status") != "ready_for_scorecard":
+        console.error(
+            "Standing corpus is not scorecard-ready: "
+            + ", ".join(inspection.get("blockers") or ["unknown"])
+        )
+        return 1, out_path
+    return 0, out_path
 
 
 def handle_source_relevance_fixture_eval(

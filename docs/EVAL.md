@@ -93,6 +93,9 @@ primr --eval --eval-id eval-2026-06-source-relevance --eval-source-relevance-fix
 # Standing packaged corpus (body-free, scorecard input only, not a promotion gate)
 primr --eval --eval-id eval-source-relevance-standing --eval-source-relevance-standing-corpus --eval-stage-scorecard --eval-stage-id fast.source_relevance
 
+# Integrity inspect only (zero network; not a promotion gate)
+primr --eval --eval-id inspect-standing --inspect-source-relevance-standing-corpus
+
 # Page-access classifier false-positive/false-negative eval from sanitized fixtures
 primr --eval --eval-id eval-2026-06-page-access --eval-page-access-fixture .agent/page-access-fixture.json
 ```
