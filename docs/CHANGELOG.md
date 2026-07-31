@@ -23,7 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   integrity sidecar. Comparison is review-only and does not arm promotion.
 - **`--inspect-source-relevance-standing-corpus`.** Zero-network body-free
   integrity inspection for the packaged standing corpus; exits before profile
-  scorecard work when used alone under `--eval`.
+  scorecard work when used alone under `--eval`. Inspection includes the
+  corpus file sha256 and size so scorecards can bind the exact labeled
+  snapshot measured.
 - **MCP protocol tests for 2026-07-28 resource templates, private cache
   hints, and `server/discover`.** Parameterized `by_job` resources must appear
   on `resources/templates/list`, list/discover cache hints remain `private`,
