@@ -3406,6 +3406,7 @@ def perform_deep_research(
                     ),
                     on_progress=progress_callback,
                     context_files=context_files,
+                    folder_path=folder_path,
                 )
             )
 

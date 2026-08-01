@@ -1,10 +1,39 @@
 # Next Steps
 
-Last research refresh: 2026-07-19.
+Last research refresh: 2026-08-01.
 
 This page answers the working question: what should Primr do next, and why?
 `ROADMAP.md` remains the ordered backlog. This page is the shorter execution
 brief for the next planning cycles.
+
+Tone: we aim to do this work carefully and well. We do not need to claim the
+category or put other research tools down. For fit vs chat deep research,
+enterprise CI, and research APIs, see
+[`docs/design/competitive-positioning.md`](design/competitive-positioning.md).
+
+## Where we are (post v1.39.0)
+
+Shipped recently and relevant to planning:
+
+- Native MCP `2026-07-28` on SDK v2 (dual-era clients, cache hints, templates).
+- Capability-router wiring across the fast pipeline and `premium.deep_research`,
+  with body-free `stage_routes` and fail-closed agent/local behavior when no
+  adapter qualifies.
+- Standing offline `source_relevance` corpus and review-only host/cloud
+  comparison artifacts (not a promotion gate).
+
+Still open, and still the honest center of gravity:
+
+1. **Epistemic quality** — calibration and evidence-review tooling exist; hard
+   gates stay report-only until a more complete production corpus supports them.
+2. **Backend freedom** — routing is wired; live host-vs-cloud promotion and
+   full no-legacy-dual-provider report paths still need evidence and cleanup.
+3. **Agent control-plane polish** — strong base; Tasks extension and related
+   MCP watch items remain.
+4. **Memory / strategy delta** — design exists; not yet the default re-run
+   experience.
+5. **Time-to-first-useful artifact** — full runs remain long relative to chat
+   deep research; progressive early artifacts are still a product gap.
 
 ## Research-backed decision rules
 
@@ -34,14 +63,12 @@ for Primr's shape:
   scope-consent semantics through `WWW-Authenticate`, which fits the existing
   small `read`/`research`/`delegate`/`admin` vocabulary and should shape the
   next HTTP parity slice.
-- Track the MCP `2026-07-28` release candidate as a post-final compatibility
-  review item, not an immediate implementation target before July 28, 2026.
-  The stateless HTTP core, server discovery, `Mcp-Method` and `Mcp-Name`
-  routing headers, resource and list cache hints, Tasks extension, Apps
-  extension, JSON Schema 2020-12 tool schemas, W3C trace context propagation,
-  and authorization hardening map directly onto Primr's HTTP MCP transport,
-  long-running job handles, metadata-first resources, audit spans, and
-  protected-resource model.
+- MCP `2026-07-28` is final and shipped in Primr (SDK v2, dual-era clients,
+  cache hints, resource templates, aligned errors). Remaining watch items from
+  that revision: the Tasks extension for long-running jobs, OpenTelemetry
+  `_meta` propagation, and Client ID Metadata Documents on the auth side.
+  Implement those only when client need is clear; do not invent parallel job
+  APIs for fashion.
 - For A2A, keep the Agent Card as a discovery contract and enforce actual
   authorization at the server-side skill boundary. The protocol advertises
   security schemes, but Primr-owned scope decisions must still happen before
@@ -340,6 +367,14 @@ Done when:
 - No new deterministic prose-quality or claim-quality gate was added.
 
 ### 2. Backend freedom production wiring
+
+Status: free-path production wiring largely landed in v1.39.0 (fast pipeline +
+`premium.deep_research` via the capability router, body-free `stage_routes`,
+fail-closed agent/local, standing offline source-relevance corpus). CLI deep
+runs now pass `folder_path` so premium stage routes can persist on the run
+working folder. What remains is measured promotion (live host-vs-cloud), and
+closing residual xAI/Gemini-era assumptions on full-report preflight for pure
+single-provider profiles.
 
 Why next: provider abstraction, capability routing, and availability snapshots
 exist, but the full-report runtime still has xAI/Gemini-era assumptions. This

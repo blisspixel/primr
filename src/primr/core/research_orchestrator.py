@@ -75,6 +75,7 @@ class ResearchOrchestrator:
         config: ResearchConfig | None = None,
         on_progress: Callable[[str], None] | None = None,
         context_files: list | None = None,
+        folder_path: str | None = None,
     ) -> OrchestratorResult:
         """
         Execute company research using the specified mode.
@@ -86,6 +87,7 @@ class ResearchOrchestrator:
             config: Optional configuration overrides
             on_progress: Optional callback for progress updates
             context_files: Optional list of files to upload as context for Deep Research
+            folder_path: Optional run working folder for body-free stage_routes
 
         Returns:
             OrchestratorResult with section_results dict
@@ -104,7 +106,12 @@ class ResearchOrchestrator:
             try:
                 if mode == ResearchMode.DEEP_RESEARCH:
                     result = await self._run_deep_research_with_context(
-                        company_name, website, config, on_progress, context_files
+                        company_name,
+                        website,
+                        config,
+                        on_progress,
+                        context_files,
+                        folder_path=folder_path,
                     )
                 elif mode == ResearchMode.STRUCTURED:
                     result = await self._run_structured_research(

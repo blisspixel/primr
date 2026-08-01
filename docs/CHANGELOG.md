@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Refreshed planning docs after the 1.39.0 landscape pass.**
+  `docs/NEXT_STEPS.md` records post-1.39 status and remaining gaps in plain
+  language. `docs/design/competitive-positioning.md` compares Primr to chat
+  deep research, enterprise CI, and research APIs without overclaiming; the
+  design index and docs README point at both.
+- **README CLI demo screenshot.** Replaced the older Softchoice-era capture
+  with a placeholder ExampleCo session (`docs/images/primr-demo.png`, source
+  HTML alongside) so the front door shows dry-run estimate and completion
+  output without real company content.
+- **Deep-research runs forward `folder_path` into the orchestrator.** CLI
+  premium/deep paths already own a working folder; `ResearchOrchestrator.research`
+  now accepts it so `premium.deep_research` stage_routes can persist instead of
+  no-oping when the folder was omitted. MCP standard orchestrator jobs pass the
+  job output directory the same way and create it before the run starts.
+
 ## [1.39.0] - 2026-08-01
 
 ### Security

@@ -9,6 +9,12 @@ Primr turns a company website into a sourced strategic intelligence brief.
 
 It reads public website pages, DNS records, hiring signals, and external sources, then produces a consultant-style report with confidence labels, citations, strategic hypotheses, and optional strategy modules. The useful part is not a generic article summary. It is the primary-signal layer: what the company exposes through infrastructure, job postings, product pages, filings, and public evidence.
 
+<p align="center">
+  <img src="docs/images/primr-demo.png" alt="Illustrative primr CLI session: dry-run cost estimate for ExampleCo, then a completed run writing Strategic Overview artifacts" width="920" />
+</p>
+
+<p align="center"><sub>Illustrative demo session with placeholder company data (not a live capture of a real target).</sub></p>
+
 ```bash
 primr "ExampleCo" https://example.co
 ```
