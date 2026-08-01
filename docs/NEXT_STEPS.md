@@ -405,6 +405,16 @@ Do next:
   deterministic source excerpts, hiring signals use deterministic triage plus
   posting metadata, and both record body-free `agent_profile_unavailable` route
   fallbacks instead of invoking cloud LLMs.
+- Wire the next production stages through capability routing while preserving
+  failovers. Shipped across the fast pipeline: utility stages
+  (`scrape_summary`, `source_relevance`, `hiring_signals`), reasoning stages
+  (`research_deepening`, `analysis_workbook`, `cross_validation`), and writing
+  stages (`report_sections`, `trust_polish`, `strategy_generation`), plus
+  optional `fast.label_honesty` route recording when
+  `PRIMR_LABEL_HONESTY=1`. All record body-free stage route usage and fail
+  closed for agent/local profiles without a qualifying adapter. Cloud remains
+  the validated baseline; host adapters remain limited to the unpromoted
+  `fast.source_relevance` pilot.
 - Promote one host/local candidate only after stage-scoped evals prove quality,
   cost, latency, failure behavior, and billing provenance. If billing cannot be
   proven, promotion requires an explicit operator acknowledgment that metered
@@ -416,14 +426,15 @@ Do next:
 Done when:
 
 - The stage declares requirements; the router chooses candidates; execution
-  consumes the resulting chain. The declaration slice and three utility-stage
-  runtime slices are shipped; broader production wiring is still pending.
+  consumes the resulting chain. The declaration slice, full fast-pipeline
+  runtime router wiring (including optional label honesty), and
+  `premium.deep_research` execution wiring are shipped. Remaining: measured
+  host promotion for source-relevance (live comparison after spend approval).
 - Estimates and usage records name the backend and declared route category. The
-  route ledger records backend/profile/billing metadata for
-  `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals`,
-  and appends measured stage-scoped token/cache/cost deltas when counters are
-  available. Codex route metadata is not proof of the authenticated session's
-  billing mode.
+  route ledger records backend/profile/billing metadata for the fast-pipeline
+  routed stages listed above and appends measured stage-scoped
+  token/cache/cost deltas when counters are available. Codex route metadata is
+  not proof of the authenticated session's billing mode.
 - Provider comparison artifacts exist for every promoted stage.
   The route-metadata comparison artifact exists; quality comparison artifacts
   now have a CLI-accessible scorecard layer, and website-summary local-stage
@@ -432,9 +443,16 @@ Done when:
   evals can also produce F1 quality evidence for the experimental host-agent
   pilot. These remain report-only scorecard evidence, not promotion gates;
   calibrated samples and human-reviewed acceptance criteria are still required
-  before any promotion. The next concrete slice is to curate that standing
-  source-relevance corpus and run the controlled host-vs-cloud comparison after
-  explicit approval of potentially metered host use and direct cloud spend.
+  before any promotion. The standing source-relevance corpus
+  (`source_relevance_standing_v1`) is now packaged with representative tags and
+  dual cloud/host candidates. Offline path is complete: integrity inspect
+  (sha256-bound), standing scorecard, and body-free backend comparison
+  artifacts under safe eval-id paths, all with
+  `promotion_status=not_promoted`. The next concrete slice is a controlled live
+  host-vs-cloud comparison against that standing corpus after explicit approval
+  of potentially metered host use and direct cloud spend, then a human-reviewed
+  promotion decision without auto-arming host routing. Broader production-stage
+  router wiring beyond the three utility stages remains open after that.
 - No hidden provider dependency remains in the full-report path for the wired
   stage.
 

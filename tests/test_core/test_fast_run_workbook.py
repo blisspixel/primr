@@ -31,6 +31,33 @@ def seams(monkeypatch, tmp_path):
     session_cls.return_value.send.return_value = "workbook via session"
     monkeypatch.setattr("primr.ai.grok_client.ContinuousReasoningSession", session_cls)
 
+    # Keep legacy model identity unless a test overrides routing: existing
+    # fixtures assert preferred_model/session model equal grok_reasoning.
+    from primr.ai.capability_routing import InferenceProfile
+    from primr.ai.stage_routing import StageModelRoute
+
+    def fake_resolve(stage_id, legacy_model_type="reasoning", **kwargs):
+        return StageModelRoute(
+            stage_id=stage_id,
+            profile=InferenceProfile.CLOUD,
+            model_name="reasoner-model",
+            backend_id="reasoner-model",
+            backend_kind="cloud",
+            billing_mode="metered_api",
+            estimated_cost_usd=None,
+            expected_input_tokens=1,
+            expected_output_tokens=1,
+            routed=True,
+            reasons=("test",),
+            rejections=(),
+            execution_mode="llm",
+        )
+
+    monkeypatch.setattr("primr.ai.stage_routing.resolve_stage_model", fake_resolve)
+    monkeypatch.setattr("primr.ai.stage_routing.capture_stage_usage", dict)
+    monkeypatch.setattr("primr.ai.stage_routing.stage_usage_delta", lambda before: None)
+    monkeypatch.setattr("primr.ai.stage_routing.record_stage_route_usage", lambda *a, **k: None)
+
     captured["failover"] = failover
     captured["session_cls"] = session_cls
     captured["tmp"] = tmp_path

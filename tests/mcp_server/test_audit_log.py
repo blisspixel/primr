@@ -10,17 +10,13 @@ from uuid import UUID
 
 import pytest
 from mcp.server.auth.provider import AccessToken
-from mcp.types import (
-    CallToolRequest,
-    CallToolRequestParams,
-    ReadResourceRequest,
-    ReadResourceRequestParams,
-)
+from mcp.shared.exceptions import MCPError
 
 from primr.mcp_server import audit_log as audit_log_module
 from primr.mcp_server.audit_log import _optional_float
 from primr.mcp_server.auth import AuthContext
 from primr.mcp_server.server import create_mcp_server
+from tests.mcp_server.sdk_compat import call_tool_handler, read_resource_handler
 
 
 @pytest.fixture
@@ -52,14 +48,8 @@ def test_optional_float_rejects_non_finite_values(value) -> None:
 
 
 async def _call_text(server, name: str, arguments: dict) -> str:
-    handler = server.server.request_handlers[CallToolRequest]
-    result = await handler(
-        CallToolRequest(
-            method="tools/call",
-            params=CallToolRequestParams(name=name, arguments=arguments),
-        )
-    )
-    return result.root.content[0].text
+    result = await call_tool_handler(server, name, arguments)
+    return result.content[0].text
 
 
 async def _call(server, name: str, arguments: dict) -> dict:
@@ -67,14 +57,8 @@ async def _call(server, name: str, arguments: dict) -> dict:
 
 
 async def _read_resource(server, uri: str) -> dict:
-    handler = server.server.request_handlers[ReadResourceRequest]
-    result = await handler(
-        ReadResourceRequest(
-            method="resources/read",
-            params=ReadResourceRequestParams(uri=uri),
-        )
-    )
-    return json.loads(result.root.contents[0].text)
+    result = await read_resource_handler(server, uri)
+    return json.loads(result.contents[0].text)
 
 
 def _events(server) -> list[dict]:
@@ -214,8 +198,9 @@ async def test_caller_controlled_audit_metadata_is_normalized_and_bounded(server
     marker = "private-marker-in-protocol-metadata"
     server._auth_context = _context(["read", marker + "x" * (1024 * 1024)])
 
-    await _call_text(server, marker, {})
-    with pytest.raises(ValueError, match="Unknown resource"):
+    with pytest.raises(MCPError, match="Unknown tool"):
+        await _call_text(server, marker, {})
+    with pytest.raises(MCPError, match="Unknown resource"):
         await _read_resource(server, f"primr://unexpected/{marker}")
 
     audit_text = server.audit_log.path.read_text(encoding="utf-8")
@@ -230,9 +215,14 @@ async def test_caller_controlled_audit_metadata_is_normalized_and_bounded(server
 
 @pytest.mark.asyncio
 async def test_unknown_tool_names_share_one_rate_limit_bucket(server):
-    responses = [await _call_text(server, f"unknown-{index}", {}) for index in range(11)]
+    # The first ten calls clear the shared bucket and fail as unknown tools;
+    # the eleventh is refused by the rate limiter before dispatch.
+    for index in range(10):
+        with pytest.raises(MCPError, match="Unknown tool"):
+            await _call_text(server, f"unknown-{index}", {})
 
-    assert json.loads(responses[-1])["error_type"] == "rate_limit_exceeded"
+    final = await _call_text(server, "unknown-10", {})
+    assert json.loads(final)["error_type"] == "rate_limit_exceeded"
     assert {event["tool_name"] for event in _events(server)} == {"unknown_tool"}
 
 

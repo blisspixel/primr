@@ -6,10 +6,10 @@ import json
 from pathlib import Path
 
 import pytest
-from mcp.types import ReadResourceRequest, ReadResourceRequestParams
 
 from primr.mcp_server.server import create_mcp_server
 from primr.mcp_server.stage_scorecard_summary import read_stage_scorecard_summary_resource
+from tests.mcp_server.sdk_compat import read_resource_handler
 
 
 @pytest.fixture
@@ -19,14 +19,8 @@ def server(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
 
 async def _read_resource(server, uri: str) -> dict:
-    handler = server.server.request_handlers[ReadResourceRequest]
-    result = await handler(
-        ReadResourceRequest(
-            method="resources/read",
-            params=ReadResourceRequestParams(uri=uri),
-        )
-    )
-    return json.loads(result.root.contents[0].text)
+    result = await read_resource_handler(server, uri)
+    return json.loads(result.contents[0].text)
 
 
 class TestStageScorecardSummaryResource:

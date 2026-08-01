@@ -29,6 +29,8 @@ from primr.core.temporary_files import (
 from primr.utils.errors import ResearchError
 
 MODULE = "primr.core.research_orchestrator"
+# Accordion deep-research lives in the stage module after the file-size split.
+PREMIUM_DR_MODULE = "primr.core.premium_deep_research_stage"
 TEMP_MODULE = "primr.core.temporary_files"
 
 
@@ -476,8 +478,8 @@ class TestRunDeepResearchWithContext:
         formatted.citations = ["c"]
 
         with (
-            patch(f"{MODULE}.get_deep_research_orchestrator", return_value=mock_orch),
-            patch(f"{MODULE}.ReportFormatter") as MockFmt,
+            patch(f"{PREMIUM_DR_MODULE}.get_deep_research_orchestrator", return_value=mock_orch),
+            patch(f"{PREMIUM_DR_MODULE}.ReportFormatter") as MockFmt,
         ):
             MockFmt.return_value.format_report.return_value = formatted
             result = await orch._run_deep_research_with_context(
@@ -506,7 +508,7 @@ class TestRunDeepResearchWithContext:
 
         mock_orch.generate_comprehensive_report = gen
 
-        with patch(f"{MODULE}.get_deep_research_orchestrator", return_value=mock_orch):
+        with patch(f"{PREMIUM_DR_MODULE}.get_deep_research_orchestrator", return_value=mock_orch):
             result = await orch._run_deep_research_with_context("Acme Corp", None, cfg, None, None)
 
         assert result.success is False
@@ -851,8 +853,8 @@ class TestSupplementalContext:
         mock_orch.generate_comprehensive_report = gen
 
         with (
-            patch(f"{MODULE}.get_deep_research_orchestrator", return_value=mock_orch),
-            patch(f"{MODULE}.ReportFormatter") as MockFmt,
+            patch(f"{PREMIUM_DR_MODULE}.get_deep_research_orchestrator", return_value=mock_orch),
+            patch(f"{PREMIUM_DR_MODULE}.ReportFormatter") as MockFmt,
         ):
             MockFmt.return_value.format_report.return_value = self._formatted()
             await orch._run_deep_research_with_context("Acme Corp", None, cfg, None, None)
@@ -952,8 +954,8 @@ class TestSupplementalContext:
         mock_orch.generate_comprehensive_report = gen
 
         with (
-            patch(f"{MODULE}.get_deep_research_orchestrator", return_value=mock_orch),
-            patch(f"{MODULE}.ReportFormatter") as MockFmt,
+            patch(f"{PREMIUM_DR_MODULE}.get_deep_research_orchestrator", return_value=mock_orch),
+            patch(f"{PREMIUM_DR_MODULE}.ReportFormatter") as MockFmt,
         ):
             MockFmt.return_value.format_report.return_value = self._formatted()
             await orch._run_deep_research_with_context("Acme Corp", None, cfg, None, None)

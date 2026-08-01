@@ -74,20 +74,15 @@ class TestServerHandlers:
 
     def test_tools_registered(self, server):
         """Tools are registered with the server."""
-        from mcp.types import ListToolsRequest
-
-        assert ListToolsRequest in server.server.request_handlers
+        assert server.server.get_request_handler("tools/list") is not None
+        assert server.server.get_request_handler("tools/call") is not None
 
     def test_resources_registered(self, server):
         """Resources are registered with the server."""
-        from mcp.types import ListResourcesRequest, ReadResourceRequest
-
-        assert ListResourcesRequest in server.server.request_handlers
-        assert ReadResourceRequest in server.server.request_handlers
+        assert server.server.get_request_handler("resources/list") is not None
+        assert server.server.get_request_handler("resources/read") is not None
 
     def test_prompts_registered(self, server):
         """Prompts are registered with the server."""
-        from mcp.types import GetPromptRequest, ListPromptsRequest
-
-        assert ListPromptsRequest in server.server.request_handlers
-        assert GetPromptRequest in server.server.request_handlers
+        assert server.server.get_request_handler("prompts/list") is not None
+        assert server.server.get_request_handler("prompts/get") is not None

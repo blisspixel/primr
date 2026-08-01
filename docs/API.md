@@ -1040,6 +1040,30 @@ reset_settings()
 
 Primr includes a Model Context Protocol (MCP) server that enables AI agents to drive company research programmatically. The MCP server exposes Primr's functionality through a standardized protocol that AI assistants like Claude Desktop can use.
 
+### Protocol Revision
+
+Primr speaks MCP specification revision **2026-07-28** natively (via MCP
+Python SDK v2) and still answers the legacy `initialize` handshake, so both
+modern stateless clients and older handshake-era clients work against one
+server on either transport. Spec-revision specifics Primr implements:
+
+- `server/discover` advertises supported versions, capabilities, and server
+  identity (name, version, instructions).
+- `tools/list`, `prompts/list`, `resources/list`, `resources/templates/list`,
+  and `resources/read` results carry `ttlMs`/`cacheScope` cache hints. All
+  hints are `private`: responses are auth-scoped and must not be reused
+  across authorization contexts by shared intermediaries.
+- Parameterized `primr://.../by_job/{job_id}` resources are advertised
+  through `resources/templates/list` (and remain in `resources/list` for
+  older clients).
+- Unknown tools, resources, and prompts return JSON-RPC `-32602` (Invalid
+  Params) per the 2026-07-28 error-code alignment.
+- Tool listings are deterministic across calls, which enables client-side
+  caching and stable LLM prompt-cache prefixes.
+
+Primr does not use the deprecated Roots, Sampling, or Logging capabilities,
+the retired HTTP+SSE transport, or protocol-level sessions.
+
 ### Quick Start
 
 ```bash

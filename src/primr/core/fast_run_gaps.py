@@ -27,6 +27,7 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 from primr.core.insights_assembly import build_combined_insights, build_external_sources_raw
 from primr.core.run_state_io import _update_run_state
@@ -35,6 +36,9 @@ from primr.data.search_utils import search_web
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
 from primr.utils.observability import log_structured
+
+if TYPE_CHECKING:
+    from primr.ai.stage_routing import StageModelRoute
 
 logger = get_logger("core.fast_run_gaps")
 
@@ -126,6 +130,7 @@ def deepen_research(
             source_urls,
             model=grok_reasoning,
             hypothesis_block=hypothesis_block,
+            folder_path=folder_path,
         )
 
     gap_new_sources = 0
@@ -291,6 +296,7 @@ def _fast_gap_analysis(
     source_urls: list[str],
     model: str | None = None,
     hypothesis_block: str = "",
+    folder_path: str | None = None,
 ) -> tuple[list[str], str]:
     """
     Phase 2 helper: Grok identifies research gaps and returns targeted search queries.
@@ -300,6 +306,11 @@ def _fast_gap_analysis(
     under-evidenced, and what search would confirm or refute each" (tradecraft
     Step 4). The output contract (GAP/QUERY/PRIORITY) is unchanged either way, and
     the unframed prompt is byte-identical to the prior behavior.
+
+    Model selection runs through the capability router for
+    ``fast.research_deepening``. Cloud remains the validated baseline. Agent or
+    local profiles without a qualifying adapter fail closed (no cloud LLM call)
+    and record a body-free route fallback.
 
     Returns:
         (list of search queries, gap analysis text for logging)
@@ -390,23 +401,84 @@ technology direction, recent news, risk factors.
 
     # Gap analysis is a REASONING-class call: a quota event here would
     # silently abort gap-driven external search. Route through the
-    # circuit breaker so we fall through ANALYSIS_FALLBACK_CHAIN.
+    # capability router, then the circuit breaker so we fall through
+    # ANALYSIS_FALLBACK_CHAIN on quota events.
+    from primr.ai import stage_routing
     from primr.pipeline.llm_failover import LLMRole, call_with_failover
+
+    route: stage_routing.StageModelRoute | None = None
+    usage_before: stage_routing.StageUsageByModel | None = None
+    preferred_model = model
+    start_time = time.monotonic()
+    try:
+        route = stage_routing.resolve_stage_model(
+            "fast.research_deepening",
+            legacy_model_type="reasoning",
+        )
+        log_structured("info", "Research deepening route selected", **route.log_metadata())
+        if getattr(route, "execution_mode", "llm") == "unavailable":
+            _record_gap_route(
+                folder_path,
+                route,
+                outcome="fallback",
+                input_count=len(source_urls),
+                output_count=0,
+                duration_seconds=time.monotonic() - start_time,
+                failure_class=stage_routing.stage_route_failure_class(route),
+            )
+            failure = stage_routing.stage_route_failure_class(route)
+            return [], f"Gap analysis skipped: {failure}"
+        if route.model_name:
+            preferred_model = route.model_name
+        usage_before = stage_routing.capture_stage_usage()
+    except Exception as e:
+        log_structured(
+            "warning",
+            "Research deepening route resolution failed",
+            error=str(e),
+        )
 
     try:
         response = call_with_failover(
             LLMRole.REASONING,
             prompt,
-            preferred_model=model,
+            preferred_model=preferred_model,
             max_tokens=5_000,
             temperature=0.4,
             system_prompt=system_prompt,
         )
     except Exception as e:
+        if route is not None:
+            _record_gap_route(
+                folder_path,
+                route,
+                outcome="fallback",
+                input_count=len(source_urls),
+                output_count=0,
+                duration_seconds=time.monotonic() - start_time,
+                failure_class=stage_routing.stage_route_failure_class(route, e),
+                failure=e,
+                usage_delta=stage_routing.stage_usage_delta(usage_before)
+                if usage_before is not None
+                else None,
+            )
         log_structured("warning", "Gap analysis failed", error=str(e))
         return [], f"Gap analysis failed: {e}"
 
     if not response or not response.strip():
+        if route is not None:
+            _record_gap_route(
+                folder_path,
+                route,
+                outcome="fallback",
+                input_count=len(source_urls),
+                output_count=0,
+                duration_seconds=time.monotonic() - start_time,
+                failure_class="empty_response",
+                usage_delta=stage_routing.stage_usage_delta(usage_before)
+                if usage_before is not None
+                else None,
+            )
         return [], "Gap analysis returned empty response"
 
     # Parse queries from response
@@ -418,4 +490,47 @@ technology direction, recent news, risk factors.
             if query:
                 queries.append(query)
 
-    return queries[:8], response
+    selected = queries[:8]
+    if route is not None:
+        _record_gap_route(
+            folder_path,
+            route,
+            outcome="selected" if selected else "fallback",
+            input_count=len(source_urls),
+            output_count=len(selected),
+            duration_seconds=time.monotonic() - start_time,
+            failure_class=None if selected else "no_queries_parsed",
+            usage_delta=stage_routing.stage_usage_delta(usage_before)
+            if usage_before is not None
+            else None,
+        )
+    return selected, response
+
+
+def _record_gap_route(
+    folder_path: str | None,
+    route: StageModelRoute,
+    *,
+    outcome: str,
+    input_count: int,
+    output_count: int,
+    duration_seconds: float,
+    failure_class: str | None = None,
+    failure: Exception | None = None,
+    usage_delta: dict[str, Any] | None = None,
+) -> None:
+    """Append body-free research-deepening route metadata to run state."""
+
+    from primr.ai import stage_routing as stage_routing_mod
+
+    stage_routing_mod.record_stage_route_usage(
+        folder_path,
+        route,
+        outcome=outcome,
+        input_items=input_count,
+        output_items=output_count,
+        duration_seconds=duration_seconds,
+        failure_class=failure_class,
+        failure=failure,
+        usage_delta=usage_delta,
+    )

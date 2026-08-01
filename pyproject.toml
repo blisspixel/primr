@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "primr"
-version = "1.38.0"
+version = "1.39.0"
 description = "Turn any company or organization URL into a strategic intelligence brief. Adaptive scraping + AI-powered research and synthesis."
 readme = "README.md"
 license = "Apache-2.0"
@@ -72,7 +72,9 @@ dependencies = [
     "curl_cffi>=0.5.0",
     "DrissionPage>=4.0.0",
     "ddgs>=9.0.0",
-    "mcp>=1.28.1",
+    # MCP SDK v2 speaks spec revision 2026-07-28 natively and still answers the
+    # legacy initialize handshake; <3 guards against the next major rework.
+    "mcp>=2.0.0,<3",
     "defusedxml",
     "typer>=0.9.0",
     # Security floor (DoS, CVE-2026-54282/54283): form-parsing limits silently
@@ -159,7 +161,8 @@ docs = [
     # the primr package, so the docs build stays fast and free of the native
     # runtime stack (playwright/pymupdf/curl_cffi).
     "mkdocs-material>=9.5.0",
-    "pymdown-extensions>=10.0",
+    # Security floor (CVE-2026-61632): patched in 11.0.0.
+    "pymdown-extensions>=11.0.0",
 ]
 
 [dependency-groups]
@@ -197,6 +200,7 @@ primr = [
     "resources/skills/primr-zero/SKILL.md",
     "resources/skills/primr-zero/agents/*.yaml",
     "resources/skills/primr-zero/references/*.md",
+    "resources/eval/*.json",
 ]
 
 # mypy configuration lives in mypy.ini (authoritative — mypy ignores a

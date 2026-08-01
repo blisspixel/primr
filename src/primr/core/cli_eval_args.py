@@ -190,6 +190,26 @@ def add_eval_arguments(parser: argparse.ArgumentParser) -> None:
         ),
     )
     parser.add_argument(
+        "--eval-source-relevance-standing-corpus",
+        action="store_true",
+        default=False,
+        help=(
+            "Use the packaged standing source-relevance corpus "
+            "(source_relevance_standing_v1) for review-only host-vs-cloud "
+            "scorecards. Scorecard input only; not a promotion gate."
+        ),
+    )
+    parser.add_argument(
+        "--inspect-source-relevance-standing-corpus",
+        action="store_true",
+        default=False,
+        help=(
+            "Print body-free integrity JSON for the packaged standing "
+            "source-relevance corpus and exit. Zero network; not a promotion "
+            "gate."
+        ),
+    )
+    parser.add_argument(
         "--eval-page-access-fixture",
         type=str,
         default=None,

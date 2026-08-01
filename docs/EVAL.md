@@ -90,6 +90,12 @@ primr --eval --eval-id eval-2026-06-4090-vs-subdollar --eval-local-stage website
 # Source-relevance host/cloud comparison from labeled keep-list fixtures
 primr --eval --eval-id eval-2026-06-source-relevance --eval-source-relevance-fixture .agent/source-relevance-fixture.json --eval-stage-scorecard --eval-stage-id fast.source_relevance --eval-stage-route-root working
 
+# Standing packaged corpus (body-free, scorecard input only, not a promotion gate)
+primr --eval --eval-id eval-source-relevance-standing --eval-source-relevance-standing-corpus --eval-stage-scorecard --eval-stage-id fast.source_relevance
+
+# Integrity inspect only (zero network; not a promotion gate)
+primr --eval --eval-id inspect-standing --inspect-source-relevance-standing-corpus
+
 # Page-access classifier false-positive/false-negative eval from sanitized fixtures
 primr --eval --eval-id eval-2026-06-page-access --eval-page-access-fixture .agent/page-access-fixture.json
 ```
@@ -100,7 +106,18 @@ This is useful for evaluating local models against existing cloud-generated repo
 
 For a 24 GB RTX 4090 or comparable local box, start with `4090-report-race` before the broader `4090-top10` sweep. It keeps the first local run cheap in wall-clock time and answers the product question directly: is the local box already good enough for this stage, or is the ~$1 API route still buying meaningful quality? Add `--eval-local-stage-semantic-judge` when a local judge backend is available. The judge-model option accepts one model or a comma-separated local judge panel; panel runs record score-spread agreement metadata. The resulting semantic scorecard evidence is still review-only, and promotion requires a broader calibrated sample with provenance and human-reviewed acceptance criteria.
 
-For the `fast.source_relevance` host-agent pilot, use `--eval-source-relevance-fixture` to convert labeled keep-list fixtures into body-free precision, recall, F1, and exact-match artifacts. The fixture should use source numbers only, not source URLs or text bodies:
+For the `fast.source_relevance` host-agent pilot, use either the packaged
+standing corpus or a custom labeled fixture. Prefer
+`--eval-source-relevance-standing-corpus` for the shared representative
+scorecard path; use `--eval-source-relevance-fixture` for one-off local
+fixtures. Both convert labeled keep-lists into body-free precision, recall, F1,
+and exact-match artifacts. Fixtures must use source numbers only, not source
+URLs or text bodies. The standing corpus ships as
+`src/primr/resources/eval/source_relevance_standing_v1.json` with
+`promotion_status=not_promoted` and required representative tags; integrity
+inspection refuses body fields, missing backends, or missing tags.
+
+Custom fixture shape:
 
 ```json
 {
@@ -120,7 +137,14 @@ For the `fast.source_relevance` host-agent pilot, use `--eval-source-relevance-f
 }
 ```
 
-The generated `source_relevance_stage_quality_evidence.json` feeds the same review-only stage scorecard as other route evidence. It does not promote host execution by itself; promotion still requires representative samples, route observations, and human-reviewed acceptance criteria.
+The generated `source_relevance_stage_quality_evidence.json` feeds the same
+review-only stage scorecard as other route evidence. Standing and labeled
+fixture runs also write `source_relevance_backend_comparison.json` /
+`.md` with body-free F1, precision, and recall deltas between
+`cloud-baseline` and `codex-host`, plus `standing_corpus_integrity.json` when
+the packaged corpus is used. None of these artifacts promote host execution;
+promotion still requires live route observations, billing provenance, and
+human-reviewed acceptance criteria.
 
 The single-company runtime opt-in, `--inference hybrid
 --acknowledge-host-agent-may-bill`, exists only to collect controlled route

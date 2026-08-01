@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.38.0
+Current State: v1.39.0
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -117,26 +117,36 @@ Current priority order:
    `fast.scrape_summary`, `fast.source_relevance`, and
    `fast.hiring_signals` now consume the capability router behind the
    `--inference cloud|hybrid` flag while executing through existing provider
-   seams. `fast.source_relevance` also has a bounded Codex CLI
-   adapter. The first promotion-safety slice now exposes it only as an
-   unpromoted, single-company experimental route when the operator supplies
-   `--inference hybrid --acknowledge-host-agent-may-bill`. Codex
-   authentication does not prove whether execution uses plan allowance or
+   seams. The remaining fast-pipeline stages
+   (`research_deepening`, `analysis_workbook`, `cross_validation` for
+   reasoning; `report_sections`, `trust_polish`, `strategy_generation` for
+   writing) also resolve through the capability router with body-free route
+   records and fail-closed agent/local behavior when no adapter qualifies.
+   `fast.source_relevance`
+   also has a bounded Codex CLI adapter. The first promotion-safety slice now
+   exposes it only as an unpromoted, single-company experimental route when the
+   operator supplies `--inference hybrid --acknowledge-host-agent-may-bill`.
+   Codex authentication does not prove whether execution uses plan allowance or
    metered API-key billing, so route and estimate metadata says
    `potentially_metered`, excludes unknown host charges from the Primr estimate
    and budget, and rejects batch fan-out. Runtime route resolution
    consumes sanitized env-only cloud provider availability snapshots by
    default, can accept injected quota snapshots, and records body-free
    availability metadata without collecting live quota data or probing local
-   services during normal runs. All three routes record body-free usage
-   metadata in `_run_state.json`, including measured token/cache/cost deltas
-   when provider counters expose them. The other routed utility stages now also
-   fail closed when the internal agent profile is exercised by tests or evals
-   and no host adapter qualifies:
-   scrape summary writes deterministic source excerpts, hiring signals use
-   deterministic triage plus posting metadata, and both record
-   `agent_profile_unavailable` route fallbacks instead of invoking cloud LLMs;
-   the next architecture unlock is the representative source-relevance
+   services during normal runs. All ten fast-pipeline routes (including optional
+   label honesty when enabled) plus `premium.deep_research` record body-free
+   usage metadata in `_run_state.json`, including measured token/cache/cost
+   deltas when provider counters expose them. Routed stages fail closed when
+   the internal agent profile is exercised by tests or evals and no host
+   adapter qualifies: scrape summary writes deterministic source excerpts,
+   hiring signals use deterministic triage plus posting metadata, research
+   deepening skips gap analysis, the workbook falls back to collected insights,
+   report writing returns no content, cross-validation leaves the report
+   unchanged, trust polish keeps deterministic cleanup only, strategy
+   generation is skipped, label honesty leaves labels unchanged, and premium
+   deep research does not launch the Gemini agent without a
+   deep-research-capable backend. The next architecture unlock is the
+   representative source-relevance
    host-vs-cloud comparison. The explicit host gate is not promotion and cloud
    remains the validated baseline. Broader host/local candidates still require
    stage-specific adapters and stage-scoped eval data. Stage scorecard artifacts are now available through
@@ -145,8 +155,13 @@ Current priority order:
    quality-source, or raw run-state content. Website-summary local-stage evals
    now write scorecard-ready structured quality evidence as report-only input,
    and source-relevance labeled fixtures now write body-free precision, recall,
-   F1, and exact-match evidence for review-only host/cloud scorecards. No
-   representative standing source-relevance corpus has cleared that gate yet.
+   F1, and exact-match evidence for review-only host/cloud scorecards. The
+   packaged standing corpus `source_relevance_standing_v1` covers required
+   representative tags with dual cloud/host candidates and is scored offline
+   via `--eval-source-relevance-standing-corpus`; it remains report-only
+   (`promotion_status=not_promoted`). Live host-vs-cloud comparison and
+   human-reviewed promotion are still required before any host route clears
+   the gate.
 3. **Agent control-plane consumption resources and A2A parity.** MCP already has
    scopes, approval tokens, tool/resource-read audit events, and budget
    propagation. A2A now shares the HTTP bearer-token auth context and enforces
@@ -566,12 +581,16 @@ The step-change that earns the major bump is three pillars landing together:
   shipped), a structured audit log for tool calls and resource reads,
   job-scoped artifact metadata and QA, usage/cost, source appendix, scrape
   trace, verification, and calibration summary resources,
-  A2A output negotiation (#21). The MCP `2026-07-28` release candidate is a
-  watch item for this pillar, not a current compatibility promise until the
-  final specification ships: its stateless HTTP core, explicit task handles,
-  Apps extension, JSON Schema 2020-12 tool schemas, protocol-level cache hints,
-  trace propagation, and auth hardening should shape the next HTTP MCP
-  compatibility review. Design doc:
+  A2A output negotiation (#21). The MCP `2026-07-28` specification is final
+  and **shipped in Primr**: the server runs on MCP Python SDK v2, speaks
+  2026-07-28 natively (stateless core, `server/discover`, protocol-level
+  `ttlMs`/`cacheScope` cache hints, resource templates, aligned error codes)
+  while still answering the legacy `initialize` handshake for older clients
+  on both stdio and streamable HTTP. Remaining watch items from that
+  revision: the Tasks extension (`io.modelcontextprotocol/tasks`) as a
+  spec-native surface for Primr's long-running jobs alongside the existing
+  job tools, OpenTelemetry `_meta` trace propagation, and Client ID Metadata
+  Documents on the auth side. Design doc:
   [`docs/design/2.0-agent-control-plane.md`](docs/design/2.0-agent-control-plane.md).
 
 **Exit criteria:** a downstream agent can delegate to primr unattended - on a
@@ -1990,6 +2009,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.39.0 | Aug 2026 | **Native MCP 2026-07-28 plus full capability-router production wiring.** Migrated the MCP server to MCP Python SDK v2 (`mcp>=2.0.0,<3`) with dual-era clients, cache hints, resource templates, and `-32602` unknown-name errors. Wired the remaining fast-pipeline stages and `premium.deep_research` through the capability router with body-free `stage_routes` and fail-closed agent/local behavior. Shipped the standing `source_relevance_standing_v1` offline scorecard corpus (report-only, not a promotion gate). |
 | 1.38.0 | Jul 2026 | **Multi-cloud provider routing: AWS Bedrock and Azure AI Foundry.** Research runs can now route stages through Bedrock (registered, priced Amazon Nova models) and Foundry (operator-declared deployment + pricing). Both are main-process only and refused inside supervised workers, keeping AWS/Azure credentials out of the lower-trust worker boundary; nothing is guessed into the cost gate. |
 | 1.37.2 | Jul 2026 | **Latest Gemini models and documentation excellence.** Registers `gemini-3.6-flash` and `gemini-3.5-flash-lite` (July 2026 GA) as available, priced, eval-gateable models without changing any default tier. Brings the full docs surface current to 1.37.x, adds a complete/dated self-enforcing documentation index, and guards every internal Markdown link in CI. |
 | 1.37.1 | Jul 2026 | **Zero-cost render parity and dependency hardening.** A standalone `primr render` verb converts any Markdown report to DOCX/TXT with no model calls, so the Primr Zero / host-assisted path ships the same `.md` + `.docx` deliverables as a provider-backed run. Bumps `pyasn1` to 0.6.4 (CVE-2026-59885/59886). |

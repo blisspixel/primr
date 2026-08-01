@@ -81,6 +81,33 @@ def seams(monkeypatch, tmp_path):
         lambda: [list(b) for b in batches],
     )
 
+    from primr.ai.capability_routing import InferenceProfile
+    from primr.ai.stage_routing import StageModelRoute
+
+    def fake_resolve(stage_id, legacy_model_type="writing", **kwargs):
+        # Empty model_name keeps the caller-supplied grok_writing identity so
+        # model-threading tests remain stable.
+        return StageModelRoute(
+            stage_id=stage_id,
+            profile=InferenceProfile.CLOUD,
+            model_name="",
+            backend_id="cloud-writing",
+            backend_kind="cloud",
+            billing_mode="metered_api",
+            estimated_cost_usd=None,
+            expected_input_tokens=1,
+            expected_output_tokens=1,
+            routed=True,
+            reasons=("test",),
+            rejections=(),
+            execution_mode="llm",
+        )
+
+    monkeypatch.setattr("primr.ai.stage_routing.resolve_stage_model", fake_resolve)
+    monkeypatch.setattr("primr.ai.stage_routing.capture_stage_usage", dict)
+    monkeypatch.setattr("primr.ai.stage_routing.stage_usage_delta", lambda before: None)
+    monkeypatch.setattr("primr.ai.stage_routing.record_stage_route_usage", lambda *a, **k: None)
+
     return {
         "writer": writer,
         "coherence": coherence,

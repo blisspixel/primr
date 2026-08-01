@@ -11,13 +11,14 @@ from types import SimpleNamespace
 from urllib.parse import quote
 
 import pytest
-from mcp.types import ListResourcesRequest, ReadResourceRequest, ReadResourceRequestParams
+from mcp.shared.exceptions import MCPError
 
 from primr.mcp_server.security import PathValidator
 from primr.mcp_server.server import create_mcp_server
 from primr.mcp_server.types import ResearchStage
 from primr.qa.artifact_fingerprints import artifact_fingerprint
 from primr.qa.calibration_baseline import build_calibration_baseline
+from tests.mcp_server.sdk_compat import list_resources_handler, read_resource_handler
 
 
 class TestResourceListing:
@@ -33,10 +34,9 @@ class TestResourceListing:
     @pytest.mark.asyncio
     async def test_list_resources(self, server):
         """All resources are listed."""
-        handler = server.server.request_handlers[ListResourcesRequest]
-        result = await handler(ListResourcesRequest(method="resources/list"))
+        result = await list_resources_handler(server)
 
-        resources = result.root.resources
+        resources = result.resources
         uris = [str(r.uri) for r in resources]
 
         assert "primr://research/status" in uris
@@ -45,14 +45,14 @@ class TestResourceListing:
         assert "primr://research/modes" in uris
         assert "primr://output/latest" in uris
         assert "primr://output/artifacts" in uris
-        assert "primr://output/artifacts/by_job/%7Bjob_id%7D" in uris
-        assert "primr://output/qa_summary/by_job/%7Bjob_id%7D" in uris
-        assert "primr://output/usage_summary/by_job/%7Bjob_id%7D" in uris
-        assert "primr://output/source_summary/by_job/%7Bjob_id%7D" in uris
-        assert "primr://output/trace_summary/by_job/%7Bjob_id%7D" in uris
-        assert "primr://output/verification_summary/by_job/%7Bjob_id%7D" in uris
-        assert "primr://output/calibration_summary/by_job/%7Bjob_id%7D" in uris
-        assert "primr://eval/stage_scorecard/%7Beval_id%7D" in uris
+        assert "primr://output/artifacts/by_job/{job_id}" in uris
+        assert "primr://output/qa_summary/by_job/{job_id}" in uris
+        assert "primr://output/usage_summary/by_job/{job_id}" in uris
+        assert "primr://output/source_summary/by_job/{job_id}" in uris
+        assert "primr://output/trace_summary/by_job/{job_id}" in uris
+        assert "primr://output/verification_summary/by_job/{job_id}" in uris
+        assert "primr://output/calibration_summary/by_job/{job_id}" in uris
+        assert "primr://eval/stage_scorecard/{eval_id}" in uris
         assert "primr://calibration/baseline/inspection?path={baseline_path}" in uris
         assert "primr://config" in uris
 
@@ -70,15 +70,9 @@ class TestResearchStatusResource:
     @pytest.mark.asyncio
     async def test_status_idle_when_no_job(self, server):
         """Status is idle when no job exists."""
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(uri="primr://research/status"),
-            )
-        )
+        result = await read_resource_handler(server, "primr://research/status")
 
-        content = result.root.contents[0]
+        content = result.contents[0]
         data = json.loads(content.text)
 
         assert data["status"] == "idle"
@@ -90,15 +84,9 @@ class TestResearchStatusResource:
         # Create a job
         job = server.job_store.create("Acme Corp", "full")
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(uri="primr://research/status"),
-            )
-        )
+        result = await read_resource_handler(server, "primr://research/status")
 
-        content = result.root.contents[0]
+        content = result.contents[0]
         data = json.loads(content.text)
 
         assert data["status"] == "in_progress"
@@ -115,15 +103,9 @@ class TestResearchStatusResource:
         job.output_paths = ["output/report.md"]
         server.job_store.update(job)
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(uri="primr://research/status"),
-            )
-        )
+        result = await read_resource_handler(server, "primr://research/status")
 
-        content = result.root.contents[0]
+        content = result.contents[0]
         data = json.loads(content.text)
 
         assert data["status"] == "completed"
@@ -140,15 +122,9 @@ class TestResearchStatusResource:
         job.error_message = "Test error message"
         server.job_store.update(job)
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(uri="primr://research/status"),
-            )
-        )
+        result = await read_resource_handler(server, "primr://research/status")
 
-        content = result.root.contents[0]
+        content = result.contents[0]
         data = json.loads(content.text)
 
         assert data["status"] == "failed"
@@ -169,15 +145,9 @@ class TestResearchModesResource:
     @pytest.mark.asyncio
     async def test_research_modes_returns_default_mode(self, server):
         """Research modes resource includes the default mode."""
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(uri="primr://research/modes"),
-            )
-        )
+        result = await read_resource_handler(server, "primr://research/modes")
 
-        content = result.root.contents[0]
+        content = result.contents[0]
         data = json.loads(content.text)
 
         assert data["default_mode"] == "full"
@@ -196,14 +166,8 @@ class TestResearchNextActionsResource:
 
     @pytest.mark.asyncio
     async def test_next_actions_idle(self, server):
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(uri="primr://research/next-actions"),
-            )
-        )
-        data = json.loads(result.root.contents[0].text)
+        result = await read_resource_handler(server, "primr://research/next-actions")
+        data = json.loads(result.contents[0].text)
         assert data["recommended_action"] == "start_new_research"
 
     @pytest.mark.asyncio
@@ -212,14 +176,8 @@ class TestResearchNextActionsResource:
         job.output_paths = ["output/report.md"]
         job.advance_stage(ResearchStage.COMPLETED)
         server.job_store.update(job)
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(uri="primr://research/next-actions"),
-            )
-        )
-        data = json.loads(result.root.contents[0].text)
+        result = await read_resource_handler(server, "primr://research/next-actions")
+        data = json.loads(result.contents[0].text)
         assert data["recommended_action"] == "review_output"
         assert "output_paths" in data
 
@@ -242,17 +200,11 @@ class TestArtifactMetadataByJobResource:
         server.job_store.update(job)
         server._auth_context = SimpleNamespace(client_id="client-a", scopes=["read"])
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/artifacts/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/artifacts/by_job/{job.job_id}"
         )
 
-        text = result.root.contents[0].text
+        text = result.contents[0].text
         data = json.loads(text)
         assert data["schema_version"] == "1.1"
         assert data["job_id"] == job.job_id
@@ -279,17 +231,11 @@ class TestArtifactMetadataByJobResource:
         job.output_paths = [str(report)]
         server.job_store.update(job)
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/artifacts/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/artifacts/by_job/{job.job_id}"
         )
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         assert {row["file_name"] for row in data["artifacts"]} == {
             report.name,
             docx.name,
@@ -300,17 +246,11 @@ class TestArtifactMetadataByJobResource:
     async def test_returns_no_artifacts_for_job_without_outputs(self, server):
         job = server.job_store.create("Acme Corp", "full")
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/artifacts/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/artifacts/by_job/{job.job_id}"
         )
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         assert data["error"] == "no_artifacts"
         assert data["job_id"] == job.job_id
 
@@ -324,17 +264,11 @@ class TestArtifactMetadataByJobResource:
         server.job_store.update(job)
         server._auth_context = SimpleNamespace(client_id="client-b", scopes=["read"])
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/artifacts/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/artifacts/by_job/{job.job_id}"
         )
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         assert data["error"] == "job_not_found"
         assert data["job_id"] == job.job_id
 
@@ -371,17 +305,11 @@ class TestQASummaryByJobResource:
         server.job_store.update(job)
         server._auth_context = SimpleNamespace(client_id="client-a", scopes=["read"])
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/qa_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/qa_summary/by_job/{job.job_id}"
         )
 
-        text = result.root.contents[0].text
+        text = result.contents[0].text
         data = json.loads(text)
         assert data["schema_version"] == "1.0"
         assert data["job_id"] == job.job_id
@@ -411,17 +339,11 @@ class TestQASummaryByJobResource:
         job.output_paths = [str(report)]
         server.job_store.update(job)
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/qa_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/qa_summary/by_job/{job.job_id}"
         )
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         assert data["error"] == "qa_summary_not_found"
         assert data["summary_count"] == 0
         assert data["job_id"] == job.job_id
@@ -434,17 +356,11 @@ class TestQASummaryByJobResource:
         job.output_paths = [str(qa_summary)]
         server.job_store.update(job)
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/qa_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/qa_summary/by_job/{job.job_id}"
         )
 
-        text = result.root.contents[0].text
+        text = result.contents[0].text
         data = json.loads(text)
         assert "not closed" not in text
         assert data["summaries"][0]["parsed"] is False
@@ -474,17 +390,11 @@ class TestQASummaryByJobResource:
         job.output_paths = [str(qa_report)]
         server.job_store.update(job)
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/qa_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/qa_summary/by_job/{job.job_id}"
         )
 
-        text = result.root.contents[0].text
+        text = result.contents[0].text
         data = json.loads(text)
         assert "Secret detailed issue body" not in text
         summary = data["summaries"][0]
@@ -508,17 +418,11 @@ class TestQASummaryByJobResource:
         server.job_store.update(job)
         server._auth_context = SimpleNamespace(client_id="client-b", scopes=["read"])
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/qa_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/qa_summary/by_job/{job.job_id}"
         )
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         assert data["error"] == "job_not_found"
         assert data["job_id"] == job.job_id
 
@@ -583,17 +487,11 @@ class TestUsageSummaryByJobResource:
         server.job_store.update(job)
         server._auth_context = SimpleNamespace(client_id="client-a", scopes=["read"])
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/usage_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/usage_summary/by_job/{job.job_id}"
         )
 
-        text = result.root.contents[0].text
+        text = result.contents[0].text
         data = json.loads(text)
         assert data["schema_version"] == "1.0"
         assert data["job_id"] == job.job_id
@@ -645,17 +543,11 @@ class TestUsageSummaryByJobResource:
         job.output_paths = [str(report)]
         server.job_store.update(job)
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/usage_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/usage_summary/by_job/{job.job_id}"
         )
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         assert data["error"] == "usage_summary_not_found"
         assert data["summary_count"] == 0
         assert data["job_id"] == job.job_id
@@ -670,17 +562,11 @@ class TestUsageSummaryByJobResource:
         job.output_paths = [str(report), str(manifest)]
         server.job_store.update(job)
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/usage_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/usage_summary/by_job/{job.job_id}"
         )
 
-        text = result.root.contents[0].text
+        text = result.contents[0].text
         data = json.loads(text)
         assert "secret" not in text
         assert data["summaries"][0]["parsed"] is False
@@ -698,17 +584,11 @@ class TestUsageSummaryByJobResource:
         server.job_store.update(job)
         server._auth_context = SimpleNamespace(client_id="client-b", scopes=["read"])
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/usage_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/usage_summary/by_job/{job.job_id}"
         )
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         assert data["error"] == "job_not_found"
         assert data["job_id"] == job.job_id
 
@@ -747,17 +627,11 @@ class TestSourceSummaryByJobResource:
         server.job_store.update(job)
         server._auth_context = SimpleNamespace(client_id="client-a", scopes=["read"])
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/source_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/source_summary/by_job/{job.job_id}"
         )
 
-        text = result.root.contents[0].text
+        text = result.contents[0].text
         data = json.loads(text)
         assert data["schema_version"] == "1.0"
         assert data["job_id"] == job.job_id
@@ -797,17 +671,11 @@ class TestSourceSummaryByJobResource:
         job.output_paths = [str(report)]
         server.job_store.update(job)
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/source_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/source_summary/by_job/{job.job_id}"
         )
 
-        summary = json.loads(result.root.contents[0].text)["summaries"][0]
+        summary = json.loads(result.contents[0].text)["summaries"][0]
         assert summary["source_section_present"] is False
         assert summary["referenced_numbers"] == [7]
         assert summary["definition_count"] == 0
@@ -821,17 +689,11 @@ class TestSourceSummaryByJobResource:
         job.output_paths = [str(manifest)]
         server.job_store.update(job)
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/source_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/source_summary/by_job/{job.job_id}"
         )
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         assert data["error"] == "source_summary_not_found"
         assert data["summary_count"] == 0
         assert data["job_id"] == job.job_id
@@ -848,17 +710,11 @@ class TestSourceSummaryByJobResource:
         server.job_store.update(job)
         server._auth_context = SimpleNamespace(client_id="client-b", scopes=["read"])
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/source_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/source_summary/by_job/{job.job_id}"
         )
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         assert data["error"] == "job_not_found"
         assert data["job_id"] == job.job_id
 
@@ -936,17 +792,11 @@ class TestTraceSummaryByJobResource:
         server.job_store.update(job)
         server._auth_context = SimpleNamespace(client_id="client-a", scopes=["read"])
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/trace_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/trace_summary/by_job/{job.job_id}"
         )
 
-        text = result.root.contents[0].text
+        text = result.contents[0].text
         data = json.loads(text)
         assert data["schema_version"] == "1.0"
         assert data["summary_count"] == 1
@@ -987,17 +837,11 @@ class TestTraceSummaryByJobResource:
         job.output_paths = [str(report)]
         server.job_store.update(job)
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/trace_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/trace_summary/by_job/{job.job_id}"
         )
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         assert data["error"] == "trace_summary_not_found"
         assert data["summary_count"] == 0
 
@@ -1010,17 +854,11 @@ class TestTraceSummaryByJobResource:
         server.job_store.update(job)
         server._auth_context = SimpleNamespace(client_id="client-b", scopes=["read"])
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/trace_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/trace_summary/by_job/{job.job_id}"
         )
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         assert data["error"] == "job_not_found"
         assert data["job_id"] == job.job_id
 
@@ -1076,17 +914,11 @@ class TestVerificationSummaryByJobResource:
         server.job_store.update(job)
         server._auth_context = SimpleNamespace(client_id="client-a", scopes=["read"])
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/verification_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/verification_summary/by_job/{job.job_id}"
         )
 
-        text = result.root.contents[0].text
+        text = result.contents[0].text
         data = json.loads(text)
         assert data["schema_version"] == "1.0"
         assert data["summary_count"] == 1
@@ -1124,17 +956,11 @@ class TestVerificationSummaryByJobResource:
         job.output_paths = [str(report)]
         server.job_store.update(job)
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/verification_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/verification_summary/by_job/{job.job_id}"
         )
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         assert data["error"] == "verification_summary_not_found"
         assert data["summary_count"] == 0
 
@@ -1147,17 +973,11 @@ class TestVerificationSummaryByJobResource:
         server.job_store.update(job)
         server._auth_context = SimpleNamespace(client_id="client-b", scopes=["read"])
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/verification_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/verification_summary/by_job/{job.job_id}"
         )
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         assert data["error"] == "job_not_found"
         assert data["job_id"] == job.job_id
 
@@ -1173,15 +993,9 @@ class TestAgentGovernanceResource:
 
     @pytest.mark.asyncio
     async def test_agent_governance_describes_cap_argument(self, server):
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(uri="primr://agent/governance"),
-            )
-        )
+        result = await read_resource_handler(server, "primr://agent/governance")
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         assert data["research_flow"]["cap_argument"] == "max_estimated_cost_usd"
         assert data["strategy_flow"]["cap_argument"] == "max_estimated_cost_usd"
         assert "34-53 minutes" in data["research_flow"]["expected_runtime"]
@@ -1318,17 +1132,11 @@ class TestCalibrationSummaryByJobResource:
         server.job_store.update(job)
         server._auth_context = SimpleNamespace(client_id="client-a", scopes=["read"])
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/calibration_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/calibration_summary/by_job/{job.job_id}"
         )
 
-        text = result.root.contents[0].text
+        text = result.contents[0].text
         data = json.loads(text)
         assert data["schema_version"] == "1.0"
         assert data["summary_count"] == 1
@@ -1388,17 +1196,11 @@ class TestCalibrationSummaryByJobResource:
         job.output_paths = [str(sidecar)]
         server.job_store.update(job)
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/calibration_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/calibration_summary/by_job/{job.job_id}"
         )
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         assert data["summary_count"] == 1
         assert data["summaries"][0]["parsed"] is True
 
@@ -1412,17 +1214,11 @@ class TestCalibrationSummaryByJobResource:
         job.output_paths = [str(report)]
         server.job_store.update(job)
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/calibration_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/calibration_summary/by_job/{job.job_id}"
         )
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         summary = data["summaries"][0]
         assert summary["parsed"] is False
         assert summary["parse_error"] == "report_artifact_mismatch"
@@ -1438,17 +1234,11 @@ class TestCalibrationSummaryByJobResource:
         job.output_paths = [str(sidecar)]
         server.job_store.update(job)
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/calibration_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/calibration_summary/by_job/{job.job_id}"
         )
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         summary = data["summaries"][0]
         assert summary["parsed"] is False
         assert summary["parse_error"] == "report_artifact_mismatch"
@@ -1461,17 +1251,11 @@ class TestCalibrationSummaryByJobResource:
         job.output_paths = [str(report)]
         server.job_store.update(job)
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/calibration_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/calibration_summary/by_job/{job.job_id}"
         )
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         assert data["error"] == "calibration_summary_not_found"
         assert data["summary_count"] == 0
 
@@ -1485,17 +1269,11 @@ class TestCalibrationSummaryByJobResource:
         server.job_store.update(job)
         server._auth_context = SimpleNamespace(client_id="client-b", scopes=["read"])
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri=f"primr://output/calibration_summary/by_job/{job.job_id}"
-                ),
-            )
+        result = await read_resource_handler(
+            server, f"primr://output/calibration_summary/by_job/{job.job_id}"
         )
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         assert data["error"] == "job_not_found"
         assert data["job_id"] == job.job_id
 
@@ -1609,15 +1387,9 @@ class TestCalibrationBaselineInspectionResource:
             f"{quote(baseline_path.as_posix(), safe='')}"
         )
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(uri=uri),
-            )
-        )
+        result = await read_resource_handler(server, uri)
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         assert data["inspection_format"] == "primr.calibration_readiness_inspection.v1"
         assert data["counts"]["missing_sidecars"] == 1
         assert data["blockers"]["missing_sidecars"][0]["report_file"] == (
@@ -1636,15 +1408,9 @@ class TestCalibrationBaselineInspectionResource:
             f"{quote(baseline_path.as_posix(), safe='')}"
         )
 
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(uri=uri),
-            )
-        )
+        result = await read_resource_handler(server, uri)
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         assert data["ready"] is True
         assert data["gate_recommendation"]["status"] == "not_recommended"
         assert data["gate_recommendation"]["reason"] == ("incomplete_confirmed_traceability_floor")
@@ -1678,31 +1444,19 @@ class TestCalibrationBaselineInspectionResource:
 
     @pytest.mark.asyncio
     async def test_rejects_path_outside_allowed_roots(self, server):
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(
-                    uri="primr://calibration/baseline/inspection?path=../secret.json"
-                ),
-            )
+        result = await read_resource_handler(
+            server, "primr://calibration/baseline/inspection?path=../secret.json"
         )
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         assert data["error"] == "invalid_path"
         assert data["error_type"] == "path_traversal_blocked"
 
     @pytest.mark.asyncio
     async def test_requires_path_query(self, server):
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(uri="primr://calibration/baseline/inspection"),
-            )
-        )
+        result = await read_resource_handler(server, "primr://calibration/baseline/inspection")
 
-        data = json.loads(result.root.contents[0].text)
+        data = json.loads(result.contents[0].text)
         assert data["error"] == "missing_path"
 
 
@@ -1719,15 +1473,9 @@ class TestConfigResource:
     @pytest.mark.asyncio
     async def test_config_returns_modes(self, server):
         """Config includes available modes."""
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(uri="primr://config"),
-            )
-        )
+        result = await read_resource_handler(server, "primr://config")
 
-        content = result.root.contents[0]
+        content = result.contents[0]
         data = json.loads(content.text)
 
         assert "scrape" in data["available_modes"]
@@ -1738,15 +1486,9 @@ class TestConfigResource:
     @pytest.mark.asyncio
     async def test_config_returns_strategies(self, server):
         """Config includes available strategies."""
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(uri="primr://config"),
-            )
-        )
+        result = await read_resource_handler(server, "primr://config")
 
-        content = result.root.contents[0]
+        content = result.contents[0]
         data = json.loads(content.text)
 
         assert "ai_strategy" in data["available_strategies"]
@@ -1757,15 +1499,9 @@ class TestConfigResource:
     @pytest.mark.asyncio
     async def test_config_no_sensitive_data(self, server):
         """Config does not include sensitive data."""
-        handler = server.server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(uri="primr://config"),
-            )
-        )
+        result = await read_resource_handler(server, "primr://config")
 
-        content = result.root.contents[0]
+        content = result.contents[0]
         text = content.text.lower()
 
         # Should not contain API key patterns
@@ -1788,16 +1524,9 @@ class TestUnknownResource:
 
     @pytest.mark.asyncio
     async def test_unknown_resource_raises(self, server):
-        """Unknown resource raises ValueError."""
-        handler = server.server.request_handlers[ReadResourceRequest]
-
-        with pytest.raises(ValueError, match="Unknown resource"):
-            await handler(
-                ReadResourceRequest(
-                    method="resources/read",
-                    params=ReadResourceRequestParams(uri="primr://unknown"),
-                )
-            )
+        """Unknown resource raises MCPError."""
+        with pytest.raises(MCPError, match="Unknown resource"):
+            await read_resource_handler(server, "primr://unknown")
 
 
 @pytest.mark.parametrize(

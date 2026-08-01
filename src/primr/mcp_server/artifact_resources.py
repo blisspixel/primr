@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from mcp.server.lowlevel.helper_types import ReadResourceContents
-from mcp.types import AnyUrl, Resource
+from mcp.types import Resource
 
 from primr.mcp_server.resource_auth import caller_owns_job_resource
 from primr.mcp_server.server_context import MCPServerContext
@@ -22,32 +22,32 @@ ARTIFACT_METADATA_BY_JOB_URI = "primr://output/artifacts/by_job"
 QA_SUMMARY_BY_JOB_URI = "primr://output/qa_summary/by_job"
 USAGE_SUMMARY_BY_JOB_URI = "primr://output/usage_summary/by_job"
 ARTIFACT_METADATA_BY_JOB_RESOURCE = Resource(
-    uri=AnyUrl(f"{ARTIFACT_METADATA_BY_JOB_URI}/{{job_id}}"),
+    uri=f"{ARTIFACT_METADATA_BY_JOB_URI}/{{job_id}}",
     name="Artifact Metadata by Job ID",
     description=(
         "Compact metadata for output artifacts attached to one owned job. "
         "Returns semantic roles, paths, sizes, hashes, and timestamps without "
         "report body content."
     ),
-    mimeType="application/json",
+    mime_type="application/json",
 )
 QA_SUMMARY_BY_JOB_RESOURCE = Resource(
-    uri=AnyUrl(f"{QA_SUMMARY_BY_JOB_URI}/{{job_id}}"),
+    uri=f"{QA_SUMMARY_BY_JOB_URI}/{{job_id}}",
     name="QA Summary by Job ID",
     description=(
         "Compact QA result summary for one owned job. Returns score, status, "
         "count, and metadata fields without detailed report body content."
     ),
-    mimeType="application/json",
+    mime_type="application/json",
 )
 USAGE_SUMMARY_BY_JOB_RESOURCE = Resource(
-    uri=AnyUrl(f"{USAGE_SUMMARY_BY_JOB_URI}/{{job_id}}"),
+    uri=f"{USAGE_SUMMARY_BY_JOB_URI}/{{job_id}}",
     name="Usage and Cost Summary by Job ID",
     description=(
         "Compact usage, cost, timing, and approval metadata for one owned job. "
         "Reads run_manifest.json without returning full manifest contents."
     ),
-    mimeType="application/json",
+    mime_type="application/json",
 )
 
 

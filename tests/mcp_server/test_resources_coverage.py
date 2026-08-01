@@ -11,10 +11,10 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from mcp.types import ReadResourceRequest, ReadResourceRequestParams
 
 from primr.mcp_server.server import create_mcp_server
 from primr.mcp_server.types import ResearchStage
+from tests.mcp_server.sdk_compat import read_resource_handler
 
 
 @pytest.fixture
@@ -25,14 +25,8 @@ def server():
 
 
 async def _read(server, uri):
-    handler = server.server.request_handlers[ReadResourceRequest]
-    result = await handler(
-        ReadResourceRequest(
-            method="resources/read",
-            params=ReadResourceRequestParams(uri=uri),
-        )
-    )
-    return json.loads(result.root.contents[0].text)
+    result = await read_resource_handler(server, uri)
+    return json.loads(result.contents[0].text)
 
 
 class TestLatestOutput:

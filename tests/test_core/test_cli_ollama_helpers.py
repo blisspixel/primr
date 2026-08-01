@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from primr.core.cli import (
-    CLIConfig,
-    Command,
-    _list_installed_ollama_models,
-    _resolve_local_judge_models,
+from primr.core.cli import CLIConfig, Command
+from primr.core.cli_ollama_helpers import (
+    list_installed_ollama_models as _list_installed_ollama_models,
+)
+from primr.core.cli_ollama_helpers import (
+    resolve_local_judge_models as _resolve_local_judge_models,
 )
 
 
@@ -62,7 +63,7 @@ class TestListInstalledOllamaModels:
 class TestResolveLocalJudgeModels:
     def test_returns_judge_models_when_explicit(self, monkeypatch):
         monkeypatch.setattr(
-            "primr.core.cli._list_installed_ollama_models",
+            "primr.core.cli_ollama_helpers.list_installed_ollama_models",
             lambda: {"llama3", "qwen"},
         )
         config = _config(
@@ -77,7 +78,7 @@ class TestResolveLocalJudgeModels:
 
     def test_returns_missing_when_not_installed(self, monkeypatch):
         monkeypatch.setattr(
-            "primr.core.cli._list_installed_ollama_models",
+            "primr.core.cli_ollama_helpers.list_installed_ollama_models",
             lambda: {"llama3"},
         )
         config = _config(
@@ -96,7 +97,7 @@ class TestResolveLocalJudgeModels:
             lambda name: ["m1", "m2"],
         )
         monkeypatch.setattr(
-            "primr.core.cli._list_installed_ollama_models",
+            "primr.core.cli_ollama_helpers.list_installed_ollama_models",
             lambda: {"m1", "m2"},
         )
         config = _config(
@@ -109,7 +110,7 @@ class TestResolveLocalJudgeModels:
 
     def test_uses_single_judge_model_when_no_list(self, monkeypatch):
         monkeypatch.setattr(
-            "primr.core.cli._list_installed_ollama_models",
+            "primr.core.cli_ollama_helpers.list_installed_ollama_models",
             lambda: {"llama3"},
         )
         config = _config(
@@ -122,7 +123,7 @@ class TestResolveLocalJudgeModels:
 
     def test_empty_installed_returns_selected_as_available(self, monkeypatch):
         monkeypatch.setattr(
-            "primr.core.cli._list_installed_ollama_models",
+            "primr.core.cli_ollama_helpers.list_installed_ollama_models",
             lambda: set(),
         )
         config = _config(
@@ -137,7 +138,7 @@ class TestResolveLocalJudgeModels:
 
     def test_dedupes_repeated_models(self, monkeypatch):
         monkeypatch.setattr(
-            "primr.core.cli._list_installed_ollama_models",
+            "primr.core.cli_ollama_helpers.list_installed_ollama_models",
             lambda: {"llama3"},
         )
         config = _config(
