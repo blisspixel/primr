@@ -405,10 +405,16 @@ PRODUCTION_STAGES: Final[tuple[ProductionStage, ...]] = (
         expected_output_tokens=40_000,
         requires_deep_research=True,
         acceptable_latency=LatencyClass.LONG_RUNNING,
-        current_backend="Gemini Deep Research Agent",
+        current_backend="routed through ai.stage_routing to Gemini Deep Research Agent",
         promotion_gate=(
             "Cannot route to local or generic host runners until they expose an "
-            "official deep-research capability with comparable citations and provenance."
+            "official deep-research capability with comparable citations and provenance. "
+            "Route records alone are not promotion."
+        ),
+        notes=(
+            "Cloud Gemini Deep Research is the only supported backend today. "
+            "Agent/local profiles fail closed without launching the agent when "
+            "no deep-research-capable backend is available."
         ),
     ),
 )

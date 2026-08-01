@@ -426,10 +426,10 @@ Do next:
 Done when:
 
 - The stage declares requirements; the router chooses candidates; execution
-  consumes the resulting chain. The declaration slice and the full fast-pipeline
-  runtime router wiring (including optional label honesty) are shipped.
-  Remaining: premium deep-research inventory execution wiring and measured
-  host promotion for source-relevance.
+  consumes the resulting chain. The declaration slice, full fast-pipeline
+  runtime router wiring (including optional label honesty), and
+  `premium.deep_research` execution wiring are shipped. Remaining: measured
+  host promotion for source-relevance (live comparison after spend approval).
 - Estimates and usage records name the backend and declared route category. The
   route ledger records backend/profile/billing metadata for the fast-pipeline
   routed stages listed above and appends measured stage-scoped

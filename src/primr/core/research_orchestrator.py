@@ -682,6 +682,7 @@ class ResearchOrchestrator:
         config: ResearchConfig,
         on_progress: Callable[[str], None] | None,
         context_files: list | None = None,
+        folder_path: str | None = None,
     ) -> OrchestratorResult:
         """
         Run Deep Research using the Accordion Method for comprehensive reports.
@@ -694,15 +695,55 @@ class ResearchOrchestrator:
         not the terse bullet-point output from raw Deep Research.
 
         Context files (if provided) are uploaded to File Search Store to inform the research.
+
+        Model selection is resolved through the capability router for
+        ``premium.deep_research``. Agent/local profiles without a deep-research
+        backend fail closed without launching the Gemini agent.
         """
         import time as time_module
 
+        from primr.ai import stage_routing
+        from primr.utils.observability import log_structured
+
         start_time = time_module.time()
+        route = None
+        try:
+            route = stage_routing.resolve_stage_model(
+                "premium.deep_research",
+                legacy_model_type="reasoning",
+            )
+            log_structured("info", "Premium deep research route selected", **route.log_metadata())
+            if getattr(route, "execution_mode", "llm") == "unavailable":
+                failure = stage_routing.stage_route_failure_class(route)
+                stage_routing.record_stage_route_usage(
+                    folder_path,
+                    route,
+                    outcome="fallback",
+                    input_items=1,
+                    output_items=0,
+                    duration_seconds=time_module.time() - start_time,
+                    failure_class=failure,
+                )
+                error = f"Deep research unavailable: {failure}"
+                logger.warning(error)
+                return OrchestratorResult(
+                    company_name=company_name,
+                    website=website,
+                    mode=ResearchMode.DEEP_RESEARCH,
+                    section_results={},
+                    success=False,
+                    error=error,
+                    duration_seconds=time_module.time() - start_time,
+                )
+        except Exception as route_err:
+            logger.warning("Premium deep research route resolution failed: %s", route_err)
 
         if on_progress:
             on_progress("Using Accordion Method for comprehensive report...")
             on_progress("  Phase 1: Deep Research gathers facts")
             on_progress("  Phase 2: Section-by-section writing with Gemini Flash")
+            if route is not None and route.backend_id:
+                on_progress(f"  Backend: {route.backend_id}")
 
         # Use the Accordion Method orchestrator (same as --mode full, but no Stage 1)
         orchestrator = get_deep_research_orchestrator()
@@ -726,6 +767,16 @@ class ResearchOrchestrator:
 
         if not deep_result.success:
             logger.warning(f"Deep research failed: {deep_result.error}")
+            if route is not None:
+                stage_routing.record_stage_route_usage(
+                    folder_path,
+                    route,
+                    outcome="fallback",
+                    input_items=1,
+                    output_items=0,
+                    duration_seconds=total_duration,
+                    failure_class="deep_research_failed",
+                )
             return OrchestratorResult(
                 company_name=company_name,
                 website=website,
@@ -751,6 +802,15 @@ class ResearchOrchestrator:
             f"Deep research (Accordion) completed: ~{formatted.word_count} words, "
             f"{deep_result.api_calls} API calls, {total_duration:.0f}s"
         )
+        if route is not None:
+            stage_routing.record_stage_route_usage(
+                folder_path,
+                route,
+                outcome="selected",
+                input_items=1,
+                output_items=deep_result.sections_written or 1,
+                duration_seconds=total_duration,
+            )
 
         return OrchestratorResult(
             company_name=company_name,

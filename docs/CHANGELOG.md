@@ -39,6 +39,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `PRIMR_LABEL_HONESTY` is enabled, the optional label-honesty pass records
   body-free route usage and skips the judge path when agent/local profiles lack
   a qualifying adapter (report labels unchanged).
+- **`premium.deep_research` capability-router wiring.** Premium deep research
+  resolves through the capability router to the Gemini Deep Research agent
+  backend (`supports_deep_research`), records body-free `stage_routes`
+  metadata, and fails closed without launching the agent when no
+  deep-research-capable backend is available (missing Gemini key, or
+  agent/local profile without an official deep-research adapter).
 
 - **Standing `fast.source_relevance` labeled corpus (`source_relevance_standing_v1`).**
   Ships a body-free, package-local six-case keep-list corpus with required

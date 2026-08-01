@@ -13,6 +13,7 @@ from primr.ai.capability_routing import (
     BackendKind,
     BillingMode,
     InferenceProfile,
+    LatencyClass,
     ReasoningDepth,
     RoutingPolicy,
     TrustSensitivity,
@@ -123,7 +124,11 @@ def resolve_stage_model(
     legacy_backend = _backend_for_model(legacy_model, stage.role)
     candidate_backends = [
         backend
-        for backend in (*_supported_host_agent_backends(stage.stage_id), legacy_backend)
+        for backend in (
+            *_supported_host_agent_backends(stage.stage_id),
+            *_supported_deep_research_backends(stage),
+            legacy_backend,
+        )
         if backend is not None
     ]
     if not candidate_backends:
@@ -174,6 +179,25 @@ def resolve_stage_model(
             plan.primary.estimated_cost_usd,
             plan.primary.reasons,
             rejection_reasons if selected_profile is InferenceProfile.HYBRID else (),
+        )
+
+    # Premium deep-research stages must not fall through to a non-deep-research
+    # legacy model; that would mis-advertise the backend and spend incorrectly.
+    if stage.requires_deep_research:
+        return StageModelRoute(
+            stage_id=stage.stage_id,
+            profile=selected_profile,
+            model_name="",
+            backend_id="deep-research-unavailable",
+            backend_kind=BackendKind.CLOUD_API.value,
+            billing_mode=BillingMode.API_DOLLARS.value,
+            estimated_cost_usd=None,
+            expected_input_tokens=stage.expected_input_tokens,
+            expected_output_tokens=stage.expected_output_tokens,
+            routed=False,
+            reasons=("deep_research_backend_unavailable",),
+            rejections=rejection_reasons,
+            execution_mode="unavailable",
         )
 
     if selected_profile is InferenceProfile.AGENT:
@@ -264,6 +288,49 @@ def _supported_host_agent_backends(stage_id: str) -> tuple[BackendCapabilities, 
         return supported_host_agent_backends()
     except Exception as exc:
         logger.debug("Host-agent backend discovery skipped: %s", exc, exc_info=True)
+        return ()
+
+
+def _supported_deep_research_backends(stage: Any) -> tuple[BackendCapabilities, ...]:
+    """Return cloud Deep Research agent backends for premium stages.
+
+    The Deep Research agent slug is not a full chat ModelConfig row, so it is
+    constructed explicitly with supports_deep_research=True. Availability is
+    gated on GEMINI_API_KEY only; no live probe runs here.
+    """
+
+    if not getattr(stage, "requires_deep_research", False):
+        return ()
+    try:
+        from primr.config.models import PrimrModels
+
+        agent_id = PrimrModels.DEEP_RESEARCH_AGENT
+        available = bool(os.getenv("GEMINI_API_KEY"))
+        return (
+            BackendCapabilities(
+                backend_id=agent_id,
+                kind=BackendKind.CLOUD_API,
+                roles=(Role.REASONING,),
+                reasoning_depth=ReasoningDepth.PREMIUM,
+                max_trust_sensitivity=TrustSensitivity.HIGH,
+                max_context_tokens=max(
+                    1_000_000, int(getattr(stage, "min_context_tokens", 1_000_000) or 1_000_000)
+                ),
+                supports_web_search=True,
+                supports_deep_research=True,
+                supports_structured_output=True,
+                latency_class=LatencyClass.LONG_RUNNING,
+                billing_mode=BillingMode.API_DOLLARS,
+                available=available,
+                metadata={
+                    "provider": "google",
+                    "display_name": "Gemini Deep Research",
+                    "deep_research_agent": True,
+                },
+            ),
+        )
+    except Exception as exc:
+        logger.debug("Deep research backend discovery skipped: %s", exc, exc_info=True)
         return ()
 
 
@@ -384,6 +451,7 @@ def stage_route_failure_class(
         "local_capacity_unavailable",
         "local_capacity_unknown",
         "local_profile_unavailable",
+        "deep_research_backend_unavailable",
     }
     for reason in reasons:
         if reason in known_unavailable:
