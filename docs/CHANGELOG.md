@@ -7,44 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+## [1.39.0] - 2026-08-01
 
-- **`fast.research_deepening` capability-router wiring.** Gap analysis now
-  resolves models through `route_stage` / `resolve_stage_model` with the
-  reasoning legacy role, records body-free `stage_routes` usage metadata, and
-  fails closed for agent/local profiles without a qualifying adapter (no cloud
-  LLM call). Cloud remains the validated baseline; promotion is unchanged.
-- **`fast.analysis_workbook` capability-router wiring.** Workbook generation
-  resolves through the same router (reasoning role), threads the routed model
-  into continuous-reasoning sessions and failover calls, records body-free
-  route usage, and falls back to collected insights when agent/local profiles
-  have no qualifying adapter.
-- **`fast.report_sections` capability-router wiring.** Section writing and the
-  coherence pass resolve through the writing-role capability router, record
-  body-free route usage, and fail closed (no report) when agent/local profiles
-  lack a qualifying writing adapter.
-- **`fast.cross_validation` capability-router wiring.** Quality review resolves
-  through the reasoning-role router (with writing-role model for regenerations),
-  records body-free route usage, and leaves the report unchanged when
-  agent/local profiles lack a qualifying adapter.
-- **`fast.trust_polish` capability-router wiring.** LLM polish and citation
-  repair resolve through the writing-role router, record body-free route usage,
-  and skip LLM passes (deterministic cleanup only) when agent/local profiles
-  lack a qualifying adapter.
-- **`fast.strategy_generation` capability-router wiring.** Optional strategy
-  generation resolves through the writing-role router, records body-free route
-  usage, and skips the entire strategy phase when agent/local profiles lack a
-  qualifying adapter.
-- **`fast.label_honesty` capability-router binding.** When
-  `PRIMR_LABEL_HONESTY` is enabled, the optional label-honesty pass records
-  body-free route usage and skips the judge path when agent/local profiles lack
-  a qualifying adapter (report labels unchanged).
-- **`premium.deep_research` capability-router wiring.** Premium deep research
-  resolves through the capability router to the Gemini Deep Research agent
-  backend (`supports_deep_research`), records body-free `stage_routes`
-  metadata, and fails closed without launching the agent when no
-  deep-research-capable backend is available (missing Gemini key, or
-  agent/local profile without an official deep-research adapter).
+### Security
+
+- **Raised the `pymdown-extensions` floor to 11.0.0** (docs extra) for
+  CVE-2026-61632 and locked 11.0.1, keeping `pip-audit` clean.
+
+### Added
 
 - **Standing `fast.source_relevance` labeled corpus (`source_relevance_standing_v1`).**
   Ships a body-free, package-local six-case keep-list corpus with required
@@ -69,13 +39,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on `resources/templates/list`, list/discover cache hints remain `private`,
   and `server/discover` advertises `2026-07-28` support plus cost-gate
   instructions without a session handshake.
-
-## [1.39.0] - 2026-07-31
-
-### Security
-
-- **Raised the `pymdown-extensions` floor to 11.0.0** (docs extra) for
-  CVE-2026-61632 and locked 11.0.1, keeping `pip-audit` clean.
+- **Fast-pipeline capability-router production wiring.**
+  `fast.research_deepening`, `fast.analysis_workbook`, `fast.cross_validation`
+  (reasoning), `fast.report_sections`, `fast.trust_polish`,
+  `fast.strategy_generation` (writing), and optional `fast.label_honesty`
+  resolve through `resolve_stage_model`, record body-free `stage_routes`
+  metadata, and fail closed for agent/local profiles without a qualifying
+  adapter. Cloud remains the validated baseline.
+- **`premium.deep_research` capability-router wiring.** Premium deep research
+  resolves to the Gemini Deep Research agent backend
+  (`supports_deep_research`), records body-free route metadata, and fails
+  closed without launching the agent when no deep-research-capable backend is
+  available.
 
 ### Changed
 
