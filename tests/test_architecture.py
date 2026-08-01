@@ -59,7 +59,7 @@ FILE_LINE_CEILINGS: dict[str, int] = {
     # the prior committed size. cli.py's +3 over 2933 is the `render` subcommand
     # dispatch only (an import + a 2-line check); all render logic lives in
     # cli_render.py, keeping the entrypoint's growth minimal.
-    "core/research_agent.py": 4318,
+    "core/research_agent.py": 4316,
     "core/cli.py": 2903,
     "ai/deep_research.py": 3885,
     "data/scraping/browsers.py": 1835,

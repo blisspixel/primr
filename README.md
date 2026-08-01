@@ -1,32 +1,42 @@
 # Primr
 
 [![CI](https://github.com/blisspixel/primr/actions/workflows/ci.yml/badge.svg)](https://github.com/blisspixel/primr/actions/workflows/ci.yml)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/blisspixel/primr/badge)](https://securityscorecards.dev/viewer/?uri=github.com/blisspixel/primr)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![PyPI](https://img.shields.io/pypi/v/primr.svg)](https://pypi.org/project/primr/)
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/blisspixel/primr/badge)](https://securityscorecards.dev/viewer/?uri=github.com/blisspixel/primr)
 
-Primr turns a company website into a sourced strategic intelligence brief.
+**Company URL → sourced strategic brief.** Local-first CLI and agent tooling for
+discovery, account planning, diligence, and strategy work.
 
-It reads public website pages, DNS records, hiring signals, and external sources, then produces a consultant-style report with confidence labels, citations, strategic hypotheses, and optional strategy modules. The useful part is not a generic article summary. It is the primary-signal layer: what the company exposes through infrastructure, job postings, product pages, filings, and public evidence.
+Primr collects public website pages, DNS/recon, hiring signals, and other open
+sources, then produces a consultant-style report with confidence labels,
+citations, and optional strategy modules. It is meant to complement chat-style
+deep research and enterprise CI tools—not replace every research workflow.
+
+<p align="center">
+  <img
+    src="docs/images/primr-demo.png"
+    alt="Illustrative primr CLI session: dry-run cost estimate for ExampleCo, then a completed run writing Strategic Overview Markdown and DOCX artifacts"
+    width="920"
+    loading="lazy"
+  />
+</p>
+
+<p align="center"><sub>Illustrative demo with placeholder company data (ExampleCo). Not a live capture of a real target. Regenerated via <code>scripts/render_readme_demo.py</code>.</sub></p>
 
 ```bash
 primr "ExampleCo" https://example.co
 ```
 
-In an agent chat, that clean request defaults to Primr Zero: Primr performs
-keyless evidence collection and the current host performs research and
-reasoning. When a human runs the command directly in a terminal, it retains the
-provider-backed CLI behavior described below.
+In an agent chat, that request defaults to Primr Zero: keyless evidence
+collection in Primr, research and writing in the host (when the host plan does
+not bill API usage). When a human runs the command directly in a terminal, it
+retains the provider-backed CLI path after a dry-run estimate and approval.
 
-Typical provider-backed output is a 23-section Strategic Overview as Markdown,
-TXT, DOCX, and best-effort PDF when a local converter is available. The default
-provider-backed run also creates a business-first AI Strategy unless you pass
-`--no-ai-strategy`. It begins with the company's economics, strategic tensions,
-industry direction, enterprise performance agenda, and value pools. It then
-connects prioritized initiatives to measurable revenue, efficiency, product,
-service, and risk outcomes before evaluating the complete observed stack,
-operating model, unit economics, governance, and public, private, edge, or
-hybrid workload placement where justified.
+A full provider-backed run typically yields a multi-section Strategic Overview
+(Markdown, TXT, DOCX; best-effort PDF when a converter is present) plus a
+business-first AI Strategy unless you pass `--no-ai-strategy`.
 
 ## What Primr Is For
 

@@ -101,3 +101,33 @@ async def test_orchestrator_fails_closed_when_route_unavailable(monkeypatch, tmp
     assert routes
     assert routes[-1]["stage_id"] == "premium.deep_research"
     assert routes[-1]["outcome"] == "fallback"
+
+
+@pytest.mark.asyncio
+async def test_research_forwards_folder_path_for_stage_routes(monkeypatch, tmp_path):
+    """CLI deep path owns a working folder; research() must pass it through."""
+    from primr.core.research_orchestrator import ResearchMode, ResearchOrchestrator
+    from primr.core.research_types import OrchestratorResult
+
+    captured: dict = {}
+
+    async def fake_deep(*args, **kwargs):
+        captured["folder_path"] = kwargs.get("folder_path")
+        return OrchestratorResult(
+            company_name="ExampleCo",
+            website="https://example.co",
+            mode=ResearchMode.DEEP_RESEARCH,
+            section_results={},
+            success=False,
+            error="unavailable",
+        )
+
+    orch = ResearchOrchestrator()
+    monkeypatch.setattr(orch, "_run_deep_research_with_context", fake_deep)
+    await orch.research(
+        company_name="ExampleCo",
+        website="https://example.co",
+        mode=ResearchMode.DEEP_RESEARCH,
+        folder_path=str(tmp_path),
+    )
+    assert captured["folder_path"] == str(tmp_path)

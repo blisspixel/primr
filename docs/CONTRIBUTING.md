@@ -2,6 +2,19 @@
 
 Thanks for your interest in contributing to Primr! This document provides guidelines for contributing.
 
+## README demo screenshot
+
+The root README uses a placeholder CLI screenshot (`docs/images/primr-demo.png`)
+with ExampleCo demo data only—no real company content. To regenerate after
+editing the HTML mockup:
+
+```bash
+uv run --no-sync python scripts/render_readme_demo.py
+```
+
+Source: `docs/images/primr-demo-terminal.html`. Requires Playwright Chromium
+(`uv run playwright install chromium`). No network or model API calls.
+
 ## Getting Started
 
 1. Fork the repository
