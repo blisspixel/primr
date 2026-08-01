@@ -7,8 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Progressive early-artifacts design.**
+  `docs/design/progressive-artifacts.md` sketches a layered approach to
+  time-to-first-useful output (free working brief after scrape/recon, optional
+  early sketch later) without replacing the full Strategic Overview.
+
 ### Changed
 
+- **Docs site home shows the ExampleCo CLI demo.**
+  `docs/README.md` (MkDocs Home) embeds the placeholder terminal screenshot
+  with a short product intro for visitors of the documentation site.
+- **RUN_MODES “first useful output” guidance.**
+  Documents recon, prep, and working-folder signals while long runs continue,
+  and points at the progressive-artifacts design for a future working brief.
 - **Refreshed planning docs after the 1.39.0 landscape pass.**
   `docs/NEXT_STEPS.md` records post-1.39 status and remaining gaps in plain
   language. `docs/design/competitive-positioning.md` compares Primr to chat

@@ -1,9 +1,18 @@
 # Primr Documentation
 
-The full documentation map. For an overview, install, and quickstart, start
-with the [root README](https://github.com/blisspixel/primr/blob/main/README.md).
-For the development contract (how to change primr's source), see
-[CLAUDE.md](https://github.com/blisspixel/primr/blob/main/CLAUDE.md); to operate
+Company URL → sourced strategic brief. Primr is a local-first CLI and agent
+tooling stack for discovery, account planning, diligence, and strategy work.
+
+![Illustrative primr CLI session for ExampleCo: dry-run cost estimate and completed report artifacts](images/primr-demo.png){ width="920" }
+
+*Illustrative demo with placeholder company data. Not a live capture of a real
+target. Source and regenerate notes live in the root README and
+[`CONTRIBUTING.md`](CONTRIBUTING.md).*
+
+For install and the shortest path in, start with the
+[root README](https://github.com/blisspixel/primr/blob/main/README.md). For the
+development contract (how to change primr's source), see
+[CLAUDE.md](https://github.com/blisspixel/primr/blob/main/CLAUDE.md). To operate
 the primr CLI/MCP from an agent, see
 [AGENTS.md](https://github.com/blisspixel/primr/blob/main/AGENTS.md).
 
@@ -24,7 +33,7 @@ understanding.
 | [ZERO_COST](ZERO_COST.md) | Run keyless collection and finish a sourced dossier with an existing agent plan | 2026-07-18 |
 | [API_KEYS](API_KEYS.md) | API key setup, validation (`primr keys test`), security, and troubleshooting | 2026-07-21 |
 | [CONFIG](CONFIG.md) | First-run configuration and the full settings reference | 2026-07-21 |
-| [RUN_MODES](RUN_MODES.md) | Run modes, costs, strategy selection, output locations, and zero-cost `primr render` (Markdown to DOCX/TXT) | 2026-07-21 |
+| [RUN_MODES](RUN_MODES.md) | Run modes, costs, strategy selection, output locations, and zero-cost `primr render` (Markdown to DOCX/TXT) | 2026-08-01 |
 | [AZURE_QUICKSTART](AZURE_QUICKSTART.md) | Stand up the team/org Azure deployment end to end | 2026-07-18 |
 
 ## How-to guides (task-oriented)
