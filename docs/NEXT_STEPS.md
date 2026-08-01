@@ -33,7 +33,10 @@ Still open, and still the honest center of gravity:
 4. **Memory / strategy delta** — design exists; not yet the default re-run
    experience.
 5. **Time-to-first-useful artifact** — full runs remain long relative to chat
-   deep research; progressive early artifacts are still a product gap.
+   deep research. Design for progressive early artifacts lives in
+   [`docs/design/progressive-artifacts.md`](design/progressive-artifacts.md)
+   (Layer 1 = free working brief after scrape/recon; Layer 2 = opt-in sketch).
+   Implementation is still open.
 
 ## Research-backed decision rules
 

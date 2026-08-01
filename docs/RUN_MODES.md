@@ -32,6 +32,25 @@ provider-backed behavior.
 | Render | `primr render <file>.md` | DOCX + TXT from existing Markdown | <5 sec | $0.00 |
 | Skill pack | `primr skills "Company" url` | Agent Skills tree plus Cowork zip | ~3 min | ~$0.30 |
 
+## First useful output (while a long run is still going)
+
+Long provider-backed runs can take half an hour or more. Primr already has
+earlier, honest signals you can use without waiting for the full Strategic
+Overview:
+
+| When | What to run or watch | Notes |
+|------|----------------------|--------|
+| Seconds | `primr recon company.example` | DNS / tenant / email-security signals, $0 model |
+| Minutes | `primr prep "Company" url` | Keyless evidence bundle for host-assisted synthesis |
+| Mid-run | Working folder under `working/` | Scrapes, stage events, partial intermediates |
+| End of run | Strategic Overview + optional AI Strategy | Primary deliverables |
+
+A designed path for a mid-run **working brief** (explicitly incomplete, free of
+extra model calls) is documented in
+[`design/progressive-artifacts.md`](design/progressive-artifacts.md). That layer
+is not implemented yet; until it lands, use recon, prep, and the working folder
+rather than treating a partial scrape as a finished report.
+
 ## Default Provider Recipe
 
 When both `XAI_API_KEY` and `GEMINI_API_KEY` are configured, Primr uses:
