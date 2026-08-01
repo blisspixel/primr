@@ -11,7 +11,7 @@ Guides are grouped by what you are trying to do, following the
 [Diataxis](https://diataxis.fr/) split: learning, doing, looking up, and
 understanding.
 
-> **Index currency:** reviewed against primr **1.37.1** on **2026-07-21**. The
+> **Index currency:** reviewed against primr **1.39.0** on **2026-08-01**. The
 > *Updated* column is each document's last substantive revision (git
 > `last-commit` date). `tests/test_docs_index.py` fails CI if a doc under
 > `docs/` is missing from this map or an index link does not resolve, so the
