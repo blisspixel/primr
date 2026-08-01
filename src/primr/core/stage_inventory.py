@@ -266,10 +266,15 @@ PRODUCTION_STAGES: Final[tuple[ProductionStage, ...]] = (
         min_context_tokens=180_000,
         expected_input_tokens=140_000,
         expected_output_tokens=32_000,
-        current_backend="grok_writing resolved by legacy role routing and eval recipes",
+        current_backend="routed through ai.stage_routing with writing failover",
         promotion_gate=(
             "Requires report trust, section completeness, citation health, and "
-            "utility scores within the accepted band on the standing corpus."
+            "utility scores within the accepted band on the standing corpus. "
+            "Route records alone are not promotion."
+        ),
+        notes=(
+            "Cloud remains the validated baseline. Agent/local profiles without "
+            "a qualifying writing adapter fail closed with no report content."
         ),
         artifacts=("report.md",),
     ),

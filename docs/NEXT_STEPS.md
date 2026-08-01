@@ -407,11 +407,11 @@ Do next:
   fallbacks instead of invoking cloud LLMs.
 - Wire the next production stages through capability routing while preserving
   failovers. Shipped: `fast.research_deepening` and `fast.analysis_workbook`
-  now resolve through `resolve_stage_model(..., legacy_model_type="reasoning")`,
-  record body-free stage route usage (including token/cache/cost deltas when
-  available), and fail closed for agent/local profiles without a qualifying
-  adapter rather than invoking cloud LLMs (workbook falls back to collected
-  insights). Cloud remains the validated baseline; no host adapter is
+  resolve through reasoning-role routing; `fast.report_sections` resolves
+  through writing-role routing. All three record body-free stage route usage
+  and fail closed for agent/local profiles without a qualifying adapter
+  (workbook falls back to collected insights; report writing returns no
+  content). Cloud remains the validated baseline; no host adapter is
   registered for these stages yet.
 - Promote one host/local candidate only after stage-scoped evals prove quality,
   cost, latency, failure behavior, and billing provenance. If billing cannot be
@@ -425,15 +425,16 @@ Done when:
 
 - The stage declares requirements; the router chooses candidates; execution
   consumes the resulting chain. The declaration slice, three utility-stage
-  runtime slices, and the `fast.research_deepening` plus
-  `fast.analysis_workbook` reasoning-stage slices are shipped; broader
-  production wiring (sections, validation, polish, strategy) is still pending.
+  runtime slices, and the `fast.research_deepening`,
+  `fast.analysis_workbook`, and `fast.report_sections` slices are shipped;
+  broader production wiring (validation, polish, strategy) is still pending.
 - Estimates and usage records name the backend and declared route category. The
   route ledger records backend/profile/billing metadata for
   `fast.scrape_summary`, `fast.source_relevance`, `fast.hiring_signals`,
-  `fast.research_deepening`, and `fast.analysis_workbook`, and appends measured
-  stage-scoped token/cache/cost deltas when counters are available. Codex route
-  metadata is not proof of the authenticated session's billing mode.
+  `fast.research_deepening`, `fast.analysis_workbook`, and
+  `fast.report_sections`, and appends measured stage-scoped token/cache/cost
+  deltas when counters are available. Codex route metadata is not proof of the
+  authenticated session's billing mode.
 - Provider comparison artifacts exist for every promoted stage.
   The route-metadata comparison artifact exists; quality comparison artifacts
   now have a CLI-accessible scorecard layer, and website-summary local-stage

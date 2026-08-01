@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   into continuous-reasoning sessions and failover calls, records body-free
   route usage, and falls back to collected insights when agent/local profiles
   have no qualifying adapter.
+- **`fast.report_sections` capability-router wiring.** Section writing and the
+  coherence pass resolve through the writing-role capability router, record
+  body-free route usage, and fail closed (no report) when agent/local profiles
+  lack a qualifying writing adapter.
 
 - **Standing `fast.source_relevance` labeled corpus (`source_relevance_standing_v1`).**
   Ships a body-free, package-local six-case keep-list corpus with required
