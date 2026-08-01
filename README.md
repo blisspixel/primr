@@ -29,10 +29,10 @@ deep research and enterprise CI tools—not replace every research workflow.
 primr "ExampleCo" https://example.co
 ```
 
-In an agent chat, that request defaults to **Primr Zero**: keyless evidence
+In an agent chat, that request defaults to Primr Zero: keyless evidence
 collection in Primr, research and writing in the host (when the host plan does
-not bill API usage). In a terminal, the same command uses the provider-backed
-pipeline after a dry-run estimate and your approval.
+not bill API usage). When a human runs the command directly in a terminal, it
+retains the provider-backed CLI path after a dry-run estimate and approval.
 
 A full provider-backed run typically yields a multi-section Strategic Overview
 (Markdown, TXT, DOCX; best-effort PDF when a converter is present) plus a
