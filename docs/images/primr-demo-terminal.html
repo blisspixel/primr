@@ -2,145 +2,190 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>primr demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>primr demo (placeholder ExampleCo)</title>
 <style>
+  :root {
+    --bg: #0d1117;
+    --panel: #010409;
+    --chrome: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --dim: #6e7681;
+    --prompt: #79c0ff;
+    --cyan: #39d353;
+    --blue: #58a6ff;
+    --purple: #d2a8ff;
+    --yellow: #e3b341;
+    --green: #3fb950;
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    background: #161b22;
+    background: #010409;
+    min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 100vh;
-    padding: 32px;
-    font-family: "Segoe UI", system-ui, sans-serif;
+    padding: 40px 24px;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
   }
-  .window {
-    width: 920px;
-    background: #0d1117;
-    border-radius: 10px;
-    border: 1px solid #30363d;
-    box-shadow: 0 24px 48px rgba(0,0,0,0.45);
+  .frame {
+    width: 960px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,0.02) inset,
+      0 28px 60px rgba(0,0,0,0.55);
     overflow: hidden;
   }
   .titlebar {
-    height: 38px;
-    background: #161b22;
-    border-bottom: 1px solid #30363d;
+    height: 40px;
+    background: linear-gradient(180deg, #1c2128 0%, var(--chrome) 100%);
+    border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
     padding: 0 14px;
     gap: 8px;
   }
-  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .traffic { display: flex; gap: 7px; width: 56px; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; }
   .r { background: #ff5f57; }
   .y { background: #febc2e; }
   .g { background: #28c840; }
   .title {
     flex: 1;
     text-align: center;
-    color: #8b949e;
-    font-size: 12px;
+    color: var(--muted);
+    font-size: 12.5px;
     font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+  .title strong { color: #c9d1d9; font-weight: 600; }
+  .badge {
+    font-size: 10px;
+    color: var(--dim);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 2px 8px;
   }
   .term {
-    padding: 18px 20px 22px;
-    font-family: "Cascadia Code", "Consolas", "SF Mono", "Menlo", monospace;
-    font-size: 13px;
-    line-height: 1.45;
-    color: #c9d1d9;
+    padding: 18px 22px 22px;
+    font-family: "Cascadia Code", "JetBrains Mono", "SF Mono", Consolas, "Liberation Mono", monospace;
+    font-size: 12.75px;
+    line-height: 1.48;
+    color: var(--text);
+    background: var(--panel);
     white-space: pre;
   }
-  .prompt { color: #58a6ff; }
-  .cmd { color: #e6edf3; }
-  .muted { color: #8b949e; }
-  .head { color: #79c0ff; font-weight: 600; }
-  .ok { color: #3fb950; }
-  .warn { color: #d29922; }
+  .prompt { color: var(--prompt); }
+  .cmd { color: var(--text); }
+  .muted { color: var(--muted); }
+  .dim { color: var(--dim); }
+  .head { color: var(--blue); font-weight: 600; }
+  .ok { color: var(--green); }
+  .warn { color: var(--yellow); }
+  .phase { color: var(--purple); font-weight: 600; }
   .path { color: #a5d6ff; }
-  .phase { color: #d2a8ff; }
-  .dim { color: #6e7681; }
+  .rule { color: #388bfd; }
+  .cursor {
+    display: inline-block;
+    width: 8px;
+    height: 14px;
+    background: #58a6ff;
+    margin-left: 2px;
+    vertical-align: -2px;
+    opacity: 0.85;
+  }
 </style>
 </head>
 <body>
-  <div class="window">
+  <div class="frame" id="shot">
     <div class="titlebar">
-      <div class="dot r"></div>
-      <div class="dot y"></div>
-      <div class="dot g"></div>
-      <div class="title">primr · ExampleCo (demo)</div>
+      <div class="traffic">
+        <div class="dot r"></div>
+        <div class="dot y"></div>
+        <div class="dot g"></div>
+      </div>
+      <div class="title"><strong>primr</strong> · ExampleCo demo · PowerShell</div>
+      <div class="badge">placeholder data</div>
     </div>
     <div class="term" id="t"></div>
   </div>
 <script>
 const lines = [
-  ['<span class="prompt">PS C:\\Users\\demo&gt;</span> <span class="cmd">primr "ExampleCo" https://example.co --dry-run</span>', ''],
-  ['', ''],
-  ['<span class="head">============================================================</span>', ''],
-  ['<span class="head">COST ESTIMATE: full mode</span>', ''],
-  ['<span class="head">============================================================</span>', ''],
-  ['', ''],
-  ['Mode: full', ''],
-  ['Estimated Duration: 31-47 min', ''],
-  ['Estimated Total: <span class="warn">$0.76</span>', ''],
-  ['', ''],
-  ['  Input:  ~1,915,000 tokens', 'muted'],
-  ['  Output: ~103,500 tokens', 'muted'],
-  ['', ''],
-  ['<span class="head">RECON PRE-FLIGHT</span>', ''],
-  ['  DNS intelligence lookup:  $0.00  (~2-3 seconds)', 'muted'],
-  ['', ''],
-  ['<span class="head">NEXT STEPS</span>', ''],
-  ['  1. Launch: repeat this command without --dry-run', 'muted'],
-  ['  2. Monitor: follow phase markers in this terminal', 'muted'],
-  ['  3. Retrieve: artifact path printed when complete', 'muted'],
-  ['', ''],
-  ['<span class="head">============================================================</span>', ''],
-  ['', ''],
-  ['<span class="prompt">PS C:\\Users\\demo&gt;</span> <span class="cmd">primr "ExampleCo" https://example.co</span>', ''],
-  ['', ''],
-  ['<span class="cmd">ExampleCo</span>', ''],
-  ['https://example.co', 'path'],
-  ['----------------------------------------', 'dim'],
-  ['Estimated: 31-47 min · <span class="warn">~$0.76</span>', ''],
-  ['', ''],
-  ['<span class="phase">Data Collection</span>', ''],
-  ['Website scraping + public sources + analysis', 'muted'],
-  ['Expected: 15-25 minutes', 'muted'],
-  ['', ''],
-  ['  Scraping https://example.co', ''],
-  ['  <span class="ok">✓ 12 pages scraped (41s)</span>', ''],
-  ['  + 6 external sources', 'muted'],
-  ['  + Industry: B2B software (demo)', 'muted'],
-  ['  Analyzing report sections...', ''],
-  ['  [3/15] Mission &amp; Vision', 'muted'],
-  ['  [4/15] Company History', 'muted'],
-  ['  <span class="ok">✓ Data Collection (18m 12s)</span>', ''],
-  ['', ''],
-  ['<span class="phase">Deep Research</span>', ''],
-  ['  Phase 1: Gathering research dossier...', 'muted'],
-  ['  Research started', 'muted'],
-  ['', ''],
-  ['  <span class="dim">... a few minutes later</span>', ''],
-  ['', ''],
-  ['  <span class="ok">✓ Strategic Overview written</span>', ''],
-  ['  <span class="ok">✓ AI Strategy module complete</span>', ''],
-  ['  <span class="ok">✓ Complete in 42m 08s</span>', ''],
-  ['', ''],
-  ['  <span class="ok">✓ Report ready</span>', ''],
-  ['     <span class="path">output\\exampleco\\ExampleCo_Strategic_Overview_08-01-2026.md</span>', ''],
-  ['     <span class="path">output\\exampleco\\ExampleCo_Strategic_Overview_08-01-2026.docx</span>', ''],
-  ['', ''],
-  ['Mode: full  ·  Sections: 23  ·  Citations: 41', 'muted'],
-  ['Est. Cost: $0.76  ·  Actual: ~$0.71', 'muted'],
+  `<span class="prompt">PS C:\\Users\\demo&gt;</span> <span class="cmd">primr "ExampleCo" https://example.co --dry-run</span>`,
+  ``,
+  `<span class="rule">============================================================</span>`,
+  `<span class="head">COST ESTIMATE: full (Grok 4.3 hybrid) mode</span>`,
+  `<span class="rule">============================================================</span>`,
+  ``,
+  `Mode: full (Grok 4.3 hybrid)`,
+  `Estimated Duration: 31-47 min`,
+  ``,
+  `Token Estimates:`,
+  `<span class="muted">  Input:  ~1,915,000 tokens ($0.5887)</span>`,
+  `<span class="muted">  Output: ~103,500 tokens ($0.1752)</span>`,
+  ``,
+  `Estimated Total: <span class="warn">$0.76</span>`,
+  ``,
+  `<span class="muted">* Full mode: grok-4.3 reasoning + gemini writing/utility</span>`,
+  `<span class="muted">* Hiring signals via ATS / careers page (~$0.01, +1-2 min)</span>`,
+  ``,
+  `<span class="head">RECON PRE-FLIGHT</span>`,
+  `<span class="dim">----------------------------------------</span>`,
+  `<span class="muted">  DNS intelligence lookup:  $0.00  (~2-3 seconds)</span>`,
+  `<span class="muted">  (no API keys required)</span>`,
+  ``,
+  `<span class="head">NEXT STEPS</span>`,
+  `<span class="dim">----------------------------------------</span>`,
+  `<span class="muted">  1. Launch: repeat this command without --dry-run.</span>`,
+  `<span class="muted">  2. Monitor: follow the phase markers in this terminal.</span>`,
+  `<span class="muted">  3. Retrieve: use the artifact path printed when complete.</span>`,
+  ``,
+  `<span class="rule">============================================================</span>`,
+  ``,
+  `<span class="prompt">PS C:\\Users\\demo&gt;</span> <span class="cmd">primr "ExampleCo" https://example.co</span>`,
+  ``,
+  `<span class="cmd">ExampleCo</span>`,
+  `<span class="path">https://example.co</span>`,
+  `<span class="dim">----------------------------------------</span>`,
+  `Estimated: 31-47 min · <span class="warn">~$0.76</span>`,
+  ``,
+  `<span class="phase">Data Collection</span>`,
+  `<span class="muted">Website scraping + public sources + analysis</span>`,
+  `<span class="muted">Expected: 15-25 minutes</span>`,
+  ``,
+  `  Scraping https://example.co`,
+  `  <span class="ok">✓ 12 pages scraped (41s)</span>`,
+  `<span class="muted">  + 6 external sources</span>`,
+  `<span class="muted">  + Industry: B2B software (demo)</span>`,
+  `  Analyzing report sections...`,
+  `<span class="muted">  [12/15] Main Types of Users</span>`,
+  `<span class="muted">  [13/15] Board of Directors Concerns</span>`,
+  `  <span class="ok">✓ Data Collection (18m 12s)</span>`,
+  ``,
+  `<span class="phase">Deep Research</span>`,
+  `<span class="muted">  Phase 1: Gathering research dossier...</span>`,
+  `<span class="muted">  Research started</span>`,
+  ``,
+  `<span class="dim">  ... a few minutes later</span>`,
+  ``,
+  `  <span class="ok">✓ Strategic Overview written</span>`,
+  `  <span class="ok">✓ AI Strategy module complete</span>`,
+  `  <span class="ok">✓ Complete in 42m 08s</span>`,
+  ``,
+  `  <span class="ok">✓ Report ready</span>`,
+  `     <span class="path">output\\exampleco\\ExampleCo_Strategic_Overview_08-01-2026.md</span>`,
+  `     <span class="path">output\\exampleco\\ExampleCo_Strategic_Overview_08-01-2026.docx</span>`,
+  ``,
+  `<span class="muted">Mode: full  ·  Sections: 23  ·  Citations: 41</span>`,
+  `<span class="muted">Est. Cost: $0.76  ·  Actual: ~$0.71</span>`,
+  ``,
+  `<span class="prompt">PS C:\\Users\\demo&gt;</span><span class="cursor"></span>`,
 ];
-const el = document.getElementById('t');
-el.innerHTML = lines.map(([t, c]) => {
-  if (!t) return '';
-  if (c === 'muted') return `<span class="muted">${t}</span>`;
-  if (c === 'path') return `<span class="path">${t}</span>`;
-  if (c === 'dim') return `<span class="dim">${t}</span>`;
-  return t;
-}).join('\n');
+document.getElementById('t').innerHTML = lines.join('\n');
 </script>
 </body>
 </html>

@@ -16,8 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   design index and docs README point at both.
 - **README CLI demo screenshot.** Replaced the older Softchoice-era capture
   with a placeholder ExampleCo session (`docs/images/primr-demo.png`, source
-  HTML alongside) so the front door shows dry-run estimate and completion
-  output without real company content.
+  HTML alongside, `scripts/render_readme_demo.py` to regenerate) so the front
+  door shows a dry-run estimate and completion path without real company
+  content. README hero badges and opening copy tightened for scannability.
 - **Deep-research runs forward `folder_path` into the orchestrator.** CLI
   premium/deep paths already own a working folder; `ResearchOrchestrator.research`
   now accepts it so `premium.deep_research` stage_routes can persist instead of
