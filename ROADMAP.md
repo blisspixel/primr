@@ -133,16 +133,17 @@ Current priority order:
    consumes sanitized env-only cloud provider availability snapshots by
    default, can accept injected quota snapshots, and records body-free
    availability metadata without collecting live quota data or probing local
-   services during normal runs. All nine fast-pipeline routes record body-free
-   usage metadata in `_run_state.json`, including measured token/cache/cost
-   deltas when provider counters expose them. Routed stages fail closed when
-   the internal agent profile is exercised by tests or evals and no host
-   adapter qualifies: scrape summary writes deterministic source excerpts,
-   hiring signals use deterministic triage plus posting metadata, research
-   deepening skips gap analysis, the workbook falls back to collected insights,
-   report writing returns no content, cross-validation leaves the report
-   unchanged, trust polish keeps deterministic cleanup only, and strategy
-   generation is skipped entirely. The next architecture unlock is the
+   services during normal runs. All ten fast-pipeline routes (including optional
+   label honesty when enabled) record body-free usage metadata in
+   `_run_state.json`, including measured token/cache/cost deltas when provider
+   counters expose them. Routed stages fail closed when the internal agent
+   profile is exercised by tests or evals and no host adapter qualifies: scrape
+   summary writes deterministic source excerpts, hiring signals use
+   deterministic triage plus posting metadata, research deepening skips gap
+   analysis, the workbook falls back to collected insights, report writing
+   returns no content, cross-validation leaves the report unchanged, trust
+   polish keeps deterministic cleanup only, strategy generation is skipped, and
+   label honesty leaves labels unchanged. The next architecture unlock is the
    representative source-relevance
    host-vs-cloud comparison. The explicit host gate is not promotion and cloud
    remains the validated baseline. Broader host/local candidates still require

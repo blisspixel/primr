@@ -347,10 +347,18 @@ PRODUCTION_STAGES: Final[tuple[ProductionStage, ...]] = (
         requires_structured_output=True,
         requires_external_egress=True,
         optional=True,
-        current_backend="calibration judge path, gated by PRIMR_LABEL_HONESTY",
+        current_backend=(
+            "routed through ai.stage_routing when PRIMR_LABEL_HONESTY is enabled; "
+            "calibration judge path"
+        ),
         promotion_gate=(
             "Must stay report-only until the representative calibration baseline "
-            "proves acceptable false positive and false negative behavior."
+            "proves acceptable false positive and false negative behavior. Route "
+            "records alone are not promotion."
+        ),
+        notes=(
+            "Default-off. When enabled, agent/local profiles without a qualifying "
+            "adapter skip the judge pass and leave labels unchanged."
         ),
         artifacts=("_label_honesty.json",),
     ),

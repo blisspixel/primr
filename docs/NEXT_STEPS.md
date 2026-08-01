@@ -409,11 +409,12 @@ Do next:
   failovers. Shipped across the fast pipeline: utility stages
   (`scrape_summary`, `source_relevance`, `hiring_signals`), reasoning stages
   (`research_deepening`, `analysis_workbook`, `cross_validation`), and writing
-  stages (`report_sections`, `trust_polish`, `strategy_generation`). All record
-  body-free stage route usage and fail closed for agent/local profiles without
-  a qualifying adapter. Cloud remains the validated baseline; host adapters
-  remain limited to the unpromoted `fast.source_relevance` pilot. Optional
-  `fast.label_honesty` still uses its gated calibration judge path.
+  stages (`report_sections`, `trust_polish`, `strategy_generation`), plus
+  optional `fast.label_honesty` route recording when
+  `PRIMR_LABEL_HONESTY=1`. All record body-free stage route usage and fail
+  closed for agent/local profiles without a qualifying adapter. Cloud remains
+  the validated baseline; host adapters remain limited to the unpromoted
+  `fast.source_relevance` pilot.
 - Promote one host/local candidate only after stage-scoped evals prove quality,
   cost, latency, failure behavior, and billing provenance. If billing cannot be
   proven, promotion requires an explicit operator acknowledgment that metered
@@ -425,10 +426,10 @@ Do next:
 Done when:
 
 - The stage declares requirements; the router chooses candidates; execution
-  consumes the resulting chain. The declaration slice and the fast-pipeline
-  runtime slices through strategy generation are shipped. Remaining: optional
-  `fast.label_honesty` router binding, premium deep-research inventory
-  execution wiring, and measured host promotion for source-relevance.
+  consumes the resulting chain. The declaration slice and the full fast-pipeline
+  runtime router wiring (including optional label honesty) are shipped.
+  Remaining: premium deep-research inventory execution wiring and measured
+  host promotion for source-relevance.
 - Estimates and usage records name the backend and declared route category. The
   route ledger records backend/profile/billing metadata for the fast-pipeline
   routed stages listed above and appends measured stage-scoped

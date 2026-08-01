@@ -35,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   generation resolves through the writing-role router, records body-free route
   usage, and skips the entire strategy phase when agent/local profiles lack a
   qualifying adapter.
+- **`fast.label_honesty` capability-router binding.** When
+  `PRIMR_LABEL_HONESTY` is enabled, the optional label-honesty pass records
+  body-free route usage and skips the judge path when agent/local profiles lack
+  a qualifying adapter (report labels unchanged).
 
 - **Standing `fast.source_relevance` labeled corpus (`source_relevance_standing_v1`).**
   Ships a body-free, package-local six-case keep-list corpus with required

@@ -49,15 +49,55 @@ def _maybe_apply_label_honesty(report_content: str, folder_path: str) -> str:
     byte-identical until eval validates the recipe. An audit sidecar is written
     whenever the pass runs, and any failure leaves the report untouched -- a
     label audit must never break shipping.
+
+    When enabled, model selection is recorded through the capability router for
+    ``fast.label_honesty``. Agent/local profiles without a qualifying adapter
+    skip the judge pass and leave the report unchanged.
     """
     if os.getenv(_LABEL_HONESTY_ENV, "").strip().lower() not in _TRUTHY:
         return report_content
+    route_start = time.monotonic()
+    route: StageModelRoute | None = None
+    try:
+        from primr.ai import stage_routing
+
+        route = stage_routing.resolve_stage_model(
+            "fast.label_honesty",
+            legacy_model_type="fast",
+        )
+        log_structured("info", "Label honesty route selected", **route.log_metadata())
+        if getattr(route, "execution_mode", "llm") == "unavailable":
+            failure = stage_routing.stage_route_failure_class(route)
+            stage_routing.record_stage_route_usage(
+                folder_path,
+                route,
+                outcome="fallback",
+                input_items=1,
+                output_items=0,
+                duration_seconds=time.monotonic() - route_start,
+                failure_class=failure,
+            )
+            logger.debug("Label-honesty pass skipped: %s", failure)
+            return report_content
+    except Exception as route_err:
+        logger.debug("Label-honesty route resolution failed: %s", route_err)
     try:
         from primr.qa.label_honesty import apply_label_honesty
 
         result = apply_label_honesty(report_content)
         with open(os.path.join(folder_path, "_label_honesty.json"), "w", encoding="utf-8") as _lf:
             json.dump(result.to_dict(), _lf, indent=2)
+        if route is not None:
+            from primr.ai import stage_routing as stage_routing_mod
+
+            stage_routing_mod.record_stage_route_usage(
+                folder_path,
+                route,
+                outcome="selected",
+                input_items=1,
+                output_items=len(result.downgrades) if result.changed else 0,
+                duration_seconds=time.monotonic() - route_start,
+            )
         if result.changed:
             console.info(
                 f"Label honesty: downgraded {len(result.downgrades)} "
@@ -65,6 +105,18 @@ def _maybe_apply_label_honesty(report_content: str, folder_path: str) -> str:
             )
             return result.report_content
     except Exception as _honesty_err:
+        if route is not None:
+            from primr.ai import stage_routing as stage_routing_mod
+
+            stage_routing_mod.record_stage_route_usage(
+                folder_path,
+                route,
+                outcome="fallback",
+                input_items=1,
+                output_items=0,
+                duration_seconds=time.monotonic() - route_start,
+                failure_class=type(_honesty_err).__name__,
+            )
         logger.debug("Label-honesty pass skipped: %s", _honesty_err)
     return report_content
 
