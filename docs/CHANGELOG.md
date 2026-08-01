@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   coherence pass resolve through the writing-role capability router, record
   body-free route usage, and fail closed (no report) when agent/local profiles
   lack a qualifying writing adapter.
+- **`fast.cross_validation` capability-router wiring.** Quality review resolves
+  through the reasoning-role router (with writing-role model for regenerations),
+  records body-free route usage, and leaves the report unchanged when
+  agent/local profiles lack a qualifying adapter.
 
 - **Standing `fast.source_relevance` labeled corpus (`source_relevance_standing_v1`).**
   Ships a body-free, package-local six-case keep-list corpus with required

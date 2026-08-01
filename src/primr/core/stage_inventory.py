@@ -294,10 +294,16 @@ PRODUCTION_STAGES: Final[tuple[ProductionStage, ...]] = (
         requires_structured_output=True,
         requires_external_egress=True,
         budget_checkpoint=True,
-        current_backend="Grok reasoning plus writing failover helpers",
+        current_backend="routed through ai.stage_routing (reasoning review + writing regenerate)",
         promotion_gate=(
             "Requires contradiction detection and weak-section enrichment to "
-            "match the agreement-validated calibration baseline."
+            "match the agreement-validated calibration baseline. Route records "
+            "alone are not promotion."
+        ),
+        notes=(
+            "Cloud remains the validated baseline. Agent/local profiles without "
+            "a qualifying adapter skip quality review and leave the report "
+            "unchanged."
         ),
     ),
     ProductionStage(

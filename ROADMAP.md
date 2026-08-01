@@ -117,11 +117,11 @@ Current priority order:
    `fast.scrape_summary`, `fast.source_relevance`, and
    `fast.hiring_signals` now consume the capability router behind the
    `--inference cloud|hybrid` flag while executing through existing provider
-   seams. `fast.research_deepening` and `fast.analysis_workbook` resolve
-   through the capability router (reasoning role), and `fast.report_sections`
-   resolves through the writing role, each with body-free route records and
-   fail-closed agent/local behavior when no adapter qualifies.
-   `fast.source_relevance`
+   seams. `fast.research_deepening`, `fast.analysis_workbook`, and
+   `fast.cross_validation` resolve through the capability router (reasoning
+   role), and `fast.report_sections` resolves through the writing role, each
+   with body-free route records and fail-closed agent/local behavior when no
+   adapter qualifies. `fast.source_relevance`
    also has a bounded Codex CLI adapter. The first promotion-safety slice now
    exposes it only as an unpromoted, single-company experimental route when the
    operator supplies `--inference hybrid --acknowledge-host-agent-may-bill`.
@@ -132,7 +132,7 @@ Current priority order:
    consumes sanitized env-only cloud provider availability snapshots by
    default, can accept injected quota snapshots, and records body-free
    availability metadata without collecting live quota data or probing local
-   services during normal runs. All six routes record body-free usage
+   services during normal runs. All seven routes record body-free usage
    metadata in `_run_state.json`, including measured token/cache/cost deltas
    when provider counters expose them. The other routed utility stages now also
    fail closed when the internal agent profile is exercised by tests or evals
@@ -141,9 +141,9 @@ Current priority order:
    deterministic triage plus posting metadata, and both record
    `agent_profile_unavailable` route fallbacks instead of invoking cloud LLMs;
    research deepening skips gap analysis, the workbook falls back to collected
-   insights, and report writing returns no content with the same fail-closed
-   route record. The next architecture unlock is the representative
-   source-relevance
+   insights, report writing returns no content, and cross-validation leaves the
+   report unchanged with the same fail-closed route record. The next
+   architecture unlock is the representative source-relevance
    host-vs-cloud comparison. The explicit host gate is not promotion and cloud
    remains the validated baseline. Broader host/local candidates still require
    stage-specific adapters and stage-scoped eval data. Stage scorecard artifacts are now available through

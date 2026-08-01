@@ -426,15 +426,16 @@ Done when:
 - The stage declares requirements; the router chooses candidates; execution
   consumes the resulting chain. The declaration slice, three utility-stage
   runtime slices, and the `fast.research_deepening`,
-  `fast.analysis_workbook`, and `fast.report_sections` slices are shipped;
-  broader production wiring (validation, polish, strategy) is still pending.
+  `fast.analysis_workbook`, `fast.report_sections`, and
+  `fast.cross_validation` slices are shipped; broader production wiring
+  (polish, strategy, label honesty) is still pending.
 - Estimates and usage records name the backend and declared route category. The
   route ledger records backend/profile/billing metadata for
   `fast.scrape_summary`, `fast.source_relevance`, `fast.hiring_signals`,
-  `fast.research_deepening`, `fast.analysis_workbook`, and
-  `fast.report_sections`, and appends measured stage-scoped token/cache/cost
-  deltas when counters are available. Codex route metadata is not proof of the
-  authenticated session's billing mode.
+  `fast.research_deepening`, `fast.analysis_workbook`,
+  `fast.report_sections`, and `fast.cross_validation`, and appends measured
+  stage-scoped token/cache/cost deltas when counters are available. Codex route
+  metadata is not proof of the authenticated session's billing mode.
 - Provider comparison artifacts exist for every promoted stage.
   The route-metadata comparison artifact exists; quality comparison artifacts
   now have a CLI-accessible scorecard layer, and website-summary local-stage
