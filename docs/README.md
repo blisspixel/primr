@@ -74,5 +74,5 @@ understanding.
 
 | Document | Description | Updated |
 |----------|-------------|---------|
-| [CONTRIBUTING](CONTRIBUTING.md) | Dev environment setup and the contribution workflow | 2026-07-09 |
+| [CONTRIBUTING](CONTRIBUTING.md) | Dev environment setup and the contribution workflow | 2026-08-01 |
 | [CLAUDE.md](https://github.com/blisspixel/primr/blob/main/CLAUDE.md) | The development contract: seams, constraints, verification gates | — |
