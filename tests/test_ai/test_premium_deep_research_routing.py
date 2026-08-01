@@ -52,7 +52,8 @@ def test_premium_deep_research_agent_profile_fails_closed(monkeypatch):
 @pytest.mark.asyncio
 async def test_orchestrator_fails_closed_when_route_unavailable(monkeypatch, tmp_path):
     from primr.ai.stage_routing import StageModelRoute
-    from primr.core.research_orchestrator import ResearchConfig, ResearchOrchestrator
+    from primr.core.research_orchestrator import ResearchOrchestrator
+    from primr.core.research_types import ResearchConfig
 
     unavailable = StageModelRoute(
         stage_id="premium.deep_research",

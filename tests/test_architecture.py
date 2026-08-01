@@ -60,7 +60,7 @@ FILE_LINE_CEILINGS: dict[str, int] = {
     # dispatch only (an import + a 2-line check); all render logic lives in
     # cli_render.py, keeping the entrypoint's growth minimal.
     "core/research_agent.py": 4318,
-    "core/cli.py": 2936,
+    "core/cli.py": 2903,
     "ai/deep_research.py": 3885,
     "data/scraping/browsers.py": 1835,
     "data/hiring_signals.py": 1577,
@@ -71,7 +71,6 @@ FILE_LINE_CEILINGS: dict[str, int] = {
     # cli.py decomposition; pinned here now that it exceeds the new-file cap.
     "core/cli_batch_runtime.py": 1043,
     "agentic/hooks.py": 1022,
-    "core/research_orchestrator.py": 1007,
     "data/scraping/orchestrator.py": 1064,
     "data/scraping/structured_content.py": 1067,
 }

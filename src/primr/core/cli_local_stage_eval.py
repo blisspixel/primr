@@ -206,9 +206,7 @@ def maybe_handle_standing_corpus_inspect_only(config: Any, console: Any) -> int 
         )
     ):
         return None
-    code, _path = handle_inspect_standing_source_relevance_corpus(
-        config=config, console=console
-    )
+    code, _path = handle_inspect_standing_source_relevance_corpus(config=config, console=console)
     return code
 
 

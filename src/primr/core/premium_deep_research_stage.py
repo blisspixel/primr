@@ -12,11 +12,7 @@ from collections.abc import Callable
 
 from primr.ai import stage_routing
 from primr.ai.deep_research import ReportFormatter, get_deep_research_orchestrator
-from primr.core.research_orchestrator import (
-    OrchestratorResult,
-    ResearchConfig,
-    ResearchMode,
-)
+from primr.core.research_types import OrchestratorResult, ResearchConfig, ResearchMode
 from primr.utils.logging_config import get_logger
 from primr.utils.observability import log_structured
 
