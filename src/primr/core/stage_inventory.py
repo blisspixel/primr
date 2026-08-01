@@ -214,10 +214,16 @@ PRODUCTION_STAGES: Final[tuple[ProductionStage, ...]] = (
         expected_output_tokens=5_000,
         requires_external_egress=True,
         budget_checkpoint=True,
-        current_backend="call_with_failover(LLMRole.REASONING)",
+        current_backend="routed through ai.stage_routing with reasoning failover",
         promotion_gate=(
             "Requires agreement-validated gap quality and no loss of diagnostic "
-            "queries before any non-cloud backend can be promoted."
+            "queries before any non-cloud backend can be promoted. Offline route "
+            "records and fail-closed agent/local fallbacks are not promotion."
+        ),
+        notes=(
+            "Cloud remains the validated baseline. Agent/local profiles without a "
+            "qualifying adapter skip gap analysis and record a body-free route "
+            "fallback rather than invoking cloud LLMs."
         ),
         artifacts=("gap_analysis.md",),
     ),

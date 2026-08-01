@@ -117,18 +117,20 @@ Current priority order:
    `fast.scrape_summary`, `fast.source_relevance`, and
    `fast.hiring_signals` now consume the capability router behind the
    `--inference cloud|hybrid` flag while executing through existing provider
-   seams. `fast.source_relevance` also has a bounded Codex CLI
-   adapter. The first promotion-safety slice now exposes it only as an
-   unpromoted, single-company experimental route when the operator supplies
-   `--inference hybrid --acknowledge-host-agent-may-bill`. Codex
-   authentication does not prove whether execution uses plan allowance or
+   seams. `fast.research_deepening` now also resolves through the capability
+   router (reasoning role) with body-free route records and fail-closed
+   agent/local behavior when no adapter qualifies. `fast.source_relevance`
+   also has a bounded Codex CLI adapter. The first promotion-safety slice now
+   exposes it only as an unpromoted, single-company experimental route when the
+   operator supplies `--inference hybrid --acknowledge-host-agent-may-bill`.
+   Codex authentication does not prove whether execution uses plan allowance or
    metered API-key billing, so route and estimate metadata says
    `potentially_metered`, excludes unknown host charges from the Primr estimate
    and budget, and rejects batch fan-out. Runtime route resolution
    consumes sanitized env-only cloud provider availability snapshots by
    default, can accept injected quota snapshots, and records body-free
    availability metadata without collecting live quota data or probing local
-   services during normal runs. All three routes record body-free usage
+   services during normal runs. All four routes record body-free usage
    metadata in `_run_state.json`, including measured token/cache/cost deltas
    when provider counters expose them. The other routed utility stages now also
    fail closed when the internal agent profile is exercised by tests or evals
@@ -136,7 +138,8 @@ Current priority order:
    scrape summary writes deterministic source excerpts, hiring signals use
    deterministic triage plus posting metadata, and both record
    `agent_profile_unavailable` route fallbacks instead of invoking cloud LLMs;
-   the next architecture unlock is the representative source-relevance
+   research deepening skips gap analysis with the same fail-closed route
+   record. The next architecture unlock is the representative source-relevance
    host-vs-cloud comparison. The explicit host gate is not promotion and cloud
    remains the validated baseline. Broader host/local candidates still require
    stage-specific adapters and stage-scoped eval data. Stage scorecard artifacts are now available through

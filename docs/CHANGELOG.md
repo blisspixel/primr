@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`fast.research_deepening` capability-router wiring.** Gap analysis now
+  resolves models through `route_stage` / `resolve_stage_model` with the
+  reasoning legacy role, records body-free `stage_routes` usage metadata, and
+  fails closed for agent/local profiles without a qualifying adapter (no cloud
+  LLM call). Cloud remains the validated baseline; promotion is unchanged.
+
 - **Standing `fast.source_relevance` labeled corpus (`source_relevance_standing_v1`).**
   Ships a body-free, package-local six-case keep-list corpus with required
   representative tags and dual `cloud-baseline` / `codex-host` candidates.
