@@ -230,6 +230,9 @@ class PipelineRunner:
 
             # Standard orchestrator pipeline (premium or non-fast full)
             orchestrator = ResearchOrchestrator()
+            # Own a job-local folder early so premium.deep_research stage_routes
+            # can persist body-free route records during the run.
+            job_output_dir.mkdir(parents=True, exist_ok=True)
 
             # Start heartbeat task
             heartbeat_task = asyncio.create_task(self._heartbeat_loop(job, HEARTBEAT_INTERVAL))
@@ -240,6 +243,7 @@ class PipelineRunner:
                     website=company_url,
                     mode=research_mode,
                     on_progress=on_progress,
+                    folder_path=str(job_output_dir),
                 )
             finally:
                 heartbeat_task.cancel()

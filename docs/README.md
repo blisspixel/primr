@@ -11,7 +11,7 @@ Guides are grouped by what you are trying to do, following the
 [Diataxis](https://diataxis.fr/) split: learning, doing, looking up, and
 understanding.
 
-> **Index currency:** reviewed against primr **1.37.1** on **2026-07-21**. The
+> **Index currency:** reviewed against primr **1.39.0** on **2026-08-01**. The
 > *Updated* column is each document's last substantive revision (git
 > `last-commit` date). `tests/test_docs_index.py` fails CI if a doc under
 > `docs/` is missing from this map or an index link does not resolve, so the
@@ -52,7 +52,7 @@ understanding.
 | [API](API.md) | MCP server and A2A protocol, programmatic usage | 2026-07-18 |
 | [Job Status](JOB_STATUS.md) | Versioned CLI, MCP, A2A, and API lifecycle contract | 2026-07-10 |
 | [STRATEGY_PORTFOLIO](STRATEGY_PORTFOLIO.md) | Strategy document types and selection | 2026-07-21 |
-| [NEXT_STEPS](NEXT_STEPS.md) | What to build next, why it comes next, and what not to do yet | 2026-07-21 |
+| [NEXT_STEPS](NEXT_STEPS.md) | What to build next, why it comes next, and what not to do yet | 2026-08-01 |
 | [CHANGELOG](CHANGELOG.md) | Version history | 2026-07-21 |
 | [MIGRATION](MIGRATION.md) | Error-hierarchy migration notes | 2026-02-02 |
 | [EVAL_V1_24_0](EVAL_V1_24_0.md) | Historical decision record: the v1.24.0 cross-provider eval plan | 2026-06-26 |
@@ -74,5 +74,5 @@ understanding.
 
 | Document | Description | Updated |
 |----------|-------------|---------|
-| [CONTRIBUTING](CONTRIBUTING.md) | Dev environment setup and the contribution workflow | 2026-07-09 |
+| [CONTRIBUTING](CONTRIBUTING.md) | Dev environment setup and the contribution workflow | 2026-08-01 |
 | [CLAUDE.md](https://github.com/blisspixel/primr/blob/main/CLAUDE.md) | The development contract: seams, constraints, verification gates | — |
