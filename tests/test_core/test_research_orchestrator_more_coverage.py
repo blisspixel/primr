@@ -194,7 +194,7 @@ class TestResearchDispatch:
     async def test_deep_research_mode_dispatch(self):
         orch = ResearchOrchestrator()
 
-        async def fake_dr(name, site, cfg, prog, ctx):
+        async def fake_dr(*_args, **_kwargs):
             return _ok_result(ResearchMode.DEEP_RESEARCH)
 
         with (
