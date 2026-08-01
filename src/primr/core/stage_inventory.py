@@ -164,9 +164,16 @@ PRODUCTION_STAGES: Final[tuple[ProductionStage, ...]] = (
         current_backend="routed through ai.stage_routing with legacy fast fallback",
         promotion_gate=(
             "Can route after accepted/rejected source decisions agree with the "
-            "cloud baseline on thin, blocked, and noisy-source cases."
+            "cloud baseline on the standing corpus "
+            "(source_relevance_standing_v1 representative tags), live host "
+            "route observations with billing provenance, and human review. "
+            "Offline scorecards alone are not sufficient."
         ),
-        notes="This is a strong first hybrid/local pilot because it is bounded and low-cost.",
+        notes=(
+            "Bounded hybrid/local pilot. Offline standing corpus and backend "
+            "comparison artifacts are scorecard input only "
+            "(promotion_status=not_promoted)."
+        ),
     ),
     ProductionStage(
         stage_id="fast.hiring_signals",
@@ -207,10 +214,16 @@ PRODUCTION_STAGES: Final[tuple[ProductionStage, ...]] = (
         expected_output_tokens=5_000,
         requires_external_egress=True,
         budget_checkpoint=True,
-        current_backend="call_with_failover(LLMRole.REASONING)",
+        current_backend="routed through ai.stage_routing with reasoning failover",
         promotion_gate=(
             "Requires agreement-validated gap quality and no loss of diagnostic "
-            "queries before any non-cloud backend can be promoted."
+            "queries before any non-cloud backend can be promoted. Offline route "
+            "records and fail-closed agent/local fallbacks are not promotion."
+        ),
+        notes=(
+            "Cloud remains the validated baseline. Agent/local profiles without a "
+            "qualifying adapter skip gap analysis and record a body-free route "
+            "fallback rather than invoking cloud LLMs."
         ),
         artifacts=("gap_analysis.md",),
     ),
@@ -227,10 +240,16 @@ PRODUCTION_STAGES: Final[tuple[ProductionStage, ...]] = (
         min_context_tokens=220_000,
         expected_input_tokens=180_000,
         expected_output_tokens=18_000,
-        current_backend="Grok continuous reasoning session or LLMRole.REASONING failover",
+        current_backend="routed through ai.stage_routing with reasoning failover",
         promotion_gate=(
             "Requires workbook quality within band of the calibrated cloud "
-            "baseline because downstream sections inherit this reasoning."
+            "baseline because downstream sections inherit this reasoning. "
+            "Route records alone are not promotion."
+        ),
+        notes=(
+            "Cloud remains the validated baseline. Agent/local profiles without "
+            "a qualifying adapter fall back to collected insights and record a "
+            "body-free route fallback."
         ),
         artifacts=("analysis_workbook.md", "hypothesis_tree.md"),
     ),
@@ -247,10 +266,15 @@ PRODUCTION_STAGES: Final[tuple[ProductionStage, ...]] = (
         min_context_tokens=180_000,
         expected_input_tokens=140_000,
         expected_output_tokens=32_000,
-        current_backend="grok_writing resolved by legacy role routing and eval recipes",
+        current_backend="routed through ai.stage_routing with writing failover",
         promotion_gate=(
             "Requires report trust, section completeness, citation health, and "
-            "utility scores within the accepted band on the standing corpus."
+            "utility scores within the accepted band on the standing corpus. "
+            "Route records alone are not promotion."
+        ),
+        notes=(
+            "Cloud remains the validated baseline. Agent/local profiles without "
+            "a qualifying writing adapter fail closed with no report content."
         ),
         artifacts=("report.md",),
     ),
@@ -270,10 +294,16 @@ PRODUCTION_STAGES: Final[tuple[ProductionStage, ...]] = (
         requires_structured_output=True,
         requires_external_egress=True,
         budget_checkpoint=True,
-        current_backend="Grok reasoning plus writing failover helpers",
+        current_backend="routed through ai.stage_routing (reasoning review + writing regenerate)",
         promotion_gate=(
             "Requires contradiction detection and weak-section enrichment to "
-            "match the agreement-validated calibration baseline."
+            "match the agreement-validated calibration baseline. Route records "
+            "alone are not promotion."
+        ),
+        notes=(
+            "Cloud remains the validated baseline. Agent/local profiles without "
+            "a qualifying adapter skip quality review and leave the report "
+            "unchanged."
         ),
     ),
     ProductionStage(
@@ -289,10 +319,15 @@ PRODUCTION_STAGES: Final[tuple[ProductionStage, ...]] = (
         min_context_tokens=96_000,
         expected_input_tokens=65_000,
         expected_output_tokens=8_000,
-        current_backend="grok_writing via trust polish and citation repair helpers",
+        current_backend="routed through ai.stage_routing with writing polish helpers",
         promotion_gate=(
             "Requires zero increase in scaffolding leaks, citation breakage, or "
-            "confidence-label overstatement."
+            "confidence-label overstatement. Route records alone are not promotion."
+        ),
+        notes=(
+            "Cloud remains the validated baseline. Agent/local profiles without "
+            "a qualifying adapter skip LLM polish/repair and keep deterministic "
+            "cleanup only."
         ),
         artifacts=("_shipping_repair.json",),
     ),
@@ -312,10 +347,18 @@ PRODUCTION_STAGES: Final[tuple[ProductionStage, ...]] = (
         requires_structured_output=True,
         requires_external_egress=True,
         optional=True,
-        current_backend="calibration judge path, gated by PRIMR_LABEL_HONESTY",
+        current_backend=(
+            "routed through ai.stage_routing when PRIMR_LABEL_HONESTY is enabled; "
+            "calibration judge path"
+        ),
         promotion_gate=(
             "Must stay report-only until the representative calibration baseline "
-            "proves acceptable false positive and false negative behavior."
+            "proves acceptable false positive and false negative behavior. Route "
+            "records alone are not promotion."
+        ),
+        notes=(
+            "Default-off. When enabled, agent/local profiles without a qualifying "
+            "adapter skip the judge pass and leave labels unchanged."
         ),
         artifacts=("_label_honesty.json",),
     ),
@@ -335,10 +378,15 @@ PRODUCTION_STAGES: Final[tuple[ProductionStage, ...]] = (
         requires_external_egress=True,
         optional=True,
         budget_checkpoint=True,
-        current_backend="Grok writing with optional vendor Deep Research context",
+        current_backend="routed through ai.stage_routing with writing failover",
         promotion_gate=(
             "Requires per-strategy QA, source health, and business utility within "
-            "band before a non-cloud backend can generate strategy artifacts."
+            "band before a non-cloud backend can generate strategy artifacts. "
+            "Route records alone are not promotion."
+        ),
+        notes=(
+            "Cloud remains the validated baseline. Agent/local profiles without "
+            "a qualifying adapter skip strategy generation entirely."
         ),
         artifacts=("AI_Strategy.md", "strategy modules"),
     ),
@@ -347,8 +395,8 @@ PRODUCTION_STAGES: Final[tuple[ProductionStage, ...]] = (
         pipeline="premium",
         sequence=10,
         title="Premium autonomous deep research",
-        module="primr.core.research_orchestrator",
-        entrypoint="_run_deep_research_with_context",
+        module="primr.core.premium_deep_research_stage",
+        entrypoint="run_deep_research_with_context",
         role=Role.REASONING,
         min_reasoning=ReasoningDepth.PREMIUM,
         trust_sensitivity=TrustSensitivity.HIGH,
@@ -357,10 +405,16 @@ PRODUCTION_STAGES: Final[tuple[ProductionStage, ...]] = (
         expected_output_tokens=40_000,
         requires_deep_research=True,
         acceptable_latency=LatencyClass.LONG_RUNNING,
-        current_backend="Gemini Deep Research Agent",
+        current_backend="routed through ai.stage_routing to Gemini Deep Research Agent",
         promotion_gate=(
             "Cannot route to local or generic host runners until they expose an "
-            "official deep-research capability with comparable citations and provenance."
+            "official deep-research capability with comparable citations and provenance. "
+            "Route records alone are not promotion."
+        ),
+        notes=(
+            "Cloud Gemini Deep Research is the only supported backend today. "
+            "Agent/local profiles fail closed without launching the agent when "
+            "no deep-research-capable backend is available."
         ),
     ),
 )

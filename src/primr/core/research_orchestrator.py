@@ -3,9 +3,6 @@
 import asyncio
 import os
 from collections.abc import Callable
-from dataclasses import dataclass, field
-from datetime import datetime
-from enum import Enum
 
 from primr.ai.deep_research import (
     DeepResearchClient,
@@ -14,63 +11,19 @@ from primr.ai.deep_research import (
     get_deep_research_orchestrator,
 )
 from primr.ai.deep_research import ResearchResult as DeepResearchResult
+from primr.core.research_types import OrchestratorResult, ResearchConfig, ResearchMode
 from primr.utils.errors import ResearchError
 from primr.utils.logging_config import get_logger
 from primr.utils.observability import Metrics, emit_metrics, operation_context
 
 logger = get_logger("core.orchestrator")
 
-
-class ResearchMode(Enum):
-    """Available research modes.
-
-    Modes:
-        STRUCTURED: Website scraping + web search, 18 sections (~20-25 min)
-        DEEP_RESEARCH: Autonomous web research, 8 sections (~10-15 min)
-        COMPLETE: Two-step sequential: structured then deep research (~30-40 min)
-        HYBRID: Parallel execution of both engines (legacy, ~25 min)
-    """
-
-    STRUCTURED = "structured"
-    DEEP_RESEARCH = "deep-research"
-    COMPLETE = "complete"  # Two-step sequential: structured then deep research
-    HYBRID = "hybrid"  # Parallel execution (legacy)
-
-
-@dataclass
-class ResearchConfig:
-    """Configuration for a research task."""
-
-    mode: ResearchMode = ResearchMode.STRUCTURED
-    timeout: float = 3600  # 1 hour max
-    poll_interval: float = 10
-    include_website_scrape: bool = True
-    include_web_search: bool = True
-    sections: list | None = None  # Specific sections to research
-    fail_on_low_scrape: bool = True
-    # Extra evidence appended to the Deep Research stage-1 context (COMPLETE
-    # and DEEP_RESEARCH modes). Callers own fencing: anything derived from
-    # scraped text must arrive already fenced (hiring signals do).
-    supplemental_context: str | None = None
-
-
-@dataclass
-class OrchestratorResult:
-    """Result from the research orchestrator."""
-
-    company_name: str
-    website: str | None
-    mode: ResearchMode
-    section_results: dict[str, str]
-    raw_content: str = ""
-    citations: list = field(default_factory=list)
-    duration_seconds: float = 0.0
-    success: bool = True
-    error: str | None = None
-    timestamp: datetime = field(default_factory=datetime.now)
-    sections_written: int = 0  # Actual number of sections written (for accordion method)
-    search_queries_count: int = 0  # Actual search count from groundingMetadata
-    pending_interaction_id: str = ""
+__all__ = [
+    "OrchestratorResult",
+    "ResearchConfig",
+    "ResearchMode",
+    "ResearchOrchestrator",
+]
 
 
 class ResearchOrchestrator:
@@ -682,88 +635,18 @@ class ResearchOrchestrator:
         config: ResearchConfig,
         on_progress: Callable[[str], None] | None,
         context_files: list | None = None,
+        folder_path: str | None = None,
     ) -> OrchestratorResult:
-        """
-        Run Deep Research using the Accordion Method for comprehensive reports.
+        """Run Deep Research Accordion; implementation lives in the stage module."""
+        from primr.core.premium_deep_research_stage import run_deep_research_with_context
 
-        This uses the same Accordion Method as --mode full, but WITHOUT Stage 1 scraping:
-        - Phase 1: Deep Research gathers research dossier (raw facts)
-        - Phase 2: Gemini Flash writes each section with context continuity
-
-        This produces 30+ page reports with substantive long-form content,
-        not the terse bullet-point output from raw Deep Research.
-
-        Context files (if provided) are uploaded to File Search Store to inform the research.
-        """
-        import time as time_module
-
-        start_time = time_module.time()
-
-        if on_progress:
-            on_progress("Using Accordion Method for comprehensive report...")
-            on_progress("  Phase 1: Deep Research gathers facts")
-            on_progress("  Phase 2: Section-by-section writing with Gemini Flash")
-
-        # Use the Accordion Method orchestrator (same as --mode full, but no Stage 1)
-        orchestrator = get_deep_research_orchestrator()
-
-        def progress_wrapper(msg: str) -> None:
-            if on_progress:
-                on_progress(msg)
-
-        # Generate comprehensive report using Accordion Method. No Stage 1
-        # scraping here, so the only stage-1 context is supplemental evidence
-        # (e.g. hiring signals) when the caller provided it.
-        deep_result = await orchestrator.generate_comprehensive_report(
-            company_name=company_name,
-            website_url=website,
-            stage1_context=config.supplemental_context or None,
-            on_progress=progress_wrapper,
-            target_pages=30,  # Target 30+ pages
-        )
-
-        total_duration = time_module.time() - start_time
-
-        if not deep_result.success:
-            logger.warning(f"Deep research failed: {deep_result.error}")
-            return OrchestratorResult(
-                company_name=company_name,
-                website=website,
-                mode=ResearchMode.DEEP_RESEARCH,
-                section_results={},
-                success=False,
-                error=deep_result.error,
-                duration_seconds=total_duration,
-            )
-
-        # Format the report (resolve citation URLs, clean TOC)
-        formatter = ReportFormatter()
-        formatted = formatter.format_report(
-            raw_content=deep_result.content, company_name=company_name, citation_style="numbered"
-        )
-
-        # Build section results for compatibility
-        section_results = {
-            "strategic_overview": formatted.markdown,
-        }
-
-        logger.info(
-            f"Deep research (Accordion) completed: ~{formatted.word_count} words, "
-            f"{deep_result.api_calls} API calls, {total_duration:.0f}s"
-        )
-
-        return OrchestratorResult(
+        return await run_deep_research_with_context(
             company_name=company_name,
             website=website,
-            mode=ResearchMode.DEEP_RESEARCH,
-            section_results=section_results,
-            raw_content=formatted.markdown,  # Use formatted content with resolved URLs
-            citations=formatted.citations,  # Use resolved citations
-            success=True,
-            duration_seconds=total_duration,
-            sections_written=deep_result.sections_written,
-            search_queries_count=deep_result.search_queries_count,
-            pending_interaction_id=deep_result.interaction_id,
+            config=config,
+            on_progress=on_progress,
+            context_files=context_files,
+            folder_path=folder_path,
         )
 
     def _merge_research_results(

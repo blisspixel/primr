@@ -8,20 +8,20 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from mcp.server.lowlevel.helper_types import ReadResourceContents
-from mcp.types import AnyUrl, Resource
+from mcp.types import Resource
 
 from primr.mcp_server.server_context import MCPServerContext
 from primr.qa.calibration_baseline import inspect_calibration_baseline, read_calibration_baseline
 
 CALIBRATION_BASELINE_INSPECTION_URI = "primr://calibration/baseline/inspection"
 CALIBRATION_BASELINE_INSPECTION_RESOURCE = Resource(
-    uri=AnyUrl(f"{CALIBRATION_BASELINE_INSPECTION_URI}?path={{baseline_path}}"),
+    uri=f"{CALIBRATION_BASELINE_INSPECTION_URI}?path={{baseline_path}}",
     name="Calibration Baseline Inspection",
     description=(
         "Machine-readable readiness blockers for an existing baseline artifact. "
         "The path query must point inside MCP allowed roots."
     ),
-    mimeType="application/json",
+    mime_type="application/json",
 )
 
 

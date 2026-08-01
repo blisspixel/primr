@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from mcp.types import AnyUrl, Resource
+from mcp.types import Resource
 
 from primr.data.scraping.trace import read_trace_file
 from primr.data.scraping.trace_stats import THIN_CONTENT_CHARS, percentile
@@ -25,13 +25,13 @@ if TYPE_CHECKING:
 
 TRACE_SUMMARY_BY_JOB_URI = "primr://output/trace_summary/by_job"
 TRACE_SUMMARY_BY_JOB_RESOURCE = Resource(
-    uri=AnyUrl(f"{TRACE_SUMMARY_BY_JOB_URI}/{{job_id}}"),
+    uri=f"{TRACE_SUMMARY_BY_JOB_URI}/{{job_id}}",
     name="Scrape Trace Summary by Job ID",
     description=(
         "Compact scrape trace metadata for one owned job. Summarizes trace JSONL "
         "artifacts without returning URLs, final URLs, raw trace lines, or page content."
     ),
-    mimeType="application/json",
+    mime_type="application/json",
 )
 
 

@@ -8,10 +8,10 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from mcp.types import CallToolRequest, CallToolRequestParams
 
 from primr.mcp_server import approval_tokens
 from primr.mcp_server.server import create_mcp_server
+from tests.mcp_server.sdk_compat import call_tool_handler
 
 
 @pytest.fixture
@@ -24,14 +24,8 @@ def server():
 
 
 async def _call(server, name: str, arguments: dict) -> dict:
-    handler = server.server.request_handlers[CallToolRequest]
-    result = await handler(
-        CallToolRequest(
-            method="tools/call",
-            params=CallToolRequestParams(name=name, arguments=arguments),
-        )
-    )
-    return json.loads(result.root.content[0].text)
+    result = await call_tool_handler(server, name, arguments)
+    return json.loads(result.content[0].text)
 
 
 @pytest.mark.asyncio

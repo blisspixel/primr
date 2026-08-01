@@ -9,9 +9,11 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from mcp.types import GetPromptRequest, GetPromptRequestParams, ListPromptsRequest
+from mcp.shared.exceptions import MCPError
+from mcp.types import INVALID_PARAMS
 
 from primr.mcp_server.server import create_mcp_server
+from tests.mcp_server.sdk_compat import get_prompt_handler, list_prompts_handler
 
 
 @pytest.fixture
@@ -22,21 +24,14 @@ def server():
 
 
 async def _get_prompt(server, name, arguments=None):
-    handler = server.server.request_handlers[GetPromptRequest]
-    return await handler(
-        GetPromptRequest(
-            method="prompts/get",
-            params=GetPromptRequestParams(name=name, arguments=arguments or {}),
-        )
-    )
+    return await get_prompt_handler(server, name, arguments or {})
 
 
 class TestListPrompts:
     @pytest.mark.asyncio
     async def test_lists_all(self, server):
-        handler = server.server.request_handlers[ListPromptsRequest]
-        result = await handler(ListPromptsRequest(method="prompts/list"))
-        names = [p.name for p in result.root.prompts]
+        result = await list_prompts_handler(server)
+        names = [p.name for p in result.prompts]
         assert "research_workflow" in names
         assert "strategy_selection" in names
         assert "governed_execution" in names
@@ -46,7 +41,7 @@ class TestGetPrompt:
     @pytest.mark.asyncio
     async def test_research_workflow_default(self, server):
         result = await _get_prompt(server, "research_workflow")
-        text = result.root.messages[0].content.text
+        text = result.messages[0].content.text
         assert "Company Research Workflow" in text
         assert "the target company" in text
         assert "vendor-neutral AI Strategy by default" in text
@@ -59,13 +54,13 @@ class TestGetPrompt:
     @pytest.mark.asyncio
     async def test_research_workflow_with_company(self, server):
         result = await _get_prompt(server, "research_workflow", {"company_name": "Acme Corp"})
-        text = result.root.messages[0].content.text
+        text = result.messages[0].content.text
         assert "Acme Corp" in text
 
     @pytest.mark.asyncio
     async def test_strategy_selection_default(self, server):
         result = await _get_prompt(server, "strategy_selection")
-        text = result.root.messages[0].content.text
+        text = result.messages[0].content.text
         assert "Strategy Document Selection Guide" in text
         assert "business-first decisions" in text
         assert "A platform is an evaluation emphasis" in text
@@ -79,13 +74,13 @@ class TestGetPrompt:
     @pytest.mark.asyncio
     async def test_strategy_selection_with_context(self, server):
         result = await _get_prompt(server, "strategy_selection", {"context": "B2C retail company"})
-        text = result.root.messages[0].content.text
+        text = result.messages[0].content.text
         assert "B2C retail company" in text
 
     @pytest.mark.asyncio
     async def test_governed_execution(self, server):
         result = await _get_prompt(server, "governed_execution")
-        text = result.root.messages[0].content.text
+        text = result.messages[0].content.text
         assert "Governed Execution Contract" in text
         assert "estimate_run" in text
         assert "agnostic AI Strategy by default" in text
@@ -98,5 +93,6 @@ class TestGetPrompt:
 
     @pytest.mark.asyncio
     async def test_unknown_prompt_raises(self, server):
-        with pytest.raises(ValueError, match="Unknown prompt"):
+        with pytest.raises(MCPError, match="Unknown prompt") as excinfo:
             await _get_prompt(server, "no_such_prompt")
+        assert excinfo.value.error.code == INVALID_PARAMS

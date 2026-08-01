@@ -12,16 +12,21 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from mcp.types import (
-    CallToolRequest,
-    CallToolRequestParams,
-    ReadResourceRequest,
-    ReadResourceRequestParams,
-)
 
 from primr.mcp_server.job_store import ControllerLeaseError
 from primr.mcp_server.server import create_mcp_server
 from primr.mcp_server.types import ResearchStage
+from tests.mcp_server.sdk_compat import call_tool_handler, read_resource_handler
+
+
+async def _call(server, name: str, arguments: dict) -> dict:
+    result = await call_tool_handler(server, name, arguments)
+    return json.loads(result.content[0].text)
+
+
+async def _read(server, uri: str) -> dict:
+    result = await read_resource_handler(server, uri)
+    return json.loads(result.contents[0].text)
 
 
 class TestEndToEndResearchWorkflow:
@@ -48,49 +53,30 @@ class TestEndToEndResearchWorkflow:
         4. Simulate job completion
         5. Verify output resource updates
         """
-        tool_handler = server.server.request_handlers[CallToolRequest]
-        resource_handler = server.server.request_handlers[ReadResourceRequest]
-
         # Step 1: Estimate run
-        result = await tool_handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="estimate_run",
-                    arguments={"company_url": "https://example.com", "mode": "full"},
-                ),
-            )
+        estimate = await _call(
+            server,
+            "estimate_run",
+            {"company_url": "https://example.com", "mode": "full"},
         )
-        estimate = json.loads(result.root.content[0].text)
         assert "estimated_cost_usd" in estimate
         assert "estimated_time_minutes" in estimate
 
         # Step 2: Start research
-        result = await tool_handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="research_company",
-                    arguments={
-                        "company_name": "Example Corp",
-                        "company_url": "https://example.com",
-                        "mode": "full",
-                    },
-                ),
-            )
+        job_result = await _call(
+            server,
+            "research_company",
+            {
+                "company_name": "Example Corp",
+                "company_url": "https://example.com",
+                "mode": "full",
+            },
         )
-        job_result = json.loads(result.root.content[0].text)
         assert job_result["accepted"] is True
         job_id = job_result["job_id"]
 
         # Step 3: Read status - should be in_progress
-        result = await resource_handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(uri="primr://research/status"),
-            )
-        )
-        status = json.loads(result.root.contents[0].text)
+        status = await _read(server, "primr://research/status")
         assert status["status"] == "in_progress"
         assert status["job_id"] == job_id
 
@@ -105,13 +91,7 @@ class TestEndToEndResearchWorkflow:
         server.job_store.update(job)
 
         # Step 5: Verify status is completed
-        result = await resource_handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(uri="primr://research/status"),
-            )
-        )
-        status = json.loads(result.root.contents[0].text)
+        status = await _read(server, "primr://research/status")
         assert status["status"] == "completed"
         assert status["job_id"] == job_id
 
@@ -137,34 +117,20 @@ class TestMultiClientJobObservation:
     @pytest.mark.asyncio
     async def test_client_b_reads_client_a_job(self, server):
         """Client B can observe job started by Client A."""
-        tool_handler = server.server.request_handlers[CallToolRequest]
-        resource_handler = server.server.request_handlers[ReadResourceRequest]
-
         # Client A starts job (use example.com which resolves)
-        result = await tool_handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="research_company",
-                    arguments={
-                        "company_name": "Test Corp",
-                        "company_url": "https://example.com",
-                    },
-                ),
-            )
+        job_result = await _call(
+            server,
+            "research_company",
+            {
+                "company_name": "Test Corp",
+                "company_url": "https://example.com",
+            },
         )
-        job_result = json.loads(result.root.content[0].text)
         assert "job_id" in job_result, f"Expected job_id in result: {job_result}"
         job_id = job_result["job_id"]
 
         # Client B reads status (simulated - same server, different logical client)
-        result = await resource_handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(uri="primr://research/status"),
-            )
-        )
-        status = json.loads(result.root.contents[0].text)
+        status = await _read(server, "primr://research/status")
 
         # Client B sees Client A's job
         assert status["job_id"] == job_id
@@ -193,36 +159,20 @@ class TestCancelJobAuthorization:
     @pytest.mark.asyncio
     async def test_owner_can_cancel(self, server):
         """Job owner can cancel their job."""
-        tool_handler = server.server.request_handlers[CallToolRequest]
-
         # Create job (owner is "stdio" in stdio mode, use example.com which resolves)
-        result = await tool_handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="research_company",
-                    arguments={
-                        "company_name": "Test Corp",
-                        "company_url": "https://example.com",
-                    },
-                ),
-            )
+        job_result = await _call(
+            server,
+            "research_company",
+            {
+                "company_name": "Test Corp",
+                "company_url": "https://example.com",
+            },
         )
-        job_result = json.loads(result.root.content[0].text)
         assert "job_id" in job_result, f"Expected job_id in result: {job_result}"
         job_id = job_result["job_id"]
 
         # Cancel job (same client)
-        result = await tool_handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="cancel_job",
-                    arguments={"job_id": job_id},
-                ),
-            )
-        )
-        cancel_result = json.loads(result.root.content[0].text)
+        cancel_result = await _call(server, "cancel_job", {"job_id": job_id})
 
         assert cancel_result["success"] is True
         assert cancel_result["status"] == "cancelled"
@@ -245,21 +195,16 @@ class TestJobStateRecovery:
 
             # Create first server and start job
             server1 = create_mcp_server(journal_path=journal_path, skip_background_tasks=True)
-            tool_handler = server1.server.request_handlers[CallToolRequest]
 
-            result = await tool_handler(
-                CallToolRequest(
-                    method="tools/call",
-                    params=CallToolRequestParams(
-                        name="research_company",
-                        arguments={
-                            "company_name": "Persistent Corp",
-                            "company_url": "https://persistent.com",
-                        },
-                    ),
-                )
+            job_result = await _call(
+                server1,
+                "research_company",
+                {
+                    "company_name": "Persistent Corp",
+                    "company_url": "https://persistent.com",
+                },
             )
-            job_id = json.loads(result.root.content[0].text)["job_id"]
+            job_id = job_result["job_id"]
 
             # Advance job to a specific stage
             job = server1.job_store.get(job_id)
@@ -367,22 +312,15 @@ class TestGracefulShutdown:
     @pytest.mark.asyncio
     async def test_shutdown_marks_job_failed(self, server):
         """Active job is marked failed on shutdown."""
-        tool_handler = server.server.request_handlers[CallToolRequest]
-
         # Start a job (use example.com which resolves)
-        result = await tool_handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="research_company",
-                    arguments={
-                        "company_name": "Shutdown Test",
-                        "company_url": "https://example.com",
-                    },
-                ),
-            )
+        job_result = await _call(
+            server,
+            "research_company",
+            {
+                "company_name": "Shutdown Test",
+                "company_url": "https://example.com",
+            },
         )
-        job_result = json.loads(result.root.content[0].text)
         assert "job_id" in job_result, f"Expected job_id in result: {job_result}"
         job_id = job_result["job_id"]
 
@@ -460,22 +398,15 @@ class TestGracefulShutdown:
     async def test_graceful_shutdown_marks_job_failed_after_tasks(self, server):
         """Job is marked failed after task cleanup during shutdown."""
 
-        tool_handler = server.server.request_handlers[CallToolRequest]
-
         # Start a job
-        result = await tool_handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="research_company",
-                    arguments={
-                        "company_name": "Shutdown Order Test",
-                        "company_url": "https://example.com",
-                    },
-                ),
-            )
+        job_result = await _call(
+            server,
+            "research_company",
+            {
+                "company_name": "Shutdown Order Test",
+                "company_url": "https://example.com",
+            },
         )
-        job_result = json.loads(result.root.content[0].text)
         job_id = job_result["job_id"]
 
         # Verify job is in progress
@@ -498,22 +429,15 @@ class TestGracefulShutdown:
 
         Validates: Requirement 20.5
         """
-        tool_handler = server.server.request_handlers[CallToolRequest]
-
         # Start a job
-        result = await tool_handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="research_company",
-                    arguments={
-                        "company_name": "Ghost Test",
-                        "company_url": "https://example.com",
-                    },
-                ),
-            )
+        job_result = await _call(
+            server,
+            "research_company",
+            {
+                "company_name": "Ghost Test",
+                "company_url": "https://example.com",
+            },
         )
-        job_result = json.loads(result.root.content[0].text)
         job_id = job_result["job_id"]
 
         # Run graceful shutdown
@@ -535,22 +459,15 @@ class TestGracefulShutdown:
 
         Validates: Requirement 20.2 (flush job journal to disk)
         """
-        tool_handler = server.server.request_handlers[CallToolRequest]
-
         # Start a job
-        result = await tool_handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="research_company",
-                    arguments={
-                        "company_name": "Journal Flush Test",
-                        "company_url": "https://example.com",
-                    },
-                ),
-            )
+        job_result = await _call(
+            server,
+            "research_company",
+            {
+                "company_name": "Journal Flush Test",
+                "company_url": "https://example.com",
+            },
         )
-        job_result = json.loads(result.root.content[0].text)
         job_id = job_result["job_id"]
 
         # Run graceful shutdown

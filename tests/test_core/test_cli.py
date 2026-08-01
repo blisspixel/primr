@@ -332,7 +332,7 @@ class TestParseArgs:
             eval_judge_model_list="installed-starter",
         )
         monkeypatch.setattr(
-            "primr.core.cli._list_installed_ollama_models",
+            "primr.core.cli_ollama_helpers.list_installed_ollama_models",
             lambda: {"qwen3:30b", "qwen2.5:14b"},
         )
         selected, missing = _resolve_local_judge_models(config)

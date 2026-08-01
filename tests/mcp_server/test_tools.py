@@ -10,9 +10,9 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from mcp.types import CallToolRequest, CallToolRequestParams, ListToolsRequest
 
 from primr.mcp_server.server import create_mcp_server
+from tests.mcp_server.sdk_compat import call_tool_handler, list_tools_handler
 
 
 class TestToolListing:
@@ -28,10 +28,9 @@ class TestToolListing:
     @pytest.mark.asyncio
     async def test_list_tools(self, server):
         """All tools are listed."""
-        handler = server.server.request_handlers[ListToolsRequest]
-        result = await handler(ListToolsRequest(method="tools/list"))
+        result = await list_tools_handler(server)
 
-        tools = result.root.tools
+        tools = result.tools
         tool_names = [t.name for t in tools]
 
         assert "estimate_run" in tool_names
@@ -45,13 +44,13 @@ class TestToolListing:
         assert "cancel_job" in tool_names
 
         estimate_run = next(tool for tool in tools if tool.name == "estimate_run")
-        estimate_platforms = estimate_run.inputSchema["properties"]["platforms"]
+        estimate_platforms = estimate_run.input_schema["properties"]["platforms"]
         assert estimate_platforms["minItems"] == 1
         assert estimate_platforms["maxItems"] == 1
-        assert estimate_run.inputSchema["properties"]["strategy_type"]["enum"] == ["ai"]
+        assert estimate_run.input_schema["properties"]["strategy_type"]["enum"] == ["ai"]
 
         research_company = next(tool for tool in tools if tool.name == "research_company")
-        research_properties = research_company.inputSchema["properties"]
+        research_properties = research_company.input_schema["properties"]
         assert "platforms" not in research_properties
         assert "strategy_type" not in research_properties
 
@@ -69,18 +68,13 @@ class TestEstimateRun:
     @pytest.mark.asyncio
     async def test_estimate_run_valid_url(self, server):
         """estimate_run returns estimates for valid URL."""
-        handler = server.server.request_handlers[CallToolRequest]
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="estimate_run",
-                    arguments={"company_url": "https://example.com", "mode": "full"},
-                ),
-            )
+        result = await call_tool_handler(
+            server,
+            "estimate_run",
+            {"company_url": "https://example.com", "mode": "full"},
         )
 
-        content = result.root.content[0]
+        content = result.content[0]
         data = json.loads(content.text)
 
         assert "estimated_cost_usd" in data
@@ -91,19 +85,14 @@ class TestEstimateRun:
 
     @pytest.mark.asyncio
     async def test_estimate_run_budget_policy_tracks_execution_profile(self, server, monkeypatch):
-        handler = server.server.request_handlers[CallToolRequest]
         monkeypatch.delenv("XAI_API_KEY", raising=False)
 
-        premium_result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="estimate_run",
-                    arguments={"company_url": "https://example.com", "mode": "premium"},
-                ),
-            )
+        premium_result = await call_tool_handler(
+            server,
+            "estimate_run",
+            {"company_url": "https://example.com", "mode": "premium"},
         )
-        premium_data = json.loads(premium_result.root.content[0].text)
+        premium_data = json.loads(premium_result.content[0].text)
         assert premium_data["budget_enforcement"]["runtime_checkpoints"] is True
         assert premium_data["budget_enforcement"]["checkpointed_stages"] == [
             "optional strategy generation"
@@ -114,34 +103,25 @@ class TestEstimateRun:
         )
 
         monkeypatch.setenv("XAI_API_KEY", "x" * 30)
-        full_result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="estimate_run",
-                    arguments={"company_url": "https://example.com", "mode": "full"},
-                ),
-            )
+        full_result = await call_tool_handler(
+            server,
+            "estimate_run",
+            {"company_url": "https://example.com", "mode": "full"},
         )
-        full_data = json.loads(full_result.root.content[0].text)
+        full_data = json.loads(full_result.content[0].text)
         assert full_data["budget_enforcement"]["runtime_checkpoints"] is True
         assert "strategy generation" in full_data["budget_enforcement"]["checkpointed_stages"]
 
     @pytest.mark.asyncio
     async def test_estimate_run_invalid_url(self, server):
         """estimate_run returns error for invalid URL."""
-        handler = server.server.request_handlers[CallToolRequest]
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="estimate_run",
-                    arguments={"company_url": "not-a-url"},
-                ),
-            )
+        result = await call_tool_handler(
+            server,
+            "estimate_run",
+            {"company_url": "not-a-url"},
         )
 
-        content = result.root.content[0]
+        content = result.content[0]
         data = json.loads(content.text)
 
         assert data["error"] is True
@@ -150,18 +130,13 @@ class TestEstimateRun:
     @pytest.mark.asyncio
     async def test_estimate_run_ssrf_blocked(self, server):
         """estimate_run blocks SSRF attempts."""
-        handler = server.server.request_handlers[CallToolRequest]
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="estimate_run",
-                    arguments={"company_url": "http://169.254.169.254/latest/meta-data/"},
-                ),
-            )
+        result = await call_tool_handler(
+            server,
+            "estimate_run",
+            {"company_url": "http://169.254.169.254/latest/meta-data/"},
         )
 
-        content = result.root.content[0]
+        content = result.content[0]
         data = json.loads(content.text)
 
         assert data["error"] is True
@@ -181,18 +156,13 @@ class TestEstimateStrategy:
     @pytest.mark.asyncio
     async def test_estimate_strategy_valid(self, server):
         """estimate_strategy returns estimates for a valid strategy."""
-        handler = server.server.request_handlers[CallToolRequest]
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="estimate_strategy",
-                    arguments={"strategy_type": "customer_experience"},
-                ),
-            )
+        result = await call_tool_handler(
+            server,
+            "estimate_strategy",
+            {"strategy_type": "customer_experience"},
         )
 
-        content = result.root.content[0]
+        content = result.content[0]
         data = json.loads(content.text)
 
         assert data["strategy_type"] == "customer_experience"
@@ -206,18 +176,13 @@ class TestEstimateStrategy:
     @pytest.mark.asyncio
     async def test_estimate_strategy_requires_vendor_for_ai(self, server):
         """estimate_strategy requires platform for ai_strategy."""
-        handler = server.server.request_handlers[CallToolRequest]
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="estimate_strategy",
-                    arguments={"strategy_type": "ai_strategy"},
-                ),
-            )
+        result = await call_tool_handler(
+            server,
+            "estimate_strategy",
+            {"strategy_type": "ai_strategy"},
         )
 
-        content = result.root.content[0]
+        content = result.content[0]
         data = json.loads(content.text)
 
         assert data["error"] is True
@@ -237,21 +202,16 @@ class TestResearchCompany:
     @pytest.mark.asyncio
     async def test_research_company_creates_job(self, server):
         """research_company creates a job and returns job_id."""
-        handler = server.server.request_handlers[CallToolRequest]
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="research_company",
-                    arguments={
-                        "company_name": "Acme Corp",
-                        "company_url": "https://example.com",
-                    },
-                ),
-            )
+        result = await call_tool_handler(
+            server,
+            "research_company",
+            {
+                "company_name": "Acme Corp",
+                "company_url": "https://example.com",
+            },
         )
 
-        content = result.root.content[0]
+        content = result.content[0]
         data = json.loads(content.text)
 
         assert "job_id" in data
@@ -298,37 +258,27 @@ class TestResearchCompany:
     @pytest.mark.asyncio
     async def test_research_company_job_in_progress(self, server):
         """research_company returns error if job already in progress."""
-        handler = server.server.request_handlers[CallToolRequest]
-
         # Create first job
-        await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="research_company",
-                    arguments={
-                        "company_name": "Acme Corp",
-                        "company_url": "https://example.com",
-                    },
-                ),
-            )
+        await call_tool_handler(
+            server,
+            "research_company",
+            {
+                "company_name": "Acme Corp",
+                "company_url": "https://example.com",
+            },
         )
 
         # Try to create second job
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="research_company",
-                    arguments={
-                        "company_name": "Other Corp",
-                        "company_url": "https://other.com",
-                    },
-                ),
-            )
+        result = await call_tool_handler(
+            server,
+            "research_company",
+            {
+                "company_name": "Other Corp",
+                "company_url": "https://other.com",
+            },
         )
 
-        content = result.root.content[0]
+        content = result.content[0]
         data = json.loads(content.text)
 
         assert data["error"] is True
@@ -348,22 +298,17 @@ class TestResearchCompany:
         )
         monkeypatch.setattr("primr.mcp_server.tools.enforce_approval_token", lambda **_kwargs: None)
 
-        handler = server.server.request_handlers[CallToolRequest]
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="research_company",
-                    arguments={
-                        "company_name": "Other Corp",
-                        "company_url": "https://example.com",
-                        "max_estimated_cost_usd": 100.0,
-                    },
-                ),
-            )
+        result = await call_tool_handler(
+            server,
+            "research_company",
+            {
+                "company_name": "Other Corp",
+                "company_url": "https://example.com",
+                "max_estimated_cost_usd": 100.0,
+            },
         )
 
-        data = json.loads(result.root.content[0].text)
+        data = json.loads(result.content[0].text)
         assert data["error_type"] == "job_in_progress"
         assert "active_job_id" not in data
         assert active.job_id not in data["message"]
@@ -381,22 +326,17 @@ class TestResearchCompany:
         )
         monkeypatch.setattr("primr.mcp_server.tools.enforce_approval_token", lambda **_kwargs: None)
 
-        handler = server.server.request_handlers[CallToolRequest]
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="research_company",
-                    arguments={
-                        "company_name": "Other Corp",
-                        "company_url": "https://example.com",
-                        "max_estimated_cost_usd": 100.0,
-                    },
-                ),
-            )
+        result = await call_tool_handler(
+            server,
+            "research_company",
+            {
+                "company_name": "Other Corp",
+                "company_url": "https://example.com",
+                "max_estimated_cost_usd": 100.0,
+            },
         )
 
-        data = json.loads(result.root.content[0].text)
+        data = json.loads(result.content[0].text)
         assert data["active_job_id"] == active.job_id
 
 
@@ -412,22 +352,17 @@ class TestCostCaps:
 
     @pytest.mark.asyncio
     async def test_research_company_rejects_when_cap_exceeded(self, server):
-        handler = server.server.request_handlers[CallToolRequest]
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="research_company",
-                    arguments={
-                        "company_name": "Acme Corp",
-                        "company_url": "https://example.com",
-                        "mode": "full",
-                        "max_estimated_cost_usd": 0.01,
-                    },
-                ),
-            )
+        result = await call_tool_handler(
+            server,
+            "research_company",
+            {
+                "company_name": "Acme Corp",
+                "company_url": "https://example.com",
+                "mode": "full",
+                "max_estimated_cost_usd": 0.01,
+            },
         )
-        data = json.loads(result.root.content[0].text)
+        data = json.loads(result.content[0].text)
         assert data["error"] is True
         assert data["error_type"] == "cost_cap_exceeded"
 
@@ -436,21 +371,16 @@ class TestCostCaps:
         report = Path("output/test_cost_cap_report.md")
         report.parent.mkdir(parents=True, exist_ok=True)
         report.write_text("# report", encoding="utf-8")
-        handler = server.server.request_handlers[CallToolRequest]
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="generate_strategy",
-                    arguments={
-                        "report_path": str(report),
-                        "strategy_type": "customer_experience",
-                        "max_estimated_cost_usd": 0.01,
-                    },
-                ),
-            )
+        result = await call_tool_handler(
+            server,
+            "generate_strategy",
+            {
+                "report_path": str(report),
+                "strategy_type": "customer_experience",
+                "max_estimated_cost_usd": 0.01,
+            },
         )
-        data = json.loads(result.root.content[0].text)
+        data = json.loads(result.content[0].text)
         assert data["error"] is True
         assert data["error_type"] == "cost_cap_exceeded"
 
@@ -459,22 +389,17 @@ class TestCostCaps:
         """A numeric string cap (OpenClaw passes the estimate via quoted
         interpolation) is coerced to float and still enforced — previously this
         raised TypeError in the comparison."""
-        handler = server.server.request_handlers[CallToolRequest]
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="research_company",
-                    arguments={
-                        "company_name": "Acme Corp",
-                        "company_url": "https://example.com",
-                        "mode": "full",
-                        "max_estimated_cost_usd": "0.01",
-                    },
-                ),
-            )
+        result = await call_tool_handler(
+            server,
+            "research_company",
+            {
+                "company_name": "Acme Corp",
+                "company_url": "https://example.com",
+                "mode": "full",
+                "max_estimated_cost_usd": "0.01",
+            },
         )
-        data = json.loads(result.root.content[0].text)
+        data = json.loads(result.content[0].text)
         assert data["error"] is True
         assert data["error_type"] == "cost_cap_exceeded"
 
@@ -482,42 +407,32 @@ class TestCostCaps:
     async def test_research_company_rejects_non_numeric_cap(self, server):
         """A non-numeric cap returns a structured invalid_cost_cap error rather
         than raising TypeError inside the comparison."""
-        handler = server.server.request_handlers[CallToolRequest]
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="research_company",
-                    arguments={
-                        "company_name": "Acme Corp",
-                        "company_url": "https://example.com",
-                        "mode": "full",
-                        "max_estimated_cost_usd": "not-a-number",
-                    },
-                ),
-            )
+        result = await call_tool_handler(
+            server,
+            "research_company",
+            {
+                "company_name": "Acme Corp",
+                "company_url": "https://example.com",
+                "mode": "full",
+                "max_estimated_cost_usd": "not-a-number",
+            },
         )
-        data = json.loads(result.root.content[0].text)
+        data = json.loads(result.content[0].text)
         assert data["error"] is True
         assert data["error_type"] == "invalid_cost_cap"
 
     @pytest.mark.asyncio
     async def test_research_company_requires_cap_when_enforced(self, server, monkeypatch):
         monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
-        handler = server.server.request_handlers[CallToolRequest]
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="research_company",
-                    arguments={
-                        "company_name": "Acme Corp",
-                        "company_url": "https://example.com",
-                    },
-                ),
-            )
+        result = await call_tool_handler(
+            server,
+            "research_company",
+            {
+                "company_name": "Acme Corp",
+                "company_url": "https://example.com",
+            },
         )
-        data = json.loads(result.root.content[0].text)
+        data = json.loads(result.content[0].text)
         assert data["error"] is True
         assert data["error_type"] == "cost_cap_required"
 
@@ -527,20 +442,15 @@ class TestCostCaps:
         report = Path("output/test_required_cap_report.md")
         report.parent.mkdir(parents=True, exist_ok=True)
         report.write_text("# report", encoding="utf-8")
-        handler = server.server.request_handlers[CallToolRequest]
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="generate_strategy",
-                    arguments={
-                        "report_path": str(report),
-                        "strategy_type": "customer_experience",
-                    },
-                ),
-            )
+        result = await call_tool_handler(
+            server,
+            "generate_strategy",
+            {
+                "report_path": str(report),
+                "strategy_type": "customer_experience",
+            },
         )
-        data = json.loads(result.root.content[0].text)
+        data = json.loads(result.content[0].text)
         assert data["error"] is True
         assert data["error_type"] == "cost_cap_required"
 
@@ -561,22 +471,17 @@ class TestCostCaps:
                 return asyncio.create_task(asyncio.sleep(0))
 
             monkeypatch.setattr(server.job_supervisor, "start", fake_start)
-            handler = server.server.request_handlers[CallToolRequest]
-            result = await handler(
-                CallToolRequest(
-                    method="tools/call",
-                    params=CallToolRequestParams(
-                        name="research_company",
-                        arguments={
-                            "company_name": "Acme Corp",
-                            "company_url": "https://example.com",
-                            "mode": "full",
-                            "max_estimated_cost_usd": "100.00",
-                        },
-                    ),
-                )
+            result = await call_tool_handler(
+                server,
+                "research_company",
+                {
+                    "company_name": "Acme Corp",
+                    "company_url": "https://example.com",
+                    "mode": "full",
+                    "max_estimated_cost_usd": "100.00",
+                },
             )
-            data = json.loads(result.root.content[0].text)
+            data = json.loads(result.content[0].text)
 
             assert data["accepted"] is True
             await asyncio.wait_for(done.wait(), timeout=1)
@@ -598,25 +503,20 @@ class TestCostCaps:
                 return asyncio.create_task(asyncio.sleep(0))
 
             monkeypatch.setattr(server.job_supervisor, "start", fake_start)
-            handler = server.server.request_handlers[CallToolRequest]
-            result = await handler(
-                CallToolRequest(
-                    method="tools/call",
-                    params=CallToolRequestParams(
-                        name="research_company",
-                        arguments={
-                            "company_name": "Acme Corp",
-                            "company_url": "https://example.com",
-                            "mode": "premium",
-                            "platform": "microsoft",
-                            "skip_qa": True,
-                            "max_estimated_cost_usd": 100.0,
-                        },
-                    ),
-                )
+            result = await call_tool_handler(
+                server,
+                "research_company",
+                {
+                    "company_name": "Acme Corp",
+                    "company_url": "https://example.com",
+                    "mode": "premium",
+                    "platform": "microsoft",
+                    "skip_qa": True,
+                    "max_estimated_cost_usd": 100.0,
+                },
             )
 
-            data = json.loads(result.root.content[0].text)
+            data = json.loads(result.content[0].text)
             assert data["accepted"] is True
             assert seen["mode"] == "premium"
             assert seen["platform"] == "azure"
@@ -636,50 +536,28 @@ class TestCancelJob:
     @pytest.mark.asyncio
     async def test_cancel_job_success(self, server):
         """cancel_job cancels an active job."""
-        handler = server.server.request_handlers[CallToolRequest]
-
         # Create job
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="research_company",
-                    arguments={
-                        "company_name": "Acme Corp",
-                        "company_url": "https://example.com",
-                    },
-                ),
-            )
+        result = await call_tool_handler(
+            server,
+            "research_company",
+            {
+                "company_name": "Acme Corp",
+                "company_url": "https://example.com",
+            },
         )
-        job_id = json.loads(result.root.content[0].text)["job_id"]
+        job_id = json.loads(result.content[0].text)["job_id"]
 
         # Cancel job
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="cancel_job",
-                    arguments={"job_id": job_id},
-                ),
-            )
-        )
+        result = await call_tool_handler(server, "cancel_job", {"job_id": job_id})
 
-        content = result.root.content[0]
+        content = result.content[0]
         data = json.loads(content.text)
 
         assert data["success"] is True
         assert data["status"] == "cancelled"
 
-        repeated = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="cancel_job",
-                    arguments={"job_id": job_id},
-                ),
-            )
-        )
-        repeated_data = json.loads(repeated.root.content[0].text)
+        repeated = await call_tool_handler(server, "cancel_job", {"job_id": job_id})
+        repeated_data = json.loads(repeated.content[0].text)
         assert repeated_data["success"] is True
         assert repeated_data["status"] == "cancelled"
         assert repeated_data["termination_method"] == "already_exited"
@@ -687,19 +565,9 @@ class TestCancelJob:
     @pytest.mark.asyncio
     async def test_cancel_job_not_found(self, server):
         """cancel_job returns error for nonexistent job."""
-        handler = server.server.request_handlers[CallToolRequest]
+        result = await call_tool_handler(server, "cancel_job", {"job_id": "nonexistent-id"})
 
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="cancel_job",
-                    arguments={"job_id": "nonexistent-id"},
-                ),
-            )
-        )
-
-        content = result.root.content[0]
+        content = result.content[0]
         data = json.loads(content.text)
 
         assert data["error"] is True
@@ -787,19 +655,9 @@ class TestDoctor:
     @pytest.mark.asyncio
     async def test_doctor_returns_health(self, server):
         """doctor returns system health status."""
-        handler = server.server.request_handlers[CallToolRequest]
+        result = await call_tool_handler(server, "doctor", {})
 
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="doctor",
-                    arguments={},
-                ),
-            )
-        )
-
-        content = result.root.content[0]
+        content = result.content[0]
         data = json.loads(content.text)
 
         assert "orphaned_stores_count" in data
@@ -821,21 +679,15 @@ class TestRateLimiting:
     @pytest.mark.asyncio
     async def test_rate_limit_exceeded(self, server):
         """Rate limit is enforced."""
-        handler = server.server.request_handlers[CallToolRequest]
-
         # Exhaust rate limit for research_company (2/min)
         for _ in range(2):
-            await handler(
-                CallToolRequest(
-                    method="tools/call",
-                    params=CallToolRequestParams(
-                        name="research_company",
-                        arguments={
-                            "company_name": "Test",
-                            "company_url": "https://example.com",
-                        },
-                    ),
-                )
+            await call_tool_handler(
+                server,
+                "research_company",
+                {
+                    "company_name": "Test",
+                    "company_url": "https://example.com",
+                },
             )
             # Cancel to allow next creation
             job = server.job_store.get_active()
@@ -844,20 +696,16 @@ class TestRateLimiting:
                 server.job_store.update(job)
 
         # Third call should be rate limited
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="research_company",
-                    arguments={
-                        "company_name": "Test",
-                        "company_url": "https://example.com",
-                    },
-                ),
-            )
+        result = await call_tool_handler(
+            server,
+            "research_company",
+            {
+                "company_name": "Test",
+                "company_url": "https://example.com",
+            },
         )
 
-        content = result.root.content[0]
+        content = result.content[0]
         data = json.loads(content.text)
 
         assert data["error"] is True
@@ -883,18 +731,9 @@ class TestShowUsage:
         monkeypatch.delenv("COSMOS_ENDPOINT", raising=False)
         monkeypatch.delenv("STORAGE_ACCOUNT_NAME", raising=False)
 
-        handler = server.server.request_handlers[CallToolRequest]
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="show_usage",
-                    arguments={},
-                ),
-            )
-        )
+        result = await call_tool_handler(server, "show_usage", {})
 
-        content = result.root.content[0]
+        content = result.content[0]
         data = json.loads(content.text)
 
         assert "message" in data
@@ -904,10 +743,9 @@ class TestShowUsage:
     @pytest.mark.asyncio
     async def test_show_usage_listed_in_tools(self, server):
         """show_usage appears in the tool listing."""
-        handler = server.server.request_handlers[ListToolsRequest]
-        result = await handler(ListToolsRequest(method="tools/list"))
+        result = await list_tools_handler(server)
 
-        tools = result.root.tools
+        tools = result.tools
         tool_names = [t.name for t in tools]
 
         assert "show_usage" in tool_names
@@ -931,40 +769,30 @@ class TestDestinationValidation:
 
     @pytest.mark.asyncio
     async def test_traversal_destination_rejected(self, server):
-        handler = server.server.request_handlers[CallToolRequest]
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="research_company",
-                    arguments={
-                        "company_name": "Acme Corp",
-                        "company_url": "https://example.com",
-                        "destination": "../../../etc/primr_evil",
-                    },
-                ),
-            )
+        result = await call_tool_handler(
+            server,
+            "research_company",
+            {
+                "company_name": "Acme Corp",
+                "company_url": "https://example.com",
+                "destination": "../../../etc/primr_evil",
+            },
         )
-        data = json.loads(result.root.content[0].text)
+        data = json.loads(result.content[0].text)
         assert data["error"] is True
         assert "destination" in data["message"].lower()
 
     @pytest.mark.asyncio
     async def test_absolute_outside_root_destination_rejected(self, server):
-        handler = server.server.request_handlers[CallToolRequest]
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(
-                    name="research_company",
-                    arguments={
-                        "company_name": "Acme Corp",
-                        "company_url": "https://example.com",
-                        "destination": "/etc/primr_evil",
-                    },
-                ),
-            )
+        result = await call_tool_handler(
+            server,
+            "research_company",
+            {
+                "company_name": "Acme Corp",
+                "company_url": "https://example.com",
+                "destination": "/etc/primr_evil",
+            },
         )
-        data = json.loads(result.root.content[0].text)
+        data = json.loads(result.content[0].text)
         assert data["error"] is True
         assert "destination" in data["message"].lower()

@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.0] - 2026-08-01
+
+### Security
+
+- **Raised the `pymdown-extensions` floor to 11.0.0** (docs extra) for
+  CVE-2026-61632 and locked 11.0.1, keeping `pip-audit` clean.
+
+### Added
+
+- **Standing `fast.source_relevance` labeled corpus (`source_relevance_standing_v1`).**
+  Ships a body-free, package-local six-case keep-list corpus with required
+  representative tags and dual `cloud-baseline` / `codex-host` candidates.
+  Integrity inspection reports readiness blockers without source bodies.
+  `primr --eval --eval-source-relevance-standing-corpus` scores the packaged
+  corpus into review-only stage quality evidence. Scorecard input only; the
+  corpus ships with `promotion_status=not_promoted` and never auto-promotes
+  host routing.
+- **Offline host-vs-cloud comparison artifacts for source-relevance.** Standing
+  and labeled fixture evals now write body-free backend comparison JSON/Markdown
+  (F1/precision/recall deltas, exact-match rates) plus a standing-corpus
+  integrity sidecar. Comparison is review-only and does not arm promotion.
+- **`--inspect-source-relevance-standing-corpus`.** Zero-network body-free
+  integrity inspection for the packaged standing corpus; exits before profile
+  scorecard work when used alone under `--eval`. Inspection includes the
+  corpus file sha256 and size so scorecards can bind the exact labeled
+  snapshot measured. Source-relevance stage artifact paths now go through the
+  same eval-id allowlist as other eval outputs.
+- **MCP protocol tests for 2026-07-28 resource templates, private cache
+  hints, and `server/discover`.** Parameterized `by_job` resources must appear
+  on `resources/templates/list`, list/discover cache hints remain `private`,
+  and `server/discover` advertises `2026-07-28` support plus cost-gate
+  instructions without a session handshake.
+- **Fast-pipeline capability-router production wiring.**
+  `fast.research_deepening`, `fast.analysis_workbook`, `fast.cross_validation`
+  (reasoning), `fast.report_sections`, `fast.trust_polish`,
+  `fast.strategy_generation` (writing), and optional `fast.label_honesty`
+  resolve through `resolve_stage_model`, record body-free `stage_routes`
+  metadata, and fail closed for agent/local profiles without a qualifying
+  adapter. Cloud remains the validated baseline.
+- **`premium.deep_research` capability-router wiring.** Premium deep research
+  resolves to the Gemini Deep Research agent backend
+  (`supports_deep_research`), records body-free route metadata, and fails
+  closed without launching the agent when no deep-research-capable backend is
+  available.
+
+### Changed
+
+- **MCP server now speaks specification revision 2026-07-28 natively.**
+  Migrated from MCP Python SDK 1.x to v2 (`mcp>=2.0.0,<3`). One server now
+  serves both protocol eras on stdio and streamable HTTP: modern clients get
+  the stateless per-request protocol with `server/discover`, while older
+  clients keep the legacy `initialize` handshake. The dependency previously
+  had no upper bound, so fresh installs resolving SDK v2 against the v1
+  integration would have failed at import time; the pin now tracks the
+  supported major.
+- **Spec-native metadata for MCP clients.** List and read results carry
+  2026-07-28 `ttlMs`/`cacheScope` cache hints (all `private` — responses are
+  auth-scoped), the server advertises identity (name, version, instructions)
+  through `serverInfo` and `server/discover`, and the parameterized
+  `primr://.../by_job/{job_id}` resources are now discoverable via
+  `resources/templates/list` in addition to the plain listings.
+- **Protocol-correct error codes.** Unknown tools, resources, and prompts now
+  return JSON-RPC `-32602` (Invalid Params) instead of surfacing as
+  `isError` results or internal errors, matching the 2026-07-28 error-code
+  alignment that retired `-32002`.
+
 ## [1.38.0] - 2026-07-22
 
 ### Added

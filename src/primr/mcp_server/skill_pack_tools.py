@@ -74,7 +74,7 @@ def register_skill_pack_tools(server: Server, mcp_server: MCPServerContext) -> l
                 "the standard estimate-first gate. Cost scales with the "
                 "requested roster, skill count, and refinement cap."
             ),
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "company_name": {"type": "string"},
@@ -162,7 +162,7 @@ def register_skill_pack_tools(server: Server, mcp_server: MCPServerContext) -> l
                 "deterministic validation, per-skill refinement (capped), "
                 "pack-level coherence pass. Synchronous (~30-120s)."
             ),
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "company_name": {"type": "string"},

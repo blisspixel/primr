@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from mcp.types import AnyUrl, Resource
+from mcp.types import Resource
 
 from primr.mcp_server.artifact_resources import (
     _artifact_metadata,
@@ -35,14 +35,14 @@ if TYPE_CHECKING:
 
 CALIBRATION_SUMMARY_BY_JOB_URI = "primr://output/calibration_summary/by_job"
 CALIBRATION_SUMMARY_BY_JOB_RESOURCE = Resource(
-    uri=AnyUrl(f"{CALIBRATION_SUMMARY_BY_JOB_URI}/{{job_id}}"),
+    uri=f"{CALIBRATION_SUMMARY_BY_JOB_URI}/{{job_id}}",
     name="Calibration Summary by Job ID",
     description=(
         "Compact label-calibration metadata for one owned job. Summarizes "
         "calibration sidecars and inference source-copy counts without returning "
         "raw claims, source URLs, or rationales."
     ),
-    mimeType="application/json",
+    mime_type="application/json",
 )
 
 _REPORT_ARTIFACT_TYPES = frozenset({"report_markdown", "report_text", "report_docx", "report_pdf"})

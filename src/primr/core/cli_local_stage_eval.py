@@ -154,6 +154,13 @@ def handle_stage_quality_generation(
     """Run optional stage-quality evidence generators for eval scorecards."""
 
     generated_path: Path | None = None
+    if getattr(config, "inspect_source_relevance_standing_corpus", False):
+        exit_code, path = handle_inspect_standing_source_relevance_corpus(
+            config=config, console=console
+        )
+        if exit_code != 0:
+            return exit_code, path
+        generated_path = path
     if config.eval_local_stage == "website-summary":
         exit_code, generated_path = handle_website_summary_local_stage_eval(
             config=config,
@@ -164,7 +171,9 @@ def handle_stage_quality_generation(
         )
         if exit_code != 0:
             return exit_code, generated_path
-    if config.eval_source_relevance_fixture:
+    if config.eval_source_relevance_fixture or getattr(
+        config, "eval_source_relevance_standing_corpus", False
+    ):
         exit_code, generated_path = handle_source_relevance_fixture_eval(
             config=config, console=console
         )
@@ -180,6 +189,63 @@ def handle_stage_quality_generation(
     return 0, generated_path
 
 
+def maybe_handle_standing_corpus_inspect_only(config: Any, console: Any) -> int | None:
+    """Return an exit code when eval is inspect-only; otherwise None."""
+
+    if not getattr(config, "inspect_source_relevance_standing_corpus", False):
+        return None
+    if any(
+        (
+            getattr(config, "eval_source_relevance_standing_corpus", False),
+            getattr(config, "eval_source_relevance_fixture", None),
+            getattr(config, "eval_local_stage", None),
+            getattr(config, "eval_page_access_fixture", None),
+            getattr(config, "eval_stage_scorecard", False),
+            getattr(config, "eval_llm_judge", False),
+            getattr(config, "eval_run_missing", False),
+        )
+    ):
+        return None
+    code, _path = handle_inspect_standing_source_relevance_corpus(config=config, console=console)
+    return code
+
+
+def handle_inspect_standing_source_relevance_corpus(
+    *,
+    config: Any,
+    console: Any,
+) -> tuple[int, Path | None]:
+    """Write and print body-free standing-corpus integrity JSON (zero network)."""
+
+    console.blank()
+    console.step("Standing Source-Relevance Corpus Inspection")
+    try:
+        stage_root = _source_relevance_stage_root(config)
+    except ValueError as exc:
+        console.error(str(exc))
+        return 1, None
+    inspection = source_relevance_eval.inspect_standing_source_relevance_corpus()
+    out_path = stage_root / "standing_corpus_integrity.json"
+    source_relevance_eval.write_standing_corpus_integrity_sidecar(out_path, inspection=inspection)
+    console.info(json.dumps(inspection, indent=2, sort_keys=True))
+    console.info(f"Standing corpus integrity: {out_path}")
+    if inspection.get("status") != "ready_for_scorecard":
+        console.error(
+            "Standing corpus is not scorecard-ready: "
+            + ", ".join(inspection.get("blockers") or ["unknown"])
+        )
+        return 1, out_path
+    return 0, out_path
+
+
+def _source_relevance_stage_root(config: Any) -> Path:
+    """Resolve the per-eval source-relevance stage directory under eval_root."""
+
+    from primr.core.model_eval import _safe_eval_dir
+
+    return _safe_eval_dir(Path(config.eval_root), config.eval_id) / "source_relevance_stage"
+
+
 def handle_source_relevance_fixture_eval(
     *,
     config: Any,
@@ -189,9 +255,33 @@ def handle_source_relevance_fixture_eval(
 
     console.blank()
     console.step("Source Relevance Stage Eval")
-    fixture_path = Path(config.eval_source_relevance_fixture)
+    use_standing = bool(getattr(config, "eval_source_relevance_standing_corpus", False))
+    explicit_fixture = getattr(config, "eval_source_relevance_fixture", None)
+    if use_standing and explicit_fixture:
+        console.error(
+            "Use either --eval-source-relevance-standing-corpus or "
+            "--eval-source-relevance-fixture, not both."
+        )
+        return 1, None
     try:
-        cases = source_relevance_eval.load_source_relevance_eval_fixture(fixture_path)
+        if use_standing:
+            fixture_path = source_relevance_eval.standing_source_relevance_corpus_path()
+            cases = source_relevance_eval.load_standing_source_relevance_corpus(fixture_path)
+            inspection = source_relevance_eval.inspect_standing_source_relevance_corpus(
+                path=fixture_path
+            )
+            console.info(
+                "Standing corpus "
+                f"{inspection.get('corpus_id')}: status={inspection.get('status')}, "
+                f"cases={inspection.get('case_count')}, "
+                f"promotion={inspection.get('promotion_status')}"
+            )
+        else:
+            if not explicit_fixture:
+                console.error("Source relevance fixture path is required.")
+                return 1, None
+            fixture_path = Path(explicit_fixture)
+            cases = source_relevance_eval.load_source_relevance_eval_fixture(fixture_path)
         rows = source_relevance_eval.build_source_relevance_eval_rows(cases)
     except (OSError, ValueError) as exc:
         console.error(f"Source relevance fixture eval failed: {exc}")
@@ -201,10 +291,17 @@ def handle_source_relevance_fixture_eval(
         console.error("Source relevance fixture eval produced no candidate rows.")
         return 1, None
 
-    stage_root = Path(config.eval_root) / config.eval_id / "source_relevance_stage"
+    try:
+        stage_root = _source_relevance_stage_root(config)
+    except ValueError as exc:
+        console.error(str(exc))
+        return 1, None
     report_path = stage_root / "source_relevance_stage_eval.json"
     markdown_path = stage_root / "source_relevance_stage_eval.md"
     quality_path = stage_root / "source_relevance_stage_quality_evidence.json"
+    comparison_path = stage_root / "source_relevance_backend_comparison.json"
+    comparison_md_path = stage_root / "source_relevance_backend_comparison.md"
+    integrity_path = stage_root / "standing_corpus_integrity.json"
     source_relevance_eval.write_source_relevance_stage_eval_report(
         report_path,
         eval_id=config.eval_id,
@@ -221,11 +318,34 @@ def handle_source_relevance_fixture_eval(
         eval_id=config.eval_id,
         rows=rows,
     )
+    corpus_inspection = None
+    if use_standing:
+        corpus_inspection = source_relevance_eval.inspect_standing_source_relevance_corpus(
+            path=fixture_path
+        )
+        source_relevance_eval.write_standing_corpus_integrity_sidecar(
+            integrity_path,
+            inspection=corpus_inspection,
+        )
+        console.info(f"Standing corpus integrity: {integrity_path}")
+    comparison = source_relevance_eval.write_source_relevance_backend_comparison(
+        comparison_path,
+        eval_id=config.eval_id,
+        rows=rows,
+        corpus_inspection=corpus_inspection,
+    )
+    source_relevance_eval.write_source_relevance_backend_comparison_markdown(
+        comparison_md_path,
+        eval_id=config.eval_id,
+        comparison=comparison,
+    )
     console.info(f"Source relevance cases: {len({row.case_id for row in rows})}")
     console.info(f"Source relevance candidate rows: {len(rows)}")
     console.info(f"Source relevance eval: {report_path}")
     console.info(f"Source relevance eval markdown: {markdown_path}")
     console.info(f"Source relevance quality evidence: {quality_path}")
+    console.info(f"Source relevance backend comparison: {comparison_path}")
+    console.info(f"Source relevance backend comparison markdown: {comparison_md_path}")
     return 0, quality_path
 
 

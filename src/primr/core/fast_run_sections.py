@@ -118,6 +118,11 @@ def write_report_sections(
         "3-5 min",
     )
 
+    routed = _resolve_report_sections_route(grok_writing, folder_path)
+    if routed is None:
+        return SectionWritingResult(report_content=None)
+    writing_model, route, usage_before, route_start = routed
+
     # Build a raw data subset for evidence (~100k chars; workbook already distills
     # corpus). Default: leading slice (scrape order). With
     # PRIMR_SECTION_EVIDENCE_CURATION=1, spend the budget on the corpus pages most
@@ -218,7 +223,7 @@ def write_report_sections(
                     source_urls,
                     report_system,
                     section_reasoning_modes.get(sec.id, "standard"),
-                    model=grok_writing,
+                    model=writing_model,
                     framing_block=framing_block,
                 )
                 if result is None:
@@ -279,7 +284,7 @@ def write_report_sections(
             source_urls,
             report_system,
             section_reasoning_modes.get(exec_summary_section.id, "standard"),
-            model=grok_writing,
+            model=writing_model,
             framing_block=framing_block,
         )
         if exec_parsed:
@@ -290,6 +295,14 @@ def write_report_sections(
 
     if not written_sections:
         console.error("All report sections failed — no sections written")
+        _record_report_sections_route(
+            folder_path,
+            route,
+            usage_before=usage_before,
+            route_start=route_start,
+            section_count=len(all_section_names),
+            written_count=0,
+        )
         return SectionWritingResult(report_content=None)
 
     report_content = _assemble_fast_report(company_label, website, written_sections)
@@ -297,8 +310,17 @@ def write_report_sections(
     # Coherence pass: deduplicate and smooth transitions
     with console.timed_operation("Running coherence pass"):
         report_content = _fast_coherence_pass(
-            company_label, website, report_content, model=grok_writing
+            company_label, website, report_content, model=writing_model
         )
+
+    _record_report_sections_route(
+        folder_path,
+        route,
+        usage_before=usage_before,
+        route_start=route_start,
+        section_count=len(all_section_names),
+        written_count=len(written_sections),
+    )
 
     total_words = len(report_content.split())
     console.phase_complete(
@@ -310,4 +332,78 @@ def write_report_sections(
         report_content=report_content,
         written_sections=written_sections,
         total_words=total_words,
+    )
+
+
+def _resolve_report_sections_route(
+    grok_writing: str,
+    folder_path: str,
+) -> tuple[str, object | None, object | None, float] | None:
+    """Resolve writing model for report sections; None means fail-closed exit."""
+
+    import time
+
+    from primr.ai import stage_routing
+    from primr.utils.observability import log_structured
+
+    writing_model = grok_writing
+    route = None
+    usage_before = None
+    route_start = time.monotonic()
+    try:
+        route = stage_routing.resolve_stage_model(
+            "fast.report_sections",
+            legacy_model_type="writing",
+        )
+        log_structured("info", "Report sections route selected", **route.log_metadata())
+        if getattr(route, "execution_mode", "llm") == "unavailable":
+            failure = stage_routing.stage_route_failure_class(route)
+            stage_routing.record_stage_route_usage(
+                folder_path,
+                route,
+                outcome="fallback",
+                input_items=0,
+                output_items=0,
+                duration_seconds=time.monotonic() - route_start,
+                failure_class=failure,
+            )
+            console.error(f"Report writing skipped ({failure}) — no writing backend available")
+            return None
+        if route.model_name:
+            writing_model = route.model_name
+        usage_before = stage_routing.capture_stage_usage()
+    except Exception as e:
+        logger.warning("Report sections route resolution failed: %s", e, exc_info=True)
+    return writing_model, route, usage_before, route_start
+
+
+def _record_report_sections_route(
+    folder_path: str,
+    route: object | None,
+    *,
+    usage_before: object | None,
+    route_start: float,
+    section_count: int,
+    written_count: int,
+) -> None:
+    """Append body-free report-sections route metadata when a route was resolved."""
+
+    if route is None:
+        return
+
+    import time
+
+    from primr.ai import stage_routing
+
+    stage_routing.record_stage_route_usage(
+        folder_path,
+        route,  # type: ignore[arg-type]
+        outcome="selected" if written_count else "fallback",
+        input_items=section_count,
+        output_items=written_count,
+        duration_seconds=time.monotonic() - route_start,
+        failure_class=None if written_count else "no_sections_written",
+        usage_delta=stage_routing.stage_usage_delta(usage_before)  # type: ignore[arg-type]
+        if usage_before is not None
+        else None,
     )

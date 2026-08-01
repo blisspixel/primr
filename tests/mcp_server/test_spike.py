@@ -14,16 +14,15 @@ from io import StringIO
 from unittest.mock import patch
 
 import pytest
-from mcp.types import (
-    CallToolRequest,
-    CallToolRequestParams,
-    ListResourcesRequest,
-    ListToolsRequest,
-    ReadResourceRequest,
-    ReadResourceRequestParams,
-)
+from mcp.shared.exceptions import MCPError
 
 from primr.mcp_server.spike import create_spike_server
+from tests.mcp_server.sdk_compat import (
+    call_tool_handler,
+    list_resources_handler,
+    list_tools_handler,
+    read_resource_handler,
+)
 
 
 class TestSpikeServerCreation:
@@ -39,10 +38,10 @@ class TestSpikeServerCreation:
         """Server has tool and resource handlers registered."""
         server = create_spike_server()
         # Check that handlers are registered
-        assert ListToolsRequest in server.request_handlers
-        assert ListResourcesRequest in server.request_handlers
-        assert CallToolRequest in server.request_handlers
-        assert ReadResourceRequest in server.request_handlers
+        assert server.get_request_handler("tools/list") is not None
+        assert server.get_request_handler("resources/list") is not None
+        assert server.get_request_handler("tools/call") is not None
+        assert server.get_request_handler("resources/read") is not None
 
 
 class TestToolListing:
@@ -53,33 +52,23 @@ class TestToolListing:
         """list_tools returns the ping tool with correct schema."""
         server = create_spike_server()
 
-        # Get the handler and call it
-        handler = server.request_handlers[ListToolsRequest]
-        result = await handler(ListToolsRequest(method="tools/list"))
+        result = await list_tools_handler(server)
 
-        # Result is wrapped in ServerResult, access .root
-        tools = result.root.tools
+        tools = result.tools
         assert len(tools) == 1
         assert tools[0].name == "ping"
         assert tools[0].description == "Simple ping tool that returns pong with timestamp"
-        assert "properties" in tools[0].inputSchema
-        assert "message" in tools[0].inputSchema["properties"]
+        assert "properties" in tools[0].input_schema
+        assert "message" in tools[0].input_schema["properties"]
 
     @pytest.mark.asyncio
     async def test_call_ping_tool(self):
         """Calling ping tool returns pong with timestamp."""
         server = create_spike_server()
 
-        handler = server.request_handlers[CallToolRequest]
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(name="ping", arguments={}),
-            )
-        )
+        result = await call_tool_handler(server, "ping", {})
 
-        # Result is wrapped in ServerResult, access .root
-        content = result.root.content
+        content = result.content
         assert len(content) == 1
         assert content[0].type == "text"
         assert "pong @" in content[0].text
@@ -89,35 +78,19 @@ class TestToolListing:
         """Calling ping tool with message echoes it back."""
         server = create_spike_server()
 
-        handler = server.request_handlers[CallToolRequest]
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(name="ping", arguments={"message": "hello"}),
-            )
-        )
+        result = await call_tool_handler(server, "ping", {"message": "hello"})
 
-        content = result.root.content
+        content = result.content
         assert len(content) == 1
         assert "echo: hello" in content[0].text
 
     @pytest.mark.asyncio
-    async def test_call_unknown_tool_returns_error(self):
-        """Calling unknown tool returns error result (SDK behavior)."""
+    async def test_call_unknown_tool_raises_invalid_params(self):
+        """Calling unknown tool raises a protocol-level MCPError (v2 behavior)."""
         server = create_spike_server()
 
-        handler = server.request_handlers[CallToolRequest]
-        # SDK doesn't raise for unknown tools, it logs a warning
-        # and returns an error result
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(name="unknown", arguments={}),
-            )
-        )
-
-        # The result should indicate an error
-        assert result.root.isError is True
+        with pytest.raises(MCPError, match="Unknown tool"):
+            await call_tool_handler(server, "unknown", {})
 
 
 class TestResourceListing:
@@ -128,45 +101,32 @@ class TestResourceListing:
         """list_resources returns the test resource."""
         server = create_spike_server()
 
-        handler = server.request_handlers[ListResourcesRequest]
-        result = await handler(ListResourcesRequest(method="resources/list"))
+        result = await list_resources_handler(server)
 
-        resources = result.root.resources
+        resources = result.resources
         assert len(resources) == 1
-        assert str(resources[0].uri) == "primr://test"
+        assert resources[0].uri == "primr://test"
         assert resources[0].name == "Test Resource"
-        assert resources[0].mimeType == "text/plain"
+        assert resources[0].mime_type == "text/plain"
 
     @pytest.mark.asyncio
     async def test_read_test_resource(self):
         """Reading test resource returns content with timestamp."""
         server = create_spike_server()
 
-        handler = server.request_handlers[ReadResourceRequest]
-        result = await handler(
-            ReadResourceRequest(
-                method="resources/read",
-                params=ReadResourceRequestParams(uri="primr://test"),
-            )
-        )
+        result = await read_resource_handler(server, "primr://test")
 
-        contents = result.root.contents
+        contents = result.contents
         assert len(contents) == 1
         assert "Test resource content @" in contents[0].text
 
     @pytest.mark.asyncio
     async def test_read_unknown_resource_raises(self):
-        """Reading unknown resource raises ValueError."""
+        """Reading unknown resource raises a protocol-level MCPError."""
         server = create_spike_server()
 
-        handler = server.request_handlers[ReadResourceRequest]
-        with pytest.raises(ValueError, match="Unknown resource"):
-            await handler(
-                ReadResourceRequest(
-                    method="resources/read",
-                    params=ReadResourceRequestParams(uri="primr://unknown"),
-                )
-            )
+        with pytest.raises(MCPError, match="Unknown resource"):
+            await read_resource_handler(server, "primr://unknown")
 
 
 class TestStdoutPurity:
@@ -189,14 +149,8 @@ class TestStdoutPurity:
         server = create_spike_server()
         captured_stdout = StringIO()
 
-        handler = server.request_handlers[CallToolRequest]
         with patch.object(sys, "stdout", captured_stdout):
-            await handler(
-                CallToolRequest(
-                    method="tools/call",
-                    params=CallToolRequestParams(name="ping", arguments={"message": "test"}),
-                )
-            )
+            await call_tool_handler(server, "ping", {"message": "test"})
 
         # Nothing should be written to stdout during tool execution
         assert captured_stdout.getvalue() == ""
@@ -207,14 +161,8 @@ class TestStdoutPurity:
         server = create_spike_server()
         captured_stdout = StringIO()
 
-        handler = server.request_handlers[ReadResourceRequest]
         with patch.object(sys, "stdout", captured_stdout):
-            await handler(
-                ReadResourceRequest(
-                    method="resources/read",
-                    params=ReadResourceRequestParams(uri="primr://test"),
-                )
-            )
+            await read_resource_handler(server, "primr://test")
 
         # Nothing should be written to stdout during resource read
         assert captured_stdout.getvalue() == ""

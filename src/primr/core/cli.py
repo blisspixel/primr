@@ -149,54 +149,7 @@ from primr.utils.logging_config import get_logger
 
 logger = get_logger("cli")
 
-
-def _list_installed_ollama_models() -> set[str]:
-    """Best-effort listing of locally available Ollama models."""
-    import subprocess
-
-    try:
-        result = subprocess.run(
-            ["ollama", "list"],
-            capture_output=True,
-            text=True,
-            check=True,
-            encoding="utf-8",
-        )
-    except Exception:
-        return set()
-
-    models: set[str] = set()
-    for line in result.stdout.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.lower().startswith("name "):
-            continue
-        parts = stripped.split()
-        if parts:
-            models.add(parts[0])
-    return models
-
-
-def _resolve_local_judge_models(config: "CLIConfig") -> tuple[list[str], list[str]]:
-    """Resolve the requested local judge models and return (selected, missing)."""
-    from primr.config.local_eval_models import get_local_eval_model_list
-
-    selected: list[str] = []
-    if config.eval_judge_models:
-        selected.extend(config.eval_judge_models)
-    elif config.eval_judge_model_list:
-        selected.extend(get_local_eval_model_list(config.eval_judge_model_list))
-    else:
-        selected.append(config.eval_judge_model)
-
-    # Deduplicate while preserving order.
-    selected = list(dict.fromkeys(model.strip() for model in selected if model and model.strip()))
-    installed = _list_installed_ollama_models()
-    if not installed:
-        return selected, []
-
-    available = [model for model in selected if model in installed]
-    missing = [model for model in selected if model not in installed]
-    return available, missing
+from primr.core.cli_ollama_helpers import resolve_local_judge_models as _resolve_local_judge_models
 
 
 class Command(Enum):
@@ -361,6 +314,8 @@ class CLIConfig:
     eval_stage_semantic_judge: bool = False
     eval_stage_semantic_judge_model: str | None = None
     eval_source_relevance_fixture: str | None = None
+    eval_source_relevance_standing_corpus: bool = False
+    inspect_source_relevance_standing_corpus: bool = False
     eval_page_access_fixture: str | None = None
     eval_working_root: str = "working"
     eval_stage_scorecard: bool = False
@@ -639,6 +594,12 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
         eval_stage_semantic_judge=getattr(parsed, "eval_stage_semantic_judge", False),
         eval_stage_semantic_judge_model=getattr(parsed, "eval_stage_semantic_judge_model", None),
         eval_source_relevance_fixture=getattr(parsed, "eval_source_relevance_fixture", None),
+        eval_source_relevance_standing_corpus=bool(
+            getattr(parsed, "eval_source_relevance_standing_corpus", False)
+        ),
+        inspect_source_relevance_standing_corpus=bool(
+            getattr(parsed, "inspect_source_relevance_standing_corpus", False)
+        ),
         eval_page_access_fixture=getattr(parsed, "eval_page_access_fixture", None),
         eval_working_root=getattr(parsed, "eval_working_root", "working"),
         eval_stage_scorecard=getattr(parsed, "eval_stage_scorecard", False),
@@ -1995,6 +1956,12 @@ def _handle_eval(config: CLIConfig) -> int:
         console.error("--eval-id is required for --eval")
         console.info("Usage: primr --eval --eval-id eval-2026-02-r1")
         return 1
+
+    from primr.core.cli_local_stage_eval import maybe_handle_standing_corpus_inspect_only
+
+    inspect_only = maybe_handle_standing_corpus_inspect_only(config, console)
+    if inspect_only is not None:
+        return inspect_only
 
     if config.eval_baseline not in config.eval_profiles:
         console.error(

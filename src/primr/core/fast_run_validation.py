@@ -36,6 +36,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from dataclasses import dataclass
 
 from primr.core.report_cleanup import _preserves_report_structure
@@ -104,6 +105,53 @@ def cross_validate_and_enrich(
         "2-4 min",
     )
 
+    from primr.ai import stage_routing
+
+    reasoning_model = grok_reasoning
+    writing_model = grok_writing
+    cv_route = None
+    cv_usage_before = None
+    cv_route_start = time.monotonic()
+    try:
+        cv_route = stage_routing.resolve_stage_model(
+            "fast.cross_validation",
+            legacy_model_type="reasoning",
+        )
+        log_structured("info", "Cross-validation route selected", **cv_route.log_metadata())
+        if getattr(cv_route, "execution_mode", "llm") == "unavailable":
+            failure = stage_routing.stage_route_failure_class(cv_route)
+            stage_routing.record_stage_route_usage(
+                folder_path,
+                cv_route,
+                outcome="fallback",
+                input_items=1,
+                output_items=0,
+                duration_seconds=time.monotonic() - cv_route_start,
+                failure_class=failure,
+            )
+            console.warn(f"Cross-validation skipped ({failure}) — report not quality-checked")
+            return CrossValidationResult(
+                report_content=report_content,
+                unresolved_contradictions=0,
+                sections_enriched=0,
+                cv_search_count=0,
+            )
+        if cv_route.model_name:
+            reasoning_model = cv_route.model_name
+        # Writing-side regeneration reuses the writing legacy type when available.
+        writing_route = stage_routing.resolve_stage_model(
+            "fast.report_sections",
+            legacy_model_type="writing",
+        )
+        if (
+            writing_route.model_name
+            and getattr(writing_route, "execution_mode", "llm") != "unavailable"
+        ):
+            writing_model = writing_route.model_name
+        cv_usage_before = stage_routing.capture_stage_usage()
+    except Exception as e:
+        logger.warning("Cross-validation route resolution failed: %s", e, exc_info=True)
+
     with console.timed_operation("Reviewing report quality via Grok"):
         from primr.pipeline.integration import cross_validate_with_recovery
 
@@ -113,7 +161,7 @@ def cross_validate_and_enrich(
                 website,
                 report_content,
                 source_urls,
-                model=grok_reasoning,
+                model=reasoning_model,
                 reasoning_session=reasoning_session,
             )
 
@@ -295,7 +343,7 @@ def cross_validate_and_enrich(
                     analysis_workbook,
                     new_evidence,
                     source_urls,
-                    model=grok_writing,
+                    model=writing_model,
                 )
 
             # Splice back into report (preserve \n\n separator between sections)
@@ -367,7 +415,7 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
             resolved = call_with_failover(
                 LLMRole.WRITING,
                 resolve_prompt,
-                preferred_model=grok_writing,
+                preferred_model=writing_model,
                 max_tokens=65_000,
                 temperature=0.2,
                 system_prompt="You are a fact-checker standardizing contradictory data points across report sections.",
@@ -402,6 +450,22 @@ Return the COMPLETE corrected report with all sections intact. No preamble.
     if cv_failed:
         cv_stats.append(("Status", "FAILED"))
     console.phase_complete("Cross-Validation", cv_stats)
+
+    if cv_route is not None:
+        from primr.ai import stage_routing as stage_routing_mod
+
+        stage_routing_mod.record_stage_route_usage(
+            folder_path,
+            cv_route,
+            outcome="fallback" if cv_failed else "selected",
+            input_items=1,
+            output_items=sections_enriched + (0 if unresolved_contradictions else 1),
+            duration_seconds=time.monotonic() - cv_route_start,
+            failure_class="cross_validation_failed" if cv_failed else None,
+            usage_delta=stage_routing_mod.stage_usage_delta(cv_usage_before)
+            if cv_usage_before is not None
+            else None,
+        )
 
     return CrossValidationResult(
         report_content=report_content,

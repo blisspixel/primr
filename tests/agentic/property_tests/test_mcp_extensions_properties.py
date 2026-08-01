@@ -198,16 +198,16 @@ def test_tool_schema_validity():
 
     for tool in tools:
         # Each tool should have an input schema
-        assert tool.inputSchema is not None, f"Tool {tool.name} missing inputSchema"
+        assert tool.input_schema is not None, f"Tool {tool.name} missing inputSchema"
 
         # Schema should be a valid dict
-        assert isinstance(tool.inputSchema, dict), f"Tool {tool.name} schema not a dict"
+        assert isinstance(tool.input_schema, dict), f"Tool {tool.name} schema not a dict"
 
         # Schema should have type
-        assert "type" in tool.inputSchema, f"Tool {tool.name} schema missing type"
+        assert "type" in tool.input_schema, f"Tool {tool.name} schema missing type"
 
         # Schema should have properties
-        assert "properties" in tool.inputSchema, f"Tool {tool.name} schema missing properties"
+        assert "properties" in tool.input_schema, f"Tool {tool.name} schema missing properties"
 
 
 def test_resource_mime_types():
@@ -222,11 +222,11 @@ def test_resource_mime_types():
 
     for resource in resources:
         # Each resource should have a MIME type
-        assert resource.mimeType is not None, f"Resource {resource.uri} missing mimeType"
+        assert resource.mime_type is not None, f"Resource {resource.uri} missing mimeType"
 
         # MIME type should be application/json for our resources
-        assert resource.mimeType == "application/json", (
-            f"Resource {resource.uri} has unexpected mimeType: {resource.mimeType}"
+        assert resource.mime_type == "application/json", (
+            f"Resource {resource.uri} has unexpected mimeType: {resource.mime_type}"
         )
 
 

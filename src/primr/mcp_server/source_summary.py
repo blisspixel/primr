@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
-from mcp.types import AnyUrl, Resource
+from mcp.types import Resource
 
 from primr.mcp_server.artifact_resources import (
     _artifact_metadata,
@@ -26,13 +26,13 @@ if TYPE_CHECKING:
 
 SOURCE_SUMMARY_BY_JOB_URI = "primr://output/source_summary/by_job"
 SOURCE_SUMMARY_BY_JOB_RESOURCE = Resource(
-    uri=AnyUrl(f"{SOURCE_SUMMARY_BY_JOB_URI}/{{job_id}}"),
+    uri=f"{SOURCE_SUMMARY_BY_JOB_URI}/{{job_id}}",
     name="Source Appendix Summary by Job ID",
     description=(
         "Compact source appendix and citation-integrity metadata for one owned job. "
         "Reads report artifacts without returning report body content."
     ),
-    mimeType="application/json",
+    mime_type="application/json",
 )
 
 _SOURCE_HEADING_RE = re.compile(

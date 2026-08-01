@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
 
 from primr.core.fast_mode_helpers import (
     _compute_fast_report_qa_metrics,
@@ -26,6 +28,10 @@ from primr.core.strategy_artifacts import _normalize_fast_citations
 from primr.qa.label_calibration import label_citations_trust_row
 from primr.utils.console import console
 from primr.utils.logging_config import get_logger
+from primr.utils.observability import log_structured
+
+if TYPE_CHECKING:
+    from primr.ai.stage_routing import StageModelRoute
 
 logger = get_logger("core.fast_run_trust")
 
@@ -43,15 +49,55 @@ def _maybe_apply_label_honesty(report_content: str, folder_path: str) -> str:
     byte-identical until eval validates the recipe. An audit sidecar is written
     whenever the pass runs, and any failure leaves the report untouched -- a
     label audit must never break shipping.
+
+    When enabled, model selection is recorded through the capability router for
+    ``fast.label_honesty``. Agent/local profiles without a qualifying adapter
+    skip the judge pass and leave the report unchanged.
     """
     if os.getenv(_LABEL_HONESTY_ENV, "").strip().lower() not in _TRUTHY:
         return report_content
+    route_start = time.monotonic()
+    route: StageModelRoute | None = None
+    try:
+        from primr.ai import stage_routing
+
+        route = stage_routing.resolve_stage_model(
+            "fast.label_honesty",
+            legacy_model_type="fast",
+        )
+        log_structured("info", "Label honesty route selected", **route.log_metadata())
+        if getattr(route, "execution_mode", "llm") == "unavailable":
+            failure = stage_routing.stage_route_failure_class(route)
+            stage_routing.record_stage_route_usage(
+                folder_path,
+                route,
+                outcome="fallback",
+                input_items=1,
+                output_items=0,
+                duration_seconds=time.monotonic() - route_start,
+                failure_class=failure,
+            )
+            logger.debug("Label-honesty pass skipped: %s", failure)
+            return report_content
+    except Exception as route_err:
+        logger.debug("Label-honesty route resolution failed: %s", route_err)
     try:
         from primr.qa.label_honesty import apply_label_honesty
 
         result = apply_label_honesty(report_content)
         with open(os.path.join(folder_path, "_label_honesty.json"), "w", encoding="utf-8") as _lf:
             json.dump(result.to_dict(), _lf, indent=2)
+        if route is not None:
+            from primr.ai import stage_routing as stage_routing_mod
+
+            stage_routing_mod.record_stage_route_usage(
+                folder_path,
+                route,
+                outcome="selected",
+                input_items=1,
+                output_items=len(result.downgrades) if result.changed else 0,
+                duration_seconds=time.monotonic() - route_start,
+            )
         if result.changed:
             console.info(
                 f"Label honesty: downgraded {len(result.downgrades)} "
@@ -59,6 +105,18 @@ def _maybe_apply_label_honesty(report_content: str, folder_path: str) -> str:
             )
             return result.report_content
     except Exception as _honesty_err:
+        if route is not None:
+            from primr.ai import stage_routing as stage_routing_mod
+
+            stage_routing_mod.record_stage_route_usage(
+                folder_path,
+                route,
+                outcome="fallback",
+                input_items=1,
+                output_items=0,
+                duration_seconds=time.monotonic() - route_start,
+                failure_class=type(_honesty_err).__name__,
+            )
         logger.debug("Label-honesty pass skipped: %s", _honesty_err)
     return report_content
 
@@ -86,19 +144,53 @@ def polish_and_gate_fast_report(
     # Lazy import: research_agent imports this module, so the LLM-backed
     # polish/repair helpers (which stay there until their own extraction)
     # must be resolved at call time to avoid a circular import.
+    from primr.ai import stage_routing
     from primr.core.research_agent import (
         _polish_fast_report_for_trust,
         _repair_fast_report_citation_integrity,
     )
 
+    writing_model = grok_writing
+    route: StageModelRoute | None = None
+    usage_before: stage_routing.StageUsageByModel | None = None
+    route_start = time.monotonic()
+    skip_llm_polish = False
+    try:
+        route = stage_routing.resolve_stage_model(
+            "fast.trust_polish",
+            legacy_model_type="writing",
+        )
+        log_structured("info", "Trust polish route selected", **route.log_metadata())
+        if getattr(route, "execution_mode", "llm") == "unavailable":
+            skip_llm_polish = True
+            failure = stage_routing.stage_route_failure_class(route)
+            _record_trust_route(
+                folder_path,
+                route,
+                outcome="fallback",
+                input_count=1,
+                output_count=0,
+                duration_seconds=time.monotonic() - route_start,
+                failure_class=failure,
+            )
+            console.info(f"Trust polish LLM pass skipped ({failure}) — deterministic cleanup only")
+        elif route.model_name:
+            writing_model = route.model_name
+            usage_before = stage_routing.capture_stage_usage()
+        else:
+            usage_before = stage_routing.capture_stage_usage()
+    except Exception as e:
+        logger.warning("Trust polish route resolution failed: %s", e, exc_info=True)
+
     # Trust polish is a low-cost editorial pass to improve evidence discipline.
-    report_content = _polish_fast_report_for_trust(
-        company_label,
-        website,
-        report_content,
-        source_urls,
-        model=grok_writing,
-    )
+    if not skip_llm_polish:
+        report_content = _polish_fast_report_for_trust(
+            company_label,
+            website,
+            report_content,
+            source_urls,
+            model=writing_model,
+        )
     pre_repair_content = report_content
     report_content = _clean_fast_report_output(report_content)
     report_content = _normalize_fast_citations(report_content, source_urls=source_urls)
@@ -124,13 +216,15 @@ def polish_and_gate_fast_report(
         report_content,
         unresolved_contradictions=unresolved_contradictions,
     )
-    if qa_metrics["citations_used"] == 0 or qa_metrics["citations_defined"] == 0:
+    if not skip_llm_polish and (
+        qa_metrics["citations_used"] == 0 or qa_metrics["citations_defined"] == 0
+    ):
         repaired_report = _repair_fast_report_citation_integrity(
             company_label,
             website,
             report_content,
             source_urls,
-            model=grok_writing,
+            model=writing_model,
         )
         if repaired_report != report_content:
             report_content = repaired_report
@@ -187,8 +281,48 @@ def polish_and_gate_fast_report(
     if qa_metrics.get("unresolved_contradictions", 0) > 0:
         report_trust_stats.append(("Contradictions", str(qa_metrics["unresolved_contradictions"])))
 
+    if route is not None and not skip_llm_polish:
+        _record_trust_route(
+            folder_path,
+            route,
+            outcome="selected",
+            input_count=1,
+            output_count=1,
+            duration_seconds=time.monotonic() - route_start,
+            usage_delta=stage_routing.stage_usage_delta(usage_before)
+            if usage_before is not None
+            else None,
+        )
+
     return FastTrustResult(
         report_content=report_content,
         qa_metrics=qa_metrics,
         report_trust_stats=report_trust_stats,
+    )
+
+
+def _record_trust_route(
+    folder_path: str | None,
+    route: StageModelRoute,
+    *,
+    outcome: str,
+    input_count: int,
+    output_count: int,
+    duration_seconds: float,
+    failure_class: str | None = None,
+    usage_delta: dict[str, Any] | None = None,
+) -> None:
+    """Append body-free trust-polish route metadata to run state."""
+
+    from primr.ai import stage_routing
+
+    stage_routing.record_stage_route_usage(
+        folder_path,
+        route,
+        outcome=outcome,
+        input_items=input_count,
+        output_items=output_count,
+        duration_seconds=duration_seconds,
+        failure_class=failure_class,
+        usage_delta=usage_delta,
     )

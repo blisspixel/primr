@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from mcp.types import AnyUrl, Resource
+from mcp.types import Resource
 
 from primr.mcp_server.artifact_resources import (
     _artifact_metadata,
@@ -25,13 +25,13 @@ if TYPE_CHECKING:
 
 VERIFICATION_SUMMARY_BY_JOB_URI = "primr://output/verification_summary/by_job"
 VERIFICATION_SUMMARY_BY_JOB_RESOURCE = Resource(
-    uri=AnyUrl(f"{VERIFICATION_SUMMARY_BY_JOB_URI}/{{job_id}}"),
+    uri=f"{VERIFICATION_SUMMARY_BY_JOB_URI}/{{job_id}}",
     name="Verification Summary by Job ID",
     description=(
         "Compact claim verification metadata for one owned job. Summarizes "
         "verification JSON without returning raw claims, source URLs, or search queries."
     ),
-    mimeType="application/json",
+    mime_type="application/json",
 )
 
 

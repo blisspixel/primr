@@ -15,13 +15,15 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from mcp.types import CallToolRequest, CallToolRequestParams
+from mcp.shared.exceptions import MCPError
+from mcp.types import INVALID_PARAMS
 
 from primr.mcp_server.platforms import normalize_platforms
 from primr.mcp_server.research_policy import parse_max_duration
 from primr.mcp_server.server import create_mcp_server
 from primr.mcp_server.tools import _normalize_platform
 from primr.mcp_server.types import ResearchStage
+from tests.mcp_server.sdk_compat import call_tool_handler
 
 
 @pytest.fixture
@@ -50,14 +52,8 @@ def output_report():
 
 
 async def _call(server, name, arguments):
-    handler = server.server.request_handlers[CallToolRequest]
-    result = await handler(
-        CallToolRequest(
-            method="tools/call",
-            params=CallToolRequestParams(name=name, arguments=arguments),
-        )
-    )
-    return json.loads(result.root.content[0].text)
+    result = await call_tool_handler(server, name, arguments)
+    return json.loads(result.content[0].text)
 
 
 # ---------------------------------------------------------------------------
@@ -698,12 +694,7 @@ class TestResearchCompanyValidation:
 class TestUnknownTool:
     @pytest.mark.asyncio
     async def test_unknown_tool_is_error(self, server):
-        handler = server.server.request_handlers[CallToolRequest]
-        result = await handler(
-            CallToolRequest(
-                method="tools/call",
-                params=CallToolRequestParams(name="totally_unknown", arguments={}),
-            )
-        )
-        # SDK wraps the ValueError into an error result
-        assert result.root.isError is True
+        # The v2 SDK surfaces unknown tools as an INVALID_PARAMS protocol error.
+        with pytest.raises(MCPError) as exc_info:
+            await call_tool_handler(server, "totally_unknown", {})
+        assert exc_info.value.code == INVALID_PARAMS
