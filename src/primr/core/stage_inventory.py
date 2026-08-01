@@ -240,10 +240,16 @@ PRODUCTION_STAGES: Final[tuple[ProductionStage, ...]] = (
         min_context_tokens=220_000,
         expected_input_tokens=180_000,
         expected_output_tokens=18_000,
-        current_backend="Grok continuous reasoning session or LLMRole.REASONING failover",
+        current_backend="routed through ai.stage_routing with reasoning failover",
         promotion_gate=(
             "Requires workbook quality within band of the calibrated cloud "
-            "baseline because downstream sections inherit this reasoning."
+            "baseline because downstream sections inherit this reasoning. "
+            "Route records alone are not promotion."
+        ),
+        notes=(
+            "Cloud remains the validated baseline. Agent/local profiles without "
+            "a qualifying adapter fall back to collected insights and record a "
+            "body-free route fallback."
         ),
         artifacts=("analysis_workbook.md", "hypothesis_tree.md"),
     ),

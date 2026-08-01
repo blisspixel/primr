@@ -19,7 +19,8 @@ the working folder.
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING
+import time
+from typing import TYPE_CHECKING, Any
 
 from primr.core.section_prompts import _build_fast_analysis_prompt
 from primr.pipeline.llm_failover import LLMRole, call_with_failover
@@ -29,6 +30,7 @@ from primr.utils.observability import log_structured
 
 if TYPE_CHECKING:
     from primr.ai.grok_client import ContinuousReasoningSession
+    from primr.ai.stage_routing import StageModelRoute
     from primr.core.hypothesis_tree import HypothesisTree
     from primr.core.research_framing import ResearchFraming
 
@@ -140,6 +142,42 @@ def generate_analysis_workbook(
     if tree_block:
         analysis_prompt = f"{tree_block}\n\n{analysis_prompt}"
 
+    from primr.ai import stage_routing
+
+    route: StageModelRoute | None = None
+    usage_before: stage_routing.StageUsageByModel | None = None
+    preferred_model = grok_reasoning
+    route_start = time.monotonic()
+    try:
+        route = stage_routing.resolve_stage_model(
+            "fast.analysis_workbook",
+            legacy_model_type="reasoning",
+        )
+        log_structured("info", "Analysis workbook route selected", **route.log_metadata())
+        if getattr(route, "execution_mode", "llm") == "unavailable":
+            failure = stage_routing.stage_route_failure_class(route)
+            _record_workbook_route(
+                folder_path,
+                route,
+                outcome="fallback",
+                input_count=1,
+                output_count=0,
+                duration_seconds=time.monotonic() - route_start,
+                failure_class=failure,
+            )
+            console.warn(f"Analysis workbook skipped ({failure}) — using collected insights")
+            analysis_workbook = combined_insights
+            workbook_path = os.path.join(folder_path, "analysis_workbook.md")
+            with open(workbook_path, "w", encoding="utf-8") as f:
+                f.write(analysis_workbook)
+            console.phase_complete("Analysis (Grok)")
+            return analysis_workbook, reasoning_session
+        if route.model_name:
+            preferred_model = route.model_name
+        usage_before = stage_routing.capture_stage_usage()
+    except Exception as e:
+        logger.warning("Analysis workbook route resolution failed: %s", e, exc_info=True)
+
     try:
         from primr.pipeline.integration import analysis_with_recovery
 
@@ -151,7 +189,7 @@ def generate_analysis_workbook(
             from primr.ai.grok_client import ContinuousReasoningSession as _Session
 
             reasoning_session = _Session(
-                model=grok_reasoning,
+                model=preferred_model,
                 system_prompt=analysis_system,
                 reasoning_effort=grok_reasoning_effort,
             )
@@ -166,7 +204,7 @@ def generate_analysis_workbook(
             return call_with_failover(
                 LLMRole.REASONING,
                 analysis_prompt,
-                preferred_model=grok_reasoning,
+                preferred_model=preferred_model,
                 max_tokens=18_000,
                 temperature=0.5,
                 system_prompt=analysis_system,
@@ -179,7 +217,38 @@ def generate_analysis_workbook(
                 analysis_workbook = _analysis_result.output
             else:
                 raise RuntimeError(_analysis_result.skip_reason or "Analysis recovery exhausted")
+        if route is not None:
+            _record_workbook_route(
+                folder_path,
+                route,
+                outcome="selected"
+                if analysis_workbook and analysis_workbook.strip()
+                else "fallback",
+                input_count=1,
+                output_count=1 if analysis_workbook and analysis_workbook.strip() else 0,
+                duration_seconds=time.monotonic() - route_start,
+                failure_class=None
+                if analysis_workbook and analysis_workbook.strip()
+                else "empty_workbook",
+                usage_delta=stage_routing.stage_usage_delta(usage_before)
+                if usage_before is not None
+                else None,
+            )
     except Exception as analysis_err:
+        if route is not None:
+            _record_workbook_route(
+                folder_path,
+                route,
+                outcome="fallback",
+                input_count=1,
+                output_count=0,
+                duration_seconds=time.monotonic() - route_start,
+                failure_class=stage_routing.stage_route_failure_class(route, analysis_err),
+                failure=analysis_err,
+                usage_delta=stage_routing.stage_usage_delta(usage_before)
+                if usage_before is not None
+                else None,
+            )
         console.warn(f"Analysis workbook generation failed: {analysis_err}")
         console.info("Continuing with collected insights as fallback workbook")
         log_structured("warning", "Fast mode analysis fallback used", error=str(analysis_err))
@@ -197,3 +266,32 @@ def generate_analysis_workbook(
     console.phase_complete("Analysis (Grok)")
 
     return analysis_workbook, reasoning_session
+
+
+def _record_workbook_route(
+    folder_path: str | None,
+    route: StageModelRoute,
+    *,
+    outcome: str,
+    input_count: int,
+    output_count: int,
+    duration_seconds: float,
+    failure_class: str | None = None,
+    failure: Exception | None = None,
+    usage_delta: dict[str, Any] | None = None,
+) -> None:
+    """Append body-free analysis-workbook route metadata to run state."""
+
+    from primr.ai import stage_routing
+
+    stage_routing.record_stage_route_usage(
+        folder_path,
+        route,
+        outcome=outcome,
+        input_items=input_count,
+        output_items=output_count,
+        duration_seconds=duration_seconds,
+        failure_class=failure_class,
+        failure=failure,
+        usage_delta=usage_delta,
+    )
