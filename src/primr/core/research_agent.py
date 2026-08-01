@@ -1695,11 +1695,8 @@ If the report is solid, return empty arrays."""
     except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as e:
         log_structured("warning", "Cross-validation JSON parse failed, retrying", error=str(e))
 
-        # NOTE (pipeline-resilience): This retry is a *format correction* retry
-        # (re-prompt when JSON parsing fails), not an API error retry.  It is
-        # intentionally retained alongside the stage-level RecoveryExecutor
-        # which handles API failures and skip/abort for the cross-validation
-        # background stage.
+        # NOTE (pipeline-resilience): format-correction retry only (re-prompt on
+        # JSON parse failure), not API error retry — RecoveryExecutor owns that.
         # Retry with tighter prompt including the failed response
         retry_prompt = (
             "Your previous response could not be parsed as JSON. "
@@ -3403,10 +3400,10 @@ def perform_deep_research(
                         mode=research_mode,
                         fail_on_low_scrape=fail_on_low_scrape,
                         supplemental_context=hiring_context or None,
+                        folder_path=folder_path,
                     ),
                     on_progress=progress_callback,
                     context_files=context_files,
-                    folder_path=folder_path,
                 )
             )
 
@@ -4313,6 +4310,7 @@ def run_doctor():
     from primr.core.cli_doctor import run_doctor as _cli_run_doctor
 
     return _cli_run_doctor()
+
 
 if __name__ == "__main__":
     main()

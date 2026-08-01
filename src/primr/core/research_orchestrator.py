@@ -96,6 +96,8 @@ class ResearchOrchestrator:
             ResearchError: If research fails
         """
         config = config or ResearchConfig(mode=mode)
+        # Prefer explicit kwarg; config.folder_path keeps research_agent under the line ceiling.
+        route_folder = folder_path or config.folder_path
         start_time = asyncio.get_running_loop().time()
 
         with operation_context(
@@ -111,7 +113,7 @@ class ResearchOrchestrator:
                         config,
                         on_progress,
                         context_files,
-                        folder_path=folder_path,
+                        folder_path=route_folder,
                     )
                 elif mode == ResearchMode.STRUCTURED:
                     result = await self._run_structured_research(

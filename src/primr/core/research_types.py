@@ -38,6 +38,8 @@ class ResearchConfig:
     # and DEEP_RESEARCH modes). Callers own fencing: anything derived from
     # scraped text must arrive already fenced (hiring signals do).
     supplemental_context: str | None = None
+    # Optional run working folder for body-free stage_routes persistence.
+    folder_path: str | None = None
 
 
 @dataclass
