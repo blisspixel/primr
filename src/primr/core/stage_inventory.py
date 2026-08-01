@@ -319,10 +319,15 @@ PRODUCTION_STAGES: Final[tuple[ProductionStage, ...]] = (
         min_context_tokens=96_000,
         expected_input_tokens=65_000,
         expected_output_tokens=8_000,
-        current_backend="grok_writing via trust polish and citation repair helpers",
+        current_backend="routed through ai.stage_routing with writing polish helpers",
         promotion_gate=(
             "Requires zero increase in scaffolding leaks, citation breakage, or "
-            "confidence-label overstatement."
+            "confidence-label overstatement. Route records alone are not promotion."
+        ),
+        notes=(
+            "Cloud remains the validated baseline. Agent/local profiles without "
+            "a qualifying adapter skip LLM polish/repair and keep deterministic "
+            "cleanup only."
         ),
         artifacts=("_shipping_repair.json",),
     ),
@@ -365,10 +370,15 @@ PRODUCTION_STAGES: Final[tuple[ProductionStage, ...]] = (
         requires_external_egress=True,
         optional=True,
         budget_checkpoint=True,
-        current_backend="Grok writing with optional vendor Deep Research context",
+        current_backend="routed through ai.stage_routing with writing failover",
         promotion_gate=(
             "Requires per-strategy QA, source health, and business utility within "
-            "band before a non-cloud backend can generate strategy artifacts."
+            "band before a non-cloud backend can generate strategy artifacts. "
+            "Route records alone are not promotion."
+        ),
+        notes=(
+            "Cloud remains the validated baseline. Agent/local profiles without "
+            "a qualifying adapter skip strategy generation entirely."
         ),
         artifacts=("AI_Strategy.md", "strategy modules"),
     ),

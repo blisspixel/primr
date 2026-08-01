@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   through the reasoning-role router (with writing-role model for regenerations),
   records body-free route usage, and leaves the report unchanged when
   agent/local profiles lack a qualifying adapter.
+- **`fast.trust_polish` capability-router wiring.** LLM polish and citation
+  repair resolve through the writing-role router, record body-free route usage,
+  and skip LLM passes (deterministic cleanup only) when agent/local profiles
+  lack a qualifying adapter.
+- **`fast.strategy_generation` capability-router wiring.** Optional strategy
+  generation resolves through the writing-role router, records body-free route
+  usage, and skips the entire strategy phase when agent/local profiles lack a
+  qualifying adapter.
 
 - **Standing `fast.source_relevance` labeled corpus (`source_relevance_standing_v1`).**
   Ships a body-free, package-local six-case keep-list corpus with required

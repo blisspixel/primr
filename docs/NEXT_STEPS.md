@@ -406,13 +406,14 @@ Do next:
   posting metadata, and both record body-free `agent_profile_unavailable` route
   fallbacks instead of invoking cloud LLMs.
 - Wire the next production stages through capability routing while preserving
-  failovers. Shipped: `fast.research_deepening` and `fast.analysis_workbook`
-  resolve through reasoning-role routing; `fast.report_sections` resolves
-  through writing-role routing. All three record body-free stage route usage
-  and fail closed for agent/local profiles without a qualifying adapter
-  (workbook falls back to collected insights; report writing returns no
-  content). Cloud remains the validated baseline; no host adapter is
-  registered for these stages yet.
+  failovers. Shipped across the fast pipeline: utility stages
+  (`scrape_summary`, `source_relevance`, `hiring_signals`), reasoning stages
+  (`research_deepening`, `analysis_workbook`, `cross_validation`), and writing
+  stages (`report_sections`, `trust_polish`, `strategy_generation`). All record
+  body-free stage route usage and fail closed for agent/local profiles without
+  a qualifying adapter. Cloud remains the validated baseline; host adapters
+  remain limited to the unpromoted `fast.source_relevance` pilot. Optional
+  `fast.label_honesty` still uses its gated calibration judge path.
 - Promote one host/local candidate only after stage-scoped evals prove quality,
   cost, latency, failure behavior, and billing provenance. If billing cannot be
   proven, promotion requires an explicit operator acknowledgment that metered
@@ -424,18 +425,15 @@ Do next:
 Done when:
 
 - The stage declares requirements; the router chooses candidates; execution
-  consumes the resulting chain. The declaration slice, three utility-stage
-  runtime slices, and the `fast.research_deepening`,
-  `fast.analysis_workbook`, `fast.report_sections`, and
-  `fast.cross_validation` slices are shipped; broader production wiring
-  (polish, strategy, label honesty) is still pending.
+  consumes the resulting chain. The declaration slice and the fast-pipeline
+  runtime slices through strategy generation are shipped. Remaining: optional
+  `fast.label_honesty` router binding, premium deep-research inventory
+  execution wiring, and measured host promotion for source-relevance.
 - Estimates and usage records name the backend and declared route category. The
-  route ledger records backend/profile/billing metadata for
-  `fast.scrape_summary`, `fast.source_relevance`, `fast.hiring_signals`,
-  `fast.research_deepening`, `fast.analysis_workbook`,
-  `fast.report_sections`, and `fast.cross_validation`, and appends measured
-  stage-scoped token/cache/cost deltas when counters are available. Codex route
-  metadata is not proof of the authenticated session's billing mode.
+  route ledger records backend/profile/billing metadata for the fast-pipeline
+  routed stages listed above and appends measured stage-scoped
+  token/cache/cost deltas when counters are available. Codex route metadata is
+  not proof of the authenticated session's billing mode.
 - Provider comparison artifacts exist for every promoted stage.
   The route-metadata comparison artifact exists; quality comparison artifacts
   now have a CLI-accessible scorecard layer, and website-summary local-stage

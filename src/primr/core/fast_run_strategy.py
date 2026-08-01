@@ -18,6 +18,7 @@ QA console lines, run-budget warning, per-strategy artifact writes via
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -185,6 +186,63 @@ def run_strategy_phase(
         6, total_phases, "Strategy (Grok)", "Generating strategy documents", "3-8 min"
     )
 
+    from primr.ai import stage_routing
+
+    writing_model = grok_writing
+    reasoning_model = grok_reasoning
+    strategy_route = None
+    strategy_usage_before = None
+    strategy_route_start = time.monotonic()
+    try:
+        strategy_route = stage_routing.resolve_stage_model(
+            "fast.strategy_generation",
+            legacy_model_type="writing",
+        )
+        log_structured(
+            "info", "Strategy generation route selected", **strategy_route.log_metadata()
+        )
+        if getattr(strategy_route, "execution_mode", "llm") == "unavailable":
+            failure = stage_routing.stage_route_failure_class(strategy_route)
+            stage_routing.record_stage_route_usage(
+                folder_path,
+                strategy_route,
+                outcome="fallback",
+                input_items=len(requested_strategies),
+                output_items=0,
+                duration_seconds=time.monotonic() - strategy_route_start,
+                failure_class=failure,
+            )
+            console.warn(f"Strategy generation skipped ({failure}) — no writing backend available")
+            outcome_tracker.mark_remaining_skipped()
+            refresh_tracker.mark_remaining_skipped()
+            refresh_outcome = refresh_tracker.snapshot()
+            persist_vendor_refresh_outcome(folder_path, refresh_outcome)
+            return StrategyPhaseResult(
+                strategy_paths,
+                strategy_trust_stats,
+                vendor_refresh_tasks_started,
+                outcome_tracker.snapshot(),
+                refresh_outcome,
+            )
+        if strategy_route.model_name:
+            writing_model = strategy_route.model_name
+        # Prefer a routed reasoning model for enrichment when available.
+        try:
+            reasoning_route = stage_routing.resolve_stage_model(
+                "fast.analysis_workbook",
+                legacy_model_type="reasoning",
+            )
+            if (
+                reasoning_route.model_name
+                and getattr(reasoning_route, "execution_mode", "llm") != "unavailable"
+            ):
+                reasoning_model = reasoning_route.model_name
+        except Exception as reasoning_route_err:
+            logger.debug("Strategy reasoning route resolution skipped: %s", reasoning_route_err)
+        strategy_usage_before = stage_routing.capture_stage_usage()
+    except Exception as e:
+        logger.warning("Strategy generation route resolution failed: %s", e, exc_info=True)
+
     # --- AI Strategy (per vendor) ---
     # When multiple platforms are active (common when recon detects
     # both AWS and Azure), run the per-vendor strategies concurrently.
@@ -306,7 +364,7 @@ def run_strategy_phase(
                     return call_with_failover(
                         LLMRole.WRITING,
                         _prompt,
-                        preferred_model=grok_writing,
+                        preferred_model=writing_model,
                         max_tokens=32_000,
                     )
 
@@ -356,8 +414,8 @@ def run_strategy_phase(
                         set(validated_source_urls),
                         analysis_workbook,
                         website,
-                        grok_reasoning=grok_reasoning,
-                        grok_writing=grok_writing,
+                        grok_reasoning=reasoning_model,
+                        grok_writing=writing_model,
                     )
                 except Exception as enrich_err:
                     log_structured(
@@ -374,7 +432,7 @@ def run_strategy_phase(
                         vendor,
                         "AI Strategy",
                         list(validated_source_urls),
-                        model=grok_writing,
+                        model=writing_model,
                     )
                 )
                 qa_gate = "PASS" if strategy_qa["qa_gate_passed"] else "WARN"
@@ -529,7 +587,7 @@ def run_strategy_phase(
                     return call_with_failover(
                         LLMRole.WRITING,
                         _p,
-                        preferred_model=grok_writing,
+                        preferred_model=writing_model,
                         max_tokens=32_000,
                     )
 
@@ -580,8 +638,8 @@ def run_strategy_phase(
                         set(validated_source_urls),
                         analysis_workbook,
                         website,
-                        grok_reasoning=grok_reasoning,
-                        grok_writing=grok_writing,
+                        grok_reasoning=reasoning_model,
+                        grok_writing=writing_model,
                     )
                 except Exception as enrich_err:
                     log_structured(
@@ -598,7 +656,7 @@ def run_strategy_phase(
                         display_name_strat,
                         display_name_strat,
                         list(validated_source_urls),
-                        model=grok_writing,
+                        model=writing_model,
                     )
                 )
                 qa_gate = "PASS" if strategy_qa["qa_gate_passed"] else "WARN"
@@ -699,6 +757,21 @@ def run_strategy_phase(
 
     refresh_outcome = refresh_tracker.snapshot()
     persist_vendor_refresh_outcome(folder_path, refresh_outcome)
+    if strategy_route is not None:
+        from primr.ai import stage_routing as stage_routing_mod
+
+        stage_routing_mod.record_stage_route_usage(
+            folder_path,
+            strategy_route,
+            outcome="selected" if strategy_paths else "fallback",
+            input_items=len(requested_strategies),
+            output_items=len(strategy_paths),
+            duration_seconds=time.monotonic() - strategy_route_start,
+            failure_class=None if strategy_paths else "no_strategies_generated",
+            usage_delta=stage_routing_mod.stage_usage_delta(strategy_usage_before)
+            if strategy_usage_before is not None
+            else None,
+        )
     return StrategyPhaseResult(
         strategy_paths,
         strategy_trust_stats,
