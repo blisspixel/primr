@@ -189,6 +189,29 @@ def handle_stage_quality_generation(
     return 0, generated_path
 
 
+def maybe_handle_standing_corpus_inspect_only(config: Any, console: Any) -> int | None:
+    """Return an exit code when eval is inspect-only; otherwise None."""
+
+    if not getattr(config, "inspect_source_relevance_standing_corpus", False):
+        return None
+    if any(
+        (
+            getattr(config, "eval_source_relevance_standing_corpus", False),
+            getattr(config, "eval_source_relevance_fixture", None),
+            getattr(config, "eval_local_stage", None),
+            getattr(config, "eval_page_access_fixture", None),
+            getattr(config, "eval_stage_scorecard", False),
+            getattr(config, "eval_llm_judge", False),
+            getattr(config, "eval_run_missing", False),
+        )
+    ):
+        return None
+    code, _path = handle_inspect_standing_source_relevance_corpus(
+        config=config, console=console
+    )
+    return code
+
+
 def handle_inspect_standing_source_relevance_corpus(
     *,
     config: Any,

@@ -79,7 +79,9 @@ async def test_orchestrator_fails_closed_when_route_unavailable(monkeypatch, tmp
         launched["orchestrator"] = True
         raise AssertionError("deep research must not launch when route is unavailable")
 
-    monkeypatch.setattr("primr.core.research_orchestrator.get_deep_research_orchestrator", boom)
+    monkeypatch.setattr(
+        "primr.core.premium_deep_research_stage.get_deep_research_orchestrator", boom
+    )
 
     orch = ResearchOrchestrator()
     result = await orch._run_deep_research_with_context(

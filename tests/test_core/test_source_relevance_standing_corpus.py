@@ -195,17 +195,13 @@ def test_standing_corpus_id_constant_matches_package_file() -> None:
 
 
 @given(
-    body_key=st.sampled_from(
-        ["source_url", "source_text", "url", "text", "body", "snippet"]
-    ),
+    body_key=st.sampled_from(["source_url", "source_text", "url", "text", "body", "snippet"]),
     body_value=st.sampled_from(
         ["https://must-not-leak.example", "raw body text", ["x"], {"k": "v"}]
     ),
 )
 @settings(max_examples=20, deadline=None)
-def test_standing_inspection_blocks_any_body_field(
-    body_key: str, body_value: object
-) -> None:
+def test_standing_inspection_blocks_any_body_field(body_key: str, body_value: object) -> None:
     payload = json.loads(standing_source_relevance_corpus_path().read_text(encoding="utf-8"))
     payload["cases"][0][body_key] = body_value
     inspection = inspect_standing_source_relevance_corpus(payload=payload)

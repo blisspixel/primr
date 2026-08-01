@@ -684,146 +684,16 @@ class ResearchOrchestrator:
         context_files: list | None = None,
         folder_path: str | None = None,
     ) -> OrchestratorResult:
-        """
-        Run Deep Research using the Accordion Method for comprehensive reports.
+        """Run Deep Research Accordion; implementation lives in the stage module."""
+        from primr.core.premium_deep_research_stage import run_deep_research_with_context
 
-        This uses the same Accordion Method as --mode full, but WITHOUT Stage 1 scraping:
-        - Phase 1: Deep Research gathers research dossier (raw facts)
-        - Phase 2: Gemini Flash writes each section with context continuity
-
-        This produces 30+ page reports with substantive long-form content,
-        not the terse bullet-point output from raw Deep Research.
-
-        Context files (if provided) are uploaded to File Search Store to inform the research.
-
-        Model selection is resolved through the capability router for
-        ``premium.deep_research``. Agent/local profiles without a deep-research
-        backend fail closed without launching the Gemini agent.
-        """
-        import time as time_module
-
-        from primr.ai import stage_routing
-        from primr.utils.observability import log_structured
-
-        start_time = time_module.time()
-        route = None
-        try:
-            route = stage_routing.resolve_stage_model(
-                "premium.deep_research",
-                legacy_model_type="reasoning",
-            )
-            log_structured("info", "Premium deep research route selected", **route.log_metadata())
-            if getattr(route, "execution_mode", "llm") == "unavailable":
-                failure = stage_routing.stage_route_failure_class(route)
-                stage_routing.record_stage_route_usage(
-                    folder_path,
-                    route,
-                    outcome="fallback",
-                    input_items=1,
-                    output_items=0,
-                    duration_seconds=time_module.time() - start_time,
-                    failure_class=failure,
-                )
-                error = f"Deep research unavailable: {failure}"
-                logger.warning(error)
-                return OrchestratorResult(
-                    company_name=company_name,
-                    website=website,
-                    mode=ResearchMode.DEEP_RESEARCH,
-                    section_results={},
-                    success=False,
-                    error=error,
-                    duration_seconds=time_module.time() - start_time,
-                )
-        except Exception as route_err:
-            logger.warning("Premium deep research route resolution failed: %s", route_err)
-
-        if on_progress:
-            on_progress("Using Accordion Method for comprehensive report...")
-            on_progress("  Phase 1: Deep Research gathers facts")
-            on_progress("  Phase 2: Section-by-section writing with Gemini Flash")
-            if route is not None and route.backend_id:
-                on_progress(f"  Backend: {route.backend_id}")
-
-        # Use the Accordion Method orchestrator (same as --mode full, but no Stage 1)
-        orchestrator = get_deep_research_orchestrator()
-
-        def progress_wrapper(msg: str) -> None:
-            if on_progress:
-                on_progress(msg)
-
-        # Generate comprehensive report using Accordion Method. No Stage 1
-        # scraping here, so the only stage-1 context is supplemental evidence
-        # (e.g. hiring signals) when the caller provided it.
-        deep_result = await orchestrator.generate_comprehensive_report(
-            company_name=company_name,
-            website_url=website,
-            stage1_context=config.supplemental_context or None,
-            on_progress=progress_wrapper,
-            target_pages=30,  # Target 30+ pages
-        )
-
-        total_duration = time_module.time() - start_time
-
-        if not deep_result.success:
-            logger.warning(f"Deep research failed: {deep_result.error}")
-            if route is not None:
-                stage_routing.record_stage_route_usage(
-                    folder_path,
-                    route,
-                    outcome="fallback",
-                    input_items=1,
-                    output_items=0,
-                    duration_seconds=total_duration,
-                    failure_class="deep_research_failed",
-                )
-            return OrchestratorResult(
-                company_name=company_name,
-                website=website,
-                mode=ResearchMode.DEEP_RESEARCH,
-                section_results={},
-                success=False,
-                error=deep_result.error,
-                duration_seconds=total_duration,
-            )
-
-        # Format the report (resolve citation URLs, clean TOC)
-        formatter = ReportFormatter()
-        formatted = formatter.format_report(
-            raw_content=deep_result.content, company_name=company_name, citation_style="numbered"
-        )
-
-        # Build section results for compatibility
-        section_results = {
-            "strategic_overview": formatted.markdown,
-        }
-
-        logger.info(
-            f"Deep research (Accordion) completed: ~{formatted.word_count} words, "
-            f"{deep_result.api_calls} API calls, {total_duration:.0f}s"
-        )
-        if route is not None:
-            stage_routing.record_stage_route_usage(
-                folder_path,
-                route,
-                outcome="selected",
-                input_items=1,
-                output_items=deep_result.sections_written or 1,
-                duration_seconds=total_duration,
-            )
-
-        return OrchestratorResult(
+        return await run_deep_research_with_context(
             company_name=company_name,
             website=website,
-            mode=ResearchMode.DEEP_RESEARCH,
-            section_results=section_results,
-            raw_content=formatted.markdown,  # Use formatted content with resolved URLs
-            citations=formatted.citations,  # Use resolved citations
-            success=True,
-            duration_seconds=total_duration,
-            sections_written=deep_result.sections_written,
-            search_queries_count=deep_result.search_queries_count,
-            pending_interaction_id=deep_result.interaction_id,
+            config=config,
+            on_progress=on_progress,
+            context_files=context_files,
+            folder_path=folder_path,
         )
 
     def _merge_research_results(
