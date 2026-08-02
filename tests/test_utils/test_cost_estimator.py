@@ -719,12 +719,12 @@ class TestGrokTier:
         assert writing == "grok-4.20-non-reasoning"
 
     def test_get_grok_models_max(self):
-        """Max tier returns Grok 4.3 for both stages (4.3 has no NR variant)."""
+        """Max tier returns Grok 4.5 for both stages (latest flagship, opt-in)."""
         from primr.config.models import GrokTier
 
         reasoning, writing = PrimrModels.get_grok_models(GrokTier.MAX)
-        assert reasoning == "grok-4.3"
-        assert writing == "grok-4.3"
+        assert reasoning == "grok-4.5"
+        assert writing == "grok-4.5"
 
     def test_grok_43_pricing(self):
         """Grok 4.3 standard pricing: $1.25/$2.50, cache $0.20."""
@@ -732,18 +732,20 @@ class TestGrokTier:
         assert ModelRegistry.GROK_4_3.cost_per_1m_output_tokens == 2.50
         assert ModelRegistry.GROK_4_3.cost_per_1m_input_tokens_cached == 0.20
 
-    def test_grok_43_flat_pricing(self):
-        """Grok 4.3 launched as flat-rate — xAI publishes no >200K tier.
+    def test_grok_43_long_context_tier(self):
+        """Grok 4.3 has a published ≥200k long-context surcharge (docs.x.ai)."""
+        assert ModelRegistry.GROK_4_3.has_tiered_pricing
+        assert ModelRegistry.GROK_4_3.tier_threshold_tokens == 200_000
+        assert ModelRegistry.GROK_4_3.cost_per_1m_input_tokens_high == 2.50
+        assert ModelRegistry.GROK_4_3.cost_per_1m_output_tokens_high == 5.00
 
-        v1.22.0 registered placeholder high-tier rates (2x base) pending xAI
-        confirmation. The May 2026 audit confirmed no such tier exists, so the
-        placeholders were removed in the post-audit registry update.
-        See ROADMAP "Model Landscape Audit — May 2026".
-        """
-        assert not ModelRegistry.GROK_4_3.has_tiered_pricing
-        assert ModelRegistry.GROK_4_3.tier_threshold_tokens is None
-        assert ModelRegistry.GROK_4_3.cost_per_1m_input_tokens_high is None
-        assert ModelRegistry.GROK_4_3.cost_per_1m_output_tokens_high is None
+    def test_grok_45_pricing(self):
+        """Grok 4.5 pricing: $2/$6, cache $0.30, ≥200k surcharge."""
+        assert ModelRegistry.GROK_4_5.cost_per_1m_input_tokens == 2.00
+        assert ModelRegistry.GROK_4_5.cost_per_1m_output_tokens == 6.00
+        assert ModelRegistry.GROK_4_5.cost_per_1m_input_tokens_cached == 0.30
+        assert ModelRegistry.GROK_4_5.has_tiered_pricing
+        assert ModelRegistry.GROK_4_5.tier_threshold_tokens == 200_000
 
     def test_grok_43_always_on_reasoning(self):
         """Grok 4.3 is reasoning-only — there is no non-reasoning variant."""
@@ -788,13 +790,11 @@ class TestGrokTier:
         )
         assert abs(hybrid_est.total_cost - fast_est.total_cost) < 0.001
 
-    def test_max_tier_cheaper_than_hybrid_when_xai_only(self, monkeypatch):
-        """With XAI-only (legacy) routing both tiers price writing as Grok, and
-        MAX (grok-4.3 cached) edges out HYBRID (grok-4.20-nr) on writing.
+    def test_max_tier_dearer_than_hybrid_when_xai_only(self, monkeypatch):
+        """MAX uses Grok 4.5 everywhere; hybrid keeps 4.3 + 4.20-nr writing.
 
-        Once GEMINI_API_KEY is also set, the v1.24.x cross-provider routing
-        makes HYBRID much cheaper than MAX (gemini-3.1-flash-lite writing
-        vs grok-4.3 writing) — see test_hybrid_cheaper_than_max_with_gemini.
+        4.5 is the latest flagship and is priced higher, so MAX should cost
+        more than hybrid on an xAI-only key set.
         """
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
@@ -804,12 +804,11 @@ class TestGrokTier:
             "complete", fast_mode=True, use_historical=False, grok_tier="hybrid"
         )
         max_est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="max")
-        assert max_est.total_cost <= hybrid_est.total_cost
+        assert max_est.total_cost > hybrid_est.total_cost
 
     def test_hybrid_cheaper_than_max_with_gemini(self, monkeypatch):
         """With GEMINI_API_KEY set, HYBRID routes writing to gemini-3.1-flash-lite
-        ($0.25/$1.50) while MAX stays all-Grok ($1.25/$2.50). HYBRID should
-        come in well under MAX — the v1.24.0 sub-$1 default behavior."""
+        while MAX stays all-Grok 4.5. HYBRID should stay under MAX."""
         monkeypatch.setenv("GEMINI_API_KEY", "fake-test-key")
         monkeypatch.setenv("XAI_API_KEY", "fake-test-key")
         hybrid_est = estimate_cost(
@@ -846,7 +845,7 @@ class TestGrokTier:
     def test_max_tier_mode_label(self):
         """Max tier estimate should have correct mode label."""
         estimate = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="max")
-        assert estimate.mode == "full (Grok 4.3 max)"
+        assert estimate.mode == "full (Grok 4.5 max)"
 
     def test_fast_tier_cost_range_xai_only(self, monkeypatch):
         """Fast tier in legacy XAI-only mode: grok-4.3 reasoning + grok-4.20-nr writing,
@@ -912,9 +911,9 @@ class TestGrokTier:
         assert "Sonnet 5 token estimates include a 30% tokenizer safety factor" in notes
 
     def test_max_tier_cost_range(self):
-        """Max tier (Grok 4.3 everywhere) should be in the $2.00-$5.00 band."""
+        """Max tier (Grok 4.5 everywhere) is dearer than hybrid; stay under $12."""
         est = estimate_cost("complete", fast_mode=True, use_historical=False, grok_tier="max")
-        assert 2.00 < est.total_cost < 5.00
+        assert 2.00 < est.total_cost < 12.00
 
     def test_fast_mode_never_includes_deep_research_any_tier(self):
         """No Grok tier should include Deep Research cost."""

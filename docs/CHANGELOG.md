@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Docs site home and next-steps currency.** Docs index leads with the same
   front-door framing as the root README (agentic structured research, start
   table, links into guides). `NEXT_STEPS` marks post-1.39.2 status.
+- **Grok 4.5 registered; MAX tier uses latest flagship.** `grok-4.5` is in the
+  model registry with published xAI pricing (including ≥200k long-context
+  surcharge). Default hybrid/fast reasoning stays on `grok-4.3` for the
+  measured sub-$1 recipe; `--grok-tier max` now routes to 4.5. Grok 4.3 also
+  records its ≥200k surcharge from the current pricing table.
 
 ### Fixed
 

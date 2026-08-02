@@ -785,15 +785,16 @@ def _estimate_fast_mode_cost(
     )
 
     # Costs: price each bucket using the resolved model. Pre-run estimates do
-    # not assume prompt-cache hits, but the returned fields expose zero cached
-    # input explicitly so downstream UIs can distinguish "not assumed" from
-    # "not supported."
-    utility_breakdown = PrimrModels.calculate_cost_breakdown(utility_model, flash_in, flash_out)
+    # not assume prompt-cache hits. Pass prompt_tokens so ≥200k long-context
+    # surcharges (Grok 4.3/4.5) apply when stage input estimates are large.
+    utility_breakdown = PrimrModels.calculate_cost_breakdown(
+        utility_model, flash_in, flash_out, prompt_tokens=flash_in
+    )
     reasoning_breakdown = PrimrModels.calculate_cost_breakdown(
-        reasoning_model, grok_reasoning_in, grok_reasoning_out
+        reasoning_model, grok_reasoning_in, grok_reasoning_out, prompt_tokens=grok_reasoning_in
     )
     writing_breakdown = PrimrModels.calculate_cost_breakdown(
-        writing_model, grok_writing_in, grok_writing_out
+        writing_model, grok_writing_in, grok_writing_out, prompt_tokens=grok_writing_in
     )
     utility_cost = utility_breakdown.total_cost
     reasoning_cost = reasoning_breakdown.total_cost
@@ -845,7 +846,7 @@ def _estimate_fast_mode_cost(
     tier_labels = {
         "fast": "Grok 4.3 (low-effort)",
         "hybrid": "Grok 4.3 hybrid",
-        "max": "Grok 4.3 max",
+        "max": "Grok 4.5 max",
     }
     tier_label = tier_labels.get(grok_tier, "Grok")
     mode_provider = _provider_label_for_model(reasoning_model)
