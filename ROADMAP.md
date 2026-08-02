@@ -1,6 +1,6 @@
 # Primr Roadmap
 
-Current State: v1.39.0
+Current State: v1.39.1
 
 Primr is a CLI-first, local research tool for company intelligence and deep strategic analysis. It aims to accelerate research workflows while producing consultant-grade outputs that stay explicit about uncertainty.
 
@@ -2009,6 +2009,7 @@ For the latest changes, check [GitHub releases](https://github.com/blisspixel/pr
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.39.1 | Aug 2026 | **Front door and docs polish.** README re-centered on agentic structured research with a placeholder ExampleCo CLI demo; docs site home and RUN_MODES guidance updated; deep-research runs forward `folder_path` for stage_routes. |
 | 1.39.0 | Aug 2026 | **Native MCP 2026-07-28 plus full capability-router production wiring.** Migrated the MCP server to MCP Python SDK v2 (`mcp>=2.0.0,<3`) with dual-era clients, cache hints, resource templates, and `-32602` unknown-name errors. Wired the remaining fast-pipeline stages and `premium.deep_research` through the capability router with body-free `stage_routes` and fail-closed agent/local behavior. Shipped the standing `source_relevance_standing_v1` offline scorecard corpus (report-only, not a promotion gate). |
 | 1.38.0 | Jul 2026 | **Multi-cloud provider routing: AWS Bedrock and Azure AI Foundry.** Research runs can now route stages through Bedrock (registered, priced Amazon Nova models) and Foundry (operator-declared deployment + pricing). Both are main-process only and refused inside supervised workers, keeping AWS/Azure credentials out of the lower-trust worker boundary; nothing is guessed into the cost gate. |
 | 1.37.2 | Jul 2026 | **Latest Gemini models and documentation excellence.** Registers `gemini-3.6-flash` and `gemini-3.5-flash-lite` (July 2026 GA) as available, priced, eval-gateable models without changing any default tier. Brings the full docs surface current to 1.37.x, adds a complete/dated self-enforcing documentation index, and guards every internal Markdown link in CI. |
