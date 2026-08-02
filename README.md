@@ -135,8 +135,8 @@ Keys and full config: [API Key Setup](docs/API_KEYS.md) ·
 | Agent-host dossier (Zero by default) | `primr "Company" https://company.com` |
 | Keyless evidence bundle | `primr prep "Company" https://company.com` |
 | Estimate a paid run | `primr "Company" https://company.com --dry-run` |
-| Strategic Overview only | `… --no-ai-strategy` |
-| Site corpus only | `… --mode scrape` |
+| Strategic Overview only | `primr "Company" https://company.com --no-ai-strategy` |
+| Site corpus only | `primr "Company" https://company.com --mode scrape` |
 | DNS only (no keys) | `primr recon company.com` |
 | Skills pack | `primr skills "Company" https://company.com` |
 | Markdown → DOCX/TXT ($0) | `primr render "output/report.md"` |
