@@ -36,14 +36,26 @@ class TestRetirementMigration:
         assert writing == "grok-4.20-non-reasoning"
 
     def test_get_grok_models_max_tier(self) -> None:
-        """MAX tier returns (grok-4.3, grok-4.3)."""
+        """MAX tier returns (grok-4.5, grok-4.5) — latest flagship, opt-in."""
         reasoning, writing = PrimrModels.get_grok_models(GrokTier.MAX)
-        assert reasoning == "grok-4.3"
-        assert writing == "grok-4.3"
+        assert reasoning == "grok-4.5"
+        assert writing == "grok-4.5"
 
     def test_grok_model_resolves_to_grok_43(self) -> None:
-        """PrimrModels.GROK_MODEL resolves to grok-4.3."""
+        """PrimrModels.GROK_MODEL resolves to grok-4.3 (hybrid default)."""
         assert PrimrModels.GROK_MODEL == "grok-4.3"
+
+    def test_grok_45_registered_with_tiered_pricing(self) -> None:
+        """Grok 4.5 is registered and priced from current xAI docs."""
+        config = PrimrModels.get_model_config("grok-4.5")
+        assert config is not None
+        assert config.display_name == "Grok 4.5"
+        assert config.cost_per_1m_input_tokens == 2.00
+        assert config.cost_per_1m_output_tokens == 6.00
+        assert config.max_input_tokens == 500_000
+        assert config.has_tiered_pricing is True
+        assert config.tier_threshold_tokens == 200_000
+        assert config.cost_per_1m_input_tokens_cached == 0.30
 
     def test_grok_model_writing_resolves_to_420_nr(self) -> None:
         """PrimrModels.GROK_MODEL_WRITING resolves to grok-4.20-non-reasoning."""
@@ -476,23 +488,17 @@ class TestCostInvariants:
 class TestCostEstimatorEdgeCases:
     """Task 12.3 — Edge cases for cost estimation."""
 
-    def test_grok_43_has_no_high_tier(self) -> None:
-        """Grok 4.3 launched as flat-rate — xAI publishes no >200K input tier.
-
-        v1.22.0 registered placeholder high-tier rates pending xAI confirmation.
-        The May 2026 audit confirmed no such tier exists; placeholders were
-        removed in the post-audit registry update.
-        """
+    def test_grok_43_has_published_high_tier(self) -> None:
+        """Grok 4.3 now has a published ≥200k long-context surcharge (Aug 2026)."""
         model = "grok-4.3"
         config = PrimrModels.get_model_config(model)
         assert config is not None
-        assert not config.has_tiered_pricing
-        assert config.tier_threshold_tokens is None
+        assert config.has_tiered_pricing
+        assert config.tier_threshold_tokens == 200_000
 
-        # Cost should be identical regardless of prompt size — no tier flip.
         cost_small = PrimrModels.calculate_cost(model, 100_000, 50_000, prompt_tokens=100_000)
         cost_large = PrimrModels.calculate_cost(model, 100_000, 50_000, prompt_tokens=300_000)
-        assert cost_large == cost_small
+        assert cost_large > cost_small
 
     def test_calculate_cost_conservative_uses_highest_tier(self) -> None:
         """calculate_cost_conservative uses highest tier for tiered models."""
