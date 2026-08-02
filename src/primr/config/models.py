@@ -26,13 +26,18 @@ KEY CHANGES (June 29, 2026 audit):
   tiers reject manual thinking budgets (handled in ai/providers/anthropic.py).
 - xAI Grok 4.3 reasoning is NOT always-on — reasoning_effort has four levels
   (none/low/medium/high, default low); published output cap is unverified.
+- Grok 4.5 registered (Jul 2026) as available / MAX-tier flagship; hybrid
+  default stays on 4.3 for the measured sub-$1 recipe. 4.3 and 4.5 both use
+  published >200k long-context surcharge tiers.
 
-AVAILABLE MODELS (June 2026):
-------------------------------
+AVAILABLE MODELS (August 2026):
+-------------------------------
 xAI / GROK:
-  grok-4.3                   - Flagship reasoning, $1.25/$2.50 + $0.20 cached, 1M context
-                               No published >200K tier (flat rate)
-  grok-4.20-non-reasoning    - Bulk writing replacement after 4.1 retirement, $2/$6
+  grok-4.5                   - Latest flagship (coding/agentic), $2/$6 (+ tier ≥200k),
+                               500k ctx, $0.30 cached. MAX tier only until eval-promoted.
+  grok-4.3                   - Default hybrid reasoning, $1.25/$2.50 (+ tier ≥200k),
+                               1M ctx, $0.20 cached
+  grok-4.20-non-reasoning    - Bulk writing replacement after 4.1 retirement
   grok-4.1-fast-*            - DEPRECATED, retired May 15, 2026
 
 GOOGLE / GEMINI:
@@ -85,7 +90,13 @@ WHEN TO USE EACH (post-v1.24.0 eval-driven defaults will refine these):
 - UTILITY tier (scraping summaries, link selection, QA): Gemini 3 Flash or Flash-Lite
 - WRITING tier (bulk section generation): Gemini 3.1 Flash-Lite (cheapest sub-$1 candidate)
 - REASONING tier (gap analysis, workbook, cross-validation): Grok 4.3 with cache
+- MAX Grok tier (`--grok-tier max`): Grok 4.5 (latest flagship; higher cost)
 - PREMIUM tier (Deep Research): Gemini Deep Research Agent
+
+KEY CHANGES (August 2026 refresh):
+- Grok 4.5 (`grok-4.5`) REGISTERED from docs.x.ai. Used only for GrokTier.MAX.
+  Hybrid/fast defaults stay on 4.3 so dry-run cost claims remain honest.
+- Grok 4.3 long-context surcharge (≥200k) filled from current xAI pricing table.
 
 KEY CHANGES (May 30, 2026 refresh):
 - Claude Opus 4.7 -> 4.8 (`claude-opus-4-8`, GA May 28). Identical pricing; the
@@ -95,8 +106,8 @@ KEY CHANGES (May 30, 2026 refresh):
   yet a default tier. Stronger than 3.1 Pro at lower cost ($1.50/$9 vs $2/$12) —
   a Pro-tier replacement candidate, NOT a sub-$1 writing-tier swap. Default
   repoint is eval-gated. Gemini 3.5 Pro (June) + Omni (weeks) not yet on the API.
-- xAI Grok 4.3 remains flagship; new Grok Build 0.1 is coding-specialized and not
-  relevant to primr's research/writing pipeline. OpenAI GPT-5.5 remains latest.
+- xAI Grok 4.3 was the hybrid flagship; Grok Build 0.1 is coding-specialized and
+  not a research default. OpenAI GPT-5.5 remains latest OpenAI flagship.
 
 KEY CHANGES SINCE v1.22.0:
 - Grok 4.1 line retired May 15, 2026 — `deprecated=True` on legacy entries
@@ -282,13 +293,14 @@ class PrimrModels:
     FALLBACK_MODELS: dict = {}  # Empty - no fallbacks
 
     # --- GROK MODELS (xAI - for fast mode) ---
-    GROK_MODEL = ModelRegistry.GROK_4_3.name  # 4.3 reasoning — replaces retired 4.1-fast
+    GROK_MODEL = ModelRegistry.GROK_4_3.name  # 4.3 hybrid/fast default (sub-$1 recipe)
     GROK_MODEL_WRITING = (
         ModelRegistry.GROK_4_20_NR_NEW.name
     )  # 4.20 non-reasoning — replaces retired 4.1-fast-nr
-    GROK_MODEL_43 = ModelRegistry.GROK_4_3.name  # 4.3 — current flagship for hybrid/max tier
+    GROK_MODEL_43 = ModelRegistry.GROK_4_3.name  # 4.3 — hybrid/fast reasoning default
+    GROK_MODEL_45 = ModelRegistry.GROK_4_5.name  # 4.5 — latest flagship, MAX tier
     # Legacy 4.20 constants — kept for back-compat and resume of in-flight runs.
-    # New code should use GROK_MODEL_43.
+    # New code should use GROK_MODEL_43 or GROK_MODEL_45.
     GROK_MODEL_420 = ModelRegistry.GROK_4_20_REASONING.name
     GROK_MODEL_420_WRITING = ModelRegistry.GROK_4_20_NR.name
 
@@ -311,6 +323,7 @@ class PrimrModels:
         ModelRegistry.GROK_4_1_FAST.name: ModelRegistry.GROK_4_1_FAST,
         ModelRegistry.GROK_4_1_FAST_NR.name: ModelRegistry.GROK_4_1_FAST_NR,
         ModelRegistry.GROK_4_3.name: ModelRegistry.GROK_4_3,
+        ModelRegistry.GROK_4_5.name: ModelRegistry.GROK_4_5,
         ModelRegistry.GROK_4_20_REASONING.name: ModelRegistry.GROK_4_20_REASONING,
         ModelRegistry.GROK_4_20_NR.name: ModelRegistry.GROK_4_20_NR,
         ModelRegistry.GROK_4_20_NR_NEW.name: ModelRegistry.GROK_4_20_NR_NEW,
@@ -363,21 +376,21 @@ class PrimrModels:
     def get_grok_models(cls, tier: GrokTier) -> tuple[str, str]:
         """Return (reasoning_model, writing_model) for the given Grok tier.
 
-        Post-retirement tier mapping (May 2026):
+        Tier mapping (August 2026):
         FAST: grok-4.3 (reasoning_effort=low) + grok-4.20-non-reasoning
-        HYBRID: grok-4.3 + grok-4.20-non-reasoning
-        MAX: grok-4.3 + grok-4.3
+        HYBRID: grok-4.3 + grok-4.20-non-reasoning  (default; measured sub-$1)
+        MAX: grok-4.5 + grok-4.5  (latest flagship; higher cost — re-estimate)
 
-        FAST and HYBRID now use the same models; the difference is in
-        reasoning_effort parameter (low for FAST, default/high for HYBRID)
-        which is a runtime concern handled by the caller.
+        FAST and HYBRID use the same models; the difference is in
+        reasoning_effort (low for FAST, default/high for HYBRID), handled by
+        the caller.
         """
         if tier == GrokTier.FAST:
             return (cls.GROK_MODEL_43, cls.GROK_MODEL_WRITING)
         if tier == GrokTier.HYBRID:
             return (cls.GROK_MODEL_43, cls.GROK_MODEL_WRITING)
-        # GrokTier.MAX
-        return (cls.GROK_MODEL_43, cls.GROK_MODEL_43)
+        # GrokTier.MAX — latest flagship, not the default cost path
+        return (cls.GROK_MODEL_45, cls.GROK_MODEL_45)
 
     @classmethod
     def _resolve_config(cls, model_name: str) -> ModelConfig | None:

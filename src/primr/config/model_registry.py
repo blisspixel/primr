@@ -17,7 +17,7 @@ class GrokTier(str, Enum):
 
     FAST = "fast"  # 4.3 (reasoning_effort=low) + 4.20-nr (~$4.36 base)
     HYBRID = "hybrid"  # 4.3 + 4.20-nr (~$4.36 base, same models, default effort) - DEFAULT
-    MAX = "max"  # 4.3 everywhere (~$3.75)
+    MAX = "max"  # 4.5 everywhere (latest flagship; higher cost than hybrid)
 
 
 class ModelType(Enum):
@@ -387,16 +387,15 @@ class ModelRegistry:
     )
 
     # =========================================================================
-    # GROK 4.3 - xAI flagship (released 2026-04-30)
-    # USE FOR: All reasoning stages; replaces 4.20 in HYBRID and MAX tiers.
-    # $1.25 input / $2.50 output / $0.20 cached input per 1M tokens — flat rate.
-    # Context: 1M tokens. Output cap: not published by xAI (131k below is a
-    # conservative carry-over from the 4.1 line, unconfirmed for 4.3).
-    # June 2026 audit: reasoning_effort has FOUR levels (none/low/medium/high,
-    # default low) and `none` disables reasoning — so it is NOT "always-on".
-    # The GrokTier mapping selects effort at the caller; supports_thinking stays
-    # True because reasoning is available, not because it's forced.
-    # NOTE: xAI publishes no >200K input tier — 4.3 is flat-rate.
+    # GROK 4.3 - xAI value reasoning model (released 2026-04-30)
+    # USE FOR: Default hybrid/fast reasoning stages (sub-$1 measured recipe).
+    # Pricing (docs.x.ai, Aug 2026): $1.25/$2.50 below 200k prompt tokens;
+    # $2.50/$5.00 at or above 200k; cached input $0.20 / $0.40.
+    # Context: 1M tokens. Output cap: not published (131k is a conservative
+    # carry-over from the 4.1 line).
+    # reasoning_effort: none/low/medium/high (default low) — not always-on.
+    # Grok 4.5 is the newer coding/agent flagship; keep 4.3 as the default
+    # cost/quality balance until an eval promotes a change.
     # =========================================================================
     GROK_4_3 = ModelConfig(
         name="grok-4.3",
@@ -409,7 +408,35 @@ class ModelRegistry:
         supports_thinking=True,  # Reasoning available (effort: none/low/medium/high)
         supports_tools=True,
         supports_multimodal=True,  # Image input supported
+        cost_per_1m_input_tokens_high=2.50,
+        cost_per_1m_output_tokens_high=5.00,
+        tier_threshold_tokens=200_000,
         cost_per_1m_input_tokens_cached=0.20,
+    )
+
+    # =========================================================================
+    # GROK 4.5 - xAI latest flagship (released 2026-07; coding/agentic focus)
+    # USE FOR: Opt-in MAX tier (`--grok-tier max`). Not the hybrid default —
+    # ~2x input / ~2.4x output vs 4.3 and 500k context (vs 1M on 4.3).
+    # Pricing (docs.x.ai, Aug 2026): $2.00/$6.00 below 200k; $4.00/$12.00 at
+    # or above 200k; cached input $0.30 / $0.60.
+    # reasoning_effort: low/medium/high (default high).
+    # =========================================================================
+    GROK_4_5 = ModelConfig(
+        name="grok-4.5",
+        display_name="Grok 4.5",
+        provider="xai",
+        cost_per_1m_input_tokens=2.00,
+        cost_per_1m_output_tokens=6.00,
+        max_input_tokens=500_000,
+        max_output_tokens=131_072,  # Unconfirmed — xAI does not publish a cap
+        supports_thinking=True,
+        supports_tools=True,
+        supports_multimodal=True,
+        cost_per_1m_input_tokens_high=4.00,
+        cost_per_1m_output_tokens_high=12.00,
+        tier_threshold_tokens=200_000,
+        cost_per_1m_input_tokens_cached=0.30,
     )
 
     # =========================================================================

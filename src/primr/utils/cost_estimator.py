@@ -845,7 +845,7 @@ def _estimate_fast_mode_cost(
     tier_labels = {
         "fast": "Grok 4.3 (low-effort)",
         "hybrid": "Grok 4.3 hybrid",
-        "max": "Grok 4.3 max",
+        "max": "Grok 4.5 max",
     }
     tier_label = tier_labels.get(grok_tier, "Grok")
     mode_provider = _provider_label_for_model(reasoning_model)
