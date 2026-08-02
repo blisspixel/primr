@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Docs site home and next-steps currency.** Docs index leads with the same
+  front-door framing as the root README (agentic structured research, start
+  table, links into guides). `NEXT_STEPS` marks post-1.39.2 status.
+
+### Fixed
+
+- **Windows cooperative-cancel test flake.** Marker wait accepts expected
+  content so it does not race `Path.write_text` creating an empty file before
+  the body is flushed.
+
 ## [1.39.2] - 2026-08-02
 
 ### Changed
