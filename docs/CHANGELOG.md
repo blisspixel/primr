@@ -7,36 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.1] - 2026-08-02
+
 ### Added
 
-- **Progressive early-artifacts design.**
-  `docs/design/progressive-artifacts.md` sketches a layered approach to
-  time-to-first-useful output (free working brief after scrape/recon, optional
-  early sketch later) without replacing the full Strategic Overview.
+- **Progressive early-artifacts design (docs only).**
+  `docs/design/progressive-artifacts.md` sketches optional future mid-run
+  working briefs. Not a product surface change.
 
 ### Changed
 
-- **Docs site home shows the ExampleCo CLI demo.**
-  `docs/README.md` (MkDocs Home) embeds the placeholder terminal screenshot
-  with a short product intro for visitors of the documentation site.
-- **RUN_MODES “first useful output” guidance.**
-  Documents recon, prep, and working-folder signals while long runs continue,
-  and points at the progressive-artifacts design for a future working brief.
-- **Refreshed planning docs after the 1.39.0 landscape pass.**
-  `docs/NEXT_STEPS.md` records post-1.39 status and remaining gaps in plain
-  language. `docs/design/competitive-positioning.md` compares Primr to chat
-  deep research, enterprise CI, and research APIs without overclaiming; the
-  design index and docs README point at both.
-- **README CLI demo screenshot.** Replaced the older Softchoice-era capture
-  with a placeholder ExampleCo session (`docs/images/primr-demo.png`, source
-  HTML alongside, `scripts/render_readme_demo.py` to regenerate) so the front
-  door shows a dry-run estimate and completion path without real company
-  content. README hero badges and opening copy tightened for scannability.
-- **Deep-research runs forward `folder_path` into the orchestrator.** CLI
-  premium/deep paths already own a working folder; `ResearchOrchestrator.research`
-  now accepts it so `premium.deep_research` stage_routes can persist instead of
-  no-oping when the folder was omitted. MCP standard orchestrator jobs pass the
-  job output directory the same way and create it before the run starts.
+- **README re-centered on agentic structured research.**
+  Front door leads with agent hosts and structured briefs (labels, artifacts,
+  cost gate), keeps a light ExampleCo CLI illustration, and avoids secondary
+  product stories. Package long description on PyPI follows `README.md`.
+- **ExampleCo CLI demo screenshot** for README and docs site home
+  (`docs/images/primr-demo.png`, regenerable via
+  `scripts/render_readme_demo.py`). Placeholder company data only.
+- **Planning and operator docs polish.** Competitive positioning note,
+  post-1.39 `NEXT_STEPS`, RUN_MODES first-useful-output table (recon/prep while
+  waiting), MkDocs home intro.
+- **Deep-research `folder_path` for stage_routes.** CLI and MCP orchestrator
+  paths pass the working folder so `premium.deep_research` can record body-free
+  route metadata.
 
 ## [1.39.0] - 2026-08-01
 
