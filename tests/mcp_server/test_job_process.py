@@ -121,9 +121,7 @@ async def _wait_for_path(
                 return last
         if asyncio.get_running_loop().time() >= deadline:
             detail = f" (last content {last!r})" if path.exists() else ""
-            raise AssertionError(
-                f"Timed out waiting for child marker: {path.name}{detail}"
-            )
+            raise AssertionError(f"Timed out waiting for child marker: {path.name}{detail}")
         await asyncio.sleep(0.01)
 
 
@@ -452,9 +450,7 @@ async def test_cooperative_cancellation_waits_for_exit_before_cancelled(tmp_path
             destination=str(tmp_path),
         )
         cancellation = asyncio.create_task(supervisor.cancel(job.job_id))
-        assert await _wait_for_path(cancel_seen, expected="user_cancelled") == (
-            "user_cancelled"
-        )
+        assert await _wait_for_path(cancel_seen, expected="user_cancelled") == ("user_cancelled")
         assert not cancellation.done()
         assert not store.get(job.job_id).is_terminal()
 
