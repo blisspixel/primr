@@ -31,7 +31,9 @@ Heuristics:
 | `hybrid` (default) | Grok 4.3 for reasoning + Gemini 3.1 Flash-Lite writing when Gemini is configured | ~$0.76-$0.89 by default |
 | `max` | Grok 4.5 everywhere (latest flagship; re-estimate) | higher than hybrid |
 
-`fast` saves tokens on reasoning (low effort). `max` uses 4.3 for writing too and adds reasoning overhead on prose. Only pick it if the user has explicitly asked for "absolute best Grok output" and you've already cost-gated.
+`fast` saves tokens on reasoning (low effort). `max` uses Grok 4.5 for every
+Grok stage (latest flagship; higher cost than hybrid). Only pick it if the user
+has explicitly asked for absolute best Grok output and you've already cost-gated.
 
 ## Platform
 

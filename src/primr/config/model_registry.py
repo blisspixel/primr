@@ -390,7 +390,8 @@ class ModelRegistry:
     # GROK 4.3 - xAI value reasoning model (released 2026-04-30)
     # USE FOR: Default hybrid/fast reasoning stages (sub-$1 measured recipe).
     # Pricing (docs.x.ai, Aug 2026): $1.25/$2.50 below 200k prompt tokens;
-    # $2.50/$5.00 at or above 200k; cached input $0.20 / $0.40.
+    # $2.50/$5.00 at or above 200k. Cached input modeled as $0.20 (single rate
+    # in ModelConfig; xAI also publishes $0.40 above 200k, not modeled).
     # Context: 1M tokens. Output cap: not published (131k is a conservative
     # carry-over from the 4.1 line).
     # reasoning_effort: none/low/medium/high (default low) — not always-on.
@@ -419,7 +420,8 @@ class ModelRegistry:
     # USE FOR: Opt-in MAX tier (`--grok-tier max`). Not the hybrid default —
     # ~2x input / ~2.4x output vs 4.3 and 500k context (vs 1M on 4.3).
     # Pricing (docs.x.ai, Aug 2026): $2.00/$6.00 below 200k; $4.00/$12.00 at
-    # or above 200k; cached input $0.30 / $0.60.
+    # or above 200k. Cached input modeled as $0.30 (single rate in ModelConfig;
+    # xAI also publishes $0.60 above 200k, not modeled).
     # reasoning_effort: low/medium/high (default high).
     # =========================================================================
     GROK_4_5 = ModelConfig(
