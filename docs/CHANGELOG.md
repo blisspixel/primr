@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.2] - 2026-08-02
+
+### Changed
+
+- **README shortened to a front door.** Pitch, agent vs terminal start paths,
+  install, command table, and docs links. Operator detail (Primr Zero handoff,
+  mode/cost matrix, cost gate, MCP resource inventory, key tables) lives in
+  linked `docs/` pages. PyPI long description follows `README.md`.
+
 ## [1.39.1] - 2026-08-02
 
 ### Added
