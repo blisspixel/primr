@@ -6,24 +6,26 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/blisspixel/primr/badge)](https://securityscorecards.dev/viewer/?uri=github.com/blisspixel/primr)
 
-**Company URL → sourced strategic brief.** Local-first CLI and agent tooling for
-discovery, account planning, diligence, and strategy work.
+**Company URL → sourced strategic brief.** Built for agent hosts and the CLI:
+structured collection, confidence labels, and durable artifacts—not a free-form
+chat essay.
 
-Primr collects public website pages, DNS/recon, hiring signals, and other open
-sources, then produces a consultant-style report with confidence labels,
-citations, and optional strategy modules. It is meant to complement chat-style
-deep research and enterprise CI tools—not replace every research workflow.
+Primr gathers public site pages, DNS/recon, hiring signals, and other open
+sources, then produces a consultant-style Strategic Overview (and optional
+strategy modules) with citations and Confirmed / Reported / Estimated /
+Hypothesis labels. Point an agent at the repo, or run the CLI; the product is
+the same job either way.
 
 <p align="center">
   <img
     src="docs/images/primr-demo.png"
-    alt="Illustrative primr CLI session: dry-run cost estimate for ExampleCo, then a completed run writing Strategic Overview Markdown and DOCX artifacts"
+    alt="Illustrative primr CLI session for ExampleCo: estimate, then report artifacts"
     width="920"
     loading="lazy"
   />
 </p>
 
-<p align="center"><sub>Illustrative demo with placeholder company data (ExampleCo). Not a live capture of a real target. Regenerated via <code>scripts/render_readme_demo.py</code>.</sub></p>
+<p align="center"><sub>Placeholder demo data (ExampleCo), not a live company capture.</sub></p>
 
 ```bash
 primr "ExampleCo" https://example.co
@@ -33,10 +35,6 @@ In an agent chat, that request defaults to Primr Zero: keyless evidence
 collection in Primr, research and writing in the host (when the host plan does
 not bill API usage). When a human runs the command directly in a terminal, it
 retains the provider-backed CLI path after a dry-run estimate and approval.
-
-A full provider-backed run typically yields a multi-section Strategic Overview
-(Markdown, TXT, DOCX; best-effort PDF when a converter is present) plus a
-business-first AI Strategy unless you pass `--no-ai-strategy`.
 
 ## What Primr Is For
 
