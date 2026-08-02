@@ -97,11 +97,33 @@ def _supervisor(
     )
 
 
-async def _wait_for_path(path: Path, timeout: float = 3.0) -> None:
+async def _wait_for_path(
+    path: Path,
+    timeout: float = 3.0,
+    *,
+    expected: str | None = None,
+) -> str:
+    """Wait until *path* exists, optionally until its text matches *expected*.
+
+    On Windows, ``Path.write_text`` can make the path visible before the
+    write is flushed. Callers that assert on content should pass *expected*
+    so the waiter does not race the empty open window.
+    """
     deadline = asyncio.get_running_loop().time() + timeout
-    while not path.exists():
+    last = ""
+    while True:
+        if path.exists():
+            try:
+                last = path.read_text(encoding="utf-8")
+            except OSError:
+                last = ""
+            if expected is None or last == expected:
+                return last
         if asyncio.get_running_loop().time() >= deadline:
-            raise AssertionError(f"Timed out waiting for child marker: {path.name}")
+            detail = f" (last content {last!r})" if path.exists() else ""
+            raise AssertionError(
+                f"Timed out waiting for child marker: {path.name}{detail}"
+            )
         await asyncio.sleep(0.01)
 
 
@@ -380,7 +402,7 @@ async def test_successful_terminal_snapshot_applies_only_after_worker_exit(tmp_p
             mode="full",
             destination=str(tmp_path),
         )
-        await _wait_for_path(terminal_seen)
+        await _wait_for_path(terminal_seen, expected="seen")
         assert not monitor.done()
         assert not store.get(job.job_id).is_terminal()
 
@@ -430,8 +452,9 @@ async def test_cooperative_cancellation_waits_for_exit_before_cancelled(tmp_path
             destination=str(tmp_path),
         )
         cancellation = asyncio.create_task(supervisor.cancel(job.job_id))
-        await _wait_for_path(cancel_seen)
-        assert cancel_seen.read_text(encoding="utf-8") == "user_cancelled"
+        assert await _wait_for_path(cancel_seen, expected="user_cancelled") == (
+            "user_cancelled"
+        )
         assert not cancellation.done()
         assert not store.get(job.job_id).is_terminal()
 

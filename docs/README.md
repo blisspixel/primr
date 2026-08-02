@@ -1,24 +1,24 @@
 # Primr Documentation
 
-Company URL → sourced strategic brief. Primr is a local-first CLI and agent
-tooling stack for discovery, account planning, diligence, and strategy work.
+**Company URL → sourced strategic brief.** Local-first CLI and agent tooling
+for discovery, account planning, diligence, and strategy work—structured
+collection, confidence labels, and durable artifacts, not a free-form chat
+essay.
 
 ![Illustrative primr CLI session for ExampleCo: dry-run cost estimate and completed report artifacts](images/primr-demo.png){ width="920" }
 
 *Illustrative demo with placeholder company data. Not a live capture of a real
-target. Source and regenerate notes live in the root README and
-[`CONTRIBUTING.md`](CONTRIBUTING.md).*
+target. Regenerate via [`CONTRIBUTING.md`](CONTRIBUTING.md).*
 
-For install and the shortest path in, start with the
-[root README](https://github.com/blisspixel/primr/blob/main/README.md). For the
-development contract (how to change primr's source), see
-[CLAUDE.md](https://github.com/blisspixel/primr/blob/main/CLAUDE.md). To operate
-the primr CLI/MCP from an agent, see
-[AGENTS.md](https://github.com/blisspixel/primr/blob/main/AGENTS.md).
+| Start here | Link |
+|------------|------|
+| Install and shortest path | [Root README](https://github.com/blisspixel/primr/blob/main/README.md) |
+| Agent-host operation (Primr Zero by default) | [AGENTS.md](https://github.com/blisspixel/primr/blob/main/AGENTS.md) · [Agent Integration](AGENT_INTEGRATION.md) · [Zero-cost](ZERO_COST.md) |
+| Modes, costs, cost gate | [Run modes](RUN_MODES.md) |
+| Changing Primr source | [CLAUDE.md](https://github.com/blisspixel/primr/blob/main/CLAUDE.md) · [Contributing](CONTRIBUTING.md) |
 
-Guides are grouped by what you are trying to do, following the
-[Diataxis](https://diataxis.fr/) split: learning, doing, looking up, and
-understanding.
+The root README is a **front door** only. Operator detail lives in the guides
+below (Diataxis: learning, doing, looking up, understanding).
 
 > **Index currency:** reviewed against primr **1.39.2** on **2026-08-02**. The
 > *Updated* column is each document's last substantive revision (git
@@ -61,7 +61,7 @@ understanding.
 | [API](API.md) | MCP server and A2A protocol, programmatic usage | 2026-07-18 |
 | [Job Status](JOB_STATUS.md) | Versioned CLI, MCP, A2A, and API lifecycle contract | 2026-07-10 |
 | [STRATEGY_PORTFOLIO](STRATEGY_PORTFOLIO.md) | Strategy document types and selection | 2026-07-21 |
-| [NEXT_STEPS](NEXT_STEPS.md) | What to build next, why it comes next, and what not to do yet | 2026-08-01 |
+| [NEXT_STEPS](NEXT_STEPS.md) | What to build next, why it comes next, and what not to do yet | 2026-08-02 |
 | [CHANGELOG](CHANGELOG.md) | Version history | 2026-07-21 |
 | [MIGRATION](MIGRATION.md) | Error-hierarchy migration notes | 2026-02-02 |
 | [EVAL_V1_24_0](EVAL_V1_24_0.md) | Historical decision record: the v1.24.0 cross-provider eval plan | 2026-06-26 |

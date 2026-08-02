@@ -1,6 +1,6 @@
 # Next Steps
 
-Last research refresh: 2026-08-01.
+Last research refresh: 2026-08-02.
 
 This page answers the working question: what should Primr do next, and why?
 `ROADMAP.md` remains the ordered backlog. This page is the shorter execution
@@ -11,7 +11,7 @@ category or put other research tools down. For fit vs chat deep research,
 enterprise CI, and research APIs, see
 [`docs/design/competitive-positioning.md`](design/competitive-positioning.md).
 
-## Where we are (post v1.39.0)
+## Where we are (post v1.39.2)
 
 Shipped recently and relevant to planning:
 
@@ -21,6 +21,9 @@ Shipped recently and relevant to planning:
   adapter qualifies.
 - Standing offline `source_relevance` corpus and review-only host/cloud
   comparison artifacts (not a promotion gate).
+- Root README as a short front door (agentic + structured research, agent vs
+  terminal paths); operator detail in focused `docs/` guides. PyPI long
+  description tracks the README.
 
 Still open, and still the honest center of gravity:
 
