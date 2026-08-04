@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   surcharge). Default hybrid/fast reasoning stays on `grok-4.3` for the
   measured sub-$1 recipe; `--grok-tier max` now routes to 4.5. Grok 4.3 also
   records its ≥200k surcharge from the current pricing table.
+- **Grok default-routing decision.** Hybrid stays on 4.3 (measured ~$0.76 with
+  Gemini writing; max-everywhere ~$8.5). Design record:
+  `docs/design/grok-default-routing.md`. Analysis fallback tries 4.5 after 4.3;
+  premium xAI fallback prefers 4.5 then 4.3. Eval profile `grok45-flashlite`
+  is a promotion candidate only (not wired as default).
 
 ### Fixed
 

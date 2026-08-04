@@ -272,7 +272,8 @@ rates. Added to `ALL_MODELS`. New constant `GROK_MODEL_43` introduced;
 `GROK_MODEL_420` kept as legacy alias.
 
 **Step 3 - wire**: `get_grok_models()` updated so `HYBRID = (4.3, 4.1-NR)` and
-`MAX = (4.3, 4.3)`. `FAST` stays on 4.1. `ANALYSIS_FALLBACK_CHAIN` reordered
+`MAX = (4.5, 4.5)` (latest flagship opt-in). Hybrid/fast stay on 4.3. See
+`docs/design/grok-default-routing.md`. `ANALYSIS_FALLBACK_CHAIN` reordered
 to `(4.3 → 4.20 → 4.1 → Flash)`. Cost-estimator labels updated from
 "Grok 4.20 hybrid/max" to "Grok 4.3 hybrid/max".
 

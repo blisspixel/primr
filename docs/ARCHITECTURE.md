@@ -1262,16 +1262,35 @@ Playwright tiers now perform adaptive lazy-load scrolling (up to 20 steps by def
 
 | Model | Role | Pricing (per 1M tokens) |
 |-------|------|-------------------------|
-| Grok 4.3 | Default mode: reasoning stages (analysis, workbook, cross-validation) | $1.25 in / $2.50 out · $0.20 cached |
-| Grok 4.20 non-reasoning | XAI-only utility and writing fallback when Gemini is not configured | $2.00 in / $6.00 out |
-| Grok 4.20 | Legacy flagship - kept registered for resume of in-flight runs and as a fallback in the analysis chain | $2.00 in / $6.00 out |
+| Grok 4.3 | Default hybrid/fast: reasoning stages (analysis, workbook, cross-validation) | $1.25/$2.50 (≤200k) · $2.50/$5.00 (≥200k) · $0.20 cached |
+| Grok 4.5 | Opt-in `--grok-tier max` (latest flagship); analysis fallback after 4.3 | $2/$6 (≤200k) · $4/$12 (≥200k) · $0.30 cached |
+| Grok 4.20 non-reasoning | XAI-only utility and writing fallback when Gemini is not configured | See registry / estimator |
+| Grok 4.20 reasoning | Legacy — resume of in-flight runs and deeper analysis fallback | See registry / estimator |
 | Gemini 3.1 Flash-Lite | Default routed writing and utility path when `XAI_API_KEY` and `GEMINI_API_KEY` are both configured | See provider pricing in the estimator |
 | Gemini 3.1 Pro | `--premium` mode: section writing, analysis | $2/$12 (≤200k) · $4/$18 (>200k) |
 | Deep Research Agent | `--premium` mode: autonomous research | ~$2.50 planning estimate per standard task; actual token and tool billing varies |
 
-### Why Grok is the Default
+### Why Grok 4.3 is the Default (not 4.5)
 
-Primr originally ran everything through Google's Deep Research API plus Gemini 3.1 Pro. That path remains available via `--premium` when maximum research depth justifies the cost, but it pushes runs toward the premium cost and runtime envelope. The current measured default uses Grok 4.3 for reasoning-heavy stages and Gemini 3.1 Flash-Lite for bulk writing and utility work when both `XAI_API_KEY` and `GEMINI_API_KEY` are configured. That recipe keeps the default Strategic Overview plus AI Strategy around the sub-dollar range shown by `--dry-run`. XAI-only setups still work and use the legacy writing/utility fallback path; OpenAI, Anthropic, and local OpenAI-compatible providers are wired for fallback, utility, evaluation, and backend-freedom routing. The first production stages to consume the capability router are `fast.scrape_summary`, `fast.source_relevance`, and `fast.hiring_signals` behind `--inference cloud|hybrid`; they still execute through existing provider seams, preserve today's role defaults as fallback, and append body-free route usage records to `_run_state.json`.
+Primr originally ran everything through Google's Deep Research API plus Gemini
+3.1 Pro. That path remains available via `--premium` when maximum research depth
+justifies the cost. The measured default uses **Grok 4.3** for reasoning-heavy
+stages and **Gemini 3.1 Flash-Lite** for bulk writing when both keys are set —
+about **~$0.76–$0.89** on dry-run for Strategic Overview plus AI Strategy.
+
+**Grok 4.5** is registered and used for `--grok-tier max` (and as the next
+analysis fallback if 4.3 is unhealthy). It is xAI’s coding/agent flagship and
+is priced higher with a smaller context window. MAX-everywhere estimates land
+around **~$8+**, not the sub-dollar default. Promoting 4.5 to hybrid default
+requires an eval gate; see
+[`design/grok-default-routing.md`](design/grok-default-routing.md).
+
+XAI-only setups still work with the legacy writing/utility fallback path.
+OpenAI, Anthropic, and local OpenAI-compatible providers remain available for
+fallback, utility, evaluation, and backend-freedom routing. The first production
+stages on the capability router are `fast.scrape_summary`,
+`fast.source_relevance`, and `fast.hiring_signals` behind
+`--inference cloud|hybrid`.
 
 ### Agentic Architecture
 

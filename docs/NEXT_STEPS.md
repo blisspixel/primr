@@ -11,7 +11,7 @@ category or put other research tools down. For fit vs chat deep research,
 enterprise CI, and research APIs, see
 [`docs/design/competitive-positioning.md`](design/competitive-positioning.md).
 
-## Where we are (post v1.39.2)
+## Where we are (post v1.39.2 + Grok 4.5 routing)
 
 Shipped recently and relevant to planning:
 
@@ -24,6 +24,11 @@ Shipped recently and relevant to planning:
 - Root README as a short front door (agentic + structured research, agent vs
   terminal paths); operator detail in focused `docs/` guides. PyPI long
   description tracks the README.
+- **Grok 4.5 registered; hybrid default stays 4.3.** `--grok-tier max` uses
+  4.5. Decision and cost evidence:
+  [`design/grok-default-routing.md`](design/grok-default-routing.md). Do not
+  promote 4.5 to hybrid without an eval gate (measured hybrid ~$0.76 vs
+  max-everywhere ~$8.5 on the same estimator).
 
 Still open, and still the honest center of gravity:
 
@@ -40,6 +45,10 @@ Still open, and still the honest center of gravity:
    [`docs/design/progressive-artifacts.md`](design/progressive-artifacts.md)
    (Layer 1 = free working brief after scrape/recon; Layer 2 = opt-in sketch).
    Implementation is still open.
+6. **Optional: Grok 4.5 hybrid-reasoning eval** — profile `grok45-flashlite`
+   (4.5 reasoning + Flash-Lite writing) is registered as a candidate only.
+   Run only with explicit spend approval; flip hybrid default only if
+   utility-per-dollar and quality pass.
 
 ## Research-backed decision rules
 

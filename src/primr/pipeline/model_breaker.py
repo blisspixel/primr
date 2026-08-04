@@ -73,7 +73,8 @@ class QuotaStatus:
 ANALYSIS_FALLBACK_CHAIN = FallbackChain(
     name="analysis",
     models=(
-        PrimrModels.GROK_MODEL_43,  # grok-4.3 (primary)
+        PrimrModels.GROK_MODEL_43,  # grok-4.3 (hybrid default primary)
+        PrimrModels.GROK_MODEL_45,  # grok-4.5 (latest flagship if 4.3 unhealthy)
         PrimrModels.GROK_MODEL_420,  # grok-4.20 reasoning (legacy)
         ModelRegistry.ANTHROPIC_SONNET.name,  # Anthropic cross-provider fallback
         "gpt-5.4",  # OpenAI cross-provider fallback
@@ -96,7 +97,8 @@ PREMIUM_FALLBACK_CHAIN = FallbackChain(
         PrimrModels.PRO_MODEL,  # gemini-3.1-pro (primary)
         "claude-opus-4-8",  # Anthropic fallback
         "gpt-5.5",  # OpenAI fallback
-        PrimrModels.GROK_MODEL_43,  # xAI fallback
+        PrimrModels.GROK_MODEL_45,  # xAI latest flagship fallback
+        PrimrModels.GROK_MODEL_43,  # xAI value fallback
     ),
 )
 

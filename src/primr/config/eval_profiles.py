@@ -53,10 +53,24 @@ _V1_24_0_CLOUD_CANDIDATES = (
         ),
         estimated_cost_usd=0.65,
         description=(
-            "v1.24.0 headline candidate. Grok 4.3 reasoning (cached input "
-            "$0.20/M makes this competitive) + Gemini 3.1 Flash-Lite writing "
-            "($0.25/$1.50, cheapest Gemini-3-era writer) + Gemini 3 Flash "
-            "utility. Sub-$1 with margin."
+            "v1.24.0 headline candidate / current hybrid default. Grok 4.3 "
+            "reasoning (cached input $0.20/M) + Gemini 3.1 Flash-Lite writing "
+            "+ Gemini 3 Flash utility. Sub-$1 with margin."
+        ),
+    ),
+    EvalProfileSlot(
+        name="grok45-flashlite",
+        recipe=ProfileRecipe(
+            reasoning="grok-4.5",
+            writing="gemini-3.1-flash-lite",
+            utility="gemini-3-flash-preview",
+        ),
+        estimated_cost_usd=1.20,
+        description=(
+            "Optional promotion candidate (not a default). Grok 4.5 reasoning "
+            "(latest flagship, $2/$6) + Gemini Flash-Lite writing. Higher cost "
+            "than grok43-flashlite; eval-gate before flipping hybrid. Distinct "
+            "from --grok-tier max (4.5 everywhere)."
         ),
     ),
     EvalProfileSlot(
