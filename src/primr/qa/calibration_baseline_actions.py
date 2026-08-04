@@ -265,9 +265,11 @@ def _gate_action_item(reason: str, missing_floor_reports: int) -> dict[str, Any]
             "reason": reason,
             "reports_without_decidable_confirmed": missing_floor_reports,
             "action": (
-                "Review the selected reports lacking decidable Confirmed claims, "
-                "then either rebuild the representative pack with a complete "
-                "per-report floor or document why the hard gate remains report-only."
+                "Inspect baseline blockers.missing_decidable_confirmed_floor for "
+                "the exact report paths lacking decidable Confirmed claims, then "
+                "replace those reports or re-sample labels so every selected "
+                "report contributes a floor — or document why the hard gate "
+                "remains report-only."
             ),
         }
     if reason == "zero_confirmed_traceability_floor":

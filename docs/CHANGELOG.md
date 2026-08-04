@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Launch always shows the priced estimate.** Single-company research still
+  skips the interactive Proceed prompt, but prints the same one-line
+  `Company | mode | ~$cost | duration` estimate before work starts.
+- **Honest dual-provider surfaces.** OpenAI-/Anthropic-only dry-run labels and
+  doctor copy say estimate/eval only; full execution still needs XAI or Gemini.
+- **Calibration inspect names undecidable Confirmed floors.**
+  `blockers.missing_decidable_confirmed_floor` lists body-free report paths
+  that block a complete hard-gate floor (1.40 freeze UX).
 - **Docs site home and next-steps currency.** Docs index leads with the same
   front-door framing as the root README (agentic structured research, start
   table, links into guides). `NEXT_STEPS` marks post-1.39.2 status.

@@ -912,6 +912,44 @@ def _estimate_fast_mode_cost(
     )
 
 
+def format_cost_estimate_line(company_name: str, mode: str, estimate: CostEstimate) -> str:
+    """One-line human estimate used at launch and interactive confirm."""
+    return f"{company_name} | {mode} | ~${estimate.total_cost:.2f} | {estimate.duration_minutes}"
+
+
+def print_cost_estimate(
+    mode: str,
+    company_name: str,
+    include_ai_strategy: bool = False,
+    num_vendors: int = 1,
+    lite_strategy: bool = False,
+    fast_mode: bool = False,
+    premium_mode: bool = False,
+    verify: bool = False,
+    grok_tier: str = "hybrid",
+    strategy_types: Sequence[str] | None = None,
+    vendor_research_refreshes: int = 0,
+) -> CostEstimate:
+    """Price the run and print the canonical one-line estimate (no confirmation)."""
+    import sys
+
+    estimate = estimate_cost(
+        mode,
+        include_ai_strategy,
+        num_vendors=num_vendors,
+        lite_strategy=lite_strategy,
+        fast_mode=fast_mode,
+        premium_mode=premium_mode,
+        verify=verify,
+        grok_tier=grok_tier,
+        strategy_types=strategy_types,
+        vendor_research_refreshes=vendor_research_refreshes,
+    )
+    print(f"\n{format_cost_estimate_line(company_name, mode, estimate)}")
+    sys.stdout.flush()
+    return estimate
+
+
 def display_cost_estimate(
     mode: str,
     company_name: str,
@@ -947,9 +985,10 @@ def display_cost_estimate(
     """
     import sys
 
-    estimate = estimate_cost(
+    print_cost_estimate(
         mode,
-        include_ai_strategy,
+        company_name,
+        include_ai_strategy=include_ai_strategy,
         num_vendors=num_vendors,
         lite_strategy=lite_strategy,
         fast_mode=fast_mode,
@@ -959,10 +998,6 @@ def display_cost_estimate(
         strategy_types=strategy_types,
         vendor_research_refreshes=vendor_research_refreshes,
     )
-
-    # Clean single line with visible text
-    print(f"\n{company_name} | {mode} | ~${estimate.total_cost:.2f} | {estimate.duration_minutes}")
-    sys.stdout.flush()
 
     # Explicit yes only — empty Enter must not start a billable run (matches batch).
     try:

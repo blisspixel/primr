@@ -45,7 +45,11 @@ Shipped recently and relevant to planning:
   max"), console-styled dry-run with progressive recovery disclosure,
   Zero-friendly doctor, MCP estimates use planning-floor ≥ historical,
   corrupt run-state quarantine, partial fast-run completion warns instead of
-  green success.
+  green success, launch prints cost even when Proceed is skipped, OpenAI/
+  Anthropic-only labels no longer imply full execution readiness.
+- **1.40 freeze UX:** baseline inspection lists
+  `blockers.missing_decidable_confirmed_floor` with exact report paths so
+  operators can replace undecidable reports without hunting.
 
 Still open, and still the honest center of gravity:
 

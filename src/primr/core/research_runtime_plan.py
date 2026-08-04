@@ -104,7 +104,24 @@ def prepare_research_runtime(
     )
     if plan.error_message:
         return ResearchRuntimePreparation(plan=plan, status="invalid")
+
+    estimate_kwargs = {
+        "num_vendors": plan.runtime_platform_count,
+        "lite_strategy": lite_strategy,
+        "fast_mode": plan.use_fast,
+        "premium_mode": premium_mode,
+        "verify": verify,
+        "grok_tier": grok_tier,
+        "strategy_types": strategy_types,
+        "vendor_research_refreshes": plan.vendor_refresh_tasks,
+    }
+
+    # Always surface the priced shape so single-company runs (which skip the
+    # interactive Proceed prompt by design) never start billable work silently.
     if skip_confirm:
+        from primr.utils.cost_estimator import print_cost_estimate
+
+        print_cost_estimate(mode, display_name, ai_strategy, **estimate_kwargs)
         return ResearchRuntimePreparation(plan=plan, status="ready")
 
     from primr.utils.cost_estimator import display_cost_estimate
@@ -113,14 +130,7 @@ def prepare_research_runtime(
         mode,
         display_name,
         ai_strategy,
-        num_vendors=plan.runtime_platform_count,
-        lite_strategy=lite_strategy,
-        fast_mode=plan.use_fast,
-        premium_mode=premium_mode,
-        verify=verify,
-        grok_tier=grok_tier,
-        strategy_types=strategy_types,
-        vendor_research_refreshes=plan.vendor_refresh_tasks,
+        **estimate_kwargs,
     )
     status = "ready" if approved else "cancelled"
     return ResearchRuntimePreparation(plan=plan, status=status)
