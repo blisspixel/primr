@@ -910,5 +910,3 @@ def _estimate_fast_mode_cost(
         cached_input_cost=cached_input_cost,
         long_context_surcharge_cost=long_context_surcharge_cost,
     )
-
-
