@@ -116,7 +116,7 @@ def _refresh_working_brief_hiring(
 ) -> None:
     """Refresh the Layer-1 working brief with hiring counts. Fail-open."""
     try:
-        from primr.config.config import OUTPUT_DIR
+        from primr.core.fast_run_collection import _resolve_public_output_dir
         from primr.core.run_state_io import _load_run_state
         from primr.output.working_brief import (
             WorkingBriefInput,
@@ -138,7 +138,7 @@ def _refresh_working_brief_hiring(
                 hiring_source=source,
             ),
             working_folder=folder_path,
-            public_output_dir=OUTPUT_DIR,
+            public_output_dir=_resolve_public_output_dir(folder_path),
         )
         if brief_paths:
             _update_run_state(
