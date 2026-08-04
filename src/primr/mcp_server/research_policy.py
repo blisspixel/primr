@@ -23,7 +23,13 @@ def parse_max_duration(duration_str: str, default: int = 30) -> int:
 
 
 def build_research_estimate(arguments: dict[str, Any]) -> dict[str, Any]:
-    """Return the normalized estimate payload for a research execution shape."""
+    """Return the normalized estimate payload for a research execution shape.
+
+    Mirrors CLI ``build_run_estimate`` cost-shaping kwargs so MCP/A2A approval
+    tokens cannot understate spend relative to the run that will execute.
+    Authorization uses the higher of planning defaults and historical averages
+    (never a historical-only floor that can under-approve after cheap samples).
+    """
     from primr.core.budget_policy import describe_budget_enforcement
     from primr.utils.cost_estimator import estimate_cost
 
@@ -35,9 +41,14 @@ def build_research_estimate(arguments: dict[str, Any]) -> dict[str, Any]:
         "premium": "complete",
     }
     estimator_mode = mode_mapping.get(mode, "complete")
-    verify = arguments.get("verify", False)
+    verify = bool(arguments.get("verify", False))
     premium_mode = mode == "premium"
+    # Match CLI resolve: full mode with xAI uses the hybrid/fast Grok path.
     fast_mode = mode == "full" and bool(os.environ.get("XAI_API_KEY"))
+    grok_tier = str(arguments.get("grok_tier") or "hybrid")
+    if grok_tier not in {"fast", "hybrid", "max"}:
+        grok_tier = "hybrid"
+    lite_strategy = bool(arguments.get("lite_strategy", False))
 
     no_ai_strategy = arguments.get("no_ai_strategy", False)
     include_ai_strategy = not no_ai_strategy and mode in ("full", "premium")
@@ -51,15 +62,28 @@ def build_research_estimate(arguments: dict[str, Any]) -> dict[str, Any]:
     platforms = normalize_platforms(platforms)
     num_vendors = len(platforms) if include_ai_strategy else 0
 
-    cost_estimate = estimate_cost(
-        estimator_mode,
-        include_ai_strategy=include_ai_strategy,
-        use_historical=True,
-        verify=verify,
-        premium_mode=premium_mode,
-        fast_mode=fast_mode,
-        num_vendors=max(num_vendors, 1) if include_ai_strategy else 1,
-    )
+    estimate_kwargs = {
+        "include_ai_strategy": include_ai_strategy,
+        "verify": verify,
+        "premium_mode": premium_mode,
+        "fast_mode": fast_mode,
+        "num_vendors": max(num_vendors, 1) if include_ai_strategy else 1,
+        "lite_strategy": lite_strategy,
+        "grok_tier": grok_tier,
+    }
+    # Planning floor is the approval baseline; historical can only raise it.
+    planning = estimate_cost(estimator_mode, use_historical=False, **estimate_kwargs)
+    historical = estimate_cost(estimator_mode, use_historical=True, **estimate_kwargs)
+    if historical.total_cost > planning.total_cost:
+        cost_estimate = historical
+        if "Based on" not in " ".join(cost_estimate.notes or []):
+            cost_estimate.notes = list(cost_estimate.notes or [])
+            cost_estimate.notes.append(
+                f"Authorization floor raised by historical average "
+                f"(planning was ${planning.total_cost:.2f})"
+            )
+    else:
+        cost_estimate = planning
     pages = 20 if mode in ("scrape", "full", "premium") else 0
     max_duration = parse_max_duration(cost_estimate.duration_minutes)
     result: dict[str, Any] = {

@@ -48,20 +48,30 @@ class TestLoadRunState:
             "status": "running",
         }
 
-    def test_returns_empty_on_corrupt_json(self, tmp_path):
-        (tmp_path / "_run_state.json").write_text("not json {", encoding="utf-8")
-        assert _load_run_state(str(tmp_path)) == {}
+    def test_quarantines_corrupt_json(self, tmp_path):
+        path = tmp_path / "_run_state.json"
+        path.write_text("not json {", encoding="utf-8")
+        loaded = _load_run_state(str(tmp_path))
+        assert loaded["_recovered_from_corruption"] is True
+        assert "JSONDecodeError" in loaded["_corrupt_reason"]
+        assert not path.exists()
+        assert (tmp_path / "_run_state.json.corrupt").exists()
 
-    def test_returns_empty_on_non_dict_payload(self, tmp_path):
-        # JSON array at the top — must coerce to empty dict.
-        (tmp_path / "_run_state.json").write_text("[1, 2, 3]", encoding="utf-8")
-        assert _load_run_state(str(tmp_path)) == {}
+    def test_quarantines_non_dict_payload(self, tmp_path):
+        path = tmp_path / "_run_state.json"
+        path.write_text("[1, 2, 3]", encoding="utf-8")
+        loaded = _load_run_state(str(tmp_path))
+        assert loaded["_recovered_from_corruption"] is True
+        assert loaded["_corrupt_reason"] == "not a JSON object"
+        assert (tmp_path / "_run_state.json.corrupt").exists()
 
-    def test_returns_empty_on_io_error(self, tmp_path):
+    def test_io_error_returns_recovery_marker(self, tmp_path):
         # A file that exists but raises on read (mocked).
         (tmp_path / "_run_state.json").write_text("{}", encoding="utf-8")
         with patch("builtins.open", side_effect=PermissionError("locked")):
-            assert _load_run_state(str(tmp_path)) == {}
+            loaded = _load_run_state(str(tmp_path))
+        assert loaded["_recovered_from_corruption"] is True
+        assert "OSError" in loaded["_corrupt_reason"] or "locked" in loaded["_corrupt_reason"]
 
 
 class TestSaveRunState:

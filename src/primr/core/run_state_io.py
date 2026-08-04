@@ -44,21 +44,59 @@ def _run_state_file(folder_path: str) -> str:
     return os.path.join(folder_path, "_run_state.json")
 
 
+def _quarantine_corrupt_run_state(path: str, reason: str) -> str | None:
+    """Move an unreadable run-state file aside so the next save cannot overwrite evidence."""
+    backup = f"{path}.corrupt"
+    try:
+        if os.path.exists(path):
+            # Prefer replace so a previous .corrupt does not block quarantine.
+            os.replace(path, backup)
+            logger.warning(
+                "Quarantined corrupt run state %s -> %s (%s)",
+                path,
+                backup,
+                reason,
+            )
+            return backup
+    except OSError as exc:
+        logger.warning("Could not quarantine corrupt run state %s: %s", path, exc)
+    return None
+
+
 def _load_run_state(folder_path: str) -> dict[str, Any]:
-    """Load run state JSON if present, else return empty dict."""
+    """Load run state JSON if present, else return empty dict.
+
+    Corrupt or non-dict payloads are quarantined to ``_run_state.json.corrupt``
+    and replaced with a recovery marker so later mutations do not silently wipe
+    the only evidence of prior phase progress.
+    """
     path = _run_state_file(folder_path)
     if not os.path.exists(path):
         return {}
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-        return data if isinstance(data, dict) else {}
+        if isinstance(data, dict):
+            return data
+        backup = _quarantine_corrupt_run_state(path, "not a JSON object")
+        return {
+            "_recovered_from_corruption": True,
+            "_corrupt_backup": backup,
+            "_corrupt_reason": "not a JSON object",
+        }
     except json.JSONDecodeError as e:
-        logger.warning("Run state file corrupted (%s), starting with empty state: %s", path, e)
-        return {}
-    except Exception as e:
-        logger.warning("Failed to load run state from %s, starting with empty state: %s", path, e)
-        return {}
+        backup = _quarantine_corrupt_run_state(path, f"JSONDecodeError: {e}")
+        return {
+            "_recovered_from_corruption": True,
+            "_corrupt_backup": backup,
+            "_corrupt_reason": f"JSONDecodeError: {e}",
+        }
+    except OSError as e:
+        logger.warning("Failed to load run state from %s: %s", path, e)
+        return {
+            "_recovered_from_corruption": True,
+            "_corrupt_reason": f"OSError: {e}",
+        }
 
 
 def _save_run_state(folder_path: str, state: dict[str, Any]) -> None:

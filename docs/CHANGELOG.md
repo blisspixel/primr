@@ -23,10 +23,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   premium xAI fallback prefers 4.5 then 4.3. Eval profile `grok45-flashlite`
   is a promotion candidate only (not wired as default).
 - **Dependency security floor:** `cryptography>=50.0.0` (CVE-2026-69247 /
-  GHSA-537c-gmf6-5ccf). Lockfile pins 50.0.0.
+  GHSA-537c-gmf6-5ccf). Lockfile and deploy `runtime-requirements.lock` pin
+  50.0.0.
+- **CLI operator polish.** Shared Grok tier labels (hybrid/fast = 4.3, max =
+  4.5); dry-run uses the console seam with progressive recovery disclosure;
+  doctor treats keyless installs as ready and names hybrid/full (not
+  "standard"); root help lists `render` and `--budget`.
+- **Roadmap version ladder.** Clear 1.39 → 1.40… → 2.0 → 3.0 order of
+  operations with exit criteria and no time estimates
+  (`ROADMAP.md`, `docs/NEXT_STEPS.md`).
 
 ### Fixed
 
+- **MCP/A2A research estimates under-approving.** Estimates now forward
+  `grok_tier` / `lite_strategy` and authorize at `max(planning, historical)`
+  so cheap history cannot understate the approval floor.
+- **Corrupt `_run_state.json` silent wipe.** Unreadable state is quarantined to
+  `*.corrupt` with a recovery marker instead of empty-dict overwrite.
+- **Partial fast-run success styling.** "Complete with warnings" uses warn
+  styling, not a green success check.
+- **Billable confirm defaults.** Interactive Proceed is `[y/N]` (explicit yes
+  only), matching batch approval.
+- **Usage tracking gaps.** Standalone AI Strategy tracker failures warn instead
+  of debug-only silence.
+- **Vendor freshness listing.** Permission/path errors no longer look like an
+  empty cache.
 - **Windows cooperative-cancel test flake.** Marker wait accepts expected
   content so it does not race `Path.write_text` creating an empty file before
   the body is flushed.

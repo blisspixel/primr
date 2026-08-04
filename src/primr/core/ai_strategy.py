@@ -380,8 +380,15 @@ async def generate_ai_strategy(
         )
         tracker.save()
     except Exception as exc:
-        # Tracking failure must never fail the strategy run itself.
-        logger.debug("Standalone AI strategy usage tracking skipped: %s", exc)
+        # Tracking failure must never fail the strategy run itself, but the
+        # gap must be visible — historical estimates and show-usage rely on it.
+        logger.warning("Standalone AI strategy usage tracking skipped: %s", exc)
+        try:
+            from primr.utils.console import console
+
+            console.warn("Usage history not updated for this AI Strategy run")
+        except Exception:
+            pass
 
     return AIStrategyResult(
         docx_path=output_paths.get("docx"),
