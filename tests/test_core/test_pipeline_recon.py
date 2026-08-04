@@ -316,7 +316,7 @@ class TestDryRunRecon:
 
         run_dry_run(config)
         captured = capsys.readouterr()
-        assert "RECON PRE-FLIGHT" in captured.out
+        assert "Recon pre-flight" in captured.out
         assert "$0.00" in captured.out
 
     def test_dry_run_shows_recon_skipped(self, capsys):
