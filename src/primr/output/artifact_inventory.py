@@ -16,6 +16,7 @@ _DIAGNOSTIC_ARTIFACT_TYPES = frozenset(
     {"calibration_sidecar", "qa_summary", "verification_summary"}
 )
 _PRIMARY_REPORT_MARKERS = ("strategic_overview", "company_overview")
+_WORKING_BRIEF_MARKERS = ("working_brief",)
 _ADDITIONAL_STRATEGY_MODULE_MARKERS = ("ai_first_transformation", "skills_ideation")
 _PREP_STAGING_PREFIX = ".primr-prep-"
 
@@ -26,6 +27,14 @@ def classify_artifact(path: Path) -> str:
     suffix = path.suffix.lower()
     if name in _NON_ARTIFACT_NAMES:
         return "artifact"
+    # Mid-run progressive artifact — not a final Strategic Overview.
+    if any(marker in name for marker in _WORKING_BRIEF_MARKERS) and suffix in {
+        ".md",
+        ".txt",
+        ".docx",
+        ".pdf",
+    }:
+        return "working_brief"
     if name.endswith(".calibration.json"):
         return "calibration_sidecar"
     if name == "run_manifest.json" or (name.startswith("run_manifest_") and name.endswith(".json")):
@@ -53,6 +62,8 @@ def infer_artifact_role(path: Path, artifact_type: str | None = None) -> str:
     """Infer a content-free downstream role from a filename and artifact type."""
     resolved_type = artifact_type or classify_artifact(path)
     stem = path.stem.lower()
+    if resolved_type == "working_brief" or any(marker in stem for marker in _WORKING_BRIEF_MARKERS):
+        return "working_brief"
     if resolved_type in _REPORT_ARTIFACT_TYPES:
         if any(marker in stem for marker in _PRIMARY_REPORT_MARKERS):
             return "primary_report"

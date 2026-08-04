@@ -67,6 +67,7 @@ def _type_label(record: ArtifactRecord) -> str:
         "report_text": "text",
         "report_docx": "docx",
         "report_pdf": "pdf",
+        "working_brief": "working brief",
         "calibration_sidecar": "calibration",
         "qa_summary": "qa",
         "verification_summary": "verification",
