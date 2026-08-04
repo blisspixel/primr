@@ -42,14 +42,16 @@ Overview:
 |------|----------------------|--------|
 | Seconds | `primr recon company.example` | DNS / tenant / email-security signals, $0 model |
 | Minutes | `primr prep "Company" url` | Keyless evidence bundle for host-assisted synthesis |
-| Mid-run | Working folder under `working/` | Scrapes, stage events, partial intermediates |
+| Mid-run | Working folder + **working brief** | After scrape (+ hiring refresh): free, incomplete brief |
 | End of run | Strategic Overview + optional AI Strategy | Primary deliverables |
 
-A designed path for a mid-run **working brief** (explicitly incomplete, free of
-extra model calls) is documented in
-[`design/progressive-artifacts.md`](design/progressive-artifacts.md). That layer
-is not implemented yet; until it lands, use recon, prep, and the working folder
-rather than treating a partial scrape as a finished report.
+**Layer 1 working brief (shipped):** after fast-path collection, Primr writes a
+deterministic incomplete brief (no extra model calls) to
+`working/<run>/working_brief.md` and a dated public
+`<Company>_Working_Brief_<date>.md` under the run’s `output_dir` (or default
+`output/`). Loud banner: not the Strategic Overview. Inventory role:
+`working_brief` (never `primary_report`). Design:
+[`design/progressive-artifacts.md`](design/progressive-artifacts.md).
 
 ## Default Provider Recipe
 

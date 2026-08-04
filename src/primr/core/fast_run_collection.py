@@ -52,10 +52,10 @@ def _emit_working_brief_after_collection(
 ) -> None:
     """Layer-1 progressive artifact after scrape (+ recon). Fail-open."""
     try:
-        from primr.config.config import OUTPUT_DIR
         from primr.output.working_brief import (
             WorkingBriefInput,
             read_recon_excerpt,
+            resolve_public_output_dir,
             write_working_brief,
         )
 
@@ -71,7 +71,7 @@ def _emit_working_brief_after_collection(
                 recon_excerpt=read_recon_excerpt(folder_path),
             ),
             working_folder=folder_path,
-            public_output_dir=OUTPUT_DIR,
+            public_output_dir=resolve_public_output_dir(folder_path),
         )
         if brief_paths:
             _update_run_state(

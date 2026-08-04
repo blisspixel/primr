@@ -148,6 +148,7 @@ def generate_analysis_workbook(
     usage_before: stage_routing.StageUsageByModel | None = None
     preferred_model = grok_reasoning
     route_start = time.monotonic()
+    analysis_degraded = False
     try:
         route = stage_routing.resolve_stage_model(
             "fast.analysis_workbook",
@@ -167,11 +168,10 @@ def generate_analysis_workbook(
             )
             console.warn(f"Analysis workbook skipped ({failure}) — using collected insights")
             analysis_workbook = combined_insights
-            workbook_path = os.path.join(folder_path, "analysis_workbook.md")
-            with open(workbook_path, "w", encoding="utf-8") as f:
-                f.write(analysis_workbook)
-            console.phase_complete("Analysis (Grok)")
-            return analysis_workbook, reasoning_session
+            analysis_degraded = True
+            return _finish_workbook(
+                analysis_workbook, reasoning_session, folder_path, analysis_degraded
+            )
         if route.model_name:
             preferred_model = route.model_name
         usage_before = stage_routing.capture_stage_usage()
@@ -253,18 +253,36 @@ def generate_analysis_workbook(
         console.info("Continuing with collected insights as fallback workbook")
         log_structured("warning", "Fast mode analysis fallback used", error=str(analysis_err))
         analysis_workbook = combined_insights
+        analysis_degraded = True
 
     if not analysis_workbook or not analysis_workbook.strip():
         console.warn("Analysis workbook empty — falling back to insights for report")
         analysis_workbook = combined_insights
+        analysis_degraded = True
 
-    # Save workbook
-    workbook_path = os.path.join(folder_path, "analysis_workbook.md")
+    return _finish_workbook(analysis_workbook, reasoning_session, folder_path, analysis_degraded)
+
+
+def _finish_workbook(
+    analysis_workbook: str,
+    reasoning_session: Any,
+    folder_path: str | None,
+    analysis_degraded: bool,
+) -> tuple[str, Any]:
+    """Persist workbook and emit honest phase completion (warn on fallback)."""
+    workbook_path = os.path.join(folder_path or ".", "analysis_workbook.md")
     with open(workbook_path, "w", encoding="utf-8") as f:
         f.write(analysis_workbook)
+    if analysis_degraded:
+        console.warn("Analysis (Grok) complete with fallback workbook")
+        status = "fallback"
+    else:
+        console.phase_complete("Analysis (Grok)")
+        status = "completed"
+    if folder_path:
+        from primr.core.run_state_io import _update_run_state
 
-    console.phase_complete("Analysis (Grok)")
-
+        _update_run_state(folder_path, analysis_status=status)
     return analysis_workbook, reasoning_session
 
 
