@@ -177,6 +177,18 @@ def _confirmed_floor_summary(reports: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def has_decidable_confirmed_floor(report: dict[str, Any]) -> bool:
+    """True when Confirmed traceability is a decidable rate (not null / missing)."""
+    return _optional_rate(report.get("confirmed_traceability")) is not None
+
+
+def reports_missing_decidable_confirmed_floor(
+    reports: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Body-free report entries that cannot contribute a Confirmed floor."""
+    return [report for report in reports if not has_decidable_confirmed_floor(report)]
+
+
 def _optional_rate(value: Any) -> float | None:
     try:
         rate = float(value)

@@ -29,7 +29,11 @@ def _has_full_provider_key() -> bool:
 
 
 def _full_mode_label(grok_tier: str) -> str:
-    """Human label for the default full research path (CLI --mode full)."""
+    """Human label for the default full research path (CLI --mode full).
+
+    Full execution still requires XAI or Gemini (see ``cli_preflight``). Other
+    keys may price dry-runs and eval routes but must not look launch-ready.
+    """
     from primr.core.cli_labels import full_mode_label, grok_tier_label
 
     if os.environ.get("XAI_API_KEY"):
@@ -37,9 +41,9 @@ def _full_mode_label(grok_tier: str) -> str:
     if os.environ.get("GEMINI_API_KEY"):
         return "full (Gemini routed)"
     if os.environ.get("OPENAI_API_KEY"):
-        return "full (OpenAI routed)"
+        return "full (OpenAI estimate only; execution needs XAI or Gemini)"
     if os.environ.get("ANTHROPIC_API_KEY"):
-        return "full (Anthropic routed)"
+        return "full (Anthropic estimate only; execution needs XAI or Gemini)"
     # Still name the intended tier so dry-run is honest before keys are set.
     return f"full ({grok_tier_label(grok_tier)}; provider keys required)"
 

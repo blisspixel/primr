@@ -101,7 +101,7 @@ def test_explicit_fast_is_not_dependent_on_an_environment_key():
 def test_preparation_forwards_the_resolved_shape_to_confirmation(monkeypatch):
     calls = []
     monkeypatch.setattr(
-        "primr.utils.cost_estimator.display_cost_estimate",
+        "primr.utils.cost_display.display_cost_estimate",
         lambda *args, **kwargs: calls.append((args, kwargs)) or True,
     )
 
@@ -129,7 +129,8 @@ def test_preparation_forwards_the_resolved_shape_to_confirmation(monkeypatch):
 
 def test_invalid_preparation_never_requests_cost_confirmation(monkeypatch):
     confirm = pytest.fail
-    monkeypatch.setattr("primr.utils.cost_estimator.display_cost_estimate", confirm)
+    monkeypatch.setattr("primr.utils.cost_display.display_cost_estimate", confirm)
+    monkeypatch.setattr("primr.utils.cost_display.print_cost_estimate", confirm)
 
     preparation = prepare_research_runtime(
         mode="structured",
@@ -148,3 +149,37 @@ def test_invalid_preparation_never_requests_cost_confirmation(monkeypatch):
     )
 
     assert preparation.status == "invalid"
+
+
+def test_skip_confirm_still_prints_cost_estimate(monkeypatch):
+    """Single-company runs skip Proceed, but must never start silently."""
+    printed = []
+    monkeypatch.setattr(
+        "primr.utils.cost_display.print_cost_estimate",
+        lambda *args, **kwargs: printed.append((args, kwargs)) or object(),
+    )
+    confirm = pytest.fail
+    monkeypatch.setattr("primr.utils.cost_display.display_cost_estimate", confirm)
+
+    preparation = prepare_research_runtime(
+        mode="complete",
+        display_name="ExampleCo",
+        explicit_fast_mode=True,
+        premium_mode=False,
+        xai_available=True,
+        platform_count=1,
+        ai_strategy=True,
+        strategy_types=None,
+        refresh_vendor_research=False,
+        skip_confirm=True,
+        lite_strategy=False,
+        verify=False,
+        grok_tier="hybrid",
+    )
+
+    assert preparation.status == "ready"
+    assert len(printed) == 1
+    assert printed[0][0][0] == "complete"
+    assert printed[0][0][1] == "ExampleCo"
+    assert printed[0][1]["fast_mode"] is True
+    assert printed[0][1]["grok_tier"] == "hybrid"
