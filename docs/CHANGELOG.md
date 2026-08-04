@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Progressive working brief (Layer 1).** After fast-path scrape (+ recon),
+  Primr writes a free, deterministic `working_brief.md` (and a dated public
+  `*_Working_Brief_*.md` under `output/`) with incomplete banner, recon
+  excerpt, page/source inventory, hiring counts, and still-running stages.
+  Zero extra model calls. Inventory classifies it as `working_brief`, never
+  `primary_report`. See `docs/design/progressive-artifacts.md`.
+
 ### Changed
 
 - **Launch always shows the priced estimate.** Single-company research still

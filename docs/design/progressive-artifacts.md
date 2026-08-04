@@ -1,7 +1,8 @@
 # Progressive early artifacts (time-to-first-useful)
 
-Status: design only. Not scheduled as a release gate. Complements the 1.x
-quality and 2.0 memory workstreams; does not replace either.
+Status: **Layer 1 shipped** (deterministic working brief after scrape + hiring
+refresh). Layer 2+ remain design-only. Complements the 1.x quality and 2.0
+memory workstreams; does not replace either.
 
 ## Problem
 

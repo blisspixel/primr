@@ -70,6 +70,14 @@ def collect_hiring_block(
             },
         )
         hiring_block = "=== HIRING SIGNALS ===\n" + render_for_prompt(hiring_signals)
+        _refresh_working_brief_hiring(
+            folder_path=folder_path,
+            company_label=company_label,
+            website=website,
+            postings_found=hiring_signals.postings_found,
+            postings_extracted=hiring_signals.postings_extracted,
+            source=hiring_signals.source,
+        )
     else:
         if hiring_signals is None:
             logger.info("Hiring signals: skipped (disabled or no slug candidates)")
@@ -85,8 +93,60 @@ def collect_hiring_block(
                 "postings_extracted": 0,
             },
         )
+        _refresh_working_brief_hiring(
+            folder_path=folder_path,
+            company_label=company_label,
+            website=website,
+            postings_found=hiring_signals.postings_found if hiring_signals else 0,
+            postings_extracted=0,
+            source=hiring_signals.source if hiring_signals else "skipped",
+        )
 
     return hiring_block
+
+
+def _refresh_working_brief_hiring(
+    *,
+    folder_path: str,
+    company_label: str,
+    website: str | None,
+    postings_found: int,
+    postings_extracted: int,
+    source: str,
+) -> None:
+    """Refresh the Layer-1 working brief with hiring counts. Fail-open."""
+    try:
+        from primr.config.config import OUTPUT_DIR
+        from primr.core.run_state_io import _load_run_state
+        from primr.output.working_brief import (
+            WorkingBriefInput,
+            read_recon_excerpt,
+            write_working_brief,
+        )
+
+        state = _load_run_state(folder_path)
+        brief_paths = write_working_brief(
+            WorkingBriefInput(
+                company_name=company_label or "Company",
+                website=website,
+                run_id=folder_path,
+                pages_scraped=int(state.get("pages_scraped") or 0),
+                external_source_count=int(state.get("external_sources_initial") or 0),
+                recon_excerpt=read_recon_excerpt(folder_path),
+                hiring_postings_found=postings_found,
+                hiring_postings_extracted=postings_extracted,
+                hiring_source=source,
+            ),
+            working_folder=folder_path,
+            public_output_dir=OUTPUT_DIR,
+        )
+        if brief_paths:
+            _update_run_state(
+                folder_path,
+                working_brief_paths=[str(path) for path in brief_paths],
+            )
+    except Exception as exc:
+        logger.warning("Working brief hiring refresh skipped: %s", exc)
 
 
 def collect_fenced_hiring_block(

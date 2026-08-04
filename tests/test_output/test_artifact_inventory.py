@@ -64,6 +64,8 @@ def test_classification_covers_manifest_and_verification(tmp_path):
         ("Acme_Skills_Ideation_07-17-2026.pdf", "strategy_module"),
         ("Acme_Skills_Pack_Report.md", "skill_pack"),
         ("Acme_Custom_Assessment.md", "report"),
+        ("Acme_Working_Brief_08-04-2026.md", "working_brief"),
+        ("working_brief.md", "working_brief"),
         ("Acme_QA.json", "diagnostic"),
         ("run_manifest.json", "run_metadata"),
         ("insights.json", "supporting_artifact"),

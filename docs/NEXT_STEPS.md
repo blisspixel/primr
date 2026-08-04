@@ -61,8 +61,8 @@ Still open, and still the honest center of gravity:
    related MCP watch items remain.
 4. **Memory / strategy delta (→ 1.43 / 2.x)** — design and profile commands
    exist; not yet the default re-run experience.
-5. **Time-to-first-useful artifact (→ 1.44+)** — full runs remain long relative
-   to chat deep research. Design:
+5. **Time-to-first-useful artifact (→ 1.44+)** — Layer 1 free working brief is
+   shipped after scrape/hiring. Layer 2 early sketch remains opt-in design.
    [`docs/design/progressive-artifacts.md`](design/progressive-artifacts.md).
 6. **Optional: Grok 4.5 hybrid-reasoning eval** — profile `grok45-flashlite`
    is a promotion candidate only. Run only with explicit spend approval; flip

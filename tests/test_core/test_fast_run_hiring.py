@@ -38,7 +38,8 @@ def seams(monkeypatch, tmp_path):
     monkeypatch.setattr("primr.data.hiring_signals.render_for_prompt", lambda s: "rendered signals")
 
     def fake_update(folder_path, **updates):
-        captured["run_state"] = updates
+        # Real run-state merges; capture the full merged view across stage calls.
+        captured.setdefault("run_state", {}).update(updates)
 
     monkeypatch.setattr("primr.core.fast_run_hiring._update_run_state", fake_update)
     captured["gather"] = gather

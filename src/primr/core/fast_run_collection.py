@@ -41,6 +41,48 @@ from primr.utils.url_helpers import normalized_hostname
 logger = get_logger("core.fast_run_collection")
 
 
+def _emit_working_brief_after_collection(
+    *,
+    company_name: str | None,
+    website: str | None,
+    folder_path: str,
+    scraped_data: dict[str, str],
+    pages_scraped: int,
+    external_data: dict,
+) -> None:
+    """Layer-1 progressive artifact after scrape (+ recon). Fail-open."""
+    try:
+        from primr.config.config import OUTPUT_DIR
+        from primr.output.working_brief import (
+            WorkingBriefInput,
+            read_recon_excerpt,
+            write_working_brief,
+        )
+
+        brief_paths = write_working_brief(
+            WorkingBriefInput(
+                company_name=company_name or "Company",
+                website=website,
+                run_id=folder_path,
+                scraped_urls=tuple(scraped_data.keys()),
+                pages_scraped=pages_scraped,
+                external_urls=tuple(external_data.keys()),
+                external_source_count=len(external_data),
+                recon_excerpt=read_recon_excerpt(folder_path),
+            ),
+            working_folder=folder_path,
+            public_output_dir=OUTPUT_DIR,
+        )
+        if brief_paths:
+            _update_run_state(
+                folder_path,
+                working_brief_paths=[str(path) for path in brief_paths],
+            )
+            console.info(f"Working brief written ({brief_paths[0].name})")
+    except Exception as exc:
+        logger.warning("Working brief assembly skipped: %s", exc)
+
+
 @dataclass(frozen=True)
 class DataCollectionResult:
     """Outputs of the data-collection stage.
@@ -335,6 +377,15 @@ def collect_research_data(
     console.phase_complete(
         "Data Collection (fast)",
         [("Pages", str(pages_scraped)), ("External", str(len(external_data)))],
+    )
+
+    _emit_working_brief_after_collection(
+        company_name=company_name,
+        website=website,
+        folder_path=folder_path,
+        scraped_data=scraped_data,
+        pages_scraped=pages_scraped,
+        external_data=external_data,
     )
 
     return DataCollectionResult(
