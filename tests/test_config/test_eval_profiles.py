@@ -42,6 +42,20 @@ class TestProTierEvalSlots:
         assert cfg.provider == "google"
 
 
+class TestGrok45PromotionCandidate:
+    def test_grok45_flashlite_slot_registered(self):
+        """Optional 4.5-reasoning candidate exists but is not the hybrid default."""
+        names = list_eval_profile_names()
+        assert "grok43-flashlite" in names
+        assert "grok45-flashlite" in names
+        baseline = get_eval_profile("grok43-flashlite")
+        candidate = get_eval_profile("grok45-flashlite")
+        assert baseline.recipe.reasoning == "grok-4.3"
+        assert candidate.recipe.reasoning == "grok-4.5"
+        assert candidate.recipe.writing == "gemini-3.1-flash-lite"
+        assert candidate.estimated_cost_usd > baseline.estimated_cost_usd
+
+
 class TestPremiumAnthropicSlots:
     def test_premium_sonnet_slot_uses_current_sonnet(self):
         from primr.config.models import ModelRegistry

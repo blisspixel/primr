@@ -95,11 +95,9 @@ class TestDryRunRecoveryTable:
 
         output = captured.getvalue()
         assert result == 0
-        assert "RECOVERY TABLE" in output
-        assert "scraping" in output
-        assert "foreground" in output
-        assert "background" in output
-        assert "retry_backoff" in output
+        # Default dry-run keeps recovery progressive; verbose lists stage actions.
+        assert "Recovery:" in output
+        assert "Cost estimate" in output or "full (" in output
 
 
 # =============================================================================

@@ -156,7 +156,7 @@ class PipelineRunner:
                 on_progress("Starting website scraping...")
 
             if use_fast:
-                # Fast pipeline: Grok 4.1
+                # Fast pipeline: Grok 4.3 hybrid
                 import time
 
                 from primr.core.research_agent import perform_fast_research
