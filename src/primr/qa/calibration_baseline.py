@@ -123,9 +123,9 @@ def inspect_calibration_baseline(
     calibration_failures = [report for report in reports if report.get("error")]
     missing_evidence = [report for report in reports if not _has_evidence_reviews(report)]
     missing_agreement = [report for report in reports if not _has_judge_agreement(report)]
-    missing_decidable_confirmed = [
-        report for report in reports if not _has_decidable_confirmed_floor(report)
-    ]
+    from primr.qa.calibration_baseline_gate import reports_missing_decidable_confirmed_floor
+
+    missing_decidable_confirmed = reports_missing_decidable_confirmed_floor(reports)
     artifact_integrity = artifact_integrity_summary(reports)
     reasons = _string_list(baseline.get("reasons"))
     if artifact_integrity["missing"]:
@@ -199,7 +199,11 @@ def inspect_calibration_baseline(
                 _report_blocker(report, include_counts=True) for report in missing_agreement
             ],
             "missing_decidable_confirmed_floor": [
-                _report_blocker(report, include_confirmed_floor=True)
+                {
+                    **_report_blocker(report),
+                    "confirmed_traceability": report.get("confirmed_traceability"),
+                    "has_decidable_confirmed_floor": False,
+                }
                 for report in missing_decidable_confirmed
             ],
             "fingerprinted_artifacts_missing": artifact_integrity["missing"],
@@ -874,24 +878,11 @@ def _has_judge_agreement(report: dict[str, Any]) -> bool:
     return _safe_int(report.get("judge_agreement_compared")) > 0
 
 
-def _has_decidable_confirmed_floor(report: dict[str, Any]) -> bool:
-    """True when Confirmed traceability is a decidable rate (not null / missing)."""
-    value = report.get("confirmed_traceability")
-    if value is None:
-        return False
-    try:
-        rate = float(value)
-    except (TypeError, ValueError):
-        return False
-    return 0.0 <= rate <= 1.0
-
-
 def _report_blocker(
     report: dict[str, Any],
     *,
     include_counts: bool = False,
     include_error: bool = False,
-    include_confirmed_floor: bool = False,
 ) -> dict[str, Any]:
     blocker = {
         "report_file": report.get("report_file"),
@@ -908,10 +899,6 @@ def _report_blocker(
     if include_counts:
         blocker["evidence_source_reviews"] = _safe_int(report.get("evidence_source_reviews"))
         blocker["judge_agreement_compared"] = _safe_int(report.get("judge_agreement_compared"))
-    if include_confirmed_floor:
-        # Null means zero decidable Confirmed claims — not a 0% floor rate.
-        blocker["confirmed_traceability"] = report.get("confirmed_traceability")
-        blocker["has_decidable_confirmed_floor"] = False
     if include_error and report.get("error"):
         blocker["error"] = str(report.get("error"))
     return blocker
