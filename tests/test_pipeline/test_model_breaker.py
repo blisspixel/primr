@@ -22,9 +22,10 @@ class TestFallbackChainOrder:
     """Test that fallback chains are defined in the correct order."""
 
     def test_analysis_fallback_chain_order(self) -> None:
-        """Analysis chain: Grok 4.3 -> Grok 4.20 -> Claude Sonnet -> GPT-5.4 -> Gemini Flash."""
+        """Analysis: 4.3 (default) -> 4.5 (latest) -> 4.20 -> Sonnet -> GPT-5.4 -> Flash."""
         assert ANALYSIS_FALLBACK_CHAIN.models == (
             PrimrModels.GROK_MODEL_43,
+            PrimrModels.GROK_MODEL_45,
             PrimrModels.GROK_MODEL_420,
             ModelRegistry.ANTHROPIC_SONNET.name,
             "gpt-5.4",
@@ -36,11 +37,12 @@ class TestFallbackChainOrder:
         assert ANALYSIS_FALLBACK_CHAIN.name == "analysis"
 
     def test_premium_fallback_chain_order(self) -> None:
-        """Premium chain: Gemini Pro -> Claude Opus -> GPT-5.5 -> Grok 4.3."""
+        """Premium: Gemini Pro -> Opus -> GPT-5.5 -> Grok 4.5 -> Grok 4.3."""
         assert PREMIUM_FALLBACK_CHAIN.models == (
             PrimrModels.PRO_MODEL,
             "claude-opus-4-8",
             "gpt-5.5",
+            PrimrModels.GROK_MODEL_45,
             PrimrModels.GROK_MODEL_43,
         )
 

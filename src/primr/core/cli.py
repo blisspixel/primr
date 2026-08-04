@@ -234,7 +234,7 @@ class CLIConfig:
     # Opt in to the thorough (Deep Research) engine for standalone --ai-strategy-only.
     # That command defaults to the ~$1 lite engine; this flag restores Deep Research.
     deep_research_strategy: bool = False
-    fast_mode: bool = False  # Use Grok 4.1 for fast research (~12 min, ~$0.25)
+    fast_mode: bool = False  # Grok 4.3 hybrid full path (~30-45 min, ~$0.76+)
     premium_mode: bool = False  # Force Gemini + Deep Research pipeline
     grok_tier: str = "hybrid"  # Grok model tier: fast, hybrid, max
     inference_profile: str = "cloud"  # Capability-routing profile for wired stages
@@ -1321,8 +1321,9 @@ def _format_vendor_research_freshness() -> str:
     ttl_days = get_vendor_news_ttl_days()
     try:
         research_files = sorted(get_vendor_research_dir().glob("vendor-research-*.txt"))
-    except Exception:
-        research_files = []
+    except OSError as exc:
+        lines.append(f"  ! Could not list vendor research cache: {exc}")
+        return "\n".join(lines)
 
     if not research_files:
         lines.append("  (no cached vendor research yet)")
@@ -2466,13 +2467,10 @@ def _handle_research(config: CLIConfig) -> int:
         return report_preflight_failure(preflight_errors)
 
     if selection.auto_fast_mode and not config.json_output:
-        tier_label = {
-            "fast": "Grok 4.3 (low-effort)",
-            "hybrid": "Grok 4.3 hybrid",
-            "max": "Grok 4.3 max",
-        }
+        from primr.core.cli_labels import grok_tier_label
+
         console.info(
-            f"Using {tier_label.get(config.grok_tier, 'Grok')} fast mode; "
+            f"Using {grok_tier_label(config.grok_tier)} fast mode; "
             "for deeper research add --premium"
         )
     elif not use_fast_mode and not config.json_output:

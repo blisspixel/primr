@@ -3,8 +3,9 @@ LLM interface using Google Gemini API (modern SDK)
 Supports Gemini 3 Pro with thinking_level control.
 
 Utility-tier dispatch: when ``XAI_API_KEY`` is set, the cheap utility calls
-(scraping summaries, link selection, generic "fast" tasks) route to Grok 4.1
-fast non-reasoning instead of Gemini Flash. Grok 4.1 NR is 2.5x cheaper on
+(scraping summaries, link selection, generic "fast" tasks) route to the
+current Grok utility model (non-reasoning) instead of Gemini Flash when xAI
+is configured. That path is cheaper on
 input and 6x cheaper on output than Gemini Flash, lives on the same key the
 user already needs for the standard pipeline, and removes a cross-provider
 dependency that previously could stall the run on a Gemini hang. Pro-tier
@@ -96,8 +97,9 @@ def _get_model_for_type(model_type: str) -> str:
     """Get model name for a given legacy ``model_type`` string.
 
     This is a thin shim over :func:`primr.ai.routing.pick_model_for_legacy_type`.
-    The actual policy (utility tier prefers Grok 4.1-NR when ``XAI_API_KEY`` is
-    set, pro tier uses Gemini Pro) lives in the routing module.
+    The actual policy (utility tier prefers the current Grok non-reasoning model
+    when ``XAI_API_KEY`` is set; pro tier uses Gemini Pro) lives in the routing
+    module.
 
     Model types (USE THESE):
         - "scraping": utility - summarizing scraped content

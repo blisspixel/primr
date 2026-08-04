@@ -34,12 +34,14 @@ Recovery and outputs
 
 Other keyless and agent workflows
   primr recon example.co      Run standalone DNS intelligence
+  primr render report.md      Markdown to DOCX/TXT at $0
   primr skills "ExampleCo" https://example.co --dry-run
   primr mcp                   Start the MCP server
 
 Common research options
   --mode {scrape,deep,full,premium,parallel}
   --platform {azure,aws,gcp,private,agnostic,ms}
+  --budget N                  Refuse to start above N USD
   --no-ai-strategy
   --output-dir DIRECTORY
   --json

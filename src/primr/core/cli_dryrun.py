@@ -30,16 +30,18 @@ def _has_full_provider_key() -> bool:
 
 def _full_mode_label(grok_tier: str) -> str:
     """Human label for the default full research path (CLI --mode full)."""
-    tier_labels = {"fast": "Grok 4.1", "hybrid": "Grok 4.3 hybrid", "max": "Grok 4.3 max"}
+    from primr.core.cli_labels import full_mode_label, grok_tier_label
+
     if os.environ.get("XAI_API_KEY"):
-        return f"full ({tier_labels.get(grok_tier, 'Grok')})"
+        return full_mode_label(grok_tier, has_xai=True)
     if os.environ.get("GEMINI_API_KEY"):
         return "full (Gemini routed)"
     if os.environ.get("OPENAI_API_KEY"):
         return "full (OpenAI routed)"
     if os.environ.get("ANTHROPIC_API_KEY"):
         return "full (Anthropic routed)"
-    return "full (provider-routed)"
+    # Still name the intended tier so dry-run is honest before keys are set.
+    return f"full ({grok_tier_label(grok_tier)}; provider keys required)"
 
 
 def run_dry_run(config: CLIConfig) -> int:
@@ -140,19 +142,20 @@ def run_dry_run(config: CLIConfig) -> int:
         )
         return 0
 
-    print("")
-    print("=" * 60)
-    print(f"COST ESTIMATE: {mode_label} mode")
+    from primr.utils.console import console
+
+    console.header("Cost estimate", mode_label)
     if config.ai_strategy and not use_fast_mode:
         strategy_label = (
             "AI Strategy (Pro mode)" if config.lite_strategy else "AI Strategy analysis"
         )
-        print(f"(includes {strategy_label})")
+        console.muted(f"Includes {strategy_label}")
     elif use_fast_mode and config.ai_strategy:
-        print("(includes AI Strategy via Grok)")
-    print("=" * 60)
-    print("")
-    print(str(estimate))
+        console.muted("Includes AI Strategy (hybrid: Grok reasoning + Gemini writing)")
+    console.blank()
+    # CostEstimate.__str__ is the multi-line planning breakdown operators expect.
+    for line in str(estimate).splitlines():
+        console.text(line)
 
     if config.budget_usd is not None:
         from primr.core.budget_policy import describe_budget_enforcement
@@ -162,56 +165,54 @@ def run_dry_run(config: CLIConfig) -> int:
             fast_mode=use_fast_mode,
             premium_mode=use_premium_mode,
         )
-        print("")
-        print("BUDGET POLICY")
-        print("-" * 40)
-        print(f"  Pre-flight: {budget_policy.preflight}.")
-        print(f"  Runtime: {budget_policy.runtime}.")
+        console.blank()
+        console.step("Budget policy")
+        console.detail("Pre-flight", budget_policy.preflight)
+        console.detail("Runtime", budget_policy.runtime)
         if budget_policy.checkpointed_stages:
             stages = ", ".join(budget_policy.checkpointed_stages)
-            print(f"  Checkpointed stages: {stages}.")
+            console.detail("Checkpointed stages", stages)
 
-    # Recon pre-flight step (DNS intelligence — no API cost)
     if not config.skip_recon:
-        print("")
-        print("RECON PRE-FLIGHT")
-        print("-" * 40)
-        print("  DNS intelligence lookup:  $0.00  (~2-3 seconds)")
-        print("  (no API keys required)")
+        console.blank()
+        console.step("Recon pre-flight")
+        console.detail("DNS intelligence", "$0.00  (~2-3 seconds, no API keys)")
     else:
-        print("")
-        print("RECON PRE-FLIGHT: skipped (--skip-recon)")
+        console.blank()
+        console.muted("Recon pre-flight skipped (--skip-recon)")
 
-    # Recovery table summary (pipeline-resilience feature)
-    print("")
-    print("RECOVERY TABLE")
-    print("-" * 40)
+    # Recovery table is operator internals; keep progressive disclosure quiet.
     from primr.pipeline.recovery import build_default_recovery_table
     from primr.pipeline.stages import STAGE_CLASSIFICATIONS
 
     recovery_table = build_default_recovery_table()
-    for stage, hierarchy in recovery_table.hierarchies.items():
-        classification = STAGE_CLASSIFICATIONS[stage].value
-        actions = ", ".join(a.action_type.value for a in hierarchy.actions)
-        print(f"  {stage.value} ({classification}): {actions}")
+    stage_count = len(recovery_table.hierarchies)
     if config.verbose:
-        print("")
-        print("Recovery Table JSON:")
-        print(recovery_table.to_json())
+        console.blank()
+        console.step(f"Recovery table ({stage_count} stages)")
+        for stage, hierarchy in recovery_table.hierarchies.items():
+            classification = STAGE_CLASSIFICATIONS[stage].value
+            actions = ", ".join(a.action_type.value for a in hierarchy.actions)
+            console.muted(f"  {stage.value} ({classification}): {actions}")
+        console.blank()
+        console.muted("Recovery table JSON:")
+        console.text(recovery_table.to_json())
+    else:
+        console.blank()
+        console.muted(f"Recovery: {stage_count} stages configured (pass --verbose to list actions)")
 
-    print("")
-    print("NEXT STEPS")
-    print("-" * 40)
-    print("  1. Launch: repeat this command without --dry-run.")
-    print("     Optional: add --budget <usd> to enforce a run ceiling.")
-    print("  2. Monitor: follow the phase markers in this terminal.")
-    print(
-        "  3. Recover interrupted cloud work: primr --check-jobs; when completed, "
-        "run primr --resume-latest."
+    console.blank()
+    console.step("Next steps")
+    console.muted("  1. Launch: repeat this command without --dry-run.")
+    console.muted("     Optional: add --budget <usd> to enforce a run ceiling.")
+    console.muted("  2. Monitor: follow the phase markers in this terminal.")
+    console.muted(
+        "  3. Recover interrupted cloud work: primr --check-jobs; "
+        "when completed, run primr --resume-latest."
     )
-    print("  4. Retrieve: use the artifact path printed when the run completes.")
-    print("     For the default output directory, primr --list-recent also lists recent reports.")
-    print("")
-    print("=" * 60)
-    print("")
+    console.muted(
+        "  4. Retrieve: use the artifact path printed when the run completes "
+        "(or primr --list-recent)."
+    )
+    console.blank()
     return 0

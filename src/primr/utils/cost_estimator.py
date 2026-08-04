@@ -843,12 +843,9 @@ def _estimate_fast_mode_cost(
         duration += f" + {len(yaml_strategy_types)} strategy doc(s)"
     duration += _vendor_refresh_duration_suffix(refresh_tasks)
 
-    tier_labels = {
-        "fast": "Grok 4.3 (low-effort)",
-        "hybrid": "Grok 4.3 hybrid",
-        "max": "Grok 4.5 max",
-    }
-    tier_label = tier_labels.get(grok_tier, "Grok")
+    from primr.core.cli_labels import grok_tier_label
+
+    tier_label = grok_tier_label(grok_tier)
     mode_provider = _provider_label_for_model(reasoning_model)
     # Product CLI mode name is "full"; parenthetical names the priced backend path.
     estimate_mode = (
@@ -967,12 +964,12 @@ def display_cost_estimate(
     print(f"\n{company_name} | {mode} | ~${estimate.total_cost:.2f} | {estimate.duration_minutes}")
     sys.stdout.flush()
 
-    # Ask for confirmation with visible prompt
+    # Explicit yes only — empty Enter must not start a billable run (matches batch).
     try:
-        sys.stdout.write("Proceed? [Y/n] ")
+        sys.stdout.write("Proceed? [y/N] ")
         sys.stdout.flush()
         response = input().strip().lower()
-        return response in ("", "y", "yes")
+        return response in ("y", "yes")
     except (KeyboardInterrupt, EOFError):
         print("\nCancelled.")
         return False

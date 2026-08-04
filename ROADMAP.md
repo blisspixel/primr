@@ -35,7 +35,30 @@ The short execution brief lives in
 [`docs/NEXT_STEPS.md`](docs/NEXT_STEPS.md). It is the current answer to "what
 next and why"; this roadmap remains the full ordered backlog.
 
-Current priority order:
+### Version ladder (logical order, no schedules)
+
+Each band is gated on exit criteria, not a calendar. Ship many patch/minor
+releases inside a band; only cut the major when its pillars hold together.
+
+| Band | Theme | Why this order |
+|------|--------|----------------|
+| **v1.39.x** (current) | Operator polish, security floors, routing honesty | Ship safe defaults and truthful CLI/MCP surfaces while quality instrumentation matures. |
+| **v1.40** | Epistemic quality gate readiness | Hard gates and hybrid-routing promotions need a fully decidable production calibration corpus first; without it, quality claims are vibes. |
+| **v1.41** | Backend freedom: measured host promotion + residual dual-provider cleanup | Unlocks honest OpenAI-only / Anthropic-only / host / local profiles; depends on 1.40 instruments to judge backends. |
+| **v1.42** | Agent control-plane finish (MCP Tasks, remaining watch items) | Agents can already estimate/approve/read compact artifacts; finish long-running job lifecycle and parity so unattended delegation is safe. |
+| **v1.43** | Research memory layer 1 complete | Compounding value only after claims are measurable (1.40) and jobs are consumable (1.42). |
+| **v1.44–1.49** | Cost levers, progressive early artifacts, coverage ratchet | Mechanical after routing + orchestrator seams; improve time-to-first-useful and economics without changing product identity. |
+| **v2.0** | Backend freedom + memory + control plane as one release | Major bump when all three pillars meet exit criteria together: cost-tunable backends, durable research memory with governance, agent role with authz/budget/audit. |
+| **v2.x** | Strategy Delta Mode, claim store, host/local promotions | Deepen 2.0 pillars without expanding product identity. |
+| **v3.0** | Research frontier | VLM-first extraction, vertical compounding, post-artifact handoff contracts — only after 2.0 memory and control plane exist. |
+| **Beyond 3.0** | Consumer-side composition only | No SaaS, no daemon, no generic agent middleware; loops stay outside Primr. |
+
+**Do next (top of queue):** finish the production-corpus recalibration slice that
+keeps hard gates report-only (v1.40), then the live host-vs-cloud
+source-relevance promotion decision (v1.41). Everything quality-shaped or
+backend-shaped after that depends on those two measurements.
+
+Current priority order (detail):
 
 1. **Evidence-grounded validation and label honesty.** This is the measured
    quality gap: report claims, conclusions, caveats, and confidence labels must
@@ -460,7 +483,18 @@ a schedule. Detailed breakdowns live in [`docs/design/`](docs/design/README.md)
 
 The job is "URL in, consultant-grade artifact out," done well.
 
-**Status (as of v1.37.0):** most of the 1.x engineering backlog is closed -
+**Target minors on the way to 2.0:**
+
+| Version | Exit criteria (must hold before the next band) |
+|---------|--------------------------------------------------|
+| **1.39.x** | Current: hybrid default Grok 4.3, MAX Grok 4.5, crypto ≥50, truthful dry-run/doctor, Primr Zero front door. |
+| **1.40** | Fully decidable multi-report calibration corpus; hard-gate decision either armed from evidence or deliberately kept report-only with a new decision record. |
+| **1.41** | Live host-vs-cloud source-relevance comparison scored; human promotion decision recorded; residual xAI/Gemini-only preflight assumptions removed for pure single-provider profiles. |
+| **1.42** | MCP Tasks (or equivalent durable job handle) + remaining control-plane watch items; A2A/MCP parity frozen as the agent contract. |
+| **1.43** | Memory layer 1 complete: run pointers, claim history, retention/deletion, export without flagged gaps. |
+| **1.44+** | Progressive early artifacts Layer 1; batch API public surface; pipeline overlap where measured; coverage ratchet continues every slice. |
+
+**Status (as of v1.39.2):** most of the 1.x engineering backlog is closed -
 artifact pipeline contract (#1-2), cost/observability surface (#5, #7, #8,
 #12, #13), production failover (#6), QA iteration loop (#10), agentic write
 constraints (#11), runtime robustness (#24), and the `perform_fast_research`
@@ -633,81 +667,63 @@ in [Out of scope](#out-of-scope-rejected-with-rationale).
 
 ### Order of operations (dependency order, not a schedule)
 
-Each step unblocks the ones after it; items within a step are independent.
+Each step unblocks the ones after it. Version tags are the intended ship
+points; work can land earlier as 1.39.x patches when it is independently safe.
 
-1. **Measure the epistemics** (1.x): label-calibration audit as an eval hard
-   gate + evidence-fetching `--verify`. Everything quality-shaped downstream
-   (#4 prompt work, refine-loop acceptance, 3.0 compounding) needs a trusted
-   measurement of claim quality first - otherwise improvements are vibes.
-   **Done + measured (June 2026):** the calibration run found grounding
-   systemically deficient (Confirmed ~8% / Reported ~0% traceability), which
-   *redefines* #4 below - the lever is evidence-grounded validation, not prose
-   ornamentation.
-2. **Refactor the orchestrators** (#23) (1.x): splitting
-   `perform_fast_research` unlocks unit coverage on the pipeline core, the
-   complexity budget, and makes every later pipeline change (batch API,
-   overlap, routing) reviewable. Do this *before* features that touch the
-   monster, not after.
-3. **Consultant-grade writing** (#4) (1.x): now scoped by step 1's measurement to
-   **evidence-grounded validation**. The prose already grades well and the
-   evidence-plumbing levers washed, so the next slice is not prettier writing or
-   a new regex gate. It is a layered evaluation of support, contradiction, source
-   independence, source authority, reasoning strength, and uncertainty honesty.
-   **Shipped (opt-in, `PRIMR_LABEL_HONESTY=1`):** the runtime pass in
-   `qa/label_honesty.py` downgrades a `(Confirmed)`/`(Reported)` claim to
-   `(Estimated)` when its cited source is judged not to support it. Model
-   judgment decides, the downgrade is a mechanical fail-safe rewrite, confidence
-   only ever lowers, every other verdict fails open, an audit sidecar is written,
-   and shipping is never blocked. Default-off until an agreement-validated
-   calibration baseline and broader validation rubric justify promotion; arming
-   a hard gate stays bound to step 1's instruments, never a lone judge.
-   **Also shipped (always-on, judge-free):** the deterministic complement -
-   `summarize_label_citation_coverage()` surfaces a "Label Citations" trust row
-   (how many `(Confirmed)`/`(Reported)` claims carry a resolvable citation, the
-   `no_source` slice) at zero cost, so a label-traceability signal is visible
-   even when the paid pass is off. It renders on fast runs and - via the shared
-   `label_citations_trust_row` formatter (single source of the row's wording) -
-   on deep and `--premium` runs too, which previously shipped with no trust
-   summary at all. Report-only, structural (a labeled claim citing nothing is a
-   defect regardless of phrasing), never a gate.
-4. **Cost levers** (#9 batch API, #19 pipeline overlap) (1.x): mechanical
-   after step 2; each validated with one cheap live run.
-5. **Control plane** (T8 + #21) (2.0): per-tool authz is now shipped for MCP
-   dispatch (`read`, `research`, `delegate`, `admin`; OAuth `scope` / Entra
-   `scp` honored; legacy `write` remains a compatibility alias). Approval
-   tokens are now shipped for MCP cost-cap-governed execution tools and A2A
-   `research_company` parity. Structured MCP invocation audit is now shipped
-   for tool calls and resource reads, and the first seven job-scoped resource
-   slices now cover artifact metadata, compact QA summaries, compact usage/cost
-   summaries, compact source appendix
-   summaries, compact scrape trace summaries, compact claim verification
-   summaries, and compact label-calibration summaries. A2A skill-scope,
-   skill-audit, artifact-metadata compact read, QA-summary compact read,
-   usage-summary compact read, source-summary compact read, stage-scorecard
-   compact eval-read parity, approval-token enforcement, runtime budget
-   propagation, A2A report-read scope separation, and compact non-fast runtime
-   budget visibility through run manifests and usage summaries are now shipped.
-   Independent of steps 1-4; can proceed in parallel.
-6. **Backend freedom** (#18 + provider expansion) (2.0):
-   capability-requirement routing and provider-availability headroom first
-   (pure refactors of existing routing), then first-class OpenAI/Anthropic API
-   recipes, official host runners with proven billing provenance or explicit
-   operator acknowledgment, gateway recipes, hybrid-mode eval, and full-local
-   eval. Depends on step 1's instruments to judge each backend's quality
-   honestly.
-7. **Memory layer 1 → 2 → 3** (2.0): persistent company tracking (filesystem,
-   no new deps) → claim store + priming (SQLite + embeddings) → Strategy
-   Delta Mode. Layer 3 also depends on the per-user cache (#12, shipped) and
-   benefits from step 1 (delta detection needs trustworthy claims). Layer 1
-   foundation is now started: default research memory and company profiles live
-   in the per-user data directory with `PRIMR_DATA_DIR` relocation, doctor
-   readback for memory paths, no-secret write enforcement, and deterministic
-   `primr company track/list/show/export` profile commands.
-8. **2.0 release** when steps 5-7 all hold their exit criteria together.
-9. **3.0 workstreams** (VLM, compounding, handoff): VLM depends on nothing
-   above (can start anytime resources allow); compounding depends on the
-   claim store (step 7); the handoff contract depends on the control plane
-   (step 5).
+```text
+1.39.x  polish + truthful surfaces (current)
+   │
+   ▼
+1.40    measure epistemics on a fully decidable production corpus
+   │      (hard gate stays report-only until this proves readiness)
+   ▼
+1.41    promote backends only from measured host/cloud + single-provider cleanup
+   │
+   ├──────────────────────┐
+   ▼                      ▼
+1.42 control plane finish   1.43 memory layer 1 complete
+   │                      │
+   └──────────┬───────────┘
+              ▼
+1.44+   cost levers, progressive artifacts, coverage ratchet
+              │
+              ▼
+2.0     backend freedom + memory + control plane exit criteria all hold
+              │
+              ▼
+2.x     claim store, Strategy Delta, further host/local promotions
+              │
+              ▼
+3.0     VLM-first extraction · vertical compounding · post-artifact handoff
+              │
+              ▼
+later   consumer-side composition only (no SaaS / daemon / generic middleware)
+```
+
+1. **Measure the epistemics** (**→ 1.40**): label-calibration + evidence-fetching
+   `--verify`. Tooling and a five-report measured baseline are **shipped**; the
+   open slice is a fully decidable production corpus and a re-decision on hard
+   gates / `PRIMR_LABEL_HONESTY`. Everything quality-shaped downstream needs
+   this measurement first.
+2. **Refactor the orchestrators** (#23) (**done in 1.x**): `perform_fast_research`
+   extraction complete; keep per-module coverage rising as seams open.
+3. **Evidence-grounded validation** (#4) (**→ 1.40**): opt-in label honesty and
+   always-on citation coverage trust row are shipped; promotion waits on step 1.
+4. **Backend freedom** (#18) (**→ 1.41, then 2.0 pillar**): router wiring across
+   the fast pipeline is shipped; next is live host-vs-cloud promotion and pure
+   single-provider full-report paths.
+5. **Control plane** (T8 + #21) (**→ 1.42, then 2.0 pillar**): MCP/A2A authz,
+   approval tokens, seven compact job resources, and cancellation ownership are
+   shipped; remaining: MCP Tasks extension and related watch items.
+6. **Memory layer 1 → 2 → 3** (**→ 1.43 for L1, 2.0 for L1 exit, 2.x for L2/L3**):
+   profiles and no-secret writes started; run pointers and claim history still
+   needed for L1 done.
+7. **Cost levers & progressive artifacts** (**→ 1.44+**): batch API public
+   surface, pipeline overlap, Layer-1 free working brief after scrape/recon.
+8. **2.0 release** when backend freedom, memory L1, and control-plane exit
+   criteria all hold together.
+9. **3.0 workstreams** after 2.0: VLM can start earlier if resourced; compounding
+   needs the claim store; handoff needs the control plane.
 
 ---
 

@@ -19,6 +19,7 @@ from typing import Any
 
 from primr.config.config import OUTPUT_DIR
 from primr.config.models import PrimrModels
+from primr.core.cli_labels import GROK_TIER_LABELS as _TIER_LABELS
 from primr.core.run_state_io import _update_run_state
 from primr.core.strategy_outcome import StrategyOutcome
 from primr.core.vendor_refresh_outcome import VendorRefreshOutcome
@@ -28,12 +29,6 @@ from primr.utils.observability import JobSummary, log_job_summary
 from primr.utils.validators import sanitize_for_filename
 
 logger = get_logger("core.fast_run_summary")
-
-_TIER_LABELS = {
-    "fast": "Grok 4.3 (low-effort)",
-    "hybrid": "Grok 4.3 hybrid",
-    "max": "Grok 4.3 max",
-}
 
 
 def _strategy_display_label(strat_key: str) -> str:
@@ -114,10 +109,11 @@ def finalize_fast_run(
         and all(str(path).lower().endswith(".docx") for path in strategy_paths.values())
         and strategy_outcome.status in {"not_requested", "completed"}
     )
-    completion_label = (
-        "Fast mode complete" if artifacts_passed else "Fast mode complete with warnings"
-    )
-    console.ok(f"{completion_label} in {time_str}")
+    if artifacts_passed:
+        console.ok(f"Fast mode complete in {time_str}")
+    else:
+        # Partial deliverables must not look like full success (green check).
+        console.warn(f"Fast mode complete with warnings in {time_str}")
 
     # Cache hit rate rides along for post-hoc analysis (roadmap #5): the
     # sub-$1 default depends on it, and the show-usage regression signal

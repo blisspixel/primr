@@ -60,7 +60,7 @@ FILE_LINE_CEILINGS: dict[str, int] = {
     # dispatch only (an import + a 2-line check); all render logic lives in
     # cli_render.py, keeping the entrypoint's growth minimal.
     "core/research_agent.py": 4316,
-    "core/cli.py": 2903,
+    "core/cli.py": 2901,
     "ai/deep_research.py": 3885,
     "data/scraping/browsers.py": 1835,
     "data/hiring_signals.py": 1577,
@@ -99,6 +99,7 @@ INTENTIONAL_TINY_MODULES: dict[str, str] = {
     "config/sections_config.py": "section configuration compatibility surface",
     "core/cli_prep.py": "legacy prep-command import compatibility surface",
     "core/cli_help.py": "backward-compatible CLI help import surface",
+    "core/cli_labels.py": "shared Grok tier / mode display labels for CLI and estimates",
     "core/strategy_enrichment_contract.py": "strategy review and repair framing policy",
     "data/first_party_url.py": "first-party URL policy seam",
     "mcp_server/cloud_detect.py": "cloud-runtime adapter",

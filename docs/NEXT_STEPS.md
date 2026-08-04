@@ -1,17 +1,29 @@
 # Next Steps
 
-Last research refresh: 2026-08-02.
+Last research refresh: 2026-08-04.
 
 This page answers the working question: what should Primr do next, and why?
-`ROADMAP.md` remains the ordered backlog. This page is the shorter execution
-brief for the next planning cycles.
+`ROADMAP.md` remains the ordered backlog and the version ladder toward 2.0 /
+3.0. This page is the shorter execution brief.
 
 Tone: we aim to do this work carefully and well. We do not need to claim the
 category or put other research tools down. For fit vs chat deep research,
 enterprise CI, and research APIs, see
 [`docs/design/competitive-positioning.md`](design/competitive-positioning.md).
 
-## Where we are (post v1.39.2)
+## Version order (logical, not a schedule)
+
+| Next | Focus | Why |
+|------|--------|-----|
+| **1.40** | Fully decidable production calibration corpus + hard-gate re-decision | Quality gates and backend promotions must rest on measured epistemics, not vibes. |
+| **1.41** | Live host-vs-cloud source-relevance promotion + single-provider cleanup | Unlocks honest non-xAI/Gemini-only full runs; depends on 1.40 instruments. |
+| **1.42** | MCP Tasks + control-plane watch items | Completes safe unattended agent delegation. |
+| **1.43** | Memory layer 1 complete | Compounding value only after claims and job consumption are solid. |
+| **1.44+** | Progressive early artifacts, batch public surface, cost levers | Time-to-first-useful and economics after the quality/routing spine. |
+| **2.0** | Backend freedom + memory + control plane together | Major product step: composable research *role*, not only single-shot CLI. |
+| **3.0** | VLM, vertical compounding, post-artifact handoff | Reach expansion after 2.0 foundations. |
+
+## Where we are (post v1.39.2 + Grok routing + polish)
 
 Shipped recently and relevant to planning:
 
@@ -24,22 +36,33 @@ Shipped recently and relevant to planning:
 - Root README as a short front door (agentic + structured research, agent vs
   terminal paths); operator detail in focused `docs/` guides. PyPI long
   description tracks the README.
+- **Grok 4.5 registered; hybrid default stays 4.3.** `--grok-tier max` uses
+  4.5. Decision and cost evidence:
+  [`design/grok-default-routing.md`](design/grok-default-routing.md). Do not
+  promote 4.5 to hybrid without an eval gate (measured hybrid ~$0.76 vs
+  max-everywhere ~$8.5 on the same estimator).
+- **Operator-surface honesty:** shared Grok tier labels (no stale 4.1 / "4.3
+  max"), console-styled dry-run with progressive recovery disclosure,
+  Zero-friendly doctor, MCP estimates use planning-floor ≥ historical,
+  corrupt run-state quarantine, partial fast-run completion warns instead of
+  green success.
 
 Still open, and still the honest center of gravity:
 
-1. **Epistemic quality** — calibration and evidence-review tooling exist; hard
-   gates stay report-only until a more complete production corpus supports them.
-2. **Backend freedom** — routing is wired; live host-vs-cloud promotion and
-   full no-legacy-dual-provider report paths still need evidence and cleanup.
-3. **Agent control-plane polish** — strong base; Tasks extension and related
-   MCP watch items remain.
-4. **Memory / strategy delta** — design exists; not yet the default re-run
-   experience.
-5. **Time-to-first-useful artifact** — full runs remain long relative to chat
-   deep research. Design for progressive early artifacts lives in
-   [`docs/design/progressive-artifacts.md`](design/progressive-artifacts.md)
-   (Layer 1 = free working brief after scrape/recon; Layer 2 = opt-in sketch).
-   Implementation is still open.
+1. **Epistemic quality (→ 1.40)** — calibration tooling exists; hard gates stay
+   report-only until a fully decidable production corpus supports them.
+2. **Backend freedom (→ 1.41)** — routing is wired; live host-vs-cloud promotion
+   and residual dual-provider preflight assumptions remain.
+3. **Agent control-plane polish (→ 1.42)** — strong base; Tasks extension and
+   related MCP watch items remain.
+4. **Memory / strategy delta (→ 1.43 / 2.x)** — design and profile commands
+   exist; not yet the default re-run experience.
+5. **Time-to-first-useful artifact (→ 1.44+)** — full runs remain long relative
+   to chat deep research. Design:
+   [`docs/design/progressive-artifacts.md`](design/progressive-artifacts.md).
+6. **Optional: Grok 4.5 hybrid-reasoning eval** — profile `grok45-flashlite`
+   is a promotion candidate only. Run only with explicit spend approval; flip
+   hybrid default only if utility-per-dollar and quality pass.
 
 ## Research-backed decision rules
 

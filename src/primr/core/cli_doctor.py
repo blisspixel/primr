@@ -62,12 +62,12 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
     xai_key = os.environ.get("XAI_API_KEY", "")
     if xai_key and len(xai_key) >= 10:
         configured_model_keys += 1
-        console.ok("XAI_API_KEY configured (enables Grok standard mode)")
+        console.ok("XAI_API_KEY configured (enables Grok hybrid/full pipeline)")
     elif xai_key:
         console.error("XAI_API_KEY set but appears too short")
         all_passed = False
     else:
-        console.info("XAI_API_KEY not set (Grok standard mode disabled)")
+        console.info("XAI_API_KEY not set (Grok hybrid/full pipeline disabled)")
         console.info("  Run: primr keys set xai")
         console.info("  Get your key at: https://console.x.ai/")
 
@@ -88,11 +88,9 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
         all_passed = False
 
     if configured_model_keys == 0:
-        console.warn("No cloud LLM provider key configured")
-        console.info("  Provider-backed research is unavailable.")
-        console.info("  Keyless commands remain ready: primr prep | primr recon")
+        console.ok("Keyless ready: primr prep · primr recon · primr render")
+        console.info("  Provider-backed research needs a cloud LLM key.")
         console.info("  Run one of: primr keys set gemini | xai | openai | anthropic")
-        warnings_count += 1
 
     search_provider = os.environ.get("SEARCH_PROVIDER", "auto").lower().strip()
     search_key = os.environ.get("SEARCH_API_KEY", "")
@@ -343,8 +341,7 @@ def _check_gemini_resources(all_passed: bool, warnings_count: int) -> tuple[bool
     """Check for orphaned Gemini resources that could be incurring costs."""
     gemini_key = os.environ.get("GEMINI_API_KEY", "")
     if not gemini_key:
-        console.warn("Skipping Gemini resource check (no API key)")
-        warnings_count += 1
+        console.info("Skipping Gemini resource check (no API key)")
         return all_passed, warnings_count
 
     try:

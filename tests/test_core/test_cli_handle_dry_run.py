@@ -213,14 +213,14 @@ class TestDryRunFlags:
 
         assert result == 0
         out = capsys.readouterr().out
-        assert "RECOVERY TABLE" in out
-        assert "Recovery Table JSON" not in out
-        assert "NEXT STEPS" in out
+        # Recovery details are verbose-only; default shows a one-liner.
+        assert "Recovery:" in out
+        assert "Recovery table JSON" not in out
+        assert "Next steps" in out
         assert "--budget <usd>" in out
         assert "--check-jobs" in out
         assert "--resume-latest" in out
         assert "--list-recent" in out
-        assert "For the default output directory" in out
 
     def test_full_path_estimate_header_uses_full_label(self, mocks, monkeypatch, capsys):
         monkeypatch.setenv("XAI_API_KEY", "x" * 30)
@@ -228,14 +228,15 @@ class TestDryRunFlags:
 
         assert result == 0
         out = capsys.readouterr().out
-        assert "COST ESTIMATE: full (" in out
+        assert "Cost estimate" in out
+        assert "full (" in out
 
     def test_verbose_output_retains_recovery_json(self, mocks, capsys):
         result = run_dry_run(_config(mode="scrape", verbose=True))
 
         assert result == 0
         out = capsys.readouterr().out
-        assert "Recovery Table JSON" in out
+        assert "Recovery table JSON" in out
         assert "{}" in out
 
     def test_budget_policy_prints_optional_strategy_checkpoint_for_premium(self, mocks, capsys):
@@ -243,7 +244,7 @@ class TestDryRunFlags:
 
         assert result == 0
         out = capsys.readouterr().out
-        assert "BUDGET POLICY" in out
+        assert "Budget policy" in out
         assert "optional strategy generation" in out
         assert "required Deep Research task cannot be stopped" in out
 

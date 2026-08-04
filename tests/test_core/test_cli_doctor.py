@@ -59,7 +59,7 @@ class TestCheckApiKeys:
         assert all_passed is True
         assert warnings >= 1
 
-    def test_keyless_install_is_ready_with_warning(self, monkeypatch, capsys):
+    def test_keyless_install_is_ready_without_warning(self, monkeypatch, capsys):
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.delenv("XAI_API_KEY", raising=False)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
@@ -71,10 +71,11 @@ class TestCheckApiKeys:
             all_passed, warnings = _check_api_keys(True, 0)
         output = capsys.readouterr().out
         assert all_passed is True
-        assert warnings == 1
-        assert "Provider-backed research is unavailable" in output
+        assert warnings == 0
+        assert "Keyless ready" in output
         assert "primr prep" in output
         assert "primr recon" in output
+        assert "Provider-backed research needs a cloud LLM key" in output
 
     @pytest.mark.parametrize(
         "env_name",
@@ -461,10 +462,12 @@ class TestCheckApiConnectivity:
 
 
 class TestCheckGeminiResources:
-    def test_no_key_skips_with_warning(self, monkeypatch):
+    def test_no_key_skips_without_warning(self, monkeypatch, capsys):
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         all_passed, warnings = _check_gemini_resources(True, 0)
-        assert warnings == 1
+        assert all_passed is True
+        assert warnings == 0
+        assert "Skipping Gemini resource check" in capsys.readouterr().out
 
     def test_no_orphans(self, monkeypatch):
         monkeypatch.setenv("GEMINI_API_KEY", "x" * 30)
