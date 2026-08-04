@@ -83,11 +83,9 @@ def test_read_recon_excerpt_truncates(tmp_path: Path) -> None:
 
 def test_public_brief_uses_run_state_output_dir(tmp_path: Path, monkeypatch) -> None:
     """Public brief must follow run-state output_dir (CLI --output-dir / MCP job)."""
-    from primr.core.fast_run_collection import (
-        _emit_working_brief_after_collection,
-        _resolve_public_output_dir,
-    )
+    from primr.core.fast_run_collection import _emit_working_brief_after_collection
     from primr.core.run_state_io import _save_run_state
+    from primr.output.working_brief import resolve_public_output_dir
 
     working = tmp_path / "working" / "run"
     job_out = tmp_path / "jobs" / "job-1"
@@ -95,7 +93,7 @@ def test_public_brief_uses_run_state_output_dir(tmp_path: Path, monkeypatch) -> 
     job_out.mkdir(parents=True)
     _save_run_state(str(working), {"output_dir": str(job_out)})
 
-    assert _resolve_public_output_dir(str(working)) == str(job_out)
+    assert resolve_public_output_dir(str(working)) == str(job_out)
 
     monkeypatch.setattr(
         "primr.config.config.OUTPUT_DIR",

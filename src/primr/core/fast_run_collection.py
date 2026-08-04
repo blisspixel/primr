@@ -41,18 +41,6 @@ from primr.utils.url_helpers import normalized_hostname
 logger = get_logger("core.fast_run_collection")
 
 
-def _resolve_public_output_dir(folder_path: str) -> str:
-    """Prefer run-state output_dir (CLI --output-dir / MCP job dir) over global."""
-    from primr.config.config import OUTPUT_DIR
-    from primr.core.run_state_io import _load_run_state
-
-    state = _load_run_state(folder_path)
-    configured = state.get("output_dir")
-    if isinstance(configured, str) and configured.strip():
-        return configured.strip()
-    return OUTPUT_DIR
-
-
 def _emit_working_brief_after_collection(
     *,
     company_name: str | None,
@@ -67,6 +55,7 @@ def _emit_working_brief_after_collection(
         from primr.output.working_brief import (
             WorkingBriefInput,
             read_recon_excerpt,
+            resolve_public_output_dir,
             write_working_brief,
         )
 
@@ -82,7 +71,7 @@ def _emit_working_brief_after_collection(
                 recon_excerpt=read_recon_excerpt(folder_path),
             ),
             working_folder=folder_path,
-            public_output_dir=_resolve_public_output_dir(folder_path),
+            public_output_dir=resolve_public_output_dir(folder_path),
         )
         if brief_paths:
             _update_run_state(
