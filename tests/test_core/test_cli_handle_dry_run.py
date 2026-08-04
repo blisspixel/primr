@@ -160,14 +160,14 @@ class TestDryRunFlags:
         assert result == 0
 
     @pytest.mark.parametrize(
-        ("env_name", "expected_label"),
+        ("env_name", "expected_fragment"),
         [
-            ("OPENAI_API_KEY", "full (OpenAI routed)"),
-            ("ANTHROPIC_API_KEY", "full (Anthropic routed)"),
+            ("OPENAI_API_KEY", "OpenAI estimate only"),
+            ("ANTHROPIC_API_KEY", "Anthropic estimate only"),
         ],
     )
     def test_auto_full_estimate_when_opt_in_provider_key_set(
-        self, monkeypatch, capsys, env_name, expected_label
+        self, monkeypatch, capsys, env_name, expected_fragment
     ):
         import json
 
@@ -181,7 +181,8 @@ class TestDryRunFlags:
 
         assert result == 0
         payload = json.loads(capsys.readouterr().out)
-        assert payload["mode_label"] == expected_label
+        assert expected_fragment in payload["mode_label"]
+        assert "execution needs XAI or Gemini" in payload["mode_label"]
 
     @pytest.mark.parametrize("env_name", ["GEMINI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"])
     def test_non_xai_provider_does_not_select_fast_cost_shape(self, mocks, monkeypatch, env_name):

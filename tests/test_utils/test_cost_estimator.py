@@ -12,6 +12,7 @@ from primr.config.models import (
     ModelRegistry,
     PrimrModels,
 )
+from primr.utils.cost_display import get_cost_summary
 from primr.utils.cost_estimator import (
     GEMINI_3_FLASH_INPUT_PRICE,
     GEMINI_3_FLASH_OUTPUT_PRICE,
@@ -21,7 +22,6 @@ from primr.utils.cost_estimator import (
     CostEstimate,
     _apply_tokenizer_safety_factor,
     estimate_cost,
-    get_cost_summary,
 )
 
 
@@ -959,7 +959,8 @@ class TestDisplayCostEstimateStrategyTypes:
     def test_forwards_strategy_types_to_estimate(self, monkeypatch):
         from unittest.mock import MagicMock
 
-        import primr.utils.cost_estimator as ce
+        import primr.utils.cost_display as cd
+        from primr.utils.cost_estimator import CostEstimate
 
         captured = {}
 
@@ -967,7 +968,7 @@ class TestDisplayCostEstimateStrategyTypes:
             captured["mode"] = mode
             captured["strategy_types"] = kwargs.get("strategy_types")
             captured["vendor_research_refreshes"] = kwargs.get("vendor_research_refreshes")
-            return ce.CostEstimate(
+            return CostEstimate(
                 mode=mode,
                 estimated_input_tokens=0,
                 estimated_output_tokens=0,
@@ -980,11 +981,11 @@ class TestDisplayCostEstimateStrategyTypes:
                 notes=[],
             )
 
-        monkeypatch.setattr(ce, "estimate_cost", fake_estimate)
+        monkeypatch.setattr(cd, "estimate_cost", fake_estimate)
         # Decline at the prompt so the function returns without side effects.
         monkeypatch.setattr("builtins.input", MagicMock(return_value="n"))
 
-        result = ce.display_cost_estimate(
+        result = cd.display_cost_estimate(
             "complete",
             "AcmeCo",
             include_ai_strategy=True,

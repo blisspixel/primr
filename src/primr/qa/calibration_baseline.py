@@ -123,6 +123,9 @@ def inspect_calibration_baseline(
     calibration_failures = [report for report in reports if report.get("error")]
     missing_evidence = [report for report in reports if not _has_evidence_reviews(report)]
     missing_agreement = [report for report in reports if not _has_judge_agreement(report)]
+    from primr.qa.calibration_baseline_gate import reports_missing_decidable_confirmed_floor
+
+    missing_decidable_confirmed = reports_missing_decidable_confirmed_floor(reports)
     artifact_integrity = artifact_integrity_summary(reports)
     reasons = _string_list(baseline.get("reasons"))
     if artifact_integrity["missing"]:
@@ -180,6 +183,7 @@ def inspect_calibration_baseline(
             "calibration_failures": len(calibration_failures),
             "missing_evidence_review_reports": len(missing_evidence),
             "missing_judge_agreement_reports": len(missing_agreement),
+            "missing_decidable_confirmed_floor_reports": len(missing_decidable_confirmed),
             "missing_representative_selection": not bool(representation.get("selection_ready")),
             "missing_representative_tags": len(_string_list(representation.get("missing_tags"))),
         },
@@ -193,6 +197,14 @@ def inspect_calibration_baseline(
             ],
             "missing_judge_agreement": [
                 _report_blocker(report, include_counts=True) for report in missing_agreement
+            ],
+            "missing_decidable_confirmed_floor": [
+                {
+                    **_report_blocker(report),
+                    "confirmed_traceability": report.get("confirmed_traceability"),
+                    "has_decidable_confirmed_floor": False,
+                }
+                for report in missing_decidable_confirmed
             ],
             "fingerprinted_artifacts_missing": artifact_integrity["missing"],
             "artifact_fingerprint_mismatches": artifact_integrity["mismatched"],

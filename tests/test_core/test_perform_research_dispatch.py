@@ -43,7 +43,8 @@ def seams(monkeypatch, tmp_path):
     monkeypatch.setattr(research_agent, "perform_deep_research", deep)
 
     confirm = MagicMock(return_value=True)
-    monkeypatch.setattr("primr.utils.cost_estimator.display_cost_estimate", confirm)
+    monkeypatch.setattr("primr.utils.cost_display.display_cost_estimate", confirm)
+    monkeypatch.setattr("primr.utils.cost_display.print_cost_estimate", lambda *a, **k: None)
 
     # Seal the legacy structured-pipeline boundary: when a test routes past
     # the fast/deep dispatchers, the inline pipeline must not touch the

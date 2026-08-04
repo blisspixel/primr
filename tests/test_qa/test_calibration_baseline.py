@@ -475,10 +475,22 @@ def test_ready_baseline_with_partial_confirmed_floor_stays_report_only() -> None
     assert not any(item["reason"] == "ready" for item in actions["items"])
     assert any(
         item["reason"] == "incomplete_confirmed_traceability_floor"
-        and "complete per-report floor" in item["action"]
+        and "missing_decidable_confirmed_floor" in item["action"]
         for item in actions["items"]
     )
     inspection = inspect_calibration_baseline(baseline)
+    assert inspection["counts"]["missing_decidable_confirmed_floor_reports"] == 1
+    assert len(inspection["blockers"]["missing_decidable_confirmed_floor"]) == 1
+    assert (
+        inspection["blockers"]["missing_decidable_confirmed_floor"][0]["report_file"]
+        == "Company0_Strategic_Overview.md"
+    )
+    assert (
+        inspection["blockers"]["missing_decidable_confirmed_floor"][0][
+            "has_decidable_confirmed_floor"
+        ]
+        is False
+    )
     assert inspection["next_actions"]["hard_gate_action"] == (
         "keep_gate_unset_until_confirmed_floor_complete"
     )
@@ -1218,6 +1230,7 @@ def test_inspect_baseline_lists_report_level_blockers() -> None:
         "calibration_failures": 1,
         "missing_evidence_review_reports": 2,
         "missing_judge_agreement_reports": 2,
+        "missing_decidable_confirmed_floor_reports": 1,
         "missing_representative_selection": False,
         "missing_representative_tags": 1,
     }

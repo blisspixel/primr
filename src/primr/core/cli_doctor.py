@@ -74,7 +74,10 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
     openai_key = os.environ.get("OPENAI_API_KEY", "")
     if openai_key and len(openai_key) >= 10:
         configured_model_keys += 1
-        console.ok("OPENAI_API_KEY configured (OpenAI fallback enabled)")
+        console.ok(
+            "OPENAI_API_KEY configured (dry-run/eval/routed stages; "
+            "full execution still needs XAI or Gemini)"
+        )
     elif openai_key:
         console.error("OPENAI_API_KEY set but appears too short")
         all_passed = False
@@ -82,7 +85,10 @@ def _check_api_keys(all_passed: bool, warnings_count: int) -> tuple[bool, int]:
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if anthropic_key and len(anthropic_key) >= 10:
         configured_model_keys += 1
-        console.ok("ANTHROPIC_API_KEY configured (Anthropic fallback enabled)")
+        console.ok(
+            "ANTHROPIC_API_KEY configured (dry-run/eval/routed stages; "
+            "full execution still needs XAI or Gemini)"
+        )
     elif anthropic_key:
         console.error("ANTHROPIC_API_KEY set but appears too short")
         all_passed = False
