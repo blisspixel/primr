@@ -16,6 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Zero extra model calls. Inventory classifies it as `working_brief`, never
   `primary_report`. See `docs/design/progressive-artifacts.md`.
 
+### Fixed
+
+- **Working brief honors `--output-dir` / MCP job dirs.** Public
+  `*_Working_Brief_*.md` is written under the run’s `output_dir` from run
+  state, not always the global `OUTPUT_DIR`.
+- **Analysis fallback no longer looks fully successful.** Degraded workbook
+  paths use warn styling and record `analysis_status=fallback`.
+- **Lite vendor-news pricing fail-visible.** Token pricing exceptions use a
+  non-zero floor and log a warning instead of `$0.00` token cost.
+
 ### Changed
 
 - **Launch always shows the priced estimate.** Single-company research still

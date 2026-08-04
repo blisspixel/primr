@@ -2711,7 +2711,7 @@ def perform_research(
             },
         )
         _append_run_event(folder_path, "initializing", "started", "Run initialized")
-
+    _update_run_state(folder_path, output_dir=str(run_output_dir))  # working-brief public root
     # Resolve operator framing (Step 1): helper owns the discovery-notes read.
     from primr.core.research_framing import resolve_run_framing
 

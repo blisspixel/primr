@@ -79,3 +79,37 @@ def test_read_recon_excerpt_truncates(tmp_path: Path) -> None:
     (tmp_path / "_recon_context.txt").write_text("a" * 50, encoding="utf-8")
     assert read_recon_excerpt(tmp_path, max_chars=10) == "a" * 10
     assert read_recon_excerpt(tmp_path / "missing") is None
+
+
+def test_public_brief_uses_run_state_output_dir(tmp_path: Path, monkeypatch) -> None:
+    """Public brief must follow run-state output_dir (CLI --output-dir / MCP job)."""
+    from primr.core.fast_run_collection import _emit_working_brief_after_collection
+    from primr.core.run_state_io import _save_run_state
+    from primr.output.working_brief import resolve_public_output_dir
+
+    working = tmp_path / "working" / "run"
+    job_out = tmp_path / "jobs" / "job-1"
+    working.mkdir(parents=True)
+    job_out.mkdir(parents=True)
+    _save_run_state(str(working), {"output_dir": str(job_out)})
+
+    assert resolve_public_output_dir(str(working)) == str(job_out)
+
+    monkeypatch.setattr(
+        "primr.config.config.OUTPUT_DIR",
+        str(tmp_path / "global-output"),
+    )
+    _emit_working_brief_after_collection(
+        company_name="ExampleCo",
+        website="https://example.co",
+        folder_path=str(working),
+        scraped_data={"https://example.co/": "body"},
+        pages_scraped=1,
+        external_data={},
+    )
+    assert (working / "working_brief.md").is_file()
+    public = list(job_out.glob("*_Working_Brief_*.md"))
+    assert len(public) == 1
+    assert not (tmp_path / "global-output").exists() or not list(
+        (tmp_path / "global-output").glob("*_Working_Brief_*.md")
+    )

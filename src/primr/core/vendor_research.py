@@ -728,8 +728,15 @@ def _lite_vendor_news_cost(model: str, input_tokens: int, output_tokens: int) ->
     grounding = 0.035
     try:
         token_cost = PrimrModels.calculate_cost_conservative(model, input_tokens, output_tokens)
-    except Exception:
-        token_cost = 0.0
+    except Exception as exc:
+        # Never silently zero token cost — under-reporting spend is a cost-gate bug.
+        logger.warning(
+            "Lite vendor-news token pricing failed for model=%s; using conservative floor: %s",
+            model,
+            exc,
+        )
+        # Floor: treat as high-tier ~2k in / 1k out of a mid-tier chat model (~$0.01).
+        token_cost = 0.01
     return round(token_cost + grounding, 6)
 
 

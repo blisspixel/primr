@@ -206,6 +206,18 @@ def read_recon_excerpt(folder_path: str | Path, *, max_chars: int = 4000) -> str
     return text[:max_chars]
 
 
+def resolve_public_output_dir(folder_path: str | Path) -> str:
+    """Prefer run-state output_dir (CLI --output-dir / MCP job dir) over global."""
+    from primr.config.config import OUTPUT_DIR
+    from primr.core.run_state_io import _load_run_state
+
+    state = _load_run_state(str(folder_path))
+    configured = state.get("output_dir")
+    if isinstance(configured, str) and configured.strip():
+        return configured.strip()
+    return OUTPUT_DIR
+
+
 def _unique_domains(urls: Iterable[str]) -> list[str]:
     seen: set[str] = set()
     ordered: list[str] = []
