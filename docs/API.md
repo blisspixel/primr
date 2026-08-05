@@ -3144,14 +3144,14 @@ orchestrator = ResearchOrchestrator(
     hook_system=hooks,
 )
 
-# Run orchestrated research
+# Run orchestrated research (mode="full" succeeds only when a report path exists)
 result: OrchestratorResult = await orchestrator.research(
     company_name="Acme Corp",
     company_url="https://acme.example",
     mode="full",
 )
 
-if result.is_success:
+if result.is_success and result.report_path:
     print(f"Report: {result.report_path}")
     print(f"Hypotheses: {len(result.hypotheses)}")
     print(f"Stages: {result.completed_stages}")
@@ -3355,9 +3355,9 @@ New CLI commands for agentic workflows:
 primr memory "Acme Corp"              # View hypotheses for a company
 primr --memory-list                   # List all companies with memory
 
-# Orchestrated research
-primr orchestrate "Acme Corp" https://acme.example
-primr --orchestrate --max-cost 5.0    # With cost budget
+# Orchestrated research (experimental; still billable — cost gate required)
+primr orchestrate "Acme Corp" https://acme.example --dry-run
+primr orchestrate "Acme Corp" https://acme.example --max-cost 5.0
 
 # Roadmap
 primr roadmap                         # Show roadmap overview
