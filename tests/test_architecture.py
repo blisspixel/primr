@@ -60,7 +60,7 @@ FILE_LINE_CEILINGS: dict[str, int] = {
     # dispatch only (an import + a 2-line check); all render logic lives in
     # cli_render.py, keeping the entrypoint's growth minimal.
     "core/research_agent.py": 4322,
-    "core/cli.py": 2901,
+    "core/cli.py": 2824,
     "ai/deep_research.py": 3885,
     "data/scraping/browsers.py": 1835,
     "data/hiring_signals.py": 1577,
