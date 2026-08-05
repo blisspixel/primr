@@ -24,6 +24,10 @@ def _config(**overrides):
 def mocks(monkeypatch):
     estimate = MagicMock()
     estimate.__str__ = lambda self: "ESTIMATE STRING"
+    # build_run_estimate compares planning vs historical with `>`; keep numeric.
+    estimate.total_cost = 0.76
+    estimate.notes = []
+    estimate.duration_minutes = "30-45 min"
     monkeypatch.setattr(
         "primr.utils.cost_estimator.estimate_cost",
         MagicMock(return_value=estimate),
@@ -260,7 +264,7 @@ class TestDryRunFlags:
 
 class TestDryRunCostEstimator:
     def test_passes_cloud_vendor_count_to_estimator(self, mocks, monkeypatch):
-        est_mock = MagicMock()
+        est_mock = MagicMock(return_value=mocks)
         monkeypatch.setattr(
             "primr.utils.cost_estimator.estimate_cost",
             est_mock,
@@ -270,7 +274,7 @@ class TestDryRunCostEstimator:
         assert kwargs["num_vendors"] == 3
 
     def test_clamps_empty_ai_strategy_platforms_to_one_vendor(self, mocks, monkeypatch):
-        est_mock = MagicMock()
+        est_mock = MagicMock(return_value=mocks)
         monkeypatch.setattr(
             "primr.utils.cost_estimator.estimate_cost",
             est_mock,
@@ -280,7 +284,7 @@ class TestDryRunCostEstimator:
         assert kwargs["num_vendors"] == 1
 
     def test_passes_lite_strategy_flag(self, mocks, monkeypatch):
-        est_mock = MagicMock()
+        est_mock = MagicMock(return_value=mocks)
         monkeypatch.setattr(
             "primr.utils.cost_estimator.estimate_cost",
             est_mock,
@@ -289,7 +293,7 @@ class TestDryRunCostEstimator:
         assert est_mock.call_args.kwargs["lite_strategy"] is True
 
     def test_passes_grok_tier(self, mocks, monkeypatch):
-        est_mock = MagicMock()
+        est_mock = MagicMock(return_value=mocks)
         monkeypatch.setattr(
             "primr.utils.cost_estimator.estimate_cost",
             est_mock,

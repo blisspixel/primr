@@ -39,9 +39,10 @@ class WorkingBriefInput:
     website: str | None = None
     run_id: str | None = None
     scraped_urls: Sequence[str] = field(default_factory=tuple)
-    pages_scraped: int = 0
+    # None = derive from URL list length; 0 is a legitimate empty scrape.
+    pages_scraped: int | None = None
     external_urls: Sequence[str] = field(default_factory=tuple)
-    external_source_count: int = 0
+    external_source_count: int | None = None
     recon_excerpt: str | None = None
     hiring_postings_found: int | None = None
     hiring_postings_extracted: int | None = None
@@ -86,7 +87,10 @@ def assemble_working_brief(payload: WorkingBriefInput) -> str:
         lines.append("_No recon context available yet (skipped or not run)._")
     lines.append("")
 
-    pages = payload.pages_scraped or len(payload.scraped_urls)
+    # Honour explicit zero counts; only fall back to URL list length when unset.
+    pages = (
+        payload.pages_scraped if payload.pages_scraped is not None else len(payload.scraped_urls)
+    )
     lines.extend(
         [
             "## First-party collection",
@@ -103,7 +107,11 @@ def assemble_working_brief(payload: WorkingBriefInput) -> str:
         lines.append("- **Sample URLs:** _(none)_")
     lines.append("")
 
-    ext_count = payload.external_source_count or len(payload.external_urls)
+    ext_count = (
+        payload.external_source_count
+        if payload.external_source_count is not None
+        else len(payload.external_urls)
+    )
     domains = _unique_domains(payload.external_urls)
     lines.extend(
         [
@@ -266,6 +274,9 @@ def emit_collection_working_brief(
             _update_run_state(
                 folder_path,
                 working_brief_paths=[str(path) for path in brief_paths],
+                # Bounded samples so hiring/later refreshes keep URL inventory.
+                brief_scraped_urls=list(scraped)[:15],
+                brief_external_urls=list(external)[:20],
             )
         return brief_paths
     except Exception as exc:
@@ -297,7 +308,11 @@ def emit_after_structured_scrape(
 
 
 def early_artifact_path_records(folder_path: str | Path | None) -> list[dict[str, str]]:
-    """Body-free early artifact inventory from run-state (no report bodies)."""
+    """Body-free early artifact inventory from run-state (no report bodies).
+
+    Only paths that still exist on disk are returned so agents do not chase
+    deleted or moved working briefs.
+    """
     if not folder_path:
         return []
     from primr.core.run_state_io import _load_run_state
@@ -308,14 +323,17 @@ def early_artifact_path_records(folder_path: str | Path | None) -> list[dict[str
         return []
     records: list[dict[str, str]] = []
     for item in raw:
-        path = str(item).strip()
-        if not path:
+        path_str = str(item).strip()
+        if not path_str:
+            continue
+        path = Path(path_str)
+        if not path.is_file():
             continue
         records.append(
             {
-                "path": path,
+                "path": path_str,
                 "artifact_role": "working_brief",
-                "name": Path(path).name,
+                "name": path.name,
             }
         )
     return records

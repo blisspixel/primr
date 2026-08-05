@@ -30,6 +30,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   paths use warn styling and record `analysis_status=fallback`.
 - **Lite vendor-news pricing fail-visible.** Token pricing exceptions use a
   non-zero floor and log a warning instead of `$0.00` token cost.
+- **CLI authorization floor matches MCP.** `build_run_estimate` takes
+  `max(planning, historical)` so cheap samples cannot under-approve a run
+  for dry-run, `--budget`, or launch quotes.
+- **`primr orchestrate` URL re-validation.** Whitespace-only and invalid URLs
+  fail closed after scheme normalization (same validate seam as research).
+- **MCP artifact rows include binary deliverables.** Metadata/hash use
+  binary reads so `.docx` is not silently dropped; content only when UTF-8.
+- **`artifacts_available` is on-disk truth.** Completed jobs require at least
+  one existing file path, not a stale path list.
+- **Working brief hiring refresh no longer wipes URL inventory.** Bounded
+  sample URLs persist in run-state and are restored on refresh.
+- **Working brief zero counts and missing paths.** Explicit `0` pages/sources
+  are not replaced by URL-list length; early-path inventory skips deleted files.
+- **Unpriced model usage no longer shows `$0.00`.** Summary lines mark
+  `~$? (unpriced model)` and warn instead of reporting free spend.
 
 ### Changed
 
