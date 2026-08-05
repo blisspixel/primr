@@ -1,8 +1,10 @@
 # Progressive early artifacts (time-to-first-useful)
 
 Status: **Layer 1 shipped** (deterministic working brief after scrape + hiring
-refresh). Layer 2+ remain design-only. Complements the 1.x quality and 2.0
-memory workstreams; does not replace either.
+refresh on fast and structured/deep collection; public path under run
+`output_dir`; MCP `early_artifact_paths`; hiring refresh preserves sample URLs;
+missing paths omitted from inventory). Layer 2+ remain design-only. Complements
+the 1.x quality and 2.0 memory workstreams; does not replace either.
 
 ## Problem
 
@@ -67,16 +69,19 @@ Contents (deterministic assembly first; no new model call):
 6. Source index excerpt (domains, not full bodies)  
 7. Explicit “still running” section list  
 
-Exit criteria for Layer 1:
+Exit criteria for Layer 1 (met):
 
 - File appears after scrape (+ recon) complete, before long reasoning finishes  
 - Zero additional model tokens beyond the run’s existing stages  
 - Final Strategic Overview remains unchanged  
-- Inventory / MCP artifact listing can classify it as intermediate (not
-  `primary_report`)
+- Inventory / MCP artifact listing classifies it as intermediate (not
+  `primary_report`)  
+- Public dated file honors run `output_dir` / MCP job dirs  
+- Hiring refresh re-emits counts without wiping first-party/external URL samples  
+- Early-path inventory skips paths that no longer exist on disk  
 
-Validation: free offline fixtures + hermetic unit tests for assembly and
-classification.
+Validation: free offline fixtures + hermetic unit tests for assembly,
+classification, hiring refresh, and existence filtering.
 
 ### Layer 2 — optional early executive sketch (opt-in)
 

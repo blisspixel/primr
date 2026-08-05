@@ -326,8 +326,16 @@ If you see unauthorized usage, contact the provider's support team.
 ### Estimate Before Running
 
 ```bash
-primr --dry-run "Company Name" https://company.com
+primr "Company Name" https://company.com --dry-run
+# Machine-readable (includes execution_ready for full-mode recipes):
+primr "Company Name" https://company.com --dry-run --json
 ```
+
+Dry-run and `--budget` use `max(planning, historical)` so cheap past runs
+cannot understate the approval floor. Full-mode quotes with only OpenAI or
+Anthropic keys (or with no XAI/Gemini key) are **planning-only**: the dollars
+are the XAI/Gemini full-recipe floor, JSON sets `execution_ready: false`, and
+launch still requires `XAI_API_KEY` or `GEMINI_API_KEY`.
 
 ### Typical Costs
 

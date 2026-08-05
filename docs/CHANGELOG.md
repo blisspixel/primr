@@ -72,7 +72,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that block a complete hard-gate floor (1.40 freeze UX).
 - **Docs site home and next-steps currency.** Docs index leads with the same
   front-door framing as the root README (agentic structured research, start
-  table, links into guides). `NEXT_STEPS` marks post-1.39.2 status.
+  table, links into guides). `NEXT_STEPS`, `RUN_MODES`, `API`/`API_KEYS`,
+  `JOB_STATUS`, and progressive-artifacts design track orchestrate cost gate,
+  CLI authorization floor, dual-provider dry-run honesty, and Layer 1 brief
+  inventory behavior.
 - **Grok 4.5 registered; MAX tier uses latest flagship.** `grok-4.5` is in the
   model registry with published xAI pricing (including ≥200k long-context
   surcharge). Default hybrid/fast reasoning stays on `grok-4.3` for the
