@@ -147,31 +147,35 @@ def build_run_estimate(config: CLIConfig, *, fast_mode: bool, premium_mode: bool
     """
     from primr.utils.cost_estimator import estimate_cost
 
-    estimate_kwargs = {
-        "num_vendors": _estimate_runtime_vendor_count(config, fast_mode=fast_mode),
-        "lite_strategy": config.lite_strategy,
-        "fast_mode": fast_mode,
-        "premium_mode": premium_mode,
-        "verify": config.verify,
-        "grok_tier": config.grok_tier,
-        "strategy_types": estimate_strategy_types(config),
-        "vendor_research_refreshes": estimate_vendor_refresh_count(
-            config,
-            fast_mode=fast_mode,
-        ),
-    }
+    num_vendors = _estimate_runtime_vendor_count(config, fast_mode=fast_mode)
+    strategy_types = estimate_strategy_types(config)
+    vendor_refreshes = estimate_vendor_refresh_count(config, fast_mode=fast_mode)
     # Planning floor is the approval baseline; historical can only raise it.
     planning = estimate_cost(
         config.mode,
         config.ai_strategy,
         use_historical=False,
-        **estimate_kwargs,
+        num_vendors=num_vendors,
+        lite_strategy=config.lite_strategy,
+        fast_mode=fast_mode,
+        premium_mode=premium_mode,
+        verify=config.verify,
+        grok_tier=config.grok_tier,
+        strategy_types=strategy_types,
+        vendor_research_refreshes=vendor_refreshes,
     )
     historical = estimate_cost(
         config.mode,
         config.ai_strategy,
         use_historical=True,
-        **estimate_kwargs,
+        num_vendors=num_vendors,
+        lite_strategy=config.lite_strategy,
+        fast_mode=fast_mode,
+        premium_mode=premium_mode,
+        verify=config.verify,
+        grok_tier=config.grok_tier,
+        strategy_types=strategy_types,
+        vendor_research_refreshes=vendor_refreshes,
     )
     if historical.total_cost > planning.total_cost:
         estimate = historical
