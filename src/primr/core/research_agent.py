@@ -34,7 +34,6 @@ warnings.filterwarnings("ignore", message=".*found in sys.modules.*", category=R
 # These imports ensure existing code that imports from research_agent.py continues to work.
 # New code should import directly from the specialized modules.
 
-
 # From cli module
 # From ai_strategy module
 from primr.core.ai_strategy import (
@@ -715,6 +714,7 @@ def run_research(
     website: str,
     on_progress: Callable[[str], None] | None = None,
     fail_on_low_scrape: bool = True,
+    folder_path: str | None = None,
 ) -> dict | None:
     """
     Run structured research and return section results.
@@ -745,7 +745,7 @@ def run_research(
             return f"{int(seconds)}s"
         return f"{int(seconds // 60)}m {int(seconds % 60)}s"
 
-    folder_path = create_working_folder(company_name, website)
+    folder_path = folder_path or create_working_folder(company_name, website)
     progress(f"> Working folder: {folder_path}")
 
     # Scrape website - saves raw scrapes incrementally to _raw_scrapes folder
@@ -830,6 +830,9 @@ def run_research(
     )
 
     all_scraped = {**scraped_data, **external_data}
+    from primr.output.working_brief import emit_after_structured_scrape as _emit_wb
+
+    _emit_wb(company_name, website, folder_path, scraped_data, external_data, progress)
 
     # Save raw scraped URLs to working folder for debugging
     urls_file = os.path.join(folder_path, "_scraped_urls.txt")
@@ -2206,6 +2209,8 @@ def perform_fast_research(
     continuous_reasoning = setup.continuous_reasoning
     display_name = setup.display_name
     folder_path = setup.folder_path
+    if output_dir is not None:
+        _update_run_state(folder_path, output_dir=str(output_dir))
 
     # Session is constructed lazily at the workbook stage so the workbook's
     # system prompt becomes a real `role: system` message instead of being
@@ -2225,6 +2230,7 @@ def perform_fast_research(
             website=website,
             folder_path=folder_path,
             total_phases=total_phases,
+            public_output_dir=str(output_dir) if output_dir is not None else None,
         )
         scraped_data = _collected.scraped_data
         pages_scraped = _collected.pages_scraped

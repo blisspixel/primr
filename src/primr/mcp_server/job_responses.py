@@ -9,6 +9,40 @@ from typing import Any
 from primr.mcp_server.tool_authz import REPORT_SCOPE
 
 
+def _early_artifact_paths_for_job(job: Any) -> list[dict[str, str]]:
+    """Body-free early artifacts (working briefs) under the job output directory."""
+    from primr.config.config import OUTPUT_DIR
+
+    records: list[dict[str, str]] = []
+    seen: set[str] = set()
+
+    def _add(path: Path) -> None:
+        key = str(path)
+        if key in seen or not path.is_file():
+            return
+        name = path.name.lower()
+        if "working_brief" not in name:
+            return
+        seen.add(key)
+        records.append(
+            {
+                "path": key,
+                "artifact_role": "working_brief",
+                "name": path.name,
+            }
+        )
+
+    job_dir = Path(OUTPUT_DIR) / str(job.job_id)
+    if job_dir.is_dir():
+        for path in sorted(job_dir.glob("*Working_Brief*")):
+            _add(path)
+        for path in sorted(job_dir.glob("working_brief.md")):
+            _add(path)
+    for path_str in getattr(job, "output_paths", None) or []:
+        _add(Path(str(path_str)))
+    return records
+
+
 def parse_bool(value: Any, *, default: bool = False) -> bool:
     """Parse permissive JSON-ish booleans from MCP tool arguments."""
     if value is None:
@@ -138,6 +172,10 @@ def build_job_response(
             "error_message": job.error_message,
         }
     )
+    # Mid-run progressive artifacts (working briefs) — body-free paths only.
+    early = _early_artifact_paths_for_job(job)
+    if early:
+        response["early_artifact_paths"] = early
 
     if status != "completed" or not job.output_paths:
         return response

@@ -81,6 +81,23 @@ def test_read_recon_excerpt_truncates(tmp_path: Path) -> None:
     assert read_recon_excerpt(tmp_path / "missing") is None
 
 
+def test_emit_after_structured_scrape_writes_brief(tmp_path: Path) -> None:
+    from primr.output.working_brief import emit_after_structured_scrape
+
+    messages: list[str] = []
+    paths = emit_after_structured_scrape(
+        "ExampleCo",
+        "https://example.co",
+        str(tmp_path),
+        {"https://example.co/": "body"},
+        {"https://news.example/a": "ext"},
+        on_progress=messages.append,
+    )
+    assert paths
+    assert (tmp_path / "working_brief.md").is_file()
+    assert any("Working brief" in msg for msg in messages)
+
+
 def test_public_brief_uses_run_state_output_dir(tmp_path: Path, monkeypatch) -> None:
     """Public brief must follow run-state output_dir (CLI --output-dir / MCP job)."""
     from primr.core.fast_run_collection import _emit_working_brief_after_collection

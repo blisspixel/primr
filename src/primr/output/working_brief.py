@@ -218,6 +218,109 @@ def resolve_public_output_dir(folder_path: str | Path) -> str:
     return OUTPUT_DIR
 
 
+def emit_collection_working_brief(
+    *,
+    company_name: str | None,
+    website: str | None,
+    folder_path: str,
+    scraped_urls: Sequence[str] | None = None,
+    pages_scraped: int | None = None,
+    external_urls: Sequence[str] | None = None,
+    external_source_count: int | None = None,
+    public_output_dir: str | Path | None = None,
+    hiring_postings_found: int | None = None,
+    hiring_postings_extracted: int | None = None,
+    hiring_source: str | None = None,
+) -> list[Path]:
+    """Fail-open emit of a Layer-1 working brief; updates run-state paths."""
+    from primr.core.run_state_io import _update_run_state
+
+    scraped = tuple(scraped_urls or ())
+    external = tuple(external_urls or ())
+    try:
+        public_root = (
+            str(public_output_dir)
+            if public_output_dir is not None
+            else resolve_public_output_dir(folder_path)
+        )
+        brief_paths = write_working_brief(
+            WorkingBriefInput(
+                company_name=company_name or "Company",
+                website=website,
+                run_id=folder_path,
+                scraped_urls=scraped,
+                pages_scraped=pages_scraped if pages_scraped is not None else len(scraped),
+                external_urls=external,
+                external_source_count=(
+                    external_source_count if external_source_count is not None else len(external)
+                ),
+                recon_excerpt=read_recon_excerpt(folder_path),
+                hiring_postings_found=hiring_postings_found,
+                hiring_postings_extracted=hiring_postings_extracted,
+                hiring_source=hiring_source,
+            ),
+            working_folder=folder_path,
+            public_output_dir=public_root,
+        )
+        if brief_paths:
+            _update_run_state(
+                folder_path,
+                working_brief_paths=[str(path) for path in brief_paths],
+            )
+        return brief_paths
+    except Exception as exc:
+        logger.warning("Working brief assembly skipped: %s", exc)
+        return []
+
+
+def emit_after_structured_scrape(
+    company_name: str | None,
+    website: str | None,
+    folder_path: str,
+    scraped_data: dict[str, str],
+    external_data: dict[str, str],
+    on_progress: object | None = None,
+) -> list[Path]:
+    """One-call emit for structured/deep collection paths."""
+    paths = emit_collection_working_brief(
+        company_name=company_name,
+        website=website,
+        folder_path=folder_path,
+        scraped_urls=list(scraped_data.keys()),
+        pages_scraped=len(scraped_data),
+        external_urls=list(external_data.keys()),
+        external_source_count=len(external_data),
+    )
+    if paths and callable(on_progress):
+        on_progress("+ Working brief written (incomplete)")
+    return paths
+
+
+def early_artifact_path_records(folder_path: str | Path | None) -> list[dict[str, str]]:
+    """Body-free early artifact inventory from run-state (no report bodies)."""
+    if not folder_path:
+        return []
+    from primr.core.run_state_io import _load_run_state
+
+    state = _load_run_state(str(folder_path))
+    raw = state.get("working_brief_paths") or []
+    if not isinstance(raw, list):
+        return []
+    records: list[dict[str, str]] = []
+    for item in raw:
+        path = str(item).strip()
+        if not path:
+            continue
+        records.append(
+            {
+                "path": path,
+                "artifact_role": "working_brief",
+                "name": Path(path).name,
+            }
+        )
+    return records
+
+
 def _unique_domains(urls: Iterable[str]) -> list[str]:
     seen: set[str] = set()
     ordered: list[str] = []

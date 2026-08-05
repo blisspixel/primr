@@ -117,34 +117,22 @@ def _refresh_working_brief_hiring(
     """Refresh the Layer-1 working brief with hiring counts. Fail-open."""
     try:
         from primr.core.run_state_io import _load_run_state
-        from primr.output.working_brief import (
-            WorkingBriefInput,
-            read_recon_excerpt,
-            resolve_public_output_dir,
-            write_working_brief,
-        )
+        from primr.output.working_brief import emit_collection_working_brief
 
         state = _load_run_state(folder_path)
-        brief_paths = write_working_brief(
-            WorkingBriefInput(
-                company_name=company_label or "Company",
-                website=website,
-                run_id=folder_path,
-                pages_scraped=int(state.get("pages_scraped") or 0),
-                external_source_count=int(state.get("external_sources_initial") or 0),
-                recon_excerpt=read_recon_excerpt(folder_path),
-                hiring_postings_found=postings_found,
-                hiring_postings_extracted=postings_extracted,
-                hiring_source=source,
-            ),
-            working_folder=folder_path,
-            public_output_dir=resolve_public_output_dir(folder_path),
+        emit_collection_working_brief(
+            company_name=company_label,
+            website=website,
+            folder_path=folder_path,
+            pages_scraped=int(state.get("pages_scraped") or 0),
+            external_source_count=int(state.get("external_sources_initial") or 0),
+            public_output_dir=state.get("output_dir")
+            if isinstance(state.get("output_dir"), str)
+            else None,
+            hiring_postings_found=postings_found,
+            hiring_postings_extracted=postings_extracted,
+            hiring_source=source,
         )
-        if brief_paths:
-            _update_run_state(
-                folder_path,
-                working_brief_paths=[str(path) for path in brief_paths],
-            )
     except Exception as exc:
         logger.warning("Working brief hiring refresh skipped: %s", exc)
 
