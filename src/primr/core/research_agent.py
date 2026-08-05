@@ -290,6 +290,7 @@ def _default_writing_model() -> str:
     """
     return pick_model_for_role(Role.WRITING)
 
+
 from primr.core.research_orchestrator import (
     ResearchConfig,
     ResearchMode,
@@ -321,10 +322,12 @@ PROMPTS_FILE = Path(__file__).parent.parent / "config" / "prompts.json"
 with open(PROMPTS_FILE, encoding="utf-8") as f:
     PROMPTS = json.load(f)
 
+
 def generate_prompt(template_name, **kwargs):
     if template_name not in PROMPTS:
         raise ValueError(f"Prompt '{template_name}' not found")
     return PROMPTS[template_name].format(**kwargs)
+
 
 # User-friendly tier names for display
 TIER_DISPLAY_NAMES = {
@@ -339,6 +342,7 @@ TIER_DISPLAY_NAMES = {
     "cache": "cache",
 }
 
+
 def format_tier_stats(tier_stats: dict) -> str:
     """Format tier stats for user-friendly display."""
     # Sort by count descending
@@ -348,6 +352,7 @@ def format_tier_stats(tier_stats: dict) -> str:
         display_name = TIER_DISPLAY_NAMES.get(tier, tier)
         parts.append(f"{count} {display_name}")
     return ", ".join(parts)
+
 
 def _validate_scrape_quality(
     corpus: dict[str, str],
@@ -364,6 +369,7 @@ def _validate_scrape_quality(
         f"requires >= {min_pages} pages and >= {min_chars:,} chars)"
     )
     return ok, reason
+
 
 def select_links_with_llm(
     links: list,
@@ -382,6 +388,7 @@ def select_links_with_llm(
         organization_type=organization_type,
         model_call=llm,
     )
+
 
 def create_working_folder(company_name, website, reuse_incomplete: bool = False):
     """
@@ -432,6 +439,7 @@ def create_working_folder(company_name, website, reuse_incomplete: bool = False)
     logger.info(f"Created working folder: {folder_path}")
     return folder_path
 
+
 def ensure_valid_url(website):
     if not website:
         return None
@@ -439,6 +447,7 @@ def ensure_valid_url(website):
     if website.startswith(("http://", "https://")):
         return website
     return f"https://{website}"
+
 
 def get_user_input():
     console.banner("Company Research")
