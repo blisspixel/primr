@@ -54,16 +54,18 @@ _NON_EXECUTABLE_FULL_NOTE = (
 )
 
 
-def _is_full_execution_ready(*, mode: str, mode_label: str) -> bool:
-    """False when the dry-run label admits estimate-only / no-key full recipes."""
+def _is_full_execution_ready(*, mode: str) -> bool:
+    """False for full recipes when XAI/Gemini are not configured (cannot launch)."""
     if mode not in ("complete", "structured", "hybrid"):
         return True
-    return "estimate only" not in mode_label and "provider keys required" not in mode_label
+    return bool(os.environ.get("XAI_API_KEY") or os.environ.get("GEMINI_API_KEY"))
 
 
-def _annotate_non_executable_full_estimate(estimate, *, mode_label: str) -> None:
+def _annotate_non_executable_full_estimate(estimate, *, mode: str) -> None:
     """Disclose when the quote is planning-only and cannot launch."""
-    if "estimate only" not in mode_label and "provider keys required" not in mode_label:
+    if _is_full_execution_ready(mode=mode):
+        return
+    if mode not in ("complete", "structured", "hybrid"):
         return
     notes = list(estimate.notes or [])
     if _NON_EXECUTABLE_FULL_NOTE not in notes:
@@ -125,9 +127,8 @@ def run_dry_run(config: CLIConfig) -> int:
 
     if use_premium_mode:
         mode_label = "premium (Gemini + Deep Research)"
-    elif use_fast_mode or (
-        config.mode in ("complete", "structured", "hybrid") and _has_full_provider_key()
-    ):
+    elif config.mode in ("complete", "structured", "hybrid"):
+        # Always use the honest full-mode label (covers keyless + estimate-only keys).
         mode_label = _full_mode_label(config.grok_tier)
     else:
         mode_label = config.mode
@@ -144,8 +145,8 @@ def run_dry_run(config: CLIConfig) -> int:
         )
 
     estimate = build_run_estimate(config, fast_mode=use_fast_mode, premium_mode=use_premium_mode)
-    _annotate_non_executable_full_estimate(estimate, mode_label=mode_label)
-    execution_ready = _is_full_execution_ready(mode=config.mode, mode_label=mode_label)
+    _annotate_non_executable_full_estimate(estimate, mode=config.mode)
+    execution_ready = _is_full_execution_ready(mode=config.mode)
 
     # Machine-readable path: emit the estimate as JSON and stop.
     if getattr(config, "json_output", False):
