@@ -1,6 +1,6 @@
 # Next Steps
 
-Last research refresh: 2026-08-04.
+Last research refresh: 2026-08-05.
 
 This page answers the working question: what should Primr do next, and why?
 `ROADMAP.md` remains the ordered backlog and the version ladder toward 2.0 /
@@ -23,7 +23,7 @@ enterprise CI, and research APIs, see
 | **2.0** | Backend freedom + memory + control plane together | Major product step: composable research *role*, not only single-shot CLI. |
 | **3.0** | VLM, vertical compounding, post-artifact handoff | Reach expansion after 2.0 foundations. |
 
-## Where we are (post v1.39.2 + Grok routing + polish)
+## Where we are (post v1.39.2 + Grok routing + cost honesty polish)
 
 Shipped recently and relevant to planning:
 
@@ -43,10 +43,19 @@ Shipped recently and relevant to planning:
   max-everywhere ~$8.5 on the same estimator).
 - **Operator-surface honesty:** shared Grok tier labels (no stale 4.1 / "4.3
   max"), console-styled dry-run with progressive recovery disclosure,
-  Zero-friendly doctor, MCP estimates use planning-floor ≥ historical,
-  corrupt run-state quarantine, partial fast-run completion warns instead of
-  green success, launch prints cost even when Proceed is skipped, OpenAI/
-  Anthropic-only labels no longer imply full execution readiness.
+  Zero-friendly doctor, **CLI and MCP** authorize at
+  `max(planning, historical)`, corrupt run-state quarantine, partial fast-run
+  and analysis-fallback completion warn instead of green success, launch
+  prints cost even when Proceed is skipped, OpenAI/Anthropic-only and keyless
+  full dry-runs set `execution_ready: false` and disclose the XAI/Gemini
+  planning floor.
+- **Experimental `primr orchestrate` cost gate:** always estimate, support
+  `--dry-run`, require `--max-cost` under the estimate or interactive `[y/N]`,
+  always register `CostGuardHook`. Full orchestrate mode fails if no report
+  is produced.
+- **Layer 1 working brief:** after scrape (+ hiring) on fast and structured/
+  deep collection; honors run `output_dir`; hiring refresh keeps URL samples;
+  MCP `early_artifact_paths` and on-disk-true inventory. Layer 2 still design.
 - **1.40 freeze UX:** baseline inspection lists
   `blockers.missing_decidable_confirmed_floor` with exact report paths so
   operators can replace undecidable reports without hunting.
@@ -56,13 +65,13 @@ Still open, and still the honest center of gravity:
 1. **Epistemic quality (→ 1.40)** — calibration tooling exists; hard gates stay
    report-only until a fully decidable production corpus supports them.
 2. **Backend freedom (→ 1.41)** — routing is wired; live host-vs-cloud promotion
-   and residual dual-provider preflight assumptions remain.
+   and residual dual-provider *execution* (not only dry-run labels) remain.
 3. **Agent control-plane polish (→ 1.42)** — strong base; Tasks extension and
    related MCP watch items remain.
 4. **Memory / strategy delta (→ 1.43 / 2.x)** — design and profile commands
    exist; not yet the default re-run experience.
 5. **Time-to-first-useful artifact (→ 1.44+)** — Layer 1 free working brief is
-   shipped after scrape/hiring. Layer 2 early sketch remains opt-in design.
+   shipped; Layer 2 early sketch remains opt-in design.
    [`docs/design/progressive-artifacts.md`](design/progressive-artifacts.md).
 6. **Optional: Grok 4.5 hybrid-reasoning eval** — profile `grok45-flashlite`
    is a promotion candidate only. Run only with explicit spend approval; flip

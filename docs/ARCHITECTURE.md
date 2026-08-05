@@ -1287,10 +1287,12 @@ requires an eval gate; see
 
 XAI-only setups still work with the legacy writing/utility fallback path.
 OpenAI, Anthropic, and local OpenAI-compatible providers remain available for
-fallback, utility, evaluation, and backend-freedom routing. The first production
-stages on the capability router are `fast.scrape_summary`,
-`fast.source_relevance`, and `fast.hiring_signals` behind
-`--inference cloud|hybrid`.
+fallback, utility, evaluation, and backend-freedom routing. Full-report
+execution still requires XAI or Gemini; OpenAI/Anthropic-only dry-runs quote
+the XAI/Gemini planning floor and set `execution_ready: false` (see
+[Run Modes](RUN_MODES.md)). The first production stages on the capability
+router are `fast.scrape_summary`, `fast.source_relevance`, and
+`fast.hiring_signals` behind `--inference cloud|hybrid`.
 
 ### Agentic Architecture
 

@@ -12,12 +12,14 @@ The canonical object uses `schema: primr.job-status` and
 - normalized `lifecycle_state`
 - `progress.stage`, `progress.percent`, and nullable `progress.possibly_stuck`
 - RFC 3339 `timestamps` for submission, start, update, and completion
-- nullable `artifacts_available`
+- nullable `artifacts_available` — for completed jobs, true only when at least
+  one listed output path still exists on disk (not merely a non-empty path list)
 - a bounded `error` object, or `null`
 
 It never contains report content, previews, provider response bodies, artifact
-URLs, or filesystem paths. Transport-specific resource pointers and legacy
-status fields remain outside the canonical object.
+URLs, or filesystem paths in the *canonical* object. Transport-specific
+resource pointers, MCP `early_artifact_paths` (body-free working-brief paths
+while a job runs), and legacy status fields remain outside the canonical object.
 
 Lifecycle normalization is stable for v1: pending, queued, and accepted become
 `queued`; running becomes `in_progress`; complete, completed, and succeeded

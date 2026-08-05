@@ -161,6 +161,35 @@ primr "Company" https://company.com --budget 1.25
 primr show-usage
 ```
 
+### Authorization floor (CLI and MCP)
+
+CLI dry-run, `--budget`, and launch quotes use the same shaping kwargs as
+execution. The dollar ceiling is **`max(planning defaults, historical averages)`**
+when enough samples exist — the same rule MCP/A2A already applied — so a few
+cheap past runs cannot under-approve a full recipe. Unknown estimator modes
+fail closed (they raise); product aliases such as `full` / `deep` / `scrape`
+map to internal mode names.
+
+### Dual-provider dry-run honesty
+
+OpenAI- or Anthropic-only keys (or no XAI/Gemini keys) can still produce a
+full-mode **planning** quote. That quote is the XAI/Gemini full-recipe floor,
+not OpenAI/Anthropic live rates. Dry-run labels say estimate-only / keys
+required; `--dry-run --json` sets `execution_ready: false` and next steps
+point at configuring `XAI_API_KEY` or `GEMINI_API_KEY` before launch. Full
+execution preflight still refuses without XAI or Gemini.
+
+### Experimental `primr orchestrate`
+
+```bash
+primr orchestrate "Company" https://company.com --dry-run
+primr orchestrate "Company" https://company.com --max-cost 5.0
+```
+
+Always prices first. Launch requires estimate ≤ `--max-cost` or interactive
+`[y/N]` yes (then a runtime CostGuardHook at estimate + 25%). Invalid or
+empty URLs fail closed after scheme normalization.
+
 Cost behavior:
 
 - Dry-run estimates the run before model calls.
