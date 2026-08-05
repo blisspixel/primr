@@ -124,11 +124,15 @@ def build_output_artifact_rows(
             "content_included": False,
         }
         if include_content:
+            # Text mode normalizes newlines (Windows CRLF → \n) to match prior
+            # read_text semantics; binary paths still get metadata via read_bytes.
             try:
-                content = raw.decode("utf-8")
+                content = path.read_text(encoding="utf-8")
             except UnicodeDecodeError:
                 row["content_included"] = False
                 row["content_note"] = "binary_or_non_utf8"
+            except OSError:
+                continue
             else:
                 limit = max_chars if max_chars is not None else len(content)
                 truncated = len(content) > limit
