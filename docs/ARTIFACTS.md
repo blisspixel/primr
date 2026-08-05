@@ -39,6 +39,11 @@ strict about formatting and structure in the final document pipeline.
   report/strategy fixtures that exercises the gates and renders the clean ones
   end-to-end to DOCX, so validator/renderer changes are tested against
   real-shaped output.
+- **Mid-run working briefs (Layer 1)** after scrape/collection: incomplete
+  markdown with a loud banner, classified as `working_brief` (never
+  `primary_report`). Fast path and structured/deep Phase 1 both emit; public
+  files land under the run `output_dir`. MCP `check_jobs` exposes
+  body-free `early_artifact_paths` for those files while a job is running.
 - **Job-scoped artifact metadata for agents** through
   `primr://output/artifacts/by_job/{job_id}`. The resource returns file names,
   paths, sizes, SHA-256 hashes, timestamps, artifact classifications, and
@@ -90,13 +95,15 @@ strict about formatting and structure in the final document pipeline.
   `primr.artifact-inventory` v1.1 form. Each row retains its physical
   `artifact_type` and adds a content-free `artifact_role` for downstream
   selection: `primary_report`, `strategy_module`, `skill_pack`, `report`,
-  `diagnostic`, `run_metadata`, or `supporting_artifact`. Known product names
-  are inferred from filenames; custom outputs fall back to `report` instead of
-  being guessed from document bodies. Human `primr --list-recent` groups
-  primary report deliverables separately from calibration, QA, and verification
-  diagnostics and prints root-relative paths with short type tags. Explicit MCP
-  inventories cap metadata inspection at 256 paths and report `truncated: true`
-  when more owned paths exist, preventing unbounded hashing work.
+  `working_brief`, `diagnostic`, `run_metadata`, or `supporting_artifact`.
+  Known product names are inferred from filenames; custom outputs fall back to
+  `report` instead of being guessed from document bodies. Mid-run
+  `working_brief` files are never classified as `primary_report`. Human
+  `primr --list-recent` groups primary report deliverables separately from
+  calibration, QA, and verification diagnostics and prints root-relative paths
+  with short type tags. Explicit MCP inventories cap metadata inspection at 256
+  paths and report `truncated: true` when more owned paths exist, preventing
+  unbounded hashing work.
 
 ## Downstream document handoff
 

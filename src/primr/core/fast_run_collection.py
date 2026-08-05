@@ -49,38 +49,23 @@ def _emit_working_brief_after_collection(
     scraped_data: dict[str, str],
     pages_scraped: int,
     external_data: dict,
+    public_output_dir: str | None = None,
 ) -> None:
     """Layer-1 progressive artifact after scrape (+ recon). Fail-open."""
-    try:
-        from primr.output.working_brief import (
-            WorkingBriefInput,
-            read_recon_excerpt,
-            resolve_public_output_dir,
-            write_working_brief,
-        )
+    from primr.output.working_brief import emit_collection_working_brief
 
-        brief_paths = write_working_brief(
-            WorkingBriefInput(
-                company_name=company_name or "Company",
-                website=website,
-                run_id=folder_path,
-                scraped_urls=tuple(scraped_data.keys()),
-                pages_scraped=pages_scraped,
-                external_urls=tuple(external_data.keys()),
-                external_source_count=len(external_data),
-                recon_excerpt=read_recon_excerpt(folder_path),
-            ),
-            working_folder=folder_path,
-            public_output_dir=resolve_public_output_dir(folder_path),
-        )
-        if brief_paths:
-            _update_run_state(
-                folder_path,
-                working_brief_paths=[str(path) for path in brief_paths],
-            )
-            console.info(f"Working brief written ({brief_paths[0].name})")
-    except Exception as exc:
-        logger.warning("Working brief assembly skipped: %s", exc)
+    brief_paths = emit_collection_working_brief(
+        company_name=company_name,
+        website=website,
+        folder_path=folder_path,
+        scraped_urls=tuple(scraped_data.keys()),
+        pages_scraped=pages_scraped,
+        external_urls=tuple(external_data.keys()),
+        external_source_count=len(external_data),
+        public_output_dir=public_output_dir,
+    )
+    if brief_paths:
+        console.info(f"Working brief written ({brief_paths[0].name})")
 
 
 @dataclass(frozen=True)
@@ -114,6 +99,7 @@ def collect_research_data(
     website: str | None,
     folder_path: str,
     total_phases: int,
+    public_output_dir: str | None = None,
 ) -> DataCollectionResult:
     """Scrape the site, search + validate external sources, seed the pools."""
     from primr.core.research_agent import _assess_source_relevance
@@ -386,6 +372,7 @@ def collect_research_data(
         scraped_data=scraped_data,
         pages_scraped=pages_scraped,
         external_data=external_data,
+        public_output_dir=public_output_dir,
     )
 
     return DataCollectionResult(

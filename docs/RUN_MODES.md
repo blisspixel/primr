@@ -45,12 +45,15 @@ Overview:
 | Mid-run | Working folder + **working brief** | After scrape (+ hiring refresh): free, incomplete brief |
 | End of run | Strategic Overview + optional AI Strategy | Primary deliverables |
 
-**Layer 1 working brief (shipped):** after fast-path collection, Primr writes a
-deterministic incomplete brief (no extra model calls) to
+**Layer 1 working brief (shipped):** after collection on the **fast path** and
+on **structured/deep Phase 1** (premium/complete data collection), Primr writes
+a deterministic incomplete brief (no extra model calls) to
 `working/<run>/working_brief.md` and a dated public
 `<Company>_Working_Brief_<date>.md` under the run’s `output_dir` (or default
-`output/`). Loud banner: not the Strategic Overview. Inventory role:
-`working_brief` (never `primary_report`). Design:
+`output/`). Pure `--mode deep` without a structured scrape may have no brief.
+Loud banner: not the Strategic Overview. Inventory role: `working_brief`
+(never `primary_report`). MCP job status includes body-free
+`early_artifact_paths`. Design:
 [`design/progressive-artifacts.md`](design/progressive-artifacts.md).
 
 ## Default Provider Recipe

@@ -278,6 +278,7 @@ class ResearchOrchestrator:
                 website or "",
                 on_progress=on_progress,
                 fail_on_low_scrape=config.fail_on_low_scrape,
+                folder_path=config.folder_path,
             ),
         )
 
