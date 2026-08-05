@@ -119,7 +119,8 @@ def build_output_artifact_rows(
         row: dict[str, Any] = {
             "type": artifact_type,
             "filename": path.name,
-            "size_bytes": path.stat().st_size,
+            # Size from the same bytes we hashed — avoids a second stat race.
+            "size_bytes": len(raw),
             "content_hash": f"sha256:{hashlib.sha256(raw).hexdigest()}",
             "content_included": False,
         }
