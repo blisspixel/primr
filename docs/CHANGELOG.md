@@ -45,6 +45,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are not replaced by URL-list length; early-path inventory skips deleted files.
 - **Unpriced model usage no longer shows `$0.00`.** Summary lines mark
   `~$? (unpriced model)` and warn instead of reporting free spend.
+- **Unknown cost modes fail closed.** `estimate_cost` maps product aliases
+  (`full`/`deep`/`scrape`) and raises on typos instead of silently pricing as
+  scrape-only (under-approval hazard).
+- **Orchestrated full runs need a report to succeed.** Empty intermediate stage
+  data no longer yields a green COMPLETED with no report path.
+- **OpenAI/Anthropic-only dry-run honesty.** Full-mode quotes disclose that
+  dollars are the XAI/Gemini planning floor, set `execution_ready=false` in
+  JSON, and point next steps at configuring XAI/Gemini rather than launch.
 
 ### Changed
 

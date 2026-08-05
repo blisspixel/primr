@@ -48,6 +48,22 @@ def _full_mode_label(grok_tier: str) -> str:
     return f"full ({grok_tier_label(grok_tier)}; provider keys required)"
 
 
+_NON_EXECUTABLE_FULL_NOTE = (
+    "Dollars are the XAI/Gemini full-recipe planning floor, not OpenAI/Anthropic "
+    "live rates. Full execution still needs XAI_API_KEY or GEMINI_API_KEY."
+)
+
+
+def _annotate_non_executable_full_estimate(estimate, *, mode_label: str) -> None:
+    """Disclose when the quote is planning-only and cannot launch."""
+    if "estimate only" not in mode_label and "provider keys required" not in mode_label:
+        return
+    notes = list(estimate.notes or [])
+    if _NON_EXECUTABLE_FULL_NOTE not in notes:
+        notes.append(_NON_EXECUTABLE_FULL_NOTE)
+        estimate.notes = notes
+
+
 def run_dry_run(config: CLIConfig) -> int:
     """Show the cost estimate for a run without executing it."""
     from primr.core.cli_command_output import report_command_error
@@ -121,6 +137,12 @@ def run_dry_run(config: CLIConfig) -> int:
         )
 
     estimate = build_run_estimate(config, fast_mode=use_fast_mode, premium_mode=use_premium_mode)
+    _annotate_non_executable_full_estimate(estimate, mode_label=mode_label)
+    # Full-mode labels that admit estimate-only keys are not launch-ready.
+    execution_ready = not (
+        config.mode in ("complete", "structured", "hybrid")
+        and ("estimate only" in mode_label or "provider keys required" in mode_label)
+    )
 
     # Machine-readable path: emit the estimate as JSON and stop.
     if getattr(config, "json_output", False):
@@ -135,15 +157,15 @@ def run_dry_run(config: CLIConfig) -> int:
                 fast_mode=use_fast_mode,
                 premium_mode=use_premium_mode,
             ).as_dict()
-        emit_json(
-            cost_estimate_json(
-                estimate,
-                mode_label=mode_label,
-                ai_strategy=config.ai_strategy,
-                budget_enforcement=budget_enforcement,
-                inference=inference_estimate_metadata(config),
-            )
+        payload = cost_estimate_json(
+            estimate,
+            mode_label=mode_label,
+            ai_strategy=config.ai_strategy,
+            budget_enforcement=budget_enforcement,
+            inference=inference_estimate_metadata(config),
         )
+        payload["execution_ready"] = execution_ready
+        emit_json(payload)
         return 0
 
     from primr.utils.console import console
@@ -207,16 +229,29 @@ def run_dry_run(config: CLIConfig) -> int:
 
     console.blank()
     console.step("Next steps")
-    console.muted("  1. Launch: repeat this command without --dry-run.")
-    console.muted("     Optional: add --budget <usd> to enforce a run ceiling.")
-    console.muted("  2. Monitor: follow the phase markers in this terminal.")
-    console.muted(
-        "  3. Recover interrupted cloud work: primr --check-jobs; "
-        "when completed, run primr --resume-latest."
-    )
-    console.muted(
-        "  4. Retrieve: use the artifact path printed when the run completes "
-        "(or primr --list-recent)."
-    )
+    if not execution_ready:
+        console.muted(
+            "  1. Configure XAI_API_KEY or GEMINI_API_KEY before launching "
+            "(OpenAI/Anthropic alone cannot run full research)."
+        )
+        console.muted(
+            "  2. Re-run this dry-run after keys are set to confirm the executable recipe."
+        )
+        console.muted(
+            "  3. Launch: repeat without --dry-run once execution_ready is true "
+            "(optional: --budget <usd>)."
+        )
+    else:
+        console.muted("  1. Launch: repeat this command without --dry-run.")
+        console.muted("     Optional: add --budget <usd> to enforce a run ceiling.")
+        console.muted("  2. Monitor: follow the phase markers in this terminal.")
+        console.muted(
+            "  3. Recover interrupted cloud work: primr --check-jobs; "
+            "when completed, run primr --resume-latest."
+        )
+        console.muted(
+            "  4. Retrieve: use the artifact path printed when the run completes "
+            "(or primr --list-recent)."
+        )
     console.blank()
     return 0
