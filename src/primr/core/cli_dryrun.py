@@ -15,19 +15,6 @@ if TYPE_CHECKING:
     from primr.core.cli import CLIConfig
 
 
-def _has_full_provider_key() -> bool:
-    """Return whether a configured provider can shape the full-mode label."""
-    return any(
-        os.environ.get(key)
-        for key in (
-            "XAI_API_KEY",
-            "GEMINI_API_KEY",
-            "OPENAI_API_KEY",
-            "ANTHROPIC_API_KEY",
-        )
-    )
-
-
 def _full_mode_label(grok_tier: str) -> str:
     """Human label for the default full research path (CLI --mode full).
 
