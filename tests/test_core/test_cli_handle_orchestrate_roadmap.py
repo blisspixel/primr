@@ -4,18 +4,45 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from primr.core.cli import (
     CLIConfig,
     Command,
     _handle_orchestrate,
     _handle_roadmap,
 )
+from primr.utils.cost_estimator import CostEstimate
 
 
 def _config(**overrides):
     defaults = {"command": Command.ORCHESTRATE}
     defaults.update(overrides)
     return CLIConfig(**defaults)
+
+
+def _estimate(total: float = 0.76) -> CostEstimate:
+    return CostEstimate(
+        mode="complete",
+        estimated_input_tokens=1,
+        estimated_output_tokens=1,
+        estimated_search_queries=0,
+        input_cost=0.0,
+        output_cost=0.0,
+        search_cost=0.0,
+        total_cost=total,
+        duration_minutes="30-45 min",
+        notes=[],
+    )
+
+
+@pytest.fixture
+def approve_orchestrate(monkeypatch):
+    """Skip the cost gate for launch-path tests (priced estimate + --max-cost)."""
+    monkeypatch.setattr(
+        "primr.utils.cost_display.print_cost_estimate",
+        lambda *a, **k: _estimate(0.5),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -35,7 +62,7 @@ class TestHandleOrchestrate:
         # website becomes None after shift -> error
         assert result == 1
 
-    def test_orchestration_failure_returns_1(self, monkeypatch):
+    def test_orchestration_failure_returns_1(self, monkeypatch, approve_orchestrate):
         orchestrator = MagicMock()
         orchestrator.research = MagicMock(side_effect=RuntimeError("crashed"))
         monkeypatch.setattr(
@@ -45,10 +72,16 @@ class TestHandleOrchestrate:
         monkeypatch.setattr("primr.agentic.memory.ResearchMemory", MagicMock())
         monkeypatch.setattr("primr.agentic.orchestrator.OrchestratorConfig", MagicMock())
 
-        result = _handle_orchestrate(_config(company_name="Acme", website="https://acme.example"))
+        result = _handle_orchestrate(
+            _config(
+                company_name="Acme",
+                website="https://acme.example",
+                orchestrate_max_cost=5.0,
+            )
+        )
         assert result == 1
 
-    def test_successful_research_returns_0(self, monkeypatch):
+    def test_successful_research_returns_0(self, monkeypatch, approve_orchestrate):
         result_obj = MagicMock()
         result_obj.is_success = True
         result_obj.duration_seconds = 12.5
@@ -70,10 +103,16 @@ class TestHandleOrchestrate:
         monkeypatch.setattr("primr.agentic.memory.ResearchMemory", MagicMock())
         monkeypatch.setattr("primr.agentic.orchestrator.OrchestratorConfig", MagicMock())
 
-        result = _handle_orchestrate(_config(company_name="Acme", website="https://acme.example"))
+        result = _handle_orchestrate(
+            _config(
+                company_name="Acme",
+                website="https://acme.example",
+                orchestrate_max_cost=5.0,
+            )
+        )
         assert result == 0
 
-    def test_failed_research_returns_1(self, monkeypatch):
+    def test_failed_research_returns_1(self, monkeypatch, approve_orchestrate):
         result_obj = MagicMock()
         result_obj.is_success = False
         result_obj.errors = ["network error"]
@@ -92,7 +131,13 @@ class TestHandleOrchestrate:
         monkeypatch.setattr("primr.agentic.memory.ResearchMemory", MagicMock())
         monkeypatch.setattr("primr.agentic.orchestrator.OrchestratorConfig", MagicMock())
 
-        result = _handle_orchestrate(_config(company_name="Acme", website="https://acme.example"))
+        result = _handle_orchestrate(
+            _config(
+                company_name="Acme",
+                website="https://acme.example",
+                orchestrate_max_cost=5.0,
+            )
+        )
         assert result == 1
 
 
