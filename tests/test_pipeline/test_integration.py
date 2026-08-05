@@ -79,7 +79,12 @@ class TestDryRunRecoveryTable:
         from primr.core.cli import CLIConfig, Command
         from primr.core.cli_dryrun import run_dry_run
 
-        mock_estimate.return_value = MagicMock(__str__=lambda x: "Cost: ~$0.20")
+        mock_estimate.return_value = MagicMock(
+            __str__=lambda x: "Cost: ~$0.20",
+            total_cost=0.20,
+            notes=[],
+            duration_minutes="5-10 min",
+        )
 
         config = CLIConfig(
             company_name="TestCo",
