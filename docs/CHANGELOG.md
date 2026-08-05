@@ -26,6 +26,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Lite vendor-news pricing fail-visible.** Token pricing exceptions use a
   non-zero floor and log a warning instead of `$0.00` token cost.
 
+### Added
+
+- **Working brief on structured/deep collection.** Premium/complete Phase 1
+  (`run_research`) now emits the same Layer-1 incomplete brief after scrape,
+  reusing the run folder when the orchestrator supplies `folder_path`.
+- **MCP `early_artifact_paths`.** Non-terminal and completed job status
+  includes body-free working-brief paths under the job output directory.
+
 ### Changed
 
 - **Launch always shows the priced estimate.** Single-company research still

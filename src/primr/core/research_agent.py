@@ -34,7 +34,6 @@ warnings.filterwarnings("ignore", message=".*found in sys.modules.*", category=R
 # These imports ensure existing code that imports from research_agent.py continues to work.
 # New code should import directly from the specialized modules.
 
-
 # From cli module
 # From ai_strategy module
 from primr.core.ai_strategy import (
@@ -275,7 +274,6 @@ from primr.config.env import load_primr_env
 from primr.config.models import PrimrModels
 from primr.config.sections_config import SECTION_KEY_MAP
 
-
 def _default_writing_model() -> str:
     """Resolve the default writing-tier model via the routing layer.
 
@@ -290,7 +288,6 @@ def _default_writing_model() -> str:
     so the recipe override actually flows through to writing calls.
     """
     return pick_model_for_role(Role.WRITING)
-
 
 from primr.core.research_orchestrator import (
     ResearchConfig,
@@ -323,12 +320,10 @@ PROMPTS_FILE = Path(__file__).parent.parent / "config" / "prompts.json"
 with open(PROMPTS_FILE, encoding="utf-8") as f:
     PROMPTS = json.load(f)
 
-
 def generate_prompt(template_name, **kwargs):
     if template_name not in PROMPTS:
         raise ValueError(f"Prompt '{template_name}' not found")
     return PROMPTS[template_name].format(**kwargs)
-
 
 # User-friendly tier names for display
 TIER_DISPLAY_NAMES = {
@@ -343,7 +338,6 @@ TIER_DISPLAY_NAMES = {
     "cache": "cache",
 }
 
-
 def format_tier_stats(tier_stats: dict) -> str:
     """Format tier stats for user-friendly display."""
     # Sort by count descending
@@ -353,7 +347,6 @@ def format_tier_stats(tier_stats: dict) -> str:
         display_name = TIER_DISPLAY_NAMES.get(tier, tier)
         parts.append(f"{count} {display_name}")
     return ", ".join(parts)
-
 
 def _validate_scrape_quality(
     corpus: dict[str, str],
@@ -370,7 +363,6 @@ def _validate_scrape_quality(
         f"requires >= {min_pages} pages and >= {min_chars:,} chars)"
     )
     return ok, reason
-
 
 def select_links_with_llm(
     links: list,
@@ -389,7 +381,6 @@ def select_links_with_llm(
         organization_type=organization_type,
         model_call=llm,
     )
-
 
 def create_working_folder(company_name, website, reuse_incomplete: bool = False):
     """
@@ -440,7 +431,6 @@ def create_working_folder(company_name, website, reuse_incomplete: bool = False)
     logger.info(f"Created working folder: {folder_path}")
     return folder_path
 
-
 def ensure_valid_url(website):
     if not website:
         return None
@@ -448,7 +438,6 @@ def ensure_valid_url(website):
     if website.startswith(("http://", "https://")):
         return website
     return f"https://{website}"
-
 
 def get_user_input():
     console.banner("Company Research")
@@ -715,6 +704,7 @@ def run_research(
     website: str,
     on_progress: Callable[[str], None] | None = None,
     fail_on_low_scrape: bool = True,
+    folder_path: str | None = None,
 ) -> dict | None:
     """
     Run structured research and return section results.
@@ -745,7 +735,7 @@ def run_research(
             return f"{int(seconds)}s"
         return f"{int(seconds // 60)}m {int(seconds % 60)}s"
 
-    folder_path = create_working_folder(company_name, website)
+    folder_path = folder_path or create_working_folder(company_name, website)
     progress(f"> Working folder: {folder_path}")
 
     # Scrape website - saves raw scrapes incrementally to _raw_scrapes folder
@@ -830,6 +820,9 @@ def run_research(
     )
 
     all_scraped = {**scraped_data, **external_data}
+    from primr.output.working_brief import emit_after_structured_scrape as _emit_wb
+
+    _emit_wb(company_name, website, folder_path, scraped_data, external_data, progress)
 
     # Save raw scraped URLs to working folder for debugging
     urls_file = os.path.join(folder_path, "_scraped_urls.txt")
@@ -2206,6 +2199,8 @@ def perform_fast_research(
     continuous_reasoning = setup.continuous_reasoning
     display_name = setup.display_name
     folder_path = setup.folder_path
+    if output_dir is not None:
+        _update_run_state(folder_path, output_dir=str(output_dir))
 
     # Session is constructed lazily at the workbook stage so the workbook's
     # system prompt becomes a real `role: system` message instead of being
@@ -2225,6 +2220,7 @@ def perform_fast_research(
             website=website,
             folder_path=folder_path,
             total_phases=total_phases,
+            public_output_dir=str(output_dir) if output_dir is not None else None,
         )
         scraped_data = _collected.scraped_data
         pages_scraped = _collected.pages_scraped
