@@ -227,12 +227,16 @@ class TestEstimateCost:
 
         assert abs(estimate.total_cost - expected_total) < 0.01
 
-    def test_unknown_mode_defaults_to_scrape_only(self):
-        """Unknown mode defaults to scrape-only estimates (safest/cheapest)."""
-        estimate = estimate_cost("unknown-mode")
-        scrape_estimate = estimate_cost("scrape-only")
+    def test_unknown_mode_fails_closed(self):
+        """Unknown modes must not underprice as scrape-only for cost gates."""
+        with pytest.raises(ValueError, match="Unknown estimate mode"):
+            estimate_cost("unknown-mode")
 
-        assert estimate.estimated_input_tokens == scrape_estimate.estimated_input_tokens
+    def test_product_mode_aliases_map_to_internal_modes(self):
+        """CLI product names (full/deep/scrape) price as their internal modes."""
+        assert estimate_cost("full", use_historical=False).mode == "complete"
+        assert estimate_cost("deep", use_historical=False).mode == "deep-research"
+        assert estimate_cost("scrape", use_historical=False).mode == "scrape-only"
 
     def test_historical_cached_tokens_are_reflected_in_estimate(self, monkeypatch):
         """Historical cached-token averages populate estimate cache fields."""
