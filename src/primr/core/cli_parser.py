@@ -86,8 +86,8 @@ Company profiles and research memory:
   primr company export "Acme Corp"                  # Export local profile + hypotheses bundle
   primr memory "Acme Corp"                           # View hypotheses for a company
   primr --memory-list                                # List all companies with memory
-  primr orchestrate "Acme Corp" https://acme.com    # Run orchestrated research
-  primr --orchestrate --max-cost 5.0                 # With cost budget
+  primr orchestrate "Acme Corp" https://acme.com --dry-run
+  primr orchestrate "Acme Corp" https://acme.com --max-cost 5.0
   primr roadmap                                      # Show roadmap overview
   primr --roadmap-version v1.7.0                     # Show version details
 
