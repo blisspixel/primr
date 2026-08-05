@@ -704,7 +704,14 @@ class TestMain:
             patch("primr.utils.cost_estimator.estimate_cost") as mock_estimate,
             patch("primr.core.cli._run_preflight_checks", return_value=(True, [])),
         ):
-            mock_estimate.return_value = MagicMock(__str__=lambda x: "Cost estimate")
+            # total_cost must be a real number: build_run_estimate compares
+            # planning vs historical floors with `>`.
+            mock_estimate.return_value = MagicMock(
+                __str__=lambda x: "Cost estimate",
+                total_cost=0.76,
+                notes=[],
+                duration_minutes="30-45 min",
+            )
             result = main(["Acme Corp", "acme.example", "--dry-run"])
             assert result == 0
 

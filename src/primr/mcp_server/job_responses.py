@@ -95,7 +95,12 @@ def build_output_artifact_rows(
     artifact_filter: str = "all",
     max_chars: int | None = None,
 ) -> list[dict[str, Any]]:
-    """Build safe artifact rows, optionally including bounded text content."""
+    """Build safe artifact rows, optionally including bounded text content.
+
+    Metadata and content hashes use binary reads so ``.docx`` and other
+    non-UTF-8 deliverables still appear. Body text is only loaded when
+    ``include_content`` is true and the bytes decode as UTF-8.
+    """
     rows: list[dict[str, Any]] = []
     for artifact_path in output_paths:
         path = Path(artifact_path)
@@ -107,29 +112,40 @@ def build_output_artifact_rows(
             continue
 
         try:
-            content = path.read_text(encoding="utf-8")
-        except Exception:
+            raw = path.read_bytes()
+        except OSError:
             continue
 
-        encoded = content.encode("utf-8")
         row: dict[str, Any] = {
             "type": artifact_type,
             "filename": path.name,
-            "size_bytes": path.stat().st_size,
-            "content_hash": f"sha256:{hashlib.sha256(encoded).hexdigest()}",
-            "content_included": include_content,
+            # Size from the same bytes we hashed — avoids a second stat race.
+            "size_bytes": len(raw),
+            "content_hash": f"sha256:{hashlib.sha256(raw).hexdigest()}",
+            "content_included": False,
         }
         if include_content:
-            limit = max_chars if max_chars is not None else len(content)
-            truncated = len(content) > limit
-            row.update(
-                {
-                    "content": content[:limit],
-                    "content_chars": min(len(content), limit),
-                    "content_truncated": truncated,
-                    "full_content_included": not truncated,
-                }
-            )
+            # Text mode normalizes newlines (Windows CRLF → \n) to match prior
+            # read_text semantics; binary paths still get metadata via read_bytes.
+            try:
+                content = path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                row["content_included"] = False
+                row["content_note"] = "binary_or_non_utf8"
+            except OSError:
+                continue
+            else:
+                limit = max_chars if max_chars is not None else len(content)
+                truncated = len(content) > limit
+                row.update(
+                    {
+                        "content_included": True,
+                        "content": content[:limit],
+                        "content_chars": min(len(content), limit),
+                        "content_truncated": truncated,
+                        "full_content_included": not truncated,
+                    }
+                )
         rows.append(row)
     return rows
 
@@ -157,7 +173,11 @@ def build_job_response(
         started_at=job.start_time,
         updated_at=job.last_heartbeat_time,
         completed_at=job.completion_time,
-        artifacts_available=bool(job.output_paths) if status == "completed" else None,
+        artifacts_available=(
+            any(Path(str(p)).is_file() for p in (job.output_paths or []))
+            if status == "completed"
+            else None
+        ),
         error_message=job.error_message,
         error_code=job.error_type,
         error_source="agent_job" if job.error_message else None,

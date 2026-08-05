@@ -157,10 +157,18 @@ def finalize_fast_run(
                 t["output_tokens"],
                 cached_input_tokens=t.get("cached_input_tokens", 0),
             )
+            cost_label = f"~${mcost:.2f}"
         except KeyError:
-            mcost = 0.0
+            # Never report $0.00 for real token traffic without registry pricing.
+            logger.warning(
+                "Unpriced model in usage summary: %s (%s in / %s out)",
+                mname,
+                t["input_tokens"],
+                t["output_tokens"],
+            )
+            cost_label = "~$? (unpriced model)"
         model_rows.append(
-            (mname, f"{t['input_tokens']:,} in / {t['output_tokens']:,} out  ~${mcost:.2f}")
+            (mname, f"{t['input_tokens']:,} in / {t['output_tokens']:,} out  {cost_label}")
         )
 
     summary_items: list[tuple[str, Any]] = [

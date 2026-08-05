@@ -120,11 +120,19 @@ def _refresh_working_brief_hiring(
         from primr.output.working_brief import emit_collection_working_brief
 
         state = _load_run_state(folder_path)
+        scraped_urls = state.get("brief_scraped_urls") or []
+        external_urls = state.get("brief_external_urls") or []
+        if not isinstance(scraped_urls, list):
+            scraped_urls = []
+        if not isinstance(external_urls, list):
+            external_urls = []
         emit_collection_working_brief(
             company_name=company_label,
             website=website,
             folder_path=folder_path,
+            scraped_urls=tuple(str(u) for u in scraped_urls if u),
             pages_scraped=int(state.get("pages_scraped") or 0),
+            external_urls=tuple(str(u) for u in external_urls if u),
             external_source_count=int(state.get("external_sources_initial") or 0),
             public_output_dir=state.get("output_dir")
             if isinstance(state.get("output_dir"), str)
