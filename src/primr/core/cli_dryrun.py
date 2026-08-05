@@ -54,6 +54,13 @@ _NON_EXECUTABLE_FULL_NOTE = (
 )
 
 
+def _is_full_execution_ready(*, mode: str, mode_label: str) -> bool:
+    """False when the dry-run label admits estimate-only / no-key full recipes."""
+    if mode not in ("complete", "structured", "hybrid"):
+        return True
+    return "estimate only" not in mode_label and "provider keys required" not in mode_label
+
+
 def _annotate_non_executable_full_estimate(estimate, *, mode_label: str) -> None:
     """Disclose when the quote is planning-only and cannot launch."""
     if "estimate only" not in mode_label and "provider keys required" not in mode_label:
@@ -138,11 +145,7 @@ def run_dry_run(config: CLIConfig) -> int:
 
     estimate = build_run_estimate(config, fast_mode=use_fast_mode, premium_mode=use_premium_mode)
     _annotate_non_executable_full_estimate(estimate, mode_label=mode_label)
-    # Full-mode labels that admit estimate-only keys are not launch-ready.
-    execution_ready = not (
-        config.mode in ("complete", "structured", "hybrid")
-        and ("estimate only" in mode_label or "provider keys required" in mode_label)
-    )
+    execution_ready = _is_full_execution_ready(mode=config.mode, mode_label=mode_label)
 
     # Machine-readable path: emit the estimate as JSON and stop.
     if getattr(config, "json_output", False):
