@@ -48,7 +48,6 @@ from primr.core.cli_batch import (
 from primr.core.cli_batch import (
     _csv_safe as _csv_safe,
 )
-from primr.core.cli_batch import _ensure_valid_url
 from primr.core.cli_batch import (
     _read_batch_file as _read_batch_file,
 )
@@ -1172,7 +1171,12 @@ def _create_parser() -> argparse.ArgumentParser:
         help="Run orchestrated research with subagent coordination (experimental)",
     )
     parser.add_argument(
-        "--max-cost", type=float, help="Maximum cost budget for orchestrated research (USD)"
+        "--max-cost",
+        type=float,
+        help=(
+            "Spend ceiling for orchestrated research (USD). Required for "
+            "non-interactive launch; estimate must not exceed this value."
+        ),
     )
     parser.add_argument(
         "--budget",
@@ -1763,91 +1767,10 @@ def _handle_ai_strategy_only(config: CLIConfig) -> int:
 
 
 def _handle_orchestrate(config: CLIConfig) -> int:
-    """Handle orchestrated research command."""
-    import asyncio
-    from pathlib import Path
+    """Handle orchestrated research (cost-gated; see cli_orchestrate)."""
+    from primr.core.cli_orchestrate import handle_orchestrate
 
-    from primr.agentic import CostGuardHook, HookSystem, SSRFGuardHook
-    from primr.agentic.memory import ResearchMemory
-    from primr.agentic.orchestrator import OrchestratorConfig, ResearchOrchestrator
-
-    # Validate inputs - handle both "orchestrate Company URL" and "--orchestrate Company URL"
-    company_name = config.company_name
-    website = config.website
-
-    # If 'orchestrate' was used as positional, shift args
-    if company_name and company_name.lower() == "orchestrate":
-        company_name = website  # website position has company name
-        website = None  # Need to get from somewhere else
-
-    if not company_name or not website:
-        console.error("Company name and website required")
-        console.info('Usage: primr orchestrate "Company Name" https://company.com')
-        console.info('   or: primr "Company Name" https://company.com --orchestrate')
-        return 1
-
-    website = _ensure_valid_url(website)
-
-    console.banner("Orchestrated Research (Experimental)")
-    console.info(f"Company: {company_name}")
-    console.info(f"Website: {website}")
-    if config.orchestrate_max_cost:
-        console.info(f"Max Cost: ${config.orchestrate_max_cost:.2f}")
-    console.blank()
-
-    # Initialize components
-    output_path = Path("./output")
-
-    memory = ResearchMemory()
-    hooks = HookSystem()
-
-    # Register hooks
-    if config.orchestrate_max_cost:
-        hooks.register(CostGuardHook(max_cost_usd=config.orchestrate_max_cost))
-    hooks.register(SSRFGuardHook())
-
-    orchestrator_config = OrchestratorConfig(
-        output_dir=output_path,
-        fail_fast=False,
-    )
-
-    orchestrator = ResearchOrchestrator(
-        config=orchestrator_config,
-        memory=memory,
-        hook_system=hooks,
-    )
-
-    console.step("Running orchestrated pipeline...")
-
-    try:
-        result = asyncio.run(
-            orchestrator.research(
-                company_name=company_name,
-                company_url=website,
-                mode="full",
-            )
-        )
-
-        console.blank()
-
-        if result.is_success:
-            console.success_box("Research completed", f"Duration: {result.duration_seconds:.1f}s")
-            if result.report_path:
-                console.info(f"Report: {result.report_path}")
-            console.info(f"Hypotheses: {len(result.hypotheses)}")
-            console.info(f"Stages: {', '.join(result.completed_stages)}")
-            return 0
-        else:
-            console.error("Research failed")
-            for error in result.errors:
-                console.error(f"  • {error}")
-            if result.completed_stages:
-                console.info(f"Completed stages: {', '.join(result.completed_stages)}")
-            return 1
-
-    except Exception as e:
-        console.error(f"Orchestration failed: {e}")
-        return 1
+    return handle_orchestrate(config)
 
 
 def _handle_roadmap(config: CLIConfig) -> int:

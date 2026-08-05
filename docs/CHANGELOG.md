@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   excerpt, page/source inventory, hiring counts, and still-running stages.
   Zero extra model calls. Inventory classifies it as `working_brief`, never
   `primary_report`. See `docs/design/progressive-artifacts.md`.
+- **Working brief on structured/deep collection.** Premium/complete Phase 1
+  (`run_research`) now emits the same Layer-1 incomplete brief after scrape,
+  reusing the run folder when the orchestrator supplies `folder_path`.
+- **MCP `early_artifact_paths`.** Non-terminal and completed job status
+  includes body-free working-brief paths under the job output directory.
 
 ### Fixed
 
@@ -26,16 +31,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Lite vendor-news pricing fail-visible.** Token pricing exceptions use a
   non-zero floor and log a warning instead of `$0.00` token cost.
 
-### Added
-
-- **Working brief on structured/deep collection.** Premium/complete Phase 1
-  (`run_research`) now emits the same Layer-1 incomplete brief after scrape,
-  reusing the run folder when the orchestrator supplies `folder_path`.
-- **MCP `early_artifact_paths`.** Non-terminal and completed job status
-  includes body-free working-brief paths under the job output directory.
-
 ### Changed
 
+- **`primr orchestrate` cost gate.** Experimental orchestrated research now
+  always prints a priced estimate, supports `--dry-run`, and refuses launch
+  unless the estimate is under `--max-cost` or the user confirms interactively
+  (`[y/N]`). A `CostGuardHook` is always registered (explicit ceiling, or
+  estimate + 25% after interactive yes). Handler lives in
+  `cli_orchestrate.py` so `cli.py` stays under its line ceiling.
 - **Launch always shows the priced estimate.** Single-company research still
   skips the interactive Proceed prompt, but prints the same one-line
   `Company | mode | ~$cost | duration` estimate before work starts.
