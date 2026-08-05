@@ -43,15 +43,6 @@ def _estimate(total: float = 0.76) -> CostEstimate:
 @pytest.fixture
 def estimate_seam(monkeypatch):
     printed = []
-
-    def fake_print(*args, **kwargs):
-        est = _estimate(kwargs.get("total") or 0.76)
-        # honor explicit total via side channel
-        if "total_cost" in kwargs:
-            est.total_cost = kwargs["total_cost"]
-        printed.append((args, kwargs))
-        return est
-
     monkeypatch.setattr(
         "primr.utils.cost_display.print_cost_estimate",
         lambda *a, **k: printed.append((a, k)) or _estimate(),

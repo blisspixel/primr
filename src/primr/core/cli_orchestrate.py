@@ -7,7 +7,6 @@ either interactive confirmation or an explicit ``--max-cost`` ceiling.
 
 from __future__ import annotations
 
-import asyncio
 import math
 import os
 import sys
@@ -23,6 +22,7 @@ def handle_orchestrate(config: Any) -> int:
     from primr.agentic.memory import ResearchMemory
     from primr.agentic.orchestrator import OrchestratorConfig, ResearchOrchestrator
     from primr.core.cli_batch import _ensure_valid_url
+    from primr.utils.async_utils import run_sync
     from primr.utils.cost_display import print_cost_estimate
 
     company_name = config.company_name
@@ -49,11 +49,13 @@ def handle_orchestrate(config: Any) -> int:
     console.blank()
 
     # Price like a full provider-backed run (orchestrator mode="full").
+    # Respect explicit --fast-mode; otherwise auto-detect when XAI is available.
+    use_fast_mode = bool(getattr(config, "fast_mode", False)) or bool(os.environ.get("XAI_API_KEY"))
     estimate = print_cost_estimate(
         "complete",
         company_name,
         include_ai_strategy=True,
-        fast_mode=bool(os.environ.get("XAI_API_KEY")),
+        fast_mode=use_fast_mode,
         premium_mode=False,
         verify=bool(getattr(config, "verify", False)),
         grok_tier=getattr(config, "grok_tier", "hybrid") or "hybrid",
@@ -115,7 +117,7 @@ def handle_orchestrate(config: Any) -> int:
 
     console.step("Running orchestrated pipeline...")
     try:
-        result = asyncio.run(
+        result = run_sync(
             orchestrator.research(
                 company_name=company_name,
                 company_url=website,
