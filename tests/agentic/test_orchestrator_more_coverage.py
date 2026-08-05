@@ -153,6 +153,25 @@ def test_scrape_only_mode(fast_subagents):
         assert result.report_path is None
 
 
+def test_full_mode_empty_scrape_data_is_not_success(monkeypatch, fast_subagents):
+    """Empty intermediate data must not report COMPLETED with no report path."""
+
+    class _EmptyScraper(_Fake):
+        name = "ScraperSubagent"
+
+        async def execute(self):
+            return SubagentResult(status=SubagentStatus.COMPLETED, data=None)
+
+    monkeypatch.setattr(orch_mod, "ScraperSubagent", _EmptyScraper)
+    with tempfile.TemporaryDirectory() as tmp:
+        orch = ResearchOrchestrator(config=_config(tmp))
+        result = asyncio.run(orch.research("Acme", "https://acme.example", mode="full"))
+        assert result.state == OrchestratorState.FAILED
+        assert result.is_success is False
+        assert result.report_path is None
+        assert any("no report" in err.lower() for err in result.errors)
+
+
 # =============================================================================
 # Memory load/save error handling
 # =============================================================================

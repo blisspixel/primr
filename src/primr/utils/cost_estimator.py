@@ -372,6 +372,27 @@ def _lite_strategy_cost_breakdown(
     return (model_name, breakdown, input_tokens, output_tokens, tokenizer_adjusted)
 
 
+# CLI/product aliases → internal estimator keys. Unknown modes fail closed
+# (never default to scrape-only underpricing for cost gates).
+_ESTIMATE_MODE_ALIASES: dict[str, str] = {
+    "full": "complete",
+    "premium": "complete",
+    "deep": "deep-research",
+    "scrape": "scrape-only",
+    "parallel": "hybrid",
+}
+
+
+def normalize_estimate_mode(mode: str) -> str:
+    """Map product aliases to a known estimator mode, or raise ValueError."""
+    key = (mode or "").strip().lower()
+    key = _ESTIMATE_MODE_ALIASES.get(key, key)
+    if key not in MODE_ESTIMATES:
+        known = ", ".join(sorted(MODE_ESTIMATES))
+        raise ValueError(f"Unknown estimate mode {mode!r}. Expected one of: {known}")
+    return key
+
+
 def estimate_cost(
     mode: str,
     include_ai_strategy: bool = False,
@@ -395,6 +416,7 @@ def estimate_cost(
 
     Args:
         mode: Research mode (scrape-only, structured, deep-research, complete, hybrid)
+            or product aliases (full, deep, scrape, parallel). Unknown modes raise.
         include_ai_strategy: Whether AI strategy analysis is included
         search_free: Whether Google Search is in free period
         use_historical: Whether to use historical averages (requires 3+ samples)
@@ -412,7 +434,11 @@ def estimate_cost(
 
     Returns:
         CostEstimate with breakdown
+
+    Raises:
+        ValueError: If ``mode`` is not a known estimator mode or alias.
     """
+    mode = normalize_estimate_mode(mode)
     yaml_strategy_types = [s for s in (strategy_types or []) if s and s != "ai"]
 
     # Fast mode: completely different cost model (Flash + Grok, no DR, no Pro)
@@ -438,7 +464,7 @@ def estimate_cost(
     if yaml_strategy_types and not lists_ai_explicitly:
         include_ai_strategy = False
 
-    estimates = MODE_ESTIMATES.get(mode, MODE_ESTIMATES["scrape-only"])
+    estimates = MODE_ESTIMATES[mode]
 
     flash_in = estimates["flash_input_tokens"]
     flash_out = estimates["flash_output_tokens"]

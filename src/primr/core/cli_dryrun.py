@@ -15,19 +15,6 @@ if TYPE_CHECKING:
     from primr.core.cli import CLIConfig
 
 
-def _has_full_provider_key() -> bool:
-    """Return whether a configured provider can shape the full-mode label."""
-    return any(
-        os.environ.get(key)
-        for key in (
-            "XAI_API_KEY",
-            "GEMINI_API_KEY",
-            "OPENAI_API_KEY",
-            "ANTHROPIC_API_KEY",
-        )
-    )
-
-
 def _full_mode_label(grok_tier: str) -> str:
     """Human label for the default full research path (CLI --mode full).
 
@@ -46,6 +33,31 @@ def _full_mode_label(grok_tier: str) -> str:
         return "full (Anthropic estimate only; execution needs XAI or Gemini)"
     # Still name the intended tier so dry-run is honest before keys are set.
     return f"full ({grok_tier_label(grok_tier)}; provider keys required)"
+
+
+_NON_EXECUTABLE_FULL_NOTE = (
+    "Dollars are the XAI/Gemini full-recipe planning floor, not OpenAI/Anthropic "
+    "live rates. Full execution still needs XAI_API_KEY or GEMINI_API_KEY."
+)
+
+
+def _is_full_execution_ready(*, mode: str) -> bool:
+    """False for full recipes when XAI/Gemini are not configured (cannot launch)."""
+    if mode not in ("complete", "structured", "hybrid"):
+        return True
+    return bool(os.environ.get("XAI_API_KEY") or os.environ.get("GEMINI_API_KEY"))
+
+
+def _annotate_non_executable_full_estimate(estimate, *, mode: str) -> None:
+    """Disclose when the quote is planning-only and cannot launch."""
+    if _is_full_execution_ready(mode=mode):
+        return
+    if mode not in ("complete", "structured", "hybrid"):
+        return
+    notes = list(estimate.notes or [])
+    if _NON_EXECUTABLE_FULL_NOTE not in notes:
+        notes.append(_NON_EXECUTABLE_FULL_NOTE)
+        estimate.notes = notes
 
 
 def run_dry_run(config: CLIConfig) -> int:
@@ -102,9 +114,8 @@ def run_dry_run(config: CLIConfig) -> int:
 
     if use_premium_mode:
         mode_label = "premium (Gemini + Deep Research)"
-    elif use_fast_mode or (
-        config.mode in ("complete", "structured", "hybrid") and _has_full_provider_key()
-    ):
+    elif config.mode in ("complete", "structured", "hybrid"):
+        # Always use the honest full-mode label (covers keyless + estimate-only keys).
         mode_label = _full_mode_label(config.grok_tier)
     else:
         mode_label = config.mode
@@ -121,6 +132,8 @@ def run_dry_run(config: CLIConfig) -> int:
         )
 
     estimate = build_run_estimate(config, fast_mode=use_fast_mode, premium_mode=use_premium_mode)
+    _annotate_non_executable_full_estimate(estimate, mode=config.mode)
+    execution_ready = _is_full_execution_ready(mode=config.mode)
 
     # Machine-readable path: emit the estimate as JSON and stop.
     if getattr(config, "json_output", False):
@@ -135,15 +148,15 @@ def run_dry_run(config: CLIConfig) -> int:
                 fast_mode=use_fast_mode,
                 premium_mode=use_premium_mode,
             ).as_dict()
-        emit_json(
-            cost_estimate_json(
-                estimate,
-                mode_label=mode_label,
-                ai_strategy=config.ai_strategy,
-                budget_enforcement=budget_enforcement,
-                inference=inference_estimate_metadata(config),
-            )
+        payload = cost_estimate_json(
+            estimate,
+            mode_label=mode_label,
+            ai_strategy=config.ai_strategy,
+            budget_enforcement=budget_enforcement,
+            inference=inference_estimate_metadata(config),
         )
+        payload["execution_ready"] = execution_ready
+        emit_json(payload)
         return 0
 
     from primr.utils.console import console
@@ -207,16 +220,29 @@ def run_dry_run(config: CLIConfig) -> int:
 
     console.blank()
     console.step("Next steps")
-    console.muted("  1. Launch: repeat this command without --dry-run.")
-    console.muted("     Optional: add --budget <usd> to enforce a run ceiling.")
-    console.muted("  2. Monitor: follow the phase markers in this terminal.")
-    console.muted(
-        "  3. Recover interrupted cloud work: primr --check-jobs; "
-        "when completed, run primr --resume-latest."
-    )
-    console.muted(
-        "  4. Retrieve: use the artifact path printed when the run completes "
-        "(or primr --list-recent)."
-    )
+    if not execution_ready:
+        console.muted(
+            "  1. Configure XAI_API_KEY or GEMINI_API_KEY before launching "
+            "(OpenAI/Anthropic alone cannot run full research)."
+        )
+        console.muted(
+            "  2. Re-run this dry-run after keys are set to confirm the executable recipe."
+        )
+        console.muted(
+            "  3. Launch: repeat without --dry-run once execution_ready is true "
+            "(optional: --budget <usd>)."
+        )
+    else:
+        console.muted("  1. Launch: repeat this command without --dry-run.")
+        console.muted("     Optional: add --budget <usd> to enforce a run ceiling.")
+        console.muted("  2. Monitor: follow the phase markers in this terminal.")
+        console.muted(
+            "  3. Recover interrupted cloud work: primr --check-jobs; "
+            "when completed, run primr --resume-latest."
+        )
+        console.muted(
+            "  4. Retrieve: use the artifact path printed when the run completes "
+            "(or primr --list-recent)."
+        )
     console.blank()
     return 0

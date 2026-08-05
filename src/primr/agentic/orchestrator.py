@@ -716,8 +716,16 @@ class ResearchOrchestrator:
                 except Exception as e:
                     logger.warning(f"Failed to save hypotheses: {e}")
 
-            # Determine final state
-            if errors:
+            # Determine final state. Full mode without a report is never success
+            # even when intermediate stages returned empty data without raising.
+            if mode == "full" and not report_path:
+                if not any("no report" in err.lower() for err in errors):
+                    errors.append(
+                        "Full research produced no report "
+                        "(empty intermediate stage data or skipped write)"
+                    )
+                self._state = OrchestratorState.FAILED
+            elif errors:
                 self._state = OrchestratorState.FAILED
             else:
                 self._state = OrchestratorState.COMPLETED
