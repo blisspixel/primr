@@ -138,7 +138,7 @@ class TestBuildRunEstimate:
             captured["mode"] = mode
             captured["ai_strategy"] = ai_strategy
             captured.update(kwargs)
-            return SimpleNamespace(total_cost=1.0)
+            return SimpleNamespace(total_cost=1.0, notes=[])
 
         monkeypatch.setattr("primr.utils.cost_estimator.estimate_cost", fake_estimate_cost)
         config = _config(
@@ -169,13 +169,44 @@ class TestBuildRunEstimate:
 
         def fake_estimate_cost(mode, ai_strategy=False, **kwargs):
             captured.update(kwargs)
-            return SimpleNamespace(total_cost=1.0)
+            return SimpleNamespace(total_cost=1.0, notes=[])
 
         monkeypatch.setattr("primr.utils.cost_estimator.estimate_cost", fake_estimate_cost)
         build_run_estimate(_config(), fast_mode=False, premium_mode=True)
         assert captured["verify"] is False
         assert captured["premium_mode"] is True
         assert captured["vendor_research_refreshes"] == 0
+
+    def test_authorization_uses_max_of_planning_and_historical(self, monkeypatch):
+        """Cheap historical samples must not under-approve vs planning floor."""
+        calls: list[bool] = []
+
+        def fake_estimate_cost(mode, ai_strategy=False, **kwargs):
+            use_hist = kwargs.get("use_historical", True)
+            calls.append(use_hist)
+            # Planning higher than historical — floor must stay at planning.
+            total = 2.0 if not use_hist else 0.4
+            return SimpleNamespace(total_cost=total, notes=[])
+
+        monkeypatch.setattr("primr.utils.cost_estimator.estimate_cost", fake_estimate_cost)
+        est = build_run_estimate(_config(), fast_mode=True, premium_mode=False)
+        assert False in calls
+        assert True in calls
+        assert est.total_cost == 2.0
+
+    def test_historical_can_raise_authorization_floor(self, monkeypatch):
+        calls: list[bool] = []
+
+        def fake_estimate_cost(mode, ai_strategy=False, **kwargs):
+            use_hist = kwargs.get("use_historical", True)
+            calls.append(use_hist)
+            total = 0.5 if not use_hist else 1.8
+            return SimpleNamespace(total_cost=total, notes=[])
+
+        monkeypatch.setattr("primr.utils.cost_estimator.estimate_cost", fake_estimate_cost)
+        est = build_run_estimate(_config(), fast_mode=True, premium_mode=False)
+        assert est.total_cost == 1.8
+        assert any("historical average" in n.lower() for n in (est.notes or []))
 
 
 class TestActivateRunBudget:

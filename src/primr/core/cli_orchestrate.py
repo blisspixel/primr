@@ -41,7 +41,17 @@ def handle_orchestrate(config: Any) -> int:
         console.info("Always pass --dry-run first, then --max-cost <usd> or confirm interactively.")
         return 1
 
+    from primr.utils import validators
+
     website = _ensure_valid_url(website)
+    if not website:
+        console.error("Website URL is required after normalization")
+        return 1
+    try:
+        website = validators.validate_url(website)
+    except validators.InputValidationError as exc:
+        console.error(f"Invalid website URL: {exc.reason}")
+        return 1
 
     console.banner("Orchestrated Research (Experimental)")
     console.info(f"Company: {company_name}")
