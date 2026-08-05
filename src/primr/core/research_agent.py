@@ -274,6 +274,7 @@ from primr.config.env import load_primr_env
 from primr.config.models import PrimrModels
 from primr.config.sections_config import SECTION_KEY_MAP
 
+
 def _default_writing_model() -> str:
     """Resolve the default writing-tier model via the routing layer.
 
