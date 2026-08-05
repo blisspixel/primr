@@ -12,15 +12,12 @@ import math
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from primr.utils.console import console
 
-if TYPE_CHECKING:
-    from primr.core.cli import CLIConfig
 
-
-def handle_orchestrate(config: CLIConfig) -> int:
+def handle_orchestrate(config: Any) -> int:
     """Run experimental orchestrated research behind the standard cost gate."""
     from primr.agentic import CostGuardHook, HookSystem, SSRFGuardHook
     from primr.agentic.memory import ResearchMemory
