@@ -78,6 +78,8 @@ class TestParser:
         assert ns.formats == SkillPackFormat.BOTH.value
         assert ns.remote_icons is False
         assert ns.dry_run is False
+        assert ns.budget is None
+        assert ns.skip_confirm is False
 
     def test_remote_icons_flag_parses(self):
         parser = _create_parser()
@@ -152,6 +154,13 @@ class TestEstimate:
         small, _ = _estimate(SkillPackConfig(roles_count=2), will_collect_evidence=False)
         big, _ = _estimate(SkillPackConfig(roles_count=10), will_collect_evidence=False)
         assert big > small
+
+    def test_fractional_runtime_is_rounded_up(self):
+        _, minutes = _estimate(
+            SkillPackConfig(roles_count=3),
+            will_collect_evidence=False,
+        )
+        assert minutes == 2
 
     def test_remote_icons_add_explicit_allowance(self):
         local, _ = _estimate(SkillPackConfig(), will_collect_evidence=False)
@@ -366,6 +375,29 @@ class TestRunSkillsCliEarlyReturns:
         out = capsys.readouterr().out
         assert "Skill pack estimate for Acme" in out
         assert "Estimated cost" in out
+
+    def test_execution_decline_stops_before_collection(self, monkeypatch, capsys):
+        monkeypatch.setattr("builtins.input", lambda *a, **k: "n")
+        monkeypatch.setattr(
+            "primr.skill_pack.cli.collect_evidence",
+            lambda **kwargs: pytest.fail("collection must not start before approval"),
+        )
+
+        rc = run_skills_cli(["skills", "Acme", "https://acme.example"])
+
+        assert rc == 0
+        assert "Estimated cost" in capsys.readouterr().out
+
+    def test_budget_below_quote_stops_before_collection(self, monkeypatch, capsys):
+        monkeypatch.setattr(
+            "primr.skill_pack.cli.collect_evidence",
+            lambda **kwargs: pytest.fail("collection must not start over budget"),
+        )
+
+        rc = run_skills_cli(["skills", "Acme", "https://acme.example", "--budget", "0.01"])
+
+        assert rc == 2
+        assert "exceeds --budget" in capsys.readouterr().err
 
     def test_override_with_curation_warns_and_clears(self, capsys):
         # --roles-override is mutually exclusive with --roles-add/--roles-skip;

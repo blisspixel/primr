@@ -59,3 +59,6 @@ class OrchestratorResult:
     sections_written: int = 0  # Actual number of sections written (for accordion method)
     search_queries_count: int = 0  # Actual search count from groundingMetadata
     pending_interaction_id: str = ""
+    target_pages: int = 0
+    actual_pages: int = 0
+    target_attained: bool = False

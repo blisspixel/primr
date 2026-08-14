@@ -20,6 +20,7 @@ from primr.mcp_server.pipeline_runner import (
     PipelineRunner,
     _collect_run_artifacts,
     _copy_artifacts_to_destination,
+    _reconcile_actual_cost,
 )
 from primr.mcp_server.qa_operations import run_qa_analysis
 from primr.mcp_server.server import create_mcp_server
@@ -307,6 +308,17 @@ class TestRunQAAnalysis:
 # run_research orchestration
 # ---------------------------------------------------------------------------
 class TestRunResearchFastMode:
+    def test_cost_reconciliation_combines_model_delta_and_deep_tasks(self):
+        from primr.config.models import DEEP_RESEARCH_COST
+
+        with patch(
+            "primr.ai.stage_routing.stage_usage_delta",
+            return_value={"actual_cost_usd": 0.125},
+        ):
+            actual = _reconcile_actual_cost({}, deep_research_tasks_started=2)
+
+        assert actual == round(0.125 + 2 * DEEP_RESEARCH_COST.standard_task_cost, 8)
+
     @pytest.mark.asyncio
     async def test_fast_mode_success(self, server, runner, monkeypatch, tmp_path):
         monkeypatch.setenv("XAI_API_KEY", "fake-key")
@@ -396,6 +408,43 @@ class TestRunResearchFastMode:
         updated = server.job_store.get(job.job_id)
         assert updated.current_stage == ResearchStage.FAILED
         assert updated.error_type == "research_failed"
+        assert updated.actual_cost_usd is None
+
+    @pytest.mark.asyncio
+    async def test_fast_cost_snapshot_runs_after_verification(
+        self, server, runner, monkeypatch, tmp_path
+    ):
+        monkeypatch.setenv("XAI_API_KEY", "fake-key")
+        job = server.job_store.create("Acme Corp", "full", owner_client_id="stdio")
+        report = tmp_path / "report.md"
+        report.write_text("done", encoding="utf-8")
+        verified = False
+
+        def fake_verify(**_kwargs):
+            nonlocal verified
+            verified = True
+
+        def fake_delta(_baseline):
+            assert verified
+            return {"actual_cost_usd": 0.42}
+
+        monkeypatch.setattr(
+            "primr.core.research_agent.perform_fast_research",
+            lambda *_args, **_kwargs: str(report),
+        )
+        monkeypatch.setattr("primr.core.research_agent._run_verification", fake_verify)
+        monkeypatch.setattr("primr.ai.stage_routing.capture_stage_usage", dict)
+        monkeypatch.setattr("primr.ai.stage_routing.stage_usage_delta", fake_delta)
+
+        await runner.run_research(
+            job=job,
+            company_url="https://example.com",
+            mode="full",
+            verify=True,
+        )
+
+        updated = server.job_store.get(job.job_id)
+        assert updated.actual_cost_usd == 0.42
 
     @pytest.mark.asyncio
     async def test_fast_mode_with_destination(self, server, runner, monkeypatch, tmp_path):
@@ -725,7 +774,51 @@ class TestRunResearchOrchestrator:
         assert updated.current_stage == ResearchStage.FAILED
         assert updated.error_type == "research_failed"
         assert updated.error_message == PUBLIC_RESEARCH_FAILURE_MESSAGE
+        assert updated.actual_cost_usd is None
         assert "orchestrator boom" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_paid_premium_partial_is_published_and_reconciled_once(
+        self, server, runner, monkeypatch, tmp_path
+    ):
+        from primr.config.models import DEEP_RESEARCH_COST
+
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+        monkeypatch.setattr("primr.config.config.OUTPUT_DIR", str(tmp_path))
+        monkeypatch.setattr("primr.ai.stage_routing.capture_stage_usage", dict)
+        cost_delta = MagicMock(return_value={"actual_cost_usd": 0.25})
+        monkeypatch.setattr("primr.ai.stage_routing.stage_usage_delta", cost_delta)
+        job = server.job_store.create("Acme Corp", "premium", owner_client_id="stdio")
+        result = SimpleNamespace(
+            success=False,
+            error="section quota exhausted",
+            raw_content="# Incomplete report\n\nUseful paid research.",
+            section_results={},
+            pending_interaction_id="interaction-partial",
+        )
+        orchestrator = MagicMock(research=AsyncMock(return_value=result))
+
+        with (
+            patch(
+                "primr.core.research_orchestrator.ResearchOrchestrator",
+                return_value=orchestrator,
+            ),
+            patch(
+                "primr.ai.job_persistence.acknowledge_pending_job_after_outputs",
+                return_value=True,
+            ) as acknowledge,
+        ):
+            await runner.run_research(job, "https://example.com", "premium")
+
+        updated = server.job_store.get(job.job_id)
+        assert updated.current_stage == ResearchStage.FAILED
+        assert len(updated.output_paths) == 1
+        partial_body = Path(updated.output_paths[0]).read_text(encoding="utf-8")
+        assert partial_body.startswith("# Incomplete Report")
+        assert "Useful paid research." in partial_body
+        assert updated.actual_cost_usd == round(0.25 + DEEP_RESEARCH_COST.standard_task_cost, 8)
+        acknowledge.assert_called_once_with("interaction-partial", [updated.output_paths[0]])
+        cost_delta.assert_called_once_with({})
 
     @pytest.mark.asyncio
     async def test_pipeline_exception_records_sanitized_failure(
@@ -787,6 +880,19 @@ class TestSaveReportAndManifest:
         report = tmp_path / "report.md"
         report.write_text("x", encoding="utf-8")
         job.output_paths = [str(report)]
+        job.actual_cost_usd = 1.23456789
+        job.governance_audit = {
+            "estimate": {
+                "cost_usd": 1.75,
+                "time_minutes": 42,
+                "estimated_at": "2026-08-13T12:00:00Z",
+            },
+            "approval": {
+                "approval_token_id": "approval-id",
+                "approved_at": "2026-08-13T12:01:00Z",
+                "bound_to_estimate": True,
+            },
+        }
         job.advance_stage(ResearchStage.COMPLETED)
         server.job_store.update(job)
 
@@ -804,6 +910,12 @@ class TestSaveReportAndManifest:
         payload = json.loads(manifest.read_text(encoding="utf-8"))
         assert payload["budget"]["approved_ceiling_usd"] == 2.0
         assert payload["budget"]["runtime_budget_active"] is True
+        assert payload["estimate"]["cost_usd"] == 1.75
+        assert payload["estimate"]["time_minutes"] == 42
+        assert payload["approval"]["approval_token_id"] == "approval-id"
+        assert payload["approval"]["bound_to_estimate"] is True
+        assert payload["approval"]["token"] is None
+        assert payload["execution"]["actual_cost_usd"] == 1.23456789
         assert payload["budget"]["enforcement"]["checkpointed_stages"] == [
             "optional strategy generation"
         ]

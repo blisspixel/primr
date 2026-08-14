@@ -4,10 +4,10 @@ How to add a new model to primr - Grok, Gemini, Claude, OpenAI, or any future
 provider - without breaking the cost estimator, the pipeline circuit breakers,
 or the eval harness.
 
-The single source of truth for every model is `src/primr/config/models.py`.
-Everything downstream - pricing, fallback chains, dry-run estimates, eval
-profiles, doctor checks - derives from that file. If you only update one place,
-update the registry there and let the rest follow.
+The model data source of truth is `src/primr/config/model_registry.py`.
+`src/primr/config/models.py` is the stable selection and cost facade and
+re-exports registry symbols for compatibility. Pricing, fallback chains,
+dry-run estimates, eval profiles, and doctor checks consume those two layers.
 
 This playbook is intentionally short. Each step is a checkbox you should be
 able to tick off without guessing. The worked example at the bottom is the
@@ -17,11 +17,17 @@ April 2026 Grok 4.3 onboarding.
 
 ## The five-step process
 
-### 1. Verify identity against the live provider API
+### 1. Verify identity against official provider sources
 
-Don't trust blog posts or third-party pricing pages. Hit the provider's
-`/models` endpoint with a real API key and confirm the **exact model ID**,
-plus whether reasoning / non-reasoning / fast variants exist.
+Do not trust blog posts, search snippets, or third-party pricing pages. Start
+with the provider's current model page, pricing page, and API reference. Record
+the exact canonical model ID, aliases, context and output limits, supported API
+shape, reasoning controls, tool support, storage defaults, and all token, cache,
+long-context, and tool-call prices.
+
+An authenticated `/models` request is an optional availability check. It proves
+what the current account can see, not the model's capabilities or pricing. It
+must remain an auth-only preflight and must not generate tokens.
 
 For xAI:
 
@@ -35,6 +41,12 @@ For Google:
 curl "https://generativelanguage.googleapis.com/v1beta/models?key=$GEMINI_API_KEY"
 ```
 
+For OpenAI:
+
+```bash
+curl -H "Authorization: Bearer $OPENAI_API_KEY" https://api.openai.com/v1/models
+```
+
 Capture: model ID string, context window, max output tokens, multimodal
 support, whether reasoning is always-on, and whether tiered or cached pricing
 is published. If pricing isn't surfaced via the API, take it from the
@@ -43,7 +55,7 @@ provider's official docs page - never from third-party comparison sites.
 ### 2. Register the model in `ModelRegistry`
 
 Add a `ModelConfig` entry alongside the existing siblings in
-`src/primr/config/models.py`. Required fields:
+`src/primr/config/model_registry.py`. Required fields:
 
 - `name` - exact API ID returned by step 1
 - `display_name` - human-friendly label used in dry-run output
@@ -58,6 +70,10 @@ otherwise):
 - `cost_per_1m_input_tokens_high`, `cost_per_1m_output_tokens_high`,
   `tier_threshold_tokens` - tiered pricing above a context threshold
 - `cost_per_1m_input_tokens_cached` - discount rate for prompt-cache hits
+- `price_change_date`, `cost_per_1m_input_tokens_after`,
+  `cost_per_1m_output_tokens_after`, and
+  `cost_per_1m_input_tokens_cached_after` - a provider-published future price
+  change that must take effect by pricing date without a code release
 
 The estimator consumes these fields through
 `PrimrModels.calculate_cost_breakdown()`. Keep the registry explicit: if a
@@ -66,7 +82,8 @@ the read and tier metadata before using the model in a default route. Do not
 assume prompt-cache savings in dry-run output unless historical usage records
 show cached input tokens for that mode.
 
-Add the new entry to `PrimrModels.ALL_MODELS` in the same file so
+Add the new entry to `PrimrModels.ALL_MODELS` in
+`src/primr/config/models.py` so
 `get_model_config`, `get_price`, and `calculate_cost` can find it.
 
 If the new model is meant to **replace** an existing default, add a new
@@ -95,13 +112,15 @@ model should replace it. The three routing surfaces are:
   providers is fragile: a hang on the cheap utility call stalls the whole
   run even when the flagship is healthy. The April 2026 Grok 4.3 onboarding
   surfaced exactly this - a stalled Gemini Flash link-selection call hung
-  the rerun until utility-tier dispatch was rewired to use Grok 4.1 NR
-  (cheaper than Gemini Flash anyway).
+  the rerun until utility-tier dispatch was rewired to the then-current Grok
+  4.1 NR. The current utility primary is the dated Grok 4.20 non-reasoning
+  model, so treat the 4.1 example as onboarding history rather than live
+  routing guidance.
 
 Also grep for the legacy model ID across the codebase:
 
 ```bash
-grep -rn "grok-4\.20\|GROK_MODEL_420" src/ tests/ docs/
+rg -n "grok-4\.20|GROK_MODEL_420" src tests docs
 ```
 
 Decide for each hit whether it should switch. For test fixtures that just
@@ -177,18 +196,21 @@ already speaks. Adding a whole new *provider* is a different shape: it
 goes through the provider abstraction in `src/primr/ai/providers/`. The
 work splits into two cases.
 
-### Case A: OpenAI-compatible endpoint (OpenAI itself, Ollama, vLLM, llama.cpp)
+### Case A: OpenAI SDK-compatible endpoint
 
-These providers all expose `POST /v1/chat/completions` with the OpenAI
-message schema. Onboarding is mostly registry edits, no new client class:
+Primr supports two transport shapes through this family. Direct OpenAI and xAI
+use `POST /v1/responses`; local Ollama, vLLM, llama.cpp, and similar servers use
+`POST /v1/chat/completions` unless that backend has verified Responses support.
+The normalized `messages` input is translated at the adapter boundary.
 
 1. **Add a `ProviderEntry`** to `KNOWN_PROVIDERS` in
    `src/primr/ai/providers/registry.py` with the provider's name, env var,
    description, and roles.
 2. **Add a branch to `build_provider`** that constructs an
-   `OpenAICompatibleProvider` with the right `base_url`,  `api_key_env`,
-   and (for Ollama) an `api_key_default` placeholder so the SDK doesn't
-   reject unset keys.
+   `OpenAICompatibleProvider` with the right `base_url`, `api_key_env`, and
+   explicit `api_style`. Use `responses` only after the provider is verified to
+   implement its request and response contract. For Ollama, set an
+   `api_key_default` placeholder so the SDK does not reject an unset key.
 3. **Add model entries** for each model you want to call in
    `src/primr/config/models.py` (`ModelRegistry`). Set `provider="openai"`
    /`"ollama"`/etc. and add the entry to `ALL_MODELS`.
@@ -223,7 +245,8 @@ Normalized (every provider returns the same shape, supports the same
 interface):
 
 - `chat(messages, *, model, temperature, max_tokens, retries, **kwargs)`
-- Returns `ChatResponse(text, input_tokens, output_tokens)`
+- Returns `ChatResponse` with text, input/output tokens, cached input, and any
+  available exact cost or response-status metadata
 - Retry/backoff on transient errors
 - `QuotaExhausted` for daily quota
 - `is_available()` reports whether the env key is set
@@ -232,15 +255,23 @@ interface):
 Not normalized - passed through as `**provider_kwargs`, providers ignore
 what they don't recognize:
 
-- Gemini `thinking_level` (low/high)
+- Gemini `thinking_level` values supported by the selected model
 - Anthropic `cache_control` blocks, `extended_thinking_budget`
-- OpenAI `reasoning_effort`, `response_format`
-- xAI / OpenAI-compatible: `top_p`, `seed`, `stop`, etc.
+- OpenAI/xAI `reasoning_effort`, tools, storage policy, and normalized
+  `response_format` (translated to Responses `text.format` on the wire)
+- Chat Completions backends: `top_p`, `seed`, `stop`, and related controls
 
 This is deliberate: a lowest-common-denominator API would lose features
 that matter (Gemini's deep thinking, Anthropic's cache control). Callers
 that need a provider-specific feature pass the kwarg; callers that don't
 care get a clean, uniform interface.
+
+Request compatibility is still model-specific. Every selectable Gemini path
+must use the shared sampling-capability policy so 3.5 Flash-Lite, 3.6 Flash,
+3.7 Flash, and later families do not receive removed `temperature`, `top_p`,
+or `top_k` fields. Convert only model-supported thinking levels through the
+SDK enum and test direct clients as well as the provider adapter before adding
+an eval profile.
 
 ## Doc updates
 
@@ -257,22 +288,25 @@ coherent with the code:
 
 ## Worked example: Grok 4.3 (April 2026)
 
-xAI released `grok-4.3` on 2026-04-30 with always-on reasoning, $1.25/$2.50
-pricing, $0.20 cached input, 1M context, multimodal input. No `-fast` or
-non-reasoning variant.
+xAI released `grok-4.3` on 2026-04-30 with configurable reasoning effort,
+$1.25/$2.50 pricing, $0.20 cached input, 1M context, and multimodal input.
 
-**Step 1 - verify**: `GET https://api.x.ai/v1/models` confirmed the API ID is
-literally `grok-4.3`. The list contained no `grok-4.3-fast` or
-`grok-4.3-non-reasoning`, validating the always-on-reasoning claim.
+**Step 1 - verify**: xAI's official
+[Grok 4.3 model page](https://docs.x.ai/developers/models/grok-4.3) and
+[pricing table](https://docs.x.ai/developers/pricing) confirm the API ID,
+reasoning-effort controls, context, and current pricing. Model availability in
+a specific account remains a credential-scoped preflight fact.
 
 **Step 2 - register**: Added `GROK_4_3 = ModelConfig(...)` in
-`src/primr/config/models.py`, including `cost_per_1m_input_tokens_cached=0.20`
-and a placeholder high-tier (>200k) at 2× base until xAI publishes confirmed
-rates. Added to `ALL_MODELS`. New constant `GROK_MODEL_43` introduced;
-`GROK_MODEL_420` kept as legacy alias.
+`src/primr/config/model_registry.py`, including the published $0.20 cached-input
+rate and inclusive >=200k prices of $2.50 input, $0.40 cached input, and $5.00
+output per million tokens. Added it to `ALL_MODELS` and introduced
+`GROK_MODEL_43`; `GROK_MODEL_420` remains a compatibility constant for the
+dated Grok 4.20 reasoning ID.
 
-**Step 3 - wire**: `get_grok_models()` updated so `HYBRID = (4.3, 4.1-NR)` and
-`MAX = (4.5, 4.5)` (latest flagship opt-in). Hybrid/fast stay on 4.3. See
+**Step 3 - wire**: `get_grok_models()` now maps FAST and HYBRID to Grok 4.3
+reasoning plus `grok-4.20-non-reasoning` writing, while MAX maps to
+`(4.5, 4.5)` as a version-pinned opt-in. FAST uses lower reasoning effort. See
 `docs/design/grok-default-routing.md`. `ANALYSIS_FALLBACK_CHAIN` reordered
 to `(4.3 → 4.20 → 4.1 → Flash)` historically; current analysis fallback prefers
 `4.3 → 4.5 → 4.20` (see `docs/design/grok-default-routing.md`). Cost-estimator
@@ -289,14 +323,13 @@ mechanical wiring; eval sweep is the next ROADMAP item before treating the
 flip as confirmed. If the eval shows regression, revert the
 `get_grok_models()` change and leave the registration in place.
 
-**Open items**:
+**Current follow-up**:
 
-- High-tier (>200k) pricing for 4.3 is a placeholder. Confirm against
-  console.x.ai billing and update.
-- Hybrid still uses 4.1-NR for writing because 4.3 has no cheap NR variant
-  and bulk-writing on 4.3 would multiply the per-token cost ~6×. Revisit
-  when xAI ships a 4.3 fast or non-reasoning SKU.
-- Prompt caching at $0.20/M is now wired into `calculate_cost` via
-  `cached_input_tokens`, but the Grok client doesn't yet thread cache-hit
-  counts back from the API response. Wiring that through is what makes the
-  cache discount actually show up in `primr show-usage`.
+- The published inclusive >=200k tier is represented in the registry and cost
+  tests.
+- Hybrid writing uses the current `grok-4.20-non-reasoning` alias when Gemini
+  is unavailable. With Gemini configured, routed Flash-Lite writing remains
+  the measured lower-cost path.
+- The Responses adapters normalize cached-input usage. xAI's
+  `cost_in_usd_ticks` is the exact-cost authority when present; registry token
+  pricing remains the conservative fallback.

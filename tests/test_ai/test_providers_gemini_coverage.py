@@ -226,6 +226,25 @@ def test_extract_usage_cached_tokens():
     assert GeminiProvider._extract_usage(resp) == (10, 4, 6)
 
 
+def test_record_external_response_usage_joins_provider_accounting():
+    provider = _provider()
+    response = SimpleNamespace(
+        usage_metadata=SimpleNamespace(
+            prompt_token_count=10,
+            candidates_token_count=4,
+            cached_content_token_count=6,
+        )
+    )
+
+    provider.record_external_response_usage("gemini-3-flash", response)
+
+    assert provider.get_usage_by_model()["gemini-3-flash"] == {
+        "input_tokens": 10,
+        "output_tokens": 4,
+        "cached_input_tokens": 6,
+    }
+
+
 def test_rate_limited_false_for_daily():
     assert _is_rate_limited(Exception("resource_exhausted per_day")) is False
 
@@ -291,6 +310,19 @@ def test_search_and_summarize_tolerates_missing_grounding_metadata():
     assert result.text == "body"
     assert result.citations == ()
     assert result.search_queries == ()
+
+
+def test_search_and_summarize_omits_sampling_for_gemini_37():
+    p = _provider()
+    fake = MagicMock()
+    fake.models.generate_content.return_value = _grounded_resp()
+    p._client = fake
+
+    result = p.search_and_summarize("q", model="gemini-3.7-flash", temperature=0.2)
+
+    assert result is not None
+    config = fake.models.generate_content.call_args.kwargs["config"]
+    assert config.temperature is None
 
 
 # ---------------------------------------------------------------------------

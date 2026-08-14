@@ -10,7 +10,7 @@ This document describes all configuration options available in Primr.
 |----------|-------------|----------|
 | `XAI_API_KEY` | xAI Grok key for standard reasoning, strategy, and the XAI-only writing fallback | Recommended |
 | `GEMINI_API_KEY` | Google Gemini key for low-cost writing/utility, premium mode, and Gemini-backed stages | Recommended for the cheapest measured default |
-| `OPENAI_API_KEY` | Optional OpenAI GPT/o-series provider for utility, reasoning, writing, and premium research roles | No |
+| `OPENAI_API_KEY` | Optional OpenAI GPT/o-series provider for routed utility, reasoning, writing, and registered premium-research candidates; the current full launch path still requires xAI or Gemini | No |
 | `ANTHROPIC_API_KEY` | Optional Anthropic Claude provider for reasoning, writing, and pro roles | No |
 | `OLLAMA_API_KEY` | Optional key for Ollama or another local OpenAI-compatible endpoint; Ollama defaults to `ollama` when unset | No |
 | `AZURE_OPENAI_API_KEY` | Optional Azure AI Foundry provider (resolves the `foundry`/`azure` provider); set `AZURE_OPENAI_BASE_URL` or `AZURE_OPENAI_ENDPOINT` for the deployment endpoint | No |
@@ -43,7 +43,7 @@ provider API keys listed above.
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `AI_RESEARCH_MODEL` | Legacy Gemini-backed research model override | `gemini-3-flash-preview` |
-| `AI_REPORT_MODEL` | Legacy Gemini-backed report model override | `gemini-3-flash-preview` |
+| `AI_REPORT_MODEL` | Legacy Gemini-backed report model override | `gemini-3.1-pro-preview` |
 | `VERBOSE` | Enable verbose output | `false` |
 | `DEBUG` | Enable debug mode | `false` |
 | `PRIMR_INFERENCE_PROFILE` | Runtime capability-routing profile for wired stages. Supported values are `cloud` and `hybrid`. `cloud` is the default; `hybrid` enables the current routed utility-stage pilots. Route metadata is recorded in `_run_state.json`. Prefer the `--inference` CLI flag for normal use. Internal enum values used by tests and evals are not supported configuration. | `cloud` |
@@ -54,6 +54,15 @@ Note: Legacy Gemini model override variables are still supported for Gemini-back
 
 Gemini 3.1 Pro Preview is the default Pro model. It has tiered pricing: $2/$12 per 1M tokens for prompts ≤200k, $4/$18 for >200k. Most Primr calls stay well under 200k tokens. Cost estimates (`--dry-run`) use conservative high-tier pricing; actual costs are typically lower. Model IDs marked deprecated in the registry are not supported override targets.
 
+Gemini 3.7 Flash, Gemini 3.6 Flash, and Gemini 3.5 Flash-Lite are registered
+evaluation candidates, not production defaults. Primr omits sampling controls
+on these current request paths and keeps thinking levels explicit. The 3.6 and
+3.7 registry prices switch from Google's introductory rates to the published
+January 1, 2027 rates by pricing date, so future dry-runs do not silently
+underquote. Promotion still requires a representative quality/cost evaluation.
+See Google's [latest-model migration guide](https://ai.google.dev/gemini-api/docs/latest-model)
+and [pricing page](https://ai.google.dev/gemini-api/docs/pricing).
+
 ### Scraping Behavior
 
 | Variable | Description | Default |
@@ -62,10 +71,20 @@ Gemini 3.1 Pro Preview is the default Pro model. It has tiered pricing: $2/$12 p
 | `PRIMR_SKIP_HIRING_SIGNALS` | When set to `1` / `true` / `yes`, skips the hiring-signals stage entirely - no ATS/provider probes (Greenhouse, Lever, Ashby, SmartRecruiters, Workday, Workable, Recruitee, Jobvite, iCIMS, BambooHR), no careers-page crawl, no DuckDuckGo web-search fallback, no LLM extraction. Use when researching companies where hiring data is irrelevant or when debugging. Note: skill packs treat job postings as their primary input, so packs generated against companies with `PRIMR_SKIP_HIRING_SIGNALS=1` will fall back to recon + research only and may require `--allow-recon-only`. | unset |
 | `PRIMR_ALLOW_HEADED_FALLBACK` | Master switch for the visible-browser path in the stealth tier. Set to `0` / `false` / `no` to disable entirely regardless of budget. | `1` |
 | `PRIMR_ENABLE_DRISSION` | Include DrissionPage tiers in the external validation orchestrator. | `0` |
+| `PRIMR_ENABLE_GROK_SURROGATE` | Experimental opt-in to metered xAI `web_search` synthesis when deterministic blocked-site fallbacks return no content. Governed CLI/MCP/A2A research runs reject this environment-only spend because it is not estimate-bound. | `0` |
+| `PRIMR_DISABLE_GROK_SURROGATE` | Emergency override that disables the xAI surrogate even when its enable switch is set. | `0` |
 | `PRIMR_BROWSER_HEADED` | Force the Playwright tiers to launch in headed mode for a specific call. Normally set internally by the adaptive-retry path, not by users. | unset |
 | `PRIMR_BROWSER_SESSION_MODE` | `persistent` enables a reused browser profile per host (set internally during adaptive retry). | unset |
-| `PRIMR_PDF_LLM_MAX_CALLS` | Per-process opt-in budget for Gemini-backed PDF extraction during scraping. Default `0` keeps PDF extraction local with PyMuPDF only. Set to a positive integer when chart/table extraction is worth the extra provider spend. | `0` |
+| `PRIMR_PDF_LLM_MAX_CALLS` | Per-process experimental budget for Gemini-backed PDF extraction during scraping. Default `0` keeps PDF extraction local with PyMuPDF only. Governed CLI/MCP/A2A research runs reject positive values because these calls are not yet estimate-bound. | `0` |
 | `PRIMR_PDF_LLM_MAX_TOTAL_MB` | Total PDF bytes that Gemini extraction may receive after `PRIMR_PDF_LLM_MAX_CALLS` is enabled. | `40` |
+
+Provider-backed single-company research prompts for approval by default. JSON
+execution never opens an interactive prompt: without `--skip-confirm`, it
+returns one `primr.command-error.v1` object with
+`error_type: "approval_required"` and starts no provider work. First run the
+exact command with `--dry-run --json`, obtain explicit approval for that quote,
+then repeat it with `--skip-confirm --json`. Approved JSON execution keeps
+stdout to one structured result object.
 
 ### Vendor Research Cache
 
@@ -137,7 +156,7 @@ provider work.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `PRIMR_CONTINUOUS_REASONING` | Controls whether workbook generation (Phase 3) and cross-validation (Phase 5) share a single Grok session (4.3 in HYBRID/MAX tiers, 4.1-fast in FAST tier) so the validator inherits the corpus + workbook reasoning the generator produced. Set to `0` / `false` / `no` / `off` to disable (revert to the fresh-call topology used before the n=3 pilot). Set to `1` / `true` / `yes` / `on` to force-enable regardless of CLI flags. Unset means use whatever the CLI passed (default on). | unset (effectively on via CLI default) |
+| `PRIMR_CONTINUOUS_REASONING` | Controls whether workbook generation (Phase 3) and cross-validation (Phase 5) share one Grok session so the validator inherits the corpus and workbook reasoning the generator produced. FAST and HYBRID use Grok 4.3; MAX uses the version-pinned Grok 4.5 route. FAST differs through lower reasoning effort, not a separate model. Set to `0` / `false` / `no` / `off` to disable. Set to `1` / `true` / `yes` / `on` to force-enable regardless of CLI flags. Unset means use the CLI value, which defaults on. | unset (effectively on via CLI default) |
 
 Notes on continuous reasoning:
 - On by default after the n=3 pilot. Pass `--no-continuous-reasoning` on the CLI to disable for a single run.
@@ -157,7 +176,7 @@ never withholds a deliverable.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `PRIMR_LABEL_HONESTY` | When set to `1` / `true` / `yes`, runs a pre-ship pass that re-judges each `(Confirmed)` / `(Reported)` claim against its cited source (reusing the calibration harness's fetch + judge seams) and downgrades the ones that do not trace to `(Estimated)`. The downgrade only ever lowers confidence; `no_source`, `unfetchable`, and uncertain verdicts keep the original label (fail open). A `_label_honesty.json` audit sidecar records every change, and any failure leaves the report untouched. Adds judge LLM calls + source fetches, so it is default-off and the standard run is byte-identical until enabled. | unset (off) |
+| `PRIMR_LABEL_HONESTY` | Experimental pre-ship claim-label judge. It remains default-off. Governed CLI/MCP/A2A research runs reject this environment-only switch because its judge calls are not yet part of the estimate and approval shape. Calibration harnesses may still exercise it explicitly. | unset (off) |
 
 ### Artifact Shipping Gates
 
@@ -257,11 +276,11 @@ Controls AI model behavior.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `research_model` | str | `gemini-3-flash-preview` | Legacy Gemini-backed research model override |
-| `report_model` | str | `gemini-3-flash-preview` | Legacy Gemini-backed report model override |
+| `report_model` | str | `gemini-3.1-pro-preview` | Legacy Gemini-backed report model override |
 | `max_retries` | int | 3 | Maximum retry attempts |
 | `grade_threshold` | int | 70 | Quality threshold (0-100) |
 | `default_temperature` | float | 1.0 | Model temperature (0.0-2.0) |
-| `default_thinking_level` | str | "high" | Thinking level |
+| `default_thinking_level` | str | "high" | Model-supported thinking level |
 | `model_fallbacks` | dict | {...} | Fallback model chains |
 
 ### SearchConfig

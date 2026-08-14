@@ -31,6 +31,17 @@ logger = logging.getLogger(__name__)
 _jobs_file_lock = threading.Lock()
 _LOCK_TIMEOUT_SECONDS = 10.0
 _LOCK_POLL_SECONDS = 0.05
+_RECOVERY_RECEIPT_VERSION = 1
+_RECOVERY_METADATA_KEYS = frozenset(
+    {
+        "cloud_vendor",
+        "company_name",
+        "file_search_store",
+        "mode",
+        "report_kind",
+        "strategy_type",
+    }
+)
 
 
 def _get_jobs_file_path() -> str:
@@ -38,6 +49,96 @@ def _get_jobs_file_path() -> str:
     from primr.config.config import LOGS_DIR
 
     return os.path.join(LOGS_DIR, "pending_research_jobs.json")
+
+
+def _get_recovery_receipts_path(jobs_file: str) -> str:
+    """Return the append-only fallback path for accepted interactions."""
+    return f"{jobs_file}.recovery.jsonl"
+
+
+def _load_recovery_receipts(receipts_file: str) -> tuple[bool, dict[str, dict[str, Any]]]:
+    """Load emergency receipts without collapsing malformed state into empty state."""
+    if not os.path.exists(receipts_file):
+        return True, {}
+
+    jobs: dict[str, dict[str, Any]] = {}
+    try:
+        with open(receipts_file, encoding="utf-8") as stream:
+            for line_number, line in enumerate(stream, start=1):
+                if not line.strip():
+                    continue
+                receipt = json.loads(line)
+                if not isinstance(receipt, dict):
+                    raise ValueError(f"receipt {line_number} is not an object")
+                if receipt.get("version") != _RECOVERY_RECEIPT_VERSION:
+                    raise ValueError(f"receipt {line_number} has an unsupported version")
+                interaction_id = receipt.get("interaction_id")
+                job = receipt.get("job")
+                if not isinstance(interaction_id, str) or not interaction_id:
+                    raise ValueError(f"receipt {line_number} has no interaction id")
+                if not isinstance(job, dict):
+                    raise ValueError(f"receipt {line_number} has no job object")
+                jobs[interaction_id] = job
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        logger.warning("Failed to read pending-job recovery receipts: %s", exc)
+        return False, {}
+    return True, jobs
+
+
+def _append_recovery_receipt(
+    receipts_file: str,
+    interaction_id: str,
+    job: dict[str, Any],
+) -> None:
+    """Fsync a minimal recovery record when the primary atomic write fails."""
+    metadata = job.get("metadata", {})
+    safe_metadata = (
+        {key: metadata[key] for key in _RECOVERY_METADATA_KEYS if key in metadata}
+        if isinstance(metadata, dict)
+        else {}
+    )
+    recovery_job = {
+        "type": job.get("type", "deep_research"),
+        "description": f"Emergency recovery receipt for accepted {job.get('type', 'job')}",
+        "started": job.get("started"),
+        "status": "pending",
+        "metadata": safe_metadata,
+    }
+    receipt = {
+        "version": _RECOVERY_RECEIPT_VERSION,
+        "interaction_id": interaction_id,
+        "job": recovery_job,
+    }
+    with open(receipts_file, "a", encoding="utf-8") as stream:
+        stream.write(json.dumps(receipt, separators=(",", ":")) + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def _write_recovery_receipts(
+    receipts_file: str,
+    jobs: dict[str, dict[str, Any]],
+) -> None:
+    """Replace recovery receipts after acknowledged jobs are removed."""
+    if not jobs:
+        Path(receipts_file).unlink(missing_ok=True)
+        return
+
+    temp_file = f"{receipts_file}.tmp"
+    try:
+        with open(temp_file, "w", encoding="utf-8") as stream:
+            for interaction_id, job in jobs.items():
+                receipt = {
+                    "version": _RECOVERY_RECEIPT_VERSION,
+                    "interaction_id": interaction_id,
+                    "job": job,
+                }
+                stream.write(json.dumps(receipt, separators=(",", ":")) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        atomic_replace(temp_file, receipts_file)
+    finally:
+        Path(temp_file).unlink(missing_ok=True)
 
 
 def _try_lock(stream: BinaryIO) -> None:
@@ -136,6 +237,7 @@ def save_pending_job(
             "metadata": metadata or {},
         }
 
+        job = jobs[interaction_id]
         temp_file = jobs_file + ".tmp"
         try:
             with open(temp_file, "w", encoding="utf-8") as f:
@@ -146,7 +248,23 @@ def save_pending_job(
             if os.path.exists(temp_file):
                 with contextlib.suppress(OSError):
                     os.remove(temp_file)
-            raise
+            receipts_file = _get_recovery_receipts_path(jobs_file)
+            try:
+                _append_recovery_receipt(receipts_file, interaction_id, job)
+            except OSError as receipt_error:
+                logger.critical(
+                    "Accepted job %s could not be persisted in either recovery store: %s",
+                    interaction_id,
+                    receipt_error,
+                )
+                raise OSError(
+                    "Primary pending-job registry and emergency recovery receipt both failed"
+                ) from receipt_error
+            logger.warning(
+                "Saved accepted job %s to the emergency recovery receipt after the primary "
+                "registry write failed",
+                interaction_id,
+            )
 
     logger.info(f"Saved pending job: {interaction_id} ({job_type})")
 
@@ -163,34 +281,42 @@ def remove_pending_jobs(interaction_ids: Iterable[str]) -> tuple[bool, int]:
         return True, 0
 
     jobs_file = _get_jobs_file_path()
+    receipts_file = _get_recovery_receipts_path(jobs_file)
 
     try:
         with _jobs_file_lock, _pending_jobs_mutation_lock(jobs_file):
             temp_file = jobs_file + ".tmp"
             temp_owned = False
             try:
-                if not os.path.exists(jobs_file):
-                    return True, 0
+                jobs: dict[str, dict[str, Any]] = {}
+                if os.path.exists(jobs_file):
+                    with open(jobs_file, encoding="utf-8") as f:
+                        content = f.read().strip()
+                        if content:
+                            loaded = json.loads(content)
+                            if not isinstance(loaded, dict):
+                                logger.warning("Jobs file corrupted, cannot remove pending records")
+                                return False, 0
+                            jobs = loaded
 
-                with open(jobs_file, encoding="utf-8") as f:
-                    content = f.read().strip()
-                    if not content:
-                        return True, 0
-                    jobs = json.loads(content)
-                    if not isinstance(jobs, dict):
-                        logger.warning("Jobs file corrupted, cannot remove pending records")
-                        return False, 0
+                receipts_valid, recovery_jobs = _load_recovery_receipts(receipts_file)
+                if not receipts_valid:
+                    return False, 0
 
-                matched_ids = requested_ids.intersection(jobs)
+                matched_ids = requested_ids.intersection(jobs.keys() | recovery_jobs.keys())
                 if not matched_ids:
                     return True, 0
 
                 for interaction_id in matched_ids:
-                    del jobs[interaction_id]
-                with open(temp_file, "w", encoding="utf-8") as f:
-                    temp_owned = True
-                    json.dump(jobs, f, indent=2)
-                atomic_replace(temp_file, jobs_file)
+                    jobs.pop(interaction_id, None)
+                    recovery_jobs.pop(interaction_id, None)
+                if os.path.exists(jobs_file):
+                    with open(temp_file, "w", encoding="utf-8") as f:
+                        temp_owned = True
+                        json.dump(jobs, f, indent=2)
+                    atomic_replace(temp_file, jobs_file)
+                    temp_owned = False
+                _write_recovery_receipts(receipts_file, recovery_jobs)
                 logger.info("Removed %d pending job record(s)", len(matched_ids))
                 return True, len(matched_ids)
             except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
@@ -259,26 +385,31 @@ def get_pending_jobs_with_status() -> tuple[bool, dict[str, dict[str, Any]]]:
     """
     jobs_file = _get_jobs_file_path()
 
+    receipts_file = _get_recovery_receipts_path(jobs_file)
     with _jobs_file_lock:
-        if not os.path.exists(jobs_file):
-            return True, {}
-
+        jobs: dict[str, dict[str, Any]] = {}
         try:
-            with open(jobs_file, encoding="utf-8") as f:
-                content = f.read().strip()
-                if not content:
-                    return True, {}
-                result = json.loads(content)
-                if not isinstance(result, dict):
-                    logger.warning("Jobs file corrupted (not a dict)")
-                    return False, {}
-                if not all(isinstance(job, dict) for job in result.values()):
-                    logger.warning("Jobs file corrupted (job entry is not an object)")
-                    return False, {}
-                return True, result
+            if os.path.exists(jobs_file):
+                with open(jobs_file, encoding="utf-8") as f:
+                    content = f.read().strip()
+                    if content:
+                        result = json.loads(content)
+                        if not isinstance(result, dict):
+                            logger.warning("Jobs file corrupted (not a dict)")
+                            return False, {}
+                        if not all(isinstance(job, dict) for job in result.values()):
+                            logger.warning("Jobs file corrupted (job entry is not an object)")
+                            return False, {}
+                        jobs = result
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
             logger.warning(f"Failed to read jobs file: {e}")
             return False, {}
+
+        receipts_valid, recovery_jobs = _load_recovery_receipts(receipts_file)
+        if not receipts_valid:
+            return False, {}
+        recovery_jobs.update(jobs)
+        return True, recovery_jobs
 
 
 def get_pending_jobs() -> dict[str, dict[str, Any]]:

@@ -333,6 +333,23 @@ class TestHandleTestAccordion:
             pass
         run_mock.assert_called_once()
 
+    def test_dry_run_fails_closed_before_runner(self, monkeypatch):
+        from primr.core.cli_errors import guard_dispatch
+
+        run_mock = MagicMock()
+        monkeypatch.setattr("primr.ai.accordion_test.run_accordion_test", run_mock)
+
+        config = _config(
+            command=Command.TEST_ACCORDION,
+            test_accordion_topic="Oceanography 2026",
+            test_accordion_pages=50,
+            dry_run_requested=True,
+        )
+        result = guard_dispatch(_handle_test_accordion, config)
+
+        assert result == 1
+        run_mock.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # _handle_analyze_report

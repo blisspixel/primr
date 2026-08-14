@@ -17,6 +17,7 @@ import time
 from typing import Any
 
 from primr.ai.genai_factory import default_genai_http_options
+from primr.utils.errors import AIError
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,46 @@ _PRIMR_RESOURCE_PREFIX = "primr-"
 # Primr run on the same API key. Configurable via env for operators who
 # want a tighter or looser window.
 _DEFAULT_STALE_AGE_SECONDS = 3600.0
+_FILE_SEARCH_UPLOAD_TIMEOUT_SECONDS = 300.0
+_FILE_SEARCH_UPLOAD_INITIAL_DELAY_SECONDS = 0.5
+_FILE_SEARCH_UPLOAD_MAX_DELAY_SECONDS = 5.0
+
+
+def wait_for_file_search_operation(
+    client: Any,
+    operation: Any,
+    *,
+    timeout_seconds: float = _FILE_SEARCH_UPLOAD_TIMEOUT_SECONDS,
+) -> Any:
+    """Wait until one File Search upload is indexed or fail before research."""
+    if operation is None:
+        raise AIError(
+            "File Search upload returned no operation handle",
+            model="file_search_store",
+        )
+
+    deadline = time.monotonic() + max(0.0, timeout_seconds)
+    delay = _FILE_SEARCH_UPLOAD_INITIAL_DELAY_SECONDS
+    current = operation
+    while not bool(getattr(current, "done", False)):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise AIError(
+                f"File Search upload did not complete within {timeout_seconds:.1f}s",
+                model="file_search_store",
+            )
+        time.sleep(min(delay, remaining))
+        current = client.operations.get(current)
+        delay = min(delay * 2, _FILE_SEARCH_UPLOAD_MAX_DELAY_SECONDS)
+
+    error = getattr(current, "error", None)
+    if error:
+        message = getattr(error, "message", None) or str(error)
+        raise AIError(
+            f"File Search upload operation failed: {message}",
+            model="file_search_store",
+        )
+    return current
 
 
 def _create_genai_client(api_key: str) -> Any:
@@ -75,6 +116,30 @@ def _resource_age_seconds(resource: Any) -> float | None:
     return None
 
 
+def _pending_file_search_store_names() -> frozenset[str] | None:
+    """Return stores bound to resumable jobs, or ``None`` on unreadable state.
+
+    Store cleanup must fail closed when the recovery registry is malformed or
+    unreadable. An accepted background interaction may still be using its
+    File Search Store after Primr's local polling timeout.
+    """
+    from primr.ai.job_persistence import get_pending_jobs_with_status
+
+    read_success, jobs = get_pending_jobs_with_status()
+    if not read_success:
+        return None
+
+    protected: set[str] = set()
+    for job in jobs.values():
+        metadata = job.get("metadata", {})
+        if not isinstance(metadata, dict):
+            return None
+        store_name = metadata.get("file_search_store")
+        if isinstance(store_name, str) and store_name:
+            protected.add(store_name)
+    return frozenset(protected)
+
+
 def cleanup_orphaned_resources(
     api_key: str | None = None,
     stale_age_seconds: float | None = None,
@@ -116,7 +181,12 @@ def cleanup_orphaned_resources(
                 logger.debug("Skipping non-Primr cache: %s", getattr(cache, "name", "?"))
                 continue
             age = _resource_age_seconds(cache)
-            if age is not None and age < stale_age_seconds:
+            if age is None:
+                logger.warning(
+                    "Skipping Primr cache with unknown age: %s", getattr(cache, "name", "?")
+                )
+                continue
+            if age < stale_age_seconds:
                 logger.debug(
                     "Skipping Primr cache younger than %.0fs: %s (age=%.0fs)",
                     stale_age_seconds,
@@ -133,6 +203,13 @@ def cleanup_orphaned_resources(
     except Exception as e:
         logger.warning("Could not list caches: %s", e)
 
+    protected_store_names = _pending_file_search_store_names()
+    if protected_store_names is None:
+        logger.warning(
+            "Skipping File Search Store cleanup because pending-job state could not be read safely"
+        )
+        return result
+
     try:
         stores = list(client.file_search_stores.list())
         for store in stores:
@@ -140,8 +217,14 @@ def cleanup_orphaned_resources(
             if not _is_primr_owned(store):
                 logger.debug("Skipping non-Primr store: %s", store_name)
                 continue
+            if store_name in protected_store_names:
+                logger.info("Preserving store used by a pending job: %s", store_name)
+                continue
             age = _resource_age_seconds(store)
-            if age is not None and age < stale_age_seconds:
+            if age is None:
+                logger.warning("Skipping Primr store with unknown age: %s", store_name)
+                continue
+            if age < stale_age_seconds:
                 logger.debug(
                     "Skipping Primr store younger than %.0fs: %s (age=%.0fs)",
                     stale_age_seconds,

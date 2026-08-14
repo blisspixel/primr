@@ -323,6 +323,38 @@ async def test_worker_stderr_remains_connected_after_parent_stream_closes(tmp_pa
 
 
 @pytest.mark.asyncio
+async def test_paid_partial_cost_crosses_worker_protocol_into_terminal_manifest(
+    tmp_path: Path,
+) -> None:
+    script = _worker_script(
+        r"""
+        emit("ready", 1)
+        state = terminal_state(
+            "failed",
+            error_type="research_failed",
+            error_message="Paid partial preserved",
+        )
+        state["actual_cost_usd"] = 1.25
+        state["output_paths"] = ["output/partial.md"]
+        emit("terminal", 2, state, "research_failed")
+        raise SystemExit(1)
+        """
+    )
+    store, job = _store_and_job(tmp_path)
+    supervisor = _supervisor(store, tmp_path, script)
+
+    monitor = await supervisor.start(job=job, company_url="https://example.com", mode="full")
+    await asyncio.wait_for(monitor, timeout=3.0)
+
+    failed = store.get(job.job_id)
+    assert failed is not None
+    assert failed.actual_cost_usd == 1.25
+    manifest_path = tmp_path / "workers" / job.job_id / "run_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["execution"]["actual_cost_usd"] == 1.25
+
+
+@pytest.mark.asyncio
 async def test_worker_environment_strips_controller_secrets_but_retains_runtime(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -465,6 +497,7 @@ async def test_cooperative_cancellation_waits_for_exit_before_cancelled(tmp_path
         manifest_path = tmp_path / "workers" / job.job_id / "run_manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         assert manifest["execution"]["status"] == "cancelled"
+        assert manifest["execution"]["actual_cost_usd"] is None
         assert manifest["termination"] == {
             "worker_exit_confirmed": True,
             "worker_return_code": 130,

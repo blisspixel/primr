@@ -1,19 +1,6 @@
-"""
-Command-line interface for Primr research tool.
+"""Command-line parsing, dispatch, and compatibility helpers.
 
-This module provides the CLI entry point and argument parsing:
-- Main entry point for the primr command
-- Argument parsing and validation
-- Command dispatch to appropriate runners
-- Utility commands (doctor, list-recent, etc.)
-Usage:
-    from primr.core.cli import main, parse_args, run_doctor
-
-    # Run CLI
-    main()
-
-    # Parse arguments only
-    config = parse_args(["Acme Corp", "https://acme.example", "--mode", "deep"])
+Large workflows stay in their owning modules; this file composes them.
 """
 
 # PYTHON_ARGCOMPLETE_OK  (lets the global argcomplete script offer tab completion)
@@ -23,8 +10,6 @@ import os
 import re
 import sys
 from collections.abc import Callable
-from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -52,7 +37,8 @@ from primr.core.cli_batch import (
     _read_batch_file as _read_batch_file,
 )
 from primr.core.cli_calibration_args import add_calibration_arguments
-from primr.core.cli_command_output import report_command_error
+from primr.core.cli_command_output import report_command_error, suppress_json_command_stdout
+from primr.core.cli_contract import CLIConfig, Command
 from primr.core.cli_dispatch import (
     is_mcp_command,
     is_skills_command,
@@ -151,206 +137,6 @@ logger = get_logger("cli")
 from primr.core.cli_ollama_helpers import resolve_local_judge_models as _resolve_local_judge_models
 
 
-class Command(Enum):
-    """CLI commands."""
-
-    RESEARCH = "research"
-    INIT = "init"
-    DOCTOR = "doctor"
-    LIST_RECENT = "list-recent"
-    CLEAN_TEMP = "clean-temp"
-    CHECK_QUOTA = "check-quota"
-    CHECK_JOBS = "check-jobs"
-    RESUME_LATEST = "resume-latest"
-    CLEAR_JOBS = "clear-jobs"
-    LIST_STRATEGIES = "list-strategies"
-    SHOW_USAGE = "show-usage"
-    DRY_RUN = "dry-run"
-    PLAN = "plan"
-    GENERATE_VENDOR = "generate-vendor"
-    BATCH = "batch"
-    ENRICH = "enrich"
-    TEST_ACCORDION = "test-accordion"
-    ANALYZE_REPORT = "analyze-report"
-    QA = "qa"
-    QA_RECENT = "qa-recent"
-    AI_STRATEGY_ONLY = "ai-strategy-only"
-    EVAL = "eval"
-    # Agentic architecture commands
-    COMPANY = "company"
-    MEMORY = "memory"
-    ORCHESTRATE = "orchestrate"
-    ROADMAP = "roadmap"
-    IMPROVE = "improve"
-    REFINE = "refine"
-    CALIBRATE = "calibrate"
-
-
-@dataclass(frozen=True)
-class CLIConfig:
-    """Configuration parsed from CLI arguments."""
-
-    command: Command
-    company_name: str | None = None
-    website: str | None = None
-    mode: str = "complete"
-    citation_style: str = "numbered"
-    ai_strategy: bool = True
-    platforms: tuple[str, ...] | None = None  # None = auto-detect from recon
-    skip_recon: bool = False
-    skip_confirm: bool = True
-    context_files: tuple[str, ...] = ()
-    context_folder: str | None = None
-    refresh_vendor_research: bool = False
-    generate_vendor: str | None = None
-    csv_file: str | None = None
-    batch_file: str | None = None
-    industry: str | None = None
-    limit: int | None = None
-    enrich: bool = False
-    output_dir: str | None = None
-    open_after: bool = False
-    quiet: bool = False
-    json_output: bool = False  # --json: machine-readable stdout
-    verbose: bool = False
-    test_accordion_topic: str | None = None
-    test_accordion_pages: int = 50
-    analyze_report_path: str | None = None
-    qa_company: str | None = None
-    qa_recent_count: int | None = None
-    max_scrape_time: int | None = None
-    ai_strategy_only_path: str | None = None
-    dry_run_requested: bool = False
-    discovery_notes_path: str | None = None
-    strategy_type: str = "ai"  # Type of strategy to generate
-    framing_purpose: str | None = None  # Research framing (tradecraft Step 1)
-    framing_audience: str | None = None
-    framing_decision: str | None = None
-    framing_question: str | None = None
-    resume_latest: bool = False
-    resume_local: bool = False
-    lite_strategy: bool = False  # Use Pro model instead of Deep Research for strategy
-    # Opt in to the thorough (Deep Research) engine for standalone --ai-strategy-only.
-    # That command defaults to the ~$1 lite engine; this flag restores Deep Research.
-    deep_research_strategy: bool = False
-    fast_mode: bool = False  # Grok 4.3 hybrid full path (~30-45 min, ~$0.76+)
-    premium_mode: bool = False  # Force Gemini + Deep Research pipeline
-    grok_tier: str = "hybrid"  # Grok model tier: fast, hybrid, max
-    inference_profile: str = "cloud"  # Capability-routing profile for wired stages
-    acknowledge_host_agent_may_bill: bool = False
-    # Default on after the n=3 pilot; --no-continuous-reasoning disables it.
-    continuous_reasoning: bool = True
-    no_qa: bool = False  # Disable automatic quality assessment
-    verify: bool = False  # Run post-QA claim verification
-    budget_usd: float | None = None  # Per-run cost ceiling (--budget)
-    skip_scrape_validation: bool = False  # Continue even when scrape quality is too low
-    browser_headed: bool = False
-    browser_session_mode: str = "persistent"
-    improve_path: str | None = None
-    improve_in_place: bool = False
-    improve_agentic: bool = False
-    refine_company: str | None = None
-    refine_target_grade: float = 90.0
-    calibrate_target: str | None = None
-    calibrate_recent: int | None = None
-    calibrate_max_per_label: int = 10
-    calibrate_dry_run: bool = False
-    calibrate_judge: str = "cloud"  # cloud | local | auto
-    calibrate_judge_model: str | None = None
-    calibrate_judge_compare: bool = False
-    calibrate_pack_manifest: str | None = None
-    calibrate_pack_selection: str | None = None
-    calibrate_pack_selection_template: str | None = None
-    calibrate_inspect_selection: str | None = None
-    calibrate_baseline_from: str | None = None
-    calibrate_baseline_out: str | None = None
-    calibrate_baseline_md: str | None = None
-    calibrate_baseline_min_reports: int = 5
-    calibrate_inspect_baseline: str | None = None
-    calibrate_inspect_baseline_decision: str | None = None
-    calibrate_baseline_decision_from: str | None = None
-    calibrate_baseline_decision_out: str | None = None
-    calibrate_baseline_decision: str | None = None
-    calibrate_baseline_decision_reviewer: str | None = None
-    calibrate_baseline_decision_rationale: str | None = None
-    calibrate_baseline_decision_notes: tuple[str, ...] = ()
-    banner_mode: str = "auto"
-    banner_explicit: bool = False
-    memory_company: str | None = None
-    memory_list: bool = False
-    company_profile_track: str | None = None
-    company_profile_url: str | None = None
-    company_profile_show: str | None = None
-    company_profile_export: str | None = None
-    company_profile_list: bool = False
-    orchestrate_max_cost: float | None = None
-    roadmap_version: str | None = None
-    eval_mode: bool = False
-    eval_id: str | None = None
-    eval_root: str = "output/evals"
-    eval_profiles: tuple[str, ...] = ("full", "lite", "fast")
-    eval_baseline: str = "full"
-    eval_manifest: str | None = None
-    eval_run_missing: bool = False
-    eval_max_new_runs: int = 0
-    eval_max_estimated_cost: float = 0.0
-    eval_quality_ratio_threshold: float = 0.8
-    eval_cost_ratio_threshold: float = 0.2
-    eval_company: str | None = None
-    eval_source_dir: str = "output"
-    eval_auto_stage: bool = True
-    eval_llm_judge: bool = False
-    eval_judge_provider: str = "grok"
-    eval_judge_model: str = "grok-4.3"
-    eval_judge_models: tuple[str, ...] = ()
-    eval_judge_model_list: str | None = None
-    eval_judge_base_url: str | None = None
-    eval_judge_api_key_env: str = "LOCAL_LLM_API_KEY"
-    eval_judge_max_pairs: int = 1
-    eval_judge_passes: int = 1
-    eval_judge_max_cost: float = 0.0
-    eval_local_stage: str | None = None
-    eval_stage_semantic_judge: bool = False
-    eval_stage_semantic_judge_model: str | None = None
-    eval_source_relevance_fixture: str | None = None
-    eval_source_relevance_standing_corpus: bool = False
-    inspect_source_relevance_standing_corpus: bool = False
-    eval_page_access_fixture: str | None = None
-    eval_working_root: str = "working"
-    eval_stage_scorecard: bool = False
-    eval_stage_quality: str | None = None
-    eval_stage_route_root: str | None = None
-    eval_stage_id: str | None = None
-    eval_stage_min_quality_score: float = 85.0
-    eval_stage_max_failure_rate: float = 0.0
-    doctor_fix: bool = False
-    doctor_scraper_stats: bool = False
-    init_non_interactive: bool = False
-    init_yes: bool = False
-    init_skip_browsers: bool = False
-    init_no_doctor: bool = False
-
-    @property
-    def cloud_vendors(self) -> tuple[str, ...]:
-        """Backward-compatible alias. Returns platforms or the agnostic default."""
-        if self.platforms is not None:
-            return self.platforms
-
-        from primr.core.platform_mapper import DEFAULT_PLATFORM_FALLBACK
-
-        return DEFAULT_PLATFORM_FALLBACK
-
-    @property
-    def cloud_vendor(self) -> str:
-        """Backward-compatible single vendor access."""
-        return self.cloud_vendors[0]
-
-    @property
-    def has_company_info(self) -> bool:
-        """Check if company name or website is provided."""
-        return bool(self.company_name or self.website)
-
-
 class CLIRunner(Protocol):
     """Protocol for CLI command runners."""
 
@@ -421,13 +207,10 @@ def parse_args(args: list[str] | None = None) -> CLIConfig:
     else:
         banner_mode = banner_arg
 
-    is_batch = bool(getattr(parsed, "batch", None) or parsed.csv)
-    requires_confirmation = is_batch or bool(
-        getattr(parsed, "ai_strategy_only", None)
-        or getattr(parsed, "generate_vendor_research", None)
-    )
-    skip_confirm_flag = getattr(parsed, "skip_confirm", False)
-    skip_confirm = skip_confirm_flag if requires_confirmation else True
+    # Provider-backed commands require an explicit approval by default.
+    # ``--skip-confirm`` is the deliberate non-interactive approval override,
+    # including for an ordinary single-company research run.
+    skip_confirm = bool(getattr(parsed, "skip_confirm", False))
 
     # Handle --platform / --cloud-vendor resolution
     raw_platforms = getattr(parsed, "platform", None)
@@ -808,6 +591,9 @@ def main(args: list[str] | None = None) -> int:
     }
 
     handler = handlers.get(config.command, _handle_research)
+    # guard_dispatch also rejects unsupported secondary dry runs before their
+    # handlers can start provider work or mutate report files. Keep that policy
+    # at this single dispatch boundary.
     # guard_dispatch adds top-level interrupt/error handling (route to
     # `primr doctor`, --verbose for the traceback) and the post-run update notice.
     return guard_dispatch(handler, config)
@@ -859,7 +645,7 @@ def _create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--skip-confirm",
         action="store_true",
-        help="Explicitly approve non-interactive batch, strategy, or vendor research execution",
+        help="Explicitly approve non-interactive provider-backed execution",
     )
 
     # Research options
@@ -991,7 +777,7 @@ def _create_parser() -> argparse.ArgumentParser:
         "--premium",
         action="store_true",
         dest="premium_mode",
-        help="Premium mode: Gemini + Deep Research pipeline (~$5, 50-75 min). Use for maximum depth",
+        help="Premium mode: Deep Research plus sequential Flash writing. Live dry-run is authoritative",
     )
     parser.add_argument(
         "--grok-tier",
@@ -1093,7 +879,7 @@ def _create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--improve-agentic",
         action="store_true",
-        help="With --improve, run an agentic review pass before deterministic cleanup",
+        help="With --improve, run a quoted model review before deterministic cleanup",
     )
     parser.add_argument(
         "--target-grade",
@@ -1278,8 +1064,7 @@ def _handle_clean_temp(config: CLIConfig) -> int:
 
 def _handle_check_quota(config: CLIConfig) -> int:
     """Handle check-quota command."""
-    check_api_quota()
-    return 0
+    return check_api_quota()
 
 
 def _handle_check_jobs(config: CLIConfig) -> int:
@@ -1581,24 +1366,10 @@ def _handle_analyze_report(config: CLIConfig) -> int:
 
 def _handle_improve(config: CLIConfig) -> int:
     """Handle output improvement command."""
+    from primr.core.improvement_governance import handle_improve
     from primr.core.research_agent import improve_output_file
 
-    improve_path = config.improve_path
-    if not improve_path:
-        console.error("Path is required for improve")
-        console.info('Usage: primr --improve "path/to/output.md" [--in-place]')
-        console.info('   or: primr improve "path/to/output.md" [--in-place]')
-        return 1
-
-    result_path = improve_output_file(
-        improve_path, in_place=config.improve_in_place, use_agentic=config.improve_agentic
-    )
-    if not result_path:
-        return 1
-
-    action = "Updated" if config.improve_in_place else "Improved"
-    console.success_box(f"{action} output", result_path)
-    return 0
+    return handle_improve(config, improve_output_file=improve_output_file)
 
 
 def _find_refine_inputs(company: str) -> tuple[str | None, str | None, str, str | None]:
@@ -1651,47 +1422,15 @@ def _find_refine_inputs(company: str) -> tuple[str | None, str | None, str, str 
 
 def _handle_refine(config: CLIConfig) -> int:
     """Handle the QA iteration loop: primr refine "Company"."""
+    from primr.core.improvement_governance import handle_refine
     from primr.core.refine import refine_report
 
-    company = config.refine_company
-    if not company:
-        console.error("Company name is required for refine")
-        console.info('Usage: primr refine "Company Name" [--in-place] [--target-grade 90]')
-        return 1
-
-    report_path, website, workbook, working_folder = _find_refine_inputs(company)
-    if not report_path:
-        console.error(f"No markdown Strategic Overview found for '{company}' in {OUTPUT_DIR}")
-        console.info("Run research first, or pass the report through: primr improve <path>")
-        return 1
-
-    console.banner("QA Refine")
-    console.info(f"Report: {report_path}")
-    if working_folder:
-        console.info(f"Run context: {working_folder}")
-    console.info(f"Target grade: {config.refine_target_grade:.0f}")
-
-    result = refine_report(
-        company,
-        report_path,
-        website=website,
-        working_folder=working_folder,
-        analysis_workbook=workbook,
-        target_grade=config.refine_target_grade,
-        in_place=config.improve_in_place,
+    return handle_refine(
+        config,
+        find_inputs=_find_refine_inputs,
+        refine_report=refine_report,
+        output_dir=OUTPUT_DIR,
     )
-
-    console.info(
-        f"Grade: {result.initial_grade:.0f} -> {result.final_grade:.0f} "
-        f"({result.iterations} iteration(s), "
-        f"{len(result.sections_regenerated)} section(s) regenerated)"
-    )
-    console.info(f"Stop reason: {result.stop_reason.replace('_', ' ')}")
-    if result.output_path:
-        console.success_box("Refined output", result.output_path)
-    else:
-        console.ok("No sections needed regeneration - report left unchanged")
-    return 0
 
 
 def _handle_calibrate(config: CLIConfig) -> int:
@@ -2361,6 +2100,18 @@ def _handle_research(config: CLIConfig) -> int:
             message=runtime_error,
         )
 
+    if config.json_output and not config.skip_confirm:
+        return report_command_error(
+            json_output=True,
+            operation="research",
+            error_type="approval_required",
+            message="Research requires explicit approval before provider work can start.",
+            hints=(
+                "Run the exact command with --dry-run --json, then repeat it with "
+                "--skip-confirm after approval.",
+            ),
+        )
+
     def report_preflight_failure(errors: list[str]) -> int:
         if config.json_output:
             return report_command_error(
@@ -2447,36 +2198,37 @@ def _handle_research(config: CLIConfig) -> int:
             console.ok("All systems ready")
 
         run_context: dict[str, str] = {}
-        result_path = perform_research(
-            company_name,
-            website,
-            mode=config.mode,
-            citation_style=config.citation_style,
-            ai_strategy=config.ai_strategy,
-            platforms=config.platforms,
-            output_dir=config.output_dir,
-            skip_confirm=config.skip_confirm,
-            context_files=context_files if context_files else None,
-            refresh_vendor_research=config.refresh_vendor_research,
-            strategies=strategy_types,
-            no_qa=config.no_qa,
-            max_scrape_time=config.max_scrape_time,
-            discovery_notes_path=config.discovery_notes_path,
-            framing_purpose=config.framing_purpose,
-            framing_audience=config.framing_audience,
-            framing_decision=config.framing_decision,
-            framing_question=config.framing_question,
-            lite_strategy=config.lite_strategy,
-            fast_mode=use_fast_mode,
-            premium_mode=use_premium_mode,
-            skip_scrape_validation=config.skip_scrape_validation,
-            resume_local=config.resume_local,
-            verify=config.verify,
-            grok_tier=config.grok_tier,
-            skip_recon=config.skip_recon,
-            continuous_reasoning=config.continuous_reasoning,
-            run_context=run_context,
-        )
+        with suppress_json_command_stdout(config.json_output):
+            result_path = perform_research(
+                company_name,
+                website,
+                mode=config.mode,
+                citation_style=config.citation_style,
+                ai_strategy=config.ai_strategy,
+                platforms=config.platforms,
+                output_dir=config.output_dir,
+                skip_confirm=config.skip_confirm,
+                context_files=context_files if context_files else None,
+                refresh_vendor_research=config.refresh_vendor_research,
+                strategies=strategy_types,
+                no_qa=config.no_qa,
+                max_scrape_time=config.max_scrape_time,
+                discovery_notes_path=config.discovery_notes_path,
+                framing_purpose=config.framing_purpose,
+                framing_audience=config.framing_audience,
+                framing_decision=config.framing_decision,
+                framing_question=config.framing_question,
+                lite_strategy=config.lite_strategy,
+                fast_mode=use_fast_mode,
+                premium_mode=use_premium_mode,
+                skip_scrape_validation=config.skip_scrape_validation,
+                resume_local=config.resume_local,
+                verify=config.verify,
+                grok_tier=config.grok_tier,
+                skip_recon=config.skip_recon,
+                continuous_reasoning=config.continuous_reasoning,
+                run_context=run_context,
+            )
     except ResumeLeaseError as exc:
         if config.json_output:
             return report_research_workspace_error(exc, json_output=True)
@@ -2541,8 +2293,8 @@ def clean_temp_files() -> None:
     print(f"Cleaned {cleaned} temporary files/directories.")
 
 
-def check_api_quota() -> None:
-    """Check if Gemini API quota is available."""
+def check_api_quota() -> int:
+    """Validate Gemini credentials without making a generation request."""
     from google import genai
 
     from primr.config.settings import get_settings
@@ -2550,23 +2302,19 @@ def check_api_quota() -> None:
     settings = get_settings()
     if not settings.api.gemini_key:
         console.error("GEMINI_API_KEY not configured in .env")
-        return
+        return 1
 
-    console.banner("API Quota Check")
-    console.info("Testing Gemini API availability...")
+    console.banner("Gemini Access Check")
+    console.info("Validating credentials with model metadata. No generation is performed.")
 
     try:
         client = genai.Client(
             api_key=settings.api.gemini_key, http_options=default_genai_http_options()
         )
-        response = client.models.generate_content(
-            model=PrimrModels.FAST_MODEL, contents="Say 'OK' in one word."
-        )
-        if response and response.text:
-            console.ok("API quota is available")
-            console.info("You can run research now.")
-        else:
-            console.warn("API responded but with empty content")
+        client.models.get(model=PrimrModels.FAST_MODEL)
+        console.ok("Gemini credentials and model access are valid")
+        console.info("Quota balance is not probed. Check Google AI Studio for current limits.")
+        return 0
     except Exception as e:
         error_str = str(e).lower()
         if "resource_exhausted" in error_str and ("per_day" in error_str or "quota" in error_str):
@@ -2580,6 +2328,7 @@ def check_api_quota() -> None:
             console.error("Invalid API key")
         else:
             console.error(f"API check failed: {e}")
+        return 1
 
 
 def _handle_list_strategies(config: CLIConfig) -> int:

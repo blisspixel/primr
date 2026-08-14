@@ -523,9 +523,13 @@ class TestParseArgs:
         config = parse_args(["--batch", "companies.csv", "--skip-confirm"])
         assert config.skip_confirm is True
 
-    def test_single_company_skips_confirm_by_default(self):
-        """Test that single-company research skips confirmation by default."""
+    def test_single_company_requires_confirmation_by_default(self):
+        """Single-company provider-backed research requires approval."""
         config = parse_args(["Acme Corp", "acme.example"])
+        assert config.skip_confirm is False
+
+    def test_single_company_skip_confirm_is_explicit_approval(self):
+        config = parse_args(["Acme Corp", "acme.example", "--skip-confirm"])
         assert config.skip_confirm is True
 
     def test_parse_fast_mode(self):

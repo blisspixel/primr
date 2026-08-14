@@ -1,9 +1,4 @@
-"""
-Web Scraper - Refactored to use new modular scraping architecture.
-
-This module provides the high-level scraping API used by the rest of Primr.
-It wraps the new modular scraping system in primr.data.scraping.
-"""
+"""High-level API over Primr's modular scraping architecture."""
 
 import hashlib
 import os
@@ -46,9 +41,10 @@ from primr.utils.logging_config import get_logger
 
 logger = get_logger("scrape")
 
-# =============================================================================
-# Console Output Helpers
-# =============================================================================
+
+def _env_truthy(name: str) -> bool:
+    return os.getenv(name, "0").lower() in {"1", "true", "yes"}
+
 
 _USEFUL_SINGLE_SEGMENT_PATHS = {
     "about",
@@ -247,12 +243,14 @@ def _collect_fallback_content(
     from primr.utils.model_policy import model_calls_disabled
 
     grok_urls: list[str] | None = None
-    surrogate_disabled = os.getenv("PRIMR_DISABLE_GROK_SURROGATE", "0").lower() in {
-        "1",
-        "true",
-        "yes",
-    }
-    if allow_grok_surrogate and not surrogate_disabled and not model_calls_disabled():
+    surrogate_disabled = _env_truthy("PRIMR_DISABLE_GROK_SURROGATE")
+    surrogate_enabled = _env_truthy("PRIMR_ENABLE_GROK_SURROGATE")
+    if (
+        allow_grok_surrogate
+        and surrogate_enabled
+        and not surrogate_disabled
+        and not model_calls_disabled()
+    ):
         grok_urls = [
             website.rstrip("/") + path for path in ("/about", "/our-story", "/leadership")
         ][:3]
@@ -322,7 +320,7 @@ def get_external_orchestrator(
         return _external_orchestrator
 
     tiers = get_available_tiers()
-    enable_drission = os.getenv("PRIMR_ENABLE_DRISSION", "0").lower() in {"1", "true", "yes"}
+    enable_drission = _env_truthy("PRIMR_ENABLE_DRISSION")
     excluded = {"patchright"}
     if not enable_drission:
         excluded.update({"drissionpage", "drissionpage_stealth"})
@@ -378,7 +376,7 @@ def get_orchestrator(
 
         # Drission tiers are powerful but can hang on some Windows environments.
         # Default to Playwright/HTTP/Vision unless explicitly enabled.
-        enable_drission = os.getenv("PRIMR_ENABLE_DRISSION", "0").lower() in {"1", "true", "yes"}
+        enable_drission = _env_truthy("PRIMR_ENABLE_DRISSION")
         if not enable_drission:
             tiers = [t for t in tiers if t.name not in {"drissionpage", "drissionpage_stealth"}]
 

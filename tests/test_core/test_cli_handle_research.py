@@ -245,6 +245,42 @@ class TestModeIncompatibilities:
 
 
 class TestSuccessPath:
+    def test_json_execution_requires_explicit_noninteractive_approval(self, monkeypatch, capsys):
+        monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda value: value)
+        monkeypatch.setattr("primr.utils.validators.validate_url", lambda value: value)
+        preflight = MagicMock()
+        research = MagicMock()
+        monkeypatch.setattr("primr.core.cli._run_preflight_checks", preflight)
+        monkeypatch.setattr("primr.core.research_agent.perform_research", research)
+
+        assert _handle_research(_config(json_output=True, skip_confirm=False)) == 1
+
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["error_type"] == "approval_required"
+        assert "--dry-run --json" in payload["hints"][0]
+        preflight.assert_not_called()
+        research.assert_not_called()
+
+    def test_approved_json_execution_suppresses_nested_human_stdout(
+        self, passing_preflight, perform_research_ok, monkeypatch, capsys
+    ):
+        monkeypatch.setattr("primr.utils.validators.validate_company_name", lambda value: value)
+        monkeypatch.setattr("primr.utils.validators.validate_url", lambda value: value)
+        original_side_effect = perform_research_ok.side_effect
+
+        def noisy_run(*args, **kwargs):
+            print("Acme Corp | complete | ~$6.14 | 54-92 min")
+            return original_side_effect(*args, **kwargs)
+
+        perform_research_ok.side_effect = noisy_run
+
+        assert _handle_research(_config(premium_mode=True, json_output=True)) == 0
+
+        output = capsys.readouterr().out
+        payload = json.loads(output)
+        assert payload["status"] == "completed"
+        assert "54-92 min" not in output
+
     def test_returns_zero_when_research_succeeds(
         self, passing_preflight, perform_research_ok, monkeypatch
     ):

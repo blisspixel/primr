@@ -1,0 +1,4 @@
+interface:
+  display_name: "Primr Zero"
+  short_description: "Plan-assisted research with no Primr model calls"
+  default_prompt: "Use $primr-zero to run Primr on ExampleCo at https://example.co with no Primr model API spend, and verify the host billing basis before calling the whole run $0."

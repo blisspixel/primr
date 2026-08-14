@@ -72,15 +72,21 @@ The codebase uses separate limits for separate resources:
 |------------|--------------|--------|
 | Post-pilot site pages | 3 worker threads | Conservative same-host collection |
 | Raw scrape persistence | 1 writer thread | Keep disk writes out of the page path |
-| Section writing | Up to 4 worker threads | Independent model-writing calls |
+| Standard section writing | Up to 4 worker threads | Bounded writes within the rolling-context and whole-document coherence pipeline |
+| Premium accordion writing | One section at a time | Preserve the report argument arc and prior-section continuity |
 | Gap-research queries | 3 worker threads | Bounded external search/model work |
 | Strategy platforms | Up to 3 worker threads | Independent platform artifacts |
 | URL existence verification | Configurable, default 10 threads | Conditional guessed-link verification fanout |
-| Deep Research chapters | Async semaphore, default 2 | Provider quota and long task pressure |
 | Browser hard-timeout wrapper | 1 worker in the specific Drission path | Isolate one blocking browser call |
 
 These limits are local to their capability. They must not be copied into
 another path without a production-shaped load and block-rate measurement.
+
+`ResearchExecutor` still contains a compatibility chapter fan-out with an
+async semaphore of two. It is not part of the active Standard or Premium
+production topology and must not be described as the Premium concurrency
+policy. Premium uses one Deep Research dossier followed by sequential section
+writes.
 
 Conditional guessed-link verification currently receives no shared limiter
 from the live discovery callers, so it falls back to a no-op limiter. That

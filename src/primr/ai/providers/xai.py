@@ -1,24 +1,27 @@
 """xAI provider.
 
-The normal Grok chat path is OpenAI-compatible and inherits from
-``OpenAICompatibleProvider``. xAI's Responses API with the ``web_search`` tool
-is not a generic chat-completions feature, so it lives here instead of in the
-legacy ``grok_client`` wrapper.
+The normal Grok text path uses xAI's recommended Responses API through the
+shared OpenAI-compatible transport. xAI's ``web_search`` behavior remains here
+because it is provider-specific rather than a generic text-generation feature.
 """
 
 from __future__ import annotations
 
 import os
+import time
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
 import httpx
 
-from primr.ai.providers.openai_compatible import OpenAICompatibleProvider
+from primr.ai.error_policy import extract_retry_after_seconds, is_billing_exhausted
+from primr.ai.providers.base import QuotaExhaustedError
+from primr.ai.providers.openai_compatible import OpenAICompatibleProvider, _compute_backoff_delay
 from primr.utils.logging_config import get_logger
 
 logger = get_logger("ai.providers.xai")
+_MAX_BROWSE_RETRIES = 4
 
 
 def _safe_url_label(url: str) -> str:
@@ -57,6 +60,9 @@ class BrowseSummary:
     input_tokens: int = 0
     output_tokens: int = 0
     cached_input_tokens: int = 0
+    actual_cost_usd: float | None = None
+    response_status: str | None = None
+    incomplete_reason: str | None = None
 
     def to_public_dict(self) -> dict[str, Any]:
         """Return the backward-compatible ``grok_browse_and_summarize`` shape."""
@@ -70,7 +76,7 @@ class BrowseSummary:
 
 
 class XAIProvider(OpenAICompatibleProvider):
-    """Provider for xAI Grok chat plus xAI-specific browse/search synthesis."""
+    """Provider for xAI Responses plus xAI-specific browse/search synthesis."""
 
     def __init__(
         self,
@@ -85,6 +91,7 @@ class XAIProvider(OpenAICompatibleProvider):
             base_url=base_url,
             api_key_env=api_key_env,
             billing_help_url=billing_help_url,
+            api_style="responses",
         )
         self._api_key_env = api_key_env
         self._responses_url = f"{base_url.rstrip('/')}/responses"
@@ -97,6 +104,7 @@ class XAIProvider(OpenAICompatibleProvider):
         model: str,
         max_tokens: int = 2000,
         timeout: float = 90.0,
+        retries: int = 2,
     ) -> BrowseSummary | None:
         """Ask xAI Responses API to browse/search and summarize a URL."""
 
@@ -105,32 +113,85 @@ class XAIProvider(OpenAICompatibleProvider):
             logger.debug("xAI browse skipped: API key not configured")
             return None
         url_label = _safe_url_label(url)
+        retries = min(max(0, retries), _MAX_BROWSE_RETRIES)
+        deadline = time.monotonic() + max(0.0, timeout)
+        response: httpx.Response | Any | None = None
+        for attempt in range(retries + 1):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                logger.warning("xAI browse: timeout budget exhausted for %s", url_label)
+                return None
+            request_timeout = timeout if attempt == 0 else remaining
+            try:
+                response = httpx.post(
+                    self._responses_url,
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": model,
+                        "input": self._browse_prompt(url, context),
+                        "tools": [{"type": "web_search"}],
+                        "max_output_tokens": max_tokens,
+                        "store": False,
+                    },
+                    timeout=request_timeout,
+                )
+            except (httpx.TimeoutException, httpx.NetworkError) as exc:
+                if attempt >= retries:
+                    logger.warning(
+                        "xAI browse: network error for %s after %d attempt(s): %s",
+                        url_label,
+                        attempt + 1,
+                        type(exc).__name__,
+                    )
+                    return None
+                wait = min(_compute_backoff_delay(attempt), max(0.0, deadline - time.monotonic()))
+                if wait <= 0:
+                    return None
+                logger.warning(
+                    "xAI browse: transient network error for %s; retrying in %.1fs",
+                    url_label,
+                    wait,
+                )
+                time.sleep(wait)
+                continue
 
-        try:
-            response = httpx.post(
-                self._responses_url,
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": model,
-                    "input": self._browse_prompt(url, context),
-                    "tools": [{"type": "web_search"}],
-                    "max_output_tokens": max_tokens,
-                },
-                timeout=timeout,
-            )
-        except (httpx.TimeoutException, httpx.NetworkError) as exc:
-            logger.warning("xAI browse: network error for %s: %s", url_label, type(exc).__name__)
-            return None
+            response_text = str(getattr(response, "text", "") or "")
+            if response.status_code != 200 and (
+                response.status_code == 402 or is_billing_exhausted(response_text)
+            ):
+                raise QuotaExhaustedError(
+                    "xai API credits exhausted or spending limit reached. "
+                    f"Add credits at {self._billing_help_url} and re-run."
+                )
+            if response.status_code == 200:
+                break
+            if response.status_code not in {429, 500, 502, 503, 504} or attempt >= retries:
+                logger.warning(
+                    "xAI browse: status %s for %s",
+                    response.status_code,
+                    url_label,
+                )
+                return None
 
-        if response.status_code != 200:
+            retry_error = RuntimeError(f"xAI browse status {response.status_code}")
+            retry_error.response = response  # type: ignore[attr-defined]
+            retry_after = extract_retry_after_seconds(retry_error)
+            wait = retry_after if retry_after is not None else _compute_backoff_delay(attempt)
+            wait = min(wait, max(0.0, deadline - time.monotonic()))
+            if wait <= 0:
+                return None
             logger.warning(
-                "xAI browse: status %s for %s",
+                "xAI browse: transient status %s for %s; retrying in %.1fs",
                 response.status_code,
                 url_label,
+                wait,
             )
+            time.sleep(wait)
+
+        if response is None:
             return None
 
         try:
@@ -144,7 +205,7 @@ class XAIProvider(OpenAICompatibleProvider):
             logger.info("xAI browse: empty body for %s", url_label)
             return None
 
-        if summary.input_tokens or summary.output_tokens:
+        if summary.input_tokens or summary.output_tokens or summary.actual_cost_usd is not None:
             self._record_usage(
                 model,
                 summary.input_tokens,
@@ -195,10 +256,13 @@ class XAIProvider(OpenAICompatibleProvider):
                         citations.append(str(annotation["url"]))
 
         text = text.strip()
-        if not text:
-            return None
-
         usage = data.get("usage") or {}
+        billed_ticks = usage.get("cost_in_usd_ticks")
+        input_details = usage.get("input_tokens_details") or {}
+        response_status = data.get("status")
+        incomplete_details = data.get("incomplete_details") or {}
+        if not text and not usage and tool_calls == 0 and response_status is None:
+            return None
         return BrowseSummary(
             text=text,
             citations=cls._deduplicate(citations),
@@ -206,7 +270,18 @@ class XAIProvider(OpenAICompatibleProvider):
             tool_calls=tool_calls,
             input_tokens=int(usage.get("input_tokens") or usage.get("prompt_tokens") or 0),
             output_tokens=int(usage.get("output_tokens") or usage.get("completion_tokens") or 0),
-            cached_input_tokens=int(usage.get("cached_tokens") or 0),
+            cached_input_tokens=int(
+                input_details.get("cached_tokens") or usage.get("cached_tokens") or 0
+            ),
+            actual_cost_usd=(
+                int(billed_ticks) / 10_000_000_000 if billed_ticks is not None else None
+            ),
+            response_status=str(response_status) if response_status is not None else None,
+            incomplete_reason=(
+                str(incomplete_details.get("reason"))
+                if incomplete_details.get("reason") is not None
+                else None
+            ),
         )
 
     @staticmethod

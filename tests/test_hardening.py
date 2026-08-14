@@ -53,7 +53,7 @@ class TestAIClientValidation:
                 client.generate("   ")
 
     def test_thinking_level_validation(self):
-        """Thinking level must be 'low' or 'high'."""
+        """Thinking level must be one of the current SDK enum values."""
         from primr.ai.client import AIClient
 
         with patch.object(AIClient, "__init__", lambda self, **kwargs: None):
@@ -63,7 +63,7 @@ class TestAIClientValidation:
             client._get_model = MagicMock(return_value="gemini-2.0-flash")
 
             with pytest.raises(ValueError, match="thinking_level must be"):
-                client.generate("test", thinking_level="medium")
+                client.generate("test", thinking_level="extreme")
 
 
 class TestHTTPClientValidation:

@@ -337,6 +337,7 @@ def refine_report(
     regenerate_fn: Callable[..., str] | None = None,
     prune_fn: Callable[[str], str] | None = None,
     acceptance_fn: Callable[[str, str, list[str]], bool] | None = None,
+    before_model_stage: Callable[[str], None] | None = None,
 ) -> RefineResult:
     """Run the QA iteration loop on a report and write the refined artifact.
 
@@ -393,6 +394,8 @@ def refine_report(
                 logger.warning("Refine: section %r not found in report", section.title)
                 continue
             original = match.group(1)
+            if before_model_stage is not None:
+                before_model_stage("regenerate")
             regenerated = regenerate(
                 company_name,
                 website,
@@ -415,6 +418,8 @@ def refine_report(
         # Judged by an instrument the discipline score can't see; a rejected
         # iteration is fully reverted so unsupported labels/citations never
         # ship just because they raised the grade.
+        if iteration_titles and before_model_stage is not None:
+            before_model_stage("acceptance")
         if iteration_titles and not acceptance(iteration_start_content, content, iteration_titles):
             content = iteration_start_content
             stop_reason = "acceptance_rejected"

@@ -36,77 +36,105 @@ from primr.qa.calibration_selection import (
     load_calibration_pack_selection,
     write_calibration_pack_selection_template,
 )
+from primr.utils.console import prompt_yes_no
 
 
 class CalibrateConfig(Protocol):
     @property
-    def calibrate_target(self) -> str | None: ...
+    def skip_confirm(self) -> bool:
+        raise NotImplementedError
 
     @property
-    def calibrate_recent(self) -> int | None: ...
+    def calibrate_target(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_max_per_label(self) -> int: ...
+    def calibrate_recent(self) -> int | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_dry_run(self) -> bool: ...
+    def calibrate_max_per_label(self) -> int:
+        raise NotImplementedError
 
     @property
-    def calibrate_judge(self) -> str: ...
+    def calibrate_dry_run(self) -> bool:
+        raise NotImplementedError
 
     @property
-    def calibrate_judge_model(self) -> str | None: ...
+    def calibrate_judge(self) -> str:
+        raise NotImplementedError
 
     @property
-    def calibrate_judge_compare(self) -> bool: ...
+    def calibrate_judge_model(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_pack_manifest(self) -> str | None: ...
+    def calibrate_judge_compare(self) -> bool:
+        raise NotImplementedError
 
     @property
-    def calibrate_pack_selection(self) -> str | None: ...
+    def calibrate_pack_manifest(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_pack_selection_template(self) -> str | None: ...
+    def calibrate_pack_selection(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_inspect_selection(self) -> str | None: ...
+    def calibrate_pack_selection_template(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_baseline_from(self) -> str | None: ...
+    def calibrate_inspect_selection(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_baseline_out(self) -> str | None: ...
+    def calibrate_baseline_from(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_baseline_md(self) -> str | None: ...
+    def calibrate_baseline_out(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_baseline_min_reports(self) -> int: ...
+    def calibrate_baseline_md(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_inspect_baseline(self) -> str | None: ...
+    def calibrate_baseline_min_reports(self) -> int:
+        raise NotImplementedError
 
     @property
-    def calibrate_inspect_baseline_decision(self) -> str | None: ...
+    def calibrate_inspect_baseline(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_baseline_decision_from(self) -> str | None: ...
+    def calibrate_inspect_baseline_decision(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_baseline_decision_out(self) -> str | None: ...
+    def calibrate_baseline_decision_from(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_baseline_decision(self) -> str | None: ...
+    def calibrate_baseline_decision_out(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_baseline_decision_reviewer(self) -> str | None: ...
+    def calibrate_baseline_decision(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_baseline_decision_rationale(self) -> str | None: ...
+    def calibrate_baseline_decision_reviewer(self) -> str | None:
+        raise NotImplementedError
 
     @property
-    def calibrate_baseline_decision_notes(self) -> tuple[str, ...]: ...
+    def calibrate_baseline_decision_rationale(self) -> str | None:
+        raise NotImplementedError
+
+    @property
+    def calibrate_baseline_decision_notes(self) -> tuple[str, ...]:
+        raise NotImplementedError
 
 
 class ConsoleSink(Protocol):
@@ -176,12 +204,13 @@ def handle_calibrate(config: CalibrateConfig, console: ConsoleSink) -> int:
             return 1
         console.info(f"Judges: cloud (fast-tier) vs local ({local_selection.model})")
         judge_metadata = _judge_compare_metadata(local_selection)
+        estimated_outcomes = run_calibration(
+            reports, max_per_label=config.calibrate_max_per_label, dry_run=True
+        )
+        total_calls = sum(outcome.estimated_judge_calls for outcome in estimated_outcomes)
+        cloud_cost = estimate_cloud_cost_usd(total_calls, judge_kind="compare")
         if config.calibrate_dry_run:
-            outcomes = run_calibration(
-                reports, max_per_label=config.calibrate_max_per_label, dry_run=True
-            )
-            total_calls = sum(outcome.estimated_judge_calls for outcome in outcomes)
-            cloud_cost = estimate_cloud_cost_usd(total_calls, judge_kind="compare")
+            outcomes = estimated_outcomes
             console.info(
                 f"Dry run: ~{total_calls} cloud judge calls "
                 f"({_format_cloud_cost(cloud_cost)}) + ~{total_calls} local judge calls "
@@ -195,6 +224,18 @@ def handle_calibrate(config: CalibrateConfig, console: ConsoleSink) -> int:
                 selection=selection,
                 judge_metadata=judge_metadata,
             )
+            return 0
+        if not _approve_cloud_judge_spend(
+            config,
+            console,
+            total_calls=total_calls,
+            estimated_cost_usd=cloud_cost,
+            description=(
+                f"~{total_calls} cloud judge calls "
+                f"({_format_cloud_cost(cloud_cost)}) + "
+                f"~{total_calls} local judge calls ($0.00)"
+            ),
+        ):
             return 0
         outcomes, agreement = compare_judges(
             reports,
@@ -218,6 +259,13 @@ def handle_calibrate(config: CalibrateConfig, console: ConsoleSink) -> int:
             console.error(str(exc))
             return 1
         console.info(f"Judge: {judge_selection.kind} ({judge_selection.model})")
+        if not _approve_judge_selection(
+            config,
+            console,
+            reports=reports,
+            judge_selection=judge_selection,
+        ):
+            return 0
         outcomes = run_calibration(
             reports,
             max_per_label=config.calibrate_max_per_label,
@@ -558,6 +606,62 @@ def _judge_compare_metadata(local_selection: JudgeSelection) -> dict[str, object
         "cloud": {"kind": "cloud", "model": "fast-tier"},
         "local": local_selection.to_metadata(),
     }
+
+
+def _approve_judge_selection(
+    config: CalibrateConfig,
+    console: ConsoleSink,
+    *,
+    reports: list[Path],
+    judge_selection: JudgeSelection,
+) -> bool:
+    """Approve a resolved cloud judge; local and dry runs need no spend gate."""
+    if config.calibrate_dry_run or judge_selection.kind != "cloud":
+        return True
+    estimated_outcomes = run_calibration(
+        reports,
+        max_per_label=config.calibrate_max_per_label,
+        dry_run=True,
+        judge_selection=judge_selection,
+    )
+    total_calls = sum(outcome.estimated_judge_calls for outcome in estimated_outcomes)
+    cloud_cost = estimate_cloud_cost_usd(
+        total_calls,
+        judge_kind=judge_selection.kind,
+        requested_judge_mode=config.calibrate_judge,
+    )
+    return _approve_cloud_judge_spend(
+        config,
+        console,
+        total_calls=total_calls,
+        estimated_cost_usd=cloud_cost,
+        description=(
+            f"~{total_calls} cloud judge calls, "
+            f"estimated cloud spend {_format_cloud_cost(cloud_cost)}"
+        ),
+    )
+
+
+def _approve_cloud_judge_spend(
+    config: CalibrateConfig,
+    console: ConsoleSink,
+    *,
+    total_calls: int,
+    estimated_cost_usd: float,
+    description: str,
+) -> bool:
+    """Quote and approve cloud judge spend before calibration starts."""
+    console.info(f"Execution estimate: {description}")
+    if total_calls <= 0 or config.skip_confirm:
+        return True
+
+    approved = prompt_yes_no(
+        f"Start ~{total_calls} cloud judge calls for {_format_cloud_cost(estimated_cost_usd)}?",
+        default=False,
+    )
+    if not approved:
+        console.info("Cancelled. No cloud judge calls were started.")
+    return approved
 
 
 def _format_cloud_cost(cost_usd: float) -> str:

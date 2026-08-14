@@ -5,17 +5,16 @@ Centralized Model Configuration for Primr
 THIS IS THE SINGLE SOURCE OF TRUTH FOR ALL AI MODELS.
 UPDATE HERE TO CHANGE MODELS GLOBALLY.
 
-Last audited: July 1, 2026 (refresh of the June 29 audit), checked against
+Last audited: August 13, 2026, checked against
 current provider docs (developers.openai.com, ai.google.dev, docs.x.ai) and the
 Anthropic model catalog. Re-audit before each major eval — see ROADMAP "Model
 Adaptability".
 
-KEY CHANGES (June 29, 2026 audit):
-- OpenAI context/output corrected: gpt-5.4 is ~1M ctx (not 200K) and now carries
-  the >270K long-context surcharge; gpt-5.4-mini/-nano are 400K ctx; all gpt-5.x
-  max-output is 128k (gpt-5.4-nano's 16k cap was wrong). Prices unchanged.
-- GPT-5.4 mini/nano now carry the same >270K long-context surcharge metadata
-  as the flagship GPT-5.x entries so estimates surface the selected tier.
+KEY CHANGES (August 13, 2026 audit):
+- OpenAI GPT-5.6 Sol/Terra/Luna are registered as eval-gated candidates at
+  current prices and >272K long-context rates. Production routing is unchanged.
+- OpenAI long-context pricing is limited to the documented 1.05M-context
+  models at >272K input. GPT-5.4 mini/nano remain flat-priced 400K models.
 - Gemini: gemini-2.5-pro is 1M ctx (the 2M figure belongs to the unreleased 3.5
   Pro); the whole Gemini 2.5 family is now deprecated (~Oct 16, 2026 shutdown);
   Deep Research slug refreshed to deep-research-preview-04-2026; cached-input
@@ -26,25 +25,27 @@ KEY CHANGES (June 29, 2026 audit):
   tiers reject manual thinking budgets (handled in ai/providers/anthropic.py).
 - xAI Grok 4.3 reasoning is NOT always-on — reasoning_effort has four levels
   (none/low/medium/high, default low); published output cap is unverified.
-- Grok 4.5 registered (Jul 2026) as available / MAX-tier flagship; hybrid
-  default stays on 4.3 for the measured sub-$1 recipe. 4.3 and 4.5 both use
-  published >200k long-context surcharge tiers.
+- Grok 4.6 registered as an available, eval-gated candidate. Hybrid remains on
+  4.3 and MAX remains pinned to 4.5 until a bounded evaluation supports a
+  promotion. Grok 4.3, 4.5, and 4.6 use published >=200k pricing tiers.
 
 AVAILABLE MODELS (August 2026):
 -------------------------------
 xAI / GROK:
-  grok-4.5                   - Latest flagship (coding/agentic), $2/$6 (+ tier ≥200k),
-                               500k ctx, $0.30 cached. MAX tier only until eval-promoted.
+  grok-4.6                   - Current flagship, $2/$6 (+ tier >=200k), 500k ctx,
+                               $0.50 cached. Registered candidate, not routed by default.
+  grok-4.5                   - Previous flagship, $2/$6 (+ tier >=200k), 500k ctx,
+                               $0.30 cached. Current MAX pin pending evaluation.
   grok-4.3                   - Default hybrid reasoning, $1.25/$2.50 (+ tier ≥200k),
                                1M ctx, $0.20 cached
   grok-4.20-non-reasoning    - Bulk writing replacement after 4.1 retirement
   grok-4.1-fast-*            - DEPRECATED, retired May 15, 2026
 
 GOOGLE / GEMINI:
-  gemini-3.6-flash           - NEW (GA Jul 21, 2026), $1.50/$7.50, 1M ctx, 65k out.
-                               Successor to 3.5 Flash: cheaper output + ~17% fewer output
-                               tokens, stronger coding/agent scores. AVAILABLE, not a default
-                               — now the Pro-tier replacement candidate (eval-gated).
+  gemini-3.7-flash           - Current GA workhorse, $0.75/$3.75 through 2026, 1M ctx.
+                               AVAILABLE evaluation candidate; production routing unchanged.
+  gemini-3.6-flash           - GA Jul 21, 2026, same introductory through-2026 pricing.
+                               AVAILABLE evaluation candidate; production routing unchanged.
   gemini-3.5-flash           - GA May 19, 2026, $1.50/$9.00 + $0.15 cached, 1M ctx, 65k out.
                                AVAILABLE; superseded as the Pro-tier candidate by 3.6 Flash.
   gemini-3.5-flash-lite      - NEW (GA Jul 21, 2026), $0.30/$2.50, 1M ctx, 65k out.
@@ -63,12 +64,15 @@ GOOGLE / GEMINI:
   deep-research-preview-04-2026 - Autonomous 12+ page research reports
 
 OPENAI:
+  gpt-5.6 / gpt-5.6-sol     - Current frontier, $5.00/$30.00 + $0.50 cached, 1.05M ctx
+  gpt-5.6-terra             - Balanced, $2.00/$12.00 + $0.20 cached, 1.05M ctx
+  gpt-5.6-luna              - Low cost, $0.20/$1.20 + $0.02 cached, 1.05M ctx
   gpt-5.5                    - Flagship, $5.00/$30.00 + $0.50 cached, 1M ctx
-  gpt-5.4                    - Affordable flagship, $2.50/$15.00 + $0.25 cached, 200k ctx
+  gpt-5.4                    - Affordable flagship, $2.50/$15.00 + $0.25 cached, 1.05M ctx
   gpt-5.4-mini               - Utility candidate, $0.75/$4.50, 400k ctx
   gpt-5.4-nano               - Ultra-cheap, $0.20/$1.25, 400k ctx, 128k out cap
   o4-mini                    - Reasoning, $1.10/$4.40, alternative to Grok 4.3
-  All gpt-5.x: 2x input / 1.5x output above 270K input tokens.
+  GPT-5.6, 5.5, and 5.4 1.05M models: 2x input / 1.5x output above 272K input.
 
 ANTHROPIC:
   claude-opus-4-8            - Most capable (GA May 28, 2026), $5.00/$25.00 + $0.50 cached,
@@ -90,10 +94,13 @@ WHEN TO USE EACH (post-v1.24.0 eval-driven defaults will refine these):
 - UTILITY tier (scraping summaries, link selection, QA): Gemini 3 Flash or Flash-Lite
 - WRITING tier (bulk section generation): Gemini 3.1 Flash-Lite (cheapest sub-$1 candidate)
 - REASONING tier (gap analysis, workbook, cross-validation): Grok 4.3 with cache
-- MAX Grok tier (`--grok-tier max`): Grok 4.5 (latest flagship; higher cost)
+- MAX Grok tier (`--grok-tier max`): Grok 4.5 (evaluated pin; higher cost)
 - PREMIUM tier (Deep Research): Gemini Deep Research Agent
 
 KEY CHANGES (August 2026 refresh):
+- Grok 4.6 (`grok-4.6`) registered from the August 12 official release with
+  exact short/long-context and cached-input rates. It is not a default or MAX
+  route until the bounded promotion evaluation passes.
 - Grok 4.5 (`grok-4.5`) REGISTERED from docs.x.ai. Used only for GrokTier.MAX.
   Hybrid/fast defaults stay on 4.3 so dry-run cost claims remain honest.
 - Grok 4.3 long-context surcharge (≥200k) filled from current xAI pricing table.
@@ -121,7 +128,9 @@ KEY CHANGES SINCE v1.22.0:
 """
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
+from datetime import date
 
 from primr.config.model_registry import (
     DEFAULT_FLASH_MODEL,
@@ -298,15 +307,17 @@ class PrimrModels:
         ModelRegistry.GROK_4_20_NR_NEW.name
     )  # 4.20 non-reasoning — replaces retired 4.1-fast-nr
     GROK_MODEL_43 = ModelRegistry.GROK_4_3.name  # 4.3 — hybrid/fast reasoning default
-    GROK_MODEL_45 = ModelRegistry.GROK_4_5.name  # 4.5 — latest flagship, MAX tier
+    GROK_MODEL_45 = ModelRegistry.GROK_4_5.name  # 4.5, evaluated MAX-tier pin
+    GROK_MODEL_46 = ModelRegistry.GROK_4_6.name  # 4.6, current flagship candidate
     # Legacy 4.20 constants — kept for back-compat and resume of in-flight runs.
-    # New code should use GROK_MODEL_43 or GROK_MODEL_45.
+    # New code should use a versioned constant; routing changes remain eval-gated.
     GROK_MODEL_420 = ModelRegistry.GROK_4_20_REASONING.name
     GROK_MODEL_420_WRITING = ModelRegistry.GROK_4_20_NR.name
 
     # Model registry for lookups
     ALL_MODELS = {
         # Google / Gemini
+        ModelRegistry.GEMINI_3_7_FLASH.name: ModelRegistry.GEMINI_3_7_FLASH,
         ModelRegistry.GEMINI_3_6_FLASH.name: ModelRegistry.GEMINI_3_6_FLASH,
         ModelRegistry.GEMINI_3_5_FLASH.name: ModelRegistry.GEMINI_3_5_FLASH,
         ModelRegistry.GEMINI_3_5_FLASH_LITE.name: ModelRegistry.GEMINI_3_5_FLASH_LITE,
@@ -324,11 +335,17 @@ class PrimrModels:
         ModelRegistry.GROK_4_1_FAST_NR.name: ModelRegistry.GROK_4_1_FAST_NR,
         ModelRegistry.GROK_4_3.name: ModelRegistry.GROK_4_3,
         ModelRegistry.GROK_4_5.name: ModelRegistry.GROK_4_5,
+        ModelRegistry.GROK_4_6.name: ModelRegistry.GROK_4_6,
+        ModelRegistry.GROK_4_20.name: ModelRegistry.GROK_4_20,
         ModelRegistry.GROK_4_20_REASONING.name: ModelRegistry.GROK_4_20_REASONING,
         ModelRegistry.GROK_4_20_NR.name: ModelRegistry.GROK_4_20_NR,
         ModelRegistry.GROK_4_20_NR_NEW.name: ModelRegistry.GROK_4_20_NR_NEW,
         ModelRegistry.GROK_4_20_MULTI_AGENT.name: ModelRegistry.GROK_4_20_MULTI_AGENT,
         # OpenAI
+        ModelRegistry.OPENAI_GPT_5_6_SOL.name: ModelRegistry.OPENAI_GPT_5_6_SOL,
+        ModelRegistry.OPENAI_GPT_5_6.name: ModelRegistry.OPENAI_GPT_5_6,
+        ModelRegistry.OPENAI_GPT_5_6_TERRA.name: ModelRegistry.OPENAI_GPT_5_6_TERRA,
+        ModelRegistry.OPENAI_GPT_5_6_LUNA.name: ModelRegistry.OPENAI_GPT_5_6_LUNA,
         ModelRegistry.OPENAI_GPT_5_5.name: ModelRegistry.OPENAI_GPT_5_5,
         ModelRegistry.OPENAI_GPT_5_4.name: ModelRegistry.OPENAI_GPT_5_4,
         ModelRegistry.OPENAI_GPT_5_4_MINI.name: ModelRegistry.OPENAI_GPT_5_4_MINI,
@@ -379,7 +396,7 @@ class PrimrModels:
         Tier mapping (August 2026):
         FAST: grok-4.3 (reasoning_effort=low) + grok-4.20-non-reasoning
         HYBRID: grok-4.3 + grok-4.20-non-reasoning  (default; measured sub-$1)
-        MAX: grok-4.5 + grok-4.5  (latest flagship; higher cost — re-estimate)
+        MAX: grok-4.5 + grok-4.5  (evaluated pin; higher cost, re-estimate)
 
         FAST and HYBRID use the same models; the difference is in
         reasoning_effort (low for FAST, default/high for HYBRID), handled by
@@ -389,7 +406,7 @@ class PrimrModels:
             return (cls.GROK_MODEL_43, cls.GROK_MODEL_WRITING)
         if tier == GrokTier.HYBRID:
             return (cls.GROK_MODEL_43, cls.GROK_MODEL_WRITING)
-        # GrokTier.MAX — latest flagship, not the default cost path
+        # GrokTier.MAX - evaluated premium pin, not an automatic latest alias
         return (cls.GROK_MODEL_45, cls.GROK_MODEL_45)
 
     @classmethod
@@ -409,8 +426,12 @@ class PrimrModels:
 
     @classmethod
     def is_latest_model(cls, model_name: str) -> bool:
-        """Check if a model is one of the latest Gemini 3 models."""
+        """Check whether a model is in the current flagship model set."""
         latest_models = {
+            ModelRegistry.OPENAI_GPT_5_6_SOL.name,
+            ModelRegistry.OPENAI_GPT_5_6_TERRA.name,
+            ModelRegistry.OPENAI_GPT_5_6_LUNA.name,
+            ModelRegistry.GEMINI_3_7_FLASH.name,
             ModelRegistry.GEMINI_3_1_PRO.name,
             ModelRegistry.GEMINI_3_1_PRO_CUSTOMTOOLS.name,
             ModelRegistry.GEMINI_3_PRO.name,
@@ -423,12 +444,13 @@ class PrimrModels:
         return model_name in latest_models
 
     @classmethod
-    def get_price(cls, model_name: str) -> tuple[float, float]:
+    def get_price(cls, model_name: str, pricing_date: date | None = None) -> tuple[float, float]:
         """Look up (input_price, output_price) per 1M tokens from ALL_MODELS."""
         config = cls._resolve_config(model_name)
         if config is None:
             raise KeyError(f"Unknown model: {model_name}")
-        return (config.cost_per_1m_input_tokens, config.cost_per_1m_output_tokens)
+        input_rate, output_rate, _ = config.standard_rates(pricing_date)
+        return input_rate, output_rate
 
     @classmethod
     def calculate_cost(
@@ -438,6 +460,7 @@ class PrimrModels:
         output_tokens: int,
         prompt_tokens: int | None = None,
         cached_input_tokens: int = 0,
+        pricing_date: date | None = None,
     ) -> float:
         """Calculate cost in USD for given token counts using model pricing."""
         return cls.calculate_cost_breakdown(
@@ -446,6 +469,7 @@ class PrimrModels:
             output_tokens,
             prompt_tokens=prompt_tokens,
             cached_input_tokens=cached_input_tokens,
+            pricing_date=pricing_date,
         ).total_cost
 
     @classmethod
@@ -457,6 +481,7 @@ class PrimrModels:
         prompt_tokens: int | None = None,
         cached_input_tokens: int = 0,
         force_high_tier: bool = False,
+        pricing_date: date | None = None,
     ) -> TokenCostBreakdown:
         """Calculate detailed token costs for one model.
 
@@ -484,9 +509,19 @@ class PrimrModels:
             and config.tier_threshold_tokens is not None
             and (
                 force_high_tier
-                or (prompt_tokens is not None and prompt_tokens > config.tier_threshold_tokens)
+                or (
+                    prompt_tokens is not None
+                    and (
+                        prompt_tokens > config.tier_threshold_tokens
+                        or (
+                            config.tier_threshold_inclusive
+                            and prompt_tokens == config.tier_threshold_tokens
+                        )
+                    )
+                )
             )
         )
+        base_input_rate, base_output_rate, base_cache_rate = config.standard_rates(pricing_date)
         if tier_applied:
             input_rate = config.cost_per_1m_input_tokens_high
             output_rate = config.cost_per_1m_output_tokens_high
@@ -495,21 +530,28 @@ class PrimrModels:
                     f"Model {model_name} has tiered pricing but missing high-tier rates"
                 )
         else:
-            input_rate = config.cost_per_1m_input_tokens
-            output_rate = config.cost_per_1m_output_tokens
+            input_rate = base_input_rate
+            output_rate = base_output_rate
 
-        cache_rate = config.cost_per_1m_input_tokens_cached
-        selected_cache_rate = cache_rate if cache_rate is not None else input_rate
+        cache_rate = base_cache_rate
+        high_cache_rate = config.cost_per_1m_input_tokens_cached_high
+        selected_cache_rate = (
+            high_cache_rate
+            if tier_applied and high_cache_rate is not None
+            else cache_rate
+            if cache_rate is not None
+            else input_rate
+        )
         live_input_cost = (live_input_tokens / 1_000_000) * input_rate
         cached_input_cost = (cached_input_tokens / 1_000_000) * selected_cache_rate
         output_cost = (output_tokens / 1_000_000) * output_rate
         total_cost = live_input_cost + cached_input_cost + output_cost
 
-        base_cache_rate = cache_rate if cache_rate is not None else config.cost_per_1m_input_tokens
+        selected_base_cache_rate = cache_rate if cache_rate is not None else base_input_rate
         base_total = (
-            (live_input_tokens / 1_000_000) * config.cost_per_1m_input_tokens
-            + (cached_input_tokens / 1_000_000) * base_cache_rate
-            + (output_tokens / 1_000_000) * config.cost_per_1m_output_tokens
+            (live_input_tokens / 1_000_000) * base_input_rate
+            + (cached_input_tokens / 1_000_000) * selected_base_cache_rate
+            + (output_tokens / 1_000_000) * base_output_rate
         )
         surcharge = max(0.0, total_cost - base_total)
 
@@ -530,6 +572,40 @@ class PrimrModels:
             tier_applied=tier_applied,
             tier_threshold_tokens=config.tier_threshold_tokens,
             long_context_surcharge_cost=surcharge,
+        )
+
+    @classmethod
+    def calculate_recorded_cost(
+        cls,
+        model_name: str,
+        usage: Mapping[str, int | float],
+    ) -> tuple[float, bool]:
+        """Return recorded spend and whether it is exact provider billing.
+
+        Exact cost is authoritative only when every call in the bucket
+        reported it. Mixed buckets fall back to registry pricing so a partial
+        provider response cannot understate spend.
+        """
+        call_count = int(usage.get("call_count", 0))
+        exact_call_count = int(usage.get("actual_cost_calls", 0))
+        if call_count > 0 and exact_call_count == call_count:
+            return float(usage.get("actual_cost_usd", 0.0)), True
+        config = cls._resolve_config(model_name)
+        if config is None:
+            raise KeyError(f"Unknown model: {model_name}")
+        return (
+            cls.calculate_cost_breakdown(
+                model_name,
+                int(usage.get("input_tokens", 0)),
+                int(usage.get("output_tokens", 0)),
+                cached_input_tokens=int(usage.get("cached_input_tokens", 0)),
+                # One recorded call retains its actual request shape, so its
+                # published threshold can be applied exactly. Aggregated or
+                # legacy buckets cannot prove that every request stayed below
+                # the threshold and therefore use the conservative high tier.
+                force_high_tier=config.has_tiered_pricing and call_count != 1,
+            ).total_cost,
+            False,
         )
 
     @classmethod

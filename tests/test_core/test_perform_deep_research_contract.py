@@ -76,6 +76,8 @@ def seams(monkeypatch, tmp_path):
 
     docx = MagicMock(side_effect=write_report_outputs)
     monkeypatch.setattr(research_agent, "_convert_deep_research_to_docx", docx)
+    verify = MagicMock()
+    monkeypatch.setattr(research_agent, "_run_claim_verification_non_blocking", verify)
     acknowledge = MagicMock(return_value=True)
     monkeypatch.setattr(
         "primr.ai.job_persistence.acknowledge_pending_job_after_outputs",
@@ -120,6 +122,7 @@ def seams(monkeypatch, tmp_path):
         "cleanup": cleanup,
         "save_section": save_section,
         "docx": docx,
+        "verify": verify,
         "acknowledge": acknowledge,
         "final_report": final_report,
         "strategy_gen": strategy_gen,
@@ -182,20 +185,25 @@ class TestPreflight:
 
 
 class TestFailurePath:
-    def test_failure_marks_state_and_returns_none(self, seams):
+    def test_failure_marks_state_and_surfaces_paid_partial(self, seams):
         seams["result"].success = False
         seams["result"].error = "quota exhausted"
         seams["result"].section_results = {}
-        assert _run(seams) is None
+        result = _run(seams)
+        assert result is not None
+        assert Path(result).is_file()
         state = _read_state(seams["folder"])
         assert state["status"] == "failed"
         assert state["current_phase"] == "deep_research"
+        seams["acknowledge"].assert_called_once_with("interaction-123", [result])
 
     def test_partial_sections_salvaged_on_failure(self, seams):
         seams["result"].success = False
         seams["result"].error = "died mid-run"
         seams["result"].section_results = {"overview": "partial", "market": "partial"}
-        assert _run(seams) is None
+        result = _run(seams)
+        assert result is not None
+        assert Path(result).is_file()
         assert seams["save_section"].call_count == 2
 
     def test_orchestrator_exception_degrades_to_none(self, seams, monkeypatch):
@@ -244,6 +252,23 @@ class TestSuccessPath:
         assert _run(seams) is None
         seams["acknowledge"].assert_not_called()
 
+    def test_docx_gate_failure_returns_durable_markdown(self, seams):
+        markdown_path = seams["out_dir"] / "deep.md"
+        text_path = seams["out_dir"] / "deep.txt"
+
+        def write_markdown_fallback(*_args, written_paths, **_kwargs):
+            seams["out_dir"].mkdir(parents=True, exist_ok=True)
+            markdown_path.write_text("# Durable report", encoding="utf-8")
+            text_path.write_text("Durable report", encoding="utf-8")
+            written_paths.extend([markdown_path, text_path])
+            return None
+
+        seams["docx"].side_effect = write_markdown_fallback
+
+        assert _run(seams) == str(markdown_path)
+        seams["acknowledge"].assert_called_once_with("interaction-123", [markdown_path, text_path])
+        assert _read_state(seams["folder"])["status"] == "completed"
+
     def test_no_raw_content_uses_structured_assembly(self, seams):
         seams["result"].raw_content = ""
         result = _run(seams)
@@ -265,6 +290,44 @@ class TestSuccessPath:
         assert kwargs["pipeline_cost"] == 1.25
         assert kwargs["deep_research_cost"] > 0  # one DR task for deep-research mode
         seams["tracker"].save.assert_called_once()
+
+    def test_verify_runs_after_deep_report_is_produced(self, seams):
+        result = _run(seams, verify=True)
+
+        seams["verify"].assert_called_once_with(
+            "AcmeCo",
+            "https://acme.example",
+            str(seams["out_dir"] / "deep.txt"),
+        )
+        assert result == str(seams["out_dir"] / "deep.docx")
+
+    def test_verify_uses_diagnostics_text_for_custom_output(self, seams, tmp_path):
+        custom_output = tmp_path / "deliverables"
+        diagnostics = seams["folder"] / "_diagnostics"
+        markdown_path = custom_output / "deep.md"
+        text_path = diagnostics / "deep.txt"
+        docx_path = custom_output / "deep.docx"
+
+        def write_routed_outputs(*_args, written_paths, **_kwargs):
+            custom_output.mkdir(parents=True, exist_ok=True)
+            diagnostics.mkdir(parents=True, exist_ok=True)
+            markdown_path.write_text("# Durable report", encoding="utf-8")
+            text_path.write_text("Durable report", encoding="utf-8")
+            docx_path.write_text("docx", encoding="utf-8")
+            written_paths.extend([markdown_path, text_path, docx_path])
+            return str(docx_path)
+
+        seams["docx"].side_effect = write_routed_outputs
+
+        assert _run(seams, verify=True, output_dir=str(custom_output)) == str(docx_path)
+        seams["verify"].assert_called_once_with("AcmeCo", "https://acme.example", str(text_path))
+
+    def test_verify_is_not_run_without_report(self, seams):
+        seams["docx"].side_effect = None
+        seams["docx"].return_value = None
+
+        assert _run(seams, verify=True) is None
+        seams["verify"].assert_not_called()
 
 
 class TestStrategyLoop:

@@ -11,14 +11,58 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from primr.ai.file_search_resources import (
     _DEFAULT_STALE_AGE_SECONDS,
+    _FILE_SEARCH_UPLOAD_INITIAL_DELAY_SECONDS,
     _PRIMR_RESOURCE_PREFIX,
     _create_genai_client,
     _is_primr_owned,
     _resource_age_seconds,
     cleanup_orphaned_resources,
+    wait_for_file_search_operation,
 )
+from primr.utils.errors import AIError
+
+
+class TestWaitForFileSearchOperation:
+    def test_polls_with_bounded_backoff_until_indexing_completes(self):
+        client = MagicMock()
+        pending = SimpleNamespace(done=False, error=None)
+        still_pending = SimpleNamespace(done=False, error=None)
+        completed = SimpleNamespace(done=True, error=None)
+        client.operations.get.side_effect = [still_pending, completed]
+
+        with patch("primr.ai.file_search_resources.time.sleep") as sleep:
+            result = wait_for_file_search_operation(client, pending)
+
+        assert result is completed
+        assert client.operations.get.call_count == 2
+        assert [call.args[0] for call in sleep.call_args_list] == [
+            _FILE_SEARCH_UPLOAD_INITIAL_DELAY_SECONDS,
+            _FILE_SEARCH_UPLOAD_INITIAL_DELAY_SECONDS * 2,
+        ]
+
+    def test_raises_when_provider_completes_with_error(self):
+        client = MagicMock()
+        failed = SimpleNamespace(
+            done=True,
+            error=SimpleNamespace(message="indexing failed"),
+        )
+
+        with pytest.raises(AIError, match="indexing failed"):
+            wait_for_file_search_operation(client, failed)
+        client.operations.get.assert_not_called()
+
+    def test_timeout_is_bounded_without_polling(self):
+        client = MagicMock()
+        pending = SimpleNamespace(done=False, error=None)
+
+        with pytest.raises(AIError, match="did not complete"):
+            wait_for_file_search_operation(client, pending, timeout_seconds=0)
+        client.operations.get.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # _is_primr_owned
@@ -134,6 +178,10 @@ class TestCleanupOrphanedResources:
             "primr.ai.file_search_resources._create_genai_client",
             client_factory,
         )
+        monkeypatch.setattr(
+            "primr.ai.job_persistence.get_pending_jobs_with_status",
+            lambda: (True, {}),
+        )
         client._factory = client_factory
         return client
 
@@ -202,6 +250,75 @@ class TestCleanupOrphanedResources:
         )
         result = cleanup_orphaned_resources()
         assert result["stores_deleted"] == 0
+        client.file_search_stores.delete.assert_not_called()
+
+    def test_preserves_store_bound_to_pending_interaction(self, monkeypatch):
+        client = self._setup(
+            monkeypatch,
+            stores=[_FakeResource("s/pending", "primr-store_1700000000", age_seconds=10000)],
+        )
+        monkeypatch.setattr(
+            "primr.ai.job_persistence.get_pending_jobs_with_status",
+            lambda: (
+                True,
+                {
+                    "interaction-1": {
+                        "metadata": {"file_search_store": "s/pending"},
+                    }
+                },
+            ),
+        )
+
+        result = cleanup_orphaned_resources()
+
+        assert result["stores_deleted"] == 0
+        client.file_search_stores.documents.list.assert_not_called()
+        client.file_search_stores.delete.assert_not_called()
+
+    def test_emergency_recovery_receipt_protects_accepted_store(self, monkeypatch, tmp_path):
+        from primr.ai import job_persistence
+
+        real_reader = job_persistence.get_pending_jobs_with_status
+        jobs_file = tmp_path / "pending.json"
+        monkeypatch.setattr(job_persistence, "_get_jobs_file_path", lambda: str(jobs_file))
+        client = self._setup(
+            monkeypatch,
+            stores=[
+                _FakeResource("s/live", "primr-store_1700000000", age_seconds=10000),
+            ],
+        )
+        monkeypatch.setattr(job_persistence, "get_pending_jobs_with_status", real_reader)
+        with patch(
+            "primr.ai.job_persistence.atomic_replace",
+            side_effect=OSError("primary registry locked"),
+        ):
+            job_persistence.save_pending_job(
+                "accepted-1",
+                "deep_research",
+                "ExampleCo",
+                metadata={"file_search_store": "s/live"},
+            )
+
+        result = cleanup_orphaned_resources()
+
+        assert result["stores_deleted"] == 0
+        client.file_search_stores.documents.list.assert_not_called()
+        client.file_search_stores.delete.assert_not_called()
+
+    def test_store_cleanup_fails_closed_when_pending_state_unreadable(self, monkeypatch):
+        client = self._setup(
+            monkeypatch,
+            stores=[_FakeResource("s/old", "primr-store_1700000000", age_seconds=10000)],
+        )
+        monkeypatch.setattr(
+            "primr.ai.job_persistence.get_pending_jobs_with_status",
+            lambda: (False, {}),
+        )
+
+        result = cleanup_orphaned_resources()
+
+        assert result["stores_deleted"] == 0
+        client.file_search_stores.list.assert_not_called()
         client.file_search_stores.delete.assert_not_called()
 
     def test_env_var_override_for_stale_age(self, monkeypatch):
@@ -284,10 +401,9 @@ class TestCleanupOrphanedResources:
         result = cleanup_orphaned_resources()
         assert result["stores_deleted"] == 1
 
-    def test_resource_with_unknown_age_treated_as_eligible(self, monkeypatch):
+    def test_resource_with_unknown_age_is_preserved(self, monkeypatch):
         # No create_time, no parseable display_name timestamp.
         resource = SimpleNamespace(name="c/1", display_name="primr-no-timestamp")
         self._setup(monkeypatch, caches=[resource])
         result = cleanup_orphaned_resources()
-        # Age is None -> bypasses the staleness gate -> gets deleted.
-        assert result["caches_deleted"] == 1
+        assert result["caches_deleted"] == 0

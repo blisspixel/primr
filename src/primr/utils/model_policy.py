@@ -15,6 +15,7 @@ __all__ = [
     "model_calls_disabled",
     "require_model_calls_allowed",
     "submit_with_model_policy",
+    "unpriced_model_opt_ins",
 ]
 
 _MODEL_CALLS_DISABLED: ContextVar[bool] = ContextVar(
@@ -44,6 +45,28 @@ def require_model_calls_allowed(operation: str = "model call") -> None:
 
     if model_calls_disabled():
         raise ModelCallsDisabledError(f"{operation} is disabled for this workflow")
+
+
+def unpriced_model_opt_ins() -> tuple[str, ...]:
+    """Return ambient model features that are not bound to a run estimate.
+
+    Governed CLI, MCP, and A2A entry points reject these process-wide opt-ins
+    before issuing approval tokens or starting jobs. Direct library callers
+    may still use them deliberately, but cannot inherit Primr's managed spend
+    guarantees until each feature has an explicit, priced run parameter.
+    """
+
+    enabled: list[str] = []
+    if os.getenv("PRIMR_LABEL_HONESTY", "").strip().lower() in _TRUE_VALUES:
+        enabled.append("PRIMR_LABEL_HONESTY")
+    try:
+        if int(os.getenv("PRIMR_PDF_LLM_MAX_CALLS", "0")) > 0:
+            enabled.append("PRIMR_PDF_LLM_MAX_CALLS")
+    except ValueError:
+        enabled.append("PRIMR_PDF_LLM_MAX_CALLS")
+    if os.getenv("PRIMR_ENABLE_GROK_SURROGATE", "").strip().lower() in _TRUE_VALUES:
+        enabled.append("PRIMR_ENABLE_GROK_SURROGATE")
+    return tuple(enabled)
 
 
 @contextmanager

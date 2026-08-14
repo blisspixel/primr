@@ -43,7 +43,8 @@ def test_foundry_deployment_prices_via_explicit_rates(monkeypatch) -> None:
     monkeypatch.setenv("AZURE_FOUNDRY_INPUT_PRICE", "1.00")
     monkeypatch.setenv("AZURE_FOUNDRY_OUTPUT_PRICE", "4.00")
     config = PrimrModels.get_model_config(DEPLOYMENT)
-    assert config is not None and config.provider == "foundry"
+    assert config is not None
+    assert config.provider == "foundry"
     # 1M input @ $1 + 1M output @ $4 = $5.00
     assert PrimrModels.calculate_cost(DEPLOYMENT, 1_000_000, 1_000_000) == pytest.approx(5.0)
 

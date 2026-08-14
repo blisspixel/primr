@@ -76,6 +76,8 @@ def stages(monkeypatch, tmp_path):
                 report_content="## Report\nwritten",
                 written_sections=[SimpleNamespace(title="Overview", words=100)],
                 total_words=100,
+                expected_sections=1,
+                report_complete=True,
             )
         ),
         "cv": MagicMock(
@@ -256,3 +258,19 @@ class TestStrategyWiring:
         fin = stages["finalize"].call_args.kwargs
         assert fin["strategy_paths"] == {"ai": "path.docx"}
         assert fin["strategy_trust_stats"] == [("AI Strategy", [("Gate", "PASS")])]
+
+    def test_incomplete_base_report_is_forwarded_to_strategy_spend_gate(self, stages):
+        stages["setup_obj"].has_strategies = True
+        stages["setup_obj"].total_phases = 6
+        stages["sections"].return_value = SectionWritingResult(
+            report_content="## Partial Report\nwritten",
+            written_sections=[SimpleNamespace(title="Overview", words=100)],
+            total_words=100,
+            expected_sections=3,
+            report_complete=False,
+        )
+
+        _run(stages, ai_strategy=True)
+
+        assert stages["strategy"].call_args.kwargs["base_report_complete"] is False
+        assert stages["finalize"].call_args.kwargs["report_complete"] is False

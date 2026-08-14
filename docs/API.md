@@ -279,22 +279,21 @@ from primr.core.deep_research_runner import (
     DeepResearchConfig,
     DeepResearchMode,
     PreflightResult,
-    PreflightStatus,
 )
 ```
 
 ```python
-# Validate before running expensive operations
-preflight = validate_preflight()
-if preflight.status == PreflightStatus.READY:
-    config = DeepResearchConfig(
-        company_name="Acme Corp",
-        prompt="Research Acme Corp's competitive position in the market",
-        mode=DeepResearchMode.STANDARD,
-    )
+# Build the exact run shape, then validate it before provider work
+config = DeepResearchConfig(
+    company_name="Acme Corp",
+    website="https://acme.example",
+    mode=DeepResearchMode.COMPLETE,
+)
+preflight = validate_preflight(config)
+if preflight.is_valid:
     result = await perform_deep_research(config)
 else:
-    print(f"Preflight failed: {preflight.message}")
+    print(f"Preflight failed: {preflight.errors}")
 ```
 
 ### CLI Module
@@ -417,7 +416,7 @@ def generate(
 | `prompt` | str | The prompt to send |
 | `model_type` | str | "research" or "report" |
 | `temperature` | float | Sampling temperature (0.0-2.0) |
-| `thinking_level` | str | "low" or "high" |
+| `thinking_level` | str | Model-supported enum; current Gemini values range from `minimal` to `high` |
 | `max_retries` | int or None | Override default retry count |
 | `timeout` | float or None | Request timeout in seconds |
 
@@ -450,6 +449,16 @@ client.reset_usage()
 ## Deep Research Client
 
 Direct access to Gemini's Deep Research Agent.
+
+The client uses Google's background Interactions API. Background interactions
+set `store=True`, which Google requires for polling and resume. Context-file
+uploads wait for their File Search long-running operations to finish before the
+research interaction starts. Google documents that imported File Search data
+persists until its store is deleted, while the temporary raw File API object is
+deleted after 48 hours. Primr deletes owned stores after terminal work, but
+keeps a store when an accepted interaction may still be running. See Google's
+[Interactions storage guide](https://ai.google.dev/gemini-api/docs/interactions-overview#storing_interactions)
+and [File Search guide](https://ai.google.dev/gemini-api/docs/file-search#upload_files).
 
 ```python
 from primr.ai import DeepResearchClient, ResearchResult, ResearchProgress
@@ -529,7 +538,8 @@ from primr.ai.job_persistence import (
 # Check status of a specific job without mutating pending state
 client = get_deep_research_client()
 result = client.check_job("v1_abc123...")
-print(f"Status: {result['status']}")  # active, completed, terminal, or check_error
+print(f"Status: {result['status']}")  # Provider status, or check_error for a local check failure
+print(f"Terminal: {result['terminal']}")
 if result['content']:
     print(f"Content: {result['content'][:500]}...")
 
@@ -1147,8 +1157,8 @@ are covered in the [Skill Pack Guide](SKILL_PACK.md#mcp-reference).
 #### estimate_run
 
 Get cost and time estimates before running research. Always surface the exact
-estimate and get explicit user approval. When MCP cost-cap enforcement is
-active, pass the approved estimate into
+estimate and get explicit user approval. Cost-cap enforcement is on by default
+for every MCP transport, so pass the approved estimate into
 `research_company.max_estimated_cost_usd` with its `approval_token`.
 
 ```json
@@ -1206,12 +1216,11 @@ Response:
 ```
 
 The estimate always returns a short-lived approval token bound to the quoted
-execution shape. When MCP cost-cap enforcement is active, pass that token and
-an execution ceiling at least as high as `estimated_cost_usd` to
-`research_company`. Map the estimate's one `platforms` item to the execution
-`platform` field. Estimates with zero or multiple platforms, the multi-target
-`ms` alias, or a non-AI `strategy_type` are rejected before an approval token
-is issued.
+execution shape. Pass that token and an execution ceiling at least as high as
+`estimated_cost_usd` to `research_company`. Map the estimate's one `platforms`
+item to the execution `platform` field. Estimates with zero or multiple
+platforms, the multi-target `ms` alias, or a non-AI `strategy_type` are rejected
+before an approval token is issued.
 
 Approval tokens are single-use and bound to the server process that issued
 them, in addition to their tool, arguments, cost ceiling, and expiry. A server
@@ -1222,8 +1231,8 @@ approval before execution.
 #### estimate_strategy
 
 Get cost and time estimates before generating a strategy document. Always
-surface the exact estimate and get explicit user approval. When MCP cost-cap
-enforcement is active, pass the approved estimate into
+surface the exact estimate and get explicit user approval. Enforcement is on
+by default for every MCP transport, so pass the approved estimate into
 `generate_strategy.max_estimated_cost_usd` with its `approval_token`.
 
 ```json
@@ -1287,8 +1296,8 @@ agnostic AI Strategy by default. Set `platform` to bias it or
 | `skip_qa` | boolean | No | Skip quality assessment. Default: `false` |
 | `verify` | boolean | No | Run post-QA claim verification. Default: `false` |
 | `destination` | string | No | Optional destination under an allowed output root, such as `client-deliverables`. Artifacts are copied here in addition to the default output/ directory. Absolute paths outside configured roots are rejected. |
-| `max_estimated_cost_usd` | number or numeric string | Conditional | Hard ceiling for estimated run cost and runtime budget. Required when MCP cost-cap enforcement is active. Use a value at least as high as the approved estimate. |
-| `approval_token` | string | Conditional | Short-lived token returned by the matching `estimate_run`. Required when MCP cost-cap enforcement is active. |
+| `max_estimated_cost_usd` | number or numeric string | Yes | Hard ceiling for estimated run cost and runtime budget. Use a value at least as high as the approved estimate. |
+| `approval_token` | string | Yes | Short-lived token returned by the matching `estimate_run`. |
 
 Response:
 ```json
@@ -1675,7 +1684,7 @@ it does not satisfy `report`.
 | Skill ID | Required scope | Description |
 |----------|----------------|-------------|
 | `estimate_research` | `read` | Cost/time estimate plus approval-token fields for a research run |
-| `research_company` | `research` | Start async research (SSE streaming progress); when cost-cap enforcement is active, requires `max_estimated_cost_usd` and the matching `approval_token` from `estimate_research` |
+| `research_company` | `research` | Start async research (SSE streaming progress); requires `max_estimated_cost_usd` and the matching `approval_token` from `estimate_research` by default |
 | `check_jobs` | `read` | Current job status |
 | `run_qa` | `research` | Quality assessment on completed reports |
 | `read_report_by_job` | `report` | Explicit owned-job report or strategy body read with `content_mode`, `artifact_type`, and `max_chars` negotiation |
@@ -1705,8 +1714,7 @@ it does not satisfy `report`.
 ```
 
 Use the returned `estimated_cost_usd` as `max_estimated_cost_usd` and pass the
-returned `approval_token` into `research_company` when cost-cap enforcement is
-active.
+returned `approval_token` into `research_company`.
 
 **Example A2A report read message:**
 ```json
@@ -1809,10 +1817,10 @@ Default governance contract for generic MCP clients.
     "Call estimate tools before any cost-incurring tool",
     "Tell the user that research and strategy generation incur real API cost",
     "Get explicit user approval before execution",
-    "Pass max_estimated_cost_usd into cost-incurring tools when enforcement is enabled",
-    "Pass the approval_token returned by the matching estimate tool when enforcement is enabled",
+    "Pass max_estimated_cost_usd into every cost-incurring tool",
+    "Pass the approval_token returned by the matching estimate tool",
     "Treat Primr as a long-running async job system, not a synchronous request",
-    "If PRIMR_ENFORCE_MCP_COST_CAPS is enabled, cost-governed execution tools require max_estimated_cost_usd and approval_token"
+    "Cost-governed MCP tools require max_estimated_cost_usd and approval_token by default"
   ],
   "research_flow": {
     "estimate_tool": "estimate_run",
@@ -2231,6 +2239,11 @@ reads `run_manifest.json` files adjacent to the owned job's output artifacts
 and returns cost, timing, approval, budget-enforcement, execution, parse,
 hash, timestamp, and artifact-count metadata without returning company URL,
 approval token, the manifest artifact list, or full manifest content.
+Completed research manifests contain run-scoped actual model usage plus the
+flat Deep Research tasks accepted during that run, including optional
+verification performed before completion. `actual_cost_usd` remains null for
+cancellation and failures that cannot be measured. A failed Premium run can
+report reconciled spend when its paid partial report was durably published.
 
 HTTP callers can read only jobs owned by the authenticated client. Missing jobs
 and unowned jobs return the same `job_not_found` shape so clients cannot probe
@@ -2258,7 +2271,7 @@ without echoing the malformed body.
       "content_hash": "sha256:abc123...",
       "parsed": true,
       "full_content_included": false,
-      "manifest_schema_version": "1.0",
+      "manifest_schema_version": "1.1",
       "mode": "full",
       "estimate": {
         "cost_usd": 0.76,
@@ -2285,7 +2298,7 @@ without echoing the malformed body.
         "started_at": "2026-06-28T19:02:00Z",
         "completed_at": "2026-06-28T19:44:00Z",
         "status": "completed",
-        "actual_cost_usd": 0.72,
+        "actual_cost_usd": 0.83,
         "actual_time_minutes": 42
       },
       "artifact_count": 3
@@ -2769,7 +2782,7 @@ Run manifest for the most recent completed job. Provides audit trail for complia
 
 ```json
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "job_id": "abc123",
   "company_name": "Acme Corp",
   "company_url": "https://acme.example",
@@ -2780,16 +2793,28 @@ Run manifest for the most recent completed job. Provides audit trail for complia
     "estimated_at": "2026-02-15T10:00:00Z"
   },
   "approval": {
-    "token": "ABC123",
+    "token": null,
+    "approval_token_id": "approval-abc123",
     "approved_at": "2026-02-15T10:01:00Z",
     "approved_by": "stdio",
     "bound_to_estimate": true
+  },
+  "budget": {
+    "approved_ceiling_usd": 0.80,
+    "runtime_budget_active": true,
+    "enforcement": {
+      "preflight": "refuses to start when the estimated cost exceeds the ceiling",
+      "runtime_checkpoints": true,
+      "runtime": "runtime checkpoint is active before and between optional strategy documents after required Deep Research completes; the required Deep Research task cannot be stopped mid-flight",
+      "checkpointed_stages": ["optional strategy generation"],
+      "non_interruptible_required_tasks": ["required Deep Research task"]
+    }
   },
   "execution": {
     "started_at": "2026-02-15T10:01:05Z",
     "completed_at": "2026-02-15T10:31:00Z",
     "status": "completed",
-    "actual_cost_usd": 0.72,
+    "actual_cost_usd": 0.78,
     "actual_time_minutes": 30
   },
   "artifacts": [

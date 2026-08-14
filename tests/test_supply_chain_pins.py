@@ -107,8 +107,8 @@ def test_setup_uv_actions_pin_the_export_tool_version() -> None:
     for workflow in WORKFLOW_DIR.glob("*.yml"):
         text = workflow.read_text(encoding="utf-8")
         setup_count = text.count("astral-sh/setup-uv@")
-        assert text.count('version: "0.11.17"') == setup_count, (
-            f"{workflow.name} must pin uv 0.11.17 at every setup-uv step"
+        assert text.count('version: "0.11.33"') == setup_count, (
+            f"{workflow.name} must pin uv 0.11.33 at every setup-uv step"
         )
 
 
@@ -121,7 +121,7 @@ def test_container_requirement_exports_match_uv_lock() -> None:
         capture_output=True,
         text=True,
     ).stdout.split()[1]
-    assert installed_version == "0.11.17", "use the repository-pinned uv release"
+    assert installed_version == "0.11.33", "use the repository-pinned uv release"
     exports = {
         ROOT / "deploy" / "runtime-requirements.lock": ["--no-dev", "--extra", "api"],
         ROOT / "deploy" / "build-requirements.lock": [

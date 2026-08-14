@@ -13,6 +13,7 @@ from collections.abc import Callable
 from typing import TypeVar
 
 from primr.core.cli_command_output import report_command_error
+from primr.core.cli_dryrun import reject_unsupported_dry_run
 from primr.utils.console import console
 
 ISSUES_URL = "https://github.com/blisspixel/primr/issues"
@@ -46,6 +47,9 @@ def guard_dispatch(handler: Callable[[_ConfigT], int], config: _ConfigT) -> int:
       here from ``main`` so the success-tail logic lives with the dispatch).
     """
     try:
+        dry_run_exit = reject_unsupported_dry_run(config)
+        if dry_run_exit is not None:
+            return dry_run_exit
         rc = handler(config)
     except KeyboardInterrupt:
         if getattr(config, "json_output", False):
@@ -82,6 +86,7 @@ def guard_dispatch(handler: Callable[[_ConfigT], int], config: _ConfigT) -> int:
         rc == 0
         and getattr(command, "name", "") == "RESEARCH"
         and not getattr(config, "quiet", False)
+        and not getattr(config, "json_output", False)
     ):
         from primr.core.cli_update import notify_if_update_available
 

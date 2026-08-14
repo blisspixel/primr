@@ -27,6 +27,7 @@ from primr.core.strategy_outcome import (
     StrategyOutcome,
     StrategyOutcomeTracker,
     expected_strategy_targets,
+    persist_strategy_outcome,
     strategy_target,
 )
 from primr.core.strategy_prompt_parts import (
@@ -129,8 +130,9 @@ def run_strategy_phase(
     write_txt: bool,
     recovery_executor,
     total_phases: int,
+    base_report_complete: bool = True,
 ) -> StrategyPhaseResult:
-    """Generate strategy documents (AI per-vendor + YAML-defined) if requested."""
+    """Generate strategy documents only after the base report is complete."""
     # Lazy import: research_agent imports this module, so the prompt-build,
     # enrichment, and output helpers (which stay there until their own
     # extraction) must be resolved at call time to avoid a circular import.
@@ -155,6 +157,22 @@ def run_strategy_phase(
     refresh_tracker = VendorRefreshTracker(
         tuple(dict.fromkeys(platforms or ())) if refresh_vendor_research and ai_strategy else ()
     )
+
+    if not base_report_complete:
+        outcome_tracker.mark_remaining_skipped()
+        refresh_tracker.mark_remaining_skipped()
+        strategy_outcome = outcome_tracker.snapshot()
+        refresh_outcome = refresh_tracker.snapshot()
+        persist_strategy_outcome(folder_path, strategy_outcome)
+        persist_vendor_refresh_outcome(folder_path, refresh_outcome)
+        console.warn("Optional strategy generation skipped because the base report is incomplete")
+        return StrategyPhaseResult(
+            strategy_paths,
+            strategy_trust_stats,
+            vendor_refresh_tasks_started,
+            strategy_outcome,
+            refresh_outcome,
+        )
 
     from primr.config.models import DEEP_RESEARCH_COST
 

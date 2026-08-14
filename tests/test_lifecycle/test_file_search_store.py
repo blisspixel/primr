@@ -7,6 +7,7 @@ Tests proper creation, upload, and cleanup of File Search Stores.
 **Validates: Requirements 10.1, 10.2, 10.3**
 """
 
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
@@ -24,7 +25,9 @@ def mock_client():
     client = Mock()
     client.file_search_stores = Mock()
     client.file_search_stores.create = Mock(return_value=Mock(name="test-store-123"))
-    client.file_search_stores.upload_to_file_search_store = Mock()
+    client.file_search_stores.upload_to_file_search_store = Mock(
+        return_value=SimpleNamespace(done=True, error=None)
+    )
     client.file_search_stores.delete = Mock()
     return client
 
@@ -344,6 +347,7 @@ def test_property_upload_before_use(content_size: int):
 
     def track_upload(*args, **kwargs):
         call_order.append("upload")
+        return SimpleNamespace(done=True, error=None)
 
     mock_client.file_search_stores.create.side_effect = track_create
     mock_client.file_search_stores.upload_to_file_search_store.side_effect = track_upload

@@ -15,7 +15,11 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from primr.ai.genai_factory import default_genai_http_options
+from primr.ai.genai_factory import (
+    accepts_sampling_parameters,
+    default_genai_http_options,
+    supported_thinking_levels,
+)
 
 try:
     from google import genai as _google_genai
@@ -36,8 +40,8 @@ except Exception as import_error:
 
     @dataclass
     class _FallbackGenerateContentConfig:
-        temperature: float
         thinking_config: _FallbackThinkingConfig
+        temperature: float | None = None
 
     class _FallbackTypes:
         GenerateContentConfig = _FallbackGenerateContentConfig
@@ -182,7 +186,7 @@ class AIClient:
             prompt: The prompt to send to the model
             model_type: "research" or "report" - determines which model to use
             temperature: Sampling temperature (0.0-2.0)
-            thinking_level: "low" or "high" - controls reasoning depth
+            thinking_level: Model-supported reasoning depth
             max_retries: Override default retry count
             timeout: Request timeout in seconds
 
@@ -205,15 +209,24 @@ class AIClient:
             raise ValueError("prompt cannot be empty")
         if not 0.0 <= temperature <= 2.0:
             raise ValueError(f"temperature must be between 0.0 and 2.0, got {temperature}")
-        if thinking_level not in ("low", "high"):
-            raise ValueError(f"thinking_level must be 'low' or 'high', got {thinking_level}")
-
         model = self._get_model(model_type)
+        allowed_thinking_levels = supported_thinking_levels(model)
+        if thinking_level not in allowed_thinking_levels:
+            raise ValueError(
+                "thinking_level must be one of "
+                f"{', '.join(allowed_thinking_levels)}, got {thinking_level}"
+            )
+        thinking_level_value = types.ThinkingLevel(thinking_level.upper())
+
         retries = max(1, max_retries if max_retries is not None else self._settings.max_retries)
 
+        config_kwargs: dict[str, Any] = {
+            "thinking_config": types.ThinkingConfig(thinking_level=thinking_level_value),
+        }
+        if accepts_sampling_parameters(model):
+            config_kwargs["temperature"] = temperature
         config = types.GenerateContentConfig(
-            temperature=temperature,
-            thinking_config=types.ThinkingConfig(thinking_level=thinking_level),  # type: ignore[arg-type]
+            **config_kwargs,
         )
 
         deadline = time.monotonic() + timeout if timeout is not None else None
@@ -609,6 +622,24 @@ def reset_run_usage_accounting() -> None:
             _client.reset_usage()
 
 
+def get_ai_client_usage_by_model() -> dict[str, dict[str, int | float]]:
+    """Return normalized cumulative usage without creating the legacy client."""
+    with _client_lock:
+        if _client is None:
+            return {}
+        return {
+            model: {
+                "input_tokens": int(values.get("input_tokens", 0)),
+                "output_tokens": int(values.get("output_tokens", 0)),
+                "cached_input_tokens": 0,
+                "actual_cost_usd": float(values.get("cost", 0.0)),
+                "actual_cost_calls": int(values.get("calls", 0)),
+                "call_count": int(values.get("calls", 0)),
+            }
+            for model, values in _client.usage_by_model.items()
+        }
+
+
 def get_client() -> AIClient:
     """
     Get the global AI client instance (thread-safe).
@@ -660,7 +691,7 @@ def llm(
         prompt: The prompt to send
         model_type: "research" or "report"
         temperature: Sampling temperature
-        thinking_level: "low" or "high"
+        thinking_level: Model-supported reasoning depth
         streaming: Ignored (kept for compatibility)
         **kwargs: Additional arguments
 

@@ -552,3 +552,58 @@ class TestGeminiProviderChat:
         # value should still round-trip to "low" case-insensitively.
         level_value = str(config.thinking_config.thinking_level).lower()
         assert "low" in level_value
+
+    @pytest.mark.parametrize(
+        "model",
+        ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.7-flash"],
+    )
+    def test_chat_omits_sampling_for_current_models(self, model: str) -> None:
+        from primr.ai.providers.gemini import GeminiProvider
+
+        provider = GeminiProvider()
+        fake_client = MagicMock()
+        fake_client.models.generate_content.return_value = SimpleNamespace(
+            text="ok",
+            usage_metadata=SimpleNamespace(prompt_token_count=1, candidates_token_count=1),
+        )
+        provider._client = fake_client
+
+        provider.chat([{"role": "user", "content": "x"}], model=model, temperature=0.2)
+
+        config = fake_client.models.generate_content.call_args.kwargs["config"]
+        assert config.temperature is None
+
+    def test_chat_rejects_unsupported_thinking_level_before_provider_call(self) -> None:
+        from primr.ai.providers.gemini import GeminiProvider
+
+        provider = GeminiProvider()
+        fake_client = MagicMock()
+        provider._client = fake_client
+
+        with pytest.raises(ValueError, match="low, medium, high"):
+            provider.chat(
+                [{"role": "user", "content": "x"}],
+                model="gemini-3.7-flash",
+                thinking_level="minimal",
+            )
+        fake_client.models.generate_content.assert_not_called()
+
+    def test_chat_keeps_sampling_for_legacy_production_model(self) -> None:
+        from primr.ai.providers.gemini import GeminiProvider
+
+        provider = GeminiProvider()
+        fake_client = MagicMock()
+        fake_client.models.generate_content.return_value = SimpleNamespace(
+            text="ok",
+            usage_metadata=SimpleNamespace(prompt_token_count=1, candidates_token_count=1),
+        )
+        provider._client = fake_client
+
+        provider.chat(
+            [{"role": "user", "content": "x"}],
+            model="gemini-3.1-pro-preview",
+            temperature=0.2,
+        )
+
+        config = fake_client.models.generate_content.call_args.kwargs["config"]
+        assert config.temperature == pytest.approx(0.2)

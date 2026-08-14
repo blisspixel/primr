@@ -50,6 +50,10 @@ from primr.agentic.subagents.base import (
 logger = logging.getLogger(__name__)
 
 
+class _ClaimExtractionError(RuntimeError):
+    """Claim extraction failed, as distinct from finding zero claims."""
+
+
 # =============================================================================
 # DATA CLASSES
 # =============================================================================
@@ -230,12 +234,14 @@ class VerifierSubagent(Subagent[VerificationResult]):
             if not claims:
                 duration = time.perf_counter() - start_time
                 self._status = SubagentStatus.COMPLETED
+                verification_result = VerificationResult(
+                    trust_score=0.0,
+                    duration_seconds=duration,
+                )
+                self._save_result(report_path, verification_result)
                 return SubagentResult(
                     status=self._status,
-                    data=VerificationResult(
-                        trust_score=0.0,
-                        duration_seconds=duration,
-                    ),
+                    data=verification_result,
                     metrics={"duration_seconds": duration, "claims_extracted": 0},
                 )
 
@@ -309,10 +315,9 @@ class VerifierSubagent(Subagent[VerificationResult]):
 
         # Load prompt template
         prompt_template = self._load_prompt("claim_extraction")
-        # Truncate report to ~30k chars to stay within Flash context
-        truncated = report_text[:30_000]
+        sampled = self._sample_report_sections(report_text)
         prompt = prompt_template.format(
-            report_text=truncated,
+            report_text=sampled,
             max_claims=self._max_claims,
         )
 
@@ -321,8 +326,7 @@ class VerifierSubagent(Subagent[VerificationResult]):
             claims_data = self._parse_json_response(response)
 
             if not isinstance(claims_data, list):
-                logger.warning("Claim extraction returned non-list response")
-                return []
+                raise _ClaimExtractionError("Claim extraction returned a non-list response")
 
             claims = []
             for item in claims_data[: self._max_claims]:
@@ -340,9 +344,37 @@ class VerifierSubagent(Subagent[VerificationResult]):
             claims.sort(key=lambda c: c.importance, reverse=True)
             return claims[: self._max_claims]
 
+        except _ClaimExtractionError:
+            raise
         except Exception as e:
-            logger.warning(f"Claim extraction failed: {e}")
-            return []
+            raise _ClaimExtractionError(f"Claim extraction failed: {e}") from e
+
+    @staticmethod
+    def _sample_report_sections(report_text: str, max_chars: int = 30_000) -> str:
+        """Sample across a long report instead of verifying only its beginning."""
+        if len(report_text) <= max_chars:
+            return report_text
+        sections = [part for part in re.split(r"(?m)(?=^#{1,3}\s+)", report_text) if part]
+        if len(sections) <= 1:
+            marker = "\n[... middle omitted ...]\n"
+            half = (max_chars - len(marker)) // 2
+            return report_text[:half] + marker + report_text[-half:]
+        max_sections = max(2, max_chars // 200)
+        if len(sections) > max_sections:
+            indexes = {
+                round(index * (len(sections) - 1) / (max_sections - 1))
+                for index in range(max_sections)
+            }
+            sections = [section for index, section in enumerate(sections) if index in indexes]
+        per_section = max(200, (max_chars - len(sections) * 20) // len(sections))
+        sampled: list[str] = []
+        for section in sections:
+            if len(section) <= per_section:
+                sampled.append(section)
+                continue
+            half = max(1, (per_section - 20) // 2)
+            sampled.append(section[:half] + "\n[... omitted ...]\n" + section[-half:])
+        return "\n".join(sampled)[:max_chars]
 
     def _build_search_queries(
         self, claims: list[VerifiableClaim]

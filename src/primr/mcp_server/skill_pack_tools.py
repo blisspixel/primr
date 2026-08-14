@@ -10,7 +10,7 @@ Exposes two synchronous tools (the pipeline is short enough — ~30-90s
     need filesystem access to consume results.
 
 Both honor `max_estimated_cost_usd` and the
-PRIMR_ENFORCE_MCP_COST_CAPS server-side enforcement when set.
+Server-side cap and approval-token enforcement is enabled by default.
 """
 
 from __future__ import annotations
@@ -378,6 +378,41 @@ def _is_cost_cap_enforced() -> bool:
     return is_cost_cap_enforced()
 
 
+def _enforce_skill_pack_cost_gate(
+    *,
+    estimate_usd: float,
+    supplied_cap: object,
+    parsed_cap: float | None,
+    approval_args: dict[str, Any],
+    approval_token: object,
+) -> TextContent | None:
+    """Authorize one skill-pack run and honor any caller-supplied cap."""
+    enforced = _is_cost_cap_enforced()
+    if enforced and supplied_cap is None:
+        return _error_response(
+            "max_estimated_cost_usd is required for cost-governed MCP execution. "
+            f"Estimated cost for this run is ${estimate_usd:.2f}; re-call with "
+            "max_estimated_cost_usd at or above it."
+        )
+    if parsed_cap is not None and estimate_usd > parsed_cap:
+        return _error_response(
+            f"Estimated cost ${estimate_usd:.2f} exceeds cap ${parsed_cap:.2f}. "
+            "Increase max_estimated_cost_usd, reduce roles_count/skills_per_role, "
+            "or supply a report_path to skip evidence collection."
+        )
+    if not enforced:
+        return None
+    approval_error = enforce_approval_token(
+        tool_name="generate_skill_pack",
+        approval_args=approval_args,
+        estimated_cost_usd=estimate_usd,
+        approval_token=approval_token,
+    )
+    if approval_error is None:
+        return None
+    return TextContent(type="text", text=json.dumps(approval_error))
+
+
 def _validate_from_jd_path(
     from_jd_path: str | None,
     mcp_server: MCPServerContext,
@@ -736,52 +771,28 @@ async def _handle_generate_skill_pack(
         remote_icons=remote_icons,
         max_refine_iterations=max_refine,
     )
-    if _is_cost_cap_enforced():
-        # Fail closed: when server-side caps are enforced, a cost-incurring run
-        # MUST carry an explicit cap. Other MCP tools behave the same way; this
-        # path previously only checked the cap when the caller chose to supply
-        # one, which silently defeated the enforcement toggle.
-        if max_cost is None:
-            return [
-                _error_response(
-                    "max_estimated_cost_usd is required when cost-cap "
-                    "enforcement is enabled (PRIMR_ENFORCE_MCP_COST_CAPS). "
-                    f"Estimated cost for this run is ${estimate['cost_usd']:.2f}; "
-                    "re-call with max_estimated_cost_usd at or above it."
-                )
-            ]
-        assert parsed_max_cost is not None
-        cap = parsed_max_cost
-        if estimate["cost_usd"] > cap:
-            return [
-                _error_response(
-                    f"Estimated cost ${estimate['cost_usd']:.2f} exceeds cap "
-                    f"${cap:.2f}. Increase max_estimated_cost_usd, reduce "
-                    f"roles_count/skills_per_role, or supply a report_path "
-                    f"to skip evidence collection."
-                )
-            ]
-        approval_error = enforce_approval_token(
-            tool_name="generate_skill_pack",
-            approval_args=skill_pack_approval_args(
-                effective_roles=effective_roles,
-                skills_per_role=skills_per_role,
-                has_report_path=cost_uses_existing_evidence,
-                has_operator_role_brief=bool(from_jd_path),
-                has_career_urls=bool(career_urls),
-                max_refine_iterations=max_refine,
-                saved_plan_sha256=saved_plan_sha256,
-                saved_plan_prompt_chars=saved_plan_prompt_chars,
-                roles_override=config.roles_override,
-                roles_add=config.roles_add,
-                roles_skip=config.roles_skip,
-                remote_icons=remote_icons,
-            ),
-            estimated_cost_usd=float(estimate["cost_usd"]),
-            approval_token=arguments.get("approval_token"),
-        )
-        if approval_error is not None:
-            return [TextContent(type="text", text=json.dumps(approval_error))]
+    cost_gate_error = _enforce_skill_pack_cost_gate(
+        estimate_usd=float(estimate["cost_usd"]),
+        supplied_cap=max_cost,
+        parsed_cap=parsed_max_cost,
+        approval_args=skill_pack_approval_args(
+            effective_roles=effective_roles,
+            skills_per_role=skills_per_role,
+            has_report_path=cost_uses_existing_evidence,
+            has_operator_role_brief=bool(from_jd_path),
+            has_career_urls=bool(career_urls),
+            max_refine_iterations=max_refine,
+            saved_plan_sha256=saved_plan_sha256,
+            saved_plan_prompt_chars=saved_plan_prompt_chars,
+            roles_override=config.roles_override,
+            roles_add=config.roles_add,
+            roles_skip=config.roles_skip,
+            remote_icons=remote_icons,
+        ),
+        approval_token=arguments.get("approval_token"),
+    )
+    if cost_gate_error is not None:
+        return [cost_gate_error]
 
     # Working directory: existing report path or fresh temp dir + standalone evidence.
     if report_path:

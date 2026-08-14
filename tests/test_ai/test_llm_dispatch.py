@@ -271,10 +271,12 @@ class TestLLMDispatch:
             text="one response",
             input_tokens=1,
             output_tokens=1,
+            actual_cost_usd=0.00125,
         )
+        mirror_usage = MagicMock()
         with (
             patch("primr.ai.routing.get_provider_for_model", return_value=provider),
-            patch("primr.ai.grok_client._mirror_session_usage"),
+            patch("primr.ai.grok_client._mirror_session_usage", mirror_usage),
         ):
             result = llm_module.llm(
                 "test prompt",
@@ -287,6 +289,13 @@ class TestLLMDispatch:
         assert result == "one response"
         assert provider.chat.call_args.kwargs["retries"] == 0
         assert provider.chat.call_args.kwargs["max_tokens"] == 256
+        mirror_usage.assert_called_once_with(
+            model_name,
+            1,
+            1,
+            cached_input_tokens=0,
+            actual_cost_usd=0.00125,
+        )
 
     def test_llm_renders_provider_owned_gemini_quota_guidance(self, capsys) -> None:
         """Gemini quota copy comes from the provider, while llm() only renders it."""
