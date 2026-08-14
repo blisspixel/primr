@@ -234,12 +234,8 @@ from primr.ai.job_persistence import (
     save_pending_job,
 )
 
-# Preserve the legacy deep_research module exports while their implementation
-# lives in the focused file_search_resources module.
-_DEFAULT_STALE_AGE_SECONDS = _file_search_resources._DEFAULT_STALE_AGE_SECONDS
-_PRIMR_RESOURCE_PREFIX = _file_search_resources._PRIMR_RESOURCE_PREFIX
-_is_primr_owned = _file_search_resources._is_primr_owned
-_resource_age_seconds = _file_search_resources._resource_age_seconds
+# Preserve the deep_research module exports that still have active callers while
+# their implementation lives in the focused file_search_resources module.
 cleanup_orphaned_resources = _file_search_resources.cleanup_orphaned_resources
 wait_for_file_search_operation = _file_search_resources.wait_for_file_search_operation
 
