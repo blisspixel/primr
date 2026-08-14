@@ -161,6 +161,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Windows cooperative-cancel test flake.** Marker wait accepts expected
   content so it does not race `Path.write_text` creating an empty file before
   the body is flushed.
+- **Portable plugin drift checks are cross-platform.** Generated JSON manifests
+  now compare canonically across LF and CRLF checkouts without hiding content
+  or formatting drift.
 
 ### Changed
 

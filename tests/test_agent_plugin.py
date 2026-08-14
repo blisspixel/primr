@@ -108,6 +108,23 @@ def test_agent_plugin_generated_files_match_canonical_sources() -> None:
     assert "allowed-tools:" not in portable_operator
 
 
+def test_agent_plugin_drift_check_normalizes_manifest_newlines(monkeypatch) -> None:
+    original_read_bytes = Path.read_bytes
+    manifest_paths = {PLUGIN_ROOT / "plugin.json", PLUGIN_ROOT / "mcp.json"}
+
+    def read_bytes_with_windows_newlines(path: Path) -> bytes:
+        content = original_read_bytes(path)
+        if path in manifest_paths:
+            content = content.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+        return content
+
+    monkeypatch.setattr(Path, "read_bytes", read_bytes_with_windows_newlines)
+
+    matches, failures = package_matches()
+
+    assert matches, "\n".join(failures)
+
+
 def test_agent_plugin_documents_experimental_scope_and_spend_boundary() -> None:
     readme = (PLUGIN_ROOT / "README.md").read_text(encoding="utf-8")
     operator = (PLUGIN_ROOT / "skills" / "primr" / "SKILL.md").read_text(encoding="utf-8")

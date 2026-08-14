@@ -28,6 +28,12 @@ def _json_bytes(value: object) -> bytes:
     return (json.dumps(value, indent=2, ensure_ascii=False) + "\n").encode()
 
 
+def _normalize_newlines(content: bytes) -> bytes:
+    """Make generated text comparisons independent of checkout line endings."""
+
+    return content.replace(b"\r\n", b"\n")
+
+
 def _plugin_manifest() -> bytes:
     return _json_bytes(
         {
@@ -123,7 +129,7 @@ def package_matches() -> tuple[bool, list[str]]:
     for relative, expected in expected_roots.items():
         path = PLUGIN_ROOT / relative
         actual = path.read_bytes() if path.is_file() else None
-        if actual != expected:
+        if actual is None or _normalize_newlines(actual) != expected:
             failures.append(f"agent-plugin/{relative} is missing or stale")
 
     expected_skills = _expected_skill_files()
