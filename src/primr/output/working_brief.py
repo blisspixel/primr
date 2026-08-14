@@ -164,7 +164,10 @@ def assemble_working_brief(payload: WorkingBriefInput) -> str:
 
 def working_brief_filename(company_name: str, when: datetime | None = None) -> str:
     """Public deliverable filename (never Strategic_Overview)."""
-    stamp = (when or datetime.now()).strftime("%m-%d-%Y")
+    stamp_src = when or datetime.now()
+    if stamp_src.tzinfo is not None:
+        stamp_src = stamp_src.astimezone()
+    stamp = stamp_src.strftime("%m-%d-%Y")
     safe = sanitize_for_filename(company_name or "Company", max_length=200)
     return f"{safe}_{WORKING_BRIEF_MARKER}_{stamp}.md"
 

@@ -204,19 +204,24 @@ def test_update_run_state_sets_updated_timestamp(tmp_path):
     assert "updated_at" in state
 
 
-def test_save_run_state_falls_back_when_atomic_replace_is_denied(tmp_path, monkeypatch):
+def test_save_run_state_keeps_last_good_file_when_atomic_replace_is_denied(tmp_path, monkeypatch):
+    import pytest
+
     folder = tmp_path / "run"
     folder.mkdir()
+    (folder / "_run_state.json").write_text('{"status": "scrape"}', encoding="utf-8")
 
     def fail_replace(_src, _dst):
         raise PermissionError("Access is denied")
 
+    monkeypatch.setattr("primr.utils.atomic_io.os.replace", fail_replace)
     monkeypatch.setattr(research_agent.os, "replace", fail_replace)
 
-    research_agent._save_run_state(str(folder), {"status": "running"})
+    with pytest.raises(PermissionError):
+        research_agent._save_run_state(str(folder), {"status": "running"})
 
     state = research_agent._load_run_state(str(folder))
-    assert state["status"] == "running"
+    assert state["status"] == "scrape"
     assert not list(folder.glob("*.tmp"))
 
 

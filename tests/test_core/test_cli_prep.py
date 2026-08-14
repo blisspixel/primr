@@ -48,6 +48,13 @@ def test_prep_dry_run_has_no_collection(tmp_path, monkeypatch, capsys) -> None:
     assert "Files written: 0 (dry run)" in output
 
 
+def test_prep_dry_run_rejects_invalid_url(capsys) -> None:
+    result = run_prep_cli(["prep", "Acme", "javascript:alert(1)", "--dry-run"])
+    assert result == 2
+    err = capsys.readouterr().err
+    assert "Invalid public company URL" in err
+
+
 def test_prep_runs_collector_and_reports_paths(tmp_path, monkeypatch, capsys) -> None:
     bundle = tmp_path / "bundle"
     bundle.mkdir()

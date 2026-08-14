@@ -52,6 +52,45 @@ def publish_partial_deep_report(
     return report_path
 
 
+def record_deep_terminal_status(
+    folder_path: str,
+    report_path: str | None,
+    *,
+    elapsed: float,
+    time_str: str,
+) -> str:
+    """Stamp run-state from a durable artifact, not from provider success."""
+    from datetime import datetime
+
+    from primr.core.run_state_io import _append_run_event, _update_run_state
+
+    shipped = False
+    if report_path:
+        path = Path(report_path)
+        shipped = path.is_file() and path.stat().st_size > 0
+    if shipped:
+        console.ok(f"Complete in {time_str}")
+        _update_run_state(
+            folder_path,
+            status="completed",
+            current_phase="complete",
+            completed_at=datetime.now().isoformat(),
+            duration_seconds=elapsed,
+        )
+        _append_run_event(folder_path, "complete", "completed", f"Run completed in {time_str}")
+        return "completed"
+    console.warn("Deep research produced no durable report")
+    _update_run_state(
+        folder_path,
+        status="failed",
+        current_phase="error",
+        completed_at=datetime.now().isoformat(),
+        duration_seconds=elapsed,
+    )
+    _append_run_event(folder_path, "error", "failed", "No durable primary report was written")
+    return "failed"
+
+
 def resolve_deep_report_artifacts(
     docx_path: str | None,
     durable_paths: list[Path],

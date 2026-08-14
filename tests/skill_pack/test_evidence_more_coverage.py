@@ -149,8 +149,36 @@ def test_collect_recon_returns_none_when_write_fails(
     # format succeeds but writing the file raises.
     fmt = MagicMock(return_value="body")
     _install_recon_modules(monkeypatch, resolve_tenant=_resolve, format_recon_context=fmt)
-    monkeypatch.setattr(Path, "write_text", MagicMock(side_effect=OSError("disk full")))
+    monkeypatch.setattr(
+        "primr.utils.atomic_io.atomic_write_text",
+        MagicMock(side_effect=OSError("disk full")),
+    )
     assert _collect_recon("https://acme.example", tmp_path) is None
+
+
+def test_collect_recon_succeeds_from_running_event_loop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """MCP generate_skill_pack is async; recon must not use bare asyncio.run()."""
+    import asyncio
+
+    sentinel_info = object()
+
+    async def _resolve(domain: str):
+        assert domain == "acme.example"
+        return sentinel_info, {}
+
+    fmt = MagicMock(return_value="RECON FROM LOOP")
+    _install_recon_modules(monkeypatch, resolve_tenant=_resolve, format_recon_context=fmt)
+
+    async def _from_loop() -> str | None:
+        return _collect_recon("https://acme.example", tmp_path)
+
+    out = asyncio.run(_from_loop())
+    expected = tmp_path / "_recon_context.txt"
+    assert out == str(expected)
+    assert expected.read_text(encoding="utf-8") == "RECON FROM LOOP"
+    fmt.assert_called_once_with(sentinel_info)
 
 
 # --------------------------------------------------------------------------- #

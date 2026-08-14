@@ -353,3 +353,46 @@ def test_same_process_approval_remains_single_use(monkeypatch):
     assert first is None
     assert second is not None
     assert "already used" in second["message"]
+
+
+def test_bind_runtime_budget_caps_caller_at_token_ceiling(monkeypatch):
+    monkeypatch.setenv("PRIMR_ENFORCE_MCP_COST_CAPS", "1")
+    approval = approval_tokens.issue_approval_token(
+        tool_name="research_company",
+        approval_args={"company_url": "https://acme.example", "mode": "full"},
+        max_cost_usd=0.89,
+    )
+    bound = approval_tokens.bind_runtime_budget(100.0, approval["approval_token"])
+    assert bound == 0.89
+    assert approval_tokens.bind_runtime_budget(None, approval["approval_token"]) == 0.89
+    assert approval_tokens.bind_runtime_budget(0.50, approval["approval_token"]) == 0.50
+    assert approval_tokens.bind_runtime_budget(100.0, None) == 100.0
+
+
+def test_research_estimate_ignores_unbound_lite_and_tier_kwargs(monkeypatch):
+    from primr.mcp_server.research_policy import build_research_estimate
+
+    seen: list[dict] = []
+
+    def fake_estimate(*_args, **kwargs):
+        seen.append(kwargs)
+        return type(
+            "Est",
+            (),
+            {"total_cost": 0.89, "duration_minutes": "30-45 min", "notes": []},
+        )()
+
+    monkeypatch.setattr("primr.utils.cost_estimator.estimate_cost", fake_estimate)
+    monkeypatch.delenv("XAI_API_KEY", raising=False)
+    payload = build_research_estimate(
+        {
+            "mode": "full",
+            "lite_strategy": True,
+            "grok_tier": "fast",
+            "company_url": "https://acme.example",
+        }
+    )
+    assert payload["estimated_cost_usd"] == 0.89
+    assert seen
+    assert all(item.get("lite_strategy") is False for item in seen)
+    assert all(item.get("grok_tier") == "hybrid" for item in seen)

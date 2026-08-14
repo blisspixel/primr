@@ -507,11 +507,12 @@ def stage_usage_delta(
     """Return body-free token/cache/cost deltas between two usage snapshots."""
 
     current = capture_stage_usage() if after is None else after
-    models: dict[str, dict[str, int | float]] = {}
+    models: dict[str, dict[str, int | float | None]] = {}
     total_input = 0
     total_output = 0
     total_cached = 0
     total_cost = 0.0
+    unpriced = False
     for model_name in sorted(set(before) | set(current)):
         prior = before.get(model_name, {})
         latest = current.get(model_name, {})
@@ -544,21 +545,24 @@ def stage_usage_delta(
         ):
             continue
         if call_count > 0 and actual_cost_calls == call_count:
-            actual_cost = actual_cost_usd
+            priced_cost: float | None = actual_cost_usd
         else:
-            actual_cost = _actual_usage_cost(
+            priced_cost = _actual_usage_cost(
                 model_name, input_tokens, output_tokens, cached_input_tokens
             )
         models[model_name] = {
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "cached_input_tokens": cached_input_tokens,
-            "actual_cost_usd": round(actual_cost, 8),
+            "actual_cost_usd": None if priced_cost is None else round(priced_cost, 8),
         }
         total_input += input_tokens
         total_output += output_tokens
         total_cached += cached_input_tokens
-        total_cost += actual_cost
+        if priced_cost is None:
+            unpriced = True
+        else:
+            total_cost += priced_cost
 
     if not models:
         return {}
@@ -566,7 +570,7 @@ def stage_usage_delta(
         "actual_input_tokens": total_input,
         "actual_output_tokens": total_output,
         "actual_cached_input_tokens": total_cached,
-        "actual_cost_usd": round(total_cost, 8),
+        "actual_cost_usd": None if unpriced else round(total_cost, 8),
         "actual_usage_by_model": models,
     }
 
@@ -679,7 +683,7 @@ def _actual_usage_cost(
     input_tokens: int,
     output_tokens: int,
     cached_input_tokens: int,
-) -> float:
+) -> float | None:
     try:
         return PrimrModels.calculate_cost(
             model_name,
@@ -689,7 +693,7 @@ def _actual_usage_cost(
             prompt_tokens=input_tokens,
         )
     except KeyError:
-        return 0.0
+        return None
 
 
 def _apply_usage_delta(record: dict[str, Any], usage_delta: dict[str, Any]) -> None:

@@ -48,7 +48,7 @@ def run_render(args: list[str] | None) -> int:
     parsed = _create_parser().parse_args(argv[1:])
 
     source = Path(parsed.report)
-    if not source.exists():
+    if not source.is_file():
         console.error(f"Report not found: {source}")
         return 1
     if source.suffix.lower() not in {".md", ".markdown", ".txt"}:
@@ -71,7 +71,9 @@ def run_render(args: list[str] | None) -> int:
         return 1
 
     stem = source.stem
-    title = parsed.title or stem.replace("_", " ")
+    # Only pass an explicit --title. Auto-titling from the filename stripped the
+    # first H1 (often "1. Executive Summary" on host-written Zero reports).
+    title = parsed.title
 
     docx_path = dest_dir / f"{stem}.docx"
     try:
@@ -83,10 +85,13 @@ def run_render(args: list[str] | None) -> int:
             title=title,
             subtitle=parsed.subtitle,
         )
-        console.ok(f"DOCX: {docx_path}")
     except Exception as exc:
         console.error(f"DOCX conversion failed: {exc}")
         return 1
+    if not docx_path.is_file() or docx_path.stat().st_size <= 0:
+        console.error(f"DOCX conversion produced no file: {docx_path}")
+        return 1
+    console.ok(f"DOCX: {docx_path}")
 
     if not parsed.no_txt:
         txt_path = dest_dir / f"{stem}.txt"

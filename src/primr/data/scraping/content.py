@@ -456,13 +456,29 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str | None:
         return None
 
 
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name, str(default))
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.environ.get(name, str(default))
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return default
+
+
 # Per-process budget for Gemini PDF extraction. The default is zero because PDF
 # LLM extraction is not part of the static scrape/full estimates; operators can
 # opt in with PRIMR_PDF_LLM_MAX_CALLS when chart/table extraction is worth the
-# extra spend.
-_PDF_LLM_CALL_BUDGET = int(os.environ.get("PRIMR_PDF_LLM_MAX_CALLS", "0"))
-_PDF_LLM_BYTE_BUDGET = int(os.environ.get("PRIMR_PDF_LLM_MAX_TOTAL_MB", "40")) * 1024 * 1024
-_PDF_LLM_TIMEOUT_S = float(os.environ.get("PRIMR_PDF_LLM_TIMEOUT_S", "60"))
+# extra spend. Invalid env values must not crash scrape/prep imports.
+_PDF_LLM_CALL_BUDGET = _env_int("PRIMR_PDF_LLM_MAX_CALLS", 0)
+_PDF_LLM_BYTE_BUDGET = _env_int("PRIMR_PDF_LLM_MAX_TOTAL_MB", 40) * 1024 * 1024
+_PDF_LLM_TIMEOUT_S = _env_float("PRIMR_PDF_LLM_TIMEOUT_S", 60.0)
 _pdf_llm_calls_made = 0
 _pdf_llm_bytes_sent = 0
 

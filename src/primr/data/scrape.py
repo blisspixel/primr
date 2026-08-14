@@ -339,7 +339,7 @@ def get_external_orchestrator(
     return _external_orchestrator
 
 
-def enable_scrape_tracing(company_name: str) -> None:
+def enable_scrape_tracing(company_name: str, enable_vision: bool = True) -> None:
     """Attach a fresh per-run TraceLogger to both orchestrator singletons.
 
     Called at the start of each site-corpus build so per-tier attempts,
@@ -355,7 +355,7 @@ def enable_scrape_tracing(company_name: str) -> None:
         logger.warning("Scrape tracing disabled (could not create trace file): %s", e)
         return
 
-    get_orchestrator().trace_logger = trace_logger
+    get_orchestrator(enable_vision=enable_vision).trace_logger = trace_logger
     get_external_orchestrator().trace_logger = trace_logger
 
 
@@ -373,13 +373,9 @@ def get_orchestrator(
 
     if _orchestrator is None:
         tiers = get_available_tiers()
-
-        # Drission tiers are powerful but can hang on some Windows environments.
-        # Default to Playwright/HTTP/Vision unless explicitly enabled.
         enable_drission = _env_truthy("PRIMR_ENABLE_DRISSION")
         if not enable_drission:
             tiers = [t for t in tiers if t.name not in {"drissionpage", "drissionpage_stealth"}]
-
         _orchestrator = ScrapeOrchestrator(
             tiers=tiers,
             cache=ScrapeCache(cache_dir=str(CACHE_DIR)),
@@ -395,6 +391,8 @@ def get_orchestrator(
             use_cache=use_cache,
             circuit_breaker_threshold=5,  # More lenient - sites have mixed content
         )
+    elif not enable_vision:
+        _orchestrator.tiers = [t for t in _orchestrator.tiers if t.name != "vision"]
 
     return _orchestrator
 
@@ -516,7 +514,7 @@ def fetch_web_content(
     company_name = company_name or ""
 
     # Enable production scrape tracing for diagnostics and health summaries.
-    enable_scrape_tracing(company_name or "run")
+    enable_scrape_tracing(company_name or "run", use_vision)
 
     def _write_raw_file(file_path, url, tier, structured):
         """Write raw scrape file to disk (may run in background thread)."""

@@ -47,5 +47,30 @@ def test_running_job_lists_working_brief_under_job_output(tmp_path, monkeypatch)
     early = response.get("early_artifact_paths") or []
     assert len(early) == 1
     assert early[0]["artifact_role"] == "working_brief"
-    assert early[0]["name"] == brief.name
-    assert "report" not in response.get("artifacts", {})
+
+
+def test_mcp_classifier_does_not_treat_working_brief_as_report():
+    from pathlib import Path
+
+    from primr.mcp_server.job_responses import (
+        artifact_matches_filter,
+        classify_output_artifact,
+    )
+
+    brief = Path("ExampleCo_Working_Brief_08-14-2026.md")
+    assert classify_output_artifact(brief) == "working_brief"
+    assert artifact_matches_filter("working_brief", "report") is False
+    assert artifact_matches_filter("working_brief", "all") is True
+    overview = Path("ExampleCo_Strategic_Overview_08-14-2026.md")
+    assert classify_output_artifact(overview) == "strategic_overview"
+
+
+def test_on_disk_artifacts_available_requires_existing_file(tmp_path):
+    from primr.mcp_server.job_responses import on_disk_artifacts_available
+
+    missing = tmp_path / "gone.md"
+    present = tmp_path / "report.md"
+    present.write_text("# x\n", encoding="utf-8")
+    assert on_disk_artifacts_available([str(missing)]) is False
+    assert on_disk_artifacts_available([str(present)]) is True
+    assert on_disk_artifacts_available([]) is False

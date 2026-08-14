@@ -75,6 +75,19 @@ def test_write_working_brief_atomic_and_fail_open(tmp_path: Path) -> None:
     assert working_brief_filename("ExampleCo").startswith("ExampleCo_Working_Brief_")
 
 
+def test_working_brief_filename_uses_local_date_not_utc_calendar() -> None:
+    # Aware timestamps must use the operator's local calendar, matching
+    # Strategic Overview filenames (datetime.now()), not the UTC date.
+    when = datetime(2026, 8, 15, 1, 0, tzinfo=timezone.utc)
+    local = when.astimezone()
+    name = working_brief_filename("ExampleCo", when)
+    assert name == f"ExampleCo_Working_Brief_{local.strftime('%m-%d-%Y')}.md"
+    naive_local = datetime(2026, 8, 14, 18, 0)
+    assert working_brief_filename("ExampleCo", naive_local) == (
+        "ExampleCo_Working_Brief_08-14-2026.md"
+    )
+
+
 def test_read_recon_excerpt_truncates(tmp_path: Path) -> None:
     (tmp_path / "_recon_context.txt").write_text("a" * 50, encoding="utf-8")
     assert read_recon_excerpt(tmp_path, max_chars=10) == "a" * 10

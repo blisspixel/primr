@@ -179,6 +179,22 @@ def test_load_section_results_prefers_latest_subdir(tmp_path):
     assert result.get(section_key) == "new"
 
 
+def test_load_section_results_uses_explicit_folder_not_newest_sibling(tmp_path):
+    from primr.config.sections_config import SECTION_KEY_MAP
+
+    section_key = next(iter(SECTION_KEY_MAP.values()))
+    company_dir = tmp_path / "Acme_Corp"
+    older = company_dir / "2026-01-01_0000"
+    newer = company_dir / "2026-02-01_0000"
+    older.mkdir(parents=True)
+    newer.mkdir()
+    (older / f"{section_key}.txt").write_text("old", encoding="utf-8")
+    (newer / f"{section_key}.txt").write_text("new", encoding="utf-8")
+
+    result = load_section_results("Acme Corp", folder_path=older)
+    assert result.get(section_key) == "old"
+
+
 # --------------------------------------------------------------------------- #
 # save_report_as_txt
 # --------------------------------------------------------------------------- #
@@ -215,8 +231,13 @@ def test_save_incomplete_markdown_report_labels_and_publishes_partial(tmp_path):
     assert result is not None
     published = Path(result)
     assert published.suffix == ".md"
+    assert "Incomplete_Overview" in published.name
+    assert "Strategic_Overview" not in published.name
     assert "# Incomplete Report" in published.read_text(encoding="utf-8")
     assert published.with_suffix(".txt").is_file()
+    from primr.output.artifact_inventory import infer_artifact_role
+
+    assert infer_artifact_role(published) != "primary_report"
 
 
 # --------------------------------------------------------------------------- #
@@ -347,7 +368,8 @@ def test_cleanup_removes_working_folder(tmp_path):
     ):
         output_utils.cleanup("Acme Corp")
 
-    assert not company.exists()
+    assert company.exists()
+    assert (company / "f.txt").read_text(encoding="utf-8") == "x"
 
 
 def test_cleanup_handles_error_gracefully(tmp_path):

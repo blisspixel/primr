@@ -130,7 +130,7 @@ def _fulfillment_status(
     state_available: bool,
     incomplete: bool,
 ) -> str:
-    if not result_path:
+    if not result_path or not Path(result_path).is_file():
         return "failed"
     if not state_available:
         return "unknown"

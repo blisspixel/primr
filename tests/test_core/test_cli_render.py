@@ -64,6 +64,23 @@ def test_render_empty_file_returns_1(tmp_path: Path):
     assert run_render(["render", str(p)]) == 1
 
 
+def test_render_directory_returns_1(tmp_path: Path):
+    directory = tmp_path / "report.md"
+    directory.mkdir()
+    assert run_render(["render", str(directory)]) == 1
+
+
+def test_render_keeps_first_h1_section_without_title_flag(tmp_path: Path):
+    md = tmp_path / "ExampleCo_Strategic_Overview.md"
+    md.write_text("# 1. Executive Summary\n\nAcme sells widgets.\n", encoding="utf-8")
+    assert run_render(["render", str(md), "--no-txt"]) == 0
+    from docx import Document
+
+    text = "\n".join(p.text for p in Document(md.with_suffix(".docx")).paragraphs)
+    assert "Executive Summary" in text
+    assert "Acme sells widgets" in text
+
+
 def test_render_dispatched_from_main(tmp_path: Path):
     """`primr render ...` routes to run_render via the main entrypoint."""
     from primr.core import cli

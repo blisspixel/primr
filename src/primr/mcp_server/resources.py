@@ -485,6 +485,7 @@ def _read_research_status(mcp_server: MCPServerContext) -> list[ReadResourceCont
         )
 
     from primr.job_status import build_job_status
+    from primr.mcp_server.job_responses import on_disk_artifacts_available
 
     data = build_job_status(
         job_id=status.job_id,
@@ -499,7 +500,9 @@ def _read_research_status(mcp_server: MCPServerContext) -> list[ReadResourceCont
         updated_at=status.last_heartbeat_time,
         completed_at=status.completion_time,
         artifacts_available=(
-            bool(status.output_paths) if status.status == JobStatus.COMPLETED else None
+            on_disk_artifacts_available(status.output_paths)
+            if status.status == JobStatus.COMPLETED
+            else None
         ),
         error_message=status.error_message,
         error_code=status.error_type,

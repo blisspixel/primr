@@ -11,6 +11,7 @@ from primr.core.vendor_refresh_outcome import VendorRefreshTracker
 
 def test_standard_summary_reconciles_flat_tasks_without_double_counting_refresh(
     monkeypatch,
+    tmp_path,
 ):
     client = SimpleNamespace(
         get_usage_summary=lambda: {
@@ -49,6 +50,8 @@ def test_standard_summary_reconciles_flat_tasks_without_double_counting_refresh(
         vendor_refresh_outcome=refresh_tracker.snapshot(),
     )
 
+    report = tmp_path / "report.docx"
+    report.write_bytes(b"PK")
     actual = finalize_standard_run(
         mode="structured",
         display_name="ExampleCo",
@@ -56,7 +59,7 @@ def test_standard_summary_reconciles_flat_tasks_without_double_counting_refresh(
         elapsed=42.0,
         time_str="42s",
         sections_generated=18,
-        docx_path="/out/report.docx",
+        docx_path=str(report),
         strategy=strategy,
     )
 
@@ -65,6 +68,7 @@ def test_standard_summary_reconciles_flat_tasks_without_double_counting_refresh(
     assert usage["pipeline_cost"] == 0.50
     assert usage["deep_research_cost"] == 2.50
     assert update_state.call_args.kwargs["actual_cost_usd"] == 5.50
+    assert update_state.call_args.kwargs["status"] == "completed"
     summary = dict(console.summary.call_args.args[0])
     assert summary["Cost"] == "$5.50"
     assert summary["Vendor Refresh"] == "1 task(s)  ~$2.50"
@@ -73,3 +77,14 @@ def test_standard_summary_reconciles_flat_tasks_without_double_counting_refresh(
     tracker.save.assert_called_once()
     job_log.assert_called_once()
     append_event.assert_called_once()
+
+
+def test_fulfillment_fails_when_result_path_is_missing(tmp_path):
+    from primr.core.cli_research_result import _fulfillment_status
+
+    missing = tmp_path / "gone.md"
+    present = tmp_path / "report.md"
+    present.write_text("# ok\n", encoding="utf-8")
+    assert _fulfillment_status(None, state_available=True, incomplete=False) == "failed"
+    assert _fulfillment_status(str(missing), state_available=True, incomplete=False) == "failed"
+    assert _fulfillment_status(str(present), state_available=True, incomplete=False) == "completed"

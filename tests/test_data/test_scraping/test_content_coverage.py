@@ -284,3 +284,15 @@ class TestPdfExtraction:
         reset_pdf_llm_budget()
         assert content_mod._pdf_llm_calls_made == 0
         assert content_mod._pdf_llm_bytes_sent == 0
+
+    def test_env_int_rejects_non_numeric(self, monkeypatch):
+        import primr.data.scraping.content as content_mod
+
+        monkeypatch.delenv("PRIMR_PDF_LLM_MAX_CALLS_UNSET", raising=False)
+        assert content_mod._env_int("PRIMR_PDF_LLM_MAX_CALLS_UNSET", 7) == 7
+        monkeypatch.setenv("PRIMR_PDF_LLM_MAX_CALLS", "true")
+        assert content_mod._env_int("PRIMR_PDF_LLM_MAX_CALLS", 0) == 0
+        monkeypatch.setenv("PRIMR_PDF_LLM_MAX_TOTAL_MB", "")
+        assert content_mod._env_int("PRIMR_PDF_LLM_MAX_TOTAL_MB", 40) == 40
+        monkeypatch.setenv("PRIMR_PDF_LLM_TIMEOUT_S", "nope")
+        assert content_mod._env_float("PRIMR_PDF_LLM_TIMEOUT_S", 60.0) == 60.0

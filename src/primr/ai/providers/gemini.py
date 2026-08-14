@@ -254,6 +254,9 @@ class GeminiProvider(Provider):
         Use a model-supported ``thinking_level`` and ``streaming`` (bool) via
         ``provider_kwargs`` to control Gemini-specific behaviour.
         """
+        from primr.utils.model_policy import require_model_calls_allowed
+
+        require_model_calls_allowed("gemini chat")
         client = self._get_client()
         system_instruction, contents = self._split_messages(messages)
         if not contents:

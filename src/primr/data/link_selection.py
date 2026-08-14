@@ -39,6 +39,22 @@ def build_link_selection_prompt(
     )
 
 
+def _heuristic_selected_urls(
+    links: list[Any],
+    max_links: int,
+    organization_type: str,
+) -> list[str]:
+    """Prefer research-valuable pages when a model cannot choose."""
+
+    try:
+        from primr.data.scraping.discovery import score_links_heuristically
+
+        scored = score_links_heuristically(list(links), organization_type=organization_type)
+        return [link.url for link in scored[:max_links]]
+    except Exception:
+        return [link.url for link in links[:max_links]]
+
+
 def select_links_with_llm(
     links: list[Any],
     company_name: str,
@@ -52,8 +68,10 @@ def select_links_with_llm(
 
     if not links:
         return []
-    if len(links) <= max_links or model_calls_disabled():
+    if len(links) <= max_links:
         return [link.url for link in links[:max_links]]
+    if model_calls_disabled():
+        return _heuristic_selected_urls(links, max_links, organization_type)
 
     link_list = []
     for link in links[:200]:
@@ -99,7 +117,7 @@ def select_links_with_llm(
     except Exception as exc:
         logger.warning("LLM link selection failed: %s, falling back to heuristic scoring", exc)
 
-    return [link.url for link in links[:max_links]]
+    return _heuristic_selected_urls(links, max_links, organization_type)
 
 
 __all__ = ["build_link_selection_prompt", "select_links_with_llm"]

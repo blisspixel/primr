@@ -108,6 +108,9 @@ class XAIProvider(OpenAICompatibleProvider):
     ) -> BrowseSummary | None:
         """Ask xAI Responses API to browse/search and summarize a URL."""
 
+        from primr.utils.model_policy import require_model_calls_allowed
+
+        require_model_calls_allowed("xAI browse")
         api_key = os.getenv(self._api_key_env)
         if not api_key:
             logger.debug("xAI browse skipped: API key not configured")

@@ -865,6 +865,15 @@ class TestSaveReportAndManifest:
         content = Path(path).read_text(encoding="utf-8")
         assert "## Overview" in content
         assert "body text" in content
+        assert "Strategic_Overview" in Path(path).name
+
+    @pytest.mark.asyncio
+    async def test_save_report_rejects_empty_content(self, runner, monkeypatch, tmp_path):
+        monkeypatch.setattr("primr.config.config.OUTPUT_DIR", str(tmp_path))
+        result = SimpleNamespace(raw_content="  \n", section_results={})
+        with pytest.raises(RuntimeError, match="no report content"):
+            await runner._save_report("Acme Corp", result)
+        assert list(tmp_path.glob("*.md")) == []
 
     def test_attach_generated_manifest_is_idempotent(self, server, runner, tmp_path):
         job = server.job_store.create("Acme", "full", owner_client_id="stdio")

@@ -617,12 +617,30 @@ def test_stage_usage_delta_prefers_fully_covered_exact_xai_cost() -> None:
     }
 
     delta = stage_usage_delta(before, after)
-
     assert delta["actual_input_tokens"] == 300_000
     assert delta["actual_output_tokens"] == 2_000
     assert delta["actual_cached_input_tokens"] == 100_000
     assert delta["actual_cost_usd"] == pytest.approx(0.462)
     assert delta["actual_usage_by_model"]["grok-4.6"]["actual_cost_usd"] == pytest.approx(0.462)
+
+
+def test_stage_usage_delta_does_not_price_unknown_models_as_zero() -> None:
+    before: dict = {}
+    after = {
+        "unknown-model-not-in-registry": {
+            "input_tokens": 100,
+            "output_tokens": 20,
+            "cached_input_tokens": 0,
+            "actual_cost_usd": 0.0,
+            "actual_cost_calls": 0,
+            "call_count": 1,
+        }
+    }
+    delta = stage_usage_delta(before, after)
+    assert delta["actual_cost_usd"] is None
+    assert (
+        delta["actual_usage_by_model"]["unknown-model-not-in-registry"]["actual_cost_usd"] is None
+    )
 
 
 def test_record_stage_route_usage_caps_history(tmp_path, monkeypatch) -> None:

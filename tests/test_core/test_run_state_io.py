@@ -88,22 +88,27 @@ class TestSaveRunState:
         path = tmp_path / "_run_state.json"
         path.write_text('{"old": true}', encoding="utf-8")
 
-        with patch(
-            "primr.core.run_state_io.atomic_replace",
-            side_effect=PermissionError("locked"),
+        with (
+            patch(
+                "primr.core.run_state_io.atomic_replace",
+                side_effect=PermissionError("locked"),
+            ),
+            pytest.raises(PermissionError),
         ):
             _save_run_state(str(tmp_path), {"new": True})
 
-        # Direct overwrite fallback should have replaced contents.
-        assert json.loads(path.read_text()) == {"new": True}
+        # Last good file must survive a locked replace.
+        assert json.loads(path.read_text()) == {"old": True}
 
     def test_fallback_cleans_up_temp_file(self, tmp_path):
-        with patch(
-            "primr.core.run_state_io.atomic_replace",
-            side_effect=PermissionError("locked"),
+        with (
+            patch(
+                "primr.core.run_state_io.atomic_replace",
+                side_effect=PermissionError("locked"),
+            ),
+            pytest.raises(PermissionError),
         ):
             _save_run_state(str(tmp_path), {"x": 1})
-        # No leftover *.tmp files
         leftovers = list(tmp_path.glob("*.tmp"))
         assert leftovers == []
 

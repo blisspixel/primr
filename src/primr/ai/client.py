@@ -204,6 +204,9 @@ class AIClient:
                 thinking_level="high"
             )
         """
+        from primr.utils.model_policy import require_model_calls_allowed
+
+        require_model_calls_allowed("AI client generation")
         # Validate inputs
         if not prompt or not prompt.strip():
             raise ValueError("prompt cannot be empty")

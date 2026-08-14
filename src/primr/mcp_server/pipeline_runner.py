@@ -509,19 +509,24 @@ class PipelineRunner:
         destination = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
         os.makedirs(destination, exist_ok=True)
 
-        # Generate filename
-        safe_name = company_name.replace(" ", "_").replace("/", "_")
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{safe_name}_{timestamp}.md"
+        from primr.utils.validators import sanitize_for_filename
+
+        safe_name = sanitize_for_filename(company_name, 200)
+        timestamp = datetime.now().strftime("%m-%d-%Y")
+        filename = f"{safe_name}_Strategic_Overview_{timestamp}.md"
         output_path = os.path.join(destination, filename)
 
-        # Write content
         content = result.raw_content or "\n\n".join(
-            f"## {k}\n\n{v}" for k, v in result.section_results.items()
+            f"## {k}\n\n{v}" for k, v in (getattr(result, "section_results", None) or {}).items()
         )
+        if not str(content).strip():
+            raise RuntimeError("Research produced no report content")
 
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write(content)
+        from primr.utils.atomic_io import atomic_write_text
+
+        atomic_write_text(output_path, str(content))
+        if not Path(output_path).is_file() or Path(output_path).stat().st_size <= 0:
+            raise RuntimeError(f"Report write produced no file: {output_path}")
 
         logger.info(f"Report saved to {output_path}")
         return output_path
@@ -675,13 +680,15 @@ def _reconcile_actual_cost(
     usage_baseline: dict[str, dict[str, int | float]],
     *,
     deep_research_tasks_started: int = 0,
-) -> float:
+) -> float | None:
     """Combine run-scoped model deltas with accepted Deep Research tasks."""
     from primr.ai.stage_routing import stage_usage_delta
     from primr.core.deep_budget import deep_research_flat_cost
 
     usage = stage_usage_delta(usage_baseline)
-    model_cost = float(usage.get("actual_cost_usd", 0.0))
+    if "actual_cost_usd" in usage and usage.get("actual_cost_usd") is None:
+        return None
+    model_cost = float(usage.get("actual_cost_usd") or 0.0)
     return round(model_cost + deep_research_flat_cost(deep_research_tasks_started), 8)
 
 

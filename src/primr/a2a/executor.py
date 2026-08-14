@@ -43,11 +43,13 @@ from primr.a2a.status_events import status_update_event as _status_update_event
 from primr.a2a.types import A2ATaskMapping
 from primr.mcp_server import research_validation
 from primr.mcp_server.approval_tokens import (
+    bind_runtime_budget,
     enforce_approval_token,
     issue_approval_token,
     research_approval_args,
 )
 from primr.mcp_server.doctor_status import get_doctor_status
+from primr.mcp_server.job_responses import on_disk_artifacts_available
 from primr.mcp_server.platforms import normalize_platform
 from primr.mcp_server.qa_operations import run_qa_analysis
 from primr.mcp_server.research_policy import (
@@ -419,7 +421,10 @@ class PrimrAgentExecutor(AgentExecutor):
             await event_queue.enqueue_event(new_agent_text_message(json.dumps(payload)))
             return payload
 
-        budget_usd = coerce_budget_usd(max_estimated_cost_usd)
+        budget_usd = bind_runtime_budget(
+            coerce_budget_usd(max_estimated_cost_usd),
+            arguments.get("approval_token"),
+        )
 
         # Create job in the shared job store
         try:
@@ -655,7 +660,7 @@ class PrimrAgentExecutor(AgentExecutor):
                     started_at=terminal.start_time,
                     updated_at=terminal.last_heartbeat_time,
                     completed_at=terminal.completion_time,
-                    artifacts_available=bool(terminal.output_paths),
+                    artifacts_available=on_disk_artifacts_available(terminal.output_paths),
                     error_message=terminal.error_message,
                     error_code=terminal.error_type,
                     error_source="agent_job" if terminal.error_message else None,
@@ -670,7 +675,7 @@ class PrimrAgentExecutor(AgentExecutor):
                     else "finished",
                     "artifact_metadata_uri": (f"primr://output/artifacts/by_job/{terminal.job_id}"),
                     "report_read_uri": f"primr://output/report/by_job/{terminal.job_id}",
-                    "output_paths_available": bool(terminal.output_paths),
+                    "output_paths_available": on_disk_artifacts_available(terminal.output_paths),
                 }
             else:
                 result = {

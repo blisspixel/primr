@@ -62,8 +62,10 @@ IDENTITY_PROVIDER_SLUGS: dict[str, str] = {
 }
 
 AZURE_SLUGS = {"azure-dns", "azure-cdn", "azure-appservice", "azure-tm"}
-AWS_SLUGS = {"aws-route53", "aws-cloudfront", "aws-ses", "aws-acm"}
-GCP_SLUGS = {"gcp-dns", "google-trust"}
+# Align with platform_mapper: SES/ACM/Google Trust are email/cert signals,
+# not enough to declare a primary cloud for strategy.
+AWS_SLUGS = {"aws-route53", "aws-cloudfront"}
+GCP_SLUGS = {"gcp-dns"}
 
 SECURITY_SLUGS = {
     "crowdstrike",

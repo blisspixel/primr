@@ -297,7 +297,11 @@ class ReportAnalyzer:
 
         # Check for citations section
         has_citations_section = bool(
-            re.search(r"^##\s+(Citations|References|Sources)", self.content, re.MULTILINE)
+            re.search(
+                r"^#{1,3}\s+(Citations|References|Sources)",
+                self.content,
+                re.MULTILINE,
+            )
         )
 
         # Find defined citations in bibliography section only (not the whole report)
@@ -308,7 +312,9 @@ class ReportAnalyzer:
             # above and scan_citation_integrity. Anchoring with \s*$ here zeroed
             # the citation grade component whenever the heading carried a suffix.
             bib_match = re.search(
-                r"^##\s+(?:Citations|References|Sources)\b.*$", self.content, re.MULTILINE
+                r"^#{1,3}\s+(?:Citations|References|Sources)\b.*$",
+                self.content,
+                re.MULTILINE,
             )
             if bib_match:
                 bibliography_text = self.content[bib_match.start() :]
@@ -338,8 +344,11 @@ class ReportAnalyzer:
         - ai_strategy: strategy-oriented sections (Executive Summary, Recommendations, etc.)
         - unknown: minimal common sections
         """
-        # Count sections
-        sections = re.findall(r"^##\s+(.+)$", self.content, re.MULTILINE)
+        # Count sections. Prefer ## outlines; host-written Zero reports often
+        # use H1 for the 23 numbered sections and would otherwise look empty.
+        h2_sections = re.findall(r"^##\s+(.+)$", self.content, re.MULTILINE)
+        h1_sections = re.findall(r"^#\s+(.+)$", self.content, re.MULTILINE)
+        sections = h2_sections if h2_sections else h1_sections
         subsections = re.findall(r"^###\s+(.+)$", self.content, re.MULTILINE)
 
         # Check for duplicate section titles (case-insensitive)

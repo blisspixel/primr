@@ -574,7 +574,9 @@ class TestParseArgs:
             kwargs["run_context"]["working_folder"] = str(tmp_path)
             persist_strategy_outcome(str(tmp_path), StrategyOutcomeTracker(()).snapshot())
             persist_vendor_refresh_outcome(str(tmp_path), VendorRefreshTracker(()).snapshot())
-            return "report.docx"
+            report = tmp_path / "report.docx"
+            report.write_bytes(b"PK")
+            return str(report)
 
         with (
             patch("primr.core.cli._run_preflight_checks", return_value=(True, [])),

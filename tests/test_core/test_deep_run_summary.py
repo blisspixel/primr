@@ -17,6 +17,7 @@ import pytest
 from primr.core.deep_run_summary import (
     finalize_deep_run,
     publish_partial_deep_report,
+    record_deep_terminal_status,
     resolve_deep_report_artifacts,
 )
 
@@ -42,6 +43,28 @@ def test_resolve_deep_report_artifacts_falls_back_to_markdown(tmp_path):
         [text, markdown],
         str(text),
     )
+
+
+def test_record_deep_terminal_status_fails_without_durable_file(tmp_path):
+    folder = tmp_path / "run"
+    folder.mkdir()
+    status = record_deep_terminal_status(str(folder), None, elapsed=1.0, time_str="1s")
+    assert status == "failed"
+    from primr.core.run_state_io import _load_run_state
+
+    assert _load_run_state(str(folder))["status"] == "failed"
+
+
+def test_record_deep_terminal_status_completes_when_file_exists(tmp_path):
+    folder = tmp_path / "run"
+    folder.mkdir()
+    report = tmp_path / "report.md"
+    report.write_text("# Overview\n", encoding="utf-8")
+    status = record_deep_terminal_status(str(folder), str(report), elapsed=2.0, time_str="2s")
+    assert status == "completed"
+    from primr.core.run_state_io import _load_run_state
+
+    assert _load_run_state(str(folder))["status"] == "completed"
 
 
 def test_publish_partial_deep_report_acknowledges_durable_output(tmp_path, monkeypatch):

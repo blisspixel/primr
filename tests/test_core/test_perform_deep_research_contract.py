@@ -251,6 +251,7 @@ class TestSuccessPath:
         seams["docx"].return_value = None
         assert _run(seams) is None
         seams["acknowledge"].assert_not_called()
+        assert _read_state(seams["folder"])["status"] == "failed"
 
     def test_docx_gate_failure_returns_durable_markdown(self, seams):
         markdown_path = seams["out_dir"] / "deep.md"
