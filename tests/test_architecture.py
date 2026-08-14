@@ -58,7 +58,7 @@ FILE_LINE_CEILINGS: dict[str, int] = {
     # These ceilings track the current measured sizes and may only shrink.
     "core/research_agent.py": 4302,
     "core/cli.py": 2573,
-    "ai/deep_research.py": 3817,
+    "ai/deep_research.py": 3813,
     "data/scraping/browsers.py": 1835,
     "data/hiring_signals.py": 1577,
     "core/model_eval.py": 1832,
