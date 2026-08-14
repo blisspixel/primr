@@ -30,6 +30,10 @@ def seams(monkeypatch, tmp_path):
     run_folder = tmp_path / "working" / "acme"
     run_folder.mkdir(parents=True)
     out_dir = tmp_path / "output"
+    out_dir.mkdir()
+    (out_dir / "report.docx").write_bytes(b"PK")
+    (out_dir / "insights.md").write_text("# insights\n", encoding="utf-8")
+    (out_dir / "deep.docx").write_bytes(b"PK")
 
     monkeypatch.setenv("XAI_API_KEY", "fake-xai-key-for-tests")
     monkeypatch.setattr(research_agent, "create_working_folder", lambda c, w, **k: str(run_folder))

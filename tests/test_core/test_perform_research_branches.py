@@ -113,8 +113,10 @@ class TestDispatch:
         assert result == "/path/to/fast_report.docx"
         assert fast_mock.call_args.kwargs["refresh_vendor_research"] is True
 
-    def test_fast_mode_verify_runs_claim_verification(self, isolated_run, monkeypatch):
-        fast_mock = MagicMock(return_value="/path/to/fast_report.docx")
+    def test_fast_mode_verify_runs_claim_verification(self, isolated_run, monkeypatch, tmp_path):
+        report = tmp_path / "fast_report.docx"
+        report.write_bytes(b"PK")
+        fast_mock = MagicMock(return_value=str(report))
         verify_mock = MagicMock()
         monkeypatch.setattr("primr.core.research_agent.perform_fast_research", fast_mock)
         monkeypatch.setattr(
@@ -131,7 +133,7 @@ class TestDispatch:
             verify=True,
         )
 
-        assert result == "/path/to/fast_report.docx"
+        assert result == str(report)
         verify_mock.assert_called_once_with("Acme", "https://acme.example", result)
 
     def test_dispatches_to_scrape_only_for_scrape_mode(self, isolated_run, monkeypatch):

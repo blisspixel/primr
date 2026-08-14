@@ -51,6 +51,7 @@ LINK_SELECTION_PATTERNS = [
 ALLOWED_FILES = {
     "src/primr/data/scrape.py",  # fetch_web_content (build_site_corpus)
     "src/primr/data/scraping/discovery.py",  # Discovery module (called by fetch_web_content)
+    "src/primr/data/link_selection.py",  # Selector used by fetch_web_content
     "tests/",  # Test files
 }
 
