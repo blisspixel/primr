@@ -87,6 +87,9 @@ def chat_completion(
     capacity_retry_attempt: int = 0,
 ) -> ChatCompletionResult:
     """Call an OpenAI-compatible chat completions endpoint and normalize the result."""
+    from primr.utils.model_policy import require_model_calls_allowed
+
+    require_model_calls_allowed("OpenAI-compatible chat")
     try:
         import openai
     except ImportError as exc:

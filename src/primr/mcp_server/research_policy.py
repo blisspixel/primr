@@ -45,10 +45,10 @@ def build_research_estimate(arguments: dict[str, Any]) -> dict[str, Any]:
     premium_mode = mode == "premium"
     # Match CLI resolve: full mode with xAI uses the hybrid/fast Grok path.
     fast_mode = mode == "full" and bool(os.environ.get("XAI_API_KEY"))
-    grok_tier = str(arguments.get("grok_tier") or "hybrid")
-    if grok_tier not in {"fast", "hybrid", "max"}:
-        grok_tier = "hybrid"
-    lite_strategy = bool(arguments.get("lite_strategy", False))
+    # Extra JSON fields are not worker inputs. Pricing only the default
+    # hybrid/full shape prevents under-approval via unbound kwargs.
+    grok_tier = "hybrid"
+    lite_strategy = False
 
     no_ai_strategy = arguments.get("no_ai_strategy", False)
     include_ai_strategy = not no_ai_strategy and mode in ("full", "premium")

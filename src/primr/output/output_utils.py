@@ -122,9 +122,24 @@ def apply_inline_formatting(paragraph, text):
         paragraph.add_run(text[last_end:])
 
 
-def load_section_results(company_name: str) -> dict[str, str]:
-    """Loads section data from the most recent working/{company_name}/ run folder."""
+def load_section_results(
+    company_name: str, folder_path: str | Path | None = None
+) -> dict[str, str]:
+    """Load section data from ``folder_path`` or the newest company working folder."""
     section_results: dict[str, str] = {}
+    if folder_path is not None:
+        search_dir = str(folder_path)
+        if not os.path.isdir(search_dir):
+            console.error(f"Working directory not found: {search_dir}")
+            return section_results
+        console.info(f"Loading section data from: {search_dir}")
+        for _section_title, section_key in SECTION_KEY_MAP.items():
+            file_path = os.path.join(search_dir, f"{section_key}.txt")
+            if os.path.exists(file_path):
+                with open(file_path, encoding="utf-8") as f:
+                    section_results[section_key] = f.read().strip()
+        return section_results
+
     working_dir = str(_safe_working_subdir(company_name))
 
     if not os.path.exists(working_dir):
@@ -265,7 +280,7 @@ def save_incomplete_markdown_report(
     if not markdown_content.strip():
         return None
     date_str = datetime.now().strftime("%m-%d-%Y")
-    base_name = f"{sanitize_for_filename(company_name, 200)}_Strategic_Overview_{date_str}"
+    base_name = f"{sanitize_for_filename(company_name, 200)}_Incomplete_Overview_{date_str}"
     destination = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
     destination.mkdir(parents=True, exist_ok=True)
     content = (
@@ -535,13 +550,9 @@ def zip_research_files(company_name):
 
 
 def cleanup(company_name):
-    """Handles cleanup tasks: generates ZIP archive and removes temporary working files."""
+    """Archive working files. Keep the run folder for resume and diagnostics."""
     try:
         zip_research_files(company_name)
-        company_folder = str(_safe_working_subdir(company_name))
-        if os.path.exists(company_folder):
-            shutil.rmtree(company_folder)
-
     except Exception as e:
         console.warn(f"Cleanup incomplete: {e}")
 
@@ -553,6 +564,7 @@ def generate_final_report(
     output_dir: str | Path | None = None,
     diagnostics_dir: str | Path | None = None,
     write_txt: bool = True,
+    folder_path: str | Path | None = None,
 ) -> str | None:
     """
     Generates the final structured report in TXT, DOCX, and ZIP archive formats.
@@ -566,7 +578,7 @@ def generate_final_report(
     Returns:
         Path to generated DOCX file, or None on failure
     """
-    section_results = load_section_results(company_name)
+    section_results = load_section_results(company_name, folder_path=folder_path)
     if not section_results:
         console.error("No section data available for report")
         return None

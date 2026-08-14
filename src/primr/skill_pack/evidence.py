@@ -89,12 +89,16 @@ def _collect_recon(company_url: str, working_dir: Path) -> str | None:
         from recon_tool.resolver import resolve_tenant
 
         from primr.core.recon_context import format_recon_context
+        from primr.utils.async_utils import run_sync_new_loop
+        from primr.utils.atomic_io import atomic_write_text
     except ImportError as exc:
         logger.warning("recon-tool unavailable — skipping recon: %s", exc)
         return None
 
     try:
-        info, _ = asyncio.run(asyncio.wait_for(resolve_tenant(domain), timeout=20.0))
+        # MCP generate_skill_pack and other async callers already have a loop.
+        # asyncio.run() would fail there and silently drop DNS/tenant evidence.
+        info, _ = run_sync_new_loop(asyncio.wait_for(resolve_tenant(domain), timeout=20.0))
     except Exception as exc:
         logger.warning("Recon failed for %s: %s", domain, exc)
         return None
@@ -102,7 +106,7 @@ def _collect_recon(company_url: str, working_dir: Path) -> str | None:
     try:
         text = format_recon_context(info)
         out_path = working_dir / "_recon_context.txt"
-        out_path.write_text(text, encoding="utf-8")
+        atomic_write_text(out_path, text)
         logger.info("Wrote recon context to %s", out_path)
         return str(out_path)
     except Exception as exc:

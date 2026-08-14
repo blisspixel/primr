@@ -58,6 +58,11 @@ def parse_bool(value: Any, *, default: bool = False) -> bool:
     return bool(value)
 
 
+def on_disk_artifacts_available(paths: list[str] | None) -> bool:
+    """True when at least one listed path exists as a file."""
+    return any(Path(str(path)).is_file() for path in (paths or []))
+
+
 def include_artifacts_requested(arguments: dict[str, Any], *, local_stdio: bool) -> bool:
     """Return whether `check_jobs` should include inline artifact bodies."""
     return parse_bool(arguments.get("include_artifacts"), default=local_stdio)
@@ -66,6 +71,8 @@ def include_artifacts_requested(arguments: dict[str, Any], *, local_stdio: bool)
 def classify_output_artifact(path: Path) -> str:
     """Classify a report output path using the existing MCP artifact labels."""
     name_lower = path.stem.lower()
+    if "working_brief" in name_lower:
+        return "working_brief"
     if "ai_strategy" in name_lower or "ai-strategy" in name_lower:
         return "ai_strategy"
     if "customer_experience" in name_lower:
@@ -85,6 +92,8 @@ def artifact_matches_filter(artifact_type: str, artifact_filter: str) -> bool:
         return True
     if artifact_filter == "strategy":
         return artifact_type.endswith("_strategy") or artifact_type == "ai_strategy"
+    if artifact_filter == "working_brief":
+        return artifact_type == "working_brief"
     return artifact_type in {"strategic_overview", "report"}
 
 
@@ -174,9 +183,7 @@ def build_job_response(
         updated_at=job.last_heartbeat_time,
         completed_at=job.completion_time,
         artifacts_available=(
-            any(Path(str(p)).is_file() for p in (job.output_paths or []))
-            if status == "completed"
-            else None
+            on_disk_artifacts_available(job.output_paths) if status == "completed" else None
         ),
         error_message=job.error_message,
         error_code=job.error_type,

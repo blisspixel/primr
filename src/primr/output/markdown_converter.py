@@ -249,6 +249,99 @@ def strip_markdown_header_block(markdown_text: str) -> str:
     return "\n".join(lines[i:])
 
 
+def _is_blockquote_line(line: str) -> bool:
+    return line.strip().startswith(">")
+
+
+def _blockquote_text(line: str) -> str:
+    stripped = line.strip()
+    if stripped.startswith(">"):
+        return stripped[1:].lstrip()
+    return ""
+
+
+def _render_code_block(doc: Document, code_lines: list[str]) -> None:
+    """Render a fenced code block as a monospaced paragraph."""
+    text = sanitize_text("\n".join(code_lines))
+    paragraph = doc.add_paragraph()
+    run = paragraph.add_run(text)
+    run.font.name = "Consolas"
+    run.font.size = Pt(10)
+
+
+def _render_body_lines(doc: Document, lines: list[str], *, allow_h1: bool) -> None:
+    """Render markdown body lines into ``doc``. Shared by full and section renders."""
+    i = 0
+    in_table = False
+    table_lines: list[str] = []
+    while i < len(lines):
+        line = lines[i]
+        if not line.strip() and not in_table:
+            i += 1
+            continue
+        stripped = line.strip()
+        if not in_table and stripped.startswith("```"):
+            code_lines: list[str] = []
+            i += 1
+            while i < len(lines) and not lines[i].strip().startswith("```"):
+                code_lines.append(lines[i])
+                i += 1
+            _render_code_block(doc, code_lines)
+            if i < len(lines):
+                i += 1
+            continue
+        if "|" in line and not in_table:
+            next_line = lines[i + 1] if i + 1 < len(lines) else ""
+            if _is_table_separator(line) or _is_table_separator(next_line):
+                in_table = True
+                table_lines = [line]
+                i += 1
+                continue
+        if in_table:
+            if "|" in line:
+                table_lines.append(line)
+                i += 1
+                continue
+            _flush_table_block(doc, table_lines)
+            in_table = False
+            table_lines = []
+            continue
+        if stripped.startswith("#### "):
+            doc.add_heading(strip_heading_markers(stripped[5:]), level=4)
+        elif stripped.startswith("### "):
+            doc.add_heading(strip_heading_markers(stripped[4:]), level=3)
+        elif stripped.startswith("## "):
+            doc.add_heading(strip_heading_markers(stripped[3:]), level=2)
+        elif allow_h1 and stripped.startswith("# "):
+            doc.add_heading(strip_heading_markers(stripped[2:]), level=1)
+        elif _is_blockquote_line(line):
+            quote_parts = [_blockquote_text(line)]
+            j = i + 1
+            while j < len(lines) and _is_blockquote_line(lines[j]):
+                quote_parts.append(_blockquote_text(lines[j]))
+                j += 1
+            paragraph = doc.add_paragraph(style="Quote")
+            parse_inline_markdown(paragraph, "\n".join(quote_parts))
+            i = j
+            continue
+        elif stripped.startswith(("- ", "* ")):
+            paragraph = doc.add_paragraph(style="List Bullet")
+            parse_inline_markdown(paragraph, stripped[2:].strip())
+        elif re.match(r"^\d+[.)]\s", stripped):
+            match = re.match(r"^\d+[.)]\s+(.*)", stripped)
+            if match:
+                paragraph = doc.add_paragraph(style="List Number")
+                parse_inline_markdown(paragraph, match.group(1))
+        elif stripped.startswith("---"):
+            pass
+        elif stripped:
+            paragraph = doc.add_paragraph()
+            parse_inline_markdown(paragraph, stripped)
+        i += 1
+    if in_table and table_lines:
+        _flush_table_block(doc, table_lines)
+
+
 def setup_document_styles(doc: Document) -> None:
     """
     Set up consistent document styles.
@@ -339,88 +432,7 @@ def markdown_to_docx(
     if title:
         content = strip_markdown_header_block(markdown_text)
 
-    # Process markdown
-    lines = content.split("\n")
-    i = 0
-    in_table = False
-    table_lines = []
-    while i < len(lines):
-        line = lines[i]
-        # Skip empty lines
-        if not line.strip() and not in_table:
-            i += 1
-            continue
-        # Table detection
-        if "|" in line and not in_table:
-            # Only start a table when this line or the next is a |---| separator
-            # row (real markdown tables have one). Otherwise a heading/bullet/
-            # prose line that merely contains "|" was buffered as a table and
-            # flushed as a plain paragraph, leaking literal "## "/"- " markers
-            # and losing the heading/list structure.
-            _next_line = lines[i + 1] if i + 1 < len(lines) else ""
-            if _is_table_separator(line) or _is_table_separator(_next_line):
-                in_table = True
-                table_lines = [line]
-                i += 1
-                continue
-        if in_table:
-            if "|" in line:
-                table_lines.append(line)
-                i += 1
-                continue
-            else:
-                _flush_table_block(doc, table_lines)
-                in_table = False
-                table_lines = []
-                continue
-        # H1-H4 (strip leading whitespace for detection)
-        stripped = line.strip()
-        if stripped.startswith("#### "):
-            heading = strip_heading_markers(stripped[5:])
-            doc.add_heading(heading, level=4)
-        elif stripped.startswith("### "):
-            heading = strip_heading_markers(stripped[4:])
-            doc.add_heading(heading, level=3)
-        elif stripped.startswith("## "):
-            heading = strip_heading_markers(stripped[3:])
-            doc.add_heading(heading, level=2)
-        elif stripped.startswith("# "):
-            heading = strip_heading_markers(stripped[2:])
-            doc.add_heading(heading, level=1)
-        # Blockquote
-        elif line.strip().startswith("> "):
-            quote_text = line.strip()[2:].strip()
-            j = i + 1
-            while j < len(lines) and lines[j].strip().startswith("> "):
-                quote_text += "\n" + lines[j].strip()[2:].strip()
-                j += 1
-            p = doc.add_paragraph(style="Quote")
-            parse_inline_markdown(p, quote_text)
-            i = j - 1
-        # Bullet point (single level only)
-        elif line.strip().startswith("- ") or line.strip().startswith("* "):
-            bullet_text = line.strip()[2:].strip()
-            p = doc.add_paragraph(style="List Bullet")
-            parse_inline_markdown(p, bullet_text)
-        # Numbered list
-        elif re.match(r"^\d+[.)]\s", line.strip()):
-            match = re.match(r"^\d+[.)]\s+(.*)", line.strip())
-            if match:
-                p = doc.add_paragraph(style="List Number")
-                parse_inline_markdown(p, match.group(1))
-        # Horizontal rule - skip
-        elif line.strip().startswith("---"):
-            pass
-        # Regular paragraph
-        else:
-            para_text = line.strip()
-            if para_text:
-                p = doc.add_paragraph()
-                parse_inline_markdown(p, para_text)
-        i += 1
-    # Handle remaining table
-    if in_table and table_lines:
-        _flush_table_block(doc, table_lines)
+    _render_body_lines(doc, content.split("\n"), allow_h1=True)
     doc.save(output_path)
     return output_path
 
@@ -436,81 +448,4 @@ def render_section_content(doc: Document, content: str) -> None:
         doc: Existing Document object
         content: Markdown content to render
     """
-    lines = content.split("\n")
-    i = 0
-    in_table = False
-    table_lines = []
-    while i < len(lines):
-        line = lines[i]
-        # Skip empty lines
-        if not line.strip() and not in_table:
-            i += 1
-            continue
-        # Table detection
-        if "|" in line and not in_table:
-            # Only start a table when this line or the next is a |---| separator
-            # row (real markdown tables have one). Otherwise a heading/bullet/
-            # prose line that merely contains "|" was buffered as a table and
-            # flushed as a plain paragraph, leaking literal "## "/"- " markers
-            # and losing the heading/list structure.
-            _next_line = lines[i + 1] if i + 1 < len(lines) else ""
-            if _is_table_separator(line) or _is_table_separator(_next_line):
-                in_table = True
-                table_lines = [line]
-                i += 1
-                continue
-        if in_table:
-            if "|" in line:
-                table_lines.append(line)
-                i += 1
-                continue
-            else:
-                _flush_table_block(doc, table_lines)
-                in_table = False
-                table_lines = []
-                continue
-        # H2-H4 (strip leading whitespace for detection)
-        stripped = line.strip()
-        if stripped.startswith("#### "):
-            heading = strip_heading_markers(stripped[5:])
-            doc.add_heading(heading, level=4)
-        elif stripped.startswith("### "):
-            heading = strip_heading_markers(stripped[4:])
-            doc.add_heading(heading, level=3)
-        elif stripped.startswith("## "):
-            heading = strip_heading_markers(stripped[3:])
-            doc.add_heading(heading, level=2)
-        # Blockquote
-        elif line.strip().startswith("> "):
-            quote_text = line.strip()[2:].strip()
-            j = i + 1
-            while j < len(lines) and lines[j].strip().startswith("> "):
-                quote_text += "\n" + lines[j].strip()[2:].strip()
-                j += 1
-            p = doc.add_paragraph(style="Quote")
-            parse_inline_markdown(p, quote_text)
-            i = j - 1
-        # Bullet point
-        elif line.strip().startswith("- ") or line.strip().startswith("* "):
-            bullet_text = line.strip()[2:].strip()
-            p = doc.add_paragraph(style="List Bullet")
-            parse_inline_markdown(p, bullet_text)
-        # Numbered list
-        elif re.match(r"^\d+[.)]\s", line.strip()):
-            match = re.match(r"^\d+[.)]\s+(.*)", line.strip())
-            if match:
-                p = doc.add_paragraph(style="List Number")
-                parse_inline_markdown(p, match.group(1))
-        # Horizontal rule - skip
-        elif line.strip().startswith("---"):
-            pass
-        # Regular paragraph
-        else:
-            para_text = line.strip()
-            if para_text:
-                p = doc.add_paragraph()
-                parse_inline_markdown(p, para_text)
-        i += 1
-    # Handle remaining table
-    if in_table and table_lines:
-        _flush_table_block(doc, table_lines)
+    _render_body_lines(doc, content.split("\n"), allow_h1=False)

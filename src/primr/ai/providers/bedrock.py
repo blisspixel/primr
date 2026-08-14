@@ -161,6 +161,9 @@ class BedrockProvider(Provider):
         retries: int = DEFAULT_RETRIES,
         **provider_kwargs: Any,
     ) -> ChatResponse:
+        from primr.utils.model_policy import require_model_calls_allowed
+
+        require_model_calls_allowed("bedrock chat")
         client = self._runtime_client()
         system_blocks, converse_messages = self._split_messages(messages)
         if not converse_messages:

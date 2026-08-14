@@ -42,7 +42,10 @@ def scrape_with_vision(
     Returns:
         ScrapeResult with extracted_text from vision, raw_content=screenshot bytes
     """
+    from primr.utils.model_policy import require_model_calls_allowed
     from primr.utils.validators import validate_url_for_request
+
+    require_model_calls_allowed("vision scrape")
 
     is_valid, normalized_url, error = validate_url_for_request(url)
     if not is_valid:

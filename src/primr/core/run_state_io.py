@@ -7,10 +7,9 @@ uses to persist phase progress, append timeline events, and record
 resilience signals (model health / recovery events / background aborts).
 
 All helpers are crash-tolerant: corrupt or missing files return an empty
-state rather than raising, and `_save_run_state` retries an atomic
-replace (via `primr.utils.atomic_io.atomic_replace`) before falling back
-to a direct overwrite so Windows file-lock contention does not abort a
-long-running pipeline.
+state rather than raising. `_save_run_state` retries an atomic replace
+(via `primr.utils.atomic_io.atomic_replace`) and keeps the last good file
+when Windows file locks persist, instead of truncating in place.
 """
 
 from __future__ import annotations
@@ -121,13 +120,11 @@ def _save_run_state(folder_path: str, state: dict[str, Any]) -> None:
                 return
             except PermissionError as exc:
                 logger.warning(
-                    "Atomic run state save failed for %s; falling back to direct overwrite: %s",
+                    "Atomic run state save failed for %s; keeping last good file: %s",
                     path,
                     exc,
                 )
-
-            with open(path, "w", encoding="utf-8") as handle:
-                handle.write(payload)
+                raise
         finally:
             with suppress(OSError):
                 os.remove(tmp)
