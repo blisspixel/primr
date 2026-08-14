@@ -642,7 +642,9 @@ Write the **{section["title"]}** section now:"""
 
         try:
             from primr.config.models import PrimrModels
+            from primr.utils.model_policy import require_model_calls_allowed
 
+            require_model_calls_allowed("accordion flash write")
             response = self._client.models.generate_content(
                 model=PrimrModels.FLASH_MODEL,
                 contents=prompt,
@@ -672,10 +674,11 @@ Write the **{section["title"]}** section now:"""
         self._api_call_count += 1
         start_time = time.time()
 
-        # Import centralized model config
         from primr.config.models import PrimrModels
+        from primr.utils.model_policy import require_model_calls_allowed
 
         try:
+            require_model_calls_allowed("accordion deep research")
             if on_progress:
                 on_progress("Starting Deep Research...")
 

@@ -23,9 +23,11 @@ Structural notes:
 
 from __future__ import annotations
 
+import json
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from primr.ai.summarize import summarize_scraped_content
@@ -39,6 +41,9 @@ from primr.utils.observability import log_structured
 from primr.utils.url_helpers import normalized_hostname
 
 logger = get_logger("core.fast_run_collection")
+
+_COLLECTION_CACHE_NAME = "_collection_cache.json"
+_COLLECTION_CACHE_VERSION = 1
 
 
 def _emit_working_brief_after_collection(
@@ -93,6 +98,99 @@ class DataCollectionResult:
     recovery_executor: Any = None
 
 
+def _collection_cache_path(folder_path: str) -> Path:
+    return Path(folder_path) / _COLLECTION_CACHE_NAME
+
+
+def _new_recovery_executor(folder_path: str) -> Any:
+    from primr.pipeline.integration import create_pipeline_executor
+
+    listener = _build_resilience_event_listener(folder_path)
+    return create_pipeline_executor(folder_path, event_listener=listener)
+
+
+def _pools_from_external_data(
+    external_data: dict[str, str],
+) -> tuple[list[str], set[str], list[str], list[str]]:
+    source_urls: list[str] = []
+    source_urls_seen: set[str] = set()
+    external_text_parts: list[str] = []
+    external_raw_parts: list[str] = []
+    for url, content in external_data.items():
+        source_urls.append(url)
+        source_urls_seen.add(url)
+        external_text_parts.append(f"[Source: {url}]\n{content[:12_000]}")
+        external_raw_parts.append(f"[Source: {url}]\n{content[:20_000]}")
+    return source_urls, source_urls_seen, external_text_parts, external_raw_parts
+
+
+def _load_collection_cache(folder_path: str) -> DataCollectionResult | None:
+    """Return a durable collection snapshot when it is a nonempty regular file."""
+    path = _collection_cache_path(folder_path)
+    try:
+        if not path.is_file() or path.stat().st_size <= 0:
+            return None
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeError):
+        logger.warning("Collection cache unreadable; re-running collection")
+        return None
+    if not isinstance(payload, dict) or payload.get("version") != _COLLECTION_CACHE_VERSION:
+        return None
+    scraped_data = payload.get("scraped_data")
+    external_data = payload.get("external_data")
+    summarized = payload.get("summarized")
+    raw_corpus = payload.get("raw_corpus")
+    if not isinstance(scraped_data, dict) or not isinstance(external_data, dict):
+        return None
+    if not isinstance(summarized, str) or not isinstance(raw_corpus, str):
+        return None
+    if not scraped_data and not external_data and not summarized.strip():
+        return None
+    scraped_text = {str(url): str(text) for url, text in scraped_data.items()}
+    external_text = {str(url): str(text) for url, text in external_data.items()}
+    source_urls, source_urls_seen, external_text_parts, external_raw_parts = (
+        _pools_from_external_data(external_text)
+    )
+    return DataCollectionResult(
+        scraped_data=scraped_text,
+        pages_scraped=int(payload.get("pages_scraped") or len(scraped_text)),
+        summarized=summarized,
+        raw_corpus=raw_corpus,
+        total_scraped_chars=int(
+            payload.get("total_scraped_chars") or sum(len(v or "") for v in scraped_text.values())
+        ),
+        external_data=external_text,
+        external_query_count=int(payload.get("external_query_count") or 0),
+        source_urls=source_urls,
+        source_urls_seen=source_urls_seen,
+        external_text_parts=external_text_parts,
+        external_raw_parts=external_raw_parts,
+        recovery_executor=_new_recovery_executor(folder_path),
+    )
+
+
+def _write_collection_cache(folder_path: str, result: DataCollectionResult) -> None:
+    payload = {
+        "version": _COLLECTION_CACHE_VERSION,
+        "scraped_data": result.scraped_data,
+        "pages_scraped": result.pages_scraped,
+        "summarized": result.summarized,
+        "raw_corpus": result.raw_corpus,
+        "total_scraped_chars": result.total_scraped_chars,
+        "external_data": result.external_data,
+        "external_query_count": result.external_query_count,
+    }
+    try:
+        from primr.utils.atomic_io import atomic_write_text
+
+        atomic_write_text(
+            _collection_cache_path(folder_path),
+            json.dumps(payload, ensure_ascii=False),
+        )
+    except OSError:
+        logger.warning("Could not persist collection cache for resume")
+
+
 def collect_research_data(
     *,
     company_name: str | None,
@@ -100,8 +198,32 @@ def collect_research_data(
     folder_path: str,
     total_phases: int,
     public_output_dir: str | None = None,
+    resume_local: bool = False,
 ) -> DataCollectionResult:
     """Scrape the site, search + validate external sources, seed the pools."""
+    if resume_local:
+        cached = _load_collection_cache(folder_path)
+        if cached is not None:
+            console.info("Resuming: reusing cached collection (no scrape/summarize/search)")
+            return cached
+    return _collect_research_data_fresh(
+        company_name=company_name,
+        website=website,
+        folder_path=folder_path,
+        total_phases=total_phases,
+        public_output_dir=public_output_dir,
+    )
+
+
+def _collect_research_data_fresh(
+    *,
+    company_name: str | None,
+    website: str | None,
+    folder_path: str,
+    total_phases: int,
+    public_output_dir: str | None = None,
+) -> DataCollectionResult:
+    """Run paid collection and persist a resume cache."""
     from primr.core.research_agent import _assess_source_relevance
 
     scan_domain = normalized_hostname(website or "", strip_www=True) or "website"
@@ -375,7 +497,7 @@ def collect_research_data(
         public_output_dir=public_output_dir,
     )
 
-    return DataCollectionResult(
+    collected = DataCollectionResult(
         scraped_data=scraped_data,
         pages_scraped=pages_scraped,
         summarized=summarized,
@@ -389,3 +511,5 @@ def collect_research_data(
         external_raw_parts=external_raw_parts,
         recovery_executor=_recovery_executor,
     )
+    _write_collection_cache(folder_path, collected)
+    return collected

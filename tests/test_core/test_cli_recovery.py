@@ -171,6 +171,45 @@ class TestSaveRecoveredOutputs:
         assert zipfile.is_zipfile(outputs["docx"])
         assert not list(tmp_path.glob(".primr-recovery-*"))
 
+    def test_custom_output_dir_is_used_instead_of_default(self, tmp_path, monkeypatch):
+        default_root = tmp_path / "default-output"
+        custom_root = tmp_path / "custom-output"
+        default_root.mkdir()
+        monkeypatch.setattr(cli_recovery, "OUTPUT_DIR", str(default_root))
+        job = {
+            "type": "deep_research",
+            "metadata": {"company_name": "ExampleCo", "report_kind": "strategic_overview"},
+        }
+
+        outputs = _save_recovered_outputs(
+            "iid-custom",
+            job,
+            "# Title\n\nRecovered body",
+            output_dir=custom_root,
+        )
+
+        assert Path(outputs["md"]).is_relative_to(custom_root)
+        assert not list(default_root.iterdir())
+
+    def test_job_metadata_output_dir_used_when_flag_omitted(self, tmp_path, monkeypatch):
+        default_root = tmp_path / "default-output"
+        recorded_root = tmp_path / "recorded-output"
+        default_root.mkdir()
+        monkeypatch.setattr(cli_recovery, "OUTPUT_DIR", str(default_root))
+        job = {
+            "type": "deep_research",
+            "metadata": {
+                "company_name": "ExampleCo",
+                "report_kind": "strategic_overview",
+                "output_dir": str(recorded_root),
+            },
+        }
+
+        outputs = _save_recovered_outputs("iid-meta", job, "# Title\n\nRecovered body")
+
+        assert Path(outputs["md"]).is_relative_to(recorded_root)
+        assert not list(default_root.iterdir())
+
     def test_writes_md_and_txt_and_calls_docx_converter(self, tmp_path, monkeypatch):
         monkeypatch.setattr(cli_recovery, "OUTPUT_DIR", str(tmp_path))
 

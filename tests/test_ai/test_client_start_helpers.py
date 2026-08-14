@@ -42,6 +42,13 @@ class TestStartResearch:
         assert tools[0]["type"] == "file_search"
         assert tools[0]["file_search_store_names"] == ["stores/abc"]
 
+    def test_disable_model_calls_blocks_start(self, client):
+        from primr.utils.model_policy import ModelCallsDisabledError, disable_model_calls
+
+        with disable_model_calls(), pytest.raises(ModelCallsDisabledError, match="deep research"):
+            client._start_research("research prompt")
+        client._client.interactions.create.assert_not_called()
+
 
 class TestStartResearchStream:
     def test_includes_stream_and_thinking_summaries(self, client):
@@ -54,3 +61,10 @@ class TestStartResearchStream:
         assert kwargs["store"] is True
         assert kwargs["agent_config"]["type"] == "deep-research"
         assert kwargs["agent_config"]["thinking_summaries"] == "auto"
+
+    def test_disable_model_calls_blocks_stream_start(self, client):
+        from primr.utils.model_policy import ModelCallsDisabledError, disable_model_calls
+
+        with disable_model_calls(), pytest.raises(ModelCallsDisabledError, match="deep research"):
+            client._start_research_stream("research prompt")
+        client._client.interactions.create.assert_not_called()

@@ -278,7 +278,7 @@ def _create_parser() -> argparse.ArgumentParser:
         "--budget",
         type=float,
         default=None,
-        help="Approve execution up to this USD ceiling; must cover the estimate.",
+        help="Spend ceiling in USD; must cover the estimate. Not approval.",
     )
     parser.add_argument(
         "--skip-confirm",
@@ -483,7 +483,7 @@ def run_skills_cli(args: list[str] | None) -> int:
             file=sys.stderr,
         )
         return 2
-    if parsed.budget is None and not parsed.skip_confirm:
+    if not parsed.skip_confirm:
         from primr.utils.console import prompt_yes_no
 
         if not prompt_yes_no("Proceed?", default=False):

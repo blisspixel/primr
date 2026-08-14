@@ -13,6 +13,7 @@ primr --check-jobs --json
 
 # 2) Finalize completed cloud jobs and acknowledge provider-terminal jobs
 primr --resume-latest
+primr --resume-latest --output-dir D:\reports
 
 # 3) Continue a local run for one company from its latest incomplete folder
 primr "Company Name" https://company.com --resume-local
@@ -59,4 +60,4 @@ Get-Content -Raw "working\Company_Name\YYYY-MM-DD_HHMM\_run_state.json"
 cat "working/Company_Name/YYYY-MM-DD_HHMM/_run_state.json"
 ```
 
-Local resume reuses the latest incomplete working folder for the requested company and skips pages already saved in `_raw_scrapes`. Scrape progress remains available in `_raw_scrapes/_scrape_trace.log` and `_run_state.json`.
+Local resume reuses the latest incomplete working folder for the requested company and skips pages already saved in `_raw_scrapes`. Fast-mode resume also reuses a durable `_collection_cache.json` so scrape, Flash summarize, and external search are not billed again. If `--output-dir` is omitted, resume restores the public output directory recorded in `_run_state.json`. `--resume-latest` writes recovered MD/TXT/DOCX into `--output-dir` when supplied, otherwise into the job's recorded `output_dir`, otherwise `./output`. Scrape progress remains available in `_raw_scrapes/_scrape_trace.log` and `_run_state.json`.

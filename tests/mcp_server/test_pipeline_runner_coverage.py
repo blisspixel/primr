@@ -319,6 +319,10 @@ class TestRunResearchFastMode:
 
         assert actual == round(0.125 + 2 * DEEP_RESEARCH_COST.standard_task_cost, 8)
 
+    def test_cost_reconciliation_missing_usage_is_null(self):
+        with patch("primr.ai.stage_routing.stage_usage_delta", return_value={}):
+            assert _reconcile_actual_cost({}, deep_research_tasks_started=0) is None
+
     @pytest.mark.asyncio
     async def test_fast_mode_success(self, server, runner, monkeypatch, tmp_path):
         monkeypatch.setenv("XAI_API_KEY", "fake-key")

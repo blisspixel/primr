@@ -431,12 +431,13 @@ Output + validation:
 - `--emit-agent-metadata` - add optional primr-namespaced metadata to each `SKILL.md` frontmatter; off by default
 - `--remote-icons` - opt in to remote image-generation APIs for Cowork icons; off by default so configured provider keys do not create image API spend
 - `--dry-run` - estimate cost + time, exit before running
-- `--budget USD` - approve a ceiling that must cover the repeated estimate; the pipeline checks observed spend between paid phases
+- `--budget USD` - spend ceiling that must cover the repeated estimate; the pipeline checks observed spend between paid phases. This is not approval.
 - `--skip-confirm` - explicit non-interactive approval after the estimate is repeated
 
 Normal execution prints the same bounded quote as `--dry-run` and requires an
-explicit yes unless `--budget` or `--skip-confirm` supplies non-interactive
-approval. The total ceiling is enforced at paid phase boundaries. The legacy
+explicit yes unless `--skip-confirm` supplies non-interactive approval.
+`--budget` only refuses a quote that exceeds the ceiling. The total ceiling is
+enforced at paid phase boundaries. The legacy
 per-role configuration value is not advertised as an enforceable cap because
 parallel role authoring does not provide reliable role-scoped attribution.
 
