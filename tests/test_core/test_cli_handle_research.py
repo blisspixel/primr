@@ -48,13 +48,17 @@ def perform_research_ok(monkeypatch, tmp_path):
         persist_vendor_refresh_outcome,
     )
 
+    report = tmp_path / "report.docx"
+    report.write_bytes(b"PK")
+
     def successful_run(*_args, **kwargs):
         kwargs["run_context"]["working_folder"] = str(tmp_path)
         persist_strategy_outcome(str(tmp_path), StrategyOutcomeTracker(()).snapshot())
         persist_vendor_refresh_outcome(str(tmp_path), VendorRefreshTracker(()).snapshot())
-        return "/fake/path/report.docx"
+        return str(report)
 
     mock = MagicMock(side_effect=successful_run)
+    mock.report_path = str(report)
     monkeypatch.setattr("primr.core.research_agent.perform_research", mock)
     return mock
 
@@ -501,7 +505,7 @@ class TestSuccessPath:
         open_mock = MagicMock()
         monkeypatch.setattr("primr.core.cli.open_file", open_mock)
         _handle_research(_config(premium_mode=True, open_after=True))
-        open_mock.assert_called_once_with("/fake/path/report.docx")
+        open_mock.assert_called_once_with(perform_research_ok.report_path)
 
     def test_exports_inference_profile_for_routed_stages(
         self, passing_preflight, perform_research_ok, monkeypatch

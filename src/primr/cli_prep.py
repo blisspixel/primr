@@ -146,6 +146,13 @@ def run_prep_cli(args: list[str] | None) -> int:
         print("Error: --max-pages must be between 1 and 50.", file=sys.stderr)
         return 2
 
+    from primr.utils.validators import validate_and_normalize_url
+
+    url_ok, _normalized_url, url_error = validate_and_normalize_url(parsed.company_url)
+    if not url_ok:
+        print(f"Error: Invalid public company URL: {url_error}", file=sys.stderr)
+        return 2
+
     if parsed.dry_run:
         print(f"Primr prep plan for {parsed.company_name}:")
         print("  Incremental API spend: $0.00")

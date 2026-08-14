@@ -245,6 +245,14 @@ class TestOrchestratorFactories:
         assert "drissionpage_stealth" not in names
         assert get_orchestrator() is orch
 
+    def test_get_orchestrator_can_disable_vision_on_existing_singleton(self, monkeypatch):
+        monkeypatch.setattr(scrape, "_orchestrator", None)
+        first = get_orchestrator(enable_vision=True)
+        assert any(tier.name == "vision" for tier in first.tiers)
+        second = get_orchestrator(enable_vision=False)
+        assert second is first
+        assert all(tier.name != "vision" for tier in second.tiers)
+
 
 # ============================================================================
 # scrape_page

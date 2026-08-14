@@ -76,15 +76,24 @@ def finalize_standard_run(
         )
     )
 
+    from pathlib import Path
+
     from primr.core.run_state_io import _append_run_event, _update_run_state
 
+    shipped = bool(docx_path) and Path(str(docx_path)).is_file()
+    status = "completed" if shipped else "failed"
     _update_run_state(
         folder_path,
-        status="completed",
-        current_phase="complete",
+        status=status,
+        current_phase="complete" if shipped else "error",
         completed_at=datetime.now().isoformat(),
         duration_seconds=elapsed,
         actual_cost_usd=round(actual_cost, 4),
     )
-    _append_run_event(folder_path, "complete", "completed", f"Run completed in {time_str}")
+    _append_run_event(
+        folder_path,
+        "complete" if shipped else "error",
+        status,
+        f"Run completed in {time_str}" if shipped else "No durable primary report was written",
+    )
     return actual_cost

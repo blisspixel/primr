@@ -338,6 +338,9 @@ class AnthropicProvider(Provider):
         Raises QuotaExhaustedError on billing exhaustion (HTTP 403 with
         specific error codes or 429 with daily limit indicators).
         """
+        from primr.utils.model_policy import require_model_calls_allowed
+
+        require_model_calls_allowed("anthropic chat")
         if not messages:
             raise ValueError(
                 "AnthropicProvider.chat() requires at least one message. "

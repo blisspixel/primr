@@ -495,6 +495,35 @@ class TestAnalyzeCitations:
         assert 99 in result["missing_citations"]
         assert result["citation_coverage"] < 1.0
 
+    def test_h1_sources_appendix_is_recognized(self):
+        content = (
+            "# 1. Executive Summary\n\nClaim [cite: 1].\n"
+            "# Sources\n\n[cite: 1] Acme — https://acme.example\n"
+        )
+        analyzer = _make_analyzer(content)
+        result = analyzer.analyze_citations()
+        assert result["has_bibliography"] is True
+        assert result["missing_citations"] == []
+
+
+class TestHostWrittenH1Outline:
+    def test_h1_numbered_sections_count_as_structure(self):
+        content = (
+            "# 1. Executive Summary\nText\n"
+            "# 2. Products and Services\nText\n"
+            "# 3. Target Customers\nText\n"
+            "# 4. Competitive Landscape\nText\n"
+            "# 5. Financial Profile\nText\n"
+            "# 12. SWOT Analysis\nText\n"
+            "# 23. Strategic Positioning Hypothesis\nText\n"
+        )
+        analyzer = _make_analyzer(content, "ExampleCo_Host_Assisted_Strategic_Overview.md")
+        result = analyzer.analyze_structure()
+        assert result["report_type"] == "strategic_overview"
+        assert result["total_sections"] >= 6
+        assert "Executive Summary" in result["key_sections_found"]
+        assert "Products and Services" in result["key_sections_found"]
+
 
 # =============================================================================
 # Content Quality

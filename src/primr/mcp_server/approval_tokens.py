@@ -123,6 +123,30 @@ def issue_approval_token(
     }
 
 
+def approved_ceiling_usd(approval_token: object) -> float | None:
+    """Return the token's approved ceiling without mutating used-token state."""
+    if not isinstance(approval_token, str) or not approval_token.strip():
+        return None
+    try:
+        payload = _decode_token(approval_token.strip())
+        ceiling = float(payload["max_cost_usd"])
+    except (ValueError, KeyError, TypeError):
+        return None
+    if not math.isfinite(ceiling) or ceiling < 0:
+        return None
+    return ceiling
+
+
+def bind_runtime_budget(caller_budget: float | None, approval_token: object) -> float | None:
+    """Cap a caller budget at the approval token so later stages cannot outspend it."""
+    ceiling = approved_ceiling_usd(approval_token)
+    if ceiling is None:
+        return caller_budget
+    if caller_budget is None:
+        return ceiling
+    return min(caller_budget, ceiling)
+
+
 def enforce_approval_token(
     *,
     tool_name: str,

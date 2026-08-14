@@ -28,6 +28,41 @@ def test_selector_uses_injected_model_call() -> None:
     model_call.assert_called_once()
 
 
+def _link(url: str) -> SimpleNamespace:
+    return SimpleNamespace(
+        url=url,
+        anchor_text="",
+        sitemap_priority=None,
+        source="homepage",
+    )
+
+
+def test_selector_uses_heuristic_when_model_calls_disabled() -> None:
+    from primr.utils.model_policy import disable_model_calls
+
+    links = [
+        _link("https://acme.example/privacy"),
+        _link("https://acme.example/login"),
+        _link("https://acme.example/legal"),
+        _link("https://acme.example/about"),
+        _link("https://acme.example/investors"),
+        _link("https://acme.example/products"),
+    ]
+    model_call = MagicMock(return_value="https://acme.example/privacy")
+    with disable_model_calls():
+        selected = select_links_with_llm(
+            links,
+            "Acme Corp",
+            "https://acme.example",
+            max_links=3,
+            model_call=model_call,
+        )
+    model_call.assert_not_called()
+    assert "https://acme.example/about" in selected
+    assert "https://acme.example/investors" in selected
+    assert "https://acme.example/privacy" not in selected
+
+
 def test_scraper_does_not_import_research_orchestration() -> None:
     """Keep data collection independent from the orchestration hub."""
 

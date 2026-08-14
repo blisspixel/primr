@@ -793,6 +793,11 @@ async def _handle_generate_skill_pack(
     )
     if cost_gate_error is not None:
         return [cost_gate_error]
+    from primr.mcp_server.approval_tokens import bind_runtime_budget
+
+    bound_ceiling = bind_runtime_budget(parsed_max_cost, arguments.get("approval_token"))
+    if bound_ceiling is not None:
+        config.max_total_cost_usd = bound_ceiling
 
     # Working directory: existing report path or fresh temp dir + standalone evidence.
     if report_path:

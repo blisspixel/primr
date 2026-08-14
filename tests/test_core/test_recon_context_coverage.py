@@ -180,6 +180,14 @@ def test_infrastructure_gcp():
     assert "GCP infrastructure detected" in result
 
 
+def test_cert_and_email_slugs_are_not_cloud_infrastructure():
+    info = _tenant(slugs=("google-trust", "aws-ses", "aws-acm"))
+    result = format_recon_context(info)
+    assert "GCP infrastructure detected" not in result
+    assert "AWS infrastructure detected" not in result
+    assert "Public cloud:" not in result
+
+
 def test_infrastructure_from_insight_only():
     info = _tenant(insights=("Infrastructure: Cloudflare, AWS CloudFront",))
     result = format_recon_context(info)

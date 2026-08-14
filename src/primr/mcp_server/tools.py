@@ -40,6 +40,7 @@ from primr.mcp_server import research_validation
 from primr.mcp_server.agentic_tools import handle_agentic_tool, register_agentic_tools
 from primr.mcp_server.approval_tokens import (
     approval_token_audit,
+    bind_runtime_budget,
     enforce_approval_token,
     issue_approval_token,
     research_approval_args,
@@ -410,7 +411,10 @@ async def _handle_research_company(
     )
     if approval_error is not None:
         return [TextContent(type="text", text=json.dumps(approval_error))]
-    budget_usd = _coerce_budget_usd(max_estimated_cost_usd)
+    budget_usd = bind_runtime_budget(
+        _coerce_budget_usd(max_estimated_cost_usd),
+        arguments.get("approval_token"),
+    )
 
     # Try to create job
     try:

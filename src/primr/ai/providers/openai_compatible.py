@@ -28,6 +28,7 @@ from primr.ai.providers.base import (
     ProviderUnavailableError,
 )
 from primr.utils.logging_config import get_logger
+from primr.utils.model_policy import require_model_calls_allowed
 
 logger = get_logger("ai.providers.openai_compatible")
 _LOCAL_INTERNAL_RETRY_CAP_SECONDS = 20.0
@@ -384,6 +385,7 @@ class OpenAICompatibleProvider(Provider):
         parallel-tool policy, reasoning effort, top-p, storage policy, and the
         xAI prompt-cache extension. Unknown provider-specific knobs are ignored.
         """
+        require_model_calls_allowed(f"{self.name} chat")
         client = self._get_client()
         capacity_retry_attempt = provider_kwargs.pop("capacity_retry_attempt", 0)
 

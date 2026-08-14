@@ -32,6 +32,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Deep/standard runs no longer stamp `completed` without a report.** A
+  missing or empty primary artifact records `failed` so resume can retry
+  instead of launching a second paid Deep Research job.
+- **Final-report cleanup keeps the working folder.** ZIP archive still runs;
+  `rmtree` of `working/<Company>/` is gone so resume evidence and Windows
+  file locks survive a DOCX miss.
+- **MCP report save fails closed on empty content.** Empty orchestrator
+  results raise instead of completing a header-only `.md`. Filenames use the
+  shared sanitizer and `Strategic_Overview` contract name.
+- **Incomplete paid partials are not primary reports.** They are named
+  `*_Incomplete_Overview_*` so inventory and MCP report reads cannot treat
+  them as the Strategic Overview.
+- **`artifacts_available` is on-disk on every status surface.** MCP
+  `primr://research/status` and A2A terminal status share the same
+  `is_file()` helper as `check_jobs`.
+- **Run-state saves no longer truncate on lock failure.** Persistent
+  `PermissionError` keeps the last good `_run_state.json`.
+- **Section assembly uses the current run folder.** `generate_final_report`
+  can load sections from the active `folder_path` instead of the newest
+  sibling directory.
+- **MCP/A2A extra kwargs cannot under-price a full run.** Estimates ignore
+  unbound `lite_strategy` / `grok_tier` fields the worker does not receive.
+- **Approval tokens cap the runtime budget.** Caller
+  `max_estimated_cost_usd` cannot exceed the approved token ceiling.
+- **Unpriced model usage is not recorded as `$0.00`.** Stage usage deltas
+  and MCP actual-cost reconciliation leave cost `null` when a model has no
+  registry price.
+- **Prep cannot spend via Gemini Vision.** Tracing no longer constructs the
+  scrape orchestrator with vision enabled, `get_orchestrator(enable_vision=False)`
+  strips an already-created vision tier, and the vision scraper fails closed
+  under `disable_model_calls()` before taking a screenshot or calling Gemini.
+- **Keyless link selection uses heuristic scoring.** When models are disabled
+  or the selector fails, prep keeps `/about`, `/investors`, and `/products`
+  instead of the first N discovery-order URLs.
+- **Recon no longer treats Google Trust / SES / ACM as a cloud platform.**
+  Those remain cert/email signals; only DNS/CDN/appservice fingerprints
+  declare AWS/Azure/GCP in the host packet and strategy context.
+- **MCP report reads no longer treat a working brief as the report.**
+  `classify_output_artifact` labels `working_brief` and report filters skip it.
+- **MCP/prep recon from a running event loop.** Standalone evidence collection
+  no longer uses bare `asyncio.run()` for DNS recon. MCP `generate_skill_pack`
+  (an async handler) was silently skipping tenant/DNS evidence. The collector
+  now uses the shared sync/async bridge and writes recon atomically.
+- **Prep dry-run URL validation.** `primr prep --dry-run` rejects invalid or
+  non-HTTP company URLs without network access instead of previewing a plan
+  that the real command cannot run.
+- **Model-policy coverage on remaining LLM seams.** Provider `chat()`, xAI
+  browse, `AIClient.generate()`, and the OpenAI-compatible chat helper now
+  fail closed when model calls are disabled, matching `llm()` / `grok_llm()`.
+- **Invalid PDF-LLM env no longer crashes scrape import.** Garbage
+  `PRIMR_PDF_LLM_*` values fall back to the zero-spend defaults instead of
+  raising at import and breaking prep/scrape.
+- **`primr render` keeps host report headings.** Filename is no longer forced
+  as a document title (which stripped the first H1, often `1. Executive
+  Summary`). Directories are rejected. Empty DOCX output is a failure.
+  Fenced code blocks are no longer parsed as tables.
+- **Working-brief public date matches other deliverables.** Timezone-aware
+  timestamps use the local calendar date, not UTC.
+- **`--analyze-report` honors host-written H1 outlines.** Numbered H1
+  sections and an H1 `Sources` appendix now count for structure and citation
+  integrity, matching the Primr Zero report contract.
 - **Current Gemini request and pricing contracts.** Gemini 3.7 Flash is an
   eval-only candidate, production defaults remain unchanged, direct Gemini
   paths omit unsupported sampling controls for current model families, and

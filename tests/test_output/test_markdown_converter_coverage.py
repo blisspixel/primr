@@ -262,6 +262,26 @@ def test_markdown_to_docx_no_title(tmp_path):
     assert out.exists()
 
 
+def test_markdown_to_docx_preserves_fenced_code_not_as_table(tmp_path):
+    md = "## Example\n\n```\n| col1 | col2 |\n| --- | --- |\nnot a real table\n```\n"
+    out = tmp_path / "fence.docx"
+    markdown_to_docx(md, out, title=None)
+    doc = Document(out)
+    full_text = "\n".join(p.text for p in doc.paragraphs)
+    assert "not a real table" in full_text
+    assert doc.tables == []
+
+
+def test_markdown_to_docx_keeps_empty_blockquote_markers(tmp_path):
+    md = "> **Note**\n>\n> Keep this banner.\n"
+    out = tmp_path / "quote.docx"
+    markdown_to_docx(md, out, title=None)
+    doc = Document(out)
+    full_text = "\n".join(p.text for p in doc.paragraphs)
+    assert "Keep this banner" in full_text
+    assert "> **" not in full_text
+
+
 # --------------------------------------------------------------------------- #
 # render_section_content
 # --------------------------------------------------------------------------- #

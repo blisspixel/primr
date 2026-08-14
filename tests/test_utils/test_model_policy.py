@@ -93,3 +93,38 @@ def test_public_llm_seams_fail_before_provider_egress() -> None:
             grok_browse_and_summarize("https://example.com")
         with pytest.raises(ModelCallsDisabledError):
             ContinuousReasoningSession().send("do not send")
+
+
+def test_provider_and_client_seams_fail_before_egress() -> None:
+    from primr.ai.client import AIClient
+    from primr.ai.openai_compatible_client import chat_completion
+    from primr.ai.providers.anthropic import AnthropicProvider
+    from primr.ai.providers.bedrock import BedrockProvider
+    from primr.ai.providers.gemini import GeminiProvider
+    from primr.ai.providers.openai_compatible import OpenAICompatibleProvider
+    from primr.ai.providers.xai import XAIProvider
+
+    messages = [{"role": "user", "content": "do not send"}]
+    with disable_model_calls():
+        with pytest.raises(ModelCallsDisabledError):
+            OpenAICompatibleProvider(
+                name="openai",
+                base_url="https://example.invalid/v1",
+                api_key_env="OPENAI_API_KEY",
+            ).chat(messages, model="gpt-test")
+        with pytest.raises(ModelCallsDisabledError):
+            GeminiProvider().chat(messages, model="gemini-test")
+        with pytest.raises(ModelCallsDisabledError):
+            AnthropicProvider().chat(messages, model="claude-test")
+        with pytest.raises(ModelCallsDisabledError):
+            BedrockProvider().chat(messages, model="bedrock-test")
+        with pytest.raises(ModelCallsDisabledError):
+            XAIProvider().browse_and_summarize("https://example.com", model="grok-test")
+        with pytest.raises(ModelCallsDisabledError):
+            AIClient().generate("do not send")
+        with pytest.raises(ModelCallsDisabledError):
+            chat_completion("do not send", model="local-test")
+        from primr.data.scraping.vision_browser import scrape_with_vision
+
+        with pytest.raises(ModelCallsDisabledError):
+            scrape_with_vision("https://acme.example")

@@ -2851,7 +2851,7 @@ def perform_research(
                 diagnostics_dir=diagnostics_dir,
                 write_txt=write_public_txt,
             )
-            if fast_path:
+            if fast_path and Path(fast_path).is_file():
                 if verify:
                     _run_claim_verification_non_blocking(
                         company_name or display_name, website or "", fast_path
@@ -3486,6 +3486,7 @@ def perform_deep_research(
                         output_dir=run_output_dir,
                         diagnostics_dir=diagnostics_dir,
                         write_txt=write_txt,
+                        folder_path=folder_path,
                     )
 
             report_path, acknowledgment_paths, verification_path = (
@@ -3642,15 +3643,9 @@ def perform_deep_research(
             secs = int(elapsed % 60)
             time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
 
-            console.ok(f"Complete in {time_str}")
-            _update_run_state(
-                folder_path,
-                status="completed",
-                current_phase="complete",
-                completed_at=datetime.now().isoformat(),
-                duration_seconds=elapsed,
+            deep_run_summary.record_deep_terminal_status(
+                folder_path, report_path, elapsed=elapsed, time_str=time_str
             )
-            _append_run_event(folder_path, "complete", "completed", f"Run completed in {time_str}")
 
             if report_path:
                 console.success_box("Report ready", str(Path(report_path).resolve()))
