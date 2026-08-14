@@ -189,3 +189,28 @@ class TestRecoveryExecutorHandoff:
         state = seams["run_state"]
         assert state["pages_scraped"] == 1
         assert state["external_sources_initial"] == 1
+
+
+class TestCollectionResumeCache:
+    def test_resume_reuses_cache_and_skips_paid_collection(self, seams):
+        first = _call(seams)
+        seams["fetch"].reset_mock()
+        seams["summarize"].reset_mock()
+        seams["search"].reset_mock()
+        seams["scrape"].reset_mock()
+
+        resumed = _call(seams, resume_local=True)
+
+        seams["fetch"].assert_not_called()
+        seams["summarize"].assert_not_called()
+        seams["search"].assert_not_called()
+        seams["scrape"].assert_not_called()
+        assert resumed.scraped_data == first.scraped_data
+        assert resumed.summarized == first.summarized
+        assert resumed.external_data == first.external_data
+        assert resumed.source_urls == first.source_urls
+
+    def test_resume_without_cache_runs_collection(self, seams):
+        _call(seams, resume_local=True)
+        seams["fetch"].assert_called()
+        seams["summarize"].assert_called()

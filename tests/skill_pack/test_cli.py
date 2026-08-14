@@ -388,6 +388,18 @@ class TestRunSkillsCliEarlyReturns:
         assert rc == 0
         assert "Estimated cost" in capsys.readouterr().out
 
+    def test_budget_still_requires_confirm(self, monkeypatch, capsys):
+        monkeypatch.setattr("builtins.input", lambda *a, **k: "n")
+        monkeypatch.setattr(
+            "primr.skill_pack.cli.collect_evidence",
+            lambda **kwargs: pytest.fail("collection must not start before approval"),
+        )
+
+        rc = run_skills_cli(["skills", "Acme", "https://acme.example", "--budget", "50"])
+
+        assert rc == 0
+        assert "Estimated cost" in capsys.readouterr().out
+
     def test_budget_below_quote_stops_before_collection(self, monkeypatch, capsys):
         monkeypatch.setattr(
             "primr.skill_pack.cli.collect_evidence",

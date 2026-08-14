@@ -147,6 +147,9 @@ class PipelineRunner:
                     # caught as a generic failure and mis-records the job as
                     # FAILED/research_failed instead of CANCELLED/user_cancelled.
                     raise asyncio.CancelledError("Job cancelled by user")
+                from primr.mcp_server.job_progress import apply_progress_stage
+
+                apply_progress_stage(job, message)
                 job.heartbeat()
                 self.mcp_server.job_store.update(job)
                 logger.debug(f"Progress: {message}")
@@ -686,9 +689,15 @@ def _reconcile_actual_cost(
     from primr.core.deep_budget import deep_research_flat_cost
 
     usage = stage_usage_delta(usage_baseline)
+    if not usage and deep_research_tasks_started <= 0:
+        return None
     if "actual_cost_usd" in usage and usage.get("actual_cost_usd") is None:
         return None
-    model_cost = float(usage.get("actual_cost_usd") or 0.0)
+    if "actual_cost_usd" not in usage:
+        if deep_research_tasks_started <= 0:
+            return None
+        return round(deep_research_flat_cost(deep_research_tasks_started), 8)
+    model_cost = float(usage["actual_cost_usd"])
     return round(model_cost + deep_research_flat_cost(deep_research_tasks_started), 8)
 
 

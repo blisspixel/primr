@@ -18,12 +18,7 @@ _NON_EXECUTABLE_FULL_NOTE = (
     "live rates. Full execution still needs XAI_API_KEY or GEMINI_API_KEY."
 )
 
-_UNSUPPORTED_DRY_RUN_MESSAGES = {
-    "TEST_ACCORDION": (
-        "Dry run is not supported for the experimental Accordion test",
-        "No provider calls were started. Use a governed premium run instead.",
-    ),
-}
+_UNSUPPORTED_DRY_RUN_MESSAGES: dict[str, tuple[str, str]] = {}
 
 
 def reject_unsupported_dry_run(config: object) -> int | None:

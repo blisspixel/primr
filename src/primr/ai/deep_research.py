@@ -32,6 +32,7 @@ from enum import Enum
 from typing import Any
 
 from primr.ai.genai_factory import default_genai_http_options
+from primr.utils.model_policy import require_model_calls_allowed
 
 try:
     from google import genai as _google_genai
@@ -900,27 +901,25 @@ Frame everything as hypotheses to explore, not conclusions."""
 
     def _start_research(self, prompt: str, file_store_name: str | None = None) -> Any:
         """Start a background research task."""
-        # Build tools list
+        require_model_calls_allowed("deep research")
         tools: list[dict[str, Any]] = []
         if file_store_name:
             tools.append({"type": "file_search", "file_search_store_names": [file_store_name]})
-
         create_kwargs: dict[str, Any] = {
             "input": prompt,
             "agent": self.AGENT_ID,
             "background": True,
-            # Interactions API requirement for background jobs.
             "store": True,
         }
         if tools:
             create_kwargs["tools"] = tools
-
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
             return self._client.interactions.create(**create_kwargs)
 
     def _start_research_stream(self, prompt: str) -> Any:
         """Start a streaming research task."""
+        require_model_calls_allowed("deep research")
         return self._client.interactions.create(
             input=prompt,
             agent=self.AGENT_ID,

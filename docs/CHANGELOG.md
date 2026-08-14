@@ -32,6 +32,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Accordion and eval no longer launch billed work from a flag or dry-run.**
+  `--test-accordion` prints a Deep Research estimate, supports `--dry-run`,
+  and requires `--skip-confirm` or an explicit yes. `--eval --eval-run-missing`
+  and `--eval --eval-llm-judge` treat cost caps as ceilings, honor `--dry-run`,
+  and require the same approval. Deep Research start paths fail closed under
+  `disable_model_calls()`.
+- **Skill-pack `--budget` is a ceiling, not approval.** `primr skills`
+  still quotes and requires `--skip-confirm` or yes even when a budget
+  covers the estimate.
+- **`--resume-local` reuses paid collection instead of repeating it.** A
+  durable collection cache skips scrape/summarize/search on resume. Structured
+  collection no longer deletes `_raw_scrapes` after summarize. Resume without
+  `--output-dir` restores the recorded public output directory.
+- **`--resume-latest --output-dir` writes recovered artifacts there.** Job
+  metadata `output_dir` is the fallback when the flag is omitted.
+- **MCP progress leaves `scraping` when later stages start.** Progress
+  messages advance EXTRACTING / DEEP_RESEARCH / WRITING / QA. Missing model
+  usage no longer reconciles as `$0.00`.
 - **Deep/standard runs no longer stamp `completed` without a report.** A
   missing or empty primary artifact records `failed` so resume can retry
   instead of launching a second paid Deep Research job.
