@@ -132,7 +132,7 @@ def test_resume_pending_jobs_finalizes_completed(monkeypatch):
     monkeypatch.setattr(
         cli_recovery,
         "_save_recovered_outputs",
-        lambda interaction_id, job_info, content: {"md": "a.md", "docx": "a.docx", "txt": "a.txt"},
+        lambda *args, **kwargs: {"md": "a.md", "docx": "a.docx", "txt": "a.txt"},
     )
     monkeypatch.setattr(
         "primr.ai.job_persistence.acknowledge_pending_job_after_outputs",
@@ -217,7 +217,7 @@ def test_resume_pending_jobs_returns_error_for_mixed_batch(monkeypatch):
     monkeypatch.setattr(
         cli_recovery,
         "_save_recovered_outputs",
-        lambda *_args: {"md": "a.md", "docx": "a.docx", "txt": "a.txt"},
+        lambda *_args, **_kwargs: {"md": "a.md", "docx": "a.docx", "txt": "a.txt"},
     )
     monkeypatch.setattr("primr.ai.job_persistence.remove_pending_job", lambda _job_id: True)
 
@@ -240,7 +240,7 @@ def test_resume_pending_jobs_returns_error_when_acknowledgement_fails(monkeypatc
     monkeypatch.setattr(
         cli_recovery,
         "_save_recovered_outputs",
-        lambda *_args: {"md": "a.md", "docx": "a.docx", "txt": "a.txt"},
+        lambda *_args, **_kwargs: {"md": "a.md", "docx": "a.docx", "txt": "a.txt"},
     )
     monkeypatch.setattr("primr.ai.job_persistence.remove_pending_job", lambda _job_id: False)
 

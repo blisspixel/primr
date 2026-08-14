@@ -186,15 +186,31 @@ def _cleanup_recovery_stage(stage_root: Path) -> None:
         console.warn(f"Recovery staging cleanup failed; inspect: {stage_root}")
 
 
+def _resolve_recovery_output_root(
+    output_dir: str | Path | None = None,
+    job_info: dict[str, Any] | None = None,
+) -> Path:
+    """Prefer the caller path, then job metadata, then the process default."""
+    if output_dir:
+        return Path(output_dir)
+    metadata = job_info.get("metadata", {}) if isinstance(job_info, dict) else {}
+    if isinstance(metadata, dict):
+        recorded = metadata.get("output_dir")
+        if isinstance(recorded, str) and recorded.strip():
+            return Path(recorded)
+    return Path(OUTPUT_DIR)
+
+
 def _save_recovered_outputs(
     interaction_id: str,
     job_info: dict[str, Any],
     content: str,
+    output_dir: str | Path | None = None,
 ) -> dict[str, str]:
     """Stage, verify, and publish canonical MD/TXT/DOCX recovery outputs."""
     from primr.output.markdown_converter import markdown_to_docx
 
-    output_root = Path(OUTPUT_DIR)
+    output_root = _resolve_recovery_output_root(output_dir, job_info)
     output_root.mkdir(parents=True, exist_ok=True)
     base_name = _build_recovered_basename(interaction_id, job_info)
     final = {
@@ -519,7 +535,7 @@ def check_pending_jobs(json_output: bool = False) -> int:
     return 1 if terminal_failures or check_errors else 0
 
 
-def resume_pending_jobs() -> int:
+def resume_pending_jobs(output_dir: str | Path | None = None) -> int:
     """Recover and finalize pending jobs into canonical outputs."""
     from primr.ai.deep_research import get_deep_research_client
     from primr.ai.job_persistence import remove_pending_job
@@ -560,7 +576,9 @@ def resume_pending_jobs() -> int:
                 continue
 
             try:
-                outputs = _save_recovered_outputs(interaction_id, job_info, content)
+                outputs = _save_recovered_outputs(
+                    interaction_id, job_info, content, output_dir=output_dir
+                )
                 console.ok("  Status: COMPLETED")
                 console.ok(f"  Finalized MD: {outputs['md']}")
                 console.ok(f"  Finalized DOCX: {outputs['docx']}")
@@ -583,7 +601,7 @@ def resume_pending_jobs() -> int:
                 console.error(f"  Finalization failed: {e}")
                 try:
                     fallback_path = _recovery_output_path(
-                        Path(OUTPUT_DIR),
+                        _resolve_recovery_output_root(output_dir, job_info),
                         f"recovered_deep_research_{_safe_interaction_fragment(interaction_id)}.txt",
                     )
                     atomic_write_text(fallback_path, content)

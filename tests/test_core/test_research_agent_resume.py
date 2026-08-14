@@ -167,6 +167,38 @@ def test_perform_research_releases_lease_after_unexpected_setup_error(tmp_path, 
     release_resume_lease(reclaimed)
 
 
+def test_resume_restores_recorded_output_dir(tmp_path, monkeypatch):
+    from primr.core.workspace import release_resume_lease
+
+    custom_out = tmp_path / "custom-out"
+    monkeypatch.setattr(research_agent, "WORKING_DIR", str(tmp_path / "working"))
+    monkeypatch.setattr(research_agent, "OUTPUT_DIR", str(tmp_path / "default-out"))
+    reusable = tmp_path / "working" / "ExampleCo" / "2026-02-25_1200"
+    reusable.mkdir(parents=True)
+    (reusable / "_run_state.json").write_text(
+        json.dumps({"status": "failed", "output_dir": str(custom_out)}),
+        encoding="utf-8",
+    )
+
+    def fail_framing(**_kwargs):
+        raise RuntimeError("injected setup failure")
+
+    monkeypatch.setattr("primr.core.research_framing.resolve_run_framing", fail_framing)
+
+    with pytest.raises(RuntimeError, match="injected setup failure"):
+        research_agent.perform_research(
+            "ExampleCo",
+            "https://example.co",
+            resume_local=True,
+            platforms=("agnostic",),
+            skip_confirm=True,
+        )
+
+    state = json.loads((reusable / "_run_state.json").read_text(encoding="utf-8"))
+    assert state["output_dir"] == str(custom_out)
+    release_resume_lease(str(reusable))
+
+
 def test_refused_fresh_run_does_not_leave_timestamped_orphan(tmp_path, monkeypatch):
     from primr.core.workspace import (
         ResumeLeaseError,

@@ -318,26 +318,50 @@ class TestHandleTestAccordion:
     def test_no_topic_returns_1(self):
         assert _handle_test_accordion(_config(test_accordion_topic=None)) == 1
 
+    def _estimate(self):
+        from primr.utils.cost_estimator import CostEstimate
+
+        return CostEstimate(
+            mode="deep-research",
+            estimated_input_tokens=1,
+            estimated_output_tokens=1,
+            estimated_search_queries=0,
+            input_cost=0.0,
+            output_cost=0.0,
+            search_cost=0.0,
+            total_cost=2.5,
+            duration_minutes="8-15 min",
+            notes=[],
+        )
+
     def test_dispatches_to_runner(self, monkeypatch):
-        # Just verify the runner gets called; don't assert specific exit code.
         run_mock = MagicMock(side_effect=RuntimeError("test"))
         monkeypatch.setattr("primr.ai.accordion_test.run_accordion_test", run_mock)
+        monkeypatch.setattr(
+            "primr.utils.cost_display.print_cost_estimate",
+            lambda *a, **k: self._estimate(),
+        )
         try:
             _handle_test_accordion(
                 _config(
                     test_accordion_topic="Oceanography 2026",
                     test_accordion_pages=50,
+                    skip_confirm=True,
                 )
             )
         except RuntimeError:
             pass
         run_mock.assert_called_once()
 
-    def test_dry_run_fails_closed_before_runner(self, monkeypatch):
+    def test_dry_run_prices_and_does_not_launch(self, monkeypatch):
         from primr.core.cli_errors import guard_dispatch
 
         run_mock = MagicMock()
         monkeypatch.setattr("primr.ai.accordion_test.run_accordion_test", run_mock)
+        monkeypatch.setattr(
+            "primr.utils.cost_display.print_cost_estimate",
+            lambda *a, **k: self._estimate(),
+        )
 
         config = _config(
             command=Command.TEST_ACCORDION,
@@ -347,7 +371,7 @@ class TestHandleTestAccordion:
         )
         result = guard_dispatch(_handle_test_accordion, config)
 
-        assert result == 1
+        assert result == 0
         run_mock.assert_not_called()
 
 

@@ -1074,7 +1074,7 @@ def _handle_check_jobs(config: CLIConfig) -> int:
 
 def _handle_resume_latest(config: CLIConfig) -> int:
     """Handle resume-latest command."""
-    return resume_pending_jobs()
+    return resume_pending_jobs(output_dir=config.output_dir)
 
 
 def _handle_clear_jobs(config: CLIConfig) -> int:
@@ -1312,34 +1312,10 @@ def _handle_batch(config: CLIConfig) -> int:
 
 
 def _handle_test_accordion(config: CLIConfig) -> int:
-    """Handle test-accordion command."""
-    from primr.ai.accordion_test import run_accordion_test
+    """Handle test-accordion command (cost-gated; see cli_accordion)."""
+    from primr.core.cli_accordion import handle_test_accordion
 
-    if not config.test_accordion_topic:
-        console.error("No topic specified for Accordion test")
-        console.info('Usage: primr --test-accordion "Oceanography 2026-2030"')
-        return 1
-
-    console.banner("Accordion Method Test")
-    console.info(f"Topic: {config.test_accordion_topic}")
-    console.info(f"Target: {config.test_accordion_pages} pages")
-    console.blank()
-
-    result = run_accordion_test(
-        topic=config.test_accordion_topic,
-        target_pages=config.test_accordion_pages,
-    )
-
-    if result.success:
-        console.blank()
-        console.success_box(
-            f"Test completed: {result.page_estimate:.1f} pages", f"Output: {result.output_path}"
-        )
-        return 0
-    else:
-        console.blank()
-        console.error(f"Test failed: {result.error or 'Unknown error'}")
-        return 1
+    return handle_test_accordion(config)
 
 
 def _handle_analyze_report(config: CLIConfig) -> int:
@@ -1751,7 +1727,12 @@ def _handle_eval(config: CLIConfig) -> int:
                 console.info("Increase --eval-max-estimated-cost or lower --eval-max-new-runs.")
                 return 1
 
+            from primr.core.cli_eval_spend import approve_eval_spend
+
             console.step("Eval run-missing")
+            spend_gate = approve_eval_spend(config, estimated_total, "eval run-missing")
+            if spend_gate is not None:
+                return spend_gate
             console.info(f"Executing {len(to_run)} run(s), estimated <= ${estimated_total:.2f}")
 
             from primr.ai.routing import EvalRecipeOverride
@@ -1876,8 +1857,13 @@ def _handle_eval(config: CLIConfig) -> int:
         if not candidate_profiles:
             console.warn("No non-baseline profile with reports available for LLM judge.")
             return 0
+        from primr.core.cli_eval_spend import approve_eval_spend
+
         console.blank()
         console.step("LLM Judge")
+        judge_gate = approve_eval_spend(config, float(config.eval_judge_max_cost), "eval LLM judge")
+        if judge_gate is not None:
+            return judge_gate
         judge_target = (
             config.eval_judge_model_list
             if config.eval_judge_model_list

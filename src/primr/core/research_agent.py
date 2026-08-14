@@ -832,17 +832,6 @@ def run_research(
         summarized = "No insights extracted."
     progress("+ Content summarized")
 
-    # Clean up raw scrapes folder now that we have the summary
-    raw_folder = os.path.join(folder_path, "_raw_scrapes")
-    if os.path.exists(raw_folder):
-        import shutil
-
-        try:
-            shutil.rmtree(raw_folder)
-            logger.debug("Cleaned up raw scrapes folder")
-        except Exception as e:
-            logger.debug(f"Failed to clean up raw scrapes: {e}")
-
     # Industry identification
     progress("Identifying industry...")
     industry_prompt = generate_prompt(
@@ -2205,6 +2194,7 @@ def perform_fast_research(
             folder_path=folder_path,
             total_phases=total_phases,
             public_output_dir=str(output_dir) if output_dir is not None else None,
+            resume_local=resume_local,
         )
         scraped_data = _collected.scraped_data
         pages_scraped = _collected.pages_scraped
@@ -2646,6 +2636,11 @@ def perform_research(
 
         platforms = DEFAULT_PLATFORM_FALLBACK
     platform_selection_source = "explicit" if explicit_platforms else "default_agnostic"
+    existing_state = _load_run_state(folder_path)
+    if output_dir is None and resume_local and isinstance(existing_state, dict):
+        recorded_output = existing_state.get("output_dir")
+        if isinstance(recorded_output, str) and recorded_output.strip():
+            output_dir = recorded_output
     run_output_dir = Path(output_dir) if output_dir is not None else Path(OUTPUT_DIR)
     run_output_dir.mkdir(parents=True, exist_ok=True)
     diagnostics_dir: Path | None = None
@@ -2654,7 +2649,6 @@ def perform_research(
         diagnostics_dir = Path(folder_path) / "_diagnostics"
         diagnostics_dir.mkdir(parents=True, exist_ok=True)
         write_public_txt = False
-    existing_state = _load_run_state(folder_path)
     resume_state = existing_state if resume_local else None
     platforms, platform_selection_source = restore_strategy_platforms(
         tuple(platforms), platform_selection_source, explicit_platforms, resume_state
